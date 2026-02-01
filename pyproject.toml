@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "pybaseball>=2.2.7",
     "python-configuration[toml,yaml]>=0.12.1",
+    "typer>=0.15.0",
     "yahoo-fantasy-api>=2.12.2",
 ]
 
