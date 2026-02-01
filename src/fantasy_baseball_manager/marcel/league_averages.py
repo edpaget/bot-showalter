@@ -56,17 +56,18 @@ def compute_pitching_league_rates(
 
 def rebaseline(
     projected_rates: dict[str, float],
+    source_rates: dict[str, float],
     target_rates: dict[str, float],
 ) -> dict[str, float]:
-    """Scale projected rates so league totals match target rates.
+    """Scale projected rates to match the target league environment.
 
-    For each stat, multiplies the projected rate by (target / projected)
-    so the aggregate matches the target league environment.
+    Adjusts each player's rate by the ratio of the target year's league
+    rate to the source (averaged) league rate used during regression.
     """
     result: dict[str, float] = {}
     for stat, proj_rate in projected_rates.items():
-        if proj_rate == 0.0:
-            result[stat] = 0.0
+        if source_rates[stat] == 0.0:
+            result[stat] = proj_rate
         else:
-            result[stat] = proj_rate * (target_rates[stat] / proj_rate)
+            result[stat] = proj_rate * (target_rates[stat] / source_rates[stat])
     return result

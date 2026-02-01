@@ -182,23 +182,12 @@ class TestProjectBatters:
           den = 5*600 + 4*550 + 3*500 + 1200 = 3000+2200+1500+1200 = 7900
           rate = 299/7900 = 0.037848...
 
-        Rebaseline: since all players have same rate, target = league rate
-        for single player, rebaseline scales by (league_rate / avg_projected_rate).
-        With one player, avg_projected_rate = 0.037848, target = 0.03333
-        rebaselined = 0.037848 * (0.03333/0.037848) = 0.03333
-
-        Actually wait — the rebaseline adjusts the INDIVIDUAL's rate by the ratio
-        of target-to-aggregate. With one player the aggregate IS this player's rate.
-        So rebaselined_rate = 0.037848 * (0.03333 / 0.037848) = 0.03333
-
-        No — re-reading the plan: rebaseline just scales rates so league totals
-        match the most recent year. With one player = the whole league, the
-        individual rate gets scaled to the target rate.
-
-        Let me just verify that the projected HR count is reasonable.
+        Rebaseline: source and target league rates are both 0.03333 (same
+        league data for all 3 years), so rebaseline is identity => 0.037848
 
         Age adj: age 29 => multiplier = 1.0
         PA = 0.5*600 + 0.1*550 + 200 = 555
+        HR = 0.037848 * 555 = 21.006
         """
         player_y1 = _make_player(year=2024, age=28, pa=600, hr=25)
         player_y2 = _make_player(year=2023, age=27, pa=550, hr=20)
@@ -219,9 +208,8 @@ class TestProjectBatters:
         )
         proj = project_batters(ds, 2025)[0]
         assert proj.pa == pytest.approx(555.0)
-        # The projected HR should be positive and reasonable
-        assert proj.hr > 10
-        assert proj.hr < 40
+        # 299/7900 * 555 = 21.006
+        assert proj.hr == pytest.approx(21.0, abs=0.1)
 
     def test_multiple_players(self) -> None:
         """Two players should both get projections."""

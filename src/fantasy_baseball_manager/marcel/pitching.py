@@ -78,7 +78,7 @@ def project_pitchers(
                 regression_pa=REGRESSION_OUTS,
             )
 
-        rates = rebaseline(raw_rates, target_rates)
+        rates = rebaseline(raw_rates, avg_league_rates, target_rates)
 
         # Age adjustment
         mult = age_multiplier(projection_age)

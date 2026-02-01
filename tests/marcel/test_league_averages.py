@@ -130,30 +130,35 @@ class TestComputePitchingLeagueRates:
 
 
 class TestRebaseline:
-    def test_identity_when_rates_equal(self) -> None:
-        # If projected rates equal target rates, no change
-        projected = {"hr": 0.035, "bb": 0.08}
+    def test_identity_when_source_equals_target(self) -> None:
+        # If source and target league rates are the same, player rate unchanged
+        projected = {"hr": 0.05, "bb": 0.10}
+        source = {"hr": 0.035, "bb": 0.08}
         target = {"hr": 0.035, "bb": 0.08}
-        result = rebaseline(projected, target)
-        assert result["hr"] == pytest.approx(0.035)
-        assert result["bb"] == pytest.approx(0.08)
-
-    def test_scales_rates(self) -> None:
-        # If target rate is double the projected, result should double
-        projected = {"hr": 0.02, "bb": 0.05}
-        target = {"hr": 0.04, "bb": 0.10}
-        result = rebaseline(projected, target)
-        assert result["hr"] == pytest.approx(0.04)
+        result = rebaseline(projected, source, target)
+        assert result["hr"] == pytest.approx(0.05)
         assert result["bb"] == pytest.approx(0.10)
 
-    def test_partial_scaling(self) -> None:
-        projected = {"hr": 0.03}
-        target = {"hr": 0.045}
-        result = rebaseline(projected, target)
-        assert result["hr"] == pytest.approx(0.045)
+    def test_scales_by_league_ratio(self) -> None:
+        # If target league rate is double the source, player rate doubles
+        projected = {"hr": 0.05, "bb": 0.10}
+        source = {"hr": 0.02, "bb": 0.05}
+        target = {"hr": 0.04, "bb": 0.10}
+        result = rebaseline(projected, source, target)
+        assert result["hr"] == pytest.approx(0.10)
+        assert result["bb"] == pytest.approx(0.20)
 
-    def test_zero_projected_rate_stays_zero(self) -> None:
-        projected = {"hr": 0.0}
+    def test_partial_scaling(self) -> None:
+        # Target HR rate is 1.5x source, player rate scales by 1.5x
+        projected = {"hr": 0.06}
+        source = {"hr": 0.03}
+        target = {"hr": 0.045}
+        result = rebaseline(projected, source, target)
+        assert result["hr"] == pytest.approx(0.09)
+
+    def test_zero_source_rate_preserves_player_rate(self) -> None:
+        projected = {"hr": 0.05}
+        source = {"hr": 0.0}
         target = {"hr": 0.04}
-        result = rebaseline(projected, target)
-        assert result["hr"] == pytest.approx(0.0)
+        result = rebaseline(projected, source, target)
+        assert result["hr"] == pytest.approx(0.05)

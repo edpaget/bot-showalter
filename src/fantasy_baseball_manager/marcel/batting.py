@@ -74,7 +74,7 @@ def project_batters(
             )
 
         # Rebaseline to most recent year's league environment
-        rates = rebaseline(raw_rates, target_rates)
+        rates = rebaseline(raw_rates, avg_league_rates, target_rates)
 
         # Age adjustment
         mult = age_multiplier(projection_age)
