@@ -1,0 +1,13 @@
+# Fantasy Baseball Manager configuration
+# Copy this file to config.yaml and fill in your values.
+# Environment variables (FANTASY__<SECTION>__<KEY>) override these settings.
+
+yahoo:
+  client_id: ""
+  client_secret: ""
+  token_file: "oauth2.json"
+
+league:
+  id: ""
+  game_code: "mlb"
+  season: 2025
