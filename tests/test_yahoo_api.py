@@ -27,9 +27,7 @@ def _make_config() -> Any:
 
 def test_client_accepts_config() -> None:
     cfg = _make_config()
-    client = YahooFantasyClient(
-        cfg, oauth_factory=MagicMock(), game_factory=MagicMock()
-    )
+    client = YahooFantasyClient(cfg, oauth_factory=MagicMock(), game_factory=MagicMock())
     # Construction should have no side effects — factories not called yet
     client._oauth_factory.assert_not_called()  # type: ignore[union-attr]
     client._game_factory.assert_not_called()  # type: ignore[union-attr]
@@ -45,9 +43,7 @@ def test_oauth_created_lazily() -> None:
     mock_oauth_factory.assert_not_called()
 
     _ = client.oauth
-    mock_oauth_factory.assert_called_once_with(
-        "test_id", "test_secret", store_file="token.json"
-    )
+    mock_oauth_factory.assert_called_once_with("test_id", "test_secret", store_file="token.json")
 
     # Second access returns cached instance, no second call
     _ = client.oauth

@@ -26,11 +26,7 @@ def test_create_config_returns_defaults() -> None:
 def test_yaml_overrides_defaults(tmp_path: Path) -> None:
     yaml_file = tmp_path / "config.yaml"
     yaml_file.write_text(
-        "yahoo:\n"
-        "  client_id: yaml_id\n"
-        "  client_secret: yaml_secret\n"
-        "league:\n"
-        "  season: 2026\n"
+        "yahoo:\n" "  client_id: yaml_id\n" "  client_secret: yaml_secret\n" "league:\n" "  season: 2026\n"
     )
     cfg = create_config(yaml_path=str(yaml_file))
     assert cfg["yahoo.client_id"] == "yaml_id"
