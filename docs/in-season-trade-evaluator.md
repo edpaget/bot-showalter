@@ -49,6 +49,20 @@ New `teams trade-eval` command. Consumes ROS projections, your roster, and the p
    - "Trade improves your team by +1.2 expected category wins per week"
    - Category breakdown: "+SB, +R, -HR, neutral K"
 
+## Scoring Format Considerations
+
+The scoring format significantly affects trade strategy and how the evaluator should frame its recommendations:
+
+**H2H Each Category:** Every category counts. Trading away your best source of saves costs you a loss in saves most weeks, regardless of what you gain elsewhere. Punt strategies are expensive because you pay the cost in every matchup. The evaluator should weight all categories roughly equally and warn when a trade creates a new category weakness.
+
+**H2H Most Categories (winner-take-all):** Punt strategies are viable and often optimal. You only need to win the majority of categories (e.g., 6 of 10), so deliberately sacrificing 2-3 categories to dominate the others is a valid approach. The evaluator should:
+
+- **Assess punt viability:** If the trade punts a category, show the impact on `P(win matchup)` rather than just category win count. Losing saves but gaining HR, RBI, and SB might increase your matchup win rate even though you lose a category.
+- **Model category concentration:** In winner-take-all, a team that wins 8 categories 60% of the time is worse than a team that wins 6 categories 80% of the time. The evaluator should favor trades that create reliable wins in a majority of categories over trades that spread value thinly.
+- **Flag format-dependent recommendations:** A trade might be bad in each-category but good in most-categories (or vice versa). The evaluator should show the assessment under both formats when they disagree.
+
+The implementation should accept a `--format each-category|most-categories` flag and adjust the "expected category wins" output to either a sum of win probabilities or a matchup win probability accordingly.
+
 ## Open Questions
 
 - Should the evaluator suggest counter-offers (e.g., "if you swap Player B for Player E, the trade becomes more balanced")?

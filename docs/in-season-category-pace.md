@@ -44,6 +44,23 @@ New `teams category-pace` command under the `teams` CLI group. Consumes league-w
    - Categories where you're dominant and could trade from strength ("sell HR")
 6. Output: ranked category table with current/projected standings, gaps, and recommendations
 
+## Scoring Format Considerations
+
+The strategic recommendations differ substantially between formats:
+
+**H2H Each Category:** Every category standing matters because each one independently generates wins and losses each week. The recommendations should treat all categories with roughly equal urgency. Being last in saves costs you a loss almost every week — there's no hiding from it.
+
+- "Buy" threshold: any category where you're in the bottom third and a realistic move could gain a rank
+- "Punt" threshold: almost never advisable — only if you're so far behind that catching up is impossible AND the resources freed up would flip multiple other categories
+- "Sell" threshold: categories where you're top-2 and the gap to 3rd is large enough to absorb a downgrade
+
+**H2H Most Categories (winner-take-all):** You need to be competitive in a majority of categories, and the rest can be sacrificed. The recommendations should focus on building a reliable winning portfolio:
+
+- **Identify your "core six" (or whatever the majority is):** The categories where you're strongest and most likely to win consistently. Invest in these.
+- **Punt recommendations are viable:** If you're bottom-3 in two categories with no realistic path to the middle, explicitly recommend punting and reallocating those resources. Show the projected matchup win rate with and without the punt.
+- **Sell aggressively from surplus:** In each-category, being #1 vs. #3 in HR matters (it's the difference between winning 90% vs. 70% of the time). In most-categories, that distinction barely matters — sell HR surplus to shore up a borderline category that could flip matchup outcomes.
+- **Gap analysis at the majority threshold:** The most important insight is which categories sit at positions 5-7 (near the majority cutoff). Small improvements here swing entire matchups.
+
 ## Open Questions
 
 - How to compute season-to-date team totals efficiently? Yahoo matchup results vs. aggregating player stats?

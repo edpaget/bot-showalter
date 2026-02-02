@@ -41,6 +41,20 @@ New `matchup` command under the `teams` CLI group. Consumes ROS projections (or 
 8. Output: table showing projected values, difference, and win probability per category
 9. Suggest optimization moves: which bench players could swing a toss-up category
 
+## Scoring Format Considerations
+
+The matchup analyzer's objective function changes depending on the H2H scoring format:
+
+**H2H Each Category (e.g., 6-4 weekly record):** Each category is an independent win/loss. The objective is to maximize `sum(P(win category_i))` — every category flip is equally valuable. The "likely win / toss-up / likely loss" classification directly maps to expected record.
+
+**H2H Most Categories (winner-take-all):** Only the overall matchup result matters (1-0 or 0-1). The objective becomes maximizing `P(win majority of categories)`, which is a joint probability over correlated category outcomes. This changes the analysis in important ways:
+
+- **Correlation matters:** Batting categories (HR, R, RBI) are positively correlated — winning one makes winning others more likely. The tool should model category covariance, not treat them as independent.
+- **Variance strategy:** When you're the projected favorite (e.g., 7-3 in categories), you want to reduce variance to lock in the win. When you're the underdog (e.g., 4-6), you want to increase variance to create upset potential. The analyzer should flag this and adjust recommendations accordingly.
+- **Diminishing returns:** Once you're projected to win 6+ categories, improving a 7th has minimal value. The tool should highlight the categories on the margin of flipping the matchup outcome rather than treating all toss-ups equally.
+
+The implementation should accept a `--format each-category|most-categories` flag (defaulting to league settings) and switch the scoring model accordingly.
+
 ## Open Questions
 
 - How to source probable pitcher schedules reliably? Options: MLB Stats API, FanGraphs, manual entry.

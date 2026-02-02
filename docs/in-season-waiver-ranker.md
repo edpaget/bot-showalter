@@ -49,6 +49,18 @@ New `players waiver-rank` command. Consumes your team's roster projections, the 
 - Score each streamer: `value = projected_K * k_need + projected_W * w_need - projected_ER * era_penalty`
 - Weight by matchup quality: opponent team wRC+ and park factor (existing park factor infrastructure)
 
+## Scoring Format Considerations
+
+**H2H Each Category:** Marginal value is straightforward — each category win gained is worth the same. A free agent who improves your SB from a loss to a win is worth the same as one who improves your K from a loss to a win. The ranker scores pickups by `delta(sum(P(win category_i)))`.
+
+**H2H Most Categories (winner-take-all):** Marginal value depends on your team's category profile:
+
+- **If you're competitive in 6+ categories already:** Pickups that shore up your weakest competitive category (preventing a flip from win to loss) are more valuable than pickups that add a 7th or 8th winning category. Defensive pickups dominate.
+- **If you're competitive in only 4-5 categories:** Pickups that could flip a category from loss to win are extremely valuable — they swing entire matchups. Aggressive, high-upside pickups dominate.
+- **Punt-compatible pickups:** In winner-take-all, if you're deliberately punting 2-3 categories, the ranker should not value free agents by their contribution to punted categories. A saves-only reliever has zero marginal value to a team punting saves, even if his raw z-score is high.
+
+The ranker should score pickups by `delta(P(win majority))` rather than `delta(sum(P(win)))` when in most-categories mode. This naturally handles the non-linear value of category wins near the majority threshold.
+
 ## Open Questions
 
 - How to handle FAAB budgeting suggestions? Should the tool recommend bid amounts based on marginal value?

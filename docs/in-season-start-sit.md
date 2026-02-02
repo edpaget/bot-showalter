@@ -43,6 +43,20 @@ New `lineup optimize` command under the `teams` CLI group. Depends on the matchu
 7. Display: recommended starters, bench players, and the marginal impact of each start/sit decision
    - "Starting X over Y in UTIL: +4% chance of winning SB, -1% chance of winning HR"
 
+## Scoring Format Considerations
+
+The optimizer's objective function differs fundamentally between H2H formats:
+
+**H2H Each Category:** The lineup score is `sum(P(win category_i))`. Every marginal category win probability improvement is equally valuable. A move that gains +3% in SB and loses -2% in HR is net positive (+1% expected category wins).
+
+**H2H Most Categories (winner-take-all):** The lineup score is `P(win majority of categories)`. This creates non-linear incentives:
+
+- **When favored (projected 6-4 or better):** Optimize for safety. Prefer consistent, low-variance players. Avoid risky starts that could blow up a ratio category and flip the matchup. The optimizer should penalize high-variance options even if their expected value is slightly higher.
+- **When underdog (projected 4-6 or worse):** Optimize for upside. Prefer volatile players who could have a big week. Start the streaky power hitter over the steady contact guy. Stream aggressive pitchers. The optimizer should reward variance because you need things to break your way.
+- **When even (projected 5-5):** Every category flip matters equally, similar to each-category mode but with extra weight on correlated categories that could swing together.
+
+The optimizer should compute `P(win matchup)` for each candidate lineup using Monte Carlo simulation or a multivariate normal model over category outcomes, rather than simply summing independent win probabilities.
+
 ## Open Questions
 
 - How to handle daily lineup leagues vs. weekly lock leagues? Daily leagues need rolling re-optimization.
