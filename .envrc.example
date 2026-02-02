@@ -1,0 +1,12 @@
+# Yahoo Fantasy API OAuth credentials
+# Obtain these from https://developer.yahoo.com/apps/
+export FANTASY__YAHOO__CLIENT_ID=""
+export FANTASY__YAHOO__CLIENT_SECRET=""
+
+# Path to store OAuth2 token (default: oauth2.json)
+# export FANTASY__YAHOO__TOKEN_FILE="oauth2.json"
+
+# Yahoo Fantasy league settings
+export FANTASY__LEAGUE__ID=""
+# export FANTASY__LEAGUE__GAME_CODE="mlb"
+# export FANTASY__LEAGUE__SEASON="2025"
