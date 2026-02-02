@@ -1,69 +1,141 @@
-import math
 from unittest.mock import patch
 
-import pandas as pd
+from fantasy_baseball_manager.player_id.mapper import (
+    SfbbMapper,
+    _parse_sfbb_csv,
+    build_cached_sfbb_mapper,
+    build_sfbb_mapper,
+)
 
-from fantasy_baseball_manager.player_id.mapper import ChadwickMapper
+SAMPLE_CSV = (
+    "IDPLAYER,PLAYERNAME,YAHOOID,IDFANGRAPHS,OTHERFIELD\n"
+    "1,Mike Trout,10155,19054,xyz\n"
+    "2,Shohei Ohtani,12167,19755,abc\n"
+    "3,No Yahoo,,99999,def\n"
+    "4,No FanGraphs,55555,,ghi\n"
+)
 
 
-def _make_register(rows: list[dict[str, object]]) -> pd.DataFrame:
-    return pd.DataFrame(rows)
+class TestSfbbMapper:
+    def test_basic_lookup(self) -> None:
+        mapper = SfbbMapper({"10155": "19054"}, {"19054": "10155"})
+        assert mapper.yahoo_to_fangraphs("10155") == "19054"
+        assert mapper.fangraphs_to_yahoo("19054") == "10155"
+
+    def test_unknown_id_returns_none(self) -> None:
+        mapper = SfbbMapper({"10155": "19054"}, {"19054": "10155"})
+        assert mapper.yahoo_to_fangraphs("99999") is None
+        assert mapper.fangraphs_to_yahoo("99999") is None
+
+    def test_bidirectional(self) -> None:
+        y2fg = {"y1": "fg1", "y2": "fg2"}
+        fg2y = {"fg1": "y1", "fg2": "y2"}
+        mapper = SfbbMapper(y2fg, fg2y)
+        assert mapper.yahoo_to_fangraphs("y1") == "fg1"
+        assert mapper.yahoo_to_fangraphs("y2") == "fg2"
+        assert mapper.fangraphs_to_yahoo("fg1") == "y1"
+        assert mapper.fangraphs_to_yahoo("fg2") == "y2"
+
+    def test_empty_dicts(self) -> None:
+        mapper = SfbbMapper({}, {})
+        assert mapper.yahoo_to_fangraphs("y1") is None
+        assert mapper.fangraphs_to_yahoo("fg1") is None
+
+    def test_map_properties(self) -> None:
+        y2fg = {"y1": "fg1", "y2": "fg2"}
+        fg2y = {"fg1": "y1", "fg2": "y2"}
+        mapper = SfbbMapper(y2fg, fg2y)
+        assert mapper.yahoo_to_fg_map == {"y1": "fg1", "y2": "fg2"}
+        assert mapper.fg_to_yahoo_map == {"fg1": "y1", "fg2": "y2"}
+
+    def test_map_properties_return_copies(self) -> None:
+        mapper = SfbbMapper({"y1": "fg1"}, {"fg1": "y1"})
+        mapper.yahoo_to_fg_map["y2"] = "fg2"
+        assert mapper.yahoo_to_fangraphs("y2") is None
 
 
-class TestChadwickMapper:
-    def _build(self, rows: list[dict[str, object]]) -> ChadwickMapper:
-        with patch("fantasy_baseball_manager.player_id.mapper.pybaseball") as mock_pb:
-            mock_pb.chadwick_register.return_value = _make_register(rows)
-            return ChadwickMapper()
+class TestParseSfbbCsv:
+    def test_parses_valid_rows(self) -> None:
+        mapper = _parse_sfbb_csv(SAMPLE_CSV)
+        assert mapper.yahoo_to_fangraphs("10155") == "19054"
+        assert mapper.yahoo_to_fangraphs("12167") == "19755"
+        assert mapper.fangraphs_to_yahoo("19054") == "10155"
+        assert mapper.fangraphs_to_yahoo("19755") == "12167"
 
-    def test_yahoo_to_fangraphs_known_id(self) -> None:
-        mapper = self._build([{"key_yahoo": 1234.0, "key_fangraphs": 5678.0}])
-        assert mapper.yahoo_to_fangraphs("1234") == "5678"
+    def test_skips_rows_missing_yahoo_id(self) -> None:
+        mapper = _parse_sfbb_csv(SAMPLE_CSV)
+        assert mapper.fangraphs_to_yahoo("99999") is None
 
-    def test_fangraphs_to_yahoo_known_id(self) -> None:
-        mapper = self._build([{"key_yahoo": 1234.0, "key_fangraphs": 5678.0}])
-        assert mapper.fangraphs_to_yahoo("5678") == "1234"
+    def test_skips_rows_missing_fangraphs_id(self) -> None:
+        mapper = _parse_sfbb_csv(SAMPLE_CSV)
+        assert mapper.yahoo_to_fangraphs("55555") is None
 
-    def test_unknown_yahoo_id_returns_none(self) -> None:
-        mapper = self._build([{"key_yahoo": 1234.0, "key_fangraphs": 5678.0}])
-        assert mapper.yahoo_to_fangraphs("9999") is None
+    def test_empty_csv(self) -> None:
+        mapper = _parse_sfbb_csv("YAHOOID,IDFANGRAPHS\n")
+        assert mapper.yahoo_to_fg_map == {}
 
-    def test_unknown_fangraphs_id_returns_none(self) -> None:
-        mapper = self._build([{"key_yahoo": 1234.0, "key_fangraphs": 5678.0}])
-        assert mapper.fangraphs_to_yahoo("9999") is None
 
-    def test_nan_yahoo_id_skipped(self) -> None:
-        mapper = self._build([{"key_yahoo": math.nan, "key_fangraphs": 5678.0}])
-        assert mapper.fangraphs_to_yahoo("5678") is None
+class TestBuildSfbbMapper:
+    @patch("fantasy_baseball_manager.player_id.mapper._download_sfbb_csv")
+    def test_downloads_and_parses(self, mock_download: object) -> None:
+        mock_download.return_value = SAMPLE_CSV  # type: ignore[union-attr]
+        mapper = build_sfbb_mapper("http://fake-url")
+        assert mapper.yahoo_to_fangraphs("10155") == "19054"
+        mock_download.assert_called_once_with("http://fake-url")  # type: ignore[union-attr]
 
-    def test_nan_fangraphs_id_skipped(self) -> None:
-        mapper = self._build([{"key_yahoo": 1234.0, "key_fangraphs": math.nan}])
-        assert mapper.yahoo_to_fangraphs("1234") is None
 
-    def test_multiple_players(self) -> None:
-        mapper = self._build(
-            [
-                {"key_yahoo": 100.0, "key_fangraphs": 200.0},
-                {"key_yahoo": 300.0, "key_fangraphs": 400.0},
-            ]
-        )
-        assert mapper.yahoo_to_fangraphs("100") == "200"
-        assert mapper.yahoo_to_fangraphs("300") == "400"
-        assert mapper.fangraphs_to_yahoo("200") == "100"
-        assert mapper.fangraphs_to_yahoo("400") == "300"
+class FakeCacheStore:
+    def __init__(self) -> None:
+        self._data: dict[tuple[str, str], str] = {}
 
-    def test_ids_stored_as_strings(self) -> None:
-        mapper = self._build([{"key_yahoo": 1234.0, "key_fangraphs": 5678.0}])
-        # Float IDs should be converted to int strings, not "1234.0"
-        assert mapper.yahoo_to_fangraphs("1234") == "5678"
-        assert mapper.yahoo_to_fangraphs("1234.0") is None
+    def get(self, namespace: str, key: str) -> str | None:
+        return self._data.get((namespace, key))
 
-    def test_string_ids_preserved(self) -> None:
-        mapper = self._build([{"key_yahoo": "sa1234", "key_fangraphs": "sa5678"}])
-        assert mapper.yahoo_to_fangraphs("sa1234") == "sa5678"
-        assert mapper.fangraphs_to_yahoo("sa5678") == "sa1234"
+    def put(self, namespace: str, key: str, value: str, ttl_seconds: int) -> None:
+        self._data[(namespace, key)] = value
 
-    def test_empty_register(self) -> None:
-        mapper = self._build([])
-        assert mapper.yahoo_to_fangraphs("1234") is None
-        assert mapper.fangraphs_to_yahoo("5678") is None
+    def invalidate(self, namespace: str, key: str | None = None) -> None:
+        if key is not None:
+            self._data.pop((namespace, key), None)
+        else:
+            to_remove = [k for k in self._data if k[0] == namespace]
+            for k in to_remove:
+                del self._data[k]
+
+
+class TestBuildCachedSfbbMapper:
+    @patch("fantasy_baseball_manager.player_id.mapper._download_sfbb_csv")
+    def test_cache_miss_downloads_and_stores(self, mock_download: object) -> None:
+        mock_download.return_value = SAMPLE_CSV  # type: ignore[union-attr]
+        cache = FakeCacheStore()
+        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
+
+        assert mapper.yahoo_to_fangraphs("10155") == "19054"
+        assert cache.get("sfbb_csv", "test_key") is not None
+        mock_download.assert_called_once_with("http://fake")  # type: ignore[union-attr]
+
+    @patch("fantasy_baseball_manager.player_id.mapper._download_sfbb_csv")
+    def test_cache_hit_skips_download(self, mock_download: object) -> None:
+        cache = FakeCacheStore()
+        cache.put("sfbb_csv", "test_key", SAMPLE_CSV, 3600)
+
+        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
+
+        assert mapper.yahoo_to_fangraphs("10155") == "19054"
+        mock_download.assert_not_called()  # type: ignore[union-attr]
+
+    @patch("fantasy_baseball_manager.player_id.mapper._download_sfbb_csv")
+    def test_cache_expiry_redownloads(self, mock_download: object) -> None:
+        mock_download.return_value = SAMPLE_CSV  # type: ignore[union-attr]
+        cache = FakeCacheStore()
+
+        # First call populates cache
+        build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
+
+        # Simulate expiry
+        cache.invalidate("sfbb_csv", "test_key")
+
+        # Second call should re-download
+        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
+        assert mapper.yahoo_to_fangraphs("10155") == "19054"
+        assert mock_download.call_count == 2  # type: ignore[union-attr]

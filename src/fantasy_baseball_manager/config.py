@@ -24,6 +24,7 @@ _DEFAULTS: dict[str, object] = {
         "db_path": "~/.config/fbm/cache.db",
         "positions_ttl": 86400,
         "rosters_ttl": 3600,
+        "id_mappings_ttl": 604800,
     },
 }
 

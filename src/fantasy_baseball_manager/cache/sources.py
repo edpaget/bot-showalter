@@ -64,6 +64,7 @@ class CachedRosterSource:
         return result
 
 
+
 def _serialize_positions(positions: dict[str, tuple[str, ...]]) -> str:
     return json.dumps({pid: list(pos) for pid, pos in positions.items()})
 

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import csv
+import logging
 from typing import TYPE_CHECKING, Protocol
 
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -90,6 +93,9 @@ class YahooPositionSource:
         seen: set[str] = set()
         positions: dict[str, tuple[str, ...]] = {}
 
+        unmapped_count = 0
+        mapped_count = 0
+
         for player in players:
             yahoo_id = str(player["player_id"])
             if yahoo_id in seen:
@@ -98,8 +104,15 @@ class YahooPositionSource:
 
             fg_id = self._id_mapper.yahoo_to_fangraphs(yahoo_id)
             if fg_id is None:
+                unmapped_count += 1
+                logger.debug(
+                    "No FanGraphs ID for %s (yahoo_id=%s)",
+                    player.get("name", "?"),
+                    yahoo_id,
+                )
                 continue
 
+            mapped_count += 1
             raw_positions = [
                 str(p)
                 for p in player.get("eligible_positions", ())  # type: ignore[union-attr]
@@ -108,4 +121,10 @@ class YahooPositionSource:
             normalized = tuple(dict.fromkeys(normalize_position(p) for p in raw_positions))
             positions[fg_id] = normalized
 
+        logger.debug(
+            "Yahoo positions: %d mapped, %d unmapped, %d total positions",
+            mapped_count,
+            unmapped_count,
+            len(positions),
+        )
         return positions

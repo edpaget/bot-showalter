@@ -1,3 +1,5 @@
+import logging
+
 from fantasy_baseball_manager.league.models import (
     LeagueRosters,
     PlayerMatchResult,
@@ -5,6 +7,8 @@ from fantasy_baseball_manager.league.models import (
 )
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+
+logger = logging.getLogger(__name__)
 
 
 def match_projections(
@@ -15,6 +19,19 @@ def match_projections(
 ) -> list[TeamProjection]:
     batting_by_fg: dict[str, BattingProjection] = {p.player_id: p for p in batting_projections}
     pitching_by_fg: dict[str, PitchingProjection] = {p.player_id: p for p in pitching_projections}
+
+    logger.debug(
+        "Matching projections: %d batting, %d pitching, %d teams",
+        len(batting_by_fg),
+        len(pitching_by_fg),
+        len(rosters.teams),
+    )
+    if batting_by_fg:
+        sample_ids = list(batting_by_fg.keys())[:3]
+        logger.debug("Sample batting projection IDs: %s", sample_ids)
+    if pitching_by_fg:
+        sample_ids = list(pitching_by_fg.keys())[:3]
+        logger.debug("Sample pitching projection IDs: %s", sample_ids)
 
     team_projections: list[TeamProjection] = []
 
@@ -44,9 +61,23 @@ def match_projections(
             pitching_proj: PitchingProjection | None = None
             matched = False
 
-            if fg_id is not None:
+            if fg_id is None:
+                logger.debug(
+                    "No FanGraphs ID for %s (yahoo_id=%s)",
+                    roster_player.name,
+                    roster_player.yahoo_id,
+                )
+            elif fg_id is not None:
                 if roster_player.position_type == "B":
                     batting_proj = batting_by_fg.get(fg_id)
+                    if batting_proj is None:
+                        logger.debug(
+                            "FanGraphs ID %s for %s (yahoo_id=%s) not found in %d batting projections",
+                            fg_id,
+                            roster_player.name,
+                            roster_player.yahoo_id,
+                            len(batting_by_fg),
+                        )
                     if batting_proj is not None:
                         matched = True
                         total_hr += batting_proj.hr
@@ -58,6 +89,14 @@ def match_projections(
                         total_hbp += batting_proj.hbp
                 elif roster_player.position_type == "P":
                     pitching_proj = pitching_by_fg.get(fg_id)
+                    if pitching_proj is None:
+                        logger.debug(
+                            "FanGraphs ID %s for %s (yahoo_id=%s) not found in %d pitching projections",
+                            fg_id,
+                            roster_player.name,
+                            roster_player.yahoo_id,
+                            len(pitching_by_fg),
+                        )
                     if pitching_proj is not None:
                         matched = True
                         total_ip += pitching_proj.ip

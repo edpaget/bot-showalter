@@ -153,3 +153,5 @@ class TestCachedRosterSource:
         assert restored.league_key == "mlb.l.12345"
         assert len(restored.teams) == 2
         assert restored.teams[0].players[0].eligible_positions == ("C", "1B")
+
+

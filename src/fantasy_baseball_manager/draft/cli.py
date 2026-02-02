@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path  # noqa: TC003 — used at runtime by typer
 from typing import TYPE_CHECKING, Annotated
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import typer
 import yaml
 
+from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
+from fantasy_baseball_manager.cache.sources import CachedPositionSource
+from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
     DEFAULT_ROSTER_CONFIG,
@@ -20,13 +27,12 @@ from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.marcel.pitching import project_pitchers
+from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
+from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+logger = logging.getLogger(__name__)
 
 _CATEGORY_MAP: dict[str, StatCategory] = {member.value.lower(): member for member in StatCategory}
 
@@ -54,35 +60,33 @@ def set_yahoo_league_factory(factory: Callable[[], object]) -> None:
     _yahoo_league_factory = factory
 
 
-def _get_id_mapper(yahoo_players: dict[str, str], no_cache: bool = False) -> PlayerIdMapper:
+def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
     if _id_mapper_factory is not None:
         return _id_mapper_factory()
-    from fantasy_baseball_manager.player_id.mapper import build_name_mapper_from_chadwick_and_yahoo
-
-    mapper = build_name_mapper_from_chadwick_and_yahoo(yahoo_players)
-    if not no_cache:
-        from fantasy_baseball_manager.cache.sources import CachedIdMapper
-        from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
-        from fantasy_baseball_manager.config import create_config
-
-        config = create_config()
-        db_path = Path(str(config["cache.db_path"])).expanduser()
-        ttl = int(str(config["cache.id_mappings_ttl"]))
-        cache_key = f"{config['league.game_code']}_{config['league.id']}"
-        cache_store = SqliteCacheStore(db_path)
-        return CachedIdMapper(mapper, cache_store, cache_key, ttl)
-    return mapper
+    if no_cache:
+        return build_sfbb_mapper()
+    config = create_config()
+    ttl = int(str(config["cache.id_mappings_ttl"]))
+    cache_store = create_cache_store(config)
+    cache_key = get_cache_key(config)
+    return build_cached_sfbb_mapper(cache_store, cache_key, ttl)
 
 
 def _get_yahoo_league() -> object:
     if _yahoo_league_factory is not None:
         return _yahoo_league_factory()
-    from fantasy_baseball_manager.config import create_config
-    from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
-
     config = create_config()
     client = YahooFantasyClient(config)  # type: ignore[arg-type]
     return client.get_league()
+
+
+def _invalidate_caches() -> None:
+    """Invalidate all cached data so the next cached run fetches fresh."""
+    cache_store = create_cache_store()
+    cache_key = get_cache_key()
+    for ns in ("positions", "sfbb_csv"):
+        cache_store.invalidate(ns, cache_key)
+    logger.debug("Invalidated cached positions and sfbb_csv for key=%s", cache_key)
 
 
 def _load_drafted_file(path: Path) -> set[str]:
@@ -177,27 +181,23 @@ def draft_rank(
         player_positions = load_positions_file(positions_file)
     elif yahoo_positions:
         league = _get_yahoo_league()
-        # Collect Yahoo player names for name-based ID mapping
-        yahoo_players: dict[str, str] = {}
-        all_players: list[dict[str, object]] = list(league.taken_players())  # type: ignore[union-attr]
-        all_players.extend(league.free_agents("B"))  # type: ignore[union-attr]
-        all_players.extend(league.free_agents("P"))  # type: ignore[union-attr]
-        for p in all_players:
-            yahoo_players[str(p["player_id"])] = str(p.get("name", ""))
-        id_mapper = _get_id_mapper(yahoo_players, no_cache=no_cache)
+        id_mapper = _get_id_mapper(no_cache=no_cache)
         source: PositionSource = YahooPositionSource(league, id_mapper)  # type: ignore[arg-type]
         if not no_cache:
-            from fantasy_baseball_manager.cache.sources import CachedPositionSource
-            from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
-            from fantasy_baseball_manager.config import create_config
-
             config = create_config()
-            db_path = Path(str(config["cache.db_path"])).expanduser()
             ttl = int(str(config["cache.positions_ttl"]))
-            cache_key = f"{config['league.game_code']}_{config['league.id']}"
-            cache_store = SqliteCacheStore(db_path)
+            cache_store = create_cache_store(config)
+            cache_key = get_cache_key(config)
             source = CachedPositionSource(source, cache_store, cache_key, ttl)
+        else:
+            _invalidate_caches()
         player_positions = source.fetch_positions()
+
+    logger.debug("Loaded %d player positions", len(player_positions))
+    if player_positions:
+        sample = list(player_positions.items())[:5]
+        for pid, pos in sample:
+            logger.debug("  position sample: %s -> %s", pid, pos)
 
     # Parse category weights
     category_weights: dict[StatCategory, float] = {}
@@ -217,6 +217,9 @@ def draft_rank(
         batting_values = zscore_batting(batting_projections, _DEFAULT_BATTING_CATS)
         all_values.extend(batting_values)
         batting_ids = {p.player_id for p in batting_projections}
+        logger.debug("Batting projections: %d players", len(batting_ids))
+        if batting_ids:
+            logger.debug("  sample batting IDs: %s", list(batting_ids)[:5])
 
     if show_pitching:
         pitching_projections = project_pitchers(data_source, year)
@@ -228,6 +231,9 @@ def draft_rank(
         pitching_values = zscore_pitching(pitching_projections, _DEFAULT_PITCHING_CATS)
         all_values.extend(pitching_values)
         pitching_ids = {p.player_id for p in pitching_projections}
+        logger.debug("Pitching projections: %d players", len(pitching_ids))
+        if pitching_ids:
+            logger.debug("  sample pitching IDs: %s", list(pitching_ids)[:5])
 
     # Build composite-keyed positions dict for DraftState
     _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP"})
@@ -249,6 +255,16 @@ def draft_rank(
             # Player not in projections — assign to both types if present
             composite_positions[(pid, "B")] = positions
             composite_positions[(pid, "P")] = positions
+
+    position_ids_in_batting = {pid for pid, _ in composite_positions if pid in batting_ids}
+    position_ids_in_pitching = {pid for pid, _ in composite_positions if pid in pitching_ids}
+    logger.debug(
+        "Composite positions: %d entries, %d match batting projections, %d match pitching projections",
+        len(composite_positions),
+        len(position_ids_in_batting),
+        len(position_ids_in_pitching),
+    )
+    logger.debug("Total player values: %d", len(all_values))
 
     # Build draft state
     state = DraftState(

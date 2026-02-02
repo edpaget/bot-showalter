@@ -1,10 +1,12 @@
+import logging
 from collections.abc import Callable
 from datetime import datetime
-from pathlib import Path
 from typing import Annotated, cast
 
 import typer
 
+from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
+from fantasy_baseball_manager.cache.sources import CachedRosterSource
 from fantasy_baseball_manager.config import AppConfig, create_config
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.league.models import TeamProjection
@@ -13,8 +15,10 @@ from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSour
 from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.marcel.pitching import project_pitchers
-from fantasy_baseball_manager.player_id.mapper import ChadwickMapper, PlayerIdMapper
+from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
+
+logger = logging.getLogger(__name__)
 
 COMPARE_SORT_FIELDS: dict[str, Callable[[TeamProjection], float]] = {
     "total_hr": lambda t: t.total_hr,
@@ -57,21 +61,23 @@ def _get_roster_source(no_cache: bool = False) -> RosterSource:
     client = YahooFantasyClient(config)
     source: RosterSource = YahooRosterSource(client.get_league())
     if not no_cache:
-        from fantasy_baseball_manager.cache.sources import CachedRosterSource
-        from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
-
-        db_path = Path(str(config["cache.db_path"])).expanduser()
         ttl = int(str(config["cache.rosters_ttl"]))
-        cache_key = f"{config['league.game_code']}_{config['league.id']}"
-        cache_store = SqliteCacheStore(db_path)
+        cache_store = create_cache_store(config)
+        cache_key = get_cache_key(config)
         source = CachedRosterSource(source, cache_store, cache_key, ttl)
     return source
 
 
-def _get_id_mapper() -> PlayerIdMapper:
+def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
     if _id_mapper_factory is not None:
         return _id_mapper_factory()
-    return ChadwickMapper()
+    if no_cache:
+        return build_sfbb_mapper()
+    config = cast("AppConfig", create_config())
+    ttl = int(str(config["cache.id_mappings_ttl"]))
+    cache_store = create_cache_store(config)
+    cache_key = get_cache_key(config)
+    return build_cached_sfbb_mapper(cache_store, cache_key, ttl)
 
 
 def _get_data_source() -> StatsDataSource:
@@ -141,12 +147,24 @@ def format_compare_table(team_projections: list[TeamProjection]) -> str:
     return "\n".join(lines)
 
 
+def _invalidate_caches() -> None:
+    """Invalidate all cached data so the next cached run fetches fresh."""
+    cache_store = create_cache_store()
+    cache_key = get_cache_key()
+    for ns in ("rosters", "sfbb_csv"):
+        cache_store.invalidate(ns, cache_key)
+    logger.debug("Invalidated cached rosters and sfbb_csv for key=%s", cache_key)
+
+
 def _load_team_projections(year: int, no_cache: bool = False) -> list[TeamProjection]:
+    if no_cache:
+        _invalidate_caches()
     roster_source = _get_roster_source(no_cache=no_cache)
-    id_mapper = _get_id_mapper()
     data_source = _get_data_source()
 
     rosters = roster_source.fetch_rosters()
+
+    id_mapper = _get_id_mapper(no_cache=no_cache)
     batting = project_batters(data_source, year)
     pitching = project_pitchers(data_source, year)
 
