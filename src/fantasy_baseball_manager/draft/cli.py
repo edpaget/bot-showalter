@@ -13,7 +13,7 @@ import yaml
 
 from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
 from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
-from fantasy_baseball_manager.config import create_config
+from fantasy_baseball_manager.config import clear_cli_overrides, create_config, set_cli_overrides
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
     DEFAULT_ROSTER_CONFIG,
@@ -115,6 +115,18 @@ def _load_roster_config(path: Path) -> RosterConfig:
     return RosterConfig(slots=tuple(slots))
 
 
+def _apply_cli_overrides(league_id: str | None, season: int | None) -> None:
+    overrides: dict[str, object] = {}
+    if league_id is not None:
+        overrides["league"] = {"id": league_id}
+    if season is not None:
+        league_dict: dict[str, object] = overrides.get("league", {})  # type: ignore[assignment]
+        league_dict["season"] = season
+        overrides["league"] = league_dict
+    if overrides:
+        set_cli_overrides(overrides)
+
+
 def draft_rank(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     roster_config_file: Annotated[Path | None, typer.Option("--roster-config", help="YAML roster slot config.")] = None,
@@ -134,165 +146,171 @@ def draft_rank(
     batting: Annotated[bool, typer.Option("--batting", help="Show only batters.")] = False,
     pitching: Annotated[bool, typer.Option("--pitching", help="Show only pitchers.")] = False,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Produce a ranked draft board from z-score valuations."""
-    validate_engine(engine)
+    _apply_cli_overrides(league_id, season)
+    try:
+        validate_engine(engine)
 
-    if year is None:
-        year = datetime.now().year
+        if year is None:
+            year = datetime.now().year
 
-    show_batting = not pitching or batting
-    show_pitching = not batting or pitching
+        show_batting = not pitching or batting
+        show_pitching = not batting or pitching
 
-    # Load roster config
-    roster_config = _load_roster_config(roster_config_file) if roster_config_file else DEFAULT_ROSTER_CONFIG
+        # Load roster config
+        roster_config = _load_roster_config(roster_config_file) if roster_config_file else DEFAULT_ROSTER_CONFIG
 
-    # Load position data
-    player_positions: dict[str, tuple[str, ...]] = {}
-    yahoo_league: object | None = None
-    yahoo_id_mapper: PlayerIdMapper | None = None
-    if yahoo:
-        yahoo_league = _get_yahoo_league()
-        yahoo_id_mapper = _get_id_mapper(no_cache=no_cache)
+        # Load position data
+        player_positions: dict[str, tuple[str, ...]] = {}
+        yahoo_league: object | None = None
+        yahoo_id_mapper: PlayerIdMapper | None = None
+        if yahoo:
+            yahoo_league = _get_yahoo_league()
+            yahoo_id_mapper = _get_id_mapper(no_cache=no_cache)
 
-    if positions_file:
-        player_positions = load_positions_file(positions_file)
-    elif yahoo and yahoo_league is not None and yahoo_id_mapper is not None:
-        source: PositionSource = YahooPositionSource(yahoo_league, yahoo_id_mapper)  # type: ignore[arg-type]
-        if not no_cache:
-            config = create_config()
-            ttl = int(str(config["cache.positions_ttl"]))
-            cache_store = create_cache_store(config)
-            cache_key = get_cache_key(config)
-            source = CachedPositionSource(source, cache_store, cache_key, ttl)
-        else:
-            _invalidate_caches()
-        player_positions = source.fetch_positions()
+        if positions_file:
+            player_positions = load_positions_file(positions_file)
+        elif yahoo and yahoo_league is not None and yahoo_id_mapper is not None:
+            source: PositionSource = YahooPositionSource(yahoo_league, yahoo_id_mapper)  # type: ignore[arg-type]
+            if not no_cache:
+                config = create_config()
+                ttl = int(str(config["cache.positions_ttl"]))
+                cache_store = create_cache_store(config)
+                cache_key = get_cache_key(config)
+                source = CachedPositionSource(source, cache_store, cache_key, ttl)
+            else:
+                _invalidate_caches()
+            player_positions = source.fetch_positions()
 
-    logger.debug("Loaded %d player positions", len(player_positions))
-    if player_positions:
-        sample = list(player_positions.items())[:5]
-        for pid, pos in sample:
-            logger.debug("  position sample: %s -> %s", pid, pos)
+        logger.debug("Loaded %d player positions", len(player_positions))
+        if player_positions:
+            sample = list(player_positions.items())[:5]
+            for pid, pos in sample:
+                logger.debug("  position sample: %s -> %s", pid, pos)
 
-    # Parse category weights
-    category_weights: dict[StatCategory, float] = {}
-    if weight:
-        for w in weight:
-            cat, val = _parse_weight(w)
-            category_weights[cat] = val
+        # Parse category weights
+        category_weights: dict[StatCategory, float] = {}
+        if weight:
+            for w in weight:
+                cat, val = _parse_weight(w)
+                category_weights[cat] = val
 
-    # Generate projections and valuations
-    data_source = _data_source_factory()
-    pipeline = PIPELINES[engine]()
-    all_values: list[PlayerValue] = []
-    batting_ids: set[str] = set()
-    pitching_ids: set[str] = set()
+        # Generate projections and valuations
+        data_source = _data_source_factory()
+        pipeline = PIPELINES[engine]()
+        all_values: list[PlayerValue] = []
+        batting_ids: set[str] = set()
+        pitching_ids: set[str] = set()
 
-    if show_batting:
-        batting_projections = pipeline.project_batters(data_source, year)
-        batting_values = zscore_batting(batting_projections, _DEFAULT_BATTING_CATS)
-        all_values.extend(batting_values)
-        batting_ids = {p.player_id for p in batting_projections}
-        logger.debug("Batting projections: %d players", len(batting_ids))
-        if batting_ids:
-            logger.debug("  sample batting IDs: %s", list(batting_ids)[:5])
+        if show_batting:
+            batting_projections = pipeline.project_batters(data_source, year)
+            batting_values = zscore_batting(batting_projections, _DEFAULT_BATTING_CATS)
+            all_values.extend(batting_values)
+            batting_ids = {p.player_id for p in batting_projections}
+            logger.debug("Batting projections: %d players", len(batting_ids))
+            if batting_ids:
+                logger.debug("  sample batting IDs: %s", list(batting_ids)[:5])
 
-    if show_pitching:
-        pitching_projections = pipeline.project_pitchers(data_source, year)
-        # Infer pitcher positions (into the plain player_positions dict)
-        for proj in pitching_projections:
-            if proj.player_id not in player_positions:
-                role = infer_pitcher_role(proj)
-                player_positions[proj.player_id] = (role,)
-        pitching_values = zscore_pitching(pitching_projections, _DEFAULT_PITCHING_CATS)
-        all_values.extend(pitching_values)
-        pitching_ids = {p.player_id for p in pitching_projections}
-        logger.debug("Pitching projections: %d players", len(pitching_ids))
-        if pitching_ids:
-            logger.debug("  sample pitching IDs: %s", list(pitching_ids)[:5])
+        if show_pitching:
+            pitching_projections = pipeline.project_pitchers(data_source, year)
+            # Infer pitcher positions (into the plain player_positions dict)
+            for proj in pitching_projections:
+                if proj.player_id not in player_positions:
+                    role = infer_pitcher_role(proj)
+                    player_positions[proj.player_id] = (role,)
+            pitching_values = zscore_pitching(pitching_projections, _DEFAULT_PITCHING_CATS)
+            all_values.extend(pitching_values)
+            pitching_ids = {p.player_id for p in pitching_projections}
+            logger.debug("Pitching projections: %d players", len(pitching_ids))
+            if pitching_ids:
+                logger.debug("  sample pitching IDs: %s", list(pitching_ids)[:5])
 
-    # Build composite-keyed positions dict for DraftState
-    _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP"})
-    two_way_ids = batting_ids & pitching_ids
-    composite_positions: dict[tuple[str, str], tuple[str, ...]] = {}
-    for pid, positions in player_positions.items():
-        if pid in two_way_ids:
-            batting_pos = tuple(p for p in positions if p not in _PITCHER_POSITIONS)
-            pitching_pos = tuple(p for p in positions if p in _PITCHER_POSITIONS)
-            if batting_pos:
-                composite_positions[(pid, "B")] = batting_pos
-            if pitching_pos:
-                composite_positions[(pid, "P")] = pitching_pos
-        elif pid in batting_ids:
-            composite_positions[(pid, "B")] = positions
-        elif pid in pitching_ids:
-            composite_positions[(pid, "P")] = positions
-        else:
-            # Player not in projections — assign to both types if present
-            composite_positions[(pid, "B")] = positions
-            composite_positions[(pid, "P")] = positions
+        # Build composite-keyed positions dict for DraftState
+        _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP"})
+        two_way_ids = batting_ids & pitching_ids
+        composite_positions: dict[tuple[str, str], tuple[str, ...]] = {}
+        for pid, positions in player_positions.items():
+            if pid in two_way_ids:
+                batting_pos = tuple(p for p in positions if p not in _PITCHER_POSITIONS)
+                pitching_pos = tuple(p for p in positions if p in _PITCHER_POSITIONS)
+                if batting_pos:
+                    composite_positions[(pid, "B")] = batting_pos
+                if pitching_pos:
+                    composite_positions[(pid, "P")] = pitching_pos
+            elif pid in batting_ids:
+                composite_positions[(pid, "B")] = positions
+            elif pid in pitching_ids:
+                composite_positions[(pid, "P")] = positions
+            else:
+                # Player not in projections — assign to both types if present
+                composite_positions[(pid, "B")] = positions
+                composite_positions[(pid, "P")] = positions
 
-    position_ids_in_batting = {pid for pid, _ in composite_positions if pid in batting_ids}
-    position_ids_in_pitching = {pid for pid, _ in composite_positions if pid in pitching_ids}
-    logger.debug(
-        "Composite positions: %d entries, %d match batting projections, %d match pitching projections",
-        len(composite_positions),
-        len(position_ids_in_batting),
-        len(position_ids_in_pitching),
-    )
-    logger.debug("Total player values: %d", len(all_values))
+        position_ids_in_batting = {pid for pid, _ in composite_positions if pid in batting_ids}
+        position_ids_in_pitching = {pid for pid, _ in composite_positions if pid in pitching_ids}
+        logger.debug(
+            "Composite positions: %d entries, %d match batting projections, %d match pitching projections",
+            len(composite_positions),
+            len(position_ids_in_batting),
+            len(position_ids_in_pitching),
+        )
+        logger.debug("Total player values: %d", len(all_values))
 
-    # Build draft state
-    state = DraftState(
-        roster_config=roster_config,
-        player_values=all_values,
-        player_positions=composite_positions,
-        category_weights=category_weights,
-    )
-
-    # Apply draft results from Yahoo
-    if yahoo and yahoo_league is not None and yahoo_id_mapper is not None:
-        draft_source = YahooDraftResultsSource(yahoo_league)
-        draft_status = draft_source.fetch_draft_status()
-        if not no_cache and draft_status != DraftStatus.IN_PROGRESS:
-            config = create_config()
-            dr_ttl = int(str(config["cache.draft_results_ttl"]))
-            cache_store = create_cache_store(config)
-            cache_key = get_cache_key(config)
-            draft_source = CachedDraftResultsSource(draft_source, cache_store, cache_key, dr_ttl)  # type: ignore[assignment]
-        picks = draft_source.fetch_draft_results()
-        user_team_key = draft_source.fetch_user_team_key()
-        logger.debug("User team key: %s, draft picks: %d", user_team_key, len(picks))
-        for pick in picks:
-            fg_id = yahoo_id_mapper.yahoo_to_fangraphs(pick.player_id)
-            if fg_id is None:
-                logger.debug("No FanGraphs ID for Yahoo player %s, skipping", pick.player_id)
-                continue
-            is_user = pick.team_key == user_team_key
-            state.draft_player(fg_id, is_user=is_user)
-
-    # Get and display rankings
-    rankings = state.get_rankings(limit=top)
-
-    if not rankings:
-        typer.echo("No players to rank.")
-        return
-
-    # Build output table
-    lines: list[str] = []
-    lines.append(f"Draft rankings for {year}:")
-
-    header = f"{'Rk':>4} {'Name':<25} {'Pos':<8} {'Best':>4} {'Mult':>5} {'Raw':>7} {'Wtd':>7} {'Adj':>7}"
-    lines.append(header)
-    lines.append("-" * len(header))
-
-    for r in rankings:
-        pos_str = "/".join(r.eligible_positions) if r.eligible_positions else "-"
-        best_str = r.best_position or "-"
-        lines.append(
-            f"{r.rank:>4} {r.name:<25} {pos_str:<8} {best_str:>4} {r.position_multiplier:>5.2f}"
-            f" {r.raw_value:>7.1f} {r.weighted_value:>7.1f} {r.adjusted_value:>7.1f}"
+        # Build draft state
+        state = DraftState(
+            roster_config=roster_config,
+            player_values=all_values,
+            player_positions=composite_positions,
+            category_weights=category_weights,
         )
 
-    typer.echo("\n".join(lines))
+        # Apply draft results from Yahoo
+        if yahoo and yahoo_league is not None and yahoo_id_mapper is not None:
+            draft_source = YahooDraftResultsSource(yahoo_league)
+            draft_status = draft_source.fetch_draft_status()
+            if not no_cache and draft_status != DraftStatus.IN_PROGRESS:
+                config = create_config()
+                dr_ttl = int(str(config["cache.draft_results_ttl"]))
+                cache_store = create_cache_store(config)
+                cache_key = get_cache_key(config)
+                draft_source = CachedDraftResultsSource(draft_source, cache_store, cache_key, dr_ttl)  # type: ignore[assignment]
+            picks = draft_source.fetch_draft_results()
+            user_team_key = draft_source.fetch_user_team_key()
+            logger.debug("User team key: %s, draft picks: %d", user_team_key, len(picks))
+            for pick in picks:
+                fg_id = yahoo_id_mapper.yahoo_to_fangraphs(pick.player_id)
+                if fg_id is None:
+                    logger.debug("No FanGraphs ID for Yahoo player %s, skipping", pick.player_id)
+                    continue
+                is_user = pick.team_key == user_team_key
+                state.draft_player(fg_id, is_user=is_user)
+
+        # Get and display rankings
+        rankings = state.get_rankings(limit=top)
+
+        if not rankings:
+            typer.echo("No players to rank.")
+            return
+
+        # Build output table
+        lines: list[str] = []
+        lines.append(f"Draft rankings for {year}:")
+
+        header = f"{'Rk':>4} {'Name':<25} {'Pos':<8} {'Best':>4} {'Mult':>5} {'Raw':>7} {'Wtd':>7} {'Adj':>7}"
+        lines.append(header)
+        lines.append("-" * len(header))
+
+        for r in rankings:
+            pos_str = "/".join(r.eligible_positions) if r.eligible_positions else "-"
+            best_str = r.best_position or "-"
+            lines.append(
+                f"{r.rank:>4} {r.name:<25} {pos_str:<8} {best_str:>4} {r.position_multiplier:>5.2f}"
+                f" {r.raw_value:>7.1f} {r.weighted_value:>7.1f} {r.adjusted_value:>7.1f}"
+            )
+
+        typer.echo("\n".join(lines))
+    finally:
+        clear_cli_overrides()

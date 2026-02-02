@@ -3,6 +3,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
+from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.draft.cli import (
     set_data_source_factory,
     set_id_mapper_factory,
@@ -380,6 +381,22 @@ class TestDraftRankCommand:
         finally:
             set_yahoo_league_factory(None)  # type: ignore[arg-type]
             set_id_mapper_factory(None)  # type: ignore[arg-type]
+
+    def test_accepts_league_id(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "draft-rank", "2025", "--league-id", "99999"])
+        assert result.exit_code == 0
+
+    def test_accepts_season(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "draft-rank", "2025", "--season", "2024"])
+        assert result.exit_code == 0
+
+    def test_overrides_cleared_after_draft_rank(self) -> None:
+        _install_fake()
+        runner.invoke(app, ["players", "draft-rank", "2025", "--league-id", "99999"])
+        cfg = create_config(yaml_path="/nonexistent/config.yaml")
+        assert cfg["league.id"] == ""
 
     def test_positions_file_takes_precedence_over_yahoo(self, tmp_path: Path) -> None:
         from unittest.mock import MagicMock

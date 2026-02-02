@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import pytest
 from config import ConfigurationSet
 
-from fantasy_baseball_manager.config import create_config
+from fantasy_baseball_manager.config import clear_cli_overrides, create_config, set_cli_overrides
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -61,3 +61,37 @@ def test_missing_yaml_falls_back_to_defaults() -> None:
     cfg = create_config(yaml_path="/does/not/exist.yaml")
     assert cfg["yahoo.client_id"] == ""
     assert cfg["league.season"] == 2025
+
+
+class TestCliOverrides:
+    def teardown_method(self) -> None:
+        clear_cli_overrides()
+
+    def test_set_cli_overrides_league_id(self) -> None:
+        set_cli_overrides({"league": {"id": "99999"}})
+        cfg = create_config(yaml_path="/nonexistent/config.yaml")
+        assert cfg["league.id"] == "99999"
+
+    def test_set_cli_overrides_season(self) -> None:
+        set_cli_overrides({"league": {"season": 2030}})
+        cfg = create_config(yaml_path="/nonexistent/config.yaml")
+        assert cfg["league.season"] == 2030
+
+    def test_cli_overrides_take_priority_over_yaml(self, tmp_path: Path) -> None:
+        yaml_file = tmp_path / "config.yaml"
+        yaml_file.write_text("league:\n  id: yaml_league\n  season: 2026\n")
+        set_cli_overrides({"league": {"id": "cli_league", "season": 2028}})
+        cfg = create_config(yaml_path=str(yaml_file))
+        assert cfg["league.id"] == "cli_league"
+        assert cfg["league.season"] == 2028
+
+    def test_clear_cli_overrides_resets(self) -> None:
+        set_cli_overrides({"league": {"id": "override"}})
+        clear_cli_overrides()
+        cfg = create_config(yaml_path="/nonexistent/config.yaml")
+        assert cfg["league.id"] == ""
+
+    def test_no_overrides_does_not_add_layer(self) -> None:
+        cfg = create_config(yaml_path="/nonexistent/config.yaml")
+        assert cfg["league.id"] == ""
+        assert cfg["league.season"] == 2025

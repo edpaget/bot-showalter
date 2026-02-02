@@ -9,6 +9,19 @@ class AppConfig(Protocol):
     def __getitem__(self, key: str) -> object: ...
 
 
+_cli_overrides: dict[str, object] = {}
+
+
+def set_cli_overrides(overrides: dict[str, object]) -> None:
+    global _cli_overrides
+    _cli_overrides = overrides
+
+
+def clear_cli_overrides() -> None:
+    global _cli_overrides
+    _cli_overrides = {}
+
+
 _DEFAULTS: dict[str, object] = {
     "yahoo": {
         "client_id": "",
@@ -42,8 +55,12 @@ def create_config(
     if defaults is None:
         defaults = _DEFAULTS
 
-    return ConfigurationSet(
+    layers = [
         config_from_env(env_prefix, separator="__", lowercase_keys=True),
         config_from_yaml(yaml_path, read_from_file=True, ignore_missing_paths=True),
         config_from_dict(defaults),
-    )
+    ]
+    if _cli_overrides:
+        layers.insert(0, config_from_dict(_cli_overrides))
+
+    return ConfigurationSet(*layers)

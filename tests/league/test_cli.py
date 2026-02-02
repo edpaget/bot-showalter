@@ -1,6 +1,7 @@
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
+from fantasy_baseball_manager.config import clear_cli_overrides, create_config
 from fantasy_baseball_manager.league.cli import (
     set_data_source_factory,
     set_id_mapper_factory,
@@ -356,3 +357,40 @@ class TestLeagueCompareCommand:
         result = runner.invoke(app, ["teams", "compare", "2025", "--method", "sgp"])
         assert result.exit_code == 1
         assert "Unknown method" in result.output
+
+
+class TestLeagueIdAndSeasonOptions:
+    def teardown_method(self) -> None:
+        clear_cli_overrides()
+
+    def test_projections_accepts_league_id(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "roster", "2025", "--league-id", "99999"])
+        assert result.exit_code == 0
+
+    def test_projections_accepts_season(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "roster", "2025", "--season", "2024"])
+        assert result.exit_code == 0
+
+    def test_compare_accepts_league_id(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "compare", "2025", "--league-id", "99999"])
+        assert result.exit_code == 0
+
+    def test_compare_accepts_season(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "compare", "2025", "--season", "2024"])
+        assert result.exit_code == 0
+
+    def test_overrides_cleared_after_projections(self) -> None:
+        _install_fakes()
+        runner.invoke(app, ["teams", "roster", "2025", "--league-id", "99999"])
+        cfg = create_config(yaml_path="/nonexistent/config.yaml")
+        assert cfg["league.id"] == ""
+
+    def test_overrides_cleared_after_compare(self) -> None:
+        _install_fakes()
+        runner.invoke(app, ["teams", "compare", "2025", "--league-id", "99999"])
+        cfg = create_config(yaml_path="/nonexistent/config.yaml")
+        assert cfg["league.id"] == ""

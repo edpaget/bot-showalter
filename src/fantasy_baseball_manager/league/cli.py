@@ -7,7 +7,7 @@ import typer
 
 from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
 from fantasy_baseball_manager.cache.sources import CachedRosterSource
-from fantasy_baseball_manager.config import AppConfig, create_config
+from fantasy_baseball_manager.config import AppConfig, clear_cli_overrides, create_config, set_cli_overrides
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.league.models import TeamProjection
 from fantasy_baseball_manager.league.projections import match_projections
@@ -171,6 +171,18 @@ def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE, no_cache: bo
     return match_projections(rosters, batting, pitching, id_mapper)
 
 
+def _apply_cli_overrides(league_id: str | None, season: int | None) -> None:
+    overrides: dict[str, object] = {}
+    if league_id is not None:
+        overrides["league"] = {"id": league_id}
+    if season is not None:
+        league_dict: dict[str, object] = overrides.get("league", {})  # type: ignore[assignment]
+        league_dict["season"] = season
+        overrides["league"] = league_dict
+    if overrides:
+        set_cli_overrides(overrides)
+
+
 def projections(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     top: Annotated[int, typer.Option(help="Number of players per team to display.")] = 25,
@@ -179,23 +191,29 @@ def projections(
     no_cache: Annotated[
         bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
     ] = False,
+    league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Show projections for all rostered players in the league."""
-    validate_engine(engine)
+    _apply_cli_overrides(league_id, season)
+    try:
+        validate_engine(engine)
 
-    if year is None:
-        year = datetime.now().year
+        if year is None:
+            year = datetime.now().year
 
-    if sort_by not in COMPARE_SORT_FIELDS:
-        typer.echo(f"Unknown sort field: {sort_by}", err=True)
-        raise typer.Exit(code=1)
+        if sort_by not in COMPARE_SORT_FIELDS:
+            typer.echo(f"Unknown sort field: {sort_by}", err=True)
+            raise typer.Exit(code=1)
 
-    typer.echo(f"League projections for {year}\n")
+        typer.echo(f"League projections for {year}\n")
 
-    team_projections = _load_team_projections(year, engine=engine, no_cache=no_cache)
-    team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
+        team_projections = _load_team_projections(year, engine=engine, no_cache=no_cache)
+        team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
-    typer.echo(format_team_projections(team_projections, top, sort_by))
+        typer.echo(format_team_projections(team_projections, top, sort_by))
+    finally:
+        clear_cli_overrides()
 
 
 def compare(
@@ -206,21 +224,27 @@ def compare(
     no_cache: Annotated[
         bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
     ] = False,
+    league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Compare aggregate projected stats across all teams in the league."""
-    validate_engine(engine)
-    validate_method(method)
+    _apply_cli_overrides(league_id, season)
+    try:
+        validate_engine(engine)
+        validate_method(method)
 
-    if year is None:
-        year = datetime.now().year
+        if year is None:
+            year = datetime.now().year
 
-    if sort_by not in COMPARE_SORT_FIELDS:
-        typer.echo(f"Unknown sort field: {sort_by}", err=True)
-        raise typer.Exit(code=1)
+        if sort_by not in COMPARE_SORT_FIELDS:
+            typer.echo(f"Unknown sort field: {sort_by}", err=True)
+            raise typer.Exit(code=1)
 
-    typer.echo(f"League comparison for {year}\n")
+        typer.echo(f"League comparison for {year}\n")
 
-    team_projections = _load_team_projections(year, engine=engine, no_cache=no_cache)
-    team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
+        team_projections = _load_team_projections(year, engine=engine, no_cache=no_cache)
+        team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
-    typer.echo(format_compare_table(team_projections))
+        typer.echo(format_compare_table(team_projections))
+    finally:
+        clear_cli_overrides()
