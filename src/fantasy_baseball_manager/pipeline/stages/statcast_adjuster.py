@@ -22,7 +22,7 @@ BLENDED_STATS = ("hr", "singles", "doubles", "triples")
 class StatcastBlendConfig:
     blend_weight: float = 0.35
     min_pa_for_blend: int = 100
-    league_hr_per_barrel: float = 0.245
+    league_hr_per_barrel: float = 0.55
     default_doubles_share: float = 0.85
 
 

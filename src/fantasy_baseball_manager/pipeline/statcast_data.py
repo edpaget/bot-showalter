@@ -29,22 +29,33 @@ class StatcastDataSource(Protocol):
 
 
 class PybaseballStatcastDataSource:
-    """Wraps pybaseball.statcast_batter_expected_stats()."""
+    """Merges pybaseball expected-stats and exit-velocity/barrel endpoints."""
 
     def batter_expected_stats(self, year: int) -> list[StatcastBatterStats]:
-        from pybaseball import statcast_batter_expected_stats
+        from pybaseball import statcast_batter_exitvelo_barrels, statcast_batter_expected_stats
 
-        df = statcast_batter_expected_stats(year)
+        xstats = statcast_batter_expected_stats(year)
+        barrels = statcast_batter_exitvelo_barrels(year)
+
+        barrel_lookup: dict[int, tuple[float, float]] = {}
+        for _, row in barrels.iterrows():
+            pid = int(row["player_id"])
+            brl_pct = float(row.get("brl_percent", 0))
+            hh_pct = float(row.get("ev95percent", 0))
+            barrel_lookup[pid] = (brl_pct / 100.0, hh_pct / 100.0)
+
         results: list[StatcastBatterStats] = []
-        for _, row in df.iterrows():
+        for _, row in xstats.iterrows():
+            pid = int(row["player_id"])
+            barrel_rate, hard_hit_rate = barrel_lookup.get(pid, (0.0, 0.0))
             results.append(
                 StatcastBatterStats(
-                    player_id=str(int(row["player_id"])),
+                    player_id=str(pid),
                     name=str(row.get("player_name", row.get("last_name, first_name", ""))),
                     year=year,
                     pa=int(row["pa"]),
-                    barrel_rate=float(row.get("brl_percent", row.get("barrel_batted_rate", 0))),
-                    hard_hit_rate=float(row.get("hard_hit_percent", 0)),
+                    barrel_rate=barrel_rate,
+                    hard_hit_rate=hard_hit_rate,
                     xwoba=float(row.get("est_woba", row.get("xwoba", 0))),
                     xba=float(row.get("est_ba", row.get("xba", 0))),
                     xslg=float(row.get("est_slg", row.get("xslg", 0))),
