@@ -5,6 +5,7 @@ from typing import Annotated, cast
 import typer
 
 from fantasy_baseball_manager.config import AppConfig, create_config
+from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.league.models import TeamProjection
 from fantasy_baseball_manager.league.projections import match_projections
 from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
@@ -13,8 +14,6 @@ from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, St
 from fantasy_baseball_manager.marcel.pitching import project_pitchers
 from fantasy_baseball_manager.player_id.mapper import ChadwickMapper, PlayerIdMapper
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
-
-league_app = typer.Typer(help="League roster and projection commands.")
 
 COMPARE_SORT_FIELDS: dict[str, Callable[[TeamProjection], float]] = {
     "total_hr": lambda t: t.total_hr,
@@ -143,13 +142,15 @@ def _load_team_projections(year: int) -> list[TeamProjection]:
     return match_projections(rosters, batting, pitching, id_mapper)
 
 
-@league_app.command()
 def projections(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     top: Annotated[int, typer.Option(help="Number of players per team to display.")] = 25,
     sort_by: Annotated[str, typer.Option(help="Stat to sort teams by.")] = "total_hr",
+    engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
 ) -> None:
-    """Show MARCEL projections for all rostered players in the league."""
+    """Show projections for all rostered players in the league."""
+    validate_engine(engine)
+
     if year is None:
         year = datetime.now().year
 
@@ -165,12 +166,16 @@ def projections(
     typer.echo(format_team_projections(team_projections, top, sort_by))
 
 
-@league_app.command()
 def compare(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     sort_by: Annotated[str, typer.Option(help="Stat to sort by.")] = "total_hr",
+    engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    method: Annotated[str, typer.Option(help="Valuation method to use.")] = DEFAULT_METHOD,
 ) -> None:
     """Compare aggregate projected stats across all teams in the league."""
+    validate_engine(engine)
+    validate_method(method)
+
     if year is None:
         year = datetime.now().year
 

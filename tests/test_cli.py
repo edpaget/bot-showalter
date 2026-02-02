@@ -11,12 +11,17 @@ class TestRootCli:
         assert result.exit_code == 0
         assert "Fantasy baseball manager" in result.output
 
-    def test_project_help(self) -> None:
-        result = runner.invoke(app, ["project", "--help"])
+    def test_players_help(self) -> None:
+        result = runner.invoke(app, ["players", "--help"])
         assert result.exit_code == 0
-        assert "Projection commands" in result.output
+        assert "Player projection and valuation commands" in result.output
 
-    def test_project_marcel_help(self) -> None:
-        result = runner.invoke(app, ["project", "marcel", "--help"])
+    def test_players_project_help(self) -> None:
+        result = runner.invoke(app, ["players", "project", "--help"])
         assert result.exit_code == 0
-        assert "MARCEL" in result.output
+        assert "projections" in result.output.lower()
+
+    def test_teams_help(self) -> None:
+        result = runner.invoke(app, ["teams", "--help"])
+        assert result.exit_code == 0
+        assert "Team roster and comparison commands" in result.output

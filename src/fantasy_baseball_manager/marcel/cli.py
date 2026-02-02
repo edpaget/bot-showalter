@@ -4,6 +4,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
@@ -66,8 +67,11 @@ def marcel(
     pitching: Annotated[bool, typer.Option("--pitching", help="Show only pitching projections.")] = False,
     top: Annotated[int, typer.Option(help="Number of players to display.")] = 20,
     sort_by: Annotated[str | None, typer.Option(help="Stat to sort by (e.g. hr, so, era).")] = None,
+    engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
 ) -> None:
-    """Generate MARCEL projections for the given year."""
+    """Generate projections for the given year."""
+    validate_engine(engine)
+
     if year is None:
         year = datetime.now().year
 

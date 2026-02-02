@@ -231,28 +231,28 @@ def _install_fake(batting: bool = True, pitching: bool = True) -> None:
 class TestValuateCommand:
     def test_default_shows_both(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025"])
+        result = runner.invoke(app, ["players", "valuate", "2025"])
         assert result.exit_code == 0
         assert "batting" in result.output.lower()
         assert "pitching" in result.output.lower()
 
     def test_batting_only(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025", "--batting"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--batting"])
         assert result.exit_code == 0
         assert "batting" in result.output.lower()
         assert "pitching" not in result.output.lower()
 
     def test_pitching_only(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025", "--pitching"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--pitching"])
         assert result.exit_code == 0
         assert "pitching" in result.output.lower()
         assert "batting" not in result.output.lower()
 
     def test_categories_override(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025", "--batting", "--categories", "hr,sb"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--batting", "--categories", "hr,sb"])
         assert result.exit_code == 0
         assert "HR" in result.output
         assert "SB" in result.output
@@ -260,18 +260,18 @@ class TestValuateCommand:
 
     def test_invalid_category(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025", "--batting", "--categories", "xyz"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--batting", "--categories", "xyz"])
         assert result.exit_code == 1
 
     def test_unsupported_category_rbi(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025", "--batting", "--categories", "rbi"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--batting", "--categories", "rbi"])
         assert result.exit_code == 1
         assert "not yet supported" in result.output.lower() or "unsupported" in result.output.lower()
 
     def test_output_sorted_by_total_descending(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025", "--batting"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--batting"])
         assert result.exit_code == 0
         lines = result.output.strip().split("\n")
         # Find lines with player data (contain Total values)
@@ -286,14 +286,36 @@ class TestValuateCommand:
 
     def test_output_contains_player_name(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025", "--batting"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--batting"])
         assert result.exit_code == 0
         assert "Slugger Jones" in result.output
 
     def test_top_limits_rows(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["valuate", "2025", "--batting", "--top", "2"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--batting", "--top", "2"])
         assert result.exit_code == 0
         lines = result.output.strip().split("\n")
         player_lines = [line for line in lines if any(name in line for name in ["Slugger", "Speedy", "Average"])]
         assert len(player_lines) == 2
+
+    def test_engine_marcel_accepted(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "valuate", "2025", "--engine", "marcel"])
+        assert result.exit_code == 0
+
+    def test_engine_unknown_rejected(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "valuate", "2025", "--engine", "steamer"])
+        assert result.exit_code == 1
+        assert "Unknown engine" in result.output
+
+    def test_method_zscore_accepted(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "valuate", "2025", "--method", "zscore"])
+        assert result.exit_code == 0
+
+    def test_method_unknown_rejected(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "valuate", "2025", "--method", "sgp"])
+        assert result.exit_code == 1
+        assert "Unknown method" in result.output

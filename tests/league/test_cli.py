@@ -214,26 +214,26 @@ def _install_fakes(
 class TestLeagueProjectionsCommand:
     def test_shows_team_name(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["league", "projections", "2025"])
+        result = runner.invoke(app, ["teams", "roster", "2025"])
         assert result.exit_code == 0
         assert "Alpha Squad" in result.output
 
     def test_shows_player_names(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["league", "projections", "2025"])
+        result = runner.invoke(app, ["teams", "roster", "2025"])
         assert result.exit_code == 0
         assert "Test Hitter" in result.output
         assert "Test Pitcher" in result.output
 
     def test_shows_header(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["league", "projections", "2025"])
+        result = runner.invoke(app, ["teams", "roster", "2025"])
         assert result.exit_code == 0
         assert "League projections for 2025" in result.output
 
     def test_invalid_sort_field(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["league", "projections", "2025", "--sort-by", "xyz"])
+        result = runner.invoke(app, ["teams", "roster", "2025", "--sort-by", "xyz"])
         assert result.exit_code == 1
 
     def test_unmatched_player_warning(self) -> None:
@@ -252,32 +252,43 @@ class TestLeagueProjectionsCommand:
             ),
         )
         _install_fakes(rosters=rosters, id_mapping={})
-        result = runner.invoke(app, ["league", "projections", "2025"])
+        result = runner.invoke(app, ["teams", "roster", "2025"])
         assert result.exit_code == 0
         assert "could not be matched" in result.output
+
+    def test_engine_marcel_accepted(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "roster", "2025", "--engine", "marcel"])
+        assert result.exit_code == 0
+
+    def test_engine_unknown_rejected(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "roster", "2025", "--engine", "steamer"])
+        assert result.exit_code == 1
+        assert "Unknown engine" in result.output
 
 
 class TestLeagueCompareCommand:
     def test_shows_team_name(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["league", "compare", "2025"])
+        result = runner.invoke(app, ["teams", "compare", "2025"])
         assert result.exit_code == 0
         assert "Alpha Squad" in result.output
 
     def test_shows_header(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["league", "compare", "2025"])
+        result = runner.invoke(app, ["teams", "compare", "2025"])
         assert result.exit_code == 0
         assert "League comparison for 2025" in result.output
 
     def test_invalid_sort_field(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["league", "compare", "2025", "--sort-by", "xyz"])
+        result = runner.invoke(app, ["teams", "compare", "2025", "--sort-by", "xyz"])
         assert result.exit_code == 1
 
     def test_compare_table_has_stats(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["league", "compare", "2025"])
+        result = runner.invoke(app, ["teams", "compare", "2025"])
         assert result.exit_code == 0
         # Table header should show stat columns
         assert "HR" in result.output
@@ -307,7 +318,29 @@ class TestLeagueCompareCommand:
             ),
         )
         _install_fakes(rosters=rosters)
-        result = runner.invoke(app, ["league", "compare", "2025"])
+        result = runner.invoke(app, ["teams", "compare", "2025"])
         assert result.exit_code == 0
         assert "Alpha Squad" in result.output
         assert "Beta Team" in result.output
+
+    def test_engine_marcel_accepted(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "compare", "2025", "--engine", "marcel"])
+        assert result.exit_code == 0
+
+    def test_engine_unknown_rejected(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "compare", "2025", "--engine", "steamer"])
+        assert result.exit_code == 1
+        assert "Unknown engine" in result.output
+
+    def test_method_zscore_accepted(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "compare", "2025", "--method", "zscore"])
+        assert result.exit_code == 0
+
+    def test_method_unknown_rejected(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "compare", "2025", "--method", "sgp"])
+        assert result.exit_code == 1
+        assert "Unknown method" in result.output

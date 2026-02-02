@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
+from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.marcel.pitching import project_pitchers
@@ -90,8 +91,13 @@ def valuate(
     pitching: Annotated[bool, typer.Option("--pitching", help="Show only pitching values.")] = False,
     top: Annotated[int, typer.Option(help="Number of players to display.")] = 20,
     categories: Annotated[str | None, typer.Option(help="Comma-separated categories (e.g. hr,sb,obp).")] = None,
+    engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    method: Annotated[str, typer.Option(help="Valuation method to use.")] = DEFAULT_METHOD,
 ) -> None:
-    """Compute z-score valuations from MARCEL projections."""
+    """Compute player valuations from projections."""
+    validate_engine(engine)
+    validate_method(method)
+
     if year is None:
         year = datetime.now().year
 

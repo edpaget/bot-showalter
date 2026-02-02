@@ -190,7 +190,7 @@ def _install_fake(batting: bool = True, pitching: bool = True) -> None:
 class TestMarcelCommand:
     def test_default_shows_both(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025"])
+        result = runner.invoke(app, ["players", "project", "2025"])
         assert result.exit_code == 0
         assert "MARCEL projections for 2025" in result.output
         assert "projected batters" in result.output
@@ -198,61 +198,72 @@ class TestMarcelCommand:
 
     def test_batting_only(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--batting"])
+        result = runner.invoke(app, ["players", "project", "2025", "--batting"])
         assert result.exit_code == 0
         assert "projected batters" in result.output
         assert "projected pitchers" not in result.output
 
     def test_pitching_only(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--pitching"])
+        result = runner.invoke(app, ["players", "project", "2025", "--pitching"])
         assert result.exit_code == 0
         assert "projected pitchers" in result.output
         assert "projected batters" not in result.output
 
     def test_both_flags(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--batting", "--pitching"])
+        result = runner.invoke(app, ["players", "project", "2025", "--batting", "--pitching"])
         assert result.exit_code == 0
         assert "projected batters" in result.output
         assert "projected pitchers" in result.output
 
     def test_top_flag(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--batting", "--top", "5"])
+        result = runner.invoke(app, ["players", "project", "2025", "--batting", "--top", "5"])
         assert result.exit_code == 0
         assert "Top 5 projected batters" in result.output
 
     def test_sort_by_batting(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--batting", "--sort-by", "sb"])
+        result = runner.invoke(app, ["players", "project", "2025", "--batting", "--sort-by", "sb"])
         assert result.exit_code == 0
         assert "projected batters" in result.output
 
     def test_sort_by_pitching(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--pitching", "--sort-by", "era"])
+        result = runner.invoke(app, ["players", "project", "2025", "--pitching", "--sort-by", "era"])
         assert result.exit_code == 0
         assert "projected pitchers" in result.output
 
     def test_invalid_batting_sort(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--batting", "--sort-by", "xyz"])
+        result = runner.invoke(app, ["players", "project", "2025", "--batting", "--sort-by", "xyz"])
         assert result.exit_code == 1
 
     def test_invalid_pitching_sort(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--pitching", "--sort-by", "xyz"])
+        result = runner.invoke(app, ["players", "project", "2025", "--pitching", "--sort-by", "xyz"])
         assert result.exit_code == 1
 
     def test_output_contains_player_name(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--batting"])
+        result = runner.invoke(app, ["players", "project", "2025", "--batting"])
         assert result.exit_code == 0
         assert "Test Hitter" in result.output
 
     def test_pitching_output_contains_player_name(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["project", "marcel", "2025", "--pitching"])
+        result = runner.invoke(app, ["players", "project", "2025", "--pitching"])
         assert result.exit_code == 0
         assert "Test Pitcher" in result.output
+
+    def test_engine_marcel_accepted(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "project", "2025", "--engine", "marcel"])
+        assert result.exit_code == 0
+
+    def test_engine_unknown_rejected(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "project", "2025", "--engine", "steamer"])
+        assert result.exit_code == 1
+        assert "Unknown engine" in result.output
