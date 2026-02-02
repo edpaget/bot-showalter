@@ -76,7 +76,7 @@ class SavantParkFactorProvider:
         if not match:
             logger.warning("Could not find park factor data in Savant HTML")
             return []
-        return json.loads(match.group(1))  # type: ignore[no-any-return]
+        return json.loads(match.group(1))
 
     @staticmethod
     def _build_factors(
