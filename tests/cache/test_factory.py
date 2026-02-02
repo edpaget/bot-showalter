@@ -35,19 +35,23 @@ class TestCreateCacheStore:
 class TestGetCacheKey:
     def test_returns_expected_key(self) -> None:
         config = MagicMock()
-        config.__getitem__ = MagicMock(side_effect=lambda k: {"league.game_code": "mlb", "league.id": "123"}[k])
+        config.__getitem__ = MagicMock(
+            side_effect=lambda k: {"league.game_code": "mlb", "league.season": 2025, "league.id": "123"}[k]
+        )
 
         result = get_cache_key(config)
 
-        assert result == "mlb_123"
+        assert result == "mlb_2025_123"
 
     @patch("fantasy_baseball_manager.config.create_config")
     def test_falls_back_to_create_config(self, mock_create_config: MagicMock) -> None:
         mock_config = MagicMock()
-        mock_config.__getitem__ = MagicMock(side_effect=lambda k: {"league.game_code": "mlb", "league.id": "456"}[k])
+        mock_config.__getitem__ = MagicMock(
+            side_effect=lambda k: {"league.game_code": "mlb", "league.season": 2025, "league.id": "456"}[k]
+        )
         mock_create_config.return_value = mock_config
 
         result = get_cache_key()
 
         mock_create_config.assert_called_once()
-        assert result == "mlb_456"
+        assert result == "mlb_2025_456"

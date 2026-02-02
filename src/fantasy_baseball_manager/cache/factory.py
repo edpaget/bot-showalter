@@ -20,9 +20,9 @@ def create_cache_store(config: ConfigurationSet | None = None) -> SqliteCacheSto
 
 
 def get_cache_key(config: ConfigurationSet | None = None) -> str:
-    """Return ``"{game_code}_{league_id}"`` derived from the app config."""
+    """Return ``"{game_code}_{season}_{league_id}"`` derived from the app config."""
     if config is None:
         from fantasy_baseball_manager.config import create_config
 
         config = create_config()
-    return f"{config['league.game_code']}_{config['league.id']}"
+    return f"{config['league.game_code']}_{config['league.season']}_{config['league.id']}"

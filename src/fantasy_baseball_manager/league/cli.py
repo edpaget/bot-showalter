@@ -62,9 +62,10 @@ def _get_roster_source(no_cache: bool = False, target_season: int | None = None)
     if target_season is None and config["league.is_keeper"]:
         current_league = client.get_league()
         draft_status = current_league.settings().get("draft_status", "")
+        logger.debug("Keeper league draft_status=%r", draft_status)
         if draft_status == "predraft":
             target_season = int(str(config["league.season"])) - 1
-            logger.debug("Keeper league in predraft — using previous season %d", target_season)
+            logger.debug("Using previous season %d for roster source", target_season)
 
     league = client.get_league_for_season(target_season) if target_season is not None else client.get_league()
     source: RosterSource = YahooRosterSource(league)
