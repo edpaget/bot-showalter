@@ -76,6 +76,8 @@ def _pitcher_proj(
         hbp=5.0,
         era=era,
         whip=whip,
+        w=0.0,
+        nsvh=0.0,
     )
 
 
@@ -131,6 +133,10 @@ def _pitching_stats(
         so=so,
         hr=20,
         hbp=5,
+        w=0,
+        sv=0,
+        hld=0,
+        bs=0,
     )
 
 

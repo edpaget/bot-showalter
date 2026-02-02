@@ -77,6 +77,8 @@ def _make_pitcher_projection(
         hbp=5.0,
         era=er / ip * 9 if ip > 0 else 0,
         whip=(h + bb) / ip if ip > 0 else 0,
+        w=0.0,
+        nsvh=0.0,
     )
 
 

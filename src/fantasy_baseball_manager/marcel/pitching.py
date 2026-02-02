@@ -96,12 +96,17 @@ def project_pitchers(
         # Counting stats (rates are per-out)
         projected_stats = {stat: rate * proj_outs for stat, rate in rates.items()}
 
-        # Derive ERA and WHIP
+        # Derive ERA, WHIP, and NSVH
         proj_er = projected_stats["er"]
         proj_h = projected_stats["h"]
         proj_bb = projected_stats["bb"]
         era = (proj_er / proj_ip) * 9 if proj_ip > 0 else 0.0
         whip = (proj_h + proj_bb) / proj_ip if proj_ip > 0 else 0.0
+        proj_w = projected_stats["w"]
+        proj_sv = projected_stats["sv"]
+        proj_hld = projected_stats["hld"]
+        proj_bs = projected_stats["bs"]
+        nsvh = proj_sv + proj_hld - proj_bs
 
         # Estimate GS and G from starter/reliever status
         if starter:
@@ -128,6 +133,8 @@ def project_pitchers(
                 hbp=projected_stats["hbp"],
                 era=era,
                 whip=whip,
+                w=proj_w,
+                nsvh=nsvh,
             )
         )
 

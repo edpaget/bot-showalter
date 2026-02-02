@@ -59,6 +59,10 @@ def _make_pitcher(
         so=so,
         hr=hr,
         hbp=hbp,
+        w=0,
+        sv=0,
+        hld=0,
+        bs=0,
     )
 
 
@@ -88,6 +92,10 @@ def _make_league_pitching(
         so=so,
         hr=hr,
         hbp=hbp,
+        w=0,
+        sv=0,
+        hld=0,
+        bs=0,
     )
 
 

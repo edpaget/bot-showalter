@@ -120,6 +120,10 @@ def _make_pitcher(
         so=so,
         hr=20,
         hbp=5,
+        w=0,
+        sv=0,
+        hld=0,
+        bs=0,
     )
 
 
@@ -163,6 +167,10 @@ def _make_league_pitching(year: int = 2024) -> PitchingSeasonStats:
         so=1300,
         hr=180,
         hbp=50,
+        w=0,
+        sv=0,
+        hld=0,
+        bs=0,
     )
 
 

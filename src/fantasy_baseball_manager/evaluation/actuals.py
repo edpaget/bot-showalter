@@ -36,6 +36,7 @@ def pitching_stats_to_projection(stats: PitchingSeasonStats) -> PitchingProjecti
     ip = stats.ip
     era = (stats.er / ip * 9) if ip > 0 else 0.0
     whip = ((stats.h + stats.bb) / ip) if ip > 0 else 0.0
+    nsvh = float(stats.sv + stats.hld - stats.bs)
     return PitchingProjection(
         player_id=stats.player_id,
         name=stats.name,
@@ -52,6 +53,8 @@ def pitching_stats_to_projection(stats: PitchingSeasonStats) -> PitchingProjecti
         hbp=float(stats.hbp),
         era=era,
         whip=whip,
+        w=float(stats.w),
+        nsvh=nsvh,
     )
 
 

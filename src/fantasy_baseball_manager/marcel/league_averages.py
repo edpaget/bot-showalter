@@ -26,6 +26,10 @@ PITCHING_COMPONENT_STATS = (
     "hr",
     "hbp",
     "er",
+    "w",
+    "sv",
+    "hld",
+    "bs",
 )
 
 

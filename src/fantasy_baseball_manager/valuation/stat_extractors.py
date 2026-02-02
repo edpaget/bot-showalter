@@ -10,6 +10,8 @@ _SUPPORTED_BATTING: dict[StatCategory, str] = {
 
 _SUPPORTED_PITCHING_COUNTING: dict[StatCategory, str] = {
     StatCategory.K: "so",
+    StatCategory.W: "w",
+    StatCategory.NSVH: "nsvh",
 }
 
 

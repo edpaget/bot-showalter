@@ -46,6 +46,8 @@ def _pitching(
     h: float = 170.0,
     bb: float = 50.0,
     so: float = 180.0,
+    w: float = 0.0,
+    nsvh: float = 0.0,
 ) -> PitchingProjection:
     return PitchingProjection(
         player_id="p1",
@@ -63,6 +65,8 @@ def _pitching(
         hbp=8.0,
         era=er / ip * 9 if ip != 0.0 else 0.0,
         whip=(h + bb) / ip if ip != 0.0 else 0.0,
+        w=w,
+        nsvh=nsvh,
     )
 
 
@@ -160,13 +164,11 @@ class TestExtractPitchingStat:
         proj = _pitching(h=0.0, bb=0.0, ip=0.0)
         assert extract_pitching_stat(proj, StatCategory.WHIP) == 0.0
 
-    def test_unsupported_w(self) -> None:
-        with pytest.raises(ValueError, match="W"):
-            extract_pitching_stat(_pitching(), StatCategory.W)
+    def test_w(self) -> None:
+        assert extract_pitching_stat(_pitching(w=15.0), StatCategory.W) == 15.0
 
-    def test_unsupported_nsvh(self) -> None:
-        with pytest.raises(ValueError, match="NSVH"):
-            extract_pitching_stat(_pitching(), StatCategory.NSVH)
+    def test_nsvh(self) -> None:
+        assert extract_pitching_stat(_pitching(nsvh=20.0), StatCategory.NSVH) == 20.0
 
     def test_batting_category_raises(self) -> None:
         with pytest.raises(ValueError, match="HR"):

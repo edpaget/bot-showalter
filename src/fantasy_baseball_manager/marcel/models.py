@@ -40,6 +40,10 @@ class PitchingSeasonStats:
     so: int
     hr: int
     hbp: int
+    w: int
+    sv: int
+    hld: int
+    bs: int
 
 
 @dataclass(frozen=True)
@@ -83,3 +87,5 @@ class PitchingProjection:
     hbp: float
     era: float
     whip: float
+    w: float
+    nsvh: float

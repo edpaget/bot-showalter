@@ -29,6 +29,8 @@ def _make_pitching_projection(
         hbp=5.0,
         era=3.50,
         whip=1.11,
+        w=0.0,
+        nsvh=0.0,
     )
 
 

@@ -81,6 +81,10 @@ class TestPitchingSeasonStats:
             so=200,
             hr=20,
             hbp=5,
+            w=0,
+            sv=0,
+            hld=0,
+            bs=0,
         )
         assert stats.player_id == "xyz789"
         assert stats.ip == 180.0
@@ -101,6 +105,10 @@ class TestPitchingSeasonStats:
             so=200,
             hr=20,
             hbp=5,
+            w=0,
+            sv=0,
+            hld=0,
+            bs=0,
         )
         with pytest.raises(FrozenInstanceError):
             stats.ip = 200.0  # type: ignore[misc]
@@ -178,6 +186,8 @@ class TestPitchingProjection:
             hbp=4.5,
             era=3.44,
             whip=1.088,
+            w=0.0,
+            nsvh=0.0,
         )
         assert proj.era == 3.44
         assert proj.whip == 1.088
@@ -199,6 +209,8 @@ class TestPitchingProjection:
             hbp=4.5,
             era=3.44,
             whip=1.088,
+            w=0.0,
+            nsvh=0.0,
         )
         with pytest.raises(FrozenInstanceError):
             proj.era = 4.0  # type: ignore[misc]

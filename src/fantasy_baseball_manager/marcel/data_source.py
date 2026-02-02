@@ -76,6 +76,10 @@ class PybaseballDataSource:
                     so=int(row.get("SO", 0)),
                     hr=int(row.get("HR", 0)),
                     hbp=int(row.get("HBP", 0)),
+                    w=int(row.get("W", 0)),
+                    sv=int(row.get("SV", 0)),
+                    hld=int(row.get("HLD", 0)),
+                    bs=int(row.get("BS", 0)),
                 )
             )
         return results
@@ -134,6 +138,10 @@ class PybaseballDataSource:
                     so=int(row.get("SO", 0)),
                     hr=int(row.get("HR", 0)),
                     hbp=int(row.get("HBP", 0)),
+                    w=int(row.get("W", 0)),
+                    sv=int(row.get("SV", 0)),
+                    hld=int(row.get("HLD", 0)),
+                    bs=int(row.get("BS", 0)),
                 )
             )
         return results

@@ -80,6 +80,11 @@ class CsvProjectionSource:
             bb = float(row["bb"])
             era = (er / ip * 9) if ip > 0 else 0.0
             whip = ((h + bb) / ip) if ip > 0 else 0.0
+            w = float(row.get("w", "0"))
+            sv = float(row.get("sv", "0"))
+            hld = float(row.get("hld", "0"))
+            bs = float(row.get("bs", "0"))
+            nsvh = sv + hld - bs
             projections.append(
                 PitchingProjection(
                     player_id=row["idfg"],
@@ -97,6 +102,8 @@ class CsvProjectionSource:
                     hbp=float(row.get("hbp", "0")),
                     era=era,
                     whip=whip,
+                    w=w,
+                    nsvh=nsvh,
                 )
             )
         return projections

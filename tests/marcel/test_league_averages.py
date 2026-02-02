@@ -124,6 +124,10 @@ class TestComputePitchingLeagueRates:
                 so=1400,
                 hr=180,
                 hbp=60,
+                w=0,
+                sv=0,
+                hld=0,
+                bs=0,
             )
         ]
         outs = 1450.0 * 3

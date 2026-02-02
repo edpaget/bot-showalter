@@ -30,6 +30,8 @@ PITCHING_SORT_FIELDS: dict[str, Callable[[PitchingProjection], float]] = {
     "whip": lambda p: -p.whip,  # lower is better
     "hr": lambda p: p.hr,
     "bb": lambda p: p.bb,
+    "w": lambda p: p.w,
+    "nsvh": lambda p: p.nsvh,
 }
 
 # Module-level factory for dependency injection in tests
@@ -56,10 +58,10 @@ def format_batting_table(projections: list[BattingProjection], top: int) -> str:
 def format_pitching_table(projections: list[PitchingProjection], top: int) -> str:
     lines: list[str] = []
     lines.append(f"Top {top} projected pitchers ({len(projections)} total):")
-    lines.append(f"{'Name':<25} {'Age':>3} {'IP':>6} {'ERA':>5} {'WHIP':>5} {'SO':>5} {'HR':>4}")
-    lines.append("-" * 58)
+    lines.append(f"{'Name':<25} {'Age':>3} {'IP':>6} {'ERA':>5} {'WHIP':>5} {'SO':>5} {'W':>4} {'NSVH':>5} {'HR':>4}")
+    lines.append("-" * 68)
     for p in projections[:top]:
-        lines.append(f"{p.name:<25} {p.age:>3} {p.ip:>6.1f} {p.era:>5.2f} {p.whip:>5.3f} {p.so:>5.1f} {p.hr:>4.1f}")
+        lines.append(f"{p.name:<25} {p.age:>3} {p.ip:>6.1f} {p.era:>5.2f} {p.whip:>5.3f} {p.so:>5.1f} {p.w:>4.1f} {p.nsvh:>5.1f} {p.hr:>4.1f}")
     return "\n".join(lines)
 
 

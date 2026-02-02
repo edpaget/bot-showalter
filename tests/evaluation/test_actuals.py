@@ -82,6 +82,10 @@ def _make_pitching_stats(
         so=so,
         hr=hr,
         hbp=hbp,
+        w=0,
+        sv=0,
+        hld=0,
+        bs=0,
     )
 
 

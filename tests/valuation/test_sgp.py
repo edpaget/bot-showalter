@@ -65,6 +65,8 @@ def _pitcher(
         hbp=8.0,
         era=er / ip * 9 if ip != 0.0 else 0.0,
         whip=(h + bb) / ip if ip != 0.0 else 0.0,
+        w=0.0,
+        nsvh=0.0,
     )
 
 
