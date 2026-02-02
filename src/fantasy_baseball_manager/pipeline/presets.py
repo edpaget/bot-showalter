@@ -1,7 +1,11 @@
 from collections.abc import Callable
 
+from fantasy_baseball_manager.cache.factory import create_cache_store
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
-from fantasy_baseball_manager.pipeline.park_factors import FanGraphsParkFactorProvider
+from fantasy_baseball_manager.pipeline.park_factors import (
+    CachedParkFactorProvider,
+    FanGraphsParkFactorProvider,
+)
 from fantasy_baseball_manager.pipeline.stages.adjusters import (
     MarcelAgingAdjuster,
     RebaselineAdjuster,
@@ -15,6 +19,13 @@ from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateCo
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
+
+
+def _cached_park_factor_provider() -> CachedParkFactorProvider:
+    return CachedParkFactorProvider(
+        delegate=FanGraphsParkFactorProvider(),
+        cache=create_cache_store(),
+    )
 
 
 def marcel_pipeline() -> ProjectionPipeline:
@@ -33,7 +44,7 @@ def marcel_park_pipeline() -> ProjectionPipeline:
         name="marcel_park",
         rate_computer=MarcelRateComputer(),
         adjusters=(
-            ParkFactorAdjuster(FanGraphsParkFactorProvider()),
+            ParkFactorAdjuster(_cached_park_factor_provider()),
             RebaselineAdjuster(),
             MarcelAgingAdjuster(),
         ),
@@ -59,7 +70,7 @@ def marcel_plus_pipeline() -> ProjectionPipeline:
         name="marcel_plus",
         rate_computer=StatSpecificRegressionRateComputer(),
         adjusters=(
-            ParkFactorAdjuster(FanGraphsParkFactorProvider()),
+            ParkFactorAdjuster(_cached_park_factor_provider()),
             RebaselineAdjuster(),
             MarcelAgingAdjuster(),
         ),
