@@ -54,12 +54,24 @@ def set_yahoo_league_factory(factory: Callable[[], object]) -> None:
     _yahoo_league_factory = factory
 
 
-def _get_id_mapper() -> PlayerIdMapper:
+def _get_id_mapper(yahoo_players: dict[str, str], no_cache: bool = False) -> PlayerIdMapper:
     if _id_mapper_factory is not None:
         return _id_mapper_factory()
-    from fantasy_baseball_manager.player_id.mapper import ChadwickMapper
+    from fantasy_baseball_manager.player_id.mapper import build_name_mapper_from_chadwick_and_yahoo
 
-    return ChadwickMapper()
+    mapper = build_name_mapper_from_chadwick_and_yahoo(yahoo_players)
+    if not no_cache:
+        from fantasy_baseball_manager.cache.sources import CachedIdMapper
+        from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
+        from fantasy_baseball_manager.config import create_config
+
+        config = create_config()
+        db_path = Path(str(config["cache.db_path"])).expanduser()
+        ttl = int(str(config["cache.id_mappings_ttl"]))
+        cache_key = f"{config['league.game_code']}_{config['league.id']}"
+        cache_store = SqliteCacheStore(db_path)
+        return CachedIdMapper(mapper, cache_store, cache_key, ttl)
+    return mapper
 
 
 def _get_yahoo_league() -> object:
@@ -165,7 +177,14 @@ def draft_rank(
         player_positions = load_positions_file(positions_file)
     elif yahoo_positions:
         league = _get_yahoo_league()
-        id_mapper = _get_id_mapper()
+        # Collect Yahoo player names for name-based ID mapping
+        yahoo_players: dict[str, str] = {}
+        all_players: list[dict[str, object]] = list(league.taken_players())  # type: ignore[union-attr]
+        all_players.extend(league.free_agents("B"))  # type: ignore[union-attr]
+        all_players.extend(league.free_agents("P"))  # type: ignore[union-attr]
+        for p in all_players:
+            yahoo_players[str(p["player_id"])] = str(p.get("name", ""))
+        id_mapper = _get_id_mapper(yahoo_players, no_cache=no_cache)
         source: PositionSource = YahooPositionSource(league, id_mapper)  # type: ignore[arg-type]
         if not no_cache:
             from fantasy_baseball_manager.cache.sources import CachedPositionSource
@@ -190,27 +209,52 @@ def draft_rank(
     # Generate projections and valuations
     data_source = _data_source_factory()
     all_values: list[PlayerValue] = []
+    batting_ids: set[str] = set()
+    pitching_ids: set[str] = set()
 
     if show_batting:
         batting_projections = project_batters(data_source, year)
         batting_values = zscore_batting(batting_projections, _DEFAULT_BATTING_CATS)
         all_values.extend(batting_values)
+        batting_ids = {p.player_id for p in batting_projections}
 
     if show_pitching:
         pitching_projections = project_pitchers(data_source, year)
-        # Infer pitcher positions
+        # Infer pitcher positions (into the plain player_positions dict)
         for proj in pitching_projections:
             if proj.player_id not in player_positions:
                 role = infer_pitcher_role(proj)
                 player_positions[proj.player_id] = (role,)
         pitching_values = zscore_pitching(pitching_projections, _DEFAULT_PITCHING_CATS)
         all_values.extend(pitching_values)
+        pitching_ids = {p.player_id for p in pitching_projections}
+
+    # Build composite-keyed positions dict for DraftState
+    _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP"})
+    two_way_ids = batting_ids & pitching_ids
+    composite_positions: dict[tuple[str, str], tuple[str, ...]] = {}
+    for pid, positions in player_positions.items():
+        if pid in two_way_ids:
+            batting_pos = tuple(p for p in positions if p not in _PITCHER_POSITIONS)
+            pitching_pos = tuple(p for p in positions if p in _PITCHER_POSITIONS)
+            if batting_pos:
+                composite_positions[(pid, "B")] = batting_pos
+            if pitching_pos:
+                composite_positions[(pid, "P")] = pitching_pos
+        elif pid in batting_ids:
+            composite_positions[(pid, "B")] = positions
+        elif pid in pitching_ids:
+            composite_positions[(pid, "P")] = positions
+        else:
+            # Player not in projections — assign to both types if present
+            composite_positions[(pid, "B")] = positions
+            composite_positions[(pid, "P")] = positions
 
     # Build draft state
     state = DraftState(
         roster_config=roster_config,
         player_values=all_values,
-        player_positions=player_positions,
+        player_positions=composite_positions,
         category_weights=category_weights,
     )
 

@@ -35,6 +35,7 @@ class PlayerValue:
     name: str
     category_values: tuple[CategoryValue, ...]
     total_value: float
+    position_type: str = ""
 
 
 @dataclass(frozen=True)

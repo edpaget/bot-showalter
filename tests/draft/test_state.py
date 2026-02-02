@@ -8,6 +8,7 @@ def _make_player_value(
     name: str,
     hr_value: float = 1.0,
     sb_value: float = 0.5,
+    position_type: str = "B",
 ) -> PlayerValue:
     return PlayerValue(
         player_id=player_id,
@@ -17,6 +18,7 @@ def _make_player_value(
             CategoryValue(category=StatCategory.SB, raw_stat=15.0, value=sb_value),
         ),
         total_value=hr_value + sb_value,
+        position_type=position_type,
     )
 
 
@@ -34,7 +36,7 @@ def _simple_roster() -> RosterConfig:
 
 def _make_state(
     players: list[PlayerValue] | None = None,
-    positions: dict[str, tuple[str, ...]] | None = None,
+    positions: dict[tuple[str, str], tuple[str, ...]] | None = None,
     weights: dict[StatCategory, float] | None = None,
     roster: RosterConfig | None = None,
 ) -> DraftState:
@@ -135,7 +137,7 @@ class TestPositionMultiplier:
 
     def test_unfilled_position_gives_multiplier_one(self) -> None:
         state = _make_state(
-            positions={"b1": ("1B",), "b2": ("OF",), "b3": ("OF",)},
+            positions={("b1", "B"): ("1B",), ("b2", "B"): ("OF",), ("b3", "B"): ("OF",)},
         )
         rankings = state.get_rankings()
         for r in rankings:
@@ -150,7 +152,7 @@ class TestPositionMultiplier:
         state = DraftState(
             roster_config=roster,
             player_values=players,
-            player_positions={"b1": ("1B",), "b2": ("1B",)},
+            player_positions={("b1", "B"): ("1B",), ("b2", "B"): ("1B",)},
             category_weights={},
         )
         state.draft_player("b1", is_user=True, position="1B")
@@ -169,7 +171,7 @@ class TestPositionMultiplier:
         state = DraftState(
             roster_config=roster,
             player_values=players,
-            player_positions={"b1": ("1B", "OF")},
+            player_positions={("b1", "B"): ("1B", "OF")},
             category_weights={},
         )
         rankings = state.get_rankings()
@@ -186,7 +188,7 @@ class TestPositionMultiplier:
         state = DraftState(
             roster_config=roster,
             player_values=players,
-            player_positions={"b1": ("1B",)},
+            player_positions={("b1", "B"): ("1B",)},
             category_weights={},
         )
         rankings = state.get_rankings()
@@ -202,7 +204,7 @@ class TestPositionMultiplier:
         state = DraftState(
             roster_config=roster,
             player_values=players,
-            player_positions={"b1": ("1B",), "b2": ("1B",)},
+            player_positions={("b1", "B"): ("1B",), ("b2", "B"): ("1B",)},
             category_weights={},
         )
         # Fill the 1B slot
@@ -222,7 +224,7 @@ class TestPositionNeeds:
 
     def test_drafting_reduces_need(self) -> None:
         state = _make_state(
-            positions={"b1": ("OF",)},
+            positions={("b1", "B"): ("OF",)},
         )
         state.draft_player("b1", is_user=True, position="OF")
         needs = state.position_needs()
@@ -230,7 +232,7 @@ class TestPositionNeeds:
 
     def test_need_floors_at_zero(self) -> None:
         state = _make_state(
-            positions={"b1": ("1B",)},
+            positions={("b1", "B"): ("1B",)},
         )
         state.draft_player("b1", is_user=True, position="1B")
         # Draft more than capacity
@@ -243,3 +245,45 @@ class TestPositionNeeds:
         state.draft_player("b1", is_user=False)
         needs = state.position_needs()
         assert needs["1B"] == 1
+
+
+class TestTwoWayPlayer:
+    def test_both_entries_appear_in_rankings(self) -> None:
+        players = [
+            _make_player_value("ohtani", "Shohei Ohtani", hr_value=3.0, sb_value=1.0, position_type="B"),
+            _make_player_value("ohtani", "Shohei Ohtani", hr_value=2.0, sb_value=0.5, position_type="P"),
+        ]
+        state = _make_state(
+            players=players,
+            positions={("ohtani", "B"): ("OF",), ("ohtani", "P"): ("SP",)},
+        )
+        rankings = state.get_rankings()
+        assert len(rankings) == 2
+        assert all(r.player_id == "ohtani" for r in rankings)
+        # Batting entry (higher value) should rank first
+        assert rankings[0].eligible_positions == ("OF",)
+        assert rankings[1].eligible_positions == ("SP",)
+
+    def test_draft_player_removes_both_entries(self) -> None:
+        players = [
+            _make_player_value("ohtani", "Shohei Ohtani", hr_value=3.0, sb_value=1.0, position_type="B"),
+            _make_player_value("ohtani", "Shohei Ohtani", hr_value=2.0, sb_value=0.5, position_type="P"),
+            _make_player_value("other", "Other Player", hr_value=1.0, sb_value=0.5, position_type="B"),
+        ]
+        state = _make_state(
+            players=players,
+            positions={("ohtani", "B"): ("OF",), ("ohtani", "P"): ("SP",), ("other", "B"): ("1B",)},
+        )
+        state.draft_player("ohtani", is_user=False)
+        rankings = state.get_rankings()
+        assert len(rankings) == 1
+        assert rankings[0].player_id == "other"
+
+    def test_draft_player_returns_name(self) -> None:
+        players = [
+            _make_player_value("ohtani", "Shohei Ohtani", position_type="B"),
+            _make_player_value("ohtani", "Shohei Ohtani", position_type="P"),
+        ]
+        state = _make_state(players=players)
+        pick = state.draft_player("ohtani", is_user=False)
+        assert pick.name == "Shohei Ohtani"

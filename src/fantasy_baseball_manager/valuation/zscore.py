@@ -42,6 +42,7 @@ def zscore_batting(
                     CategoryValue(category=cat, raw_stat=extract_batting_stat(p, cat), value=0.0) for cat in categories
                 ),
                 total_value=0.0,
+                position_type="B",
             )
             for p in projections
         ]
@@ -75,7 +76,7 @@ def zscore_batting(
         )
         total = sum(cv.value for cv in cat_values)
         results.append(
-            PlayerValue(player_id=proj.player_id, name=proj.name, category_values=cat_values, total_value=total)
+            PlayerValue(player_id=proj.player_id, name=proj.name, category_values=cat_values, total_value=total, position_type="B")
         )
     return results
 
@@ -93,6 +94,7 @@ def zscore_pitching(
                     CategoryValue(category=cat, raw_stat=extract_pitching_stat(p, cat), value=0.0) for cat in categories
                 ),
                 total_value=0.0,
+                position_type="P",
             )
             for p in projections
         ]
@@ -136,6 +138,6 @@ def zscore_pitching(
         )
         total = sum(cv.value for cv in cat_values)
         results.append(
-            PlayerValue(player_id=proj.player_id, name=proj.name, category_values=cat_values, total_value=total)
+            PlayerValue(player_id=proj.player_id, name=proj.name, category_values=cat_values, total_value=total, position_type="P")
         )
     return results

@@ -106,6 +106,16 @@ class TestZscoreBattingCounting:
         results = zscore_batting([_batter(hr=30.0)], (StatCategory.HR,))
         assert results[0].total_value == 0.0
 
+    def test_position_type_is_batting(self) -> None:
+        batters = [_batter(player_id="a"), _batter(player_id="b")]
+        results = zscore_batting(batters, (StatCategory.HR,))
+        for pv in results:
+            assert pv.position_type == "B"
+
+    def test_single_player_position_type(self) -> None:
+        results = zscore_batting([_batter()], (StatCategory.HR,))
+        assert results[0].position_type == "B"
+
     def test_empty_list(self) -> None:
         results = zscore_batting([], (StatCategory.HR,))
         assert results == []
@@ -159,6 +169,16 @@ class TestZscorePitchingCounting:
         assert by_id["a"].total_value < 0
         assert by_id["b"].total_value == pytest.approx(0.0, abs=1e-10)
         assert by_id["c"].total_value > 0
+
+    def test_position_type_is_pitching(self) -> None:
+        pitchers = [_pitcher(player_id="a"), _pitcher(player_id="b")]
+        results = zscore_pitching(pitchers, (StatCategory.K,))
+        for pv in results:
+            assert pv.position_type == "P"
+
+    def test_single_pitcher_position_type(self) -> None:
+        results = zscore_pitching([_pitcher()], (StatCategory.K,))
+        assert results[0].position_type == "P"
 
     def test_empty_list(self) -> None:
         assert zscore_pitching([], (StatCategory.K,)) == []

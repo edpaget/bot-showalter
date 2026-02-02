@@ -11,11 +11,13 @@ class DraftState:
         self,
         roster_config: RosterConfig,
         player_values: list[PlayerValue],
-        player_positions: dict[str, tuple[str, ...]],
+        player_positions: dict[tuple[str, str], tuple[str, ...]],
         category_weights: dict[StatCategory, float],
     ) -> None:
         self._roster_config = roster_config
-        self._player_values = {pv.player_id: pv for pv in player_values}
+        self._player_values: dict[tuple[str, str], PlayerValue] = {
+            (pv.player_id, pv.position_type): pv for pv in player_values
+        }
         self._player_positions = player_positions
         self._category_weights = category_weights
         self._drafted: set[str] = set()
@@ -28,7 +30,11 @@ class DraftState:
         is_user: bool,
         position: str | None = None,
     ) -> DraftPick:
-        name = self._player_values[player_id].name if player_id in self._player_values else ""
+        name = ""
+        for key, pv in self._player_values.items():
+            if key[0] == player_id:
+                name = pv.name
+                break
         self._drafted.add(player_id)
         if is_user and position is not None:
             self._slot_filled[position] = self._slot_filled.get(position, 0) + 1
@@ -59,7 +65,7 @@ class DraftState:
                 weighted_value += cv.value * weight
                 raw_value += cv.value
 
-            positions = self._player_positions.get(pv.player_id, ())
+            positions = self._player_positions.get((pv.player_id, pv.position_type), ())
             best_position, multiplier = self._find_best_position(positions)
             adjusted_value = weighted_value * multiplier
 
