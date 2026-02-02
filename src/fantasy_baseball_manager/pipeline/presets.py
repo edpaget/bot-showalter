@@ -14,6 +14,9 @@ from fantasy_baseball_manager.pipeline.stages.finalizers import StandardFinalize
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
     ParkFactorAdjuster,
 )
+from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
+    PitcherNormalizationAdjuster,
+)
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateComputer
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
@@ -80,9 +83,42 @@ def marcel_plus_pipeline() -> ProjectionPipeline:
     )
 
 
+def marcel_norm_pipeline() -> ProjectionPipeline:
+    return ProjectionPipeline(
+        name="marcel_norm",
+        rate_computer=StatSpecificRegressionRateComputer(),
+        adjusters=(
+            PitcherNormalizationAdjuster(),
+            RebaselineAdjuster(),
+            MarcelAgingAdjuster(),
+        ),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
+def marcel_full_pipeline() -> ProjectionPipeline:
+    return ProjectionPipeline(
+        name="marcel_full",
+        rate_computer=StatSpecificRegressionRateComputer(),
+        adjusters=(
+            ParkFactorAdjuster(_cached_park_factor_provider()),
+            PitcherNormalizationAdjuster(),
+            RebaselineAdjuster(),
+            MarcelAgingAdjuster(),
+        ),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel": marcel_pipeline,
     "marcel_park": marcel_park_pipeline,
     "marcel_statreg": marcel_statreg_pipeline,
     "marcel_plus": marcel_plus_pipeline,
+    "marcel_norm": marcel_norm_pipeline,
+    "marcel_full": marcel_full_pipeline,
 }
