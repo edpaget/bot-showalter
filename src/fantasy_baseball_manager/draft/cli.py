@@ -229,7 +229,7 @@ def draft_rank(
                 logger.debug("  sample pitching IDs: %s", list(pitching_ids)[:5])
 
         # Build composite-keyed positions dict for DraftState
-        _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP"})
+        _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP", "P"})
         two_way_ids = batting_ids & pitching_ids
         composite_positions: dict[tuple[str, str], tuple[str, ...]] = {}
         for pid, positions in player_positions.items():
@@ -299,15 +299,16 @@ def draft_rank(
         lines: list[str] = []
         lines.append(f"Draft rankings for {year}:")
 
-        header = f"{'Rk':>4} {'Name':<25} {'Pos':<8} {'Best':>4} {'Mult':>5} {'Raw':>7} {'Wtd':>7} {'Adj':>7}"
+        header = f"{'Rk':>4} {'Name':<25} {'Pos':<8} {'Mult':>5} {'Raw':>7} {'Wtd':>7} {'Adj':>7}"
         lines.append(header)
         lines.append("-" * len(header))
 
         for r in rankings:
-            pos_str = "/".join(r.eligible_positions) if r.eligible_positions else "-"
-            best_str = r.best_position or "-"
+            display_pos = tuple(p for p in r.eligible_positions if p != "Util") or r.eligible_positions
+            pos_str = "/".join(display_pos) if display_pos else "-"
             lines.append(
-                f"{r.rank:>4} {r.name:<25} {pos_str:<8} {best_str:>4} {r.position_multiplier:>5.2f}"
+                f"{r.rank:>4} {r.name:<25} {pos_str:<8}"
+                f" {r.position_multiplier:>5.2f}"
                 f" {r.raw_value:>7.1f} {r.weighted_value:>7.1f} {r.adjusted_value:>7.1f}"
             )
 

@@ -132,15 +132,16 @@ class DraftState:
                 best_remaining = remaining
                 best_pos = pos
 
-        # Also check Util/BN as fallback for batters
-        for fallback in ("Util", "BN"):
-            if fallback in self._slot_capacity:
-                capacity = self._slot_capacity[fallback]
-                filled = self._slot_filled.get(fallback, 0)
-                remaining = capacity - filled
-                if remaining > best_remaining:
-                    best_remaining = remaining
-                    best_pos = fallback
+        # Only fall back to Util/BN when all eligible positions are filled
+        if best_remaining <= 0:
+            for fallback in ("Util", "BN"):
+                if fallback in self._slot_capacity:
+                    capacity = self._slot_capacity[fallback]
+                    filled = self._slot_filled.get(fallback, 0)
+                    remaining = capacity - filled
+                    if remaining > best_remaining:
+                        best_remaining = remaining
+                        best_pos = fallback
 
         if best_pos is None:
             return None, FILLED_POSITION_MULTIPLIER

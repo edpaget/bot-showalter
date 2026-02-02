@@ -398,6 +398,65 @@ class TestDraftRankCommand:
         cfg = create_config(yaml_path="/nonexistent/config.yaml")
         assert cfg["league.id"] == ""
 
+    def test_util_hidden_when_other_positions_exist(self, tmp_path: Path) -> None:
+        _install_fake(pitching=False)
+        pos_file = tmp_path / "positions.csv"
+        pos_file.write_text("b1,1B/DH\nb2,OF\nb3,SS\n")
+        result = runner.invoke(
+            app,
+            ["players", "draft-rank", "2025", "--batting", "--positions", str(pos_file)],
+        )
+        assert result.exit_code == 0
+        # DH normalizes to Util; Util should be hidden when 1B is also present
+        assert "Util" not in result.output
+        assert "1B" in result.output
+
+    def test_util_shown_when_only_position(self, tmp_path: Path) -> None:
+        _install_fake(pitching=False)
+        pos_file = tmp_path / "positions.csv"
+        pos_file.write_text("b1,DH\nb2,OF\nb3,SS\n")
+        result = runner.invoke(
+            app,
+            ["players", "draft-rank", "2025", "--batting", "--positions", str(pos_file)],
+        )
+        assert result.exit_code == 0
+        assert "Util" in result.output
+
+    def test_generic_p_excluded_from_batter_positions(self, tmp_path: Path) -> None:
+        """Yahoo returns 'P' for two-way players; it should not appear in batter positions."""
+        _install_fake(batting=True, pitching=True)
+        # Give b1 both batter and pitcher projections by reusing ID in both
+        ds = _build_fake(batting=True, pitching=True, num_batters=1, num_pitchers=1)
+        # Override so the same player ID appears in both batting and pitching
+        for year_batters in ds._player_batting.values():
+            for b in year_batters:
+                object.__setattr__(b, "player_id", "two_way")
+        for year_pitchers in ds._player_pitching.values():
+            for p in year_pitchers:
+                object.__setattr__(p, "player_id", "two_way")
+                object.__setattr__(p, "name", "Two Way Player")
+        set_data_source_factory(lambda: ds)
+
+        pos_file = tmp_path / "positions.csv"
+        # Simulate Yahoo-like positions: Util (from DH) + P (generic pitcher)
+        pos_file.write_text("two_way,Util/P\n")
+        result = runner.invoke(
+            app,
+            ["players", "draft-rank", "2025", "--positions", str(pos_file)],
+        )
+        assert result.exit_code == 0
+        # The batter entry should not show "P" in positions
+        for line in result.output.split("\n"):
+            if "Two Way Player" in line and "SP" not in line and "RP" not in line:
+                # This is the batter line — should not contain "/P" or standalone "P"
+                assert "/P" not in line
+
+    def test_best_column_removed_from_header(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "draft-rank", "2025"])
+        assert result.exit_code == 0
+        assert "Best" not in result.output
+
     def test_positions_file_takes_precedence_over_yahoo(self, tmp_path: Path) -> None:
         from unittest.mock import MagicMock
 

@@ -177,7 +177,7 @@ class TestPositionMultiplier:
         rankings = state.get_rankings()
         assert rankings[0].best_position == "OF"
 
-    def test_util_slot_used_as_fallback(self) -> None:
+    def test_eligible_position_preferred_over_util_fallback(self) -> None:
         roster = RosterConfig(
             slots=(
                 RosterSlot(position="1B", count=1),
@@ -192,8 +192,60 @@ class TestPositionMultiplier:
             category_weights={},
         )
         rankings = state.get_rankings()
-        # Util has 2 remaining vs 1B has 1 remaining, so Util wins
+        # 1B has remaining capacity, so it should be preferred over Util fallback
+        assert rankings[0].best_position == "1B"
+
+    def test_util_used_as_fallback_when_eligible_filled(self) -> None:
+        roster = RosterConfig(
+            slots=(
+                RosterSlot(position="1B", count=1),
+                RosterSlot(position="Util", count=1),
+            )
+        )
+        players = [
+            _make_player_value("b1", "Batter One", hr_value=2.0),
+            _make_player_value("b2", "Batter Two", hr_value=1.0),
+        ]
+        state = DraftState(
+            roster_config=roster,
+            player_values=players,
+            player_positions={("b1", "B"): ("1B",), ("b2", "B"): ("1B",)},
+            category_weights={},
+        )
+        state.draft_player("b1", is_user=True, position="1B")
+        rankings = state.get_rankings()
+        # 1B is filled, so Util should be the fallback
         assert rankings[0].best_position == "Util"
+        assert rankings[0].position_multiplier == 1.0
+
+    def test_bn_used_only_when_eligible_and_util_filled(self) -> None:
+        roster = RosterConfig(
+            slots=(
+                RosterSlot(position="1B", count=1),
+                RosterSlot(position="Util", count=1),
+                RosterSlot(position="BN", count=2),
+            )
+        )
+        players = [
+            _make_player_value("b1", "One", hr_value=3.0),
+            _make_player_value("b2", "Two", hr_value=2.0),
+            _make_player_value("b3", "Three", hr_value=1.0),
+        ]
+        state = DraftState(
+            roster_config=roster,
+            player_values=players,
+            player_positions={
+                ("b1", "B"): ("1B",),
+                ("b2", "B"): ("1B",),
+                ("b3", "B"): ("1B",),
+            },
+            category_weights={},
+        )
+        state.draft_player("b1", is_user=True, position="1B")
+        state.draft_player("b2", is_user=True, position="Util")
+        rankings = state.get_rankings()
+        assert rankings[0].best_position == "BN"
+        assert rankings[0].position_multiplier == 1.0
 
     def test_position_penalty_affects_adjusted_value(self) -> None:
         roster = RosterConfig(slots=(RosterSlot(position="1B", count=1),))
