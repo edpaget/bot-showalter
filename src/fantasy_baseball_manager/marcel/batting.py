@@ -117,6 +117,8 @@ def project_batters(
                 sh=projected_stats["sh"],
                 sb=projected_stats["sb"],
                 cs=projected_stats["cs"],
+                r=projected_stats["r"],
+                rbi=projected_stats["rbi"],
             )
         )
 

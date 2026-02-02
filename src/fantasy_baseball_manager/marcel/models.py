@@ -21,6 +21,8 @@ class BattingSeasonStats:
     sh: int
     sb: int
     cs: int
+    r: int
+    rbi: int
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,8 @@ class BattingProjection:
     sh: float
     sb: float
     cs: float
+    r: float
+    rbi: float
 
 
 @dataclass(frozen=True)

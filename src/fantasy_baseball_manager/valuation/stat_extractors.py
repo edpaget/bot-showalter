@@ -4,6 +4,8 @@ from fantasy_baseball_manager.valuation.models import StatCategory
 _SUPPORTED_BATTING: dict[StatCategory, str] = {
     StatCategory.HR: "hr",
     StatCategory.SB: "sb",
+    StatCategory.R: "r",
+    StatCategory.RBI: "rbi",
 }
 
 _SUPPORTED_PITCHING_COUNTING: dict[StatCategory, str] = {

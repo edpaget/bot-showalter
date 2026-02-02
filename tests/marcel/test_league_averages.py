@@ -27,6 +27,8 @@ def _make_batting_stats(
     sh: int = 5,
     sb: int = 20,
     cs: int = 5,
+    r: int = 130,
+    rbi: int = 120,
 ) -> BattingSeasonStats:
     return BattingSeasonStats(
         player_id="league",
@@ -47,6 +49,8 @@ def _make_batting_stats(
         sh=sh,
         sb=sb,
         cs=cs,
+        r=r,
+        rbi=rbi,
     )
 
 
@@ -99,7 +103,7 @@ class TestComputeBattingLeagueRates:
     def test_all_component_stats_present(self) -> None:
         stats = [_make_batting_stats()]
         rates = compute_batting_league_rates(stats)
-        expected_keys = {"singles", "doubles", "triples", "hr", "bb", "so", "hbp", "sf", "sh", "sb", "cs"}
+        expected_keys = {"singles", "doubles", "triples", "hr", "bb", "so", "hbp", "sf", "sh", "sb", "cs", "r", "rbi"}
         assert set(rates.keys()) == expected_keys
 
 

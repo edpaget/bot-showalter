@@ -27,6 +27,8 @@ def batting_stats_to_projection(stats: BattingSeasonStats) -> BattingProjection:
         sh=float(stats.sh),
         sb=float(stats.sb),
         cs=float(stats.cs),
+        r=float(stats.r),
+        rbi=float(stats.rbi),
     )
 
 

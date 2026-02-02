@@ -75,6 +75,8 @@ def _make_batter(
         sh=sh,
         sb=sb,
         cs=cs,
+        r=80,
+        rbi=90,
     )
 
 
@@ -130,6 +132,8 @@ def _make_league_batting(year: int = 2024) -> BattingSeasonStats:
         sh=20,
         sb=100,
         cs=30,
+        r=800,
+        rbi=750,
     )
 
 
@@ -263,11 +267,11 @@ class TestValuateCommand:
         result = runner.invoke(app, ["players", "valuate", "2025", "--batting", "--categories", "xyz"])
         assert result.exit_code == 1
 
-    def test_unsupported_category_rbi(self) -> None:
+    def test_rbi_category(self) -> None:
         _install_fake()
         result = runner.invoke(app, ["players", "valuate", "2025", "--batting", "--categories", "rbi"])
-        assert result.exit_code == 1
-        assert "not yet supported" in result.output.lower() or "unsupported" in result.output.lower()
+        assert result.exit_code == 0
+        assert "RBI" in result.output
 
     def test_output_sorted_by_total_descending(self) -> None:
         _install_fake()

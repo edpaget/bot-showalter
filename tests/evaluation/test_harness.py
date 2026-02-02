@@ -44,6 +44,8 @@ def _batter_proj(
         sh=2.0,
         sb=sb,
         cs=3.0,
+        r=0.0,
+        rbi=0.0,
     )
 
 
@@ -103,6 +105,8 @@ def _batting_stats(
         sh=2,
         sb=sb,
         cs=3,
+        r=80,
+        rbi=90,
     )
 
 

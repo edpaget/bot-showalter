@@ -53,6 +53,8 @@ def _make_batter(
         sh=sh,
         sb=sb,
         cs=cs,
+        r=80,
+        rbi=90,
     )
 
 
@@ -108,6 +110,8 @@ def _make_league_batting(year: int = 2024) -> BattingSeasonStats:
         sh=20,
         sb=100,
         cs=30,
+        r=800,
+        rbi=750,
     )
 
 

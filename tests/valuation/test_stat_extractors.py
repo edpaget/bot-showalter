@@ -34,6 +34,8 @@ def _batting(
         sh=2.0,
         sb=sb,
         cs=3.0,
+        r=0.0,
+        rbi=0.0,
     )
 
 
@@ -80,13 +82,56 @@ class TestExtractBattingStat:
         proj = _batting(h=0.0, bb=0.0, hbp=0.0, pa=0.0)
         assert extract_batting_stat(proj, StatCategory.OBP) == 0.0
 
-    def test_unsupported_r(self) -> None:
-        with pytest.raises(ValueError, match="R"):
-            extract_batting_stat(_batting(), StatCategory.R)
+    def test_r(self) -> None:
+        proj = _batting()
+        proj = BattingProjection(
+            player_id="b1",
+            name="Batter",
+            year=2025,
+            age=28,
+            pa=600.0,
+            ab=540.0,
+            h=150.0,
+            singles=110.0,
+            doubles=25.0,
+            triples=5.0,
+            hr=30.0,
+            bb=50.0,
+            so=100.0,
+            hbp=5.0,
+            sf=3.0,
+            sh=2.0,
+            sb=10.0,
+            cs=3.0,
+            r=85.0,
+            rbi=95.0,
+        )
+        assert extract_batting_stat(proj, StatCategory.R) == 85.0
 
-    def test_unsupported_rbi(self) -> None:
-        with pytest.raises(ValueError, match="RBI"):
-            extract_batting_stat(_batting(), StatCategory.RBI)
+    def test_rbi(self) -> None:
+        proj = BattingProjection(
+            player_id="b1",
+            name="Batter",
+            year=2025,
+            age=28,
+            pa=600.0,
+            ab=540.0,
+            h=150.0,
+            singles=110.0,
+            doubles=25.0,
+            triples=5.0,
+            hr=30.0,
+            bb=50.0,
+            so=100.0,
+            hbp=5.0,
+            sf=3.0,
+            sh=2.0,
+            sb=10.0,
+            cs=3.0,
+            r=85.0,
+            rbi=95.0,
+        )
+        assert extract_batting_stat(proj, StatCategory.RBI) == 95.0
 
     def test_pitching_category_raises(self) -> None:
         with pytest.raises(ValueError, match="ERA"):

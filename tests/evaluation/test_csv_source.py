@@ -14,8 +14,8 @@ class TestCsvProjectionSourceBatting:
         csv_path = tmp_path / "batting.csv"
         _write_csv(
             csv_path,
-            "IDfg,Name,Age,PA,AB,H,1B,2B,3B,HR,BB,SO,HBP,SF,SH,SB,CS\n"
-            "123,Mike Trout,31,600,540,160,100,30,5,25,50,120,5,3,2,10,3\n",
+            "IDfg,Name,Age,PA,AB,H,1B,2B,3B,HR,BB,SO,HBP,SF,SH,SB,CS,R,RBI\n"
+            "123,Mike Trout,31,600,540,160,100,30,5,25,50,120,5,3,2,10,3,80,90\n",
         )
         source = CsvProjectionSource(batting_path=csv_path, pitching_path=None)
         batters = source.batting_projections()

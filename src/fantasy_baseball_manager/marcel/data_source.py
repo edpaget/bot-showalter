@@ -51,6 +51,8 @@ class PybaseballDataSource:
                     sh=int(row.get("SH", 0)),
                     sb=int(row.get("SB", 0)),
                     cs=int(row.get("CS", 0)),
+                    r=int(row.get("R", 0)),
+                    rbi=int(row.get("RBI", 0)),
                 )
             )
         return results
@@ -107,6 +109,8 @@ class PybaseballDataSource:
                     sh=int(row.get("SH", 0)),
                     sb=int(row.get("SB", 0)),
                     cs=int(row.get("CS", 0)),
+                    r=int(row.get("R", 0)),
+                    rbi=int(row.get("RBI", 0)),
                 )
             )
         return results

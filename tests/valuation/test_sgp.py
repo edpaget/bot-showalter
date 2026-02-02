@@ -35,6 +35,8 @@ def _batter(
         sh=2.0,
         sb=sb,
         cs=3.0,
+        r=0.0,
+        rbi=0.0,
     )
 
 

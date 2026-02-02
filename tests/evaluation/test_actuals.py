@@ -49,6 +49,8 @@ def _make_batting_stats(
         sh=sh,
         sb=sb,
         cs=cs,
+        r=80,
+        rbi=90,
     )
 
 

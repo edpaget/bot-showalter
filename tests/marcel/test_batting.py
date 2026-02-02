@@ -51,6 +51,8 @@ def _make_player(
     sh: int = 2,
     sb: int = 10,
     cs: int = 3,
+    r: int = 80,
+    rbi: int = 90,
 ) -> BattingSeasonStats:
     return BattingSeasonStats(
         player_id=player_id,
@@ -71,6 +73,8 @@ def _make_player(
         sh=sh,
         sb=sb,
         cs=cs,
+        r=r,
+        rbi=rbi,
     )
 
 
@@ -90,6 +94,8 @@ def _make_league(
     sh: int = 20,
     sb: int = 100,
     cs: int = 30,
+    r: int = 800,
+    rbi: int = 750,
 ) -> BattingSeasonStats:
     return BattingSeasonStats(
         player_id="league",
@@ -110,6 +116,8 @@ def _make_league(
         sh=sh,
         sb=sb,
         cs=cs,
+        r=r,
+        rbi=rbi,
     )
 
 

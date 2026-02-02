@@ -19,7 +19,13 @@ if TYPE_CHECKING:
 
 _CATEGORY_MAP: dict[str, StatCategory] = {member.value.lower(): member for member in StatCategory}
 
-_SUPPORTED_BATTING: set[StatCategory] = {StatCategory.HR, StatCategory.SB, StatCategory.OBP}
+_SUPPORTED_BATTING: set[StatCategory] = {
+    StatCategory.HR,
+    StatCategory.SB,
+    StatCategory.OBP,
+    StatCategory.R,
+    StatCategory.RBI,
+}
 _SUPPORTED_PITCHING: set[StatCategory] = {StatCategory.K, StatCategory.ERA, StatCategory.WHIP}
 
 _DEFAULT_BATTING: tuple[StatCategory, ...] = (StatCategory.HR, StatCategory.SB, StatCategory.OBP)

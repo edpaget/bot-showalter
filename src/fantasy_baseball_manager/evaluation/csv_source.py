@@ -59,6 +59,8 @@ class CsvProjectionSource:
                     sh=float(row.get("sh", "0")),
                     sb=float(row.get("sb", "0")),
                     cs=float(row.get("cs", "0")),
+                    r=float(row.get("r", "0")),
+                    rbi=float(row.get("rbi", "0")),
                 )
             )
         return projections

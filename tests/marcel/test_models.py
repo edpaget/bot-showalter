@@ -31,6 +31,8 @@ class TestBattingSeasonStats:
             sh=2,
             sb=10,
             cs=3,
+            r=80,
+            rbi=90,
         )
         assert stats.player_id == "abc123"
         assert stats.pa == 600
@@ -56,6 +58,8 @@ class TestBattingSeasonStats:
             sh=2,
             sb=10,
             cs=3,
+            r=80,
+            rbi=90,
         )
         with pytest.raises(FrozenInstanceError):
             stats.pa = 700  # type: ignore[misc]
@@ -123,6 +127,8 @@ class TestBattingProjection:
             sh=1.5,
             sb=8.0,
             cs=2.5,
+            r=70.0,
+            rbi=85.0,
         )
         assert proj.year == 2025
         assert proj.pa == 550.0
@@ -147,6 +153,8 @@ class TestBattingProjection:
             sh=1.5,
             sb=8.0,
             cs=2.5,
+            r=70.0,
+            rbi=85.0,
         )
         with pytest.raises(FrozenInstanceError):
             proj.pa = 600.0  # type: ignore[misc]

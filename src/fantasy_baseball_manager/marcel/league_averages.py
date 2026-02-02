@@ -15,6 +15,8 @@ BATTING_COMPONENT_STATS = (
     "sh",
     "sb",
     "cs",
+    "r",
+    "rbi",
 )
 
 PITCHING_COMPONENT_STATS = (
