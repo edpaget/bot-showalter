@@ -1,5 +1,5 @@
 ---
-user_invocable: true
+user-invocable: true
 description: Get fantasy baseball draft advice, player projections, and team comparisons
 ---
 
