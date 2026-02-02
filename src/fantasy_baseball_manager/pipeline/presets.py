@@ -31,6 +31,43 @@ from fantasy_baseball_manager.pipeline.stages.regression_config import Regressio
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
+from fantasy_baseball_manager.pipeline.stages.statcast_adjuster import (
+    StatcastRateAdjuster,
+)
+from fantasy_baseball_manager.pipeline.statcast_data import (
+    CachedStatcastDataSource,
+    PybaseballStatcastDataSource,
+    StatcastDataSource,
+)
+from fantasy_baseball_manager.player_id.mapper import (
+    PlayerIdMapper,
+    build_cached_sfbb_mapper,
+)
+
+
+def _cached_statcast_source() -> CachedStatcastDataSource:
+    return CachedStatcastDataSource(
+        delegate=PybaseballStatcastDataSource(),
+        cache=create_cache_store(),
+    )
+
+
+def _default_id_mapper() -> PlayerIdMapper:
+    return build_cached_sfbb_mapper(
+        cache=create_cache_store(),
+        cache_key="presets",
+        ttl=7 * 86400,
+    )
+
+
+def _statcast_adjuster(
+    statcast_source: StatcastDataSource | None = None,
+    id_mapper: PlayerIdMapper | None = None,
+) -> StatcastRateAdjuster:
+    return StatcastRateAdjuster(
+        statcast_source=statcast_source or _cached_statcast_source(),
+        id_mapper=id_mapper or _default_id_mapper(),
+    )
 
 
 def _cached_park_factor_provider() -> CachedParkFactorProvider:
@@ -158,6 +195,63 @@ def marcel_classic_pipeline() -> ProjectionPipeline:
     )
 
 
+def marcel_statcast_pipeline(
+    statcast_source: StatcastDataSource | None = None,
+    id_mapper: PlayerIdMapper | None = None,
+) -> ProjectionPipeline:
+    return ProjectionPipeline(
+        name="marcel_statcast",
+        rate_computer=MarcelRateComputer(),
+        adjusters=(
+            _statcast_adjuster(statcast_source, id_mapper),
+            RebaselineAdjuster(),
+            ComponentAgingAdjuster(),
+        ),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
+def marcel_plus_statcast_pipeline(
+    statcast_source: StatcastDataSource | None = None,
+    id_mapper: PlayerIdMapper | None = None,
+) -> ProjectionPipeline:
+    return ProjectionPipeline(
+        name="marcel_plus_statcast",
+        rate_computer=StatSpecificRegressionRateComputer(),
+        adjusters=(
+            ParkFactorAdjuster(_cached_park_factor_provider()),
+            _statcast_adjuster(statcast_source, id_mapper),
+            RebaselineAdjuster(),
+            ComponentAgingAdjuster(),
+        ),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
+def marcel_full_statcast_pipeline(
+    statcast_source: StatcastDataSource | None = None,
+    id_mapper: PlayerIdMapper | None = None,
+) -> ProjectionPipeline:
+    return ProjectionPipeline(
+        name="marcel_full_statcast",
+        rate_computer=StatSpecificRegressionRateComputer(),
+        adjusters=(
+            ParkFactorAdjuster(_cached_park_factor_provider()),
+            PitcherNormalizationAdjuster(),
+            _statcast_adjuster(statcast_source, id_mapper),
+            RebaselineAdjuster(),
+            ComponentAgingAdjuster(),
+        ),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
@@ -166,6 +260,9 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_plus": marcel_plus_pipeline,
     "marcel_norm": marcel_norm_pipeline,
     "marcel_full": marcel_full_pipeline,
+    "marcel_statcast": marcel_statcast_pipeline,
+    "marcel_plus_statcast": marcel_plus_statcast_pipeline,
+    "marcel_full_statcast": marcel_full_statcast_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {

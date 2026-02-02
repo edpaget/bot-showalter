@@ -168,7 +168,9 @@ class FakeBlender:
         self.pitching_calls: list[tuple[PitchingProjection, PitchingSeasonStats]] = []
 
     def blend_batting(
-        self, preseason: BattingProjection, actuals: BattingSeasonStats,
+        self,
+        preseason: BattingProjection,
+        actuals: BattingSeasonStats,
     ) -> BattingProjection:
         self.batting_calls.append((preseason, actuals))
         return BattingProjection(
@@ -195,7 +197,9 @@ class FakeBlender:
         )
 
     def blend_pitching(
-        self, preseason: PitchingProjection, actuals: PitchingSeasonStats,
+        self,
+        preseason: PitchingProjection,
+        actuals: PitchingSeasonStats,
     ) -> PitchingProjection:
         self.pitching_calls.append((preseason, actuals))
         return PitchingProjection(
@@ -255,14 +259,18 @@ class TestROSProjectorBatting:
         assert len(results) == 0
 
     def test_multiple_players_blended_independently(self) -> None:
-        pipeline = FakePipeline(batters=[
-            _make_batting_projection(player_id="b1", name="A"),
-            _make_batting_projection(player_id="b2", name="B"),
-        ])
-        ds = FakeDataSource(batting=[
-            _make_batting_actuals(player_id="b1", name="A"),
-            _make_batting_actuals(player_id="b2", name="B"),
-        ])
+        pipeline = FakePipeline(
+            batters=[
+                _make_batting_projection(player_id="b1", name="A"),
+                _make_batting_projection(player_id="b2", name="B"),
+            ]
+        )
+        ds = FakeDataSource(
+            batting=[
+                _make_batting_actuals(player_id="b1", name="A"),
+                _make_batting_actuals(player_id="b2", name="B"),
+            ]
+        )
         blender = FakeBlender()
         projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
 
@@ -322,10 +330,12 @@ class TestROSProjectorPitching:
 
     def test_mixed_players(self) -> None:
         """One player matched, one unmatched — both appear in output."""
-        pipeline = FakePipeline(pitchers=[
-            _make_pitching_projection(player_id="p1"),
-            _make_pitching_projection(player_id="p2"),
-        ])
+        pipeline = FakePipeline(
+            pitchers=[
+                _make_pitching_projection(player_id="p1"),
+                _make_pitching_projection(player_id="p2"),
+            ]
+        )
         ds = FakeDataSource(pitching=[_make_pitching_actuals(player_id="p1")])
         blender = FakeBlender()
         projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)

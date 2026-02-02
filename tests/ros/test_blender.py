@@ -174,7 +174,9 @@ class TestBayesianBlenderBatting:
         """With zero PA actuals, blended rates equal preseason rates and remaining_pa = full preseason pa."""
         blender = BayesianBlender()
         preseason = _preseason_batter(pa=600.0, hr=30.0)
-        actuals = _actuals_batter(pa=0, ab=0, singles=0, doubles=0, triples=0, hr=0, bb=0, so=0, hbp=0, sf=0, sh=0, sb=0, cs=0, r=0, rbi=0)
+        actuals = _actuals_batter(
+            pa=0, ab=0, singles=0, doubles=0, triples=0, hr=0, bb=0, so=0, hbp=0, sf=0, sh=0, sb=0, cs=0, r=0, rbi=0
+        )
 
         result = blender.blend_batting(preseason, actuals)
 
@@ -185,7 +187,23 @@ class TestBayesianBlenderBatting:
 
     def test_midpoint_when_actuals_equal_regression(self) -> None:
         """When actuals.pa equals the regression constant, blended rate is midpoint of preseason and actual rates."""
-        blender = BayesianBlender(batting_regression={"hr": 200.0, "singles": 200.0, "doubles": 200.0, "triples": 200.0, "bb": 200.0, "so": 200.0, "hbp": 200.0, "sf": 200.0, "sh": 200.0, "sb": 200.0, "cs": 200.0, "r": 200.0, "rbi": 200.0})
+        blender = BayesianBlender(
+            batting_regression={
+                "hr": 200.0,
+                "singles": 200.0,
+                "doubles": 200.0,
+                "triples": 200.0,
+                "bb": 200.0,
+                "so": 200.0,
+                "hbp": 200.0,
+                "sf": 200.0,
+                "sh": 200.0,
+                "sb": 200.0,
+                "cs": 200.0,
+                "r": 200.0,
+                "rbi": 200.0,
+            }
+        )
         preseason = _preseason_batter(pa=600.0, hr=30.0)  # rate = 30/600 = 0.05
         actuals = _actuals_batter(pa=200, ab=170, hr=20)  # rate = 20/200 = 0.10
 
@@ -201,7 +219,23 @@ class TestBayesianBlenderBatting:
 
     def test_large_sample_weights_actuals_heavily(self) -> None:
         """With large sample, actuals dominate the blend."""
-        blender = BayesianBlender(batting_regression={"hr": 100.0, "singles": 100.0, "doubles": 100.0, "triples": 100.0, "bb": 100.0, "so": 100.0, "hbp": 100.0, "sf": 100.0, "sh": 100.0, "sb": 100.0, "cs": 100.0, "r": 100.0, "rbi": 100.0})
+        blender = BayesianBlender(
+            batting_regression={
+                "hr": 100.0,
+                "singles": 100.0,
+                "doubles": 100.0,
+                "triples": 100.0,
+                "bb": 100.0,
+                "so": 100.0,
+                "hbp": 100.0,
+                "sf": 100.0,
+                "sh": 100.0,
+                "sb": 100.0,
+                "cs": 100.0,
+                "r": 100.0,
+                "rbi": 100.0,
+            }
+        )
         preseason = _preseason_batter(pa=600.0, hr=30.0)  # rate = 0.05
         actuals = _actuals_batter(pa=500, ab=450, hr=50)  # rate = 0.10
 
@@ -241,7 +275,23 @@ class TestBayesianBlenderBatting:
 
     def test_counting_stats_equal_rate_times_remaining_pa(self) -> None:
         """Each counting stat = blended_rate * remaining_pa."""
-        blender = BayesianBlender(batting_regression={"hr": 500.0, "singles": 800.0, "doubles": 1600.0, "triples": 1600.0, "bb": 400.0, "so": 200.0, "hbp": 600.0, "sf": 1600.0, "sh": 1600.0, "sb": 600.0, "cs": 600.0, "r": 1200.0, "rbi": 1200.0})
+        blender = BayesianBlender(
+            batting_regression={
+                "hr": 500.0,
+                "singles": 800.0,
+                "doubles": 1600.0,
+                "triples": 1600.0,
+                "bb": 400.0,
+                "so": 200.0,
+                "hbp": 600.0,
+                "sf": 1600.0,
+                "sh": 1600.0,
+                "sb": 600.0,
+                "cs": 600.0,
+                "r": 1200.0,
+                "rbi": 1200.0,
+            }
+        )
         preseason = _preseason_batter(pa=600.0, hr=30.0, bb=60.0)
         actuals = _actuals_batter(pa=200, ab=170, hr=10, bb=20)
 
@@ -333,7 +383,20 @@ class TestBayesianBlenderPitching:
 
     def test_blending_formula_pitching(self) -> None:
         """Verify blending uses outs as opportunity unit."""
-        blender = BayesianBlender(pitching_regression={"so": 30.0, "bb": 60.0, "hr": 80.0, "hbp": 100.0, "h": 200.0, "er": 150.0, "w": 134.0, "sv": 134.0, "hld": 134.0, "bs": 134.0})
+        blender = BayesianBlender(
+            pitching_regression={
+                "so": 30.0,
+                "bb": 60.0,
+                "hr": 80.0,
+                "hbp": 100.0,
+                "h": 200.0,
+                "er": 150.0,
+                "w": 134.0,
+                "sv": 134.0,
+                "hld": 134.0,
+                "bs": 134.0,
+            }
+        )
         preseason = _preseason_pitcher(ip=180.0, so=180.0)  # rate = 180/(180*3) = 1/3
         actuals = _actuals_pitcher(ip=90.0, so=90)  # rate = 90/(90*3) = 1/3
 

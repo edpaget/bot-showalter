@@ -10,11 +10,32 @@ from fantasy_baseball_manager.pipeline.stages.regression_constants import (
 )
 
 BATTING_COMPONENT_STATS: tuple[str, ...] = (
-    "singles", "doubles", "triples", "hr", "bb", "so", "hbp", "sf", "sh", "sb", "cs", "r", "rbi",
+    "singles",
+    "doubles",
+    "triples",
+    "hr",
+    "bb",
+    "so",
+    "hbp",
+    "sf",
+    "sh",
+    "sb",
+    "cs",
+    "r",
+    "rbi",
 )
 
 PITCHING_COMPONENT_STATS: tuple[str, ...] = (
-    "so", "bb", "hr", "hbp", "h", "er", "w", "sv", "hld", "bs",
+    "so",
+    "bb",
+    "hr",
+    "hbp",
+    "h",
+    "er",
+    "w",
+    "sv",
+    "hld",
+    "bs",
 )
 
 

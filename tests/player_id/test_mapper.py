@@ -9,11 +9,11 @@ from fantasy_baseball_manager.player_id.mapper import (
 )
 
 SAMPLE_CSV = (
-    "IDPLAYER,PLAYERNAME,YAHOOID,IDFANGRAPHS,OTHERFIELD\n"
-    "1,Mike Trout,10155,19054,xyz\n"
-    "2,Shohei Ohtani,10835,19755,abc\n"
-    "3,No Yahoo,,99999,def\n"
-    "4,No FanGraphs,55555,,ghi\n"
+    "IDPLAYER,PLAYERNAME,YAHOOID,IDFANGRAPHS,MLBID,OTHERFIELD\n"
+    "1,Mike Trout,10155,19054,545361,xyz\n"
+    "2,Shohei Ohtani,10835,19755,660271,abc\n"
+    "3,No Yahoo,,99999,111111,def\n"
+    "4,No FanGraphs,55555,,,ghi\n"
 )
 
 
@@ -54,6 +54,19 @@ class TestSfbbMapper:
         mapper.yahoo_to_fg_map["y2"] = "fg2"
         assert mapper.yahoo_to_fangraphs("y2") is None
 
+    def test_fangraphs_to_mlbam_returns_mapped_id(self) -> None:
+        mapper = SfbbMapper({}, {}, fg_to_mlbam={"19054": "545361"}, mlbam_to_fg={"545361": "19054"})
+        assert mapper.fangraphs_to_mlbam("19054") == "545361"
+
+    def test_mlbam_to_fangraphs_returns_mapped_id(self) -> None:
+        mapper = SfbbMapper({}, {}, fg_to_mlbam={"19054": "545361"}, mlbam_to_fg={"545361": "19054"})
+        assert mapper.mlbam_to_fangraphs("545361") == "19054"
+
+    def test_unknown_mlbam_returns_none(self) -> None:
+        mapper = SfbbMapper({}, {})
+        assert mapper.fangraphs_to_mlbam("99999") is None
+        assert mapper.mlbam_to_fangraphs("99999") is None
+
 
 class TestParseSfbbCsv:
     def test_parses_valid_rows(self) -> None:
@@ -74,6 +87,23 @@ class TestParseSfbbCsv:
     def test_empty_csv(self) -> None:
         mapper = _parse_sfbb_csv("YAHOOID,IDFANGRAPHS\n")
         assert mapper.yahoo_to_fg_map == {}
+
+    def test_parse_csv_builds_mlbam_mapping(self) -> None:
+        mapper = _parse_sfbb_csv(SAMPLE_CSV)
+        assert mapper.fangraphs_to_mlbam("19054") == "545361"
+        assert mapper.fangraphs_to_mlbam("19755") == "660271"
+        assert mapper.mlbam_to_fangraphs("545361") == "19054"
+        assert mapper.mlbam_to_fangraphs("660271") == "19755"
+
+    def test_parse_csv_skips_rows_missing_mlbam(self) -> None:
+        mapper = _parse_sfbb_csv(SAMPLE_CSV)
+        # Row 4 has no MLBID
+        assert mapper.fangraphs_to_mlbam("") is None
+
+    def test_parse_csv_mlbam_without_fangraphs_skipped(self) -> None:
+        mapper = _parse_sfbb_csv(SAMPLE_CSV)
+        # Row 3 has MLBID but no YAHOOID; MLBID should still map to FG ID
+        assert mapper.mlbam_to_fangraphs("111111") == "99999"
 
 
 class TestBuildSfbbMapper:

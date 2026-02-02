@@ -59,9 +59,26 @@ def _make_batter(
     rbi: int = 90,
 ) -> BattingSeasonStats:
     return BattingSeasonStats(
-        player_id=player_id, name=name, year=year, age=age,
-        pa=pa, ab=ab, h=h, singles=singles, doubles=doubles, triples=triples,
-        hr=hr, bb=bb, so=so, hbp=hbp, sf=sf, sh=sh, sb=sb, cs=cs, r=r, rbi=rbi,
+        player_id=player_id,
+        name=name,
+        year=year,
+        age=age,
+        pa=pa,
+        ab=ab,
+        h=h,
+        singles=singles,
+        doubles=doubles,
+        triples=triples,
+        hr=hr,
+        bb=bb,
+        so=so,
+        hbp=hbp,
+        sf=sf,
+        sh=sh,
+        sb=sb,
+        cs=cs,
+        r=r,
+        rbi=rbi,
     )
 
 
@@ -81,25 +98,70 @@ def _make_pitcher(
     hbp: int = 5,
 ) -> PitchingSeasonStats:
     return PitchingSeasonStats(
-        player_id=player_id, name=name, year=year, age=age,
-        ip=ip, g=g, gs=gs, er=er, h=h, bb=bb, so=so, hr=hr, hbp=hbp,
-        w=0, sv=0, hld=0, bs=0,
+        player_id=player_id,
+        name=name,
+        year=year,
+        age=age,
+        ip=ip,
+        g=g,
+        gs=gs,
+        er=er,
+        h=h,
+        bb=bb,
+        so=so,
+        hr=hr,
+        hbp=hbp,
+        w=0,
+        sv=0,
+        hld=0,
+        bs=0,
     )
 
 
 def _make_league_batting(year: int = 2024) -> BattingSeasonStats:
     return BattingSeasonStats(
-        player_id="league", name="League Total", year=year, age=0,
-        pa=6000, ab=5400, h=1500, singles=900, doubles=300, triples=30, hr=200,
-        bb=500, so=1400, hbp=50, sf=30, sh=20, sb=100, cs=30, r=800, rbi=750,
+        player_id="league",
+        name="League Total",
+        year=year,
+        age=0,
+        pa=6000,
+        ab=5400,
+        h=1500,
+        singles=900,
+        doubles=300,
+        triples=30,
+        hr=200,
+        bb=500,
+        so=1400,
+        hbp=50,
+        sf=30,
+        sh=20,
+        sb=100,
+        cs=30,
+        r=800,
+        rbi=750,
     )
 
 
 def _make_league_pitching(year: int = 2024) -> PitchingSeasonStats:
     return PitchingSeasonStats(
-        player_id="league", name="League Total", year=year, age=0,
-        ip=1400.0, g=500, gs=200, er=600, h=1300, bb=450, so=1300, hr=180, hbp=50,
-        w=0, sv=0, hld=0, bs=0,
+        player_id="league",
+        name="League Total",
+        year=year,
+        age=0,
+        ip=1400.0,
+        g=500,
+        gs=200,
+        er=600,
+        h=1300,
+        bb=450,
+        so=1300,
+        hr=180,
+        hbp=50,
+        w=0,
+        sv=0,
+        hld=0,
+        bs=0,
     )
 
 
