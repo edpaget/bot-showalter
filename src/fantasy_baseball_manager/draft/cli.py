@@ -23,7 +23,14 @@ from fantasy_baseball_manager.draft.positions import (
     load_positions_file,
 )
 from fantasy_baseball_manager.draft.results import DraftStatus, YahooDraftResultsSource
+from fantasy_baseball_manager.draft.simulation import simulate_draft
+from fantasy_baseball_manager.draft.simulation_models import (
+    SimulationConfig,
+    TeamConfig,
+)
+from fantasy_baseball_manager.draft.simulation_report import format_pick_log, format_standings
 from fantasy_baseball_manager.draft.state import DraftState
+from fantasy_baseball_manager.draft.strategy_presets import STRATEGY_PRESETS
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
@@ -303,3 +310,163 @@ def draft_rank(
         typer.echo("\n".join(lines))
     finally:
         clear_cli_overrides()
+
+
+def _build_projections_and_positions(
+    engine: str,
+    year: int,
+) -> tuple[list[PlayerValue], dict[tuple[str, str], tuple[str, ...]]]:
+    """Build player values and composite positions for simulation."""
+    data_source = _data_source_factory()
+    pipeline = PIPELINES[engine]()
+
+    batting_projections = pipeline.project_batters(data_source, year)
+    batting_values = zscore_batting(batting_projections, _DEFAULT_BATTING_CATS)
+    batting_ids = {p.player_id for p in batting_projections}
+
+    pitching_projections = pipeline.project_pitchers(data_source, year)
+    player_positions: dict[str, tuple[str, ...]] = {}
+    for proj in pitching_projections:
+        if proj.player_id not in player_positions:
+            role = infer_pitcher_role(proj)
+            player_positions[proj.player_id] = (role,)
+    pitching_values = zscore_pitching(pitching_projections, _DEFAULT_PITCHING_CATS)
+    pitching_ids = {p.player_id for p in pitching_projections}
+
+    all_values: list[PlayerValue] = list(batting_values) + list(pitching_values)
+
+    # Build composite-keyed positions dict
+    _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP", "P"})
+    two_way_ids = batting_ids & pitching_ids
+    composite_positions: dict[tuple[str, str], tuple[str, ...]] = {}
+    for pid, positions in player_positions.items():
+        if pid in two_way_ids:
+            batting_pos = tuple(p for p in positions if p not in _PITCHER_POSITIONS)
+            pitching_pos = tuple(p for p in positions if p in _PITCHER_POSITIONS)
+            if batting_pos:
+                composite_positions[(pid, "B")] = batting_pos
+            if pitching_pos:
+                composite_positions[(pid, "P")] = pitching_pos
+        elif pid in batting_ids:
+            composite_positions[(pid, "B")] = positions
+        elif pid in pitching_ids:
+            composite_positions[(pid, "P")] = positions
+        else:
+            composite_positions[(pid, "B")] = positions
+            composite_positions[(pid, "P")] = positions
+
+    return all_values, composite_positions
+
+
+def _load_keepers_file(path: Path) -> dict[int, dict[str, object]]:
+    """Load keepers YAML file. Returns dict mapping team_id to team config."""
+    data = yaml.safe_load(path.read_text())
+    teams_raw = data.get("teams", {})
+    teams_data: dict[int, dict[str, object]] = {}
+    if isinstance(teams_raw, dict):
+        for team_id, team_info in teams_raw.items():
+            teams_data[int(team_id)] = dict(team_info)  # type: ignore[arg-type]
+    return teams_data
+
+
+def draft_simulate(
+    year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
+    teams: Annotated[int, typer.Option("--teams", help="Number of teams in the league.")] = 12,
+    user_pick: Annotated[int, typer.Option("--user-pick", help="User's draft position (1-based).")] = 1,
+    user_strategy: Annotated[
+        str, typer.Option("--user-strategy", help=f"Strategy for user team. Options: {', '.join(STRATEGY_PRESETS)}")
+    ] = "balanced",
+    opponent_strategy: Annotated[
+        str, typer.Option("--opponent-strategy", help="Default strategy for opponent teams.")
+    ] = "balanced",
+    keepers_file: Annotated[
+        Path | None, typer.Option("--keepers", help="YAML file with per-team keepers and optional strategies.")
+    ] = None,
+    roster_config_file: Annotated[Path | None, typer.Option("--roster-config", help="YAML roster slot config.")] = None,
+    rounds: Annotated[int, typer.Option("--rounds", help="Total number of draft rounds.")] = 20,
+    seed: Annotated[int | None, typer.Option("--seed", help="Random seed for reproducibility.")] = None,
+    engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    log: Annotated[bool, typer.Option("--log", help="Show pick-by-pick draft log.")] = False,
+    rosters: Annotated[bool, typer.Option("--rosters/--no-rosters", help="Show final team rosters.")] = True,
+    standings: Annotated[bool, typer.Option("--standings/--no-standings", help="Show projected standings.")] = True,
+) -> None:
+    """Simulate a full snake draft with configurable team strategies."""
+    validate_engine(engine)
+
+    if year is None:
+        year = datetime.now().year
+
+    if user_strategy not in STRATEGY_PRESETS:
+        typer.echo(f"Unknown strategy: {user_strategy!r}. Options: {', '.join(STRATEGY_PRESETS)}", err=True)
+        raise typer.Exit(code=1)
+    if opponent_strategy not in STRATEGY_PRESETS:
+        typer.echo(f"Unknown strategy: {opponent_strategy!r}. Options: {', '.join(STRATEGY_PRESETS)}", err=True)
+        raise typer.Exit(code=1)
+
+    roster_config = _load_roster_config(roster_config_file) if roster_config_file else DEFAULT_ROSTER_CONFIG
+
+    # Load keepers file if provided
+    keepers_data: dict[int, dict[str, object]] = {}
+    if keepers_file:
+        keepers_data = _load_keepers_file(keepers_file)
+
+    # Build team configs
+    team_configs: list[TeamConfig] = []
+    for i in range(1, teams + 1):
+        kd = keepers_data.get(i, {})
+        name = str(kd.get("name", f"Team {i}"))
+        keepers_raw = kd.get("keepers", [])
+        keepers_list: list[str] = list(keepers_raw) if isinstance(keepers_raw, (list, tuple)) else []
+        keeper_ids: tuple[str, ...] = tuple(str(k) for k in keepers_list)
+
+        if i == user_pick:
+            strategy = STRATEGY_PRESETS[user_strategy]
+        else:
+            team_strat_name = str(kd.get("strategy", opponent_strategy))
+            if team_strat_name not in STRATEGY_PRESETS:
+                typer.echo(
+                    f"Unknown strategy for team {i}: {team_strat_name!r}. Options: {', '.join(STRATEGY_PRESETS)}",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+            strategy = STRATEGY_PRESETS[team_strat_name]
+
+        team_configs.append(
+            TeamConfig(
+                team_id=i,
+                name=name,
+                strategy=strategy,
+                keepers=keeper_ids,
+            )
+        )
+
+    sim_config = SimulationConfig(
+        teams=tuple(team_configs),
+        roster_config=roster_config,
+        total_rounds=rounds,
+        seed=seed,
+    )
+
+    # Build projections
+    typer.echo(f"Generating projections for {year} using {engine}...")
+    all_values, composite_positions = _build_projections_and_positions(engine, year)
+    typer.echo(f"Running {teams}-team, {rounds}-round snake draft simulation...")
+
+    result = simulate_draft(sim_config, all_values, composite_positions)
+
+    # Output
+    if log:
+        typer.echo(format_pick_log(result))
+        typer.echo("")
+
+    if rosters:
+        from fantasy_baseball_manager.draft.simulation_report import format_team_roster
+
+        typer.echo("Team Rosters")
+        typer.echo("=" * 80)
+        for tr in result.team_results:
+            typer.echo(format_team_roster(tr, result.pick_log))
+        typer.echo("")
+
+    if standings:
+        typer.echo(format_standings(result))

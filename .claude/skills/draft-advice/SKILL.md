@@ -31,6 +31,9 @@ Map user intent to the right CLI subcommand:
 | Compare all teams in league | `uv run fantasy-baseball-manager teams compare --engine marcel_plus` |
 | My team's roster projections | `uv run fantasy-baseball-manager teams roster --engine marcel_plus` |
 | Projection accuracy / backtesting | `uv run fantasy-baseball-manager evaluate 2025 --engine marcel_plus` |
+| Simulate a full draft | `uv run fantasy-baseball-manager players draft-simulate --teams 12 --seed 42` |
+| Simulate with a specific strategy | `uv run fantasy-baseball-manager players draft-simulate --user-strategy power_hitting --seed 42` |
+| Simulate with keepers | `uv run fantasy-baseball-manager players draft-simulate --keepers keepers.yaml --seed 42` |
 
 Adjust `--top` based on how many results the user wants. Use `--sort-by` for custom sorting (e.g., `--sort-by hr`, `--sort-by era`).
 
@@ -92,6 +95,49 @@ When interpreting results and giving advice:
 - When asked to compare two specific players, run `players project` to see their raw stat lines side-by-side.
 - Use `players valuate` to see how their stats translate to category value.
 - Use `players draft-rank` to see how positional scarcity affects their overall value.
+
+## Draft Simulation
+
+When the user wants to simulate a draft or test strategies:
+
+1. **Analyze keepers** (if applicable): Use `players valuate` / `players draft-rank` to assess keeper values.
+2. **Identify category strengths/weaknesses**: Look at the team's keeper pool to determine which categories are strong or weak.
+3. **Recommend a strategy preset**: Based on the analysis, suggest one of: `balanced`, `power_hitting`, `speed`, `pitching_heavy`, `punt_saves`.
+4. **Run the simulation**: Use `players draft-simulate` with appropriate flags.
+
+### `players draft-simulate` options
+
+- `--teams N`: Number of teams (default: 12)
+- `--user-pick N`: User's draft position, 1-based (default: 1)
+- `--user-strategy NAME`: Strategy for user team (default: balanced)
+- `--opponent-strategy NAME`: Default strategy for opponents (default: balanced)
+- `--keepers FILE`: YAML file with per-team keepers and optional per-team strategies
+- `--rounds N`: Total draft rounds (default: 20)
+- `--seed N`: Random seed for reproducibility
+- `--log`: Show pick-by-pick log
+- `--rosters / --no-rosters`: Show final team rosters (default: on)
+- `--standings / --no-standings`: Show projected roto standings (default: on)
+
+### Strategy presets
+
+- **balanced**: Equal category weights, max 2 catchers, no RP before round 10
+- **power_hitting**: HR=1.5, RBI=1.3, R=1.2 weights, max 2 catchers
+- **speed**: SB=2.0, R=1.3 weights, max 1 catcher
+- **pitching_heavy**: K=1.4, ERA=1.3, WHIP=1.3, W=1.2, allows 60% pitchers
+- **punt_saves**: NSVH=0.0, no RP before round 20
+
+### Keepers YAML format
+
+```yaml
+teams:
+  1:
+    name: "My Team"
+    keepers: ["player_id_1", "player_id_2"]
+  2:
+    name: "Opponent 1"
+    strategy: "power_hitting"
+    keepers: ["player_id_3"]
+```
 
 ## Live Draft Mode
 
