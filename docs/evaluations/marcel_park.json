@@ -1,0 +1,188 @@
+[
+  {
+    "source_name": "marcel_park",
+    "year": 2022,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 325,
+        "rmse": 7.17,
+        "mae": 5.4811,
+        "correlation": 0.642
+      },
+      {
+        "category": "SB",
+        "sample_size": 325,
+        "rmse": 5.1411,
+        "mae": 3.4468,
+        "correlation": 0.6889
+      },
+      {
+        "category": "OBP",
+        "sample_size": 325,
+        "rmse": 0.0308,
+        "mae": 0.0248,
+        "correlation": 0.5711
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "K",
+        "sample_size": 315,
+        "rmse": 34.7928,
+        "mae": 26.1754,
+        "correlation": 0.7262
+      },
+      {
+        "category": "ERA",
+        "sample_size": 315,
+        "rmse": 1.4338,
+        "mae": 1.1103,
+        "correlation": 0.1413
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 315,
+        "rmse": 0.23,
+        "mae": 0.1798,
+        "correlation": 0.2801
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 325,
+      "spearman_rho": 0.6058,
+      "top_n": 20,
+      "top_n_precision": 0.55
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 315,
+      "spearman_rho": 0.3131,
+      "top_n": 20,
+      "top_n_precision": 0.35
+    }
+  },
+  {
+    "source_name": "marcel_park",
+    "year": 2023,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 336,
+        "rmse": 7.7147,
+        "mae": 5.788,
+        "correlation": 0.6492
+      },
+      {
+        "category": "SB",
+        "sample_size": 336,
+        "rmse": 8.6617,
+        "mae": 4.8582,
+        "correlation": 0.6087
+      },
+      {
+        "category": "OBP",
+        "sample_size": 336,
+        "rmse": 0.0287,
+        "mae": 0.0233,
+        "correlation": 0.5504
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "K",
+        "sample_size": 319,
+        "rmse": 37.1641,
+        "mae": 27.6106,
+        "correlation": 0.6938
+      },
+      {
+        "category": "ERA",
+        "sample_size": 319,
+        "rmse": 1.4273,
+        "mae": 1.0785,
+        "correlation": 0.1685
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 319,
+        "rmse": 0.2274,
+        "mae": 0.1753,
+        "correlation": 0.2317
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 336,
+      "spearman_rho": 0.5344,
+      "top_n": 20,
+      "top_n_precision": 0.55
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 319,
+      "spearman_rho": 0.3017,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel_park",
+    "year": 2024,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 348,
+        "rmse": 7.0746,
+        "mae": 5.4509,
+        "correlation": 0.6577
+      },
+      {
+        "category": "SB",
+        "sample_size": 348,
+        "rmse": 7.8526,
+        "mae": 5.3413,
+        "correlation": 0.654
+      },
+      {
+        "category": "OBP",
+        "sample_size": 348,
+        "rmse": 0.0336,
+        "mae": 0.0265,
+        "correlation": 0.4994
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "K",
+        "sample_size": 318,
+        "rmse": 37.0962,
+        "mae": 27.1251,
+        "correlation": 0.6795
+      },
+      {
+        "category": "ERA",
+        "sample_size": 318,
+        "rmse": 1.4067,
+        "mae": 1.0683,
+        "correlation": 0.1319
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 318,
+        "rmse": 0.2306,
+        "mae": 0.1777,
+        "correlation": 0.227
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 348,
+      "spearman_rho": 0.5354,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 318,
+      "spearman_rho": 0.3212,
+      "top_n": 20,
+      "top_n_precision": 0.25
+    }
+  }
+]
