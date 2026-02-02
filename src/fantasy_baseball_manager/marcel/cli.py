@@ -51,7 +51,9 @@ def format_batting_table(projections: list[BattingProjection], top: int) -> str:
     for p in projections[:top]:
         avg = p.h / p.ab if p.ab > 0 else 0
         obp = (p.h + p.bb + p.hbp) / p.pa if p.pa > 0 else 0
-        lines.append(f"{p.name:<25} {p.age:>3} {p.pa:>6.0f} {p.hr:>5.1f} {p.r:>5.1f} {p.rbi:>5.1f} {avg:>6.3f} {obp:>6.3f} {p.sb:>5.1f}")
+        lines.append(
+            f"{p.name:<25} {p.age:>3} {p.pa:>6.0f} {p.hr:>5.1f} {p.r:>5.1f} {p.rbi:>5.1f} {avg:>6.3f} {obp:>6.3f} {p.sb:>5.1f}"
+        )
     return "\n".join(lines)
 
 
@@ -61,7 +63,9 @@ def format_pitching_table(projections: list[PitchingProjection], top: int) -> st
     lines.append(f"{'Name':<25} {'Age':>3} {'IP':>6} {'ERA':>5} {'WHIP':>5} {'SO':>5} {'W':>4} {'NSVH':>5} {'HR':>4}")
     lines.append("-" * 68)
     for p in projections[:top]:
-        lines.append(f"{p.name:<25} {p.age:>3} {p.ip:>6.1f} {p.era:>5.2f} {p.whip:>5.3f} {p.so:>5.1f} {p.w:>4.1f} {p.nsvh:>5.1f} {p.hr:>4.1f}")
+        lines.append(
+            f"{p.name:<25} {p.age:>3} {p.ip:>6.1f} {p.era:>5.2f} {p.whip:>5.3f} {p.so:>5.1f} {p.w:>4.1f} {p.nsvh:>5.1f} {p.hr:>4.1f}"
+        )
     return "\n".join(lines)
 
 

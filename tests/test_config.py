@@ -11,6 +11,7 @@ from fantasy_baseball_manager.config import create_config
 if TYPE_CHECKING:
     from pathlib import Path
 
+
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove all FANTASY__ env vars so tests are isolated from .envrc."""

@@ -101,7 +101,8 @@ class YahooPositionSource:
                 continue
 
             raw_positions = [
-                str(p) for p in player.get("eligible_positions", ())  # type: ignore[union-attr]
+                str(p)
+                for p in player.get("eligible_positions", ())  # type: ignore[union-attr]
                 if str(p) not in _NON_FIELD_POSITIONS
             ]
             normalized = tuple(dict.fromkeys(normalize_position(p) for p in raw_positions))

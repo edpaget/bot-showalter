@@ -42,11 +42,15 @@ def test_client_accepts_config() -> None:
 
 def test_oauth_created_lazily_with_from_file(tmp_path: Path) -> None:
     creds_file = tmp_path / "credentials.json"
-    cfg = _make_config({"yahoo": {
-        "client_id": "test_id",
-        "client_secret": "test_secret",
-        "credentials_file": str(creds_file),
-    }})
+    cfg = _make_config(
+        {
+            "yahoo": {
+                "client_id": "test_id",
+                "client_secret": "test_secret",
+                "credentials_file": str(creds_file),
+            }
+        }
+    )
     mock_oauth_factory = MagicMock()
     client = YahooFantasyClient(
         cfg,
@@ -84,6 +88,7 @@ def test_game_created_with_oauth_and_game_code() -> None:
 
 def test_get_league_delegates_to_game() -> None:
     mock_game = MagicMock()
+    mock_game.game_id.return_value = "423"
     mock_game_factory = MagicMock(return_value=mock_game)
 
     client = YahooFantasyClient(
@@ -92,18 +97,22 @@ def test_get_league_delegates_to_game() -> None:
         game_factory=mock_game_factory,
     )
     league = client.get_league()
-    mock_game.to_league.assert_called_once_with("12345")
+    mock_game.to_league.assert_called_once_with("423.l.12345")
     assert league is mock_game.to_league.return_value
 
 
 class TestEnsureCredentialsFile:
     def test_creates_directory_and_file_when_missing(self, tmp_path: Path) -> None:
         creds_file = tmp_path / "subdir" / "credentials.json"
-        cfg = _make_config({"yahoo": {
-            "client_id": "my_id",
-            "client_secret": "my_secret",
-            "credentials_file": str(creds_file),
-        }})
+        cfg = _make_config(
+            {
+                "yahoo": {
+                    "client_id": "my_id",
+                    "client_secret": "my_secret",
+                    "credentials_file": str(creds_file),
+                }
+            }
+        )
         client = YahooFantasyClient(cfg, oauth_factory=MagicMock(), game_factory=MagicMock())
 
         result = client._ensure_credentials_file()
@@ -123,11 +132,15 @@ class TestEnsureCredentialsFile:
         }
         creds_file.write_text(json.dumps(existing_data))
 
-        cfg = _make_config({"yahoo": {
-            "client_id": "my_id",
-            "client_secret": "my_secret",
-            "credentials_file": str(creds_file),
-        }})
+        cfg = _make_config(
+            {
+                "yahoo": {
+                    "client_id": "my_id",
+                    "client_secret": "my_secret",
+                    "credentials_file": str(creds_file),
+                }
+            }
+        )
         client = YahooFantasyClient(cfg, oauth_factory=MagicMock(), game_factory=MagicMock())
 
         client._ensure_credentials_file()
@@ -147,11 +160,15 @@ class TestEnsureCredentialsFile:
         }
         creds_file.write_text(json.dumps(existing_data))
 
-        cfg = _make_config({"yahoo": {
-            "client_id": "new_id",
-            "client_secret": "new_secret",
-            "credentials_file": str(creds_file),
-        }})
+        cfg = _make_config(
+            {
+                "yahoo": {
+                    "client_id": "new_id",
+                    "client_secret": "new_secret",
+                    "credentials_file": str(creds_file),
+                }
+            }
+        )
         client = YahooFantasyClient(cfg, oauth_factory=MagicMock(), game_factory=MagicMock())
 
         client._ensure_credentials_file()
@@ -171,11 +188,15 @@ class TestEnsureCredentialsFile:
         creds_file.write_text(json.dumps(existing_data))
         original_mtime = creds_file.stat().st_mtime
 
-        cfg = _make_config({"yahoo": {
-            "client_id": "my_id",
-            "client_secret": "my_secret",
-            "credentials_file": str(creds_file),
-        }})
+        cfg = _make_config(
+            {
+                "yahoo": {
+                    "client_id": "my_id",
+                    "client_secret": "my_secret",
+                    "credentials_file": str(creds_file),
+                }
+            }
+        )
         client = YahooFantasyClient(cfg, oauth_factory=MagicMock(), game_factory=MagicMock())
 
         client._ensure_credentials_file()

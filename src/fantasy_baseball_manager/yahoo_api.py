@@ -44,10 +44,7 @@ class YahooFantasyClient:
 
         if creds_path.exists():
             data: dict[str, Any] = json.loads(creds_path.read_text())
-            if (
-                data.get("consumer_key") == consumer_key
-                and data.get("consumer_secret") == consumer_secret
-            ):
+            if data.get("consumer_key") == consumer_key and data.get("consumer_secret") == consumer_secret:
                 return str(creds_path)
             data["consumer_key"] = consumer_key
             data["consumer_secret"] = consumer_secret
@@ -78,4 +75,5 @@ class YahooFantasyClient:
         return self._game
 
     def get_league(self) -> League:
-        return self.game.to_league(str(self._config["league.id"]))
+        league_key = f"{self.game.game_id()}.l.{self._config['league.id']}"
+        return self.game.to_league(league_key)
