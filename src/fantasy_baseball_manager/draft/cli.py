@@ -24,9 +24,8 @@ from fantasy_baseball_manager.draft.positions import (
 )
 from fantasy_baseball_manager.draft.state import DraftState
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
-from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
-from fantasy_baseball_manager.marcel.pitching import project_pitchers
+from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
@@ -208,12 +207,13 @@ def draft_rank(
 
     # Generate projections and valuations
     data_source = _data_source_factory()
+    pipeline = PIPELINES[engine]()
     all_values: list[PlayerValue] = []
     batting_ids: set[str] = set()
     pitching_ids: set[str] = set()
 
     if show_batting:
-        batting_projections = project_batters(data_source, year)
+        batting_projections = pipeline.project_batters(data_source, year)
         batting_values = zscore_batting(batting_projections, _DEFAULT_BATTING_CATS)
         all_values.extend(batting_values)
         batting_ids = {p.player_id for p in batting_projections}
@@ -222,7 +222,7 @@ def draft_rank(
             logger.debug("  sample batting IDs: %s", list(batting_ids)[:5])
 
     if show_pitching:
-        pitching_projections = project_pitchers(data_source, year)
+        pitching_projections = pipeline.project_pitchers(data_source, year)
         # Infer pitcher positions (into the plain player_positions dict)
         for proj in pitching_projections:
             if proj.player_id not in player_positions:

@@ -12,9 +12,8 @@ from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, val
 from fantasy_baseball_manager.league.models import TeamProjection
 from fantasy_baseball_manager.league.projections import match_projections
 from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
-from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
-from fantasy_baseball_manager.marcel.pitching import project_pitchers
+from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
@@ -156,17 +155,18 @@ def _invalidate_caches() -> None:
     logger.debug("Invalidated cached rosters and sfbb_csv for key=%s", cache_key)
 
 
-def _load_team_projections(year: int, no_cache: bool = False) -> list[TeamProjection]:
+def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE, no_cache: bool = False) -> list[TeamProjection]:
     if no_cache:
         _invalidate_caches()
     roster_source = _get_roster_source(no_cache=no_cache)
     data_source = _get_data_source()
 
+    pipeline = PIPELINES[engine]()
     rosters = roster_source.fetch_rosters()
 
     id_mapper = _get_id_mapper(no_cache=no_cache)
-    batting = project_batters(data_source, year)
-    pitching = project_pitchers(data_source, year)
+    batting = pipeline.project_batters(data_source, year)
+    pitching = pipeline.project_pitchers(data_source, year)
 
     return match_projections(rosters, batting, pitching, id_mapper)
 
@@ -192,7 +192,7 @@ def projections(
 
     typer.echo(f"League projections for {year}\n")
 
-    team_projections = _load_team_projections(year, no_cache=no_cache)
+    team_projections = _load_team_projections(year, engine=engine, no_cache=no_cache)
     team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
     typer.echo(format_team_projections(team_projections, top, sort_by))
@@ -220,7 +220,7 @@ def compare(
 
     typer.echo(f"League comparison for {year}\n")
 
-    team_projections = _load_team_projections(year, no_cache=no_cache)
+    team_projections = _load_team_projections(year, engine=engine, no_cache=no_cache)
     team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
     typer.echo(format_compare_table(team_projections))

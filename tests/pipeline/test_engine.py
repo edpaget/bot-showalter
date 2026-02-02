@@ -1,13 +1,11 @@
 import pytest
 
-from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection,
     BattingSeasonStats,
     PitchingProjection,
     PitchingSeasonStats,
 )
-from fantasy_baseball_manager.marcel.pitching import project_pitchers
 from fantasy_baseball_manager.pipeline.presets import marcel_pipeline
 
 
@@ -166,52 +164,9 @@ class FakeDataSource:
         return self._team_pitching.get(year, [])
 
 
-def _assert_batting_equal(pipeline: BattingProjection, monolith: BattingProjection) -> None:
-    assert pipeline.player_id == monolith.player_id
-    assert pipeline.name == monolith.name
-    assert pipeline.year == monolith.year
-    assert pipeline.age == monolith.age
-    assert pipeline.pa == pytest.approx(monolith.pa)
-    assert pipeline.ab == pytest.approx(monolith.ab)
-    assert pipeline.h == pytest.approx(monolith.h)
-    assert pipeline.singles == pytest.approx(monolith.singles)
-    assert pipeline.doubles == pytest.approx(monolith.doubles)
-    assert pipeline.triples == pytest.approx(monolith.triples)
-    assert pipeline.hr == pytest.approx(monolith.hr)
-    assert pipeline.bb == pytest.approx(monolith.bb)
-    assert pipeline.so == pytest.approx(monolith.so)
-    assert pipeline.hbp == pytest.approx(monolith.hbp)
-    assert pipeline.sf == pytest.approx(monolith.sf)
-    assert pipeline.sh == pytest.approx(monolith.sh)
-    assert pipeline.sb == pytest.approx(monolith.sb)
-    assert pipeline.cs == pytest.approx(monolith.cs)
-    assert pipeline.r == pytest.approx(monolith.r)
-    assert pipeline.rbi == pytest.approx(monolith.rbi)
-
-
-def _assert_pitching_equal(pipeline: PitchingProjection, monolith: PitchingProjection) -> None:
-    assert pipeline.player_id == monolith.player_id
-    assert pipeline.name == monolith.name
-    assert pipeline.year == monolith.year
-    assert pipeline.age == monolith.age
-    assert pipeline.ip == pytest.approx(monolith.ip)
-    assert pipeline.g == pytest.approx(monolith.g)
-    assert pipeline.gs == pytest.approx(monolith.gs)
-    assert pipeline.er == pytest.approx(monolith.er)
-    assert pipeline.h == pytest.approx(monolith.h)
-    assert pipeline.bb == pytest.approx(monolith.bb)
-    assert pipeline.so == pytest.approx(monolith.so)
-    assert pipeline.hr == pytest.approx(monolith.hr)
-    assert pipeline.hbp == pytest.approx(monolith.hbp)
-    assert pipeline.era == pytest.approx(monolith.era)
-    assert pipeline.whip == pytest.approx(monolith.whip)
-    assert pipeline.w == pytest.approx(monolith.w)
-    assert pipeline.nsvh == pytest.approx(monolith.nsvh)
-
-
-class TestMarcelBattingEquivalence:
+class TestMarcelBattingPipeline:
     def test_single_player_three_years(self) -> None:
-        """Pipeline produces identical output to monolithic for 3-year batter."""
+        """Pipeline returns a BattingProjection with correct metadata."""
         league = _make_league()
         ds = FakeDataSource(
             player_batting={
@@ -222,28 +177,80 @@ class TestMarcelBattingEquivalence:
             team_batting={2024: [league], 2023: [league], 2022: [league]},
         )
 
-        monolith = project_batters(ds, 2025)
-        pipeline = marcel_pipeline().project_batters(ds, 2025)
+        result = marcel_pipeline().project_batters(ds, 2025)
 
-        assert len(pipeline) == len(monolith) == 1
-        _assert_batting_equal(pipeline[0], monolith[0])
+        assert len(result) == 1
+        assert isinstance(result[0], BattingProjection)
+        assert result[0].player_id == "p1"
+        assert result[0].year == 2025
+        assert result[0].age == 29
+
+    def test_projected_pa_three_years(self) -> None:
+        """Projected PA = 0.5 * PA_y1 + 0.1 * PA_y2 + 200."""
+        league = _make_league()
+        ds = FakeDataSource(
+            player_batting={
+                2024: [_make_player(year=2024, age=28, pa=600, hr=25)],
+                2023: [_make_player(year=2023, age=27, pa=550, hr=20)],
+                2022: [_make_player(year=2022, age=26, pa=500, hr=18)],
+            },
+            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        )
+
+        proj = marcel_pipeline().project_batters(ds, 2025)[0]
+        # 0.5*600 + 0.1*550 + 200 = 555
+        assert proj.pa == pytest.approx(555.0)
+
+    def test_hr_projection_hand_calculated(self) -> None:
+        """Verify HR projection with hand-calculated values.
+
+        Player: 25 HR in 600 PA (y1), 20 HR in 550 PA (y2), 18 HR in 500 PA (y3)
+        League HR rate: 200/6000 = 0.03333...
+
+        Weighted rate (before rebaseline):
+          num = 5*25 + 4*20 + 3*18 + 1200*0.03333 = 125+80+54+40 = 299
+          den = 5*600 + 4*550 + 3*500 + 1200 = 3000+2200+1500+1200 = 7900
+          rate = 299/7900 = 0.037848...
+
+        Rebaseline: source and target league rates are both 0.03333 (same
+        league data for all 3 years), so rebaseline is identity => 0.037848
+
+        Age adj: age 29 => multiplier = 1.0
+        PA = 0.5*600 + 0.1*550 + 200 = 555
+        HR = 0.037848 * 555 = 21.006
+        """
+        league = _make_league()
+        ds = FakeDataSource(
+            player_batting={
+                2024: [_make_player(year=2024, age=28, pa=600, hr=25)],
+                2023: [_make_player(year=2023, age=27, pa=550, hr=20)],
+                2022: [_make_player(year=2022, age=26, pa=500, hr=18)],
+            },
+            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        )
+
+        proj = marcel_pipeline().project_batters(ds, 2025)[0]
+        assert proj.pa == pytest.approx(555.0)
+        # 299/7900 * 555 = 21.006
+        assert proj.hr == pytest.approx(21.0, abs=0.1)
 
     def test_single_player_one_year(self) -> None:
-        """Pipeline produces identical output for player with only 1 year."""
+        """Player with only 1 year of data should still project."""
         league = _make_league()
         ds = FakeDataSource(
             player_batting={2024: [_make_player(year=2024, age=22, pa=200, hr=5)]},
             team_batting={2024: [league]},
         )
 
-        monolith = project_batters(ds, 2025)
-        pipeline = marcel_pipeline().project_batters(ds, 2025)
-
-        assert len(pipeline) == len(monolith) == 1
-        _assert_batting_equal(pipeline[0], monolith[0])
+        result = marcel_pipeline().project_batters(ds, 2025)
+        assert len(result) == 1
+        proj = result[0]
+        # PA = 0.5*200 + 0.1*0 + 200 = 300
+        assert proj.pa == pytest.approx(300.0)
+        assert proj.hr > 0
 
     def test_multiple_players(self) -> None:
-        """Pipeline produces identical output for multiple batters."""
+        """Two players should both get projections."""
         league = _make_league()
         p1 = _make_player(player_id="p1", name="Young", year=2024, age=24, pa=600, hr=25)
         p2 = _make_player(player_id="p2", name="Old", year=2024, age=34, pa=500, hr=30)
@@ -252,19 +259,29 @@ class TestMarcelBattingEquivalence:
             team_batting={2024: [league]},
         )
 
-        monolith = project_batters(ds, 2025)
-        pipeline = marcel_pipeline().project_batters(ds, 2025)
+        result = marcel_pipeline().project_batters(ds, 2025)
+        assert len(result) == 2
+        ids = {p.player_id for p in result}
+        assert ids == {"p1", "p2"}
 
-        monolith_map = {p.player_id: p for p in monolith}
-        pipeline_map = {p.player_id: p for p in pipeline}
+    def test_age_adjustment_applied(self) -> None:
+        """Young player should project higher rates than old player, all else equal."""
+        league = _make_league()
+        young = _make_player(player_id="young", year=2024, age=24, pa=600, hr=25)
+        old = _make_player(player_id="old", year=2024, age=34, pa=600, hr=25)
+        ds = FakeDataSource(
+            player_batting={2024: [young, old]},
+            team_batting={2024: [league]},
+        )
 
-        for pid in monolith_map:
-            _assert_batting_equal(pipeline_map[pid], monolith_map[pid])
+        result = marcel_pipeline().project_batters(ds, 2025)
+        proj_map = {p.player_id: p for p in result}
+        assert proj_map["young"].hr > proj_map["old"].hr
 
 
-class TestMarcelPitchingEquivalence:
-    def test_starter_three_years(self) -> None:
-        """Pipeline produces identical output for 3-year starter."""
+class TestMarcelPitchingPipeline:
+    def test_single_starter_three_years(self) -> None:
+        """Pipeline returns a PitchingProjection with correct metadata."""
         league = _make_league_pitching()
         ds = FakeDataSource(
             player_pitching={
@@ -275,14 +292,30 @@ class TestMarcelPitchingEquivalence:
             team_pitching={2024: [league], 2023: [league], 2022: [league]},
         )
 
-        monolith = project_pitchers(ds, 2025)
-        pipeline = marcel_pipeline().project_pitchers(ds, 2025)
+        result = marcel_pipeline().project_pitchers(ds, 2025)
+        assert len(result) == 1
+        assert isinstance(result[0], PitchingProjection)
+        assert result[0].player_id == "sp1"
+        assert result[0].year == 2025
+        assert result[0].age == 29
 
-        assert len(pipeline) == len(monolith) == 1
-        _assert_pitching_equal(pipeline[0], monolith[0])
+    def test_starter_projected_ip(self) -> None:
+        """Starter: 0.5*IP_y1 + 0.1*IP_y2 + 60."""
+        league = _make_league_pitching()
+        ds = FakeDataSource(
+            player_pitching={
+                2024: [_make_pitcher(year=2024, age=28, ip=180.0, gs=32, g=32)],
+                2023: [_make_pitcher(year=2023, age=27, ip=170.0, gs=30, g=30)],
+            },
+            team_pitching={2024: [league], 2023: [league]},
+        )
 
-    def test_reliever(self) -> None:
-        """Pipeline produces identical output for reliever."""
+        proj = marcel_pipeline().project_pitchers(ds, 2025)[0]
+        # 0.5*180 + 0.1*170 + 60 = 167
+        assert proj.ip == pytest.approx(167.0)
+
+    def test_reliever_projected_ip(self) -> None:
+        """Reliever: 0.5*IP_y1 + 0.1*IP_y2 + 25."""
         league = _make_league_pitching()
         ds = FakeDataSource(
             player_pitching={
@@ -292,14 +325,26 @@ class TestMarcelPitchingEquivalence:
             team_pitching={2024: [league], 2023: [league]},
         )
 
-        monolith = project_pitchers(ds, 2025)
-        pipeline = marcel_pipeline().project_pitchers(ds, 2025)
+        proj = marcel_pipeline().project_pitchers(ds, 2025)[0]
+        # 0.5*70 + 0.1*65 + 25 = 66.5
+        assert proj.ip == pytest.approx(66.5)
 
-        assert len(pipeline) == len(monolith) == 1
-        _assert_pitching_equal(pipeline[0], monolith[0])
+    def test_era_and_whip_computed(self) -> None:
+        """ERA and WHIP are derived correctly from projected counting stats."""
+        league = _make_league_pitching()
+        ds = FakeDataSource(
+            player_pitching={2024: [_make_pitcher(year=2024, age=28)]},
+            team_pitching={2024: [league]},
+        )
 
-    def test_mixed_starter_reliever(self) -> None:
-        """Pipeline produces identical output for mixed starter + reliever."""
+        proj = marcel_pipeline().project_pitchers(ds, 2025)[0]
+        expected_era = (proj.er / proj.ip) * 9
+        assert proj.era == pytest.approx(expected_era)
+        expected_whip = (proj.h + proj.bb) / proj.ip
+        assert proj.whip == pytest.approx(expected_whip)
+
+    def test_multiple_pitchers(self) -> None:
+        """Multiple pitchers should all get projections."""
         league = _make_league_pitching()
         sp = _make_pitcher(player_id="sp1", year=2024, age=28, gs=30, g=30)
         rp = _make_pitcher(player_id="rp1", year=2024, age=30, ip=70.0, g=65, gs=0)
@@ -308,11 +353,21 @@ class TestMarcelPitchingEquivalence:
             team_pitching={2024: [league]},
         )
 
-        monolith = project_pitchers(ds, 2025)
-        pipeline = marcel_pipeline().project_pitchers(ds, 2025)
+        result = marcel_pipeline().project_pitchers(ds, 2025)
+        assert len(result) == 2
+        ids = {p.player_id for p in result}
+        assert ids == {"sp1", "rp1"}
 
-        monolith_map = {p.player_id: p for p in monolith}
-        pipeline_map = {p.player_id: p for p in pipeline}
+    def test_age_adjustment_applied(self) -> None:
+        """Young pitcher should project more strikeouts than old pitcher."""
+        league = _make_league_pitching()
+        young = _make_pitcher(player_id="young", year=2024, age=24, so=200, ip=180.0)
+        old = _make_pitcher(player_id="old", year=2024, age=34, so=200, ip=180.0)
+        ds = FakeDataSource(
+            player_pitching={2024: [young, old]},
+            team_pitching={2024: [league]},
+        )
 
-        for pid in monolith_map:
-            _assert_pitching_equal(pipeline_map[pid], monolith_map[pid])
+        result = marcel_pipeline().project_pitchers(ds, 2025)
+        proj_map = {p.player_id: p for p in result}
+        assert proj_map["young"].so > proj_map["old"].so
