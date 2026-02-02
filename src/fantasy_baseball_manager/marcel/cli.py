@@ -5,10 +5,9 @@ from typing import Annotated
 import typer
 
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
-from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
-from fantasy_baseball_manager.marcel.pitching import project_pitchers
+from fantasy_baseball_manager.pipeline.presets import PIPELINES
 
 BATTING_SORT_FIELDS: dict[str, Callable[[BattingProjection], float]] = {
     "hr": lambda p: p.hr,
@@ -86,8 +85,10 @@ def marcel(
     show_batting = not pitching or batting
     show_pitching = not batting or pitching
 
-    typer.echo(f"MARCEL projections for {year}")
-    typer.echo(f"Using data from {year - 3}-{year - 1}\n")
+    pipeline = PIPELINES[engine]()
+
+    typer.echo(f"{pipeline.name.upper()} projections for {year}")
+    typer.echo(f"Using data from {year - pipeline.years_back}-{year - 1}\n")
 
     data_source = _data_source_factory()
 
@@ -96,7 +97,7 @@ def marcel(
         if batting_sort not in BATTING_SORT_FIELDS:
             typer.echo(f"Unknown batting sort field: {batting_sort}", err=True)
             raise typer.Exit(code=1)
-        projections = project_batters(data_source, year)
+        projections = pipeline.project_batters(data_source, year)
         projections.sort(key=BATTING_SORT_FIELDS[batting_sort], reverse=True)
         typer.echo(format_batting_table(projections, top))
 
@@ -108,6 +109,6 @@ def marcel(
         if pitching_sort not in PITCHING_SORT_FIELDS:
             typer.echo(f"Unknown pitching sort field: {pitching_sort}", err=True)
             raise typer.Exit(code=1)
-        projections = project_pitchers(data_source, year)
+        projections = pipeline.project_pitchers(data_source, year)
         projections.sort(key=PITCHING_SORT_FIELDS[pitching_sort], reverse=True)
         typer.echo(format_pitching_table(projections, top))

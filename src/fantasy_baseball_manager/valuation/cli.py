@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
-from fantasy_baseball_manager.marcel.batting import project_batters
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
-from fantasy_baseball_manager.marcel.pitching import project_pitchers
+from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 
@@ -111,10 +110,11 @@ def valuate(
     show_pitching = not batting or pitching
 
     data_source = _data_source_factory()
+    pipeline = PIPELINES[engine]()
 
     if show_batting:
         batting_cats = _parse_categories(categories, _SUPPORTED_BATTING) if categories else _DEFAULT_BATTING
-        batting_projections: list[BattingProjection] = project_batters(data_source, year)
+        batting_projections: list[BattingProjection] = pipeline.project_batters(data_source, year)
         batting_values: list[PlayerValue] = zscore_batting(batting_projections, batting_cats)
         batting_values.sort(key=lambda pv: pv.total_value, reverse=True)
         cat_label = ", ".join(c.value for c in batting_cats)
@@ -126,7 +126,7 @@ def valuate(
 
     if show_pitching:
         pitching_cats = _parse_categories(categories, _SUPPORTED_PITCHING) if categories else _DEFAULT_PITCHING
-        pitching_projections: list[PitchingProjection] = project_pitchers(data_source, year)
+        pitching_projections: list[PitchingProjection] = pipeline.project_pitchers(data_source, year)
         pitching_values: list[PlayerValue] = zscore_pitching(pitching_projections, pitching_cats)
         pitching_values.sort(key=lambda pv: pv.total_value, reverse=True)
         cat_label = ", ".join(c.value for c in pitching_cats)

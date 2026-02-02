@@ -1,6 +1,8 @@
 import typer
 
-SUPPORTED_ENGINES: tuple[str, ...] = ("marcel",)
+from fantasy_baseball_manager.pipeline.presets import PIPELINES
+
+SUPPORTED_ENGINES: tuple[str, ...] = tuple(PIPELINES.keys())
 DEFAULT_ENGINE: str = "marcel"
 
 SUPPORTED_METHODS: tuple[str, ...] = ("zscore",)
