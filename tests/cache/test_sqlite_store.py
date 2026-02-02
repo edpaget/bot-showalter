@@ -71,3 +71,15 @@ class TestSqliteCacheStore:
         store.put("ns2", "k", "val2", ttl_seconds=300)
         assert store.get("ns1", "k") == "val1"
         assert store.get("ns2", "k") == "val2"
+
+    def test_wal_mode_enabled(self, tmp_path: Path) -> None:
+        store = SqliteCacheStore(tmp_path / "cache.db")
+        conn = store._connect()
+        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+        assert journal_mode == "wal"
+
+    def test_busy_timeout_set(self, tmp_path: Path) -> None:
+        store = SqliteCacheStore(tmp_path / "cache.db")
+        conn = store._connect()
+        timeout = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+        assert timeout == 5000

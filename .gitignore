@@ -13,3 +13,4 @@ wheels/
 config.yaml
 oauth2.json
 .envrc
+sfbb.csv

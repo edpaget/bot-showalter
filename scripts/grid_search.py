@@ -18,14 +18,19 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.evaluation.harness import (
     EvaluationConfig,
     evaluate_source,
 )
-from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource
+from fantasy_baseball_manager.marcel.data_source import (
+    CachedStatsDataSource,
+    PybaseballDataSource,
+)
 from fantasy_baseball_manager.pipeline.presets import build_pipeline
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
 from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
@@ -111,15 +116,23 @@ def evaluate_point(
     min_pa: int,
     min_ip: float,
     top_n: int,
+    cache_db_path: str | None = None,
 ) -> dict[str, Any]:
     """Run a multi-year backtest for a single search point.
 
     Each call creates its own data source so workers don't share state.
-    Returns a dict with params and aggregated metrics.
+    When *cache_db_path* is provided, the data source is wrapped with
+    ``CachedStatsDataSource`` so that multiple workers share a single
+    SQLite cache (each opens its own connection).
     """
     config = search_point_to_config(point)
     pipeline = build_pipeline(pipeline_name, config=config)
-    data_source = PybaseballDataSource()
+    raw_source = PybaseballDataSource()
+    if cache_db_path is not None:
+        cache = SqliteCacheStore(Path(cache_db_path))
+        data_source: PybaseballDataSource | CachedStatsDataSource = CachedStatsDataSource(raw_source, cache)
+    else:
+        data_source = raw_source
     league_settings = load_league_settings()
 
     batting_rhos: list[float] = []
@@ -183,9 +196,9 @@ def evaluate_point(
 # ---------------------------------------------------------------------------
 
 
-def _worker(args: tuple[SearchPoint, list[int], str, int, float, int]) -> dict[str, Any]:
-    point, eval_years, pipeline_name, min_pa, min_ip, top_n = args
-    return evaluate_point(point, eval_years, pipeline_name, min_pa, min_ip, top_n)
+def _worker(args: tuple[SearchPoint, list[int], str, int, float, int, str | None]) -> dict[str, Any]:
+    point, eval_years, pipeline_name, min_pa, min_ip, top_n, cache_db_path = args
+    return evaluate_point(point, eval_years, pipeline_name, min_pa, min_ip, top_n, cache_db_path)
 
 
 # ---------------------------------------------------------------------------
@@ -223,11 +236,18 @@ def main() -> None:
     grid = generate_grid(space)
     eval_years = [int(y.strip()) for y in args.years.split(",")]
 
+    # Create a shared SQLite cache for all workers
+    cache_db_path = str(Path("~/.fantasy_baseball/grid_search_cache.db").expanduser())
+    Path(cache_db_path).parent.mkdir(parents=True, exist_ok=True)
+
     print(f"Grid search: {len(grid)} combinations, {len(eval_years)} eval years, {args.workers} worker(s)")
     print(f"Pipeline: {args.pipeline}")
     print(f"Years: {eval_years}")
+    print(f"Cache: {cache_db_path}")
 
-    worker_args = [(point, eval_years, args.pipeline, args.min_pa, args.min_ip, args.top_n) for point in grid]
+    worker_args = [
+        (point, eval_years, args.pipeline, args.min_pa, args.min_ip, args.top_n, cache_db_path) for point in grid
+    ]
 
     results: list[dict[str, Any]] = []
     start = time.time()
