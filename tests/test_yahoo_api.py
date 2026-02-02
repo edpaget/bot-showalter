@@ -86,9 +86,9 @@ def test_game_created_with_oauth_and_game_code() -> None:
     mock_game_factory.assert_called_once_with(mock_oauth, "mlb")
 
 
-def test_get_league_delegates_to_game() -> None:
+def test_get_league_uses_season_from_config() -> None:
     mock_game = MagicMock()
-    mock_game.game_id.return_value = "423"
+    mock_game.league_ids.return_value = ["469.l.12345", "469.l.99999"]
     mock_game_factory = MagicMock(return_value=mock_game)
 
     client = YahooFantasyClient(
@@ -97,8 +97,25 @@ def test_get_league_delegates_to_game() -> None:
         game_factory=mock_game_factory,
     )
     league = client.get_league()
-    mock_game.to_league.assert_called_once_with("423.l.12345")
+    mock_game.league_ids.assert_called_once_with(seasons=["2025"])
+    mock_game.to_league.assert_called_once_with("469.l.12345")
     assert league is mock_game.to_league.return_value
+
+
+def test_get_league_raises_when_no_matching_league() -> None:
+    mock_game = MagicMock()
+    mock_game.league_ids.return_value = ["469.l.99999"]
+    mock_game_factory = MagicMock(return_value=mock_game)
+
+    client = YahooFantasyClient(
+        _make_config(),
+        oauth_factory=MagicMock(),
+        game_factory=mock_game_factory,
+    )
+    import pytest
+
+    with pytest.raises(ValueError, match="No league with id 12345 found for season 2025"):
+        client.get_league()
 
 
 class TestEnsureCredentialsFile:

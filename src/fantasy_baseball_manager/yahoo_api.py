@@ -75,5 +75,12 @@ class YahooFantasyClient:
         return self._game
 
     def get_league(self) -> League:
-        league_key = f"{self.game.game_id()}.l.{self._config['league.id']}"
-        return self.game.to_league(league_key)
+        season = str(self._config["league.season"])
+        league_id = str(self._config["league.id"])
+        league_keys = self.game.league_ids(seasons=[season])
+        suffix = f".l.{league_id}"
+        matching = [k for k in league_keys if k.endswith(suffix)]
+        if not matching:
+            msg = f"No league with id {league_id} found for season {season}"
+            raise ValueError(msg)
+        return self.game.to_league(matching[0])
