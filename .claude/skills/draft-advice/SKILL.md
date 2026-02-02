@@ -7,6 +7,10 @@ description: Get fantasy baseball draft advice, player projections, and team com
 
 Provide fantasy baseball draft advice, player analysis, and team comparison using the `fantasy-baseball-manager` CLI.
 
+## League Context
+
+Scoring categories are configured in `config.yaml` under `league.batting_categories` and `league.pitching_categories`. All CLI commands automatically use these categories — no need to specify them manually. The `--categories` flag on `players valuate` is only needed to override the config for a one-off query. The `--weight` flag adjusts category multipliers without changing which categories are used.
+
 ## Gathering Context
 
 Before running commands, determine:
@@ -14,7 +18,7 @@ Before running commands, determine:
 1. **Year**: Default to the current year. Ask if unclear.
 2. **Engine**: Default to `marcel_plus` (most accurate). Options: `marcel`, `marcel_park`, `marcel_statreg`, `marcel_plus`.
 3. **Yahoo integration**: Commands like `teams compare`, `teams roster`, and `players draft-rank --yahoo` require Yahoo Fantasy API access. Use `--yahoo` when the user wants live draft data or team rosters.
-4. **Category weights**: If the user's league values certain categories more, use `--weight` flags (e.g., `--weight HR=2.0 --weight SB=1.5`).
+4. **Category weights**: If the user's league values certain categories more, use `--weight` flags (e.g., `--weight HR=2.0 --weight SB=1.5`). These are multipliers on top of the categories already configured in `config.yaml`.
 
 ## Command Routing
 

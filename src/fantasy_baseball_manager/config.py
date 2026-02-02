@@ -4,6 +4,8 @@ from typing import Protocol
 
 from config import ConfigurationSet, config_from_dict, config_from_env, config_from_yaml
 
+from fantasy_baseball_manager.valuation.models import LeagueSettings, ScoringStyle, StatCategory
+
 
 class AppConfig(Protocol):
     def __getitem__(self, key: str) -> object: ...
@@ -45,6 +47,10 @@ _DEFAULTS: dict[str, object] = {
         "game_code": "mlb",
         "season": 2025,
         "is_keeper": False,
+        "team_count": 12,
+        "scoring_style": "h2h_categories",
+        "batting_categories": ["HR", "SB", "OBP"],
+        "pitching_categories": ["K", "ERA", "WHIP"],
     },
     "cache": {
         "db_path": "~/.config/fbm/cache.db",
@@ -77,3 +83,22 @@ def create_config(
         layers.insert(0, config_from_dict(_cli_overrides))
 
     return ConfigurationSet(*layers)
+
+
+def _parse_stat_categories(raw: list[str]) -> tuple[StatCategory, ...]:
+    return tuple(StatCategory(name) for name in raw)
+
+
+def load_league_settings(cfg: ConfigurationSet | None = None) -> LeagueSettings:
+    if cfg is None:
+        cfg = create_config()
+    team_count = int(str(cfg["league.team_count"]))
+    scoring_style = ScoringStyle(str(cfg["league.scoring_style"]))
+    batting_categories = _parse_stat_categories(list(cfg["league.batting_categories"]))  # type: ignore[arg-type]
+    pitching_categories = _parse_stat_categories(list(cfg["league.pitching_categories"]))  # type: ignore[arg-type]
+    return LeagueSettings(
+        team_count=team_count,
+        scoring_style=scoring_style,
+        batting_categories=batting_categories,
+        pitching_categories=pitching_categories,
+    )

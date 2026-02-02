@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 import pytest
 from config import ConfigurationSet
 
-from fantasy_baseball_manager.config import clear_cli_overrides, create_config, set_cli_overrides
+from fantasy_baseball_manager.config import clear_cli_overrides, create_config, load_league_settings, set_cli_overrides
+from fantasy_baseball_manager.valuation.models import ScoringStyle, StatCategory
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -95,3 +96,45 @@ class TestCliOverrides:
         cfg = create_config(yaml_path="/nonexistent/config.yaml")
         assert cfg["league.id"] == ""
         assert cfg["league.season"] == 2025
+
+
+class TestLoadLeagueSettings:
+    def test_defaults(self) -> None:
+        settings = load_league_settings(create_config(yaml_path="/nonexistent/config.yaml"))
+        assert settings.team_count == 12
+        assert settings.scoring_style is ScoringStyle.H2H_CATEGORIES
+        assert settings.batting_categories == (StatCategory.HR, StatCategory.SB, StatCategory.OBP)
+        assert settings.pitching_categories == (StatCategory.K, StatCategory.ERA, StatCategory.WHIP)
+
+    def test_yaml_overrides(self, tmp_path: Path) -> None:
+        yaml_file = tmp_path / "config.yaml"
+        yaml_file.write_text(
+            "league:\n"
+            "  team_count: 10\n"
+            "  scoring_style: roto\n"
+            "  batting_categories:\n"
+            "    - HR\n"
+            "    - R\n"
+            "    - RBI\n"
+            "    - SB\n"
+            "    - OBP\n"
+            "  pitching_categories:\n"
+            "    - K\n"
+            "    - ERA\n"
+            "    - WHIP\n"
+            "    - NSVH\n"
+        )
+        settings = load_league_settings(create_config(yaml_path=str(yaml_file)))
+        assert settings.team_count == 10
+        assert settings.scoring_style is ScoringStyle.ROTO
+        assert settings.batting_categories == (
+            StatCategory.HR, StatCategory.R, StatCategory.RBI, StatCategory.SB, StatCategory.OBP,
+        )
+        assert settings.pitching_categories == (
+            StatCategory.K, StatCategory.ERA, StatCategory.WHIP, StatCategory.NSVH,
+        )
+
+    def test_creates_config_when_none_passed(self) -> None:
+        settings = load_league_settings()
+        assert settings.team_count == 12
+        assert settings.scoring_style is ScoringStyle.H2H_CATEGORIES

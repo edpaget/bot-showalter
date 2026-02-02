@@ -6,6 +6,7 @@ from fantasy_baseball_manager.valuation.models import (
     CategoryValue,
     LeagueSettings,
     PlayerValue,
+    ScoringStyle,
     SGPDenominators,
     StatCategory,
 )
@@ -27,6 +28,22 @@ class TestStatCategory:
         assert StatCategory.NSVH.value == "NSVH"
 
 
+class TestScoringStyle:
+    def test_values(self) -> None:
+        assert ScoringStyle.H2H_CATEGORIES.value == "h2h_categories"
+        assert ScoringStyle.ROTO.value == "roto"
+        assert ScoringStyle.H2H_POINTS.value == "h2h_points"
+
+    def test_from_string(self) -> None:
+        assert ScoringStyle("h2h_categories") is ScoringStyle.H2H_CATEGORIES
+        assert ScoringStyle("roto") is ScoringStyle.ROTO
+        assert ScoringStyle("h2h_points") is ScoringStyle.H2H_POINTS
+
+    def test_invalid_value_raises(self) -> None:
+        with pytest.raises(ValueError):
+            ScoringStyle("invalid")
+
+
 class TestLeagueSettings:
     def test_construction(self) -> None:
         settings = LeagueSettings(
@@ -37,6 +54,23 @@ class TestLeagueSettings:
         assert settings.team_count == 12
         assert settings.batting_categories == (StatCategory.HR, StatCategory.SB)
         assert settings.pitching_categories == (StatCategory.K, StatCategory.ERA)
+
+    def test_scoring_style_default(self) -> None:
+        settings = LeagueSettings(
+            team_count=12,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(StatCategory.K,),
+        )
+        assert settings.scoring_style is ScoringStyle.H2H_CATEGORIES
+
+    def test_scoring_style_explicit(self) -> None:
+        settings = LeagueSettings(
+            team_count=12,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(StatCategory.K,),
+            scoring_style=ScoringStyle.ROTO,
+        )
+        assert settings.scoring_style is ScoringStyle.ROTO
 
     def test_frozen(self) -> None:
         settings = LeagueSettings(

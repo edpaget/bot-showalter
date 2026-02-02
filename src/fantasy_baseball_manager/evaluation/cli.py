@@ -4,17 +4,14 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.evaluation.harness import EvaluationConfig, evaluate
 from fantasy_baseball_manager.evaluation.models import RankAccuracy, SourceEvaluation, StatAccuracy
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
-from fantasy_baseball_manager.valuation.models import StatCategory
 from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
-
-_DEFAULT_BATTING: tuple[StatCategory, ...] = (StatCategory.HR, StatCategory.SB, StatCategory.OBP)
-_DEFAULT_PITCHING: tuple[StatCategory, ...] = (StatCategory.K, StatCategory.ERA, StatCategory.WHIP)
 
 # Module-level factory for dependency injection in tests
 _data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
@@ -208,6 +205,7 @@ def evaluate_cmd(
     eval_years = [int(y.strip()) for y in years.split(",")] if years else [year]
 
     data_source = _data_source_factory()
+    league_settings = load_league_settings()
 
     all_results: list[dict[str, object]] = []
 
@@ -216,8 +214,8 @@ def evaluate_cmd(
         for eval_year in eval_years:
             config = EvaluationConfig(
                 year=eval_year,
-                batting_categories=_DEFAULT_BATTING,
-                pitching_categories=_DEFAULT_PITCHING,
+                batting_categories=league_settings.batting_categories,
+                pitching_categories=league_settings.pitching_categories,
                 min_pa=min_pa,
                 min_ip=min_ip,
                 top_n=top_n,

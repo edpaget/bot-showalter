@@ -11,3 +11,13 @@ league:
   id: ""
   game_code: "mlb"
   season: 2025
+  # team_count: 12
+  # scoring_style: "h2h_categories"  # h2h_categories | roto | h2h_points
+  # batting_categories:
+  #   - HR
+  #   - SB
+  #   - OBP
+  # pitching_categories:
+  #   - K
+  #   - ERA
+  #   - WHIP

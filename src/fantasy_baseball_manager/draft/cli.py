@@ -13,7 +13,12 @@ import yaml
 
 from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
 from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
-from fantasy_baseball_manager.config import apply_cli_overrides, clear_cli_overrides, create_config
+from fantasy_baseball_manager.config import (
+    apply_cli_overrides,
+    clear_cli_overrides,
+    create_config,
+    load_league_settings,
+)
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
     DEFAULT_ROSTER_CONFIG,
@@ -42,9 +47,6 @@ from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 logger = logging.getLogger(__name__)
 
 _CATEGORY_MAP: dict[str, StatCategory] = {member.value.lower(): member for member in StatCategory}
-
-_DEFAULT_BATTING_CATS: tuple[StatCategory, ...] = (StatCategory.HR, StatCategory.SB, StatCategory.OBP)
-_DEFAULT_PITCHING_CATS: tuple[StatCategory, ...] = (StatCategory.K, StatCategory.ERA, StatCategory.WHIP)
 
 # Module-level factories for dependency injection in tests
 _data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
@@ -194,6 +196,7 @@ def draft_rank(
                 category_weights[cat] = val
 
         # Generate projections and valuations
+        league_settings = load_league_settings()
         data_source = _data_source_factory()
         pipeline = PIPELINES[engine]()
         all_values: list[PlayerValue] = []
@@ -202,7 +205,7 @@ def draft_rank(
 
         if show_batting:
             batting_projections = pipeline.project_batters(data_source, year)
-            batting_values = zscore_batting(batting_projections, _DEFAULT_BATTING_CATS)
+            batting_values = zscore_batting(batting_projections, league_settings.batting_categories)
             all_values.extend(batting_values)
             batting_ids = {p.player_id for p in batting_projections}
             logger.debug("Batting projections: %d players", len(batting_ids))
@@ -216,7 +219,7 @@ def draft_rank(
                 if proj.player_id not in player_positions:
                     role = infer_pitcher_role(proj)
                     player_positions[proj.player_id] = (role,)
-            pitching_values = zscore_pitching(pitching_projections, _DEFAULT_PITCHING_CATS)
+            pitching_values = zscore_pitching(pitching_projections, league_settings.pitching_categories)
             all_values.extend(pitching_values)
             pitching_ids = {p.player_id for p in pitching_projections}
             logger.debug("Pitching projections: %d players", len(pitching_ids))
@@ -317,11 +320,12 @@ def _build_projections_and_positions(
     year: int,
 ) -> tuple[list[PlayerValue], dict[tuple[str, str], tuple[str, ...]]]:
     """Build player values and composite positions for simulation."""
+    league_settings = load_league_settings()
     data_source = _data_source_factory()
     pipeline = PIPELINES[engine]()
 
     batting_projections = pipeline.project_batters(data_source, year)
-    batting_values = zscore_batting(batting_projections, _DEFAULT_BATTING_CATS)
+    batting_values = zscore_batting(batting_projections, league_settings.batting_categories)
     batting_ids = {p.player_id for p in batting_projections}
 
     pitching_projections = pipeline.project_pitchers(data_source, year)
@@ -330,7 +334,7 @@ def _build_projections_and_positions(
         if proj.player_id not in player_positions:
             role = infer_pitcher_role(proj)
             player_positions[proj.player_id] = (role,)
-    pitching_values = zscore_pitching(pitching_projections, _DEFAULT_PITCHING_CATS)
+    pitching_values = zscore_pitching(pitching_projections, league_settings.pitching_categories)
     pitching_ids = {p.player_id for p in pitching_projections}
 
     all_values: list[PlayerValue] = list(batting_values) + list(pitching_values)

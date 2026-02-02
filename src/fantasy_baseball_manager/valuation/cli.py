@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
+from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
@@ -26,9 +27,6 @@ _SUPPORTED_BATTING: set[StatCategory] = {
     StatCategory.RBI,
 }
 _SUPPORTED_PITCHING: set[StatCategory] = {StatCategory.K, StatCategory.ERA, StatCategory.WHIP}
-
-_DEFAULT_BATTING: tuple[StatCategory, ...] = (StatCategory.HR, StatCategory.SB, StatCategory.OBP)
-_DEFAULT_PITCHING: tuple[StatCategory, ...] = (StatCategory.K, StatCategory.ERA, StatCategory.WHIP)
 
 # Module-level factory for dependency injection in tests
 _data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
@@ -112,8 +110,10 @@ def valuate(
     data_source = _data_source_factory()
     pipeline = PIPELINES[engine]()
 
+    league_settings = load_league_settings()
+
     if show_batting:
-        batting_cats = _parse_categories(categories, _SUPPORTED_BATTING) if categories else _DEFAULT_BATTING
+        batting_cats = _parse_categories(categories, _SUPPORTED_BATTING) if categories else league_settings.batting_categories
         batting_projections: list[BattingProjection] = pipeline.project_batters(data_source, year)
         batting_values: list[PlayerValue] = zscore_batting(batting_projections, batting_cats)
         batting_values.sort(key=lambda pv: pv.total_value, reverse=True)
@@ -125,7 +125,7 @@ def valuate(
         typer.echo()
 
     if show_pitching:
-        pitching_cats = _parse_categories(categories, _SUPPORTED_PITCHING) if categories else _DEFAULT_PITCHING
+        pitching_cats = _parse_categories(categories, _SUPPORTED_PITCHING) if categories else league_settings.pitching_categories
         pitching_projections: list[PitchingProjection] = pipeline.project_pitchers(data_source, year)
         pitching_values: list[PlayerValue] = zscore_pitching(pitching_projections, pitching_cats)
         pitching_values.sort(key=lambda pv: pv.total_value, reverse=True)
