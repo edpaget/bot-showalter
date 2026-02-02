@@ -3,7 +3,11 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
-from fantasy_baseball_manager.draft.cli import set_data_source_factory
+from fantasy_baseball_manager.draft.cli import (
+    set_data_source_factory,
+    set_id_mapper_factory,
+    set_yahoo_league_factory,
+)
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
@@ -323,3 +327,52 @@ class TestDraftRankCommand:
             ["players", "draft-rank", "2025", "--batting", "--roster-config", str(config_file)],
         )
         assert result.exit_code == 0
+
+    def test_yahoo_positions_fetches_from_yahoo(self) -> None:
+        from unittest.mock import MagicMock
+
+        _install_fake(pitching=False)
+
+        league = MagicMock()
+        league.taken_players.return_value = [
+            {"player_id": 101, "name": "Slugger Jones", "eligible_positions": ["1B", "DH"], "position_type": "B"},
+        ]
+        league.free_agents.return_value = []
+
+        mapper = MagicMock()
+        mapper.yahoo_to_fangraphs.side_effect = lambda yid: {"101": "b1"}.get(yid)
+
+        set_yahoo_league_factory(lambda: league)
+        set_id_mapper_factory(lambda: mapper)
+        try:
+            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo-positions"])
+            assert result.exit_code == 0
+            assert "Slugger Jones" in result.output
+            # Verify positions were fetched (1B/Util from normalization of 1B/DH)
+            assert "1B/Util" in result.output
+        finally:
+            set_yahoo_league_factory(None)  # type: ignore[arg-type]
+            set_id_mapper_factory(None)  # type: ignore[arg-type]
+
+    def test_positions_file_takes_precedence_over_yahoo(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock
+
+        _install_fake(pitching=False)
+
+        league = MagicMock()
+        set_yahoo_league_factory(lambda: league)
+        set_id_mapper_factory(lambda: MagicMock())
+
+        pos_file = tmp_path / "positions.csv"
+        pos_file.write_text("b1,SS\n")
+        try:
+            result = runner.invoke(
+                app,
+                ["players", "draft-rank", "2025", "--batting", "--positions", str(pos_file), "--yahoo-positions"],
+            )
+            assert result.exit_code == 0
+            # --positions file should be used, not Yahoo
+            league.taken_players.assert_not_called()
+        finally:
+            set_yahoo_league_factory(None)  # type: ignore[arg-type]
+            set_id_mapper_factory(None)  # type: ignore[arg-type]

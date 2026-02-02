@@ -10,6 +10,7 @@ import yaml
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
     DEFAULT_ROSTER_CONFIG,
+    YahooPositionSource,
     infer_pitcher_role,
     load_positions_file,
 )
@@ -24,18 +25,51 @@ from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pit
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+
 _CATEGORY_MAP: dict[str, StatCategory] = {member.value.lower(): member for member in StatCategory}
 
 _DEFAULT_BATTING_CATS: tuple[StatCategory, ...] = (StatCategory.HR, StatCategory.SB, StatCategory.OBP)
 _DEFAULT_PITCHING_CATS: tuple[StatCategory, ...] = (StatCategory.K, StatCategory.ERA, StatCategory.WHIP)
 
-# Module-level factory for dependency injection in tests
+# Module-level factories for dependency injection in tests
 _data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
+_id_mapper_factory: Callable[[], PlayerIdMapper] | None = None
+_yahoo_league_factory: Callable[[], object] | None = None
 
 
 def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
     global _data_source_factory
     _data_source_factory = factory
+
+
+def set_id_mapper_factory(factory: Callable[[], PlayerIdMapper]) -> None:
+    global _id_mapper_factory
+    _id_mapper_factory = factory
+
+
+def set_yahoo_league_factory(factory: Callable[[], object]) -> None:
+    global _yahoo_league_factory
+    _yahoo_league_factory = factory
+
+
+def _get_id_mapper() -> PlayerIdMapper:
+    if _id_mapper_factory is not None:
+        return _id_mapper_factory()
+    from fantasy_baseball_manager.player_id.mapper import ChadwickMapper
+
+    return ChadwickMapper()
+
+
+def _get_yahoo_league() -> object:
+    if _yahoo_league_factory is not None:
+        return _yahoo_league_factory()
+    from fantasy_baseball_manager.config import create_config
+    from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
+
+    config = create_config()
+    client = YahooFantasyClient(config)  # type: ignore[arg-type]
+    return client.get_league()
 
 
 def _load_drafted_file(path: Path) -> set[str]:
@@ -98,6 +132,9 @@ def draft_rank(
     positions_file: Annotated[
         Path | None, typer.Option("--positions", help="CSV of player_id,positions for positional need.")
     ] = None,
+    yahoo_positions: Annotated[
+        bool, typer.Option("--yahoo-positions", help="Fetch position eligibility from Yahoo Fantasy API.")
+    ] = False,
     weight: Annotated[
         list[str] | None, typer.Option("--weight", help="Category weight multiplier (e.g. HR=2.0).")
     ] = None,
@@ -122,6 +159,11 @@ def draft_rank(
     player_positions: dict[str, tuple[str, ...]] = {}
     if positions_file:
         player_positions = load_positions_file(positions_file)
+    elif yahoo_positions:
+        league = _get_yahoo_league()
+        id_mapper = _get_id_mapper()
+        source = YahooPositionSource(league, id_mapper)  # type: ignore[arg-type]
+        player_positions = source.fetch_positions()
 
     # Parse category weights
     category_weights: dict[StatCategory, float] = {}

@@ -107,6 +107,113 @@ class TestLoadPositionsFile:
         assert len(result) == 2
 
 
+class FakeIdMapper:
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self._yahoo_to_fg = mapping
+
+    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
+        return self._yahoo_to_fg.get(yahoo_id)
+
+    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
+        return None
+
+
+def _make_yahoo_player(
+    player_id: int,
+    name: str,
+    eligible_positions: list[str],
+    position_type: str = "B",
+) -> dict[str, object]:
+    return {
+        "player_id": player_id,
+        "name": name,
+        "eligible_positions": eligible_positions,
+        "position_type": position_type,
+    }
+
+
+class TestYahooPositionSource:
+    def test_fetches_and_maps_positions(self) -> None:
+        from unittest.mock import MagicMock
+
+        from fantasy_baseball_manager.draft.positions import YahooPositionSource
+
+        league = MagicMock()
+        league.taken_players.return_value = [
+            _make_yahoo_player(101, "Mike Trout", ["CF", "DH"]),
+        ]
+        league.free_agents.side_effect = lambda pos_type: {
+            "B": [_make_yahoo_player(102, "Freddie Freeman", ["1B"])],
+            "P": [_make_yahoo_player(201, "Gerrit Cole", ["SP"], position_type="P")],
+        }[pos_type]
+
+        mapper = FakeIdMapper({"101": "fg1", "102": "fg2", "201": "fg3"})
+        source = YahooPositionSource(league, mapper)
+        result = source.fetch_positions()
+
+        assert result["fg1"] == ("OF", "Util")
+        assert result["fg2"] == ("1B",)
+        assert result["fg3"] == ("SP",)
+
+    def test_skips_players_without_fangraphs_id(self) -> None:
+        from unittest.mock import MagicMock
+
+        from fantasy_baseball_manager.draft.positions import YahooPositionSource
+
+        league = MagicMock()
+        league.taken_players.return_value = [
+            _make_yahoo_player(101, "Mike Trout", ["CF"]),
+            _make_yahoo_player(999, "Unknown Guy", ["SS"]),
+        ]
+        league.free_agents.return_value = []
+
+        mapper = FakeIdMapper({"101": "fg1"})  # 999 not mapped
+        source = YahooPositionSource(league, mapper)
+        result = source.fetch_positions()
+
+        assert "fg1" in result
+        assert len(result) == 1
+
+    def test_deduplicates_across_sources(self) -> None:
+        from unittest.mock import MagicMock
+
+        from fantasy_baseball_manager.draft.positions import YahooPositionSource
+
+        league = MagicMock()
+        # Same player in taken and free agents (shouldn't happen, but defensive)
+        league.taken_players.return_value = [
+            _make_yahoo_player(101, "Mike Trout", ["CF", "DH"]),
+        ]
+        league.free_agents.side_effect = lambda pos_type: {
+            "B": [_make_yahoo_player(101, "Mike Trout", ["CF", "DH"])],
+            "P": [],
+        }[pos_type]
+
+        mapper = FakeIdMapper({"101": "fg1"})
+        source = YahooPositionSource(league, mapper)
+        result = source.fetch_positions()
+
+        assert len(result) == 1
+        assert result["fg1"] == ("OF", "Util")
+
+    def test_filters_bench_and_il_positions(self) -> None:
+        from unittest.mock import MagicMock
+
+        from fantasy_baseball_manager.draft.positions import YahooPositionSource
+
+        league = MagicMock()
+        league.taken_players.return_value = [
+            _make_yahoo_player(101, "Player One", ["SS", "BN", "IL", "DL"]),
+        ]
+        league.free_agents.return_value = []
+
+        mapper = FakeIdMapper({"101": "fg1"})
+        source = YahooPositionSource(league, mapper)
+        result = source.fetch_positions()
+
+        assert result["fg1"] == ("SS",)
+
+
 class TestDefaultRosterConfig:
     def test_has_standard_positions(self) -> None:
         position_names = {s.position for s in DEFAULT_ROSTER_CONFIG.slots}
