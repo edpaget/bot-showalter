@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
+import pytest
 from config import ConfigurationSet
 
 from fantasy_baseball_manager.config import create_config
@@ -9,7 +11,12 @@ from fantasy_baseball_manager.config import create_config
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
+@pytest.fixture(autouse=True)
+def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove all FANTASY__ env vars so tests are isolated from .envrc."""
+    for key in list(os.environ):
+        if key.startswith("FANTASY__"):
+            monkeypatch.delenv(key)
 
 
 def test_create_config_returns_defaults() -> None:
