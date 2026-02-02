@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path  # noqa: TC003
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
@@ -10,6 +10,7 @@ import yaml
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
     DEFAULT_ROSTER_CONFIG,
+    PositionSource,
     YahooPositionSource,
     infer_pitcher_role,
     load_positions_file,
@@ -135,6 +136,9 @@ def draft_rank(
     yahoo_positions: Annotated[
         bool, typer.Option("--yahoo-positions", help="Fetch position eligibility from Yahoo Fantasy API.")
     ] = False,
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
+    ] = False,
     weight: Annotated[
         list[str] | None, typer.Option("--weight", help="Category weight multiplier (e.g. HR=2.0).")
     ] = None,
@@ -162,7 +166,18 @@ def draft_rank(
     elif yahoo_positions:
         league = _get_yahoo_league()
         id_mapper = _get_id_mapper()
-        source = YahooPositionSource(league, id_mapper)  # type: ignore[arg-type]
+        source: PositionSource = YahooPositionSource(league, id_mapper)  # type: ignore[arg-type]
+        if not no_cache:
+            from fantasy_baseball_manager.cache.sources import CachedPositionSource
+            from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
+            from fantasy_baseball_manager.config import create_config
+
+            config = create_config()
+            db_path = Path(str(config["cache.db_path"])).expanduser()
+            ttl = int(str(config["cache.positions_ttl"]))
+            cache_key = f"{config['league.game_code']}_{config['league.id']}"
+            cache_store = SqliteCacheStore(db_path)
+            source = CachedPositionSource(source, cache_store, cache_key, ttl)
         player_positions = source.fetch_positions()
 
     # Parse category weights

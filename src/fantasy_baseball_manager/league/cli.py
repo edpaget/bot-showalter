@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, cast
 
 import typer
@@ -49,12 +50,22 @@ def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
     _data_source_factory = factory
 
 
-def _get_roster_source() -> RosterSource:
+def _get_roster_source(no_cache: bool = False) -> RosterSource:
     if _roster_source_factory is not None:
         return _roster_source_factory()
     config = cast("AppConfig", create_config())
     client = YahooFantasyClient(config)
-    return YahooRosterSource(client.get_league())
+    source: RosterSource = YahooRosterSource(client.get_league())
+    if not no_cache:
+        from fantasy_baseball_manager.cache.sources import CachedRosterSource
+        from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
+
+        db_path = Path(str(config["cache.db_path"])).expanduser()
+        ttl = int(str(config["cache.rosters_ttl"]))
+        cache_key = f"{config['league.game_code']}_{config['league.id']}"
+        cache_store = SqliteCacheStore(db_path)
+        source = CachedRosterSource(source, cache_store, cache_key, ttl)
+    return source
 
 
 def _get_id_mapper() -> PlayerIdMapper:
@@ -130,8 +141,8 @@ def format_compare_table(team_projections: list[TeamProjection]) -> str:
     return "\n".join(lines)
 
 
-def _load_team_projections(year: int) -> list[TeamProjection]:
-    roster_source = _get_roster_source()
+def _load_team_projections(year: int, no_cache: bool = False) -> list[TeamProjection]:
+    roster_source = _get_roster_source(no_cache=no_cache)
     id_mapper = _get_id_mapper()
     data_source = _get_data_source()
 
@@ -147,6 +158,9 @@ def projections(
     top: Annotated[int, typer.Option(help="Number of players per team to display.")] = 25,
     sort_by: Annotated[str, typer.Option(help="Stat to sort teams by.")] = "total_hr",
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
+    ] = False,
 ) -> None:
     """Show projections for all rostered players in the league."""
     validate_engine(engine)
@@ -160,7 +174,7 @@ def projections(
 
     typer.echo(f"League projections for {year}\n")
 
-    team_projections = _load_team_projections(year)
+    team_projections = _load_team_projections(year, no_cache=no_cache)
     team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
     typer.echo(format_team_projections(team_projections, top, sort_by))
@@ -171,6 +185,9 @@ def compare(
     sort_by: Annotated[str, typer.Option(help="Stat to sort by.")] = "total_hr",
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
     method: Annotated[str, typer.Option(help="Valuation method to use.")] = DEFAULT_METHOD,
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
+    ] = False,
 ) -> None:
     """Compare aggregate projected stats across all teams in the league."""
     validate_engine(engine)
@@ -185,7 +202,7 @@ def compare(
 
     typer.echo(f"League comparison for {year}\n")
 
-    team_projections = _load_team_projections(year)
+    team_projections = _load_team_projections(year, no_cache=no_cache)
     team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
     typer.echo(format_compare_table(team_projections))

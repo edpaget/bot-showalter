@@ -20,6 +20,11 @@ _DEFAULTS: dict[str, object] = {
         "game_code": "mlb",
         "season": 2025,
     },
+    "cache": {
+        "db_path": "~/.config/fbm/cache.db",
+        "positions_ttl": 86400,
+        "rosters_ttl": 3600,
+    },
 }
 
 
