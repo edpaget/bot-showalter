@@ -86,8 +86,18 @@ class TestSavantParkFactorProvider:
         with patch.object(provider, "_fetch", return_value=_SAMPLE_HTML):
             factors = provider.park_factors(2024)
         expected_stats = {
-            "hr", "singles", "doubles", "triples", "bb", "so",
-            "runs", "woba", "obp", "hits", "wobacon", "xwobacon",
+            "hr",
+            "singles",
+            "doubles",
+            "triples",
+            "bb",
+            "so",
+            "runs",
+            "woba",
+            "obp",
+            "hits",
+            "wobacon",
+            "xwobacon",
         }
         assert set(factors["COL"].keys()) == expected_stats
 

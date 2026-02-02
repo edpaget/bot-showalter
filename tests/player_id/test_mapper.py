@@ -109,7 +109,7 @@ class TestBuildCachedSfbbMapper:
     def test_cache_miss_downloads_and_stores(self, mock_download: object) -> None:
         mock_download.return_value = SAMPLE_CSV  # type: ignore[union-attr]
         cache = FakeCacheStore()
-        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
+        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")
 
         assert mapper.yahoo_to_fangraphs("10155") == "19054"
         assert cache.get("sfbb_csv", "test_key") is not None
@@ -120,7 +120,7 @@ class TestBuildCachedSfbbMapper:
         cache = FakeCacheStore()
         cache.put("sfbb_csv", "test_key", SAMPLE_CSV, 3600)
 
-        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
+        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")
 
         assert mapper.yahoo_to_fangraphs("10155") == "19054"
         mock_download.assert_not_called()  # type: ignore[union-attr]
@@ -131,13 +131,13 @@ class TestBuildCachedSfbbMapper:
         cache = FakeCacheStore()
 
         # First call populates cache
-        build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
+        build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")
 
         # Simulate expiry
         cache.invalidate("sfbb_csv", "test_key")
 
         # Second call should re-download
-        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
+        mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")
         assert mapper.yahoo_to_fangraphs("10155") == "19054"
         assert mock_download.call_count == 2  # type: ignore[union-attr]
 
@@ -154,10 +154,7 @@ class TestSplitOverrides:
 
     def test_split_override_ignored_when_real_id_missing(self) -> None:
         """If the real Yahoo ID isn't in SFBB, synthetic IDs don't get mapped."""
-        csv_without_ohtani = (
-            "IDPLAYER,PLAYERNAME,YAHOOID,IDFANGRAPHS\n"
-            "1,Mike Trout,10155,19054\n"
-        )
+        csv_without_ohtani = "IDPLAYER,PLAYERNAME,YAHOOID,IDFANGRAPHS\n" "1,Mike Trout,10155,19054\n"
         mapper = _parse_sfbb_csv(csv_without_ohtani)
         for synthetic_id in _YAHOO_SPLIT_OVERRIDES:
             assert mapper.yahoo_to_fangraphs(synthetic_id) is None

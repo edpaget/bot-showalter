@@ -274,7 +274,7 @@ def draft_rank(
                 dr_ttl = int(str(config["cache.draft_results_ttl"]))
                 cache_store = create_cache_store(config)
                 cache_key = get_cache_key(config)
-                draft_source = CachedDraftResultsSource(draft_source, cache_store, cache_key, dr_ttl)  # type: ignore[assignment]
+                draft_source = CachedDraftResultsSource(draft_source, cache_store, cache_key, dr_ttl)
             picks = draft_source.fetch_draft_results()
             user_team_key = draft_source.fetch_user_team_key()
             logger.debug("User team key: %s, draft picks: %d", user_team_key, len(picks))
@@ -369,7 +369,7 @@ def _load_keepers_file(path: Path) -> dict[int, dict[str, object]]:
     teams_data: dict[int, dict[str, object]] = {}
     if isinstance(teams_raw, dict):
         for team_id, team_info in teams_raw.items():
-            teams_data[int(team_id)] = dict(team_info)  # type: ignore[arg-type]
+            teams_data[int(team_id)] = dict(team_info)
     return teams_data
 
 

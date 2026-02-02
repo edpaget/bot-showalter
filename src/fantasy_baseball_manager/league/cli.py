@@ -145,16 +145,8 @@ def format_team_projections(
     team_projections: list[TeamProjection],
     league_settings: LeagueSettings,
 ) -> str:
-    bat_cols = [
-        (cat, _BATTER_COLUMNS[cat])
-        for cat in league_settings.batting_categories
-        if cat in _BATTER_COLUMNS
-    ]
-    pit_cols = [
-        (cat, _PITCHER_COLUMNS[cat])
-        for cat in league_settings.pitching_categories
-        if cat in _PITCHER_COLUMNS
-    ]
+    bat_cols = [(cat, _BATTER_COLUMNS[cat]) for cat in league_settings.batting_categories if cat in _BATTER_COLUMNS]
+    pit_cols = [(cat, _PITCHER_COLUMNS[cat]) for cat in league_settings.pitching_categories if cat in _PITCHER_COLUMNS]
 
     lines: list[str] = []
 
@@ -215,9 +207,7 @@ def format_compare_table(
     league_settings: LeagueSettings,
 ) -> str:
     bat_cols = [
-        (cat, _TEAM_BATTING_COLUMNS[cat])
-        for cat in league_settings.batting_categories
-        if cat in _TEAM_BATTING_COLUMNS
+        (cat, _TEAM_BATTING_COLUMNS[cat]) for cat in league_settings.batting_categories if cat in _TEAM_BATTING_COLUMNS
     ]
     pit_cols = [
         (cat, _TEAM_PITCHING_COLUMNS[cat])
@@ -256,9 +246,7 @@ def _invalidate_caches() -> None:
     logger.debug("Invalidated cached rosters and sfbb_csv for key=%s", cache_key)
 
 
-def _load_team_projections(
-    year: int, engine: str = DEFAULT_ENGINE, no_cache: bool = False
-) -> list[TeamProjection]:
+def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE, no_cache: bool = False) -> list[TeamProjection]:
     if no_cache:
         _invalidate_caches()
     roster_source = _get_roster_source(no_cache=no_cache)

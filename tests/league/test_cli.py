@@ -420,9 +420,11 @@ class TestKeeperPredraftAutoDetection:
         mock_client.get_league.return_value = mock_league
         mock_client.get_league_for_season.return_value = mock_league
 
-        with patch("fantasy_baseball_manager.league.cli.create_config") as mock_config, \
-             patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client), \
-             patch("fantasy_baseball_manager.league.cli.YahooRosterSource"):
+        with (
+            patch("fantasy_baseball_manager.league.cli.create_config") as mock_config,
+            patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client),
+            patch("fantasy_baseball_manager.league.cli.YahooRosterSource"),
+        ):
             cfg = {"league.is_keeper": True, "league.season": 2025, "cache.rosters_ttl": 3600}
             mock_config.return_value = cfg
             _get_roster_source(no_cache=True)
@@ -437,9 +439,11 @@ class TestKeeperPredraftAutoDetection:
         mock_client = MagicMock()
         mock_client.get_league.return_value = mock_league
 
-        with patch("fantasy_baseball_manager.league.cli.create_config") as mock_config, \
-             patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client), \
-             patch("fantasy_baseball_manager.league.cli.YahooRosterSource"):
+        with (
+            patch("fantasy_baseball_manager.league.cli.create_config") as mock_config,
+            patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client),
+            patch("fantasy_baseball_manager.league.cli.YahooRosterSource"),
+        ):
             cfg = {"league.is_keeper": True, "league.season": 2025, "cache.rosters_ttl": 3600}
             mock_config.return_value = cfg
             _get_roster_source(no_cache=True)
@@ -450,9 +454,11 @@ class TestKeeperPredraftAutoDetection:
         regardless of draft status."""
         mock_client = MagicMock()
 
-        with patch("fantasy_baseball_manager.league.cli.create_config") as mock_config, \
-             patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client), \
-             patch("fantasy_baseball_manager.league.cli.YahooRosterSource"):
+        with (
+            patch("fantasy_baseball_manager.league.cli.create_config") as mock_config,
+            patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client),
+            patch("fantasy_baseball_manager.league.cli.YahooRosterSource"),
+        ):
             cfg = {"league.is_keeper": False, "league.season": 2025, "cache.rosters_ttl": 3600}
             mock_config.return_value = cfg
             _get_roster_source(no_cache=True)
@@ -463,9 +469,11 @@ class TestKeeperPredraftAutoDetection:
         """When target_season is explicitly provided, keeper detection is skipped."""
         mock_client = MagicMock()
 
-        with patch("fantasy_baseball_manager.league.cli.create_config") as mock_config, \
-             patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client), \
-             patch("fantasy_baseball_manager.league.cli.YahooRosterSource"):
+        with (
+            patch("fantasy_baseball_manager.league.cli.create_config") as mock_config,
+            patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client),
+            patch("fantasy_baseball_manager.league.cli.YahooRosterSource"),
+        ):
             cfg = {"league.is_keeper": True, "league.season": 2025, "cache.rosters_ttl": 3600}
             mock_config.return_value = cfg
             _get_roster_source(no_cache=True, target_season=2023)
@@ -546,7 +554,13 @@ class TestLeagueSettingsColumns:
         settings = LeagueSettings(
             team_count=12,
             batting_categories=(StatCategory.HR, StatCategory.R, StatCategory.RBI, StatCategory.SB, StatCategory.OBP),
-            pitching_categories=(StatCategory.W, StatCategory.K, StatCategory.ERA, StatCategory.WHIP, StatCategory.NSVH),
+            pitching_categories=(
+                StatCategory.W,
+                StatCategory.K,
+                StatCategory.ERA,
+                StatCategory.WHIP,
+                StatCategory.NSVH,
+            ),
         )
         tp = [_make_team_projection()]
         output = format_compare_table(tp, settings)
@@ -558,9 +572,26 @@ class TestLeagueSettingsColumns:
         from fantasy_baseball_manager.marcel.models import BattingProjection
 
         bp = BattingProjection(
-            player_id="fg1", name="Hitter", year=2025, age=28,
-            pa=600, ab=540, h=160, singles=100, doubles=30, triples=5,
-            hr=25, bb=50, so=120, hbp=5, sf=3, sh=2, sb=10, cs=3, r=80, rbi=90,
+            player_id="fg1",
+            name="Hitter",
+            year=2025,
+            age=28,
+            pa=600,
+            ab=540,
+            h=160,
+            singles=100,
+            doubles=30,
+            triples=5,
+            hr=25,
+            bb=50,
+            so=120,
+            hbp=5,
+            sf=3,
+            sh=2,
+            sb=10,
+            cs=3,
+            r=80,
+            rbi=90,
         )
         player = PlayerMatchResult(
             roster_player=RosterPlayer(yahoo_id="y1", name="Hitter", position_type="B", eligible_positions=("1B",)),
@@ -568,14 +599,28 @@ class TestLeagueSettingsColumns:
             pitching_projection=None,
             matched=True,
         )
-        tp = [TeamProjection(
-            team_name="Test", team_key="t1", players=(player,),
-            total_hr=25, total_sb=10, total_h=160, total_pa=600,
-            team_avg=0.296, team_obp=0.358,
-            total_r=80, total_rbi=90,
-            total_ip=0, total_so=0, total_w=0, total_nsvh=0,
-            team_era=0, team_whip=0, unmatched_count=0,
-        )]
+        tp = [
+            TeamProjection(
+                team_name="Test",
+                team_key="t1",
+                players=(player,),
+                total_hr=25,
+                total_sb=10,
+                total_h=160,
+                total_pa=600,
+                team_avg=0.296,
+                team_obp=0.358,
+                total_r=80,
+                total_rbi=90,
+                total_ip=0,
+                total_so=0,
+                total_w=0,
+                total_nsvh=0,
+                team_era=0,
+                team_whip=0,
+                unmatched_count=0,
+            )
+        ]
         # Only HR and OBP configured — SB should not appear as a column header
         settings = LeagueSettings(
             team_count=12,

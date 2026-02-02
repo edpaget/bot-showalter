@@ -128,10 +128,17 @@ class TestLoadLeagueSettings:
         assert settings.team_count == 10
         assert settings.scoring_style is ScoringStyle.ROTO
         assert settings.batting_categories == (
-            StatCategory.HR, StatCategory.R, StatCategory.RBI, StatCategory.SB, StatCategory.OBP,
+            StatCategory.HR,
+            StatCategory.R,
+            StatCategory.RBI,
+            StatCategory.SB,
+            StatCategory.OBP,
         )
         assert settings.pitching_categories == (
-            StatCategory.K, StatCategory.ERA, StatCategory.WHIP, StatCategory.NSVH,
+            StatCategory.K,
+            StatCategory.ERA,
+            StatCategory.WHIP,
+            StatCategory.NSVH,
         )
 
     def test_creates_config_when_none_passed(self) -> None:

@@ -174,8 +174,8 @@ def _deserialize_draft_results(data: str) -> list[YahooDraftPick]:
         YahooDraftPick(
             player_id=str(item["player_id"]),
             team_key=str(item["team_key"]),
-            round=int(item["round"]),  # type: ignore[arg-type]
-            pick=int(item["pick"]),  # type: ignore[arg-type]
+            round=int(item["round"]),
+            pick=int(item["pick"]),
         )
         for item in raw
     ]

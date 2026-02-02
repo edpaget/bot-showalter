@@ -75,9 +75,7 @@ class TestBabipComputation:
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         expected_babip = 0.21 / 0.99
-        assert result[0].metadata["observed_babip"] == pytest.approx(
-            expected_babip, abs=1e-6
-        )
+        assert result[0].metadata["observed_babip"] == pytest.approx(expected_babip, abs=1e-6)
 
     def test_babip_at_league_mean_no_h_adjustment(self) -> None:
         """When observed BABIP equals league mean, H rate stays the same."""
@@ -226,9 +224,7 @@ class TestCustomConfig:
         pitcher2 = _make_pitcher(rates=dict(rates))
         result_default = default_adjuster.adjust([pitcher1])
         result_custom = custom_adjuster.adjust([pitcher2])
-        assert result_default[0].rates["h"] != pytest.approx(
-            result_custom[0].rates["h"], abs=1e-6
-        )
+        assert result_default[0].rates["h"] != pytest.approx(result_custom[0].rates["h"], abs=1e-6)
 
 
 class TestEdgeCases:
