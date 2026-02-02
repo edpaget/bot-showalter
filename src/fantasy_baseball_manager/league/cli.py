@@ -7,7 +7,7 @@ import typer
 
 from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
 from fantasy_baseball_manager.cache.sources import CachedRosterSource
-from fantasy_baseball_manager.config import AppConfig, clear_cli_overrides, create_config, set_cli_overrides
+from fantasy_baseball_manager.config import AppConfig, apply_cli_overrides, clear_cli_overrides, create_config
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.league.models import TeamProjection
 from fantasy_baseball_manager.league.projections import match_projections
@@ -53,12 +53,21 @@ def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
     _data_source_factory = factory
 
 
-def _get_roster_source(no_cache: bool = False) -> RosterSource:
+def _get_roster_source(no_cache: bool = False, target_season: int | None = None) -> RosterSource:
     if _roster_source_factory is not None:
         return _roster_source_factory()
     config = cast("AppConfig", create_config())
     client = YahooFantasyClient(config)
-    source: RosterSource = YahooRosterSource(client.get_league())
+
+    if target_season is None and config["league.is_keeper"]:
+        current_league = client.get_league()
+        draft_status = current_league.settings().get("draft_status", "")
+        if draft_status == "predraft":
+            target_season = int(str(config["league.season"])) - 1
+            logger.debug("Keeper league in predraft — using previous season %d", target_season)
+
+    league = client.get_league_for_season(target_season) if target_season is not None else client.get_league()
+    source: RosterSource = YahooRosterSource(league)
     if not no_cache:
         ttl = int(str(config["cache.rosters_ttl"]))
         cache_store = create_cache_store(config)
@@ -155,7 +164,9 @@ def _invalidate_caches() -> None:
     logger.debug("Invalidated cached rosters and sfbb_csv for key=%s", cache_key)
 
 
-def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE, no_cache: bool = False) -> list[TeamProjection]:
+def _load_team_projections(
+    year: int, engine: str = DEFAULT_ENGINE, no_cache: bool = False
+) -> list[TeamProjection]:
     if no_cache:
         _invalidate_caches()
     roster_source = _get_roster_source(no_cache=no_cache)
@@ -171,18 +182,6 @@ def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE, no_cache: bo
     return match_projections(rosters, batting, pitching, id_mapper)
 
 
-def _apply_cli_overrides(league_id: str | None, season: int | None) -> None:
-    overrides: dict[str, object] = {}
-    if league_id is not None:
-        overrides["league"] = {"id": league_id}
-    if season is not None:
-        league_dict: dict[str, object] = overrides.get("league", {})  # type: ignore[assignment]
-        league_dict["season"] = season
-        overrides["league"] = league_dict
-    if overrides:
-        set_cli_overrides(overrides)
-
-
 def projections(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     top: Annotated[int, typer.Option(help="Number of players per team to display.")] = 25,
@@ -195,7 +194,7 @@ def projections(
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Show projections for all rostered players in the league."""
-    _apply_cli_overrides(league_id, season)
+    apply_cli_overrides(league_id, season)
     try:
         validate_engine(engine)
 
@@ -228,7 +227,7 @@ def compare(
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Compare aggregate projected stats across all teams in the league."""
-    _apply_cli_overrides(league_id, season)
+    apply_cli_overrides(league_id, season)
     try:
         validate_engine(engine)
         validate_method(method)

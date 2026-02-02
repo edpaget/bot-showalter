@@ -22,6 +22,18 @@ def clear_cli_overrides() -> None:
     _cli_overrides = {}
 
 
+def apply_cli_overrides(league_id: str | None, season: int | None) -> None:
+    overrides: dict[str, object] = {}
+    if league_id is not None:
+        overrides["league"] = {"id": league_id}
+    if season is not None:
+        league_dict: dict[str, object] = overrides.get("league", {})  # type: ignore[assignment]
+        league_dict["season"] = season
+        overrides["league"] = league_dict
+    if overrides:
+        set_cli_overrides(overrides)
+
+
 _DEFAULTS: dict[str, object] = {
     "yahoo": {
         "client_id": "",
@@ -32,6 +44,7 @@ _DEFAULTS: dict[str, object] = {
         "id": "",
         "game_code": "mlb",
         "season": 2025,
+        "is_keeper": False,
     },
     "cache": {
         "db_path": "~/.config/fbm/cache.db",

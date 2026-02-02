@@ -4,6 +4,8 @@ import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
+import pytest
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -112,10 +114,89 @@ def test_get_league_raises_when_no_matching_league() -> None:
         oauth_factory=MagicMock(),
         game_factory=mock_game_factory,
     )
-    import pytest
 
     with pytest.raises(ValueError, match="No league with id 12345 found for season 2025"):
         client.get_league()
+
+
+class TestGetLeagueForSeason:
+    def _make_client(self, mock_game: MagicMock) -> YahooFantasyClient:
+        cfg = _make_config({"league": {"id": "12345", "game_code": "mlb", "season": 2026}})
+        return YahooFantasyClient(
+            cfg,
+            oauth_factory=MagicMock(),
+            game_factory=MagicMock(return_value=mock_game),
+        )
+
+    def test_walks_one_step_back(self) -> None:
+        mock_game = MagicMock()
+        # Current league (2026)
+        mock_game.league_ids.return_value = ["470.l.12345"]
+        current_league = MagicMock()
+        current_league.settings.return_value = {"renew": "469_54321"}
+
+        target_league = MagicMock()
+        target_league.settings.return_value = {"season": 2025}
+
+        mock_game.to_league.side_effect = [current_league, target_league]
+
+        client = self._make_client(mock_game)
+        result = client.get_league_for_season(2025)
+
+        assert result is target_league
+        mock_game.to_league.assert_any_call("469.l.54321")
+
+    def test_walks_multiple_steps_back(self) -> None:
+        mock_game = MagicMock()
+        mock_game.league_ids.return_value = ["470.l.12345"]
+
+        current_league = MagicMock()
+        current_league.settings.return_value = {"renew": "469_54321"}
+
+        mid_league = MagicMock()
+        mid_league.settings.return_value = {"renew": "468_11111"}
+
+        target_league = MagicMock()
+        target_league.settings.return_value = {"season": 2024}
+
+        mock_game.to_league.side_effect = [current_league, mid_league, target_league]
+
+        client = self._make_client(mock_game)
+        result = client.get_league_for_season(2024)
+
+        assert result is target_league
+        mock_game.to_league.assert_any_call("468.l.11111")
+
+    def test_raises_when_renew_empty(self) -> None:
+        mock_game = MagicMock()
+        mock_game.league_ids.return_value = ["470.l.12345"]
+
+        current_league = MagicMock()
+        current_league.settings.return_value = {"renew": ""}
+
+        mock_game.to_league.return_value = current_league
+
+        client = self._make_client(mock_game)
+        with pytest.raises(ValueError, match=r"Cannot walk renewal chain.*2024"):
+            client.get_league_for_season(2024)
+
+    def test_raises_when_target_ahead_of_current(self) -> None:
+        mock_game = MagicMock()
+        mock_game.league_ids.return_value = ["470.l.12345"]
+
+        client = self._make_client(mock_game)
+        with pytest.raises(ValueError, match=r"Target season 2027.*ahead"):
+            client.get_league_for_season(2027)
+
+    def test_returns_current_league_when_same_season(self) -> None:
+        mock_game = MagicMock()
+        mock_game.league_ids.return_value = ["470.l.12345"]
+
+        client = self._make_client(mock_game)
+        result = client.get_league_for_season(2026)
+
+        assert result is mock_game.to_league.return_value
+        mock_game.to_league.assert_called_once_with("470.l.12345")
 
 
 class TestEnsureCredentialsFile:

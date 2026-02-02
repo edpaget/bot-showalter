@@ -13,7 +13,7 @@ import yaml
 
 from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
 from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
-from fantasy_baseball_manager.config import clear_cli_overrides, create_config, set_cli_overrides
+from fantasy_baseball_manager.config import apply_cli_overrides, clear_cli_overrides, create_config
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
     DEFAULT_ROSTER_CONFIG,
@@ -115,18 +115,6 @@ def _load_roster_config(path: Path) -> RosterConfig:
     return RosterConfig(slots=tuple(slots))
 
 
-def _apply_cli_overrides(league_id: str | None, season: int | None) -> None:
-    overrides: dict[str, object] = {}
-    if league_id is not None:
-        overrides["league"] = {"id": league_id}
-    if season is not None:
-        league_dict: dict[str, object] = overrides.get("league", {})  # type: ignore[assignment]
-        league_dict["season"] = season
-        overrides["league"] = league_dict
-    if overrides:
-        set_cli_overrides(overrides)
-
-
 def draft_rank(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     roster_config_file: Annotated[Path | None, typer.Option("--roster-config", help="YAML roster slot config.")] = None,
@@ -150,7 +138,7 @@ def draft_rank(
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Produce a ranked draft board from z-score valuations."""
-    _apply_cli_overrides(league_id, season)
+    apply_cli_overrides(league_id, season)
     try:
         validate_engine(engine)
 

@@ -84,3 +84,31 @@ class YahooFantasyClient:
             msg = f"No league with id {league_id} found for season {season}"
             raise ValueError(msg)
         return self.game.to_league(matching[0])
+
+    def get_league_for_season(self, target_season: int) -> League:
+        """Walk the renewal chain from the configured league to find the league for *target_season*."""
+        current_season = int(str(self._config["league.season"]))
+        if target_season > current_season:
+            msg = f"Target season {target_season} is ahead of configured season {current_season}"
+            raise ValueError(msg)
+
+        league = self.get_league()
+        if target_season == current_season:
+            return league
+
+        while True:
+            settings = league.settings()
+            renew = settings.get("renew", "")
+            if not renew:
+                msg = f"Cannot walk renewal chain back to season {target_season}: renew field is empty"
+                raise ValueError(msg)
+            # renew format: "{game_key}_{league_id}" → convert to "{game_key}.l.{league_id}"
+            game_key, league_id = renew.split("_", 1)
+            league_key = f"{game_key}.l.{league_id}"
+            league = self.game.to_league(league_key)
+            # Check if we've reached the target by comparing the game_key's implied season
+            # The league settings contain the season, but we can also just count steps.
+            # Since each renew step goes back exactly one season, count steps instead.
+            current_season -= 1
+            if current_season == target_season:
+                return league
