@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.cache.protocol import CacheStore
@@ -25,9 +28,13 @@ class CachedPositionSource:
     def fetch_positions(self) -> dict[str, tuple[str, ...]]:
         cached = self._cache.get("positions", self._cache_key)
         if cached is not None:
-            return _deserialize_positions(cached)
+            result = _deserialize_positions(cached)
+            logger.debug("Cache hit for positions [key=%s] (%d players)", self._cache_key, len(result))
+            return result
+        logger.debug("Cache miss for positions [key=%s], fetching from source", self._cache_key)
         result = self._delegate.fetch_positions()
         self._cache.put("positions", self._cache_key, _serialize_positions(result), self._ttl_seconds)
+        logger.debug("Cached %d positions [key=%s, ttl=%ds]", len(result), self._cache_key, self._ttl_seconds)
         return result
 
 
@@ -47,9 +54,13 @@ class CachedRosterSource:
     def fetch_rosters(self) -> LeagueRosters:
         cached = self._cache.get("rosters", self._cache_key)
         if cached is not None:
-            return _deserialize_rosters(cached)
+            result = _deserialize_rosters(cached)
+            logger.debug("Cache hit for rosters [key=%s] (%d teams)", self._cache_key, len(result.teams))
+            return result
+        logger.debug("Cache miss for rosters [key=%s], fetching from source", self._cache_key)
         result = self._delegate.fetch_rosters()
         self._cache.put("rosters", self._cache_key, _serialize_rosters(result), self._ttl_seconds)
+        logger.debug("Cached %d teams [key=%s, ttl=%ds]", len(result.teams), self._cache_key, self._ttl_seconds)
         return result
 
 
