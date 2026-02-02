@@ -42,9 +42,13 @@ def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
     _data_source_factory = factory
 
 
-def format_batting_table(projections: list[BattingProjection], top: int) -> str:
+def format_batting_table(
+    projections: list[BattingProjection],
+    top: int,
+    title: str = "projected batters",
+) -> str:
     lines: list[str] = []
-    lines.append(f"Top {top} projected batters ({len(projections)} total):")
+    lines.append(f"Top {top} {title} ({len(projections)} total):")
     lines.append(f"{'Name':<25} {'Age':>3} {'PA':>6} {'HR':>5} {'R':>5} {'RBI':>5} {'AVG':>6} {'OBP':>6} {'SB':>5}")
     lines.append("-" * 72)
     for p in projections[:top]:
@@ -56,9 +60,13 @@ def format_batting_table(projections: list[BattingProjection], top: int) -> str:
     return "\n".join(lines)
 
 
-def format_pitching_table(projections: list[PitchingProjection], top: int) -> str:
+def format_pitching_table(
+    projections: list[PitchingProjection],
+    top: int,
+    title: str = "projected pitchers",
+) -> str:
     lines: list[str] = []
-    lines.append(f"Top {top} projected pitchers ({len(projections)} total):")
+    lines.append(f"Top {top} {title} ({len(projections)} total):")
     lines.append(f"{'Name':<25} {'Age':>3} {'IP':>6} {'ERA':>5} {'WHIP':>5} {'SO':>5} {'W':>4} {'NSVH':>5} {'HR':>4}")
     lines.append("-" * 68)
     for p in projections[:top]:
