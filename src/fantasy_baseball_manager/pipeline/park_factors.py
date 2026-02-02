@@ -61,15 +61,16 @@ _GUTS_URL = "https://www.fangraphs.com/guts.aspx?type=pf&teamid=0&season={year}"
 class FanGraphsParkFactorProvider:
     """Provides park factors scraped from the FanGraphs Guts page.
 
-    Averages multiple years of park factor data and regresses toward 1.0
-    to reduce noise from single-year samples.
+    FanGraphs Guts factors are already multi-year smoothed and regressed
+    internally, so defaults pass them through as-is (years_to_average=1,
+    regression_weight=1.0).  Override these for custom dampening.
     """
 
     def __init__(
         self,
         *,
-        years_to_average: int = 3,
-        regression_weight: float = 0.5,
+        years_to_average: int = 1,
+        regression_weight: float = 1.0,
     ) -> None:
         self._years_to_average = years_to_average
         self._regression_weight = regression_weight
@@ -153,20 +154,22 @@ class CachedParkFactorProvider:
         delegate: ParkFactorProvider,
         cache: CacheStore,
         ttl_seconds: int = _DEFAULT_TTL,
+        namespace: str = _NAMESPACE,
     ) -> None:
         self._delegate = delegate
         self._cache = cache
         self._ttl_seconds = ttl_seconds
+        self._namespace = namespace
 
     def park_factors(self, year: int) -> dict[str, dict[str, float]]:
         key = str(year)
-        cached = self._cache.get(_NAMESPACE, key)
+        cached = self._cache.get(self._namespace, key)
         if cached is not None:
             result: dict[str, dict[str, float]] = json.loads(cached)
-            logger.debug("Cache hit for park_factors [year=%d] (%d teams)", year, len(result))
+            logger.debug("Cache hit for park_factors [ns=%s, year=%d] (%d teams)", self._namespace, year, len(result))
             return result
-        logger.debug("Cache miss for park_factors [year=%d], fetching from source", year)
+        logger.debug("Cache miss for park_factors [ns=%s, year=%d], fetching from source", self._namespace, year)
         result = self._delegate.park_factors(year)
-        self._cache.put(_NAMESPACE, key, json.dumps(result), self._ttl_seconds)
-        logger.debug("Cached park_factors [year=%d, ttl=%ds]", year, self._ttl_seconds)
+        self._cache.put(self._namespace, key, json.dumps(result), self._ttl_seconds)
+        logger.debug("Cached park_factors [ns=%s, year=%d, ttl=%ds]", self._namespace, year, self._ttl_seconds)
         return result

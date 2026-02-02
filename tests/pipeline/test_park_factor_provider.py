@@ -54,6 +54,17 @@ class TestFanGraphsParkFactorProvider:
         result = provider._regress(1.3)
         assert result == pytest.approx(1.3)
 
+    def test_default_regression_weight_passes_through(self) -> None:
+        """Default regression_weight=1.0 trusts FanGraphs pre-regressed values."""
+        provider = FanGraphsParkFactorProvider()
+        result = provider._regress(1.15)
+        assert result == pytest.approx(1.15)
+
+    def test_default_years_to_average_is_one(self) -> None:
+        """Default years_to_average=1 avoids re-smoothing FanGraphs data."""
+        provider = FanGraphsParkFactorProvider()
+        assert provider._years_to_average == 1
+
     def test_column_map_has_expected_stats(self) -> None:
         expected = {"hr", "singles", "doubles", "triples", "bb", "so"}
         assert set(FanGraphsParkFactorProvider._column_map().values()) == expected
@@ -94,3 +105,22 @@ class TestCachedParkFactorProvider:
         provider.park_factors(2022)
 
         assert delegate.call_count == 2
+
+    def test_custom_namespace_isolates_cache(self) -> None:
+        """Providers with different namespaces don't share cached data."""
+        data_a = {"COL": {"hr": 1.07}}
+        data_b = {"COL": {"hr": 1.15}}
+        delegate_a = FakeParkFactorDelegate(data_a)
+        delegate_b = FakeParkFactorDelegate(data_b)
+        cache = FakeCacheStore()
+
+        provider_a = CachedParkFactorProvider(delegate_a, cache, namespace="ns_a")
+        provider_b = CachedParkFactorProvider(delegate_b, cache, namespace="ns_b")
+
+        result_a = provider_a.park_factors(2024)
+        result_b = provider_b.park_factors(2024)
+
+        assert result_a["COL"]["hr"] == pytest.approx(1.07)
+        assert result_b["COL"]["hr"] == pytest.approx(1.15)
+        assert delegate_a.call_count == 1
+        assert delegate_b.call_count == 1
