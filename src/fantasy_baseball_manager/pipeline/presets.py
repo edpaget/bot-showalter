@@ -10,6 +10,9 @@ from fantasy_baseball_manager.pipeline.stages.adjusters import (
     MarcelAgingAdjuster,
     RebaselineAdjuster,
 )
+from fantasy_baseball_manager.pipeline.stages.component_aging import (
+    ComponentAgingAdjuster,
+)
 from fantasy_baseball_manager.pipeline.stages.finalizers import StandardFinalizer
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
     ParkFactorAdjuster,
@@ -35,7 +38,7 @@ def marcel_pipeline() -> ProjectionPipeline:
     return ProjectionPipeline(
         name="marcel",
         rate_computer=MarcelRateComputer(),
-        adjusters=(RebaselineAdjuster(), MarcelAgingAdjuster()),
+        adjusters=(RebaselineAdjuster(), ComponentAgingAdjuster()),
         playing_time=MarcelPlayingTime(),
         finalizer=StandardFinalizer(),
         years_back=3,
@@ -49,7 +52,7 @@ def marcel_park_pipeline() -> ProjectionPipeline:
         adjusters=(
             ParkFactorAdjuster(_cached_park_factor_provider()),
             RebaselineAdjuster(),
-            MarcelAgingAdjuster(),
+            ComponentAgingAdjuster(),
         ),
         playing_time=MarcelPlayingTime(),
         finalizer=StandardFinalizer(),
@@ -61,7 +64,7 @@ def marcel_statreg_pipeline() -> ProjectionPipeline:
     return ProjectionPipeline(
         name="marcel_statreg",
         rate_computer=StatSpecificRegressionRateComputer(),
-        adjusters=(RebaselineAdjuster(), MarcelAgingAdjuster()),
+        adjusters=(RebaselineAdjuster(), ComponentAgingAdjuster()),
         playing_time=MarcelPlayingTime(),
         finalizer=StandardFinalizer(),
         years_back=3,
@@ -75,7 +78,7 @@ def marcel_plus_pipeline() -> ProjectionPipeline:
         adjusters=(
             ParkFactorAdjuster(_cached_park_factor_provider()),
             RebaselineAdjuster(),
-            MarcelAgingAdjuster(),
+            ComponentAgingAdjuster(),
         ),
         playing_time=MarcelPlayingTime(),
         finalizer=StandardFinalizer(),
@@ -90,7 +93,7 @@ def marcel_norm_pipeline() -> ProjectionPipeline:
         adjusters=(
             PitcherNormalizationAdjuster(),
             RebaselineAdjuster(),
-            MarcelAgingAdjuster(),
+            ComponentAgingAdjuster(),
         ),
         playing_time=MarcelPlayingTime(),
         finalizer=StandardFinalizer(),
@@ -106,7 +109,7 @@ def marcel_full_pipeline() -> ProjectionPipeline:
             ParkFactorAdjuster(_cached_park_factor_provider()),
             PitcherNormalizationAdjuster(),
             RebaselineAdjuster(),
-            MarcelAgingAdjuster(),
+            ComponentAgingAdjuster(),
         ),
         playing_time=MarcelPlayingTime(),
         finalizer=StandardFinalizer(),
@@ -114,7 +117,19 @@ def marcel_full_pipeline() -> ProjectionPipeline:
     )
 
 
+def marcel_classic_pipeline() -> ProjectionPipeline:
+    return ProjectionPipeline(
+        name="marcel_classic",
+        rate_computer=MarcelRateComputer(),
+        adjusters=(RebaselineAdjuster(), MarcelAgingAdjuster()),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
+    "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
     "marcel_park": marcel_park_pipeline,
     "marcel_statreg": marcel_statreg_pipeline,

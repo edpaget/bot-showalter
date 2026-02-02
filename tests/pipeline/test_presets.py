@@ -10,6 +10,9 @@ from fantasy_baseball_manager.pipeline.presets import (
     marcel_plus_pipeline,
     marcel_statreg_pipeline,
 )
+from fantasy_baseball_manager.pipeline.stages.component_aging import (
+    ComponentAgingAdjuster,
+)
 
 
 class TestPresets:
@@ -105,12 +108,24 @@ class TestMarcelFullPreset:
 
 
 class TestAllPresetsInRegistry:
-    @pytest.mark.parametrize("name", ["marcel", "marcel_park", "marcel_statreg", "marcel_plus", "marcel_norm", "marcel_full"])
+    @pytest.mark.parametrize(
+        "name", ["marcel", "marcel_park", "marcel_statreg", "marcel_plus", "marcel_norm", "marcel_full"]
+    )
     def test_registry_contains_preset(self, name: str) -> None:
         assert name in PIPELINES
 
-    @pytest.mark.parametrize("name", ["marcel", "marcel_park", "marcel_statreg", "marcel_plus", "marcel_norm", "marcel_full"])
+    @pytest.mark.parametrize(
+        "name", ["marcel", "marcel_park", "marcel_statreg", "marcel_plus", "marcel_norm", "marcel_full"]
+    )
     def test_registry_factory_creates_pipeline(self, name: str) -> None:
         pipeline = PIPELINES[name]()
         assert isinstance(pipeline, ProjectionPipeline)
         assert pipeline.name == name
+
+    @pytest.mark.parametrize(
+        "name", ["marcel", "marcel_park", "marcel_statreg", "marcel_plus", "marcel_norm", "marcel_full"]
+    )
+    def test_aging_adjuster_is_component_aging(self, name: str) -> None:
+        pipeline = PIPELINES[name]()
+        aging_adjusters = [a for a in pipeline.adjusters if isinstance(a, ComponentAgingAdjuster)]
+        assert len(aging_adjusters) == 1

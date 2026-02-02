@@ -215,9 +215,12 @@ class TestMarcelBattingPipeline:
         Rebaseline: source and target league rates are both 0.03333 (same
         league data for all 3 years), so rebaseline is identity => 0.037848
 
-        Age adj: age 29 => multiplier = 1.0
+        Component aging: HR peaks at 28, player is 29 in projection year.
+          multiplier = 1.0 - 1 * 0.015 = 0.985
+          rate = 0.037848 * 0.985 = 0.037280
+
         PA = 0.5*600 + 0.1*550 + 200 = 555
-        HR = 0.037848 * 555 = 21.006
+        HR = 0.037280 * 555 = 20.691
         """
         league = _make_league()
         ds = FakeDataSource(
@@ -231,8 +234,8 @@ class TestMarcelBattingPipeline:
 
         proj = marcel_pipeline().project_batters(ds, 2025)[0]
         assert proj.pa == pytest.approx(555.0)
-        # 299/7900 * 555 = 21.006
-        assert proj.hr == pytest.approx(21.0, abs=0.1)
+        # 299/7900 * 0.985 * 555 = 20.691
+        assert proj.hr == pytest.approx(20.69, abs=0.1)
 
     def test_single_player_one_year(self) -> None:
         """Player with only 1 year of data should still project."""
