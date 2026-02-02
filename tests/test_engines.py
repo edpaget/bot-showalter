@@ -20,8 +20,8 @@ class TestValidateEngine:
             validate_engine("steamer")
         assert exc_info.value.exit_code == 1
 
-    def test_default_engine_is_marcel_statreg(self) -> None:
-        assert DEFAULT_ENGINE == "marcel_statreg"
+    def test_default_engine_is_marcel_norm(self) -> None:
+        assert DEFAULT_ENGINE == "marcel_norm"
 
     def test_supported_engines_contains_marcel(self) -> None:
         assert "marcel" in SUPPORTED_ENGINES
@@ -36,7 +36,7 @@ class TestValidateEngine:
         validate_engine("marcel_plus")
 
     def test_supported_engines_contains_all_variants(self) -> None:
-        for name in ("marcel", "marcel_park", "marcel_statreg", "marcel_plus"):
+        for name in ("marcel", "marcel_park", "marcel_statreg", "marcel_plus", "marcel_norm", "marcel_full"):
             assert name in SUPPORTED_ENGINES
 
 

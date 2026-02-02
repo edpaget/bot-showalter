@@ -3,7 +3,7 @@ import typer
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 
 SUPPORTED_ENGINES: tuple[str, ...] = tuple(PIPELINES.keys())
-DEFAULT_ENGINE: str = "marcel_statreg"
+DEFAULT_ENGINE: str = "marcel_norm"
 
 SUPPORTED_METHODS: tuple[str, ...] = ("zscore",)
 DEFAULT_METHOD: str = "zscore"
