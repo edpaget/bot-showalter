@@ -132,7 +132,7 @@ class FanGraphsParkFactorProvider:
         }
 
 
-def _find_park_factors_table(tables: list) -> "object | None":
+def _find_park_factors_table(tables: list) -> object | None:
     """Find the park factors DataFrame among scraped HTML tables."""
     for table in tables:
         cols = set(table.columns)

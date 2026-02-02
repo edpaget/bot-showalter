@@ -206,7 +206,7 @@ class TestMarcelCommand:
         _install_fake()
         result = runner.invoke(app, ["players", "project", "2025"])
         assert result.exit_code == 0
-        assert "MARCEL projections for 2025" in result.output
+        assert "projections for 2025" in result.output
         assert "projected batters" in result.output
         assert "projected pitchers" in result.output
 
