@@ -93,7 +93,7 @@ The MARCEL pipeline uses these stages:
 | `PlayingTimeProjector` | `MarcelPlayingTime` | 0.5 * y1 + 0.1 * y2 + base (200 PA / 60 IP starter / 25 IP reliever) |
 | `ProjectionFinalizer` | `StandardFinalizer` | Counting stats, derives AB/H/ERA/WHIP/NSVH |
 
-Stage implementations reuse utility functions from `marcel/` (e.g. `weighted_rate`, `rebaseline`, `age_multiplier`). Equivalence tests verify the pipeline produces identical output to the monolithic implementation.
+Stage implementations reuse utility functions from `marcel/` (e.g. `weighted_rate`, `rebaseline`, `age_multiplier`).
 
 ### Key Modules
 
