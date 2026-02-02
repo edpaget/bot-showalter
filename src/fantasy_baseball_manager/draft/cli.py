@@ -12,7 +12,7 @@ import typer
 import yaml
 
 from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
-from fantasy_baseball_manager.cache.sources import CachedPositionSource
+from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
 from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
@@ -22,6 +22,7 @@ from fantasy_baseball_manager.draft.positions import (
     infer_pitcher_role,
     load_positions_file,
 )
+from fantasy_baseball_manager.draft.results import DraftStatus, YahooDraftResultsSource
 from fantasy_baseball_manager.draft.state import DraftState
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
@@ -83,31 +84,9 @@ def _invalidate_caches() -> None:
     """Invalidate all cached data so the next cached run fetches fresh."""
     cache_store = create_cache_store()
     cache_key = get_cache_key()
-    for ns in ("positions", "sfbb_csv"):
+    for ns in ("positions", "sfbb_csv", "draft_results"):
         cache_store.invalidate(ns, cache_key)
-    logger.debug("Invalidated cached positions and sfbb_csv for key=%s", cache_key)
-
-
-def _load_drafted_file(path: Path) -> set[str]:
-    drafted: set[str] = set()
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        drafted.add(line)
-    return drafted
-
-
-def _load_my_picks_file(path: Path) -> list[tuple[str, str]]:
-    picks: list[tuple[str, str]] = []
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        parts = line.split(",", maxsplit=1)
-        if len(parts) == 2:
-            picks.append((parts[0].strip(), parts[1].strip()))
-    return picks
+    logger.debug("Invalidated cached positions, sfbb_csv, and draft_results for key=%s", cache_key)
 
 
 def _parse_weight(raw: str) -> tuple[StatCategory, float]:
@@ -138,18 +117,12 @@ def _load_roster_config(path: Path) -> RosterConfig:
 
 def draft_rank(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
-    drafted: Annotated[
-        Path | None, typer.Option("--drafted", help="File of drafted player IDs (one per line).")
-    ] = None,
-    my_picks: Annotated[
-        Path | None, typer.Option("--my-picks", help="File of user picks (player_id,position per line).")
-    ] = None,
     roster_config_file: Annotated[Path | None, typer.Option("--roster-config", help="YAML roster slot config.")] = None,
     positions_file: Annotated[
         Path | None, typer.Option("--positions", help="CSV of player_id,positions for positional need.")
     ] = None,
-    yahoo_positions: Annotated[
-        bool, typer.Option("--yahoo-positions", help="Fetch position eligibility from Yahoo Fantasy API.")
+    yahoo: Annotated[
+        bool, typer.Option("--yahoo", help="Fetch positions and draft results from Yahoo Fantasy API.")
     ] = False,
     no_cache: Annotated[
         bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
@@ -176,12 +149,16 @@ def draft_rank(
 
     # Load position data
     player_positions: dict[str, tuple[str, ...]] = {}
+    yahoo_league: object | None = None
+    yahoo_id_mapper: PlayerIdMapper | None = None
+    if yahoo:
+        yahoo_league = _get_yahoo_league()
+        yahoo_id_mapper = _get_id_mapper(no_cache=no_cache)
+
     if positions_file:
         player_positions = load_positions_file(positions_file)
-    elif yahoo_positions:
-        league = _get_yahoo_league()
-        id_mapper = _get_id_mapper(no_cache=no_cache)
-        source: PositionSource = YahooPositionSource(league, id_mapper)  # type: ignore[arg-type]
+    elif yahoo and yahoo_league is not None and yahoo_id_mapper is not None:
+        source: PositionSource = YahooPositionSource(yahoo_league, yahoo_id_mapper)  # type: ignore[arg-type]
         if not no_cache:
             config = create_config()
             ttl = int(str(config["cache.positions_ttl"]))
@@ -274,22 +251,26 @@ def draft_rank(
         category_weights=category_weights,
     )
 
-    # Apply drafted players
-    drafted_ids: set[str] = set()
-    if drafted:
-        drafted_ids = _load_drafted_file(drafted)
-    my_pick_list: list[tuple[str, str]] = []
-    if my_picks:
-        my_pick_list = _load_my_picks_file(my_picks)
-
-    for pid in drafted_ids:
-        # Check if this is also a user pick (will be handled below)
-        user_pick_ids = {p[0] for p in my_pick_list}
-        if pid not in user_pick_ids:
-            state.draft_player(pid, is_user=False)
-
-    for pid, pos in my_pick_list:
-        state.draft_player(pid, is_user=True, position=pos)
+    # Apply draft results from Yahoo
+    if yahoo and yahoo_league is not None and yahoo_id_mapper is not None:
+        draft_source = YahooDraftResultsSource(yahoo_league)
+        draft_status = draft_source.fetch_draft_status()
+        if not no_cache and draft_status != DraftStatus.IN_PROGRESS:
+            config = create_config()
+            dr_ttl = int(str(config["cache.draft_results_ttl"]))
+            cache_store = create_cache_store(config)
+            cache_key = get_cache_key(config)
+            draft_source = CachedDraftResultsSource(draft_source, cache_store, cache_key, dr_ttl)  # type: ignore[assignment]
+        picks = draft_source.fetch_draft_results()
+        user_team_key = draft_source.fetch_user_team_key()
+        logger.debug("User team key: %s, draft picks: %d", user_team_key, len(picks))
+        for pick in picks:
+            fg_id = yahoo_id_mapper.yahoo_to_fangraphs(pick.player_id)
+            if fg_id is None:
+                logger.debug("No FanGraphs ID for Yahoo player %s, skipping", pick.player_id)
+                continue
+            is_user = pick.team_key == user_team_key
+            state.draft_player(fg_id, is_user=is_user)
 
     # Get and display rankings
     rankings = state.get_rankings(limit=top)

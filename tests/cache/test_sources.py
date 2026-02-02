@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from fantasy_baseball_manager.cache.sources import CachedPositionSource, CachedRosterSource
+from fantasy_baseball_manager.cache.sources import (
+    CachedDraftResultsSource,
+    CachedPositionSource,
+    CachedRosterSource,
+)
+from fantasy_baseball_manager.draft.results import DraftStatus, YahooDraftPick
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
 
 
@@ -155,3 +160,79 @@ class TestCachedRosterSource:
         assert restored.teams[0].players[0].eligible_positions == ("C", "1B")
 
 
+class FakeDraftResultsSource:
+    def __init__(self, picks: list[YahooDraftPick]) -> None:
+        self._picks = picks
+        self.call_count = 0
+
+    def fetch_draft_results(self) -> list[YahooDraftPick]:
+        self.call_count += 1
+        return self._picks
+
+    def fetch_draft_status(self) -> DraftStatus:
+        return DraftStatus.POST_DRAFT
+
+    def fetch_user_team_key(self) -> str:
+        return "422.l.12345.t.1"
+
+
+class TestCachedDraftResultsSource:
+    def _sample_picks(self) -> list[YahooDraftPick]:
+        return [
+            YahooDraftPick(player_id="10660", team_key="422.l.12345.t.1", round=1, pick=1),
+            YahooDraftPick(player_id="9542", team_key="422.l.12345.t.2", round=1, pick=2),
+        ]
+
+    def test_cache_miss_delegates_and_stores(self) -> None:
+        picks = self._sample_picks()
+        delegate = FakeDraftResultsSource(picks)
+        cache = FakeCacheStore()
+        source = CachedDraftResultsSource(delegate, cache, "test_key", ttl_seconds=300)
+
+        result = source.fetch_draft_results()
+
+        assert result == picks
+        assert delegate.call_count == 1
+        assert cache.get("draft_results", "test_key") is not None
+
+    def test_cache_hit_returns_without_delegating(self) -> None:
+        picks = self._sample_picks()
+        delegate = FakeDraftResultsSource(picks)
+        cache = FakeCacheStore()
+        source = CachedDraftResultsSource(delegate, cache, "test_key", ttl_seconds=300)
+
+        source.fetch_draft_results()  # populate cache
+        result = source.fetch_draft_results()  # should hit cache
+
+        assert result == picks
+        assert delegate.call_count == 1
+
+    def test_round_trip_fidelity(self) -> None:
+        picks = self._sample_picks()
+        delegate = FakeDraftResultsSource(picks)
+        cache = FakeCacheStore()
+        source = CachedDraftResultsSource(delegate, cache, "k", ttl_seconds=300)
+
+        original = source.fetch_draft_results()
+        delegate2 = FakeDraftResultsSource([])
+        source2 = CachedDraftResultsSource(delegate2, cache, "k", ttl_seconds=300)
+        restored = source2.fetch_draft_results()
+
+        assert restored == original
+        assert len(restored) == 2
+        assert restored[0].player_id == "10660"
+        assert restored[1].team_key == "422.l.12345.t.2"
+
+    def test_status_passes_through(self) -> None:
+        delegate = FakeDraftResultsSource([])
+        cache = FakeCacheStore()
+        source = CachedDraftResultsSource(delegate, cache, "k", ttl_seconds=300)
+
+        assert source.fetch_draft_status() == DraftStatus.POST_DRAFT
+
+    def test_user_team_key_passes_through(self) -> None:
+        delegate = FakeDraftResultsSource([])
+        cache = FakeCacheStore()
+        source = CachedDraftResultsSource(delegate, cache, "k", ttl_seconds=300)
+
+        assert source.fetch_user_team_key() == "422.l.12345.t.1"

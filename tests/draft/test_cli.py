@@ -290,23 +290,6 @@ class TestDraftRankCommand:
         result = runner.invoke(app, ["players", "draft-rank", "2025", "--engine", "steamer"])
         assert result.exit_code == 1
 
-    def test_drafted_file_excludes_players(self, tmp_path: Path) -> None:
-        _install_fake(pitching=False)
-        drafted_file = tmp_path / "drafted.txt"
-        drafted_file.write_text("b1\n")
-        result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--drafted", str(drafted_file)])
-        assert result.exit_code == 0
-        assert "Slugger Jones" not in result.output
-
-    def test_my_picks_file(self, tmp_path: Path) -> None:
-        _install_fake(pitching=False)
-        picks_file = tmp_path / "my_picks.txt"
-        picks_file.write_text("b1,OF\n")
-        result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--my-picks", str(picks_file)])
-        assert result.exit_code == 0
-        # b1 drafted as user pick, should not appear
-        assert "Slugger Jones" not in result.output
-
     def test_positions_file(self, tmp_path: Path) -> None:
         _install_fake(pitching=False)
         pos_file = tmp_path / "positions.csv"
@@ -328,7 +311,7 @@ class TestDraftRankCommand:
         )
         assert result.exit_code == 0
 
-    def test_yahoo_positions_fetches_from_yahoo(self) -> None:
+    def test_yahoo_fetches_positions_and_draft_results(self) -> None:
         from unittest.mock import MagicMock
 
         _install_fake(pitching=False)
@@ -336,20 +319,64 @@ class TestDraftRankCommand:
         league = MagicMock()
         league.taken_players.return_value = [
             {"player_id": 101, "name": "Slugger Jones", "eligible_positions": ["1B", "DH"], "position_type": "B"},
+            {"player_id": 102, "name": "Speedy Smith", "eligible_positions": ["OF"], "position_type": "B"},
+            {"player_id": 103, "name": "Average Andy", "eligible_positions": ["SS"], "position_type": "B"},
         ]
         league.free_agents.return_value = []
+        league.draft_results.return_value = [
+            {"player_key": "422.p.101", "player_id": "101", "team_key": "422.l.1.t.2", "round": 1, "pick": 1},
+        ]
+        league.settings.return_value = {"draft_status": "postdraft"}
+        league.team_key.return_value = "422.l.1.t.1"
 
         mapper = MagicMock()
-        mapper.yahoo_to_fangraphs.side_effect = lambda yid: {"101": "b1"}.get(yid)
+        mapper.yahoo_to_fangraphs.side_effect = lambda yid: {
+            "101": "b1",
+            "102": "b2",
+            "103": "b3",
+        }.get(yid)
 
         set_yahoo_league_factory(lambda: league)
         set_id_mapper_factory(lambda: mapper)
         try:
-            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo-positions"])
+            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo"])
             assert result.exit_code == 0
-            assert "Slugger Jones" in result.output
-            # Verify positions were fetched (1B/Util from normalization of 1B/DH)
-            assert "1B/Util" in result.output
+            # b1 was drafted by another team — should be excluded
+            assert "Slugger Jones" not in result.output
+            # b2 and b3 not drafted — should appear
+            assert "Speedy Smith" in result.output
+            assert "Average Andy" in result.output
+        finally:
+            set_yahoo_league_factory(None)  # type: ignore[arg-type]
+            set_id_mapper_factory(None)  # type: ignore[arg-type]
+
+    def test_yahoo_identifies_user_picks(self) -> None:
+        from unittest.mock import MagicMock
+
+        _install_fake(pitching=False)
+
+        league = MagicMock()
+        league.taken_players.return_value = [
+            {"player_id": 101, "name": "Slugger Jones", "eligible_positions": ["1B"], "position_type": "B"},
+            {"player_id": 102, "name": "Speedy Smith", "eligible_positions": ["OF"], "position_type": "B"},
+        ]
+        league.free_agents.return_value = []
+        league.draft_results.return_value = [
+            {"player_key": "422.p.101", "player_id": "101", "team_key": "422.l.1.t.1", "round": 1, "pick": 1},
+        ]
+        league.settings.return_value = {"draft_status": "postdraft"}
+        league.team_key.return_value = "422.l.1.t.1"
+
+        mapper = MagicMock()
+        mapper.yahoo_to_fangraphs.side_effect = lambda yid: {"101": "b1", "102": "b2"}.get(yid)
+
+        set_yahoo_league_factory(lambda: league)
+        set_id_mapper_factory(lambda: mapper)
+        try:
+            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo"])
+            assert result.exit_code == 0
+            # b1 was drafted by user's team — should be excluded from rankings
+            assert "Slugger Jones" not in result.output
         finally:
             set_yahoo_league_factory(None)  # type: ignore[arg-type]
             set_id_mapper_factory(None)  # type: ignore[arg-type]
@@ -360,6 +387,9 @@ class TestDraftRankCommand:
         _install_fake(pitching=False)
 
         league = MagicMock()
+        league.draft_results.return_value = []
+        league.settings.return_value = {"draft_status": "predraft"}
+        league.team_key.return_value = "422.l.1.t.1"
         set_yahoo_league_factory(lambda: league)
         set_id_mapper_factory(lambda: MagicMock())
 
@@ -368,10 +398,10 @@ class TestDraftRankCommand:
         try:
             result = runner.invoke(
                 app,
-                ["players", "draft-rank", "2025", "--batting", "--positions", str(pos_file), "--yahoo-positions"],
+                ["players", "draft-rank", "2025", "--batting", "--positions", str(pos_file), "--yahoo"],
             )
             assert result.exit_code == 0
-            # --positions file should be used, not Yahoo
+            # --positions file should be used for positions, not Yahoo
             league.taken_players.assert_not_called()
         finally:
             set_yahoo_league_factory(None)  # type: ignore[arg-type]
