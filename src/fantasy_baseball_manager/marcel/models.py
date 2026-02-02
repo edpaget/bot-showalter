@@ -23,6 +23,7 @@ class BattingSeasonStats:
     cs: int
     r: int
     rbi: int
+    team: str = ""
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class PitchingSeasonStats:
     sv: int
     hld: int
     bs: int
+    team: str = ""
 
 
 @dataclass(frozen=True)

@@ -83,6 +83,7 @@ class MarcelRateComputer:
                         "pa_per_year": pa_per_year,
                         "avg_league_rates": avg_league_rates,
                         "target_rates": target_rates,
+                        "team": most_recent.team,
                     },
                 )
             )
@@ -156,6 +157,7 @@ class MarcelRateComputer:
                         "is_starter": is_starter,
                         "avg_league_rates": avg_league_rates,
                         "target_rates": target_rates,
+                        "team": most_recent.team,
                     },
                 )
             )
