@@ -2,9 +2,9 @@ from collections.abc import Callable
 
 from fantasy_baseball_manager.cache.factory import create_cache_store
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
-from fantasy_baseball_manager.pipeline.park_factors import CachedParkFactorProvider
-from fantasy_baseball_manager.pipeline.park_factors_savant import (
-    SavantParkFactorProvider,
+from fantasy_baseball_manager.pipeline.park_factors import (
+    CachedParkFactorProvider,
+    FanGraphsParkFactorProvider,
 )
 from fantasy_baseball_manager.pipeline.stages.adjusters import (
     MarcelAgingAdjuster,
@@ -26,9 +26,8 @@ from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import
 
 def _cached_park_factor_provider() -> CachedParkFactorProvider:
     return CachedParkFactorProvider(
-        delegate=SavantParkFactorProvider(),
+        delegate=FanGraphsParkFactorProvider(),
         cache=create_cache_store(),
-        namespace="park_factors_savant",
     )
 
 

@@ -71,14 +71,12 @@ The second-most impactful change. Compared to plain marcel:
 
 ### Park Factor Adjustments (marcel_park)
 
-Marginal impact, with mixed results:
+Marginal impact with FanGraphs factors, actively harmful with Savant factors:
 
-- **Batting rank accuracy slightly improved:** Spearman rho rose from 0.558 to 0.562, suggesting park neutralization helps ordering even if counting stat RMSE is flat.
-- **Counting stats essentially unchanged:** HR RMSE, SB metrics, and OBP metrics are within noise of plain marcel.
-- **Pitching unaffected:** The park factor adjuster currently only maps batting-relevant stats (HR, 1B, 2B, 3B, BB, SO), so pitching rates pass through without meaningful adjustment.
-- **Top-20 pitching precision dropped:** From 0.312 to 0.300, possibly due to slight rate perturbations propagating into ERA/WHIP for borderline cases.
+- **FanGraphs (dampened):** Batting rank accuracy slightly improved (Spearman rho 0.558 to 0.562), counting stats unchanged, pitching precision dropped (0.312 to 0.300). The double-dampening (our regression on top of FanGraphs' internal regression) suppressed the signal to near-zero.
+- **Savant (full-strength):** Removing dampening and switching to Baseball Savant's Statcast factors **degraded every metric**. HR RMSE rose 3.7%, OBP correlation dropped 8.5%, batting Spearman rho dropped 3.2%. Extreme factors for rare events (triples factor 1.80 at Coors) and the lack of a half-game correction (players play ~50% away) cause over-adjustment that introduces noise.
 
-The weak park factor signal likely reflects two issues: (1) the FanGraphs Guts page factors are already multi-year smoothed and regressed, and our provider applies additional regression on top, double-dampening the signal; (2) we only adjust rate stats — context-dependent stats like R and RBI that are most park-sensitive are not adjusted.
+The current rate-division approach has fundamental issues that stronger factors only expose. See `docs/evaluations/park-factors-savant.md` for the full Savant evaluation. Pipelines reverted to FanGraphs provider with dampening fix (`years_to_average=1, regression_weight=1.0`); no park factor variant outperforms `marcel_norm`.
 
 ### Combined Engines (marcel_plus, marcel_full)
 
@@ -90,7 +88,7 @@ The weak park factor signal likely reflects two issues: (1) the FanGraphs Guts p
 1. **Adopt marcel_norm as the new default.** It delivers the best pitching accuracy by a wide margin with no downside to batting projections.
 2. **Use marcel_full when batting rank accuracy matters.** It adds a small park factor benefit (Spearman 0.561 vs 0.558) at the cost of slightly lower pitching top-20 precision.
 3. **Tune pitcher normalization weights.** The current BABIP weight (0.50) and LOB weight (0.60) were set from priors. A grid search could yield further gains.
-4. **Revisit park factor methodology.** Reduce or remove the second layer of regression, and consider adjusting R/RBI directly.
+4. **Revisit park factor methodology.** The rate-division approach needs a half-game correction, stat filtering (HR/BB only), and pipeline reordering before it can improve projections. See `docs/evaluations/park-factors-savant.md` for details.
 5. **Investigate per-pitcher BABIP skill.** Incorporating batted-ball profile data (ground-ball rate, infield-fly rate) could allow pitcher-specific BABIP targets instead of regressing all pitchers to the same league mean.
 6. **Tune HR regression constant.** The current 500 PA may be too low; experiment with values between 500-800.
 
