@@ -43,8 +43,12 @@ class TeamProjection:
     total_pa: float
     team_avg: float
     team_obp: float
+    total_r: float
+    total_rbi: float
     total_ip: float
     total_so: float
+    total_w: float
+    total_nsvh: float
     team_era: float
     team_whip: float
     unmatched_count: int

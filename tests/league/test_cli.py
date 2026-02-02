@@ -6,12 +6,15 @@ from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import clear_cli_overrides, create_config
 from fantasy_baseball_manager.league.cli import (
     _get_roster_source,
+    format_compare_table,
+    format_team_projections,
     set_data_source_factory,
     set_id_mapper_factory,
     set_roster_source_factory,
 )
-from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
+from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamProjection, TeamRoster
 from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
+from fantasy_baseball_manager.valuation.models import LeagueSettings, StatCategory
 
 runner = CliRunner()
 
@@ -468,3 +471,120 @@ class TestKeeperPredraftAutoDetection:
             _get_roster_source(no_cache=True, target_season=2023)
             mock_client.get_league_for_season.assert_called_once_with(2023)
             mock_client.get_league.assert_not_called()
+
+
+def _make_team_projection(**overrides: float | int | str) -> TeamProjection:
+    from fantasy_baseball_manager.league.models import PlayerMatchResult
+
+    defaults: dict[str, object] = {
+        "team_name": "Test Team",
+        "team_key": "t1",
+        "players": (
+            PlayerMatchResult(
+                roster_player=RosterPlayer(yahoo_id="y1", name="Hitter", position_type="B", eligible_positions=("1B",)),
+                batting_projection=None,
+                pitching_projection=None,
+                matched=False,
+            ),
+        ),
+        "total_hr": 100.0,
+        "total_sb": 50.0,
+        "total_h": 500.0,
+        "total_pa": 2000.0,
+        "team_avg": 0.260,
+        "team_obp": 0.330,
+        "total_r": 300.0,
+        "total_rbi": 280.0,
+        "total_ip": 600.0,
+        "total_so": 500.0,
+        "total_w": 40.0,
+        "total_nsvh": 30.0,
+        "team_era": 3.80,
+        "team_whip": 1.200,
+        "unmatched_count": 0,
+    }
+    defaults.update(overrides)
+    return TeamProjection(**defaults)  # type: ignore[arg-type]
+
+
+class TestLeagueSettingsColumns:
+    def test_roster_shows_configured_batting_categories(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "roster", "2025"])
+        assert result.exit_code == 0
+        # Default config has HR, SB, OBP — verify they appear in the header
+        assert "HR" in result.output
+        assert "SB" in result.output
+        assert "OBP" in result.output
+
+    def test_roster_shows_configured_pitching_categories(self) -> None:
+        _install_fakes()
+        result = runner.invoke(app, ["teams", "roster", "2025"])
+        assert result.exit_code == 0
+        # Default config has K, ERA, WHIP
+        assert "ERA" in result.output
+        assert "WHIP" in result.output
+
+    def test_compare_table_shows_only_configured_categories(self) -> None:
+        settings = LeagueSettings(
+            team_count=12,
+            batting_categories=(StatCategory.HR, StatCategory.OBP),
+            pitching_categories=(StatCategory.ERA,),
+        )
+        tp = [_make_team_projection()]
+        output = format_compare_table(tp, settings)
+        assert "HR" in output
+        assert "OBP" in output
+        assert "ERA" in output
+        # Categories NOT configured should not appear
+        assert " SB" not in output
+        assert " R " not in output
+        assert "WHIP" not in output
+        assert "NSVH" not in output
+
+    def test_compare_table_shows_all_league_categories(self) -> None:
+        settings = LeagueSettings(
+            team_count=12,
+            batting_categories=(StatCategory.HR, StatCategory.R, StatCategory.RBI, StatCategory.SB, StatCategory.OBP),
+            pitching_categories=(StatCategory.W, StatCategory.K, StatCategory.ERA, StatCategory.WHIP, StatCategory.NSVH),
+        )
+        tp = [_make_team_projection()]
+        output = format_compare_table(tp, settings)
+        for cat in ("HR", "R", "RBI", "SB", "OBP", "W", "K", "ERA", "WHIP", "NSVH"):
+            assert cat in output
+
+    def test_roster_format_shows_only_configured_batting(self) -> None:
+        from fantasy_baseball_manager.league.models import PlayerMatchResult
+        from fantasy_baseball_manager.marcel.models import BattingProjection
+
+        bp = BattingProjection(
+            player_id="fg1", name="Hitter", year=2025, age=28,
+            pa=600, ab=540, h=160, singles=100, doubles=30, triples=5,
+            hr=25, bb=50, so=120, hbp=5, sf=3, sh=2, sb=10, cs=3, r=80, rbi=90,
+        )
+        player = PlayerMatchResult(
+            roster_player=RosterPlayer(yahoo_id="y1", name="Hitter", position_type="B", eligible_positions=("1B",)),
+            batting_projection=bp,
+            pitching_projection=None,
+            matched=True,
+        )
+        tp = [TeamProjection(
+            team_name="Test", team_key="t1", players=(player,),
+            total_hr=25, total_sb=10, total_h=160, total_pa=600,
+            team_avg=0.296, team_obp=0.358,
+            total_r=80, total_rbi=90,
+            total_ip=0, total_so=0, total_w=0, total_nsvh=0,
+            team_era=0, team_whip=0, unmatched_count=0,
+        )]
+        # Only HR and OBP configured — SB should not appear as a column header
+        settings = LeagueSettings(
+            team_count=12,
+            batting_categories=(StatCategory.HR, StatCategory.OBP),
+            pitching_categories=(StatCategory.ERA,),
+        )
+        output = format_team_projections(tp, settings)
+        lines = output.split("\n")
+        batter_header = next(line for line in lines if "Batters" in line)
+        assert "HR" in batter_header
+        assert "OBP" in batter_header
+        assert "SB" not in batter_header

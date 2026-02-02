@@ -66,6 +66,8 @@ def match_projections(
         total_ab = 0.0
         total_bb = 0.0
         total_hbp = 0.0
+        total_r = 0.0
+        total_rbi = 0.0
 
         # Pitching aggregates
         total_ip = 0.0
@@ -73,6 +75,8 @@ def match_projections(
         total_er = 0.0
         total_p_h = 0.0
         total_p_bb = 0.0
+        total_w = 0.0
+        total_nsvh = 0.0
 
         for roster_player in team.players:
             fg_id = id_mapper.yahoo_to_fangraphs(roster_player.yahoo_id)
@@ -100,6 +104,8 @@ def match_projections(
                         total_ab += batting_proj.ab
                         total_bb += batting_proj.bb
                         total_hbp += batting_proj.hbp
+                        total_r += batting_proj.r
+                        total_rbi += batting_proj.rbi
                 elif roster_player.position_type == "P":
                     pitching_proj = pitching_by_fg.get(fg_id)
                     if pitching_proj is None:
@@ -117,6 +123,8 @@ def match_projections(
                         total_er += pitching_proj.er
                         total_p_h += pitching_proj.h
                         total_p_bb += pitching_proj.bb
+                        total_w += pitching_proj.w
+                        total_nsvh += pitching_proj.nsvh
 
             if not matched and fg_id is None:
                 normalized = _normalize_name(roster_player.name)
@@ -132,6 +140,8 @@ def match_projections(
                         total_ab += batting_proj.ab
                         total_bb += batting_proj.bb
                         total_hbp += batting_proj.hbp
+                        total_r += batting_proj.r
+                        total_rbi += batting_proj.rbi
                         logger.debug(
                             "Name-matched %s to batting %s",
                             roster_player.name,
@@ -147,6 +157,8 @@ def match_projections(
                         total_er += pitching_proj.er
                         total_p_h += pitching_proj.h
                         total_p_bb += pitching_proj.bb
+                        total_w += pitching_proj.w
+                        total_nsvh += pitching_proj.nsvh
                         logger.debug(
                             "Name-matched %s to pitching %s",
                             roster_player.name,
@@ -187,8 +199,12 @@ def match_projections(
                 total_pa=total_pa,
                 team_avg=team_avg,
                 team_obp=team_obp,
+                total_r=total_r,
+                total_rbi=total_rbi,
                 total_ip=total_ip,
                 total_so=total_so,
+                total_w=total_w,
+                total_nsvh=total_nsvh,
                 team_era=team_era,
                 team_whip=team_whip,
                 unmatched_count=unmatched_count,
