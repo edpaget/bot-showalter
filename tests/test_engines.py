@@ -26,6 +26,19 @@ class TestValidateEngine:
     def test_supported_engines_contains_marcel(self) -> None:
         assert "marcel" in SUPPORTED_ENGINES
 
+    def test_marcel_park_accepted(self) -> None:
+        validate_engine("marcel_park")
+
+    def test_marcel_statreg_accepted(self) -> None:
+        validate_engine("marcel_statreg")
+
+    def test_marcel_plus_accepted(self) -> None:
+        validate_engine("marcel_plus")
+
+    def test_supported_engines_contains_all_variants(self) -> None:
+        for name in ("marcel", "marcel_park", "marcel_statreg", "marcel_plus"):
+            assert name in SUPPORTED_ENGINES
+
 
 class TestValidateMethod:
     def test_zscore_accepted(self) -> None:

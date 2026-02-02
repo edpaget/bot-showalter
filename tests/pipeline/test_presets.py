@@ -1,5 +1,13 @@
+import pytest
+
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
-from fantasy_baseball_manager.pipeline.presets import PIPELINES, marcel_pipeline
+from fantasy_baseball_manager.pipeline.presets import (
+    PIPELINES,
+    marcel_park_pipeline,
+    marcel_pipeline,
+    marcel_plus_pipeline,
+    marcel_statreg_pipeline,
+)
 
 
 class TestPresets:
@@ -17,3 +25,60 @@ class TestPresets:
         pipeline = factory()
         assert isinstance(pipeline, ProjectionPipeline)
         assert pipeline.name == "marcel"
+
+
+class TestMarcelParkPreset:
+    def test_returns_pipeline(self) -> None:
+        pipeline = marcel_park_pipeline()
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "marcel_park"
+        assert pipeline.years_back == 3
+
+    def test_has_three_adjusters(self) -> None:
+        pipeline = marcel_park_pipeline()
+        assert len(pipeline.adjusters) == 3
+
+    def test_in_registry(self) -> None:
+        assert "marcel_park" in PIPELINES
+
+
+class TestMarcelStatregPreset:
+    def test_returns_pipeline(self) -> None:
+        pipeline = marcel_statreg_pipeline()
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "marcel_statreg"
+        assert pipeline.years_back == 3
+
+    def test_has_two_adjusters(self) -> None:
+        pipeline = marcel_statreg_pipeline()
+        assert len(pipeline.adjusters) == 2
+
+    def test_in_registry(self) -> None:
+        assert "marcel_statreg" in PIPELINES
+
+
+class TestMarcelPlusPreset:
+    def test_returns_pipeline(self) -> None:
+        pipeline = marcel_plus_pipeline()
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "marcel_plus"
+        assert pipeline.years_back == 3
+
+    def test_has_three_adjusters(self) -> None:
+        pipeline = marcel_plus_pipeline()
+        assert len(pipeline.adjusters) == 3
+
+    def test_in_registry(self) -> None:
+        assert "marcel_plus" in PIPELINES
+
+
+class TestAllPresetsInRegistry:
+    @pytest.mark.parametrize("name", ["marcel", "marcel_park", "marcel_statreg", "marcel_plus"])
+    def test_registry_contains_preset(self, name: str) -> None:
+        assert name in PIPELINES
+
+    @pytest.mark.parametrize("name", ["marcel", "marcel_park", "marcel_statreg", "marcel_plus"])
+    def test_registry_factory_creates_pipeline(self, name: str) -> None:
+        pipeline = PIPELINES[name]()
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == name
