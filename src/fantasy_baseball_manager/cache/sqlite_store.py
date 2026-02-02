@@ -46,7 +46,7 @@ class SqliteCacheStore:
             )
             conn.commit()
             return None
-        return value  # type: ignore[no-any-return]
+        return value
 
     def put(self, namespace: str, key: str, value: str, ttl_seconds: int) -> None:
         conn = self._connect()
