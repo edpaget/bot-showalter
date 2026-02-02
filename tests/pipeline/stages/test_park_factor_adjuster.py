@@ -30,7 +30,7 @@ def _make_player(
 
 class TestParkFactorAdjuster:
     def test_coors_inflation_divided_out(self) -> None:
-        """HR rate at Coors (factor 1.2) should be divided by 1.2."""
+        """HR rate at Coors (factor 1.2) uses half-game blending."""
         provider = FakeParkFactorProvider(
             {
                 "COL": {"hr": 1.2, "bb": 1.0, "so": 0.95},
@@ -38,9 +38,9 @@ class TestParkFactorAdjuster:
         )
         adjuster = ParkFactorAdjuster(provider)
         result = adjuster.adjust([_make_player(team="COL")])
-        assert result[0].rates["hr"] == pytest.approx(0.05 / 1.2)
+        assert result[0].rates["hr"] == pytest.approx(0.05 / (0.5 * 1.2 + 0.5))
         assert result[0].rates["bb"] == pytest.approx(0.08)
-        assert result[0].rates["so"] == pytest.approx(0.20 / 0.95)
+        assert result[0].rates["so"] == pytest.approx(0.20 / (0.5 * 0.95 + 0.5))
 
     def test_neutral_park_unchanged(self) -> None:
         """A park with factor 1.0 for all stats leaves rates unchanged."""
@@ -95,6 +95,18 @@ class TestParkFactorAdjuster:
         adjuster = ParkFactorAdjuster(provider)
         result = adjuster.adjust([_make_player(team="COL")])
         assert result[0].rates["bb"] == pytest.approx(0.08)
+
+    def test_extreme_factor_half_game_reduces_overcorrection(self) -> None:
+        """An extreme factor (1.4) blends to 1.2, not the full 1.4."""
+        provider = FakeParkFactorProvider(
+            {
+                "COL": {"hr": 1.4},
+            }
+        )
+        adjuster = ParkFactorAdjuster(provider)
+        result = adjuster.adjust([_make_player(team="COL")])
+        # blended = 0.5 * 1.4 + 0.5 = 1.2, not 1.4
+        assert result[0].rates["hr"] == pytest.approx(0.05 / 1.2)
 
     def test_preserves_metadata(self) -> None:
         provider = FakeParkFactorProvider(

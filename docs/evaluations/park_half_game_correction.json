@@ -1,0 +1,1442 @@
+[
+  {
+    "source_name": "marcel",
+    "year": 2021,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 347,
+        "rmse": 9.3733,
+        "mae": 6.6929,
+        "correlation": 0.5882
+      },
+      {
+        "category": "R",
+        "sample_size": 347,
+        "rmse": 26.2004,
+        "mae": 20.2651,
+        "correlation": 0.5434
+      },
+      {
+        "category": "RBI",
+        "sample_size": 347,
+        "rmse": 26.2563,
+        "mae": 20.1796,
+        "correlation": 0.5296
+      },
+      {
+        "category": "SB",
+        "sample_size": 347,
+        "rmse": 5.5185,
+        "mae": 3.3413,
+        "correlation": 0.7092
+      },
+      {
+        "category": "OBP",
+        "sample_size": 347,
+        "rmse": 0.0321,
+        "mae": 0.0252,
+        "correlation": 0.479
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 310,
+        "rmse": 3.9192,
+        "mae": 3.0444,
+        "correlation": 0.4266
+      },
+      {
+        "category": "K",
+        "sample_size": 310,
+        "rmse": 48.5993,
+        "mae": 37.9823,
+        "correlation": 0.6542
+      },
+      {
+        "category": "ERA",
+        "sample_size": 310,
+        "rmse": 1.4671,
+        "mae": 1.1507,
+        "correlation": 0.1884
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 310,
+        "rmse": 0.2298,
+        "mae": 0.1881,
+        "correlation": 0.2925
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 310,
+        "rmse": 7.7271,
+        "mae": 4.6684,
+        "correlation": 0.7335
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 347,
+      "spearman_rho": 0.5451,
+      "top_n": 20,
+      "top_n_precision": 0.4
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 310,
+      "spearman_rho": 0.3325,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel",
+    "year": 2022,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 325,
+        "rmse": 7.031,
+        "mae": 5.3383,
+        "correlation": 0.6539
+      },
+      {
+        "category": "R",
+        "sample_size": 325,
+        "rmse": 17.8131,
+        "mae": 13.9861,
+        "correlation": 0.6255
+      },
+      {
+        "category": "RBI",
+        "sample_size": 325,
+        "rmse": 18.479,
+        "mae": 14.3314,
+        "correlation": 0.6293
+      },
+      {
+        "category": "SB",
+        "sample_size": 325,
+        "rmse": 5.2862,
+        "mae": 3.3996,
+        "correlation": 0.7003
+      },
+      {
+        "category": "OBP",
+        "sample_size": 325,
+        "rmse": 0.0294,
+        "mae": 0.0236,
+        "correlation": 0.5548
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 315,
+        "rmse": 3.6226,
+        "mae": 2.7372,
+        "correlation": 0.5338
+      },
+      {
+        "category": "K",
+        "sample_size": 315,
+        "rmse": 35.027,
+        "mae": 26.2557,
+        "correlation": 0.7259
+      },
+      {
+        "category": "ERA",
+        "sample_size": 315,
+        "rmse": 1.4238,
+        "mae": 1.1044,
+        "correlation": 0.1543
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 315,
+        "rmse": 0.2255,
+        "mae": 0.1774,
+        "correlation": 0.2964
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 315,
+        "rmse": 6.8704,
+        "mae": 4.1632,
+        "correlation": 0.7257
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 325,
+      "spearman_rho": 0.6224,
+      "top_n": 20,
+      "top_n_precision": 0.55
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 315,
+      "spearman_rho": 0.3675,
+      "top_n": 20,
+      "top_n_precision": 0.4
+    }
+  },
+  {
+    "source_name": "marcel",
+    "year": 2023,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 336,
+        "rmse": 7.7481,
+        "mae": 5.7769,
+        "correlation": 0.6619
+      },
+      {
+        "category": "R",
+        "sample_size": 336,
+        "rmse": 21.0006,
+        "mae": 16.4353,
+        "correlation": 0.5975
+      },
+      {
+        "category": "RBI",
+        "sample_size": 336,
+        "rmse": 21.0923,
+        "mae": 16.4081,
+        "correlation": 0.6044
+      },
+      {
+        "category": "SB",
+        "sample_size": 336,
+        "rmse": 8.8351,
+        "mae": 4.9071,
+        "correlation": 0.6409
+      },
+      {
+        "category": "OBP",
+        "sample_size": 336,
+        "rmse": 0.0299,
+        "mae": 0.024,
+        "correlation": 0.5559
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 319,
+        "rmse": 3.564,
+        "mae": 2.7181,
+        "correlation": 0.4906
+      },
+      {
+        "category": "K",
+        "sample_size": 319,
+        "rmse": 37.2764,
+        "mae": 28.431,
+        "correlation": 0.6957
+      },
+      {
+        "category": "ERA",
+        "sample_size": 319,
+        "rmse": 1.3982,
+        "mae": 1.0663,
+        "correlation": 0.1889
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 319,
+        "rmse": 0.2212,
+        "mae": 0.1699,
+        "correlation": 0.2399
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 319,
+        "rmse": 7.1343,
+        "mae": 4.2166,
+        "correlation": 0.718
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 336,
+      "spearman_rho": 0.577,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 319,
+      "spearman_rho": 0.379,
+      "top_n": 20,
+      "top_n_precision": 0.25
+    }
+  },
+  {
+    "source_name": "marcel",
+    "year": 2024,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 348,
+        "rmse": 7.0017,
+        "mae": 5.3715,
+        "correlation": 0.6591
+      },
+      {
+        "category": "R",
+        "sample_size": 348,
+        "rmse": 20.2306,
+        "mae": 16.1628,
+        "correlation": 0.5424
+      },
+      {
+        "category": "RBI",
+        "sample_size": 348,
+        "rmse": 20.0553,
+        "mae": 15.6246,
+        "correlation": 0.5674
+      },
+      {
+        "category": "SB",
+        "sample_size": 348,
+        "rmse": 7.6352,
+        "mae": 4.9222,
+        "correlation": 0.6691
+      },
+      {
+        "category": "OBP",
+        "sample_size": 348,
+        "rmse": 0.0319,
+        "mae": 0.025,
+        "correlation": 0.4851
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 318,
+        "rmse": 3.6627,
+        "mae": 2.911,
+        "correlation": 0.4722
+      },
+      {
+        "category": "K",
+        "sample_size": 318,
+        "rmse": 36.6218,
+        "mae": 26.8603,
+        "correlation": 0.6837
+      },
+      {
+        "category": "ERA",
+        "sample_size": 318,
+        "rmse": 1.3975,
+        "mae": 1.0694,
+        "correlation": 0.1504
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 318,
+        "rmse": 0.2275,
+        "mae": 0.1757,
+        "correlation": 0.2458
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 318,
+        "rmse": 7.1784,
+        "mae": 4.4187,
+        "correlation": 0.7188
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 348,
+      "spearman_rho": 0.539,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 318,
+      "spearman_rho": 0.4091,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel_park",
+    "year": 2021,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 347,
+        "rmse": 9.3699,
+        "mae": 6.6913,
+        "correlation": 0.5904
+      },
+      {
+        "category": "R",
+        "sample_size": 347,
+        "rmse": 26.2004,
+        "mae": 20.2651,
+        "correlation": 0.5434
+      },
+      {
+        "category": "RBI",
+        "sample_size": 347,
+        "rmse": 26.2563,
+        "mae": 20.1796,
+        "correlation": 0.5296
+      },
+      {
+        "category": "SB",
+        "sample_size": 347,
+        "rmse": 5.5185,
+        "mae": 3.3413,
+        "correlation": 0.7092
+      },
+      {
+        "category": "OBP",
+        "sample_size": 347,
+        "rmse": 0.032,
+        "mae": 0.0251,
+        "correlation": 0.4846
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 310,
+        "rmse": 3.9192,
+        "mae": 3.0444,
+        "correlation": 0.4266
+      },
+      {
+        "category": "K",
+        "sample_size": 310,
+        "rmse": 48.6229,
+        "mae": 37.985,
+        "correlation": 0.6535
+      },
+      {
+        "category": "ERA",
+        "sample_size": 310,
+        "rmse": 1.4671,
+        "mae": 1.1507,
+        "correlation": 0.1884
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 310,
+        "rmse": 0.2298,
+        "mae": 0.1882,
+        "correlation": 0.2925
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 310,
+        "rmse": 7.7271,
+        "mae": 4.6684,
+        "correlation": 0.7335
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 347,
+      "spearman_rho": 0.5474,
+      "top_n": 20,
+      "top_n_precision": 0.4
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 310,
+      "spearman_rho": 0.331,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel_park",
+    "year": 2022,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 325,
+        "rmse": 7.0329,
+        "mae": 5.3354,
+        "correlation": 0.6536
+      },
+      {
+        "category": "R",
+        "sample_size": 325,
+        "rmse": 17.8131,
+        "mae": 13.9861,
+        "correlation": 0.6255
+      },
+      {
+        "category": "RBI",
+        "sample_size": 325,
+        "rmse": 18.479,
+        "mae": 14.3314,
+        "correlation": 0.6293
+      },
+      {
+        "category": "SB",
+        "sample_size": 325,
+        "rmse": 5.2862,
+        "mae": 3.3996,
+        "correlation": 0.7003
+      },
+      {
+        "category": "OBP",
+        "sample_size": 325,
+        "rmse": 0.0293,
+        "mae": 0.0234,
+        "correlation": 0.5584
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 315,
+        "rmse": 3.6226,
+        "mae": 2.7372,
+        "correlation": 0.5338
+      },
+      {
+        "category": "K",
+        "sample_size": 315,
+        "rmse": 35.0766,
+        "mae": 26.2896,
+        "correlation": 0.7248
+      },
+      {
+        "category": "ERA",
+        "sample_size": 315,
+        "rmse": 1.4238,
+        "mae": 1.1044,
+        "correlation": 0.1543
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 315,
+        "rmse": 0.2255,
+        "mae": 0.1775,
+        "correlation": 0.2958
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 315,
+        "rmse": 6.8704,
+        "mae": 4.1632,
+        "correlation": 0.7257
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 325,
+      "spearman_rho": 0.6229,
+      "top_n": 20,
+      "top_n_precision": 0.55
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 315,
+      "spearman_rho": 0.3671,
+      "top_n": 20,
+      "top_n_precision": 0.4
+    }
+  },
+  {
+    "source_name": "marcel_park",
+    "year": 2023,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 336,
+        "rmse": 7.7564,
+        "mae": 5.7826,
+        "correlation": 0.6611
+      },
+      {
+        "category": "R",
+        "sample_size": 336,
+        "rmse": 21.0006,
+        "mae": 16.4353,
+        "correlation": 0.5975
+      },
+      {
+        "category": "RBI",
+        "sample_size": 336,
+        "rmse": 21.0923,
+        "mae": 16.4081,
+        "correlation": 0.6044
+      },
+      {
+        "category": "SB",
+        "sample_size": 336,
+        "rmse": 8.8351,
+        "mae": 4.9071,
+        "correlation": 0.6409
+      },
+      {
+        "category": "OBP",
+        "sample_size": 336,
+        "rmse": 0.0299,
+        "mae": 0.024,
+        "correlation": 0.557
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 319,
+        "rmse": 3.564,
+        "mae": 2.7181,
+        "correlation": 0.4906
+      },
+      {
+        "category": "K",
+        "sample_size": 319,
+        "rmse": 37.2887,
+        "mae": 28.4271,
+        "correlation": 0.6954
+      },
+      {
+        "category": "ERA",
+        "sample_size": 319,
+        "rmse": 1.3982,
+        "mae": 1.0663,
+        "correlation": 0.1889
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 319,
+        "rmse": 0.2211,
+        "mae": 0.1699,
+        "correlation": 0.2406
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 319,
+        "rmse": 7.1343,
+        "mae": 4.2166,
+        "correlation": 0.718
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 336,
+      "spearman_rho": 0.5768,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 319,
+      "spearman_rho": 0.3788,
+      "top_n": 20,
+      "top_n_precision": 0.25
+    }
+  },
+  {
+    "source_name": "marcel_park",
+    "year": 2024,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 348,
+        "rmse": 6.995,
+        "mae": 5.3584,
+        "correlation": 0.6598
+      },
+      {
+        "category": "R",
+        "sample_size": 348,
+        "rmse": 20.2306,
+        "mae": 16.1628,
+        "correlation": 0.5424
+      },
+      {
+        "category": "RBI",
+        "sample_size": 348,
+        "rmse": 20.0553,
+        "mae": 15.6246,
+        "correlation": 0.5674
+      },
+      {
+        "category": "SB",
+        "sample_size": 348,
+        "rmse": 7.6352,
+        "mae": 4.9222,
+        "correlation": 0.6691
+      },
+      {
+        "category": "OBP",
+        "sample_size": 348,
+        "rmse": 0.0319,
+        "mae": 0.025,
+        "correlation": 0.485
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 318,
+        "rmse": 3.6627,
+        "mae": 2.911,
+        "correlation": 0.4722
+      },
+      {
+        "category": "K",
+        "sample_size": 318,
+        "rmse": 36.6185,
+        "mae": 26.8712,
+        "correlation": 0.6835
+      },
+      {
+        "category": "ERA",
+        "sample_size": 318,
+        "rmse": 1.3975,
+        "mae": 1.0694,
+        "correlation": 0.1504
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 318,
+        "rmse": 0.2275,
+        "mae": 0.1757,
+        "correlation": 0.2455
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 318,
+        "rmse": 7.1784,
+        "mae": 4.4187,
+        "correlation": 0.7188
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 348,
+      "spearman_rho": 0.5394,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 318,
+      "spearman_rho": 0.4088,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel_plus",
+    "year": 2021,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 347,
+        "rmse": 9.2465,
+        "mae": 6.597,
+        "correlation": 0.5938
+      },
+      {
+        "category": "R",
+        "sample_size": 347,
+        "rmse": 26.2004,
+        "mae": 20.2651,
+        "correlation": 0.5434
+      },
+      {
+        "category": "RBI",
+        "sample_size": 347,
+        "rmse": 26.2563,
+        "mae": 20.1796,
+        "correlation": 0.5296
+      },
+      {
+        "category": "SB",
+        "sample_size": 347,
+        "rmse": 5.357,
+        "mae": 3.2203,
+        "correlation": 0.7152
+      },
+      {
+        "category": "OBP",
+        "sample_size": 347,
+        "rmse": 0.0333,
+        "mae": 0.0258,
+        "correlation": 0.4815
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 310,
+        "rmse": 3.9192,
+        "mae": 3.0444,
+        "correlation": 0.4266
+      },
+      {
+        "category": "K",
+        "sample_size": 310,
+        "rmse": 48.3228,
+        "mae": 37.5541,
+        "correlation": 0.6534
+      },
+      {
+        "category": "ERA",
+        "sample_size": 310,
+        "rmse": 1.4509,
+        "mae": 1.1401,
+        "correlation": 0.1907
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 310,
+        "rmse": 0.2328,
+        "mae": 0.1903,
+        "correlation": 0.2938
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 310,
+        "rmse": 7.7271,
+        "mae": 4.6684,
+        "correlation": 0.7335
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 347,
+      "spearman_rho": 0.5493,
+      "top_n": 20,
+      "top_n_precision": 0.4
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 310,
+      "spearman_rho": 0.3346,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel_plus",
+    "year": 2022,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 325,
+        "rmse": 7.0611,
+        "mae": 5.2885,
+        "correlation": 0.6537
+      },
+      {
+        "category": "R",
+        "sample_size": 325,
+        "rmse": 17.8131,
+        "mae": 13.9861,
+        "correlation": 0.6255
+      },
+      {
+        "category": "RBI",
+        "sample_size": 325,
+        "rmse": 18.479,
+        "mae": 14.3314,
+        "correlation": 0.6293
+      },
+      {
+        "category": "SB",
+        "sample_size": 325,
+        "rmse": 5.1446,
+        "mae": 3.335,
+        "correlation": 0.7102
+      },
+      {
+        "category": "OBP",
+        "sample_size": 325,
+        "rmse": 0.03,
+        "mae": 0.0241,
+        "correlation": 0.5575
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 315,
+        "rmse": 3.6226,
+        "mae": 2.7372,
+        "correlation": 0.5338
+      },
+      {
+        "category": "K",
+        "sample_size": 315,
+        "rmse": 35.0335,
+        "mae": 26.2186,
+        "correlation": 0.7247
+      },
+      {
+        "category": "ERA",
+        "sample_size": 315,
+        "rmse": 1.4112,
+        "mae": 1.0955,
+        "correlation": 0.1554
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 315,
+        "rmse": 0.2269,
+        "mae": 0.1777,
+        "correlation": 0.292
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 315,
+        "rmse": 6.8704,
+        "mae": 4.1632,
+        "correlation": 0.7257
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 325,
+      "spearman_rho": 0.624,
+      "top_n": 20,
+      "top_n_precision": 0.55
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 315,
+      "spearman_rho": 0.3679,
+      "top_n": 20,
+      "top_n_precision": 0.4
+    }
+  },
+  {
+    "source_name": "marcel_plus",
+    "year": 2023,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 336,
+        "rmse": 7.7154,
+        "mae": 5.7581,
+        "correlation": 0.6651
+      },
+      {
+        "category": "R",
+        "sample_size": 336,
+        "rmse": 21.0006,
+        "mae": 16.4353,
+        "correlation": 0.5975
+      },
+      {
+        "category": "RBI",
+        "sample_size": 336,
+        "rmse": 21.0923,
+        "mae": 16.4081,
+        "correlation": 0.6044
+      },
+      {
+        "category": "SB",
+        "sample_size": 336,
+        "rmse": 8.6683,
+        "mae": 4.7953,
+        "correlation": 0.6481
+      },
+      {
+        "category": "OBP",
+        "sample_size": 336,
+        "rmse": 0.0302,
+        "mae": 0.0242,
+        "correlation": 0.5681
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 319,
+        "rmse": 3.564,
+        "mae": 2.7181,
+        "correlation": 0.4906
+      },
+      {
+        "category": "K",
+        "sample_size": 319,
+        "rmse": 37.2615,
+        "mae": 28.4463,
+        "correlation": 0.6977
+      },
+      {
+        "category": "ERA",
+        "sample_size": 319,
+        "rmse": 1.3829,
+        "mae": 1.0566,
+        "correlation": 0.1916
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 319,
+        "rmse": 0.2192,
+        "mae": 0.1676,
+        "correlation": 0.2449
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 319,
+        "rmse": 7.1343,
+        "mae": 4.2166,
+        "correlation": 0.718
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 336,
+      "spearman_rho": 0.5746,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 319,
+      "spearman_rho": 0.3797,
+      "top_n": 20,
+      "top_n_precision": 0.25
+    }
+  },
+  {
+    "source_name": "marcel_plus",
+    "year": 2024,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 348,
+        "rmse": 7.1015,
+        "mae": 5.4335,
+        "correlation": 0.6574
+      },
+      {
+        "category": "R",
+        "sample_size": 348,
+        "rmse": 20.2306,
+        "mae": 16.1628,
+        "correlation": 0.5424
+      },
+      {
+        "category": "RBI",
+        "sample_size": 348,
+        "rmse": 20.0553,
+        "mae": 15.6246,
+        "correlation": 0.5674
+      },
+      {
+        "category": "SB",
+        "sample_size": 348,
+        "rmse": 7.5141,
+        "mae": 4.8725,
+        "correlation": 0.6885
+      },
+      {
+        "category": "OBP",
+        "sample_size": 348,
+        "rmse": 0.0329,
+        "mae": 0.0257,
+        "correlation": 0.4819
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 318,
+        "rmse": 3.6627,
+        "mae": 2.911,
+        "correlation": 0.4722
+      },
+      {
+        "category": "K",
+        "sample_size": 318,
+        "rmse": 36.5255,
+        "mae": 26.8107,
+        "correlation": 0.6859
+      },
+      {
+        "category": "ERA",
+        "sample_size": 318,
+        "rmse": 1.3825,
+        "mae": 1.0611,
+        "correlation": 0.1531
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 318,
+        "rmse": 0.23,
+        "mae": 0.1765,
+        "correlation": 0.2349
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 318,
+        "rmse": 7.1784,
+        "mae": 4.4187,
+        "correlation": 0.7188
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 348,
+      "spearman_rho": 0.5372,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 318,
+      "spearman_rho": 0.4079,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel_full",
+    "year": 2021,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 347,
+        "rmse": 9.2465,
+        "mae": 6.597,
+        "correlation": 0.5938
+      },
+      {
+        "category": "R",
+        "sample_size": 347,
+        "rmse": 26.2004,
+        "mae": 20.2651,
+        "correlation": 0.5434
+      },
+      {
+        "category": "RBI",
+        "sample_size": 347,
+        "rmse": 26.2563,
+        "mae": 20.1796,
+        "correlation": 0.5296
+      },
+      {
+        "category": "SB",
+        "sample_size": 347,
+        "rmse": 5.357,
+        "mae": 3.2203,
+        "correlation": 0.7152
+      },
+      {
+        "category": "OBP",
+        "sample_size": 347,
+        "rmse": 0.0333,
+        "mae": 0.0258,
+        "correlation": 0.4815
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 310,
+        "rmse": 3.9192,
+        "mae": 3.0444,
+        "correlation": 0.4266
+      },
+      {
+        "category": "K",
+        "sample_size": 310,
+        "rmse": 48.3228,
+        "mae": 37.5541,
+        "correlation": 0.6534
+      },
+      {
+        "category": "ERA",
+        "sample_size": 310,
+        "rmse": 1.3382,
+        "mae": 1.0657,
+        "correlation": 0.2161
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 310,
+        "rmse": 0.2197,
+        "mae": 0.18,
+        "correlation": 0.3296
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 310,
+        "rmse": 7.7271,
+        "mae": 4.6684,
+        "correlation": 0.7335
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 347,
+      "spearman_rho": 0.5493,
+      "top_n": 20,
+      "top_n_precision": 0.4
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 310,
+      "spearman_rho": 0.3574,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel_full",
+    "year": 2022,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 325,
+        "rmse": 7.0611,
+        "mae": 5.2885,
+        "correlation": 0.6537
+      },
+      {
+        "category": "R",
+        "sample_size": 325,
+        "rmse": 17.8131,
+        "mae": 13.9861,
+        "correlation": 0.6255
+      },
+      {
+        "category": "RBI",
+        "sample_size": 325,
+        "rmse": 18.479,
+        "mae": 14.3314,
+        "correlation": 0.6293
+      },
+      {
+        "category": "SB",
+        "sample_size": 325,
+        "rmse": 5.1446,
+        "mae": 3.335,
+        "correlation": 0.7102
+      },
+      {
+        "category": "OBP",
+        "sample_size": 325,
+        "rmse": 0.03,
+        "mae": 0.0241,
+        "correlation": 0.5575
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 315,
+        "rmse": 3.6226,
+        "mae": 2.7372,
+        "correlation": 0.5338
+      },
+      {
+        "category": "K",
+        "sample_size": 315,
+        "rmse": 35.0335,
+        "mae": 26.2186,
+        "correlation": 0.7247
+      },
+      {
+        "category": "ERA",
+        "sample_size": 315,
+        "rmse": 1.2817,
+        "mae": 1.0035,
+        "correlation": 0.1878
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 315,
+        "rmse": 0.2154,
+        "mae": 0.1694,
+        "correlation": 0.3181
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 315,
+        "rmse": 6.8704,
+        "mae": 4.1632,
+        "correlation": 0.7257
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 325,
+      "spearman_rho": 0.624,
+      "top_n": 20,
+      "top_n_precision": 0.55
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 315,
+      "spearman_rho": 0.38,
+      "top_n": 20,
+      "top_n_precision": 0.35
+    }
+  },
+  {
+    "source_name": "marcel_full",
+    "year": 2023,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 336,
+        "rmse": 7.7154,
+        "mae": 5.7581,
+        "correlation": 0.6651
+      },
+      {
+        "category": "R",
+        "sample_size": 336,
+        "rmse": 21.0006,
+        "mae": 16.4353,
+        "correlation": 0.5975
+      },
+      {
+        "category": "RBI",
+        "sample_size": 336,
+        "rmse": 21.0923,
+        "mae": 16.4081,
+        "correlation": 0.6044
+      },
+      {
+        "category": "SB",
+        "sample_size": 336,
+        "rmse": 8.6683,
+        "mae": 4.7953,
+        "correlation": 0.6481
+      },
+      {
+        "category": "OBP",
+        "sample_size": 336,
+        "rmse": 0.0302,
+        "mae": 0.0242,
+        "correlation": 0.5681
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 319,
+        "rmse": 3.564,
+        "mae": 2.7181,
+        "correlation": 0.4906
+      },
+      {
+        "category": "K",
+        "sample_size": 319,
+        "rmse": 37.2615,
+        "mae": 28.4463,
+        "correlation": 0.6977
+      },
+      {
+        "category": "ERA",
+        "sample_size": 319,
+        "rmse": 1.2497,
+        "mae": 0.9575,
+        "correlation": 0.2258
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 319,
+        "rmse": 0.2018,
+        "mae": 0.1543,
+        "correlation": 0.2923
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 319,
+        "rmse": 7.1343,
+        "mae": 4.2166,
+        "correlation": 0.718
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 336,
+      "spearman_rho": 0.5746,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 319,
+      "spearman_rho": 0.4068,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  },
+  {
+    "source_name": "marcel_full",
+    "year": 2024,
+    "batting_stat_accuracy": [
+      {
+        "category": "HR",
+        "sample_size": 348,
+        "rmse": 7.1015,
+        "mae": 5.4335,
+        "correlation": 0.6574
+      },
+      {
+        "category": "R",
+        "sample_size": 348,
+        "rmse": 20.2306,
+        "mae": 16.1628,
+        "correlation": 0.5424
+      },
+      {
+        "category": "RBI",
+        "sample_size": 348,
+        "rmse": 20.0553,
+        "mae": 15.6246,
+        "correlation": 0.5674
+      },
+      {
+        "category": "SB",
+        "sample_size": 348,
+        "rmse": 7.5141,
+        "mae": 4.8725,
+        "correlation": 0.6885
+      },
+      {
+        "category": "OBP",
+        "sample_size": 348,
+        "rmse": 0.0329,
+        "mae": 0.0257,
+        "correlation": 0.4819
+      }
+    ],
+    "pitching_stat_accuracy": [
+      {
+        "category": "W",
+        "sample_size": 318,
+        "rmse": 3.6627,
+        "mae": 2.911,
+        "correlation": 0.4722
+      },
+      {
+        "category": "K",
+        "sample_size": 318,
+        "rmse": 36.5255,
+        "mae": 26.8107,
+        "correlation": 0.6859
+      },
+      {
+        "category": "ERA",
+        "sample_size": 318,
+        "rmse": 1.2527,
+        "mae": 0.9675,
+        "correlation": 0.1591
+      },
+      {
+        "category": "WHIP",
+        "sample_size": 318,
+        "rmse": 0.2169,
+        "mae": 0.1659,
+        "correlation": 0.2531
+      },
+      {
+        "category": "NSVH",
+        "sample_size": 318,
+        "rmse": 7.1784,
+        "mae": 4.4187,
+        "correlation": 0.7188
+      }
+    ],
+    "batting_rank_accuracy": {
+      "sample_size": 348,
+      "spearman_rho": 0.5372,
+      "top_n": 20,
+      "top_n_precision": 0.5
+    },
+    "pitching_rank_accuracy": {
+      "sample_size": 318,
+      "spearman_rho": 0.4141,
+      "top_n": 20,
+      "top_n_precision": 0.3
+    }
+  }
+]

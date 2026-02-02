@@ -3,7 +3,12 @@ from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 
 class ParkFactorAdjuster:
-    """Neutralizes park effects by dividing each rate by the park factor.
+    """Neutralizes park effects using half-game blending.
+
+    Since players play roughly 50% of games at home and 50% on the
+    road (neutral), the effective park factor is blended:
+
+        adjusted_rate = raw_rate / (0.5 * park_factor + 0.5)
 
     Reads metadata["team"] to look up the corresponding park factor
     for each stat. Players with missing team metadata pass through
@@ -41,7 +46,8 @@ class ParkFactorAdjuster:
             new_rates: dict[str, float] = {}
             for stat, rate in p.rates.items():
                 factor = team_factors.get(stat, 1.0)
-                new_rates[stat] = rate / factor if factor != 0.0 else rate
+                blended = 0.5 * factor + 0.5
+                new_rates[stat] = rate / blended if blended != 0.0 else rate
 
             result.append(
                 PlayerRates(
