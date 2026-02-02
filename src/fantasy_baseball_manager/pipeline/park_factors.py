@@ -89,7 +89,7 @@ class FanGraphsParkFactorProvider:
             if df is None:
                 continue
 
-            for _, row in df.iterrows():
+            for _, row in df.iterrows():  # type: ignore[unresolved-attribute] # ty doesn't narrow through `continue`
                 display_name = str(row.get("Team", "")).strip()
                 abbrev = _TEAM_NAME_TO_ABBREV.get(display_name, "")
                 if not abbrev:

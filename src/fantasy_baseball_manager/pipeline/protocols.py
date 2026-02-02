@@ -33,3 +33,13 @@ class ProjectionFinalizer(Protocol):
     def finalize_batting(self, players: list[PlayerRates]) -> list[BattingProjection]: ...
 
     def finalize_pitching(self, players: list[PlayerRates]) -> list[PitchingProjection]: ...
+
+
+class ProjectionPipelineProtocol(Protocol):
+    def project_batters(
+        self, data_source: StatsDataSource, year: int
+    ) -> list[BattingProjection]: ...
+
+    def project_pitchers(
+        self, data_source: StatsDataSource, year: int
+    ) -> list[PitchingProjection]: ...

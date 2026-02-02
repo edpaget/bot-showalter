@@ -1,13 +1,13 @@
 from fantasy_baseball_manager.marcel.data_source import StatsDataSource
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
-from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
+from fantasy_baseball_manager.pipeline.protocols import ProjectionPipelineProtocol
 from fantasy_baseball_manager.ros.protocol import ProjectionBlender
 
 
 class ROSProjector:
     def __init__(
         self,
-        pipeline: ProjectionPipeline,
+        pipeline: ProjectionPipelineProtocol,
         data_source: StatsDataSource,
         blender: ProjectionBlender,
     ) -> None:

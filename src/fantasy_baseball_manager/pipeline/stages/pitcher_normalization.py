@@ -90,9 +90,9 @@ class PitcherNormalizationAdjuster:
     def _derive_league_babip(self, p: PlayerRates) -> float:
         avg_league = p.metadata.get("avg_league_rates")
         if isinstance(avg_league, dict):
-            lg_h = avg_league.get("h")
-            lg_hr = avg_league.get("hr")
-            lg_so = avg_league.get("so")
+            lg_h = avg_league.get("h")  # type: ignore[invalid-argument-type] # isinstance narrows to dict[Never, Never] in ty
+            lg_hr = avg_league.get("hr")  # type: ignore[invalid-argument-type]
+            lg_so = avg_league.get("so")  # type: ignore[invalid-argument-type]
             if lg_h is not None and lg_hr is not None and lg_so is not None:
                 denom = 1.0 + lg_h - lg_hr - lg_so
                 if denom > 0.01:
@@ -102,7 +102,7 @@ class PitcherNormalizationAdjuster:
     def _derive_league_k_pct(self, p: PlayerRates) -> float:
         avg_league = p.metadata.get("avg_league_rates")
         if isinstance(avg_league, dict):
-            lg_so = avg_league.get("so")
+            lg_so = avg_league.get("so")  # type: ignore[invalid-argument-type] # isinstance narrows to dict[Never, Never] in ty
             if lg_so is not None and lg_so < 1.0:
                 return lg_so / (1.0 + lg_so)
         return self._config.league_k_pct

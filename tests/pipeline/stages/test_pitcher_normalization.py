@@ -132,7 +132,7 @@ class TestLobComputation:
         adjuster = PitcherNormalizationAdjuster()
         pitcher = _make_pitcher(rates=rates)
         result = adjuster.adjust([pitcher])
-        assert float(result[0].metadata["expected_lob_pct"]) > 0.73
+        assert float(result[0].metadata["expected_lob_pct"]) > 0.73  # type: ignore[invalid-argument-type] # ty doesn't accept object as SupportsFloat
 
     def test_low_k_pitcher_lower_expected_lob(self) -> None:
         """A low-K pitcher should get a lower expected LOB%."""
@@ -140,7 +140,7 @@ class TestLobComputation:
         adjuster = PitcherNormalizationAdjuster()
         pitcher = _make_pitcher(rates=rates)
         result = adjuster.adjust([pitcher])
-        assert float(result[0].metadata["expected_lob_pct"]) < 0.73
+        assert float(result[0].metadata["expected_lob_pct"]) < 0.73  # type: ignore[invalid-argument-type] # ty doesn't accept object as SupportsFloat
 
     def test_lob_clamped_to_min(self) -> None:
         """LOB% should not go below min_lob."""
@@ -150,7 +150,7 @@ class TestLobComputation:
         adjuster = PitcherNormalizationAdjuster(config)
         pitcher = _make_pitcher(rates=rates)
         result = adjuster.adjust([pitcher])
-        assert float(result[0].metadata["expected_lob_pct"]) >= 0.65
+        assert float(result[0].metadata["expected_lob_pct"]) >= 0.65  # type: ignore[invalid-argument-type] # ty doesn't accept object as SupportsFloat
 
     def test_lob_clamped_to_max(self) -> None:
         """LOB% should not exceed max_lob."""
@@ -160,7 +160,7 @@ class TestLobComputation:
         adjuster = PitcherNormalizationAdjuster(config)
         pitcher = _make_pitcher(rates=rates)
         result = adjuster.adjust([pitcher])
-        assert float(result[0].metadata["expected_lob_pct"]) <= 0.82
+        assert float(result[0].metadata["expected_lob_pct"]) <= 0.82  # type: ignore[invalid-argument-type] # ty doesn't accept object as SupportsFloat
 
 
 class TestErAdjustment:
