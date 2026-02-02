@@ -67,7 +67,7 @@ class SavantParkFactorProvider:
         )
         logger.debug("Fetching Savant park factors: %s", url)
         req = urllib.request.Request(url, headers={"User-Agent": "fantasy-baseball-manager/1.0"})
-        with urllib.request.urlopen(req) as resp:  # noqa: S310
+        with urllib.request.urlopen(req) as resp:
             return resp.read().decode("utf-8")
 
     @staticmethod
