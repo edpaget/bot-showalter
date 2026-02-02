@@ -13,7 +13,7 @@ _DEFAULTS: dict[str, object] = {
     "yahoo": {
         "client_id": "",
         "client_secret": "",
-        "token_file": "oauth2.json",
+        "credentials_file": "~/.config/fbm/credentials.json",
     },
     "league": {
         "id": "",

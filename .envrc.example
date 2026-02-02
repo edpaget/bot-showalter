@@ -3,8 +3,8 @@
 export FANTASY__YAHOO__CLIENT_ID=""
 export FANTASY__YAHOO__CLIENT_SECRET=""
 
-# Path to store OAuth2 token (default: oauth2.json)
-# export FANTASY__YAHOO__TOKEN_FILE="oauth2.json"
+# Path to credentials file (default: ~/.config/fbm/credentials.json)
+# export FANTASY__YAHOO__CREDENTIALS_FILE="~/.config/fbm/credentials.json"
 
 # Yahoo Fantasy league settings
 export FANTASY__LEAGUE__ID=""

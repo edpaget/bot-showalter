@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from yahoo_fantasy_api import Game, League
@@ -27,14 +29,43 @@ class YahooFantasyClient:
         self._oauth: Any | None = None
         self._game: Any | None = None
 
+    def _ensure_credentials_file(self) -> str:
+        """Ensure the credentials file exists with current consumer key/secret.
+
+        Creates the parent directory and file if missing. Updates consumer_key
+        and consumer_secret if they differ from config, preserving any existing
+        token data.
+
+        Returns the resolved absolute path to the credentials file.
+        """
+        creds_path = Path(str(self._config["yahoo.credentials_file"])).expanduser()
+        consumer_key = str(self._config["yahoo.client_id"])
+        consumer_secret = str(self._config["yahoo.client_secret"])
+
+        if creds_path.exists():
+            data: dict[str, Any] = json.loads(creds_path.read_text())
+            if (
+                data.get("consumer_key") == consumer_key
+                and data.get("consumer_secret") == consumer_secret
+            ):
+                return str(creds_path)
+            data["consumer_key"] = consumer_key
+            data["consumer_secret"] = consumer_secret
+        else:
+            creds_path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "consumer_key": consumer_key,
+                "consumer_secret": consumer_secret,
+            }
+
+        creds_path.write_text(json.dumps(data))
+        return str(creds_path)
+
     @property
     def oauth(self) -> Any:
         if self._oauth is None:
-            self._oauth = self._oauth_factory(
-                str(self._config["yahoo.client_id"]),
-                str(self._config["yahoo.client_secret"]),
-                store_file=str(self._config["yahoo.token_file"]),
-            )
+            creds_file = self._ensure_credentials_file()
+            self._oauth = self._oauth_factory(None, None, from_file=creds_file)
         return self._oauth
 
     @property

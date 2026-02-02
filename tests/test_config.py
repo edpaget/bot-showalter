@@ -24,7 +24,7 @@ def test_create_config_returns_defaults() -> None:
     assert isinstance(cfg, ConfigurationSet)
     assert cfg["yahoo.client_id"] == ""
     assert cfg["yahoo.client_secret"] == ""
-    assert cfg["yahoo.token_file"] == "oauth2.json"
+    assert cfg["yahoo.credentials_file"] == "~/.config/fbm/credentials.json"
     assert cfg["league.id"] == ""
     assert cfg["league.game_code"] == "mlb"
     assert cfg["league.season"] == 2025
@@ -40,7 +40,7 @@ def test_yaml_overrides_defaults(tmp_path: Path) -> None:
     assert cfg["yahoo.client_secret"] == "yaml_secret"
     assert cfg["league.season"] == 2026
     # Defaults still apply for unset keys
-    assert cfg["yahoo.token_file"] == "oauth2.json"
+    assert cfg["yahoo.credentials_file"] == "~/.config/fbm/credentials.json"
     assert cfg["league.game_code"] == "mlb"
 
 
