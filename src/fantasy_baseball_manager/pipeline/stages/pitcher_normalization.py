@@ -8,11 +8,11 @@ _REQUIRED_RATE_KEYS = {"h", "hr", "so", "er"}
 @dataclass(frozen=True)
 class PitcherNormalizationConfig:
     league_babip: float = 0.300
-    babip_regression_weight: float = 0.5
+    babip_regression_weight: float = 1.0
     lob_baseline: float = 0.73
     lob_k_sensitivity: float = 0.1
     league_k_pct: float = 0.22
-    lob_regression_weight: float = 0.6
+    lob_regression_weight: float = 1.0
     min_lob: float = 0.65
     max_lob: float = 0.82
 

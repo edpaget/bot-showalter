@@ -10,11 +10,11 @@ noisier and regresses more toward the league mean.
 BATTING_REGRESSION_PA: dict[str, float] = {
     "so": 200,
     "bb": 400,
-    "hr": 500,
+    "hr": 425,
     "hbp": 600,
     "sb": 600,
     "cs": 600,
-    "singles": 800,
+    "singles": 2000,
     "doubles": 1600,
     "triples": 1600,
     "sf": 1600,
