@@ -23,3 +23,4 @@ Fantasy baseball manager. Python 3.13+, uses `uv` for dependency management.
 
 - Write commits in the **Conventional Commits** style: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, etc.
 - Keep commit subjects under 72 characters. Use the body for additional detail when needed.
+- Keep history linear — no merge commits. Rebase feature branches onto `main` before merging with `git merge --ff-only`.
