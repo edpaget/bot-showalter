@@ -13,6 +13,13 @@ logger = logging.getLogger(__name__)
 
 SFBB_CSV_URL = "https://www.smartfantasybaseball.com/PLAYERIDMAPCSV"
 
+# Yahoo assigns synthetic IDs to two-way players.
+# Map each synthetic ID to the real Yahoo ID so SFBB lookup works.
+_YAHOO_SPLIT_OVERRIDES: dict[str, str] = {
+    "1000001": "10835",  # Shohei Ohtani (Batter)
+    "1000002": "10835",  # Shohei Ohtani (Pitcher)
+}
+
 
 class PlayerIdMapper(Protocol):
     def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None: ...
@@ -64,6 +71,10 @@ def _parse_sfbb_csv(csv_text: str) -> SfbbMapper:
         if yahoo_id and fg_id:
             yahoo_to_fg[yahoo_id] = fg_id
             fg_to_yahoo[fg_id] = yahoo_id
+
+    for synthetic_id, real_id in _YAHOO_SPLIT_OVERRIDES.items():
+        if real_id in yahoo_to_fg:
+            yahoo_to_fg[synthetic_id] = yahoo_to_fg[real_id]
 
     logger.debug("SFBB mapper: %d yahoo↔fangraphs mappings", len(yahoo_to_fg))
     return SfbbMapper(yahoo_to_fg, fg_to_yahoo)

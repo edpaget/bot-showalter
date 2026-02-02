@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from fantasy_baseball_manager.player_id.mapper import (
+    _YAHOO_SPLIT_OVERRIDES,
     SfbbMapper,
     _parse_sfbb_csv,
     build_cached_sfbb_mapper,
@@ -10,7 +11,7 @@ from fantasy_baseball_manager.player_id.mapper import (
 SAMPLE_CSV = (
     "IDPLAYER,PLAYERNAME,YAHOOID,IDFANGRAPHS,OTHERFIELD\n"
     "1,Mike Trout,10155,19054,xyz\n"
-    "2,Shohei Ohtani,12167,19755,abc\n"
+    "2,Shohei Ohtani,10835,19755,abc\n"
     "3,No Yahoo,,99999,def\n"
     "4,No FanGraphs,55555,,ghi\n"
 )
@@ -58,9 +59,9 @@ class TestParseSfbbCsv:
     def test_parses_valid_rows(self) -> None:
         mapper = _parse_sfbb_csv(SAMPLE_CSV)
         assert mapper.yahoo_to_fangraphs("10155") == "19054"
-        assert mapper.yahoo_to_fangraphs("12167") == "19755"
+        assert mapper.yahoo_to_fangraphs("10835") == "19755"
         assert mapper.fangraphs_to_yahoo("19054") == "10155"
-        assert mapper.fangraphs_to_yahoo("19755") == "12167"
+        assert mapper.fangraphs_to_yahoo("19755") == "10835"
 
     def test_skips_rows_missing_yahoo_id(self) -> None:
         mapper = _parse_sfbb_csv(SAMPLE_CSV)
@@ -139,3 +140,24 @@ class TestBuildCachedSfbbMapper:
         mapper = build_cached_sfbb_mapper(cache, "test_key", ttl=3600, csv_url="http://fake")  # type: ignore[arg-type]
         assert mapper.yahoo_to_fangraphs("10155") == "19054"
         assert mock_download.call_count == 2  # type: ignore[union-attr]
+
+
+class TestSplitOverrides:
+    def test_split_override_resolves_synthetic_to_real(self) -> None:
+        """Synthetic Yahoo IDs (e.g. 1000001) resolve to same FG ID as real ID."""
+        mapper = _parse_sfbb_csv(SAMPLE_CSV)
+        # Real ID 10835 -> FG 19755
+        assert mapper.yahoo_to_fangraphs("10835") == "19755"
+        # Synthetic split IDs should also resolve
+        for synthetic_id in _YAHOO_SPLIT_OVERRIDES:
+            assert mapper.yahoo_to_fangraphs(synthetic_id) == "19755"
+
+    def test_split_override_ignored_when_real_id_missing(self) -> None:
+        """If the real Yahoo ID isn't in SFBB, synthetic IDs don't get mapped."""
+        csv_without_ohtani = (
+            "IDPLAYER,PLAYERNAME,YAHOOID,IDFANGRAPHS\n"
+            "1,Mike Trout,10155,19054\n"
+        )
+        mapper = _parse_sfbb_csv(csv_without_ohtani)
+        for synthetic_id in _YAHOO_SPLIT_OVERRIDES:
+            assert mapper.yahoo_to_fangraphs(synthetic_id) is None

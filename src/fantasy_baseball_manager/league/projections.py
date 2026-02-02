@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fantasy_baseball_manager.league.models import (
     LeagueRosters,
@@ -11,6 +12,12 @@ from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 logger = logging.getLogger(__name__)
 
 
+def _normalize_name(name: str) -> str:
+    """Normalize a player name for fuzzy matching."""
+    name = re.sub(r"\s*\(.*?\)\s*", "", name)
+    return " ".join(name.lower().split())
+
+
 def match_projections(
     rosters: LeagueRosters,
     batting_projections: list[BattingProjection],
@@ -19,6 +26,18 @@ def match_projections(
 ) -> list[TeamProjection]:
     batting_by_fg: dict[str, BattingProjection] = {p.player_id: p for p in batting_projections}
     pitching_by_fg: dict[str, PitchingProjection] = {p.player_id: p for p in pitching_projections}
+
+    # Name-indexed lookups for fallback when ID mapping is missing.
+    # Duplicate names map to None to avoid ambiguous matches.
+    batting_by_name: dict[str, BattingProjection | None] = {}
+    for bp in batting_projections:
+        key = _normalize_name(bp.name)
+        batting_by_name[key] = None if key in batting_by_name else bp
+
+    pitching_by_name: dict[str, PitchingProjection | None] = {}
+    for pp in pitching_projections:
+        key = _normalize_name(pp.name)
+        pitching_by_name[key] = None if key in pitching_by_name else pp
 
     logger.debug(
         "Matching projections: %d batting, %d pitching, %d teams",
@@ -61,13 +80,7 @@ def match_projections(
             pitching_proj: PitchingProjection | None = None
             matched = False
 
-            if fg_id is None:
-                logger.debug(
-                    "No FanGraphs ID for %s (yahoo_id=%s)",
-                    roster_player.name,
-                    roster_player.yahoo_id,
-                )
-            elif fg_id is not None:
+            if fg_id is not None:
                 if roster_player.position_type == "B":
                     batting_proj = batting_by_fg.get(fg_id)
                     if batting_proj is None:
@@ -105,7 +118,48 @@ def match_projections(
                         total_p_h += pitching_proj.h
                         total_p_bb += pitching_proj.bb
 
+            if not matched and fg_id is None:
+                normalized = _normalize_name(roster_player.name)
+                if roster_player.position_type == "B":
+                    candidate = batting_by_name.get(normalized)
+                    if candidate is not None:
+                        batting_proj = candidate
+                        matched = True
+                        total_hr += batting_proj.hr
+                        total_sb += batting_proj.sb
+                        total_h += batting_proj.h
+                        total_pa += batting_proj.pa
+                        total_ab += batting_proj.ab
+                        total_bb += batting_proj.bb
+                        total_hbp += batting_proj.hbp
+                        logger.debug(
+                            "Name-matched %s to batting %s",
+                            roster_player.name,
+                            candidate.player_id,
+                        )
+                elif roster_player.position_type == "P":
+                    candidate = pitching_by_name.get(normalized)
+                    if candidate is not None:
+                        pitching_proj = candidate
+                        matched = True
+                        total_ip += pitching_proj.ip
+                        total_so += pitching_proj.so
+                        total_er += pitching_proj.er
+                        total_p_h += pitching_proj.h
+                        total_p_bb += pitching_proj.bb
+                        logger.debug(
+                            "Name-matched %s to pitching %s",
+                            roster_player.name,
+                            candidate.player_id,
+                        )
+
             if not matched:
+                if fg_id is None:
+                    logger.debug(
+                        "No match for %s (yahoo_id=%s)",
+                        roster_player.name,
+                        roster_player.yahoo_id,
+                    )
                 unmatched_count += 1
 
             players.append(

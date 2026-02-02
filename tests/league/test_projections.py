@@ -1,7 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
-from fantasy_baseball_manager.league.projections import match_projections
+from fantasy_baseball_manager.league.projections import _normalize_name, match_projections
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
 
 
@@ -285,3 +285,122 @@ class TestMatchProjections:
         assert team.team_era == pytest.approx(expected_era)
         assert team.team_whip == pytest.approx(expected_whip)
         assert team.total_so == pytest.approx(300.0)
+
+
+class TestNormalizeName:
+    def test_lowercases(self) -> None:
+        assert _normalize_name("Mike Trout") == "mike trout"
+
+    def test_strips_parenthetical(self) -> None:
+        assert _normalize_name("Shohei Ohtani (Batter)") == "shohei ohtani"
+
+    def test_collapses_whitespace(self) -> None:
+        assert _normalize_name("  Juan   Soto  ") == "juan soto"
+
+    def test_combined(self) -> None:
+        assert _normalize_name("  Foo Bar (Pitcher)  ") == "foo bar"
+
+
+class TestNameFallback:
+    def test_name_fallback_matches_batter_when_id_missing(self) -> None:
+        rosters = LeagueRosters(
+            league_key="lg1",
+            teams=(
+                TeamRoster(
+                    team_key="t1",
+                    team_name="Team A",
+                    players=(_roster_player("y_unknown", "Spencer Jones", "B"),),
+                ),
+            ),
+        )
+        batting = [_make_batter_projection(player_id="fg_sj", name="Spencer Jones", hr=15.0)]
+        mapper = FakeIdMapper({})
+
+        result = match_projections(rosters, batting, [], mapper)
+
+        assert result[0].unmatched_count == 0
+        assert result[0].players[0].matched is True
+        assert result[0].total_hr == pytest.approx(15.0)
+
+    def test_name_fallback_matches_pitcher_when_id_missing(self) -> None:
+        rosters = LeagueRosters(
+            league_key="lg1",
+            teams=(
+                TeamRoster(
+                    team_key="t1",
+                    team_name="Team A",
+                    players=(_roster_player("y_unknown", "Bryan King", "P"),),
+                ),
+            ),
+        )
+        pitching = [_make_pitcher_projection(player_id="fg_bk", name="Bryan King", so=100.0)]
+        mapper = FakeIdMapper({})
+
+        result = match_projections(rosters, [], pitching, mapper)
+
+        assert result[0].unmatched_count == 0
+        assert result[0].players[0].matched is True
+        assert result[0].total_so == pytest.approx(100.0)
+
+    def test_name_fallback_strips_parenthetical_suffix(self) -> None:
+        rosters = LeagueRosters(
+            league_key="lg1",
+            teams=(
+                TeamRoster(
+                    team_key="t1",
+                    team_name="Team A",
+                    players=(_roster_player("y_unknown", "Foo (Batter)", "B"),),
+                ),
+            ),
+        )
+        batting = [_make_batter_projection(player_id="fg_foo", name="Foo", hr=20.0)]
+        mapper = FakeIdMapper({})
+
+        result = match_projections(rosters, batting, [], mapper)
+
+        assert result[0].players[0].matched is True
+
+    def test_name_fallback_skips_ambiguous_duplicate_names(self) -> None:
+        rosters = LeagueRosters(
+            league_key="lg1",
+            teams=(
+                TeamRoster(
+                    team_key="t1",
+                    team_name="Team A",
+                    players=(_roster_player("y_unknown", "John Smith", "B"),),
+                ),
+            ),
+        )
+        batting = [
+            _make_batter_projection(player_id="fg1", name="John Smith", hr=10.0),
+            _make_batter_projection(player_id="fg2", name="John Smith", hr=20.0),
+        ]
+        mapper = FakeIdMapper({})
+
+        result = match_projections(rosters, batting, [], mapper)
+
+        assert result[0].unmatched_count == 1
+        assert result[0].players[0].matched is False
+
+    def test_id_match_takes_precedence(self) -> None:
+        rosters = LeagueRosters(
+            league_key="lg1",
+            teams=(
+                TeamRoster(
+                    team_key="t1",
+                    team_name="Team A",
+                    players=(_roster_player("y1", "Batter One", "B"),),
+                ),
+            ),
+        )
+        batting = [
+            _make_batter_projection(player_id="fg1", name="Batter One", hr=30.0),
+            _make_batter_projection(player_id="fg_other", name="Batter One", hr=99.0),
+        ]
+        mapper = FakeIdMapper({"y1": "fg1"})
+
+        result = match_projections(rosters, batting, [], mapper)
+
+        # ID match should use fg1 (hr=30), not name match (ambiguous anyway)
+        assert result[0].total_hr == pytest.approx(30.0)
+        assert result[0].players[0].matched is True
