@@ -263,6 +263,25 @@ class TestMarcelCommand:
         assert result.exit_code == 0
         assert "Test Pitcher" in result.output
 
+    def test_batting_output_contains_r_and_rbi(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "project", "2025", "--batting"])
+        assert result.exit_code == 0
+        assert "  R " in result.output
+        assert "RBI" in result.output
+
+    def test_sort_by_r(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "project", "2025", "--batting", "--sort-by", "r"])
+        assert result.exit_code == 0
+        assert "projected batters" in result.output
+
+    def test_sort_by_rbi(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "project", "2025", "--batting", "--sort-by", "rbi"])
+        assert result.exit_code == 0
+        assert "projected batters" in result.output
+
     def test_engine_marcel_accepted(self) -> None:
         _install_fake()
         result = runner.invoke(app, ["players", "project", "2025", "--engine", "marcel"])

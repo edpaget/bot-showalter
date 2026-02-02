@@ -12,6 +12,8 @@ from fantasy_baseball_manager.marcel.pitching import project_pitchers
 
 BATTING_SORT_FIELDS: dict[str, Callable[[BattingProjection], float]] = {
     "hr": lambda p: p.hr,
+    "r": lambda p: p.r,
+    "rbi": lambda p: p.rbi,
     "pa": lambda p: p.pa,
     "h": lambda p: p.h,
     "sb": lambda p: p.sb,
@@ -42,12 +44,12 @@ def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
 def format_batting_table(projections: list[BattingProjection], top: int) -> str:
     lines: list[str] = []
     lines.append(f"Top {top} projected batters ({len(projections)} total):")
-    lines.append(f"{'Name':<25} {'Age':>3} {'PA':>6} {'HR':>5} {'AVG':>6} {'OBP':>6} {'SB':>5}")
-    lines.append("-" * 60)
+    lines.append(f"{'Name':<25} {'Age':>3} {'PA':>6} {'HR':>5} {'R':>5} {'RBI':>5} {'AVG':>6} {'OBP':>6} {'SB':>5}")
+    lines.append("-" * 72)
     for p in projections[:top]:
         avg = p.h / p.ab if p.ab > 0 else 0
         obp = (p.h + p.bb + p.hbp) / p.pa if p.pa > 0 else 0
-        lines.append(f"{p.name:<25} {p.age:>3} {p.pa:>6.0f} {p.hr:>5.1f} {avg:>6.3f} {obp:>6.3f} {p.sb:>5.1f}")
+        lines.append(f"{p.name:<25} {p.age:>3} {p.pa:>6.0f} {p.hr:>5.1f} {p.r:>5.1f} {p.rbi:>5.1f} {avg:>6.3f} {obp:>6.3f} {p.sb:>5.1f}")
     return "\n".join(lines)
 
 
