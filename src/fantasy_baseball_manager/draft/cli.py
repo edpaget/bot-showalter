@@ -420,8 +420,9 @@ def draft_simulate(
         kd = keepers_data.get(i, {})
         name = str(kd.get("name", f"Team {i}"))
         keepers_raw = kd.get("keepers", [])
-        keepers_list: list[str] = list(keepers_raw) if isinstance(keepers_raw, (list, tuple)) else []
-        keeper_ids: tuple[str, ...] = tuple(str(k) for k in keepers_list)
+        keeper_ids: tuple[str, ...] = (
+            tuple(str(k) for k in keepers_raw) if isinstance(keepers_raw, (list, tuple)) else ()
+        )
 
         if i == user_pick:
             strategy = STRATEGY_PRESETS[user_strategy]

@@ -1,14 +1,13 @@
 import logging
 from collections.abc import Callable
 from datetime import datetime
-from typing import Annotated, cast
+from typing import Annotated
 
 import typer
 
 from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
 from fantasy_baseball_manager.cache.sources import CachedRosterSource
 from fantasy_baseball_manager.config import (
-    AppConfig,
     apply_cli_overrides,
     clear_cli_overrides,
     create_config,
@@ -102,7 +101,7 @@ def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
 def _get_roster_source(no_cache: bool = False, target_season: int | None = None) -> RosterSource:
     if _roster_source_factory is not None:
         return _roster_source_factory()
-    config = cast("AppConfig", create_config())
+    config = create_config()
     client = YahooFantasyClient(config)
 
     if target_season is None and config["league.is_keeper"]:
@@ -128,7 +127,7 @@ def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
         return _id_mapper_factory()
     if no_cache:
         return build_sfbb_mapper()
-    config = cast("AppConfig", create_config())
+    config = create_config()
     ttl = int(str(config["cache.id_mappings_ttl"]))
     cache_store = create_cache_store(config)
     cache_key = get_cache_key(config)

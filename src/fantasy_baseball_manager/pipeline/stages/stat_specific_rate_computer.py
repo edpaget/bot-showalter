@@ -79,11 +79,11 @@ class StatSpecificRegressionRateComputer:
             most_recent = next(seasons[y] for y in years if y in seasons)
             projection_age = most_recent.age + (year - most_recent.year)
 
-            pa_per_year = [seasons[y].pa if y in seasons else 0 for y in years]
+            pa_per_year: list[float] = [float(seasons[y].pa) if y in seasons else 0.0 for y in years]
 
             raw_rates: dict[str, float] = {}
             for stat in BATTING_COMPONENT_STATS:
-                stat_per_year = [getattr(seasons[y], stat) if y in seasons else 0 for y in years]
+                stat_per_year: list[float] = [float(getattr(seasons[y], stat)) if y in seasons else 0.0 for y in years]
                 regression_pa = self._batting_regression.get(stat, MARCEL_REGRESSION_PA)
                 raw_rates[stat] = weighted_rate(
                     stats=stat_per_year,
@@ -147,7 +147,7 @@ class StatSpecificRegressionRateComputer:
             most_recent = next(seasons[y] for y in years if y in seasons)
             projection_age = most_recent.age + (year - most_recent.year)
 
-            outs_per_year = [seasons[y].ip * 3 if y in seasons else 0 for y in years]
+            outs_per_year: list[float] = [seasons[y].ip * 3 if y in seasons else 0.0 for y in years]
             ip_per_year = [seasons[y].ip if y in seasons else 0.0 for y in years]
 
             total_gs = sum(s.gs for s in seasons.values())
@@ -156,7 +156,7 @@ class StatSpecificRegressionRateComputer:
 
             raw_rates: dict[str, float] = {}
             for stat in PITCHING_COMPONENT_STATS:
-                stat_per_year = [getattr(seasons[y], stat) if y in seasons else 0 for y in years]
+                stat_per_year: list[float] = [float(getattr(seasons[y], stat)) if y in seasons else 0.0 for y in years]
                 regression_outs = self._pitching_regression.get(stat, MARCEL_REGRESSION_OUTS)
                 raw_rates[stat] = weighted_rate(
                     stats=stat_per_year,

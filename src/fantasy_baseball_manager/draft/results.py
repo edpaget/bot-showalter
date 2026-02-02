@@ -45,8 +45,8 @@ class YahooDraftResultsSource:
                 YahooDraftPick(
                     player_id=str(raw["player_id"]),
                     team_key=str(raw["team_key"]),
-                    round=int(raw["round"]),  # type: ignore[arg-type]
-                    pick=int(raw["pick"]),  # type: ignore[arg-type]
+                    round=int(raw["round"]),
+                    pick=int(raw["pick"]),
                 )
             )
         logger.debug("Fetched %d draft picks from Yahoo", len(picks))

@@ -1,8 +1,11 @@
+from collections.abc import Sequence
+
+
 def weighted_rate(
     *,
-    stats: list[float],
-    opportunities: list[float],
-    weights: list[float],
+    stats: Sequence[float],
+    opportunities: Sequence[float],
+    weights: Sequence[float],
     league_rate: float,
     regression_pa: float,
 ) -> float:
