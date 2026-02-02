@@ -22,7 +22,7 @@ build-backend = "hatchling.build"
 packages = ["src/fantasy_baseball_manager"]
 
 [tool.ruff]
-src = ["src", "tests"]
+src = ["src", "tests", "scripts"]
 target-version = "py313"
 line-length = 120
 
@@ -41,7 +41,7 @@ select = [
 ignore = ["E501"]  # line length handled by black
 
 [tool.ruff.lint.isort]
-known-first-party = ["fantasy_baseball_manager"]
+known-first-party = ["fantasy_baseball_manager", "scripts"]
 
 [tool.black]
 line-length = 120
@@ -52,6 +52,7 @@ python-version = "3.13"
 root = ["src"]
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 testpaths = ["tests"]
 markers = ["integration: tests that hit external APIs (deselected by default)"]
 addopts = "-m 'not integration'"

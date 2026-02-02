@@ -1,4 +1,9 @@
-from collections.abc import Callable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from fantasy_baseball_manager.cache.factory import create_cache_store
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
@@ -22,6 +27,7 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
 )
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateComputer
+from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
@@ -60,10 +66,16 @@ def marcel_park_pipeline() -> ProjectionPipeline:
     )
 
 
-def marcel_statreg_pipeline() -> ProjectionPipeline:
+def marcel_statreg_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    cfg = config or RegressionConfig()
     return ProjectionPipeline(
         name="marcel_statreg",
-        rate_computer=StatSpecificRegressionRateComputer(),
+        rate_computer=StatSpecificRegressionRateComputer(
+            batting_regression=cfg.batting_regression_pa,
+            pitching_regression=cfg.pitching_regression_outs,
+        ),
         adjusters=(RebaselineAdjuster(), ComponentAgingAdjuster()),
         playing_time=MarcelPlayingTime(),
         finalizer=StandardFinalizer(),
@@ -71,10 +83,16 @@ def marcel_statreg_pipeline() -> ProjectionPipeline:
     )
 
 
-def marcel_plus_pipeline() -> ProjectionPipeline:
+def marcel_plus_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    cfg = config or RegressionConfig()
     return ProjectionPipeline(
         name="marcel_plus",
-        rate_computer=StatSpecificRegressionRateComputer(),
+        rate_computer=StatSpecificRegressionRateComputer(
+            batting_regression=cfg.batting_regression_pa,
+            pitching_regression=cfg.pitching_regression_outs,
+        ),
         adjusters=(
             ParkFactorAdjuster(_cached_park_factor_provider()),
             RebaselineAdjuster(),
@@ -86,12 +104,18 @@ def marcel_plus_pipeline() -> ProjectionPipeline:
     )
 
 
-def marcel_norm_pipeline() -> ProjectionPipeline:
+def marcel_norm_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    cfg = config or RegressionConfig()
     return ProjectionPipeline(
         name="marcel_norm",
-        rate_computer=StatSpecificRegressionRateComputer(),
+        rate_computer=StatSpecificRegressionRateComputer(
+            batting_regression=cfg.batting_regression_pa,
+            pitching_regression=cfg.pitching_regression_outs,
+        ),
         adjusters=(
-            PitcherNormalizationAdjuster(),
+            PitcherNormalizationAdjuster(cfg.pitcher_normalization),
             RebaselineAdjuster(),
             ComponentAgingAdjuster(),
         ),
@@ -101,13 +125,19 @@ def marcel_norm_pipeline() -> ProjectionPipeline:
     )
 
 
-def marcel_full_pipeline() -> ProjectionPipeline:
+def marcel_full_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    cfg = config or RegressionConfig()
     return ProjectionPipeline(
         name="marcel_full",
-        rate_computer=StatSpecificRegressionRateComputer(),
+        rate_computer=StatSpecificRegressionRateComputer(
+            batting_regression=cfg.batting_regression_pa,
+            pitching_regression=cfg.pitching_regression_outs,
+        ),
         adjusters=(
             ParkFactorAdjuster(_cached_park_factor_provider()),
-            PitcherNormalizationAdjuster(),
+            PitcherNormalizationAdjuster(cfg.pitcher_normalization),
             RebaselineAdjuster(),
             ComponentAgingAdjuster(),
         ),
@@ -137,3 +167,26 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_norm": marcel_norm_pipeline,
     "marcel_full": marcel_full_pipeline,
 }
+
+_CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
+    "marcel_statreg": marcel_statreg_pipeline,
+    "marcel_plus": marcel_plus_pipeline,
+    "marcel_norm": marcel_norm_pipeline,
+    "marcel_full": marcel_full_pipeline,
+}
+
+
+def build_pipeline(
+    name: str,
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Build a pipeline by name, optionally passing a RegressionConfig.
+
+    Pipelines that accept config (marcel_statreg, marcel_plus, marcel_norm,
+    marcel_full) will receive the given config.  Others ignore it.
+    """
+    if name in _CONFIGURABLE_FACTORIES:
+        return _CONFIGURABLE_FACTORIES[name](config)
+    if name in PIPELINES:
+        return PIPELINES[name]()
+    raise ValueError(f"Unknown pipeline: {name}")

@@ -3,6 +3,7 @@ import pytest
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
 from fantasy_baseball_manager.pipeline.presets import (
     PIPELINES,
+    build_pipeline,
     marcel_full_pipeline,
     marcel_norm_pipeline,
     marcel_park_pipeline,
@@ -12,6 +13,14 @@ from fantasy_baseball_manager.pipeline.presets import (
 )
 from fantasy_baseball_manager.pipeline.stages.component_aging import (
     ComponentAgingAdjuster,
+)
+from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
+    PitcherNormalizationAdjuster,
+    PitcherNormalizationConfig,
+)
+from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
+from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
+    StatSpecificRegressionRateComputer,
 )
 
 
@@ -129,3 +138,63 @@ class TestAllPresetsInRegistry:
         pipeline = PIPELINES[name]()
         aging_adjusters = [a for a in pipeline.adjusters if isinstance(a, ComponentAgingAdjuster)]
         assert len(aging_adjusters) == 1
+
+
+class TestConfigThreading:
+    """Verify that RegressionConfig threads through to pipeline components."""
+
+    def test_zero_arg_calls_produce_default_pipelines(self) -> None:
+        for factory in [marcel_statreg_pipeline, marcel_plus_pipeline, marcel_norm_pipeline, marcel_full_pipeline]:
+            pipeline = factory()
+            assert isinstance(pipeline, ProjectionPipeline)
+
+    @pytest.mark.parametrize(
+        "factory",
+        [marcel_statreg_pipeline, marcel_plus_pipeline, marcel_norm_pipeline, marcel_full_pipeline],
+    )
+    def test_custom_config_threads_to_rate_computer(
+        self,
+        factory: object,
+    ) -> None:
+        custom_batting = {"hr": 999.0}
+        config = RegressionConfig(batting_regression_pa=custom_batting)
+        pipeline = factory(config=config)  # type: ignore[operator]
+        assert isinstance(pipeline.rate_computer, StatSpecificRegressionRateComputer)
+        assert pipeline.rate_computer._batting_regression == custom_batting
+
+    @pytest.mark.parametrize("factory", [marcel_norm_pipeline, marcel_full_pipeline])
+    def test_custom_config_threads_to_normalization_adjuster(
+        self,
+        factory: object,
+    ) -> None:
+        norm = PitcherNormalizationConfig(babip_regression_weight=0.99)
+        config = RegressionConfig(pitcher_normalization=norm)
+        pipeline = factory(config=config)  # type: ignore[operator]
+        norm_adjusters = [a for a in pipeline.adjusters if isinstance(a, PitcherNormalizationAdjuster)]
+        assert len(norm_adjusters) == 1
+        assert norm_adjusters[0]._config.babip_regression_weight == 0.99
+
+
+class TestBuildPipeline:
+    @pytest.mark.parametrize("name", list(PIPELINES.keys()))
+    def test_dispatches_all_registered_pipelines(self, name: str) -> None:
+        pipeline = build_pipeline(name)
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == name
+
+    def test_passes_config_to_configurable_pipeline(self) -> None:
+        custom = {"hr": 123.0}
+        config = RegressionConfig(batting_regression_pa=custom)
+        pipeline = build_pipeline("marcel_norm", config=config)
+        assert isinstance(pipeline.rate_computer, StatSpecificRegressionRateComputer)
+        assert pipeline.rate_computer._batting_regression == custom
+
+    def test_ignores_config_for_non_configurable_pipeline(self) -> None:
+        config = RegressionConfig(batting_regression_pa={"hr": 123.0})
+        pipeline = build_pipeline("marcel", config=config)
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "marcel"
+
+    def test_raises_for_unknown_pipeline(self) -> None:
+        with pytest.raises(ValueError, match="Unknown pipeline"):
+            build_pipeline("nonexistent")
