@@ -48,7 +48,7 @@ _DEFAULTS: dict[str, object] = {
         "season": 2025,
         "is_keeper": False,
         "team_count": 12,
-        "scoring_style": "h2h_categories",
+        "scoring_style": "h2h_each_category",
         "batting_categories": ["HR", "SB", "OBP"],
         "pitching_categories": ["K", "ERA", "WHIP"],
     },

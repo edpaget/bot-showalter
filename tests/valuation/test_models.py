@@ -30,12 +30,12 @@ class TestStatCategory:
 
 class TestScoringStyle:
     def test_values(self) -> None:
-        assert ScoringStyle.H2H_CATEGORIES.value == "h2h_categories"
+        assert ScoringStyle.H2H_EACH_CATEGORY.value == "h2h_each_category"
         assert ScoringStyle.ROTO.value == "roto"
         assert ScoringStyle.H2H_POINTS.value == "h2h_points"
 
     def test_from_string(self) -> None:
-        assert ScoringStyle("h2h_categories") is ScoringStyle.H2H_CATEGORIES
+        assert ScoringStyle("h2h_each_category") is ScoringStyle.H2H_EACH_CATEGORY
         assert ScoringStyle("roto") is ScoringStyle.ROTO
         assert ScoringStyle("h2h_points") is ScoringStyle.H2H_POINTS
 
@@ -61,7 +61,7 @@ class TestLeagueSettings:
             batting_categories=(StatCategory.HR,),
             pitching_categories=(StatCategory.K,),
         )
-        assert settings.scoring_style is ScoringStyle.H2H_CATEGORIES
+        assert settings.scoring_style is ScoringStyle.H2H_EACH_CATEGORY
 
     def test_scoring_style_explicit(self) -> None:
         settings = LeagueSettings(

@@ -102,7 +102,7 @@ class TestLoadLeagueSettings:
     def test_defaults(self) -> None:
         settings = load_league_settings(create_config(yaml_path="/nonexistent/config.yaml"))
         assert settings.team_count == 12
-        assert settings.scoring_style is ScoringStyle.H2H_CATEGORIES
+        assert settings.scoring_style is ScoringStyle.H2H_EACH_CATEGORY
         assert settings.batting_categories == (StatCategory.HR, StatCategory.SB, StatCategory.OBP)
         assert settings.pitching_categories == (StatCategory.K, StatCategory.ERA, StatCategory.WHIP)
 
@@ -137,4 +137,4 @@ class TestLoadLeagueSettings:
     def test_creates_config_when_none_passed(self) -> None:
         settings = load_league_settings()
         assert settings.team_count == 12
-        assert settings.scoring_style is ScoringStyle.H2H_CATEGORIES
+        assert settings.scoring_style is ScoringStyle.H2H_EACH_CATEGORY

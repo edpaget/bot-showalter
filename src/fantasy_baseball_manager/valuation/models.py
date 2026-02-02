@@ -16,7 +16,8 @@ class StatCategory(Enum):
 
 
 class ScoringStyle(Enum):
-    H2H_CATEGORIES = "h2h_categories"
+    H2H_EACH_CATEGORY = "h2h_each_category"
+    H2H_MOST_CATEGORIES = "h2h_most_categories"
     ROTO = "roto"
     H2H_POINTS = "h2h_points"
 
@@ -26,7 +27,7 @@ class LeagueSettings:
     team_count: int
     batting_categories: tuple[StatCategory, ...]
     pitching_categories: tuple[StatCategory, ...]
-    scoring_style: ScoringStyle = ScoringStyle.H2H_CATEGORIES
+    scoring_style: ScoringStyle = ScoringStyle.H2H_EACH_CATEGORY
 
 
 @dataclass(frozen=True)
