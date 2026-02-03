@@ -91,17 +91,40 @@ def marcel_gb_pipeline(
     )
 
 
+def marcel_full_gb_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Kitchen-sink pipeline with GB residual corrections.
+
+    Combines all marcel_full adjusters with gradient boosting residual
+    predictions for maximum accuracy.
+    """
+    cfg = config or RegressionConfig()
+    return (
+        PipelineBuilder("marcel_full_gb", config=cfg)
+        .with_park_factors()
+        .with_pitcher_normalization()
+        .with_pitcher_statcast()
+        .with_statcast()
+        .with_batter_babip()
+        .with_gb_residual()
+        .build()
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
+    "marcel_full_gb": marcel_full_gb_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
+    "marcel_full_gb": marcel_full_gb_pipeline,
 }
 
 
