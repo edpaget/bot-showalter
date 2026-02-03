@@ -315,7 +315,7 @@ def draft_rank(
         clear_cli_overrides()
 
 
-def _build_projections_and_positions(
+def build_projections_and_positions(
     engine: str,
     year: int,
 ) -> tuple[list[PlayerValue], dict[tuple[str, str], tuple[str, ...]]]:
@@ -454,7 +454,7 @@ def draft_simulate(
 
     # Build projections
     typer.echo(f"Generating projections for {year} using {engine}...")
-    all_values, composite_positions = _build_projections_and_positions(engine, year)
+    all_values, composite_positions = build_projections_and_positions(engine, year)
     typer.echo(f"Running {teams}-team, {rounds}-round snake draft simulation...")
 
     result = simulate_draft(sim_config, all_values, composite_positions)
