@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.statcast_data import (
@@ -126,7 +126,7 @@ class BatterBabipAdjuster:
         new_rates = dict(rates)
         new_rates["singles"] = new_singles
 
-        metadata = dict(player.metadata)
+        metadata: PlayerMetadata = {**player.metadata}
         metadata["x_babip"] = x_babip
         metadata["observed_batter_babip"] = observed_babip
         metadata["babip_singles_adjustment"] = singles_adjustment

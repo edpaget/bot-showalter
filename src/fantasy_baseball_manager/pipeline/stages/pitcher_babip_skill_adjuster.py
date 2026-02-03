@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.batted_ball_data import (
@@ -104,7 +104,7 @@ class PitcherBabipSkillAdjuster:
         x_babip = max(cfg.min_babip, min(cfg.max_babip, x_babip))
 
         # Blend with normalization's expected BABIP
-        expected_babip = float(player.metadata["expected_babip"])  # type: ignore[arg-type]
+        expected_babip = player.metadata["expected_babip"]
         w = cfg.blend_weight
         new_babip = w * x_babip + (1.0 - w) * expected_babip
 
@@ -119,14 +119,14 @@ class PitcherBabipSkillAdjuster:
         h_new = rates["h"] if abs(denom) < 1e-9 else (hr + new_babip * (1.0 - hr - so)) / denom
 
         # Recompute ER from new H rate + LOB% from metadata
-        expected_lob = float(player.metadata.get("expected_lob_pct", 0.73))  # type: ignore[arg-type]
+        expected_lob = player.metadata.get("expected_lob_pct", 0.73)
         baserunners = h_new - hr + bb + hbp
         er_new = baserunners * (1.0 - expected_lob) + hr
 
         rates["h"] = h_new
         rates["er"] = er_new
 
-        metadata = dict(player.metadata)
+        metadata: PlayerMetadata = {**player.metadata}
         metadata["pitcher_x_babip"] = x_babip
         metadata["pitcher_gb_pct"] = bb_stats.gb_pct
         metadata["pitcher_babip_skill_blended"] = new_babip

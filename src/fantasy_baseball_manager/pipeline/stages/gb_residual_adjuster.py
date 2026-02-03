@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.ml.features import BatterFeatureExtractor, PitcherFeatureExtractor
 from fantasy_baseball_manager.ml.persistence import ModelStore
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.ml.residual_model import ResidualModelSet
@@ -159,7 +159,7 @@ class GBResidualAdjuster:
 
         # Convert residuals to rate adjustments and apply
         rates = dict(player.rates)
-        metadata = dict(player.metadata)
+        metadata: PlayerMetadata = {**player.metadata}
         opportunities = player.opportunities
 
         if opportunities > 0:
@@ -213,7 +213,7 @@ class GBResidualAdjuster:
 
         # Convert residuals to rate adjustments and apply
         rates = dict(player.rates)
-        metadata = dict(player.metadata)
+        metadata: PlayerMetadata = {**player.metadata}
         opportunities = player.opportunities  # outs for pitchers
 
         if opportunities > 0:

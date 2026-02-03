@@ -114,7 +114,7 @@ class TestAllPresetsInRegistry:
         assert len(aging_adjusters) == 1
 
     def test_registry_has_expected_entries(self) -> None:
-        assert len(PIPELINES) == 4
+        assert len(PIPELINES) == 5
 
 
 class TestConfigThreading:

@@ -15,8 +15,8 @@ class RebaselineAdjuster:
 
             new_rates = rebaseline(
                 p.rates,
-                avg_league_rates,  # type: ignore[arg-type]
-                target_rates,  # type: ignore[arg-type]
+                avg_league_rates,
+                target_rates,
             )
             result.append(
                 PlayerRates(

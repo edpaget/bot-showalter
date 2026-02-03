@@ -11,14 +11,16 @@ class MarcelPlayingTime:
 
             if pa_per_year is not None:
                 opps = projected_pa(
-                    pa_y1=pa_per_year[0],  # type: ignore[index]
-                    pa_y2=pa_per_year[1] if len(pa_per_year) > 1 else 0,  # type: ignore[arg-type]
+                    pa_y1=pa_per_year[0],
+                    pa_y2=pa_per_year[1] if len(pa_per_year) > 1 else 0,
                 )
             elif ip_per_year is not None:
-                is_starter: bool = p.metadata.get("is_starter", True)  # type: ignore[assignment]
+                is_starter = p.metadata.get("is_starter", True)
+                # Handle single float value (convert to list for consistency)
+                ip_list = [ip_per_year] if isinstance(ip_per_year, (int, float)) else ip_per_year
                 proj_ip = projected_ip(
-                    ip_y1=ip_per_year[0],  # type: ignore[index]
-                    ip_y2=ip_per_year[1] if len(ip_per_year) > 1 else 0,  # type: ignore[arg-type]
+                    ip_y1=ip_list[0],
+                    ip_y2=ip_list[1] if len(ip_list) > 1 else 0,
                     is_starter=is_starter,
                 )
                 opps = proj_ip * 3  # convert to outs for rate multiplication

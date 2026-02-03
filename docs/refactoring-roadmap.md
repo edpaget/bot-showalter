@@ -37,26 +37,19 @@ All CLI modules now use the container pattern. Tests use `set_container(ServiceC
 
 ### 3. Type-Safe Metadata in Pipeline
 
-**Status:** Not started
+**Status:** ✅ Completed
 
-**Problem:** `PlayerRates.metadata` is typed as `dict[str, object]`, requiring unsafe `cast()` calls:
+**Problem:** `PlayerRates.metadata` was typed as `dict[str, object]`, requiring unsafe `cast()` calls.
 
-```python
-cast("list[float]", player.metadata.get("pa_per_year"))
-cast("list[float] | None", player.metadata.get("games_per_year"))
-```
+**Solution implemented:** Created `PlayerMetadata` TypedDict in `src/pipeline/types.py` with all known metadata fields:
+- Input metadata (pa_per_year, ip_per_year, is_starter, position, team, etc.)
+- Platoon split metadata (rates_vs_lhp, rates_vs_rhp, pct_vs_lhp, pct_vs_rhp)
+- Enhanced playing time metadata (injury_factor, age_pt_factor, volatility_factor, base_pa, base_ip)
+- Pitcher normalization metadata (observed_babip, expected_babip, expected_lob_pct)
+- Statcast adjuster metadata (statcast_blended, statcast_xwoba, pitcher_xera, etc.)
+- GB residual adjuster metadata (gb_residual_adjustments)
 
-**Affected files:**
-- `src/pipeline/stages/enhanced_playing_time.py`
-- `src/pipeline/stages/adjusters.py`
-- Various other pipeline stages
-
-**Issues:**
-- No compile-time safety for metadata keys
-- Easy to misspell keys or use wrong types
-- Requires runtime checks and casts
-
-**Solution:** Replace with a `TypedDict` or dataclass for `PlayerRatesMetadata`.
+**Result:** Removed cast() calls and type: ignore comments from pipeline stages. IDE autocompletion and type checking now work for metadata access.
 
 ---
 
@@ -209,7 +202,7 @@ Each defines column specs with lambdas for data extraction and formatting.
 | Total test files | 101 |
 | Largest file | `keeper/cli.py` (512 lines) |
 | Global state locations | 1 (services/container.py) + config.py |
-| Files with `type: ignore` | 14 |
+| Files with `type: ignore` | 8 (reduced from 14) |
 | Duplicated cache wrappers | ✅ Consolidated |
 | CLI modules needing split | 3 |
 
@@ -217,3 +210,4 @@ Each defines column specs with lambdas for data extraction and formatting.
 
 1. ✅ **Replace Global Factory Pattern with Dependency Container** — `ServiceContainer` now manages all CLI dependencies centrally
 2. ✅ **Consolidate Cache Wrapper Classes** — Extracted `_cached_fetch()` helper, reducing duplication in cache/sources.py
+3. ✅ **Type-Safe Metadata in Pipeline** — Created `PlayerMetadata` TypedDict with all known fields, eliminating cast() calls

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 from fantasy_baseball_manager.marcel.weights import projected_ip, projected_pa
 from fantasy_baseball_manager.pipeline.stages.playing_time_config import (
     PlayingTimeConfig,
 )
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 
 class EnhancedPlayingTimeProjector:
@@ -31,12 +29,14 @@ class EnhancedPlayingTimeProjector:
             if pa_per_year is not None:
                 opps, pt_metadata = self._project_batter(p, pa_per_year)
             elif ip_per_year is not None:
-                opps, pt_metadata = self._project_pitcher(p, ip_per_year)
+                # Handle single float value (convert to list for consistency)
+                ip_list = [ip_per_year] if isinstance(ip_per_year, (int, float)) else ip_per_year
+                opps, pt_metadata = self._project_pitcher(p, ip_list)
             else:
                 opps = p.opportunities
-                pt_metadata = {}
+                pt_metadata: PlayerMetadata = {}
 
-            merged_metadata = {**p.metadata, **pt_metadata}
+            merged_metadata: PlayerMetadata = {**p.metadata, **pt_metadata}
 
             result.append(
                 PlayerRates(
@@ -54,40 +54,36 @@ class EnhancedPlayingTimeProjector:
     def _project_batter(
         self,
         player: PlayerRates,
-        pa_per_year: object,
-    ) -> tuple[float, dict[str, object]]:
+        pa_per_year: list[float],
+    ) -> tuple[float, PlayerMetadata]:
         """Project batter playing time with adjustments."""
         cfg = self._config
-        pa_list = cast("list[float]", pa_per_year)
 
         # Base Marcel projection
         base_pa = projected_pa(
-            pa_y1=pa_list[0],
-            pa_y2=pa_list[1] if len(pa_list) > 1 else 0,
+            pa_y1=pa_per_year[0],
+            pa_y2=pa_per_year[1] if len(pa_per_year) > 1 else 0,
         )
 
         # Calculate factors
-        games_per_year = cast(
-            "list[float] | None", player.metadata.get("games_per_year")
-        )
-        injury_factor = self._compute_injury_factor_batter(pa_list, games_per_year)
+        games_per_year = player.metadata.get("games_per_year")
+        injury_factor = self._compute_injury_factor_batter(pa_per_year, games_per_year)
         age_factor = self._compute_age_factor(player.age)
-        volatility_factor = self._compute_volatility_factor(pa_list)
+        volatility_factor = self._compute_volatility_factor(pa_per_year)
 
         # Apply factors
         projected_pa_adj = base_pa * injury_factor * age_factor * volatility_factor
 
         # Apply role cap
-        position = cast("str | None", player.metadata.get("position"))
+        position = player.metadata.get("position")
         cap = cfg.catcher_pa_cap if position == "C" else cfg.batter_pa_cap
         projected_pa_final = min(projected_pa_adj, cap)
 
-        pt_metadata: dict[str, object] = {
+        pt_metadata: PlayerMetadata = {
             "injury_factor": injury_factor,
             "age_pt_factor": age_factor,
             "volatility_factor": volatility_factor,
             "base_pa": base_pa,
-            "projected_pa_before_cap": projected_pa_adj,
         }
 
         return projected_pa_final, pt_metadata
@@ -95,29 +91,26 @@ class EnhancedPlayingTimeProjector:
     def _project_pitcher(
         self,
         player: PlayerRates,
-        ip_per_year: object,
-    ) -> tuple[float, dict[str, object]]:
+        ip_per_year: list[float],
+    ) -> tuple[float, PlayerMetadata]:
         """Project pitcher playing time with adjustments."""
         cfg = self._config
-        ip_list = cast("list[float]", ip_per_year)
-        is_starter: bool = cast("bool", player.metadata.get("is_starter", True))
+        is_starter = player.metadata.get("is_starter", True)
 
         # Base Marcel projection
         base_ip = projected_ip(
-            ip_y1=ip_list[0],
-            ip_y2=ip_list[1] if len(ip_list) > 1 else 0,
+            ip_y1=ip_per_year[0],
+            ip_y2=ip_per_year[1] if len(ip_per_year) > 1 else 0,
             is_starter=is_starter,
         )
 
         # Calculate factors
-        games_per_year = cast(
-            "list[float] | None", player.metadata.get("games_per_year")
-        )
+        games_per_year = player.metadata.get("games_per_year")
         injury_factor = self._compute_injury_factor_pitcher(
-            ip_list, games_per_year, is_starter
+            ip_per_year, games_per_year, is_starter
         )
         age_factor = self._compute_age_factor(player.age)
-        volatility_factor = self._compute_volatility_factor(ip_list)
+        volatility_factor = self._compute_volatility_factor(ip_per_year)
 
         # Apply factors
         projected_ip_adj = base_ip * injury_factor * age_factor * volatility_factor
@@ -129,12 +122,11 @@ class EnhancedPlayingTimeProjector:
         # Convert to outs for rate multiplication
         opps = projected_ip_final * 3
 
-        pt_metadata: dict[str, object] = {
+        pt_metadata: PlayerMetadata = {
             "injury_factor": injury_factor,
             "age_pt_factor": age_factor,
             "volatility_factor": volatility_factor,
             "base_ip": base_ip,
-            "projected_ip_before_cap": projected_ip_adj,
         }
 
         return opps, pt_metadata

@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.statcast_data import (
@@ -89,7 +89,7 @@ class StatcastRateAdjuster:
             statcast_val = sc_rates.get(stat, marcel_val)
             rates[stat] = w * statcast_val + (1.0 - w) * marcel_val
 
-        metadata = dict(player.metadata)
+        metadata: PlayerMetadata = {**player.metadata}
         metadata["statcast_blended"] = True
         metadata["statcast_xwoba"] = statcast.xwoba
         metadata["blend_weight_used"] = w

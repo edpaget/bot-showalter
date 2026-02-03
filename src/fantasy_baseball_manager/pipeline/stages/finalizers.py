@@ -56,13 +56,15 @@ class StandardFinalizer:
             proj_outs = p.opportunities  # for pitching, opportunities = outs
             projected_stats = {stat: rate * proj_outs for stat, rate in p.rates.items()}
 
-            is_starter: bool = p.metadata.get("is_starter", True)  # type: ignore[assignment]
-            ip_per_year: list[float] | None = p.metadata.get("ip_per_year")  # type: ignore[assignment]
+            is_starter = p.metadata.get("is_starter", True)
+            ip_per_year = p.metadata.get("ip_per_year")
 
             if ip_per_year is not None:
+                # Handle single float value (convert to list for consistency)
+                ip_list = [ip_per_year] if isinstance(ip_per_year, (int, float)) else ip_per_year
                 proj_ip = projected_ip(
-                    ip_y1=ip_per_year[0],
-                    ip_y2=ip_per_year[1] if len(ip_per_year) > 1 else 0,
+                    ip_y1=ip_list[0],
+                    ip_y2=ip_list[1] if len(ip_list) > 1 else 0,
                     is_starter=is_starter,
                 )
             else:

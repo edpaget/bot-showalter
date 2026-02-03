@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 _REQUIRED_RATE_KEYS = {"h", "hr", "so", "er"}
 
@@ -123,7 +123,7 @@ class PitcherNormalizationAdjuster:
         if er_new is not None:
             new_rates["er"] = er_new
 
-        new_metadata = dict(p.metadata)
+        new_metadata: PlayerMetadata = {**p.metadata}
         new_metadata["observed_babip"] = observed_babip
         new_metadata["expected_babip"] = expected_babip
         new_metadata["expected_lob_pct"] = expected_lob
