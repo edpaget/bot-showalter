@@ -18,10 +18,10 @@ from fantasy_baseball_manager.config import (
 )
 from fantasy_baseball_manager.draft.cli import build_projections_and_positions
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
-from fantasy_baseball_manager.keeper.models import KeeperCandidate
+from fantasy_baseball_manager.keeper.models import KeeperCandidate, TeamKeeperResult
 from fantasy_baseball_manager.keeper.replacement import DraftPoolReplacementCalculator
 from fantasy_baseball_manager.keeper.surplus import SurplusCalculator
-from fantasy_baseball_manager.keeper.yahoo_source import YahooKeeperSource
+from fantasy_baseball_manager.keeper.yahoo_source import LeagueKeeperData, YahooKeeperSource
 from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
@@ -121,8 +121,15 @@ def _build_candidates(
     all_player_values: list[PlayerValue],
     player_positions: dict[tuple[str, str], tuple[str, ...]],
     yahoo_positions: dict[str, tuple[str, ...]] | None = None,
+    *,
+    strict: bool = True,
 ) -> list[KeeperCandidate]:
-    """Build KeeperCandidate list from IDs, matching against player values and positions."""
+    """Build KeeperCandidate list from IDs, matching against player values and positions.
+
+    When *strict* is True (default), unknown IDs cause an error exit.
+    When False, unknown IDs are silently skipped (useful for league-wide processing
+    where some rostered players may lack projections).
+    """
     pv_by_id: dict[str, PlayerValue] = {}
     for pv in all_player_values:
         # Keep the highest-value entry per player_id (a player may appear as both B and P)
@@ -133,8 +140,10 @@ def _build_candidates(
     for cid in candidate_ids:
         pv = pv_by_id.get(cid)
         if pv is None:
-            typer.echo(f"Unknown candidate ID: {cid}", err=True)
-            raise typer.Exit(code=1)
+            if strict:
+                typer.echo(f"Unknown candidate ID: {cid}", err=True)
+                raise typer.Exit(code=1)
+            continue
 
         if yahoo_positions is not None and cid in yahoo_positions:
             eligible = yahoo_positions[cid]
@@ -319,6 +328,135 @@ def keeper_optimize(
     lines.append("All Candidates:")
     lines.append("")
     _append_table_rows(lines, list(result.all_candidates))
+
+    typer.echo("\n".join(lines))
+
+
+def _resolve_league_inputs(
+    no_cache: bool,
+    league_id: str | None,
+    season: int | None,
+    teams: int,
+) -> tuple[LeagueKeeperData, int]:
+    """Fetch league-wide keeper data from Yahoo rosters.
+
+    Returns (league_keeper_data, num_teams).
+    """
+    apply_cli_overrides(league_id, season)
+    try:
+        roster_source, _league = _get_roster_source_and_league(no_cache=no_cache)
+        id_mapper = _get_id_mapper(no_cache=no_cache)
+
+        yahoo_source = YahooKeeperSource(
+            roster_source=roster_source,
+            id_mapper=id_mapper,
+            user_team_key="",  # not used by fetch_league_keeper_data
+        )
+        league_data = yahoo_source.fetch_league_keeper_data()
+
+        if league_data.unmapped_yahoo_ids:
+            typer.echo(
+                f"Warning: {len(league_data.unmapped_yahoo_ids)} player(s) could not be mapped "
+                f"to FanGraphs IDs: {', '.join(league_data.unmapped_yahoo_ids)}",
+                err=True,
+            )
+
+        rosters = roster_source.fetch_rosters()
+        num_teams = len(rosters.teams) if teams == 12 else teams
+
+        return league_data, num_teams
+    finally:
+        clear_cli_overrides()
+
+
+@keeper_app.command(name="league")
+def keeper_league(
+    year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
+    draft_order: Annotated[
+        str | None, typer.Option("--draft-order", help="Comma-separated team keys defining pick order.")
+    ] = None,
+    teams: Annotated[int, typer.Option("--teams", help="Number of teams in the league.")] = 12,
+    keeper_slots: Annotated[int, typer.Option("--keeper-slots", help="Number of keeper slots.")] = 4,
+    engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")
+    ] = False,
+    league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
+) -> None:
+    """Compute optimal keepers for every team in the league."""
+    validate_engine(engine)
+
+    if year is None:
+        year = datetime.now().year
+
+    league_data, num_teams = _resolve_league_inputs(
+        no_cache, league_id, season, teams,
+    )
+
+    typer.echo(f"Generating projections for {year} using {engine}...")
+    all_values, composite_positions = build_projections_and_positions(engine, year)
+
+    # Build draft order mapping: team_key -> pick position (1-based)
+    team_pick_order: dict[str, int] = {}
+    if draft_order:
+        order_keys = [k.strip() for k in draft_order.split(",") if k.strip()]
+        for i, key in enumerate(order_keys, start=1):
+            team_pick_order[key] = i
+    else:
+        for i, team_info in enumerate(league_data.teams, start=1):
+            team_pick_order[team_info.team_key] = i
+
+    results: list[TeamKeeperResult] = []
+    for team_info in league_data.teams:
+        # Build candidates for this team
+        candidate_ids = list(team_info.candidate_ids)
+        yahoo_positions = dict(team_info.candidate_positions)
+
+        # Skip teams with no candidates
+        if not candidate_ids:
+            continue
+
+        # Collect all other teams' player IDs as other_keepers
+        other_keepers: set[str] = set()
+        for other_team in league_data.teams:
+            if other_team.team_key != team_info.team_key:
+                other_keepers.update(other_team.candidate_ids)
+
+        candidate_list = _build_candidates(
+            candidate_ids, all_values, composite_positions, yahoo_positions, strict=False,
+        )
+
+        # Skip teams where no candidates had projections
+        if not candidate_list:
+            continue
+
+        pick_position = team_pick_order.get(team_info.team_key, 1)
+        calc = DraftPoolReplacementCalculator(user_pick_position=pick_position)
+        surplus_calc = SurplusCalculator(calc, num_teams=num_teams, num_keeper_slots=keeper_slots)
+        recommendation = surplus_calc.find_optimal_keepers(candidate_list, all_values, other_keepers)
+
+        results.append(
+            TeamKeeperResult(
+                team_key=team_info.team_key,
+                team_name=team_info.team_name,
+                recommendation=recommendation,
+            )
+        )
+
+    # Display results
+    lines: list[str] = []
+    for team_result in results:
+        pick = team_pick_order.get(team_result.team_key, 0)
+        rec = team_result.recommendation
+        lines.append("")
+        lines.append(
+            f"=== {team_result.team_name} (Pick #{pick}) "
+            f"— Total Surplus: {rec.total_surplus:.1f} ==="
+        )
+        lines.append("")
+        _append_table_rows(lines, list(rec.keepers))
+        lines.append("")
 
     typer.echo("\n".join(lines))
 

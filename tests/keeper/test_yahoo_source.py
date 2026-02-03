@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from fantasy_baseball_manager.keeper.yahoo_source import YahooKeeperData, YahooKeeperSource
+from fantasy_baseball_manager.keeper.yahoo_source import (
+    LeagueKeeperData,
+    TeamKeeperInfo,
+    YahooKeeperData,
+    YahooKeeperSource,
+)
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
 
 
@@ -167,6 +172,125 @@ class TestYahooKeeperSource:
 
         assert len(data.user_candidate_ids) == 0
         assert "999" in data.unmapped_yahoo_ids
+
+
+class TestFetchLeagueKeeperData:
+    def test_returns_all_teams(self) -> None:
+        rosters = _make_rosters()
+        mapper = FakeIdMapper(_make_id_mapping())
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(rosters),
+            id_mapper=mapper,
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_league_keeper_data()
+
+        assert len(data.teams) == 3
+
+    def test_maps_candidate_ids_per_team(self) -> None:
+        rosters = _make_rosters()
+        mapper = FakeIdMapper(_make_id_mapping())
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(rosters),
+            id_mapper=mapper,
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_league_keeper_data()
+
+        teams_by_key = {t.team_key: t for t in data.teams}
+        user_team = teams_by_key["422.l.12345.t.1"]
+        assert set(user_team.candidate_ids) == {"fg100", "fg101", "fg102"}
+
+        other_team_1 = teams_by_key["422.l.12345.t.2"]
+        assert set(other_team_1.candidate_ids) == {"fg200", "fg201"}
+
+    def test_preserves_team_names(self) -> None:
+        rosters = _make_rosters()
+        mapper = FakeIdMapper(_make_id_mapping())
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(rosters),
+            id_mapper=mapper,
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_league_keeper_data()
+
+        names = {t.team_name for t in data.teams}
+        assert names == {"My Team", "Other Team 1", "Other Team 2"}
+
+    def test_carries_positions_per_team(self) -> None:
+        rosters = _make_rosters()
+        mapper = FakeIdMapper(_make_id_mapping())
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(rosters),
+            id_mapper=mapper,
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_league_keeper_data()
+
+        teams_by_key = {t.team_key: t for t in data.teams}
+        user_team = teams_by_key["422.l.12345.t.1"]
+        assert user_team.candidate_positions["fg100"] == ("1B", "DH")
+
+    def test_tracks_unmapped_ids(self) -> None:
+        rosters = _make_rosters()
+        mapper = FakeIdMapper(_make_id_mapping())  # 300 is unmapped
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(rosters),
+            id_mapper=mapper,
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_league_keeper_data()
+
+        assert "300" in data.unmapped_yahoo_ids
+
+    def test_team_with_no_mappable_players(self) -> None:
+        rosters = LeagueRosters(
+            league_key="422.l.12345",
+            teams=(
+                TeamRoster(
+                    team_key="422.l.12345.t.1",
+                    team_name="Empty Team",
+                    players=(
+                        _make_player("999", "Unknown", "B", ("OF",)),
+                    ),
+                ),
+            ),
+        )
+        mapper = FakeIdMapper({})
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(rosters),
+            id_mapper=mapper,
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_league_keeper_data()
+
+        assert len(data.teams) == 1
+        assert data.teams[0].candidate_ids == ()
+        assert "999" in data.unmapped_yahoo_ids
+
+
+class TestTeamKeeperInfoFrozen:
+    def test_is_frozen(self) -> None:
+        info = TeamKeeperInfo(
+            team_key="t.1",
+            team_name="Team A",
+            candidate_ids=("fg1",),
+            candidate_positions={"fg1": ("1B",)},
+        )
+        assert info.team_key == "t.1"
+        assert info.candidate_ids == ("fg1",)
+
+
+class TestLeagueKeeperDataFrozen:
+    def test_is_frozen(self) -> None:
+        info = TeamKeeperInfo(
+            team_key="t.1",
+            team_name="Team A",
+            candidate_ids=("fg1",),
+            candidate_positions={"fg1": ("1B",)},
+        )
+        data = LeagueKeeperData(teams=(info,), unmapped_yahoo_ids=())
+        assert len(data.teams) == 1
 
 
 class TestYahooKeeperDataFrozen:

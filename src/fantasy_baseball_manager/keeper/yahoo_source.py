@@ -9,6 +9,20 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class TeamKeeperInfo:
+    team_key: str
+    team_name: str
+    candidate_ids: tuple[str, ...]
+    candidate_positions: dict[str, tuple[str, ...]]
+
+
+@dataclass(frozen=True)
+class LeagueKeeperData:
+    teams: tuple[TeamKeeperInfo, ...]
+    unmapped_yahoo_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class YahooKeeperData:
     user_candidate_ids: tuple[str, ...]
     user_candidate_positions: dict[str, tuple[str, ...]]
@@ -69,5 +83,38 @@ class YahooKeeperSource:
             user_candidate_ids=tuple(candidate_ids),
             user_candidate_positions=candidate_positions,
             other_keeper_ids=frozenset(other_keeper_ids),
+            unmapped_yahoo_ids=tuple(unmapped),
+        )
+
+    def fetch_league_keeper_data(self) -> LeagueKeeperData:
+        """Fetch keeper candidate data for all teams in the league."""
+        rosters = self._roster_source.fetch_rosters()
+
+        unmapped: list[str] = []
+        team_infos: list[TeamKeeperInfo] = []
+
+        for team in rosters.teams:
+            candidate_ids: list[str] = []
+            candidate_positions: dict[str, tuple[str, ...]] = {}
+
+            for player in team.players:
+                fg_id = self._id_mapper.yahoo_to_fangraphs(player.yahoo_id)
+                if fg_id is None:
+                    unmapped.append(player.yahoo_id)
+                else:
+                    candidate_ids.append(fg_id)
+                    candidate_positions[fg_id] = player.eligible_positions
+
+            team_infos.append(
+                TeamKeeperInfo(
+                    team_key=team.team_key,
+                    team_name=team.team_name,
+                    candidate_ids=tuple(candidate_ids),
+                    candidate_positions=candidate_positions,
+                )
+            )
+
+        return LeagueKeeperData(
+            teams=tuple(team_infos),
             unmapped_yahoo_ids=tuple(unmapped),
         )

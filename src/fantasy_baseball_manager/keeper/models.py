@@ -38,3 +38,10 @@ class KeeperRecommendation:
     keepers: tuple[KeeperSurplus, ...]
     total_surplus: float
     all_candidates: tuple[KeeperSurplus, ...]
+
+
+@dataclass(frozen=True)
+class TeamKeeperResult:
+    team_key: str
+    team_name: str
+    recommendation: KeeperRecommendation

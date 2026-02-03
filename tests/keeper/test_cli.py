@@ -493,3 +493,162 @@ class TestKeeperOptimizeYahoo:
         assert "Optimal Keepers" in result.output
         # Only b1 and b3 should be candidates
         assert "Speedy Smith" not in result.output or "All Candidates" in result.output
+
+
+# --- League command tests ---
+
+
+def _make_league_rosters() -> LeagueRosters:
+    """Build a 3-team league where Yahoo IDs map to FakeDataSource player IDs."""
+    team_1 = TeamRoster(
+        team_key="422.l.123.t.1",
+        team_name="Alpha Team",
+        players=(
+            RosterPlayer(yahoo_id="Y100", name="Slugger Jones", position_type="B", eligible_positions=("1B", "DH")),
+            RosterPlayer(yahoo_id="Y101", name="Speedy Smith", position_type="B", eligible_positions=("OF",)),
+        ),
+    )
+    team_2 = TeamRoster(
+        team_key="422.l.123.t.2",
+        team_name="Beta Team",
+        players=(
+            RosterPlayer(yahoo_id="Y102", name="Average Andy", position_type="B", eligible_positions=("2B", "SS")),
+            RosterPlayer(yahoo_id="Y103", name="Power Pete", position_type="B", eligible_positions=("OF",)),
+        ),
+    )
+    team_3 = TeamRoster(
+        team_key="422.l.123.t.3",
+        team_name="Gamma Team",
+        players=(
+            RosterPlayer(yahoo_id="Y104", name="Contact Carl", position_type="B", eligible_positions=("3B",)),
+            RosterPlayer(yahoo_id="Y105", name="Ace Adams", position_type="P", eligible_positions=("SP",)),
+        ),
+    )
+    return LeagueRosters(league_key="422.l.123", teams=(team_1, team_2, team_3))
+
+
+def _league_id_mapping() -> dict[str, str]:
+    return {
+        "Y100": "b1",  # Slugger Jones
+        "Y101": "b2",  # Speedy Smith
+        "Y102": "b3",  # Average Andy
+        "Y103": "b4",  # Power Pete
+        "Y104": "b5",  # Contact Carl
+        "Y105": "p1",  # Ace Adams
+    }
+
+
+def _install_league_fakes() -> None:
+    _install_fake()
+    rosters = _make_league_rosters()
+    mapping = _league_id_mapping()
+    set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
+    set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
+    set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+
+
+class TestKeeperLeagueCommand:
+    def test_league_shows_all_teams(self) -> None:
+        _install_league_fakes()
+        result = runner.invoke(
+            app,
+            ["keeper", "league", "2025", "--keeper-slots", "1"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Alpha Team" in result.output
+        assert "Beta Team" in result.output
+        assert "Gamma Team" in result.output
+
+    def test_league_shows_surplus_per_team(self) -> None:
+        _install_league_fakes()
+        result = runner.invoke(
+            app,
+            ["keeper", "league", "2025", "--keeper-slots", "1"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Total Surplus" in result.output
+
+    def test_league_shows_keeper_table(self) -> None:
+        _install_league_fakes()
+        result = runner.invoke(
+            app,
+            ["keeper", "league", "2025", "--keeper-slots", "1"],
+        )
+        assert result.exit_code == 0, result.output
+        # Should have table headers
+        assert "Rk" in result.output
+        assert "Surplus" in result.output
+
+    def test_league_with_draft_order(self) -> None:
+        _install_league_fakes()
+        result = runner.invoke(
+            app,
+            [
+                "keeper", "league", "2025",
+                "--keeper-slots", "1",
+                "--draft-order", "422.l.123.t.3,422.l.123.t.1,422.l.123.t.2",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Gamma Team should be pick #1
+        assert "Pick #1" in result.output
+        # Alpha Team should be pick #2
+        assert "Pick #2" in result.output
+
+    def test_league_with_unmapped_players(self) -> None:
+        _install_fake()
+        rosters = LeagueRosters(
+            league_key="422.l.123",
+            teams=(
+                TeamRoster(
+                    team_key="422.l.123.t.1",
+                    team_name="Team A",
+                    players=(
+                        RosterPlayer(yahoo_id="Y100", name="Slugger Jones",
+                                     position_type="B", eligible_positions=("1B",)),
+                        RosterPlayer(yahoo_id="Y999", name="Unknown Guy",
+                                     position_type="B", eligible_positions=("OF",)),
+                    ),
+                ),
+            ),
+        )
+        mapping = {"Y100": "b1"}
+        set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
+        set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
+        set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+        result = runner.invoke(
+            app,
+            ["keeper", "league", "2025", "--keeper-slots", "1", "--teams", "1"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "unmapped" in result.output.lower() or "Warning" in result.output
+
+    def test_league_skips_players_without_projections(self) -> None:
+        """Players mapped to FanGraphs IDs but lacking projections should be skipped."""
+        _install_fake()
+        rosters = LeagueRosters(
+            league_key="422.l.123",
+            teams=(
+                TeamRoster(
+                    team_key="422.l.123.t.1",
+                    team_name="Team A",
+                    players=(
+                        RosterPlayer(yahoo_id="Y100", name="Slugger Jones",
+                                     position_type="B", eligible_positions=("1B",)),
+                        RosterPlayer(yahoo_id="Y900", name="Minor Leaguer",
+                                     position_type="B", eligible_positions=("OF",)),
+                    ),
+                ),
+            ),
+        )
+        # Y900 maps to a FanGraphs ID that has no projections
+        mapping = {"Y100": "b1", "Y900": "no_projection"}
+        set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
+        set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
+        set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+        result = runner.invoke(
+            app,
+            ["keeper", "league", "2025", "--keeper-slots", "1", "--teams", "1"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Slugger Jones" in result.output
