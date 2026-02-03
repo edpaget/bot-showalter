@@ -201,7 +201,7 @@ class TestEvaluatePoint:
         )
 
         result = evaluate_point(
-            point, eval_years=[2023], pipeline_name="marcel_norm", min_pa=200, min_ip=50.0, top_n=20
+            point, eval_years=[2023], pipeline_name="marcel", min_pa=200, min_ip=50.0, top_n=20
         )
 
         assert "params" in result

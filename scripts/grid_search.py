@@ -220,7 +220,7 @@ def main() -> None:
         default="2021,2022,2023,2024",
         help="Comma-separated evaluation years.",
     )
-    parser.add_argument("--pipeline", type=str, default="marcel_norm", help="Pipeline preset name.")
+    parser.add_argument("--pipeline", type=str, default="marcel", help="Pipeline preset name.")
     parser.add_argument("--min-pa", type=int, default=200, help="Minimum plate appearances.")
     parser.add_argument("--min-ip", type=float, default=50.0, help="Minimum innings pitched.")
     parser.add_argument("--top-n", type=int, default=20, help="N for top-N precision.")

@@ -207,20 +207,20 @@ class TestMarcelBattingPipeline:
         Player: 25 HR in 600 PA (y1), 20 HR in 550 PA (y2), 18 HR in 500 PA (y3)
         League HR rate: 200/6000 = 0.03333...
 
-        Weighted rate (before rebaseline):
-          num = 5*25 + 4*20 + 3*18 + 1200*0.03333 = 125+80+54+40 = 299
-          den = 5*600 + 4*550 + 3*500 + 1200 = 3000+2200+1500+1200 = 7900
-          rate = 299/7900 = 0.037848...
+        Weighted rate (before rebaseline) — stat-specific regression uses 425 PA for HR:
+          num = 5*25 + 4*20 + 3*18 + 425*0.03333 = 125+80+54+14.167 = 273.167
+          den = 5*600 + 4*550 + 3*500 + 425 = 3000+2200+1500+425 = 7125
+          rate = 273.167/7125 = 0.038340...
 
         Rebaseline: source and target league rates are both 0.03333 (same
-        league data for all 3 years), so rebaseline is identity => 0.037848
+        league data for all 3 years), so rebaseline is identity => 0.038340
 
         Component aging: HR peaks at 28, player is 29 in projection year.
           multiplier = 1.0 - 1 * 0.015 = 0.985
-          rate = 0.037848 * 0.985 = 0.037280
+          rate = 0.038340 * 0.985 = 0.037765
 
         PA = 0.5*600 + 0.1*550 + 200 = 555
-        HR = 0.037280 * 555 = 20.691
+        HR = 0.037765 * 555 = 20.96
         """
         league = _make_league()
         ds = FakeDataSource(
@@ -234,8 +234,8 @@ class TestMarcelBattingPipeline:
 
         proj = marcel_pipeline().project_batters(ds, 2025)[0]
         assert proj.pa == pytest.approx(555.0)
-        # 299/7900 * 0.985 * 555 = 20.691
-        assert proj.hr == pytest.approx(20.69, abs=0.1)
+        # 273.167/7125 * 0.985 * 555 = 20.96
+        assert proj.hr == pytest.approx(20.96, abs=0.1)
 
     def test_single_player_one_year(self) -> None:
         """Player with only 1 year of data should still project."""

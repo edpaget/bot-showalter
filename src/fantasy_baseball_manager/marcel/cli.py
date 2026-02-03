@@ -7,6 +7,8 @@ import typer
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
+from fantasy_baseball_manager.pipeline.builder import PipelineBuilder
+from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 
 BATTING_SORT_FIELDS: dict[str, Callable[[BattingProjection], float]] = {
@@ -76,6 +78,39 @@ def format_pitching_table(
     return "\n".join(lines)
 
 
+def _build_pipeline_from_flags(
+    engine: str,
+    park_factors: bool,
+    pitcher_norm: bool,
+    statcast: bool,
+    batter_babip: bool,
+    pitcher_statcast: bool,
+) -> ProjectionPipeline:
+    """Build a pipeline from a preset name or ad-hoc feature flags."""
+    has_flags = any([park_factors, pitcher_norm, statcast, batter_babip, pitcher_statcast])
+
+    if has_flags and engine != DEFAULT_ENGINE:
+        typer.echo("Cannot combine --engine with feature flags (--park-factors, etc.).", err=True)
+        raise typer.Exit(code=1)
+
+    if has_flags:
+        builder = PipelineBuilder("custom")
+        if park_factors:
+            builder = builder.with_park_factors()
+        if pitcher_norm:
+            builder = builder.with_pitcher_normalization()
+        if statcast:
+            builder = builder.with_statcast()
+        if batter_babip:
+            builder = builder.with_batter_babip()
+        if pitcher_statcast:
+            builder = builder.with_pitcher_statcast()
+        return builder.build()
+
+    validate_engine(engine)
+    return PIPELINES[engine]()
+
+
 def marcel(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     batting: Annotated[bool, typer.Option("--batting", help="Show only batting projections.")] = False,
@@ -83,17 +118,22 @@ def marcel(
     top: Annotated[int, typer.Option(help="Number of players to display.")] = 20,
     sort_by: Annotated[str | None, typer.Option(help="Stat to sort by (e.g. hr, so, era).")] = None,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    park_factors: Annotated[bool, typer.Option("--park-factors", help="Enable park factor adjustment.")] = False,
+    pitcher_norm: Annotated[bool, typer.Option("--pitcher-norm", help="Enable pitcher BABIP/LOB normalization.")] = False,
+    statcast: Annotated[bool, typer.Option("--statcast", help="Enable Statcast batter blend.")] = False,
+    batter_babip: Annotated[bool, typer.Option("--batter-babip", help="Enable batter BABIP adjustment.")] = False,
+    pitcher_statcast: Annotated[bool, typer.Option("--pitcher-statcast", help="Enable pitcher Statcast blend.")] = False,
 ) -> None:
     """Generate projections for the given year."""
-    validate_engine(engine)
-
     if year is None:
         year = datetime.now().year
 
     show_batting = not pitching or batting
     show_pitching = not batting or pitching
 
-    pipeline = PIPELINES[engine]()
+    pipeline = _build_pipeline_from_flags(
+        engine, park_factors, pitcher_norm, statcast, batter_babip, pitcher_statcast,
+    )
 
     typer.echo(f"{pipeline.name.upper()} projections for {year}")
     typer.echo(f"Using data from {year - pipeline.years_back}-{year - 1}\n")
