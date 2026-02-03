@@ -120,8 +120,9 @@ def _build_candidates(
     candidate_ids: list[str],
     all_player_values: list[PlayerValue],
     player_positions: dict[tuple[str, str], tuple[str, ...]],
-    yahoo_positions: dict[str, tuple[str, ...]] | None = None,
+    yahoo_positions: dict[tuple[str, str], tuple[str, ...]] | None = None,
     *,
+    candidate_position_types: list[str] | None = None,
     strict: bool = True,
 ) -> list[KeeperCandidate]:
     """Build KeeperCandidate list from IDs, matching against player values and positions.
@@ -136,17 +137,31 @@ def _build_candidates(
         if pv.player_id not in pv_by_id or pv.total_value > pv_by_id[pv.player_id].total_value:
             pv_by_id[pv.player_id] = pv
 
+    # Build a lookup keyed by (player_id, position_type) for split-player resolution
+    pv_by_key: dict[tuple[str, str], PlayerValue] = {}
+    for pv in all_player_values:
+        key = (pv.player_id, pv.position_type)
+        if key not in pv_by_key or pv.total_value > pv_by_key[key].total_value:
+            pv_by_key[key] = pv
+
     candidates: list[KeeperCandidate] = []
-    for cid in candidate_ids:
-        pv = pv_by_id.get(cid)
+    for i, cid in enumerate(candidate_ids):
+        pos_type = candidate_position_types[i] if candidate_position_types is not None else None
+
+        # Resolve the correct PlayerValue: prefer (id, position_type) match, fall back to best
+        pv: PlayerValue | None = None
+        if pos_type is not None:
+            pv = pv_by_key.get((cid, pos_type))
+        if pv is None:
+            pv = pv_by_id.get(cid)
         if pv is None:
             if strict:
                 typer.echo(f"Unknown candidate ID: {cid}", err=True)
                 raise typer.Exit(code=1)
             continue
 
-        if yahoo_positions is not None and cid in yahoo_positions:
-            eligible = yahoo_positions[cid]
+        if yahoo_positions is not None and pos_type is not None and (cid, pos_type) in yahoo_positions:
+            eligible = yahoo_positions[(cid, pos_type)]
         else:
             # Collect positions from composite keys
             positions: list[str] = []
@@ -174,10 +189,10 @@ def _resolve_yahoo_inputs(
     candidates_str: str,
     keepers_file: Path | None,
     teams: int,
-) -> tuple[list[str], set[str], int, dict[str, tuple[str, ...]]]:
+) -> tuple[list[str], set[str], int, dict[tuple[str, str], tuple[str, ...]], list[str]]:
     """Fetch keeper data from Yahoo rosters.
 
-    Returns (candidate_ids, other_keepers, teams, yahoo_positions).
+    Returns (candidate_ids, other_keepers, teams, yahoo_positions, candidate_position_types).
     """
     apply_cli_overrides(league_id, season)
     try:
@@ -200,11 +215,16 @@ def _resolve_yahoo_inputs(
             )
 
         candidate_ids = list(yahoo_data.user_candidate_ids)
+        position_types = list(yahoo_data.user_candidate_position_types)
 
         # If --candidates also provided, use as filter (intersection)
         if candidates_str.strip():
             filter_ids = {c.strip() for c in candidates_str.split(",") if c.strip()}
-            candidate_ids = [cid for cid in candidate_ids if cid in filter_ids]
+            filtered_pairs = [
+                (cid, pt) for cid, pt in zip(candidate_ids, position_types, strict=True) if cid in filter_ids
+            ]
+            candidate_ids = [cid for cid, _ in filtered_pairs]
+            position_types = [pt for _, pt in filtered_pairs]
 
         # If --keepers provided, use YAML file; otherwise use Yahoo other-keepers
         other_keepers = _load_keepers_file(keepers_file) if keepers_file else set(yahoo_data.other_keeper_ids)
@@ -213,7 +233,7 @@ def _resolve_yahoo_inputs(
         rosters = roster_source.fetch_rosters()
         num_teams = len(rosters.teams) if teams == 12 else teams
 
-        return candidate_ids, other_keepers, num_teams, dict(yahoo_data.user_candidate_positions)
+        return candidate_ids, other_keepers, num_teams, dict(yahoo_data.user_candidate_positions), position_types
     finally:
         clear_cli_overrides()
 
@@ -242,10 +262,11 @@ def keeper_rank(
     if year is None:
         year = datetime.now().year
 
-    yahoo_positions: dict[str, tuple[str, ...]] | None = None
+    yahoo_positions: dict[tuple[str, str], tuple[str, ...]] | None = None
+    position_types: list[str] | None = None
 
     if yahoo:
-        candidate_ids, other_keepers, teams, yahoo_positions = _resolve_yahoo_inputs(
+        candidate_ids, other_keepers, teams, yahoo_positions, position_types = _resolve_yahoo_inputs(
             no_cache, league_id, season, candidates, keepers_file, teams,
         )
     else:
@@ -260,7 +281,10 @@ def keeper_rank(
     typer.echo(f"Generating projections for {year} using {engine}...")
     all_values, composite_positions = build_projections_and_positions(engine, year)
 
-    candidate_list = _build_candidates(candidate_ids, all_values, composite_positions, yahoo_positions)
+    candidate_list = _build_candidates(
+        candidate_ids, all_values, composite_positions, yahoo_positions,
+        candidate_position_types=position_types,
+    )
 
     calc = DraftPoolReplacementCalculator(user_pick_position=user_pick)
     surplus_calc = SurplusCalculator(calc, num_teams=teams, num_keeper_slots=keeper_slots)
@@ -293,10 +317,11 @@ def keeper_optimize(
     if year is None:
         year = datetime.now().year
 
-    yahoo_positions: dict[str, tuple[str, ...]] | None = None
+    yahoo_positions: dict[tuple[str, str], tuple[str, ...]] | None = None
+    position_types: list[str] | None = None
 
     if yahoo:
-        candidate_ids, other_keepers, teams, yahoo_positions = _resolve_yahoo_inputs(
+        candidate_ids, other_keepers, teams, yahoo_positions, position_types = _resolve_yahoo_inputs(
             no_cache, league_id, season, candidates, keepers_file, teams,
         )
     else:
@@ -311,7 +336,10 @@ def keeper_optimize(
     typer.echo(f"Generating projections for {year} using {engine}...")
     all_values, composite_positions = build_projections_and_positions(engine, year)
 
-    candidate_list = _build_candidates(candidate_ids, all_values, composite_positions, yahoo_positions)
+    candidate_list = _build_candidates(
+        candidate_ids, all_values, composite_positions, yahoo_positions,
+        candidate_position_types=position_types,
+    )
 
     calc = DraftPoolReplacementCalculator(user_pick_position=user_pick)
     surplus_calc = SurplusCalculator(calc, num_teams=teams, num_keeper_slots=keeper_slots)
@@ -412,6 +440,7 @@ def keeper_league(
         # Build candidates for this team
         candidate_ids = list(team_info.candidate_ids)
         yahoo_positions = dict(team_info.candidate_positions)
+        team_position_types = list(team_info.candidate_position_types)
 
         # Skip teams with no candidates
         if not candidate_ids:
@@ -424,7 +453,8 @@ def keeper_league(
                 other_keepers.update(other_team.candidate_ids)
 
         candidate_list = _build_candidates(
-            candidate_ids, all_values, composite_positions, yahoo_positions, strict=False,
+            candidate_ids, all_values, composite_positions, yahoo_positions,
+            candidate_position_types=team_position_types, strict=False,
         )
 
         # Skip teams where no candidates had projections

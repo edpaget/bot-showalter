@@ -13,7 +13,8 @@ class TeamKeeperInfo:
     team_key: str
     team_name: str
     candidate_ids: tuple[str, ...]
-    candidate_positions: dict[str, tuple[str, ...]]
+    candidate_position_types: tuple[str, ...]
+    candidate_positions: dict[tuple[str, str], tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,8 @@ class LeagueKeeperData:
 @dataclass(frozen=True)
 class YahooKeeperData:
     user_candidate_ids: tuple[str, ...]
-    user_candidate_positions: dict[str, tuple[str, ...]]
+    user_candidate_position_types: tuple[str, ...]
+    user_candidate_positions: dict[tuple[str, str], tuple[str, ...]]
     other_keeper_ids: frozenset[str]
     unmapped_yahoo_ids: tuple[str, ...]
 
@@ -60,7 +62,8 @@ class YahooKeeperSource:
 
         unmapped: list[str] = []
         candidate_ids: list[str] = []
-        candidate_positions: dict[str, tuple[str, ...]] = {}
+        candidate_position_types: list[str] = []
+        candidate_positions: dict[tuple[str, str], tuple[str, ...]] = {}
 
         for player in user_team.players:
             fg_id = self._id_mapper.yahoo_to_fangraphs(player.yahoo_id)
@@ -68,7 +71,8 @@ class YahooKeeperSource:
                 unmapped.append(player.yahoo_id)
             else:
                 candidate_ids.append(fg_id)
-                candidate_positions[fg_id] = player.eligible_positions
+                candidate_position_types.append(player.position_type)
+                candidate_positions[(fg_id, player.position_type)] = player.eligible_positions
 
         other_keeper_ids: set[str] = set()
         for team in other_teams:
@@ -81,6 +85,7 @@ class YahooKeeperSource:
 
         return YahooKeeperData(
             user_candidate_ids=tuple(candidate_ids),
+            user_candidate_position_types=tuple(candidate_position_types),
             user_candidate_positions=candidate_positions,
             other_keeper_ids=frozenset(other_keeper_ids),
             unmapped_yahoo_ids=tuple(unmapped),
@@ -95,7 +100,8 @@ class YahooKeeperSource:
 
         for team in rosters.teams:
             candidate_ids: list[str] = []
-            candidate_positions: dict[str, tuple[str, ...]] = {}
+            candidate_position_types: list[str] = []
+            candidate_positions: dict[tuple[str, str], tuple[str, ...]] = {}
 
             for player in team.players:
                 fg_id = self._id_mapper.yahoo_to_fangraphs(player.yahoo_id)
@@ -103,13 +109,15 @@ class YahooKeeperSource:
                     unmapped.append(player.yahoo_id)
                 else:
                     candidate_ids.append(fg_id)
-                    candidate_positions[fg_id] = player.eligible_positions
+                    candidate_position_types.append(player.position_type)
+                    candidate_positions[(fg_id, player.position_type)] = player.eligible_positions
 
             team_infos.append(
                 TeamKeeperInfo(
                     team_key=team.team_key,
                     team_name=team.team_name,
                     candidate_ids=tuple(candidate_ids),
+                    candidate_position_types=tuple(candidate_position_types),
                     candidate_positions=candidate_positions,
                 )
             )

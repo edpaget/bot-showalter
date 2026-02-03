@@ -652,3 +652,60 @@ class TestKeeperLeagueCommand:
         )
         assert result.exit_code == 0, result.output
         assert "Slugger Jones" in result.output
+
+
+class TestSplitPlayerYahoo:
+    """Split players (e.g. Ohtani) produce two KeeperCandidates with correct values."""
+
+    def _install_split_fakes(self) -> None:
+        ds = _build_fake()
+        set_data_source_factory(lambda: ds)
+
+        rosters = LeagueRosters(
+            league_key="422.l.123",
+            teams=(
+                TeamRoster(
+                    team_key="422.l.123.t.1",
+                    team_name="My Team",
+                    players=(
+                        RosterPlayer(
+                            yahoo_id="Y500", name="Slugger Jones",
+                            position_type="B", eligible_positions=("OF", "DH"),
+                        ),
+                        RosterPlayer(
+                            yahoo_id="Y501", name="Ace Adams",
+                            position_type="P", eligible_positions=("SP",),
+                        ),
+                    ),
+                ),
+                TeamRoster(
+                    team_key="422.l.123.t.2",
+                    team_name="Other Team",
+                    players=(),
+                ),
+            ),
+        )
+        mapping = {"Y500": "b1", "Y501": "p1"}
+        set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
+        set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
+        set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+
+    def test_split_player_rank_both_appear(self) -> None:
+        self._install_split_fakes()
+        result = runner.invoke(
+            app,
+            ["keeper", "rank", "2025", "--yahoo", "--user-pick", "1", "--teams", "2"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Slugger Jones" in result.output
+        assert "Ace Adams" in result.output
+
+    def test_split_player_gets_correct_positions(self) -> None:
+        self._install_split_fakes()
+        result = runner.invoke(
+            app,
+            ["keeper", "rank", "2025", "--yahoo", "--user-pick", "1", "--teams", "2"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "OF/DH" in result.output
+        assert "SP" in result.output

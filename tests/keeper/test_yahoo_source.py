@@ -132,9 +132,21 @@ class TestYahooKeeperSource:
         )
         data = source.fetch_keeper_data()
 
-        assert data.user_candidate_positions["fg100"] == ("1B", "DH")
-        assert data.user_candidate_positions["fg102"] == ("OF", "DH")
-        assert data.user_candidate_positions["fg101"] == ("SP",)
+        assert data.user_candidate_positions[("fg100", "B")] == ("1B", "DH")
+        assert data.user_candidate_positions[("fg102", "B")] == ("OF", "DH")
+        assert data.user_candidate_positions[("fg101", "P")] == ("SP",)
+
+    def test_carries_position_types(self) -> None:
+        rosters = _make_rosters()
+        mapper = FakeIdMapper(_make_id_mapping())
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(rosters),
+            id_mapper=mapper,
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_keeper_data()
+
+        assert data.user_candidate_position_types == ("B", "P", "B")
 
     def test_raises_when_user_team_not_found(self) -> None:
         rosters = _make_rosters()
@@ -229,7 +241,7 @@ class TestFetchLeagueKeeperData:
 
         teams_by_key = {t.team_key: t for t in data.teams}
         user_team = teams_by_key["422.l.12345.t.1"]
-        assert user_team.candidate_positions["fg100"] == ("1B", "DH")
+        assert user_team.candidate_positions[("fg100", "B")] == ("1B", "DH")
 
     def test_tracks_unmapped_ids(self) -> None:
         rosters = _make_rosters()
@@ -275,7 +287,8 @@ class TestTeamKeeperInfoFrozen:
             team_key="t.1",
             team_name="Team A",
             candidate_ids=("fg1",),
-            candidate_positions={"fg1": ("1B",)},
+            candidate_position_types=("B",),
+            candidate_positions={("fg1", "B"): ("1B",)},
         )
         assert info.team_key == "t.1"
         assert info.candidate_ids == ("fg1",)
@@ -287,7 +300,8 @@ class TestLeagueKeeperDataFrozen:
             team_key="t.1",
             team_name="Team A",
             candidate_ids=("fg1",),
-            candidate_positions={"fg1": ("1B",)},
+            candidate_position_types=("B",),
+            candidate_positions={("fg1", "B"): ("1B",)},
         )
         data = LeagueKeeperData(teams=(info,), unmapped_yahoo_ids=())
         assert len(data.teams) == 1
@@ -297,9 +311,86 @@ class TestYahooKeeperDataFrozen:
     def test_is_frozen(self) -> None:
         data = YahooKeeperData(
             user_candidate_ids=("fg1",),
-            user_candidate_positions={"fg1": ("1B",)},
+            user_candidate_position_types=("B",),
+            user_candidate_positions={("fg1", "B"): ("1B",)},
             other_keeper_ids=frozenset({"fg2"}),
             unmapped_yahoo_ids=(),
         )
         assert data.user_candidate_ids == ("fg1",)
         assert data.other_keeper_ids == frozenset({"fg2"})
+
+
+class TestDuplicateFanGraphsId:
+    """Split players (e.g. Ohtani) map two Yahoo IDs to the same FanGraphs ID."""
+
+    def _make_split_rosters(self) -> LeagueRosters:
+        user_team = TeamRoster(
+            team_key="422.l.12345.t.1",
+            team_name="My Team",
+            players=(
+                _make_player("1000001", "Shohei Ohtani", "B", ("OF", "DH")),
+                _make_player("1000002", "Shohei Ohtani", "P", ("SP",)),
+                _make_player("100", "Batter A", "B", ("1B",)),
+            ),
+        )
+        other_team = TeamRoster(
+            team_key="422.l.12345.t.2",
+            team_name="Other Team",
+            players=(_make_player("200", "Batter D", "B", ("SS",)),),
+        )
+        return LeagueRosters(league_key="422.l.12345", teams=(user_team, other_team))
+
+    def _make_split_mapping(self) -> dict[str, str]:
+        return {
+            "1000001": "fg_ohtani",
+            "1000002": "fg_ohtani",
+            "100": "fg100",
+            "200": "fg200",
+        }
+
+    def test_both_entries_in_candidate_ids(self) -> None:
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(self._make_split_rosters()),
+            id_mapper=FakeIdMapper(self._make_split_mapping()),
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_keeper_data()
+
+        assert data.user_candidate_ids.count("fg_ohtani") == 2
+        assert len(data.user_candidate_ids) == 3
+
+    def test_position_types_track_both(self) -> None:
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(self._make_split_rosters()),
+            id_mapper=FakeIdMapper(self._make_split_mapping()),
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_keeper_data()
+
+        assert data.user_candidate_position_types == ("B", "P", "B")
+
+    def test_distinct_positions_per_entry(self) -> None:
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(self._make_split_rosters()),
+            id_mapper=FakeIdMapper(self._make_split_mapping()),
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_keeper_data()
+
+        assert data.user_candidate_positions[("fg_ohtani", "B")] == ("OF", "DH")
+        assert data.user_candidate_positions[("fg_ohtani", "P")] == ("SP",)
+
+    def test_league_data_split_player(self) -> None:
+        source = YahooKeeperSource(
+            roster_source=FakeRosterSource(self._make_split_rosters()),
+            id_mapper=FakeIdMapper(self._make_split_mapping()),
+            user_team_key="422.l.12345.t.1",
+        )
+        data = source.fetch_league_keeper_data()
+
+        teams_by_key = {t.team_key: t for t in data.teams}
+        user_team = teams_by_key["422.l.12345.t.1"]
+        assert user_team.candidate_ids.count("fg_ohtani") == 2
+        assert user_team.candidate_position_types == ("B", "P", "B")
+        assert user_team.candidate_positions[("fg_ohtani", "B")] == ("OF", "DH")
+        assert user_team.candidate_positions[("fg_ohtani", "P")] == ("SP",)
