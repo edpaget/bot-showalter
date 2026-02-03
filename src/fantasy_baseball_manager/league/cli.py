@@ -18,10 +18,11 @@ from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, val
 from fantasy_baseball_manager.league.models import TeamProjection
 from fantasy_baseball_manager.league.projections import match_projections
 from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
-from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
+from fantasy_baseball_manager.marcel.data_source import StatsDataSource
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
+from fantasy_baseball_manager.services import ServiceContainer, get_container, set_container
 from fantasy_baseball_manager.valuation.models import LeagueSettings, StatCategory
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
@@ -78,30 +79,15 @@ _TEAM_PITCHING_COLUMNS: dict[StatCategory, tuple[str, int, str, Callable[[TeamPr
     StatCategory.NSVH: ("NSVH", 5, "5.0f", lambda t: t.total_nsvh),
 }
 
-# Module-level DI factories for testing
-_roster_source_factory: Callable[[], RosterSource] | None = None
-_id_mapper_factory: Callable[[], PlayerIdMapper] | None = None
-_data_source_factory: Callable[[], StatsDataSource] | None = None
-
-
-def set_roster_source_factory(factory: Callable[[], RosterSource]) -> None:
-    global _roster_source_factory
-    _roster_source_factory = factory
-
-
-def set_id_mapper_factory(factory: Callable[[], PlayerIdMapper]) -> None:
-    global _id_mapper_factory
-    _id_mapper_factory = factory
-
-
-def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
-    global _data_source_factory
-    _data_source_factory = factory
+__all__ = ["compare", "projections", "set_container"]
 
 
 def _get_roster_source(no_cache: bool = False, target_season: int | None = None) -> RosterSource:
-    if _roster_source_factory is not None:
-        return _roster_source_factory()
+    container = get_container()
+    # If roster_source was injected (for tests), return it directly
+    if container._roster_source is not None:
+        return container.roster_source
+    # Otherwise build with the complex keeper-league logic
     config = create_config()
     client = YahooFantasyClient(cast("AppConfig", config))
 
@@ -124,8 +110,11 @@ def _get_roster_source(no_cache: bool = False, target_season: int | None = None)
 
 
 def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
-    if _id_mapper_factory is not None:
-        return _id_mapper_factory()
+    container = get_container()
+    # If id_mapper was injected (for tests), return it directly
+    if container._id_mapper is not None:
+        return container.id_mapper
+    # Otherwise build with cache logic
     if no_cache:
         return build_sfbb_mapper()
     config = create_config()
@@ -136,9 +125,7 @@ def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
 
 
 def _get_data_source() -> StatsDataSource:
-    if _data_source_factory is not None:
-        return _data_source_factory()
-    return PybaseballDataSource()
+    return get_container().data_source
 
 
 def format_team_projections(

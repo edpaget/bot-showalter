@@ -24,36 +24,17 @@ from fantasy_baseball_manager.keeper.surplus import SurplusCalculator
 from fantasy_baseball_manager.keeper.yahoo_source import LeagueKeeperData, YahooKeeperSource
 from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
+from fantasy_baseball_manager.services import get_container, set_container
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from fantasy_baseball_manager.valuation.models import PlayerValue
 
 logger = logging.getLogger(__name__)
 
 keeper_app = typer.Typer(help="Keeper analysis commands.")
 
-# Module-level DI factories for testing
-_roster_source_factory: Callable[[], RosterSource] | None = None
-_id_mapper_factory: Callable[[], PlayerIdMapper] | None = None
-_yahoo_league_factory: Callable[[], object] | None = None
-
-
-def set_roster_source_factory(factory: Callable[[], RosterSource]) -> None:
-    global _roster_source_factory
-    _roster_source_factory = factory
-
-
-def set_id_mapper_factory(factory: Callable[[], PlayerIdMapper]) -> None:
-    global _id_mapper_factory
-    _id_mapper_factory = factory
-
-
-def set_yahoo_league_factory(factory: Callable[[], object]) -> None:
-    global _yahoo_league_factory
-    _yahoo_league_factory = factory
+__all__ = ["keeper_app", "keeper_league", "keeper_optimize", "keeper_rank", "set_container"]
 
 
 def _get_roster_source_and_league(no_cache: bool = False) -> tuple[RosterSource, object]:
@@ -63,10 +44,11 @@ def _get_roster_source_and_league(no_cache: bool = False) -> tuple[RosterSource,
     to the previous season so that ``league.team_key()`` matches the roster
     team keys.
     """
-    if _roster_source_factory is not None:
-        # In test mode the factories are wired independently.
-        league = _yahoo_league_factory() if _yahoo_league_factory is not None else object()
-        return _roster_source_factory(), league
+    container = get_container()
+    if container._roster_source is not None:
+        # In test mode the dependencies are injected explicitly.
+        league = container._yahoo_league if container._yahoo_league is not None else object()
+        return container.roster_source, league
 
     config = create_config()
     client = YahooFantasyClient(cast("AppConfig", config))
@@ -91,8 +73,9 @@ def _get_roster_source_and_league(no_cache: bool = False) -> tuple[RosterSource,
 
 
 def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
-    if _id_mapper_factory is not None:
-        return _id_mapper_factory()
+    container = get_container()
+    if container._id_mapper is not None:
+        return container.id_mapper
     if no_cache:
         return build_sfbb_mapper()
     config = create_config()

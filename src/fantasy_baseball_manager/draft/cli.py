@@ -3,10 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path  # noqa: TC003 — used at runtime by typer
-from typing import TYPE_CHECKING, Annotated
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from typing import Annotated
 
 import typer
 import yaml
@@ -37,41 +34,24 @@ from fantasy_baseball_manager.draft.simulation_report import format_pick_log, fo
 from fantasy_baseball_manager.draft.state import DraftState
 from fantasy_baseball_manager.draft.strategy_presets import STRATEGY_PRESETS
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
-from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
+from fantasy_baseball_manager.services import get_container, set_container
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["build_projections_and_positions", "draft_rank", "draft_simulate", "set_container"]
+
 _CATEGORY_MAP: dict[str, StatCategory] = {member.value.lower(): member for member in StatCategory}
-
-# Module-level factories for dependency injection in tests
-_data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
-_id_mapper_factory: Callable[[], PlayerIdMapper] | None = None
-_yahoo_league_factory: Callable[[], object] | None = None
-
-
-def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
-    global _data_source_factory
-    _data_source_factory = factory
-
-
-def set_id_mapper_factory(factory: Callable[[], PlayerIdMapper]) -> None:
-    global _id_mapper_factory
-    _id_mapper_factory = factory
-
-
-def set_yahoo_league_factory(factory: Callable[[], object]) -> None:
-    global _yahoo_league_factory
-    _yahoo_league_factory = factory
 
 
 def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
-    if _id_mapper_factory is not None:
-        return _id_mapper_factory()
+    container = get_container()
+    if container._id_mapper is not None:
+        return container.id_mapper
     if no_cache:
         return build_sfbb_mapper()
     config = create_config()
@@ -82,8 +62,9 @@ def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
 
 
 def _get_yahoo_league() -> object:
-    if _yahoo_league_factory is not None:
-        return _yahoo_league_factory()
+    container = get_container()
+    if container._yahoo_league is not None:
+        return container.yahoo_league
     config = create_config()
     client = YahooFantasyClient(config)  # type: ignore[arg-type]
     return client.get_league()
@@ -197,7 +178,7 @@ def draft_rank(
 
         # Generate projections and valuations
         league_settings = load_league_settings()
-        data_source = _data_source_factory()
+        data_source = get_container().data_source
         pipeline = PIPELINES[engine]()
         all_values: list[PlayerValue] = []
         batting_ids: set[str] = set()
@@ -321,7 +302,7 @@ def build_projections_and_positions(
 ) -> tuple[list[PlayerValue], dict[tuple[str, str], tuple[str, ...]]]:
     """Build player values and composite positions for simulation."""
     league_settings = load_league_settings()
-    data_source = _data_source_factory()
+    data_source = get_container().data_source
     pipeline = PIPELINES[engine]()
 
     batting_projections = pipeline.project_batters(data_source, year)

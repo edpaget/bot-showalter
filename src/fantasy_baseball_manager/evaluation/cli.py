@@ -1,5 +1,4 @@
 import json
-from collections.abc import Callable
 from typing import Annotated
 
 import typer
@@ -8,18 +7,13 @@ from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.evaluation.harness import EvaluationConfig, evaluate
 from fantasy_baseball_manager.evaluation.models import RankAccuracy, SourceEvaluation, StatAccuracy
-from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
+from fantasy_baseball_manager.marcel.data_source import StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
+from fantasy_baseball_manager.services import get_container, set_container
 from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
 
-# Module-level factory for dependency injection in tests
-_data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
-
-
-def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
-    global _data_source_factory
-    _data_source_factory = factory
+__all__ = ["evaluate_cmd", "set_container"]
 
 
 def _format_stat_accuracy_table(label: str, accuracies: tuple[StatAccuracy, ...]) -> str:
@@ -204,7 +198,7 @@ def evaluate_cmd(
 
     eval_years = [int(y.strip()) for y in years.split(",")] if years else [year]
 
-    data_source = _data_source_factory()
+    data_source = get_container().data_source
     league_settings = load_league_settings()
 
     all_results: list[dict[str, object]] = []

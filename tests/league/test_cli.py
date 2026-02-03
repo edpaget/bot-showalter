@@ -1,5 +1,7 @@
+from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
@@ -8,12 +10,10 @@ from fantasy_baseball_manager.league.cli import (
     _get_roster_source,
     format_compare_table,
     format_team_projections,
-    set_data_source_factory,
-    set_id_mapper_factory,
-    set_roster_source_factory,
 )
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamProjection, TeamRoster
 from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
+from fantasy_baseball_manager.services import ServiceContainer, set_container
 from fantasy_baseball_manager.valuation.models import LeagueSettings, StatCategory
 
 runner = CliRunner()
@@ -27,6 +27,12 @@ class FakeIdMapper:
         return self._yahoo_to_fg.get(yahoo_id)
 
     def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
+        return None
+
+    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
+        return None
+
+    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
         return None
 
 
@@ -184,6 +190,12 @@ def _make_league_pitching(year: int = 2024) -> PitchingSeasonStats:
 YEARS = [2024, 2023, 2022]
 
 
+@pytest.fixture(autouse=True)
+def reset_container() -> Generator[None, None, None]:
+    yield
+    set_container(None)
+
+
 def _install_fakes(
     rosters: LeagueRosters | None = None,
     id_mapping: dict[str, str] | None = None,
@@ -225,9 +237,13 @@ def _install_fakes(
         team_pitching=team_pitching,
     )
 
-    set_roster_source_factory(lambda: FakeRosterSource(rosters))
-    set_id_mapper_factory(lambda: FakeIdMapper(id_mapping))
-    set_data_source_factory(lambda: ds)
+    set_container(
+        ServiceContainer(
+            data_source=ds,
+            id_mapper=FakeIdMapper(id_mapping),
+            roster_source=FakeRosterSource(rosters),
+        )
+    )
 
 
 class TestLeagueProjectionsCommand:
@@ -404,11 +420,11 @@ class TestLeagueIdAndSeasonOptions:
 
 class TestKeeperPredraftAutoDetection:
     def setup_method(self) -> None:
-        set_roster_source_factory(None)  # type: ignore[arg-type]
+        set_container(None)
 
     def teardown_method(self) -> None:
         clear_cli_overrides()
-        set_roster_source_factory(None)  # type: ignore[arg-type]
+        set_container(None)
 
     def test_keeper_predraft_uses_previous_season(self) -> None:
         """When is_keeper is true and draft_status is predraft,

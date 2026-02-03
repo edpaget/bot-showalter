@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from datetime import datetime
 from typing import Annotated
 
@@ -11,24 +10,11 @@ from fantasy_baseball_manager.marcel.cli import (
     format_batting_table,
     format_pitching_table,
 )
-from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
-from fantasy_baseball_manager.ros.blender import BayesianBlender
 from fantasy_baseball_manager.ros.projector import ROSProjector
-from fantasy_baseball_manager.ros.protocol import ProjectionBlender
+from fantasy_baseball_manager.services import get_container, set_container
 
-_data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
-_blender_factory: Callable[[], ProjectionBlender] = BayesianBlender
-
-
-def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
-    global _data_source_factory
-    _data_source_factory = factory
-
-
-def set_blender_factory(factory: Callable[[], ProjectionBlender]) -> None:
-    global _blender_factory
-    _blender_factory = factory
+__all__ = ["ros_project", "set_container"]
 
 
 def ros_project(
@@ -49,9 +35,12 @@ def ros_project(
     show_pitching = not batting or pitching
 
     pipeline = PIPELINES[engine]()
-    data_source = _data_source_factory()
-    blender = _blender_factory()
-    projector = ROSProjector(pipeline=pipeline, data_source=data_source, blender=blender)
+    container = get_container()
+    projector = ROSProjector(
+        pipeline=pipeline,
+        data_source=container.data_source,
+        blender=container.blender,
+    )
 
     typer.echo(f"ROS projections for {year} (engine: {engine})")
     typer.echo(f"Using pre-season prior from {year - pipeline.years_back}-{year - 1}\n")

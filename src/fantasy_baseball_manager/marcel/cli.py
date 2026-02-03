@@ -5,11 +5,11 @@ from typing import Annotated
 import typer
 
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
-from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
 from fantasy_baseball_manager.pipeline.builder import PipelineBuilder
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
+from fantasy_baseball_manager.services import get_container, set_container
 
 BATTING_SORT_FIELDS: dict[str, Callable[[BattingProjection], float]] = {
     "hr": lambda p: p.hr,
@@ -35,13 +35,14 @@ PITCHING_SORT_FIELDS: dict[str, Callable[[PitchingProjection], float]] = {
     "nsvh": lambda p: p.nsvh,
 }
 
-# Module-level factory for dependency injection in tests
-_data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
-
-
-def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
-    global _data_source_factory
-    _data_source_factory = factory
+__all__ = [
+    "BATTING_SORT_FIELDS",
+    "PITCHING_SORT_FIELDS",
+    "format_batting_table",
+    "format_pitching_table",
+    "marcel",
+    "set_container",
+]
 
 
 def format_batting_table(
@@ -138,7 +139,7 @@ def marcel(
     typer.echo(f"{pipeline.name.upper()} projections for {year}")
     typer.echo(f"Using data from {year - pipeline.years_back}-{year - 1}\n")
 
-    data_source = _data_source_factory()
+    data_source = get_container().data_source
 
     if show_batting:
         batting_sort = sort_by or "hr"

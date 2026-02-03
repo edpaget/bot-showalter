@@ -7,15 +7,15 @@ import typer
 
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
-from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource, StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
+from fantasy_baseball_manager.services import get_container, set_container
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
+
+__all__ = ["set_container", "valuate"]
 
 _CATEGORY_MAP: dict[str, StatCategory] = {member.value.lower(): member for member in StatCategory}
 
@@ -27,14 +27,6 @@ _SUPPORTED_BATTING: set[StatCategory] = {
     StatCategory.RBI,
 }
 _SUPPORTED_PITCHING: set[StatCategory] = {StatCategory.K, StatCategory.ERA, StatCategory.WHIP}
-
-# Module-level factory for dependency injection in tests
-_data_source_factory: Callable[[], StatsDataSource] = PybaseballDataSource
-
-
-def set_data_source_factory(factory: Callable[[], StatsDataSource]) -> None:
-    global _data_source_factory
-    _data_source_factory = factory
 
 
 def _parse_categories(
@@ -107,7 +99,7 @@ def valuate(
     show_batting = not pitching or batting
     show_pitching = not batting or pitching
 
-    data_source = _data_source_factory()
+    data_source = get_container().data_source
     pipeline = PIPELINES[engine]()
 
     league_settings = load_league_settings()

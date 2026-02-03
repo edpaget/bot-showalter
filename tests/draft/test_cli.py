@@ -1,18 +1,16 @@
+from collections.abc import Generator
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import create_config
-from fantasy_baseball_manager.draft.cli import (
-    set_data_source_factory,
-    set_id_mapper_factory,
-    set_yahoo_league_factory,
-)
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 runner = CliRunner()
 
@@ -240,9 +238,15 @@ def _build_fake(
     )
 
 
+@pytest.fixture(autouse=True)
+def reset_container() -> Generator[None, None, None]:
+    yield
+    set_container(None)
+
+
 def _install_fake(batting: bool = True, pitching: bool = True) -> None:
     ds = _build_fake(batting=batting, pitching=pitching)
-    set_data_source_factory(lambda: ds)
+    set_container(ServiceContainer(data_source=ds))
 
 
 class TestDraftRankCommand:
@@ -315,7 +319,7 @@ class TestDraftRankCommand:
     def test_yahoo_fetches_positions_and_draft_results(self) -> None:
         from unittest.mock import MagicMock
 
-        _install_fake(pitching=False)
+        ds = _build_fake(pitching=False)
 
         league = MagicMock()
         league.taken_players.return_value = [
@@ -337,24 +341,19 @@ class TestDraftRankCommand:
             "103": "b3",
         }.get(yid)
 
-        set_yahoo_league_factory(lambda: league)
-        set_id_mapper_factory(lambda: mapper)
-        try:
-            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo"])
-            assert result.exit_code == 0
-            # b1 was drafted by another team — should be excluded
-            assert "Slugger Jones" not in result.output
-            # b2 and b3 not drafted — should appear
-            assert "Speedy Smith" in result.output
-            assert "Average Andy" in result.output
-        finally:
-            set_yahoo_league_factory(None)  # type: ignore[arg-type]
-            set_id_mapper_factory(None)  # type: ignore[arg-type]
+        set_container(ServiceContainer(data_source=ds, yahoo_league=league, id_mapper=mapper))
+        result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo"])
+        assert result.exit_code == 0
+        # b1 was drafted by another team — should be excluded
+        assert "Slugger Jones" not in result.output
+        # b2 and b3 not drafted — should appear
+        assert "Speedy Smith" in result.output
+        assert "Average Andy" in result.output
 
     def test_yahoo_identifies_user_picks(self) -> None:
         from unittest.mock import MagicMock
 
-        _install_fake(pitching=False)
+        ds = _build_fake(pitching=False)
 
         league = MagicMock()
         league.taken_players.return_value = [
@@ -371,16 +370,11 @@ class TestDraftRankCommand:
         mapper = MagicMock()
         mapper.yahoo_to_fangraphs.side_effect = lambda yid: {"101": "b1", "102": "b2"}.get(yid)
 
-        set_yahoo_league_factory(lambda: league)
-        set_id_mapper_factory(lambda: mapper)
-        try:
-            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo"])
-            assert result.exit_code == 0
-            # b1 was drafted by user's team — should be excluded from rankings
-            assert "Slugger Jones" not in result.output
-        finally:
-            set_yahoo_league_factory(None)  # type: ignore[arg-type]
-            set_id_mapper_factory(None)  # type: ignore[arg-type]
+        set_container(ServiceContainer(data_source=ds, yahoo_league=league, id_mapper=mapper))
+        result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo"])
+        assert result.exit_code == 0
+        # b1 was drafted by user's team — should be excluded from rankings
+        assert "Slugger Jones" not in result.output
 
     def test_accepts_league_id(self) -> None:
         _install_fake()
@@ -424,7 +418,6 @@ class TestDraftRankCommand:
 
     def test_generic_p_excluded_from_batter_positions(self, tmp_path: Path) -> None:
         """Yahoo returns 'P' for two-way players; it should not appear in batter positions."""
-        _install_fake(batting=True, pitching=True)
         # Give b1 both batter and pitcher projections by reusing ID in both
         ds = _build_fake(batting=True, pitching=True, num_batters=1, num_pitchers=1)
         # Override so the same player ID appears in both batting and pitching
@@ -435,7 +428,7 @@ class TestDraftRankCommand:
             for p in year_pitchers:
                 object.__setattr__(p, "player_id", "two_way")
                 object.__setattr__(p, "name", "Two Way Player")
-        set_data_source_factory(lambda: ds)
+        set_container(ServiceContainer(data_source=ds))
 
         pos_file = tmp_path / "positions.csv"
         # Simulate Yahoo-like positions: Util (from DH) + P (generic pitcher)
@@ -460,25 +453,21 @@ class TestDraftRankCommand:
     def test_positions_file_takes_precedence_over_yahoo(self, tmp_path: Path) -> None:
         from unittest.mock import MagicMock
 
-        _install_fake(pitching=False)
+        ds = _build_fake(pitching=False)
 
         league = MagicMock()
         league.draft_results.return_value = []
         league.settings.return_value = {"draft_status": "predraft"}
         league.team_key.return_value = "422.l.1.t.1"
-        set_yahoo_league_factory(lambda: league)
-        set_id_mapper_factory(lambda: MagicMock())
+
+        set_container(ServiceContainer(data_source=ds, yahoo_league=league, id_mapper=MagicMock()))
 
         pos_file = tmp_path / "positions.csv"
         pos_file.write_text("b1,SS\n")
-        try:
-            result = runner.invoke(
-                app,
-                ["players", "draft-rank", "2025", "--batting", "--positions", str(pos_file), "--yahoo"],
-            )
-            assert result.exit_code == 0
-            # --positions file should be used for positions, not Yahoo
-            league.taken_players.assert_not_called()
-        finally:
-            set_yahoo_league_factory(None)  # type: ignore[arg-type]
-            set_id_mapper_factory(None)  # type: ignore[arg-type]
+        result = runner.invoke(
+            app,
+            ["players", "draft-rank", "2025", "--batting", "--positions", str(pos_file), "--yahoo"],
+        )
+        assert result.exit_code == 0
+        # --positions file should be used for positions, not Yahoo
+        league.taken_players.assert_not_called()

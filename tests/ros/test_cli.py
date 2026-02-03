@@ -1,3 +1,6 @@
+from collections.abc import Generator
+
+import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
@@ -5,7 +8,7 @@ from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
-from fantasy_baseball_manager.ros.cli import set_data_source_factory
+from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 runner = CliRunner()
 
@@ -193,12 +196,18 @@ def _build_fake_data_source(
 YEARS = [2025, 2024, 2023, 2022]
 
 
+@pytest.fixture(autouse=True)
+def reset_container() -> Generator[None, None, None]:
+    yield
+    set_container(None)
+
+
 def _install_fake(batting: bool = True, pitching: bool = True) -> None:
     ds = _build_fake_data_source(
         batting_years=YEARS if batting else None,
         pitching_years=YEARS if pitching else None,
     )
-    set_data_source_factory(lambda: ds)
+    set_container(ServiceContainer(data_source=ds))
 
 
 class TestROSProjectCommand:

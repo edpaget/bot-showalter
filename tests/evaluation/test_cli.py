@@ -1,11 +1,14 @@
+from collections.abc import Generator
+
+import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
-from fantasy_baseball_manager.evaluation.cli import set_data_source_factory
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 runner = CliRunner()
 
@@ -189,9 +192,15 @@ def _build_fake_data_source(
     )
 
 
+@pytest.fixture(autouse=True)
+def reset_container() -> Generator[None, None, None]:
+    yield
+    set_container(None)
+
+
 def _install_fake() -> None:
     ds = _build_fake_data_source()
-    set_data_source_factory(lambda: ds)
+    set_container(ServiceContainer(data_source=ds))
 
 
 class TestEvaluateCommand:

@@ -1,30 +1,29 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from typing import TYPE_CHECKING
 
+import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
-from fantasy_baseball_manager.draft.cli import set_data_source_factory
-from fantasy_baseball_manager.keeper.cli import (
-    set_id_mapper_factory as set_keeper_id_mapper_factory,
-)
-from fantasy_baseball_manager.keeper.cli import (
-    set_roster_source_factory as set_keeper_roster_source_factory,
-)
-from fantasy_baseball_manager.keeper.cli import (
-    set_yahoo_league_factory as set_keeper_yahoo_league_factory,
-)
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def reset_container() -> Generator[None, None, None]:
+    yield
+    set_container(None)
 
 YEARS = [2024, 2023, 2022]
 
@@ -214,7 +213,7 @@ def _build_fake(num_batters: int = 8, num_pitchers: int = 8) -> FakeDataSource:
 
 def _install_fake() -> None:
     ds = _build_fake()
-    set_data_source_factory(lambda: ds)
+    set_container(ServiceContainer(data_source=ds))
 
 
 class TestKeeperRankCommand:
@@ -379,12 +378,17 @@ def _yahoo_id_mapping() -> dict[str, str]:
 
 
 def _install_yahoo_fakes() -> None:
-    _install_fake()  # data source
+    ds = _build_fake()
     rosters = _make_yahoo_rosters()
     mapping = _yahoo_id_mapping()
-    set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
-    set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
-    set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+    set_container(
+        ServiceContainer(
+            data_source=ds,
+            roster_source=FakeKeeperRosterSource(rosters),
+            id_mapper=FakeKeeperIdMapper(mapping),
+            yahoo_league=FakeYahooLeague("422.l.123.t.1"),
+        )
+    )
 
 
 class TestKeeperRankYahoo:
@@ -433,7 +437,7 @@ class TestKeeperRankYahoo:
         assert "Slugger Jones" in result.output
 
     def test_yahoo_unmapped_players_warn(self) -> None:
-        _install_fake()
+        ds = _build_fake()
         # Add an unmappable player
         rosters = LeagueRosters(
             league_key="422.l.123",
@@ -456,9 +460,14 @@ class TestKeeperRankYahoo:
         )
         # Y999 is not in the mapping
         mapping = {"Y100": "b1"}
-        set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
-        set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
-        set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+        set_container(
+            ServiceContainer(
+                data_source=ds,
+                roster_source=FakeKeeperRosterSource(rosters),
+                id_mapper=FakeKeeperIdMapper(mapping),
+                yahoo_league=FakeYahooLeague("422.l.123.t.1"),
+            )
+        )
         result = runner.invoke(
             app,
             ["keeper", "rank", "2025", "--yahoo", "--user-pick", "1", "--teams", "1"],
@@ -539,12 +548,17 @@ def _league_id_mapping() -> dict[str, str]:
 
 
 def _install_league_fakes() -> None:
-    _install_fake()
+    ds = _build_fake()
     rosters = _make_league_rosters()
     mapping = _league_id_mapping()
-    set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
-    set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
-    set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+    set_container(
+        ServiceContainer(
+            data_source=ds,
+            roster_source=FakeKeeperRosterSource(rosters),
+            id_mapper=FakeKeeperIdMapper(mapping),
+            yahoo_league=FakeYahooLeague("422.l.123.t.1"),
+        )
+    )
 
 
 class TestKeeperLeagueCommand:
@@ -596,7 +610,7 @@ class TestKeeperLeagueCommand:
         assert "Pick #2" in result.output
 
     def test_league_with_unmapped_players(self) -> None:
-        _install_fake()
+        ds = _build_fake()
         rosters = LeagueRosters(
             league_key="422.l.123",
             teams=(
@@ -613,9 +627,14 @@ class TestKeeperLeagueCommand:
             ),
         )
         mapping = {"Y100": "b1"}
-        set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
-        set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
-        set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+        set_container(
+            ServiceContainer(
+                data_source=ds,
+                roster_source=FakeKeeperRosterSource(rosters),
+                id_mapper=FakeKeeperIdMapper(mapping),
+                yahoo_league=FakeYahooLeague("422.l.123.t.1"),
+            )
+        )
         result = runner.invoke(
             app,
             ["keeper", "league", "2025", "--keeper-slots", "1", "--teams", "1"],
@@ -625,7 +644,7 @@ class TestKeeperLeagueCommand:
 
     def test_league_skips_players_without_projections(self) -> None:
         """Players mapped to FanGraphs IDs but lacking projections should be skipped."""
-        _install_fake()
+        ds = _build_fake()
         rosters = LeagueRosters(
             league_key="422.l.123",
             teams=(
@@ -643,9 +662,14 @@ class TestKeeperLeagueCommand:
         )
         # Y900 maps to a FanGraphs ID that has no projections
         mapping = {"Y100": "b1", "Y900": "no_projection"}
-        set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
-        set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
-        set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+        set_container(
+            ServiceContainer(
+                data_source=ds,
+                roster_source=FakeKeeperRosterSource(rosters),
+                id_mapper=FakeKeeperIdMapper(mapping),
+                yahoo_league=FakeYahooLeague("422.l.123.t.1"),
+            )
+        )
         result = runner.invoke(
             app,
             ["keeper", "league", "2025", "--keeper-slots", "1", "--teams", "1"],
@@ -659,7 +683,6 @@ class TestSplitPlayerYahoo:
 
     def _install_split_fakes(self) -> None:
         ds = _build_fake()
-        set_data_source_factory(lambda: ds)
 
         rosters = LeagueRosters(
             league_key="422.l.123",
@@ -686,9 +709,14 @@ class TestSplitPlayerYahoo:
             ),
         )
         mapping = {"Y500": "b1", "Y501": "p1"}
-        set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
-        set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
-        set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+        set_container(
+            ServiceContainer(
+                data_source=ds,
+                roster_source=FakeKeeperRosterSource(rosters),
+                id_mapper=FakeKeeperIdMapper(mapping),
+                yahoo_league=FakeYahooLeague("422.l.123.t.1"),
+            )
+        )
 
     def test_split_player_rank_both_appear(self) -> None:
         self._install_split_fakes()
