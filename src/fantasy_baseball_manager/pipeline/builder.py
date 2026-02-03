@@ -26,6 +26,10 @@ from fantasy_baseball_manager.pipeline.stages.enhanced_playing_time import (
     EnhancedPlayingTimeProjector,
 )
 from fantasy_baseball_manager.pipeline.stages.finalizers import StandardFinalizer
+from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
+    GBResidualAdjuster,
+    GBResidualConfig,
+)
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
     ParkFactorAdjuster,
 )
@@ -56,6 +60,7 @@ from fantasy_baseball_manager.pipeline.stages.statcast_adjuster import (
 )
 from fantasy_baseball_manager.pipeline.statcast_data import (
     CachedStatcastDataSource,
+    FullStatcastDataSource,
     PitcherStatcastDataSource,
     PybaseballStatcastDataSource,
     StatcastDataSource,
@@ -102,6 +107,8 @@ class PipelineBuilder:
         self._split_source: SplitStatsDataSource | None = None
         self._enhanced_playing_time: bool = False
         self._playing_time_config: PlayingTimeConfig | None = None
+        self._gb_residual: bool = False
+        self._gb_residual_config: GBResidualConfig | None = None
 
     def rate_computer(self, kind: str) -> PipelineBuilder:
         """Set the rate computer: 'stat_specific' (default) or 'platoon'."""
@@ -175,6 +182,16 @@ class PipelineBuilder:
         self._enhanced_playing_time = True
         if config is not None:
             self._playing_time_config = config
+        return self
+
+    def with_gb_residual(
+        self,
+        config: GBResidualConfig | None = None,
+    ) -> PipelineBuilder:
+        """Enable gradient boosting residual adjustments using trained ML models."""
+        self._gb_residual = True
+        if config is not None:
+            self._gb_residual_config = config
         return self
 
     def build(self) -> ProjectionPipeline:
@@ -262,6 +279,17 @@ class PipelineBuilder:
             mapper = self._resolve_id_mapper()
             adjusters.append(BatterBabipAdjuster(statcast_source=source, id_mapper=mapper))
 
+        if self._gb_residual:
+            full_source = self._resolve_full_statcast_source()
+            bb_source = self._resolve_pitcher_babip_source()
+            mapper = self._resolve_id_mapper()
+            adjusters.append(GBResidualAdjuster(
+                statcast_source=full_source,
+                batted_ball_source=bb_source,
+                id_mapper=mapper,
+                config=self._gb_residual_config or GBResidualConfig(),
+            ))
+
         # Always last: rebaseline then aging
         adjusters.append(RebaselineAdjuster())
         adjusters.append(ComponentAgingAdjuster())
@@ -305,3 +333,8 @@ class PipelineBuilder:
         )
         self._id_mapper = mapper
         return mapper
+
+    def _resolve_full_statcast_source(self) -> FullStatcastDataSource:
+        # CachedStatcastDataSource satisfies FullStatcastDataSource protocol
+        source = self._resolve_statcast_source()
+        return cast("FullStatcastDataSource", source)

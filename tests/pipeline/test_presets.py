@@ -92,6 +92,7 @@ ALL_PRESET_NAMES = [
     "marcel_classic",
     "marcel",
     "marcel_full",
+    "marcel_gb",
 ]
 
 
@@ -112,8 +113,8 @@ class TestAllPresetsInRegistry:
         aging_adjusters = [a for a in pipeline.adjusters if isinstance(a, ComponentAgingAdjuster)]
         assert len(aging_adjusters) == 1
 
-    def test_registry_has_exactly_three_entries(self) -> None:
-        assert len(PIPELINES) == 3
+    def test_registry_has_expected_entries(self) -> None:
+        assert len(PIPELINES) == 4
 
 
 class TestConfigThreading:

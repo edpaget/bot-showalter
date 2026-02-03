@@ -33,11 +33,11 @@ class TestValidateEngine:
         validate_engine("marcel_full")
 
     def test_supported_engines_contains_all_variants(self) -> None:
-        for name in ("marcel_classic", "marcel", "marcel_full"):
+        for name in ("marcel_classic", "marcel", "marcel_full", "marcel_gb"):
             assert name in SUPPORTED_ENGINES
 
-    def test_supported_engines_has_exactly_three(self) -> None:
-        assert len(SUPPORTED_ENGINES) == 3
+    def test_supported_engines_has_expected_count(self) -> None:
+        assert len(SUPPORTED_ENGINES) == 4
 
 
 class TestValidateMethod:

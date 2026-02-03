@@ -74,15 +74,34 @@ def marcel_full_pipeline(
     )
 
 
+def marcel_gb_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Marcel with gradient boosting residual corrections.
+
+    Uses trained ML models to predict and correct Marcel's systematic
+    projection errors based on Statcast features.
+    """
+    cfg = config or RegressionConfig()
+    return (
+        PipelineBuilder("marcel_gb", config=cfg)
+        .with_statcast()
+        .with_gb_residual()
+        .build()
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
+    "marcel_gb": marcel_gb_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
+    "marcel_gb": marcel_gb_pipeline,
 }
 
 

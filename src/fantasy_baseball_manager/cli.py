@@ -5,6 +5,7 @@ import typer
 from fantasy_baseball_manager.agent.cli import chat_app
 from fantasy_baseball_manager.evaluation.cli import evaluate_cmd
 from fantasy_baseball_manager.keeper.cli import keeper_app
+from fantasy_baseball_manager.ml.cli import ml_app
 from fantasy_baseball_manager.players.cli import players_app
 from fantasy_baseball_manager.teams.cli import teams_app
 
@@ -13,6 +14,7 @@ app.add_typer(players_app, name="players")
 app.add_typer(teams_app, name="teams")
 app.add_typer(keeper_app, name="keeper")
 app.add_typer(chat_app, name="chat")
+app.add_typer(ml_app, name="ml")
 app.command(name="evaluate")(evaluate_cmd)
 
 
