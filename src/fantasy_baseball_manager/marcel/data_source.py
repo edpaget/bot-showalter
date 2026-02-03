@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import TYPE_CHECKING, Protocol
 
 import pybaseball
@@ -255,6 +256,8 @@ class CachedStatsDataSource:
         fetch: Callable[[int], Any],
         serialize: Callable[..., str],
         deserialize: Callable[[str], Any],
+        max_retries: int = 6,
+        base_delay: float = 5.0,
     ) -> Any:
         key = f"{method_name}:{year}"
         cached = self._cache.get(_NAMESPACE, key)
@@ -262,9 +265,30 @@ class CachedStatsDataSource:
             logger.debug("Cache hit for %s [year=%d]", method_name, year)
             return deserialize(cached)
         logger.debug("Cache miss for %s [year=%d], fetching from source", method_name, year)
-        result = fetch(year)
-        self._cache.put(_NAMESPACE, key, serialize(result), self._ttl_seconds)
-        return result
+        for attempt in range(max_retries):
+            try:
+                result = fetch(year)
+                self._cache.put(_NAMESPACE, key, serialize(result), self._ttl_seconds)
+                return result
+            except Exception:
+                # Another worker may have fetched while we waited — check cache.
+                cached = self._cache.get(_NAMESPACE, key)
+                if cached is not None:
+                    logger.debug("Cache populated by another worker for %s [year=%d]", method_name, year)
+                    return deserialize(cached)
+                if attempt < max_retries - 1:
+                    wait = base_delay * (2**attempt)
+                    logger.warning(
+                        "Fetch failed for %s [year=%d], retrying in %.0fs (attempt %d/%d)",
+                        method_name,
+                        year,
+                        wait,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
 
     def batting_stats(self, year: int) -> list[BattingSeasonStats]:
         return self._cached_call(

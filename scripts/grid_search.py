@@ -47,12 +47,12 @@ from fantasy_baseball_manager.pipeline.stages.regression_constants import (
 # ---------------------------------------------------------------------------
 
 FULL_SEARCH_SPACE: dict[str, list[float]] = {
-    "babip_regression_weight": [0.3, 0.4, 0.5, 0.6, 0.7],
-    "lob_regression_weight": [0.4, 0.5, 0.6, 0.7, 0.8],
-    "batting_hr_pa": [350, 425, 500, 575, 650],
-    "batting_singles_pa": [600, 700, 800, 900, 1000],
-    "pitching_h_outs": [150, 175, 200, 225, 250],
-    "pitching_er_outs": [100, 125, 150, 175, 200],
+    "babip_regression_weight": [1.0],
+    "lob_regression_weight": [1.0],
+    "batting_hr_pa": [350, 400, 425, 450],
+    "batting_singles_pa": [1200, 1400, 1600, 1800, 2000, 2500],
+    "pitching_h_outs": [150],
+    "pitching_er_outs": [150],
 }
 
 COARSE_SEARCH_SPACE: dict[str, list[float]] = {

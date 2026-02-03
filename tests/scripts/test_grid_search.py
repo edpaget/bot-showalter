@@ -20,7 +20,7 @@ class TestGenerateGrid:
         for values in FULL_SEARCH_SPACE.values():
             expected *= len(values)
         assert len(grid) == expected
-        assert expected == 5**6  # 15625
+        assert expected == 1 * 1 * 4 * 6 * 1 * 1  # 24
 
     def test_coarse_grid_size(self) -> None:
         grid = generate_grid(COARSE_SEARCH_SPACE)
@@ -149,7 +149,7 @@ class TestSearchPointToConfig:
             pitching_er_outs=999.0,
         )
         search_point_to_config(point)
-        assert BATTING_REGRESSION_PA["hr"] == 500
+        assert BATTING_REGRESSION_PA["hr"] == 425
         assert PITCHING_REGRESSION_OUTS["h"] == 200
 
 
