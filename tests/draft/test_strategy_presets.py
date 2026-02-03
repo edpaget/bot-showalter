@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.draft.rules import PitcherBatterRatio
 from fantasy_baseball_manager.draft.simulation_models import DraftRule, DraftStrategy
 from fantasy_baseball_manager.draft.strategy_presets import STRATEGY_PRESETS
 from fantasy_baseball_manager.valuation.models import StatCategory
@@ -42,6 +43,19 @@ class TestStrategyPresets:
             assert isinstance(strategy.rules, tuple), f"{name} rules is not a tuple"
             for rule in strategy.rules:
                 assert isinstance(rule, DraftRule), f"{name} has a non-DraftRule rule"
+
+    def test_batting_strategies_have_pitcher_ratio_rule(self) -> None:
+        for name in ("power_hitting", "speed"):
+            strategy = STRATEGY_PRESETS[name]
+            pitcher_ratio_rules = [
+                r for r in strategy.rules if isinstance(r, PitcherBatterRatio)
+            ]
+            assert len(pitcher_ratio_rules) == 1, (
+                f"{name} should have exactly one PitcherBatterRatio rule"
+            )
+            assert pitcher_ratio_rules[0].max_pitcher_fraction < 0.5, (
+                f"{name} pitcher fraction should be below 0.5"
+            )
 
     def test_all_presets_have_valid_noise_scale(self) -> None:
         for name, strategy in STRATEGY_PRESETS.items():
