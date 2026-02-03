@@ -1,0 +1,219 @@
+# Refactoring Roadmap
+
+This document tracks identified technical debt and refactoring opportunities in the fantasy baseball codebase.
+
+## High Priority
+
+### 1. Replace Global Factory Pattern with Dependency Container
+
+**Status:** ✅ Completed (commit `bdf64a6`)
+
+**Problem:** Seven CLI modules used identical global factory anti-pattern for dependency injection.
+
+**Solution implemented:** Created `ServiceContainer` class in `src/services/container.py` that:
+- Provides lazy initialization of dependencies via `@cached_property`
+- Supports explicit injection for testing via constructor parameters
+- Manages: `data_source`, `id_mapper`, `roster_source`, `blender`, `yahoo_league`
+- Uses `get_container()` / `set_container()` for global access with reset capability
+
+All CLI modules now use the container pattern. Tests use `set_container(ServiceContainer(...))` for clean dependency injection.
+
+---
+
+### 2. Consolidate Cache Wrapper Classes
+
+**Status:** ✅ Completed
+
+**Problem:** `cache/sources.py` contained three nearly identical classes with duplicated cache logic.
+
+**Solution implemented:** Extracted shared cache-or-fetch logic into a `_cached_fetch()` helper function that:
+- Handles cache hit/miss, serialization, deserialization, and logging uniformly
+- Takes serializer functions as parameters
+- Wrapper classes now delegate to this helper with type-specific serializers
+
+**Result:** Reduced from 182 lines to 158 lines (13% reduction). More importantly, the cache logic is now in one place (DRY), making it easier to modify caching behavior consistently.
+
+---
+
+### 3. Type-Safe Metadata in Pipeline
+
+**Status:** Not started
+
+**Problem:** `PlayerRates.metadata` is typed as `dict[str, object]`, requiring unsafe `cast()` calls:
+
+```python
+cast("list[float]", player.metadata.get("pa_per_year"))
+cast("list[float] | None", player.metadata.get("games_per_year"))
+```
+
+**Affected files:**
+- `src/pipeline/stages/enhanced_playing_time.py`
+- `src/pipeline/stages/adjusters.py`
+- Various other pipeline stages
+
+**Issues:**
+- No compile-time safety for metadata keys
+- Easy to misspell keys or use wrong types
+- Requires runtime checks and casts
+
+**Solution:** Replace with a `TypedDict` or dataclass for `PlayerRatesMetadata`.
+
+---
+
+## Medium Priority
+
+### 4. Split Large CLI Modules
+
+**Status:** Not started
+
+**Problem:** Several CLI modules exceed 400 lines and mix multiple concerns:
+
+| File | Lines | Concerns Mixed |
+|------|-------|----------------|
+| `keeper/cli.py` | 512 | Data orchestration, display formatting, validation, optimization |
+| `draft/cli.py` | 477 | Projections, simulation, display, shared utilities |
+| `agent/tools.py` | 392 | Many similar tool definitions |
+
+**Specific issues:**
+- `draft/cli.py` contains `build_projections_and_positions()` which is imported by `keeper/cli.py` — cross-module dependency
+- Display logic (table formatting) mixed with data orchestration
+- Validation logic scattered throughout
+
+**Solution:**
+- Extract shared data orchestration to `src/shared/orchestration.py`
+- Extract display/formatting to separate modules
+- Consider subcommand modules for complex CLIs
+
+---
+
+### 5. Builder Creates Internal Dependencies
+
+**Status:** Not started
+
+**Problem:** `pipeline/builder.py` (307 lines) creates all dependencies internally:
+
+```python
+def _build_adjusters(self) -> list[RateAdjuster]:
+    if self._park_factors:
+        adjusters.append(
+            ParkFactorAdjuster(
+                CachedParkFactorProvider(
+                    delegate=FanGraphsParkFactorProvider(),
+                    cache=create_cache_store()  # Creates dependency internally
+                )
+            )
+        )
+```
+
+**Issues:**
+- Hard to inject mocks for testing
+- No way to swap cache implementations
+- Tightly coupled to factory functions
+
+**Solution:** Accept optional dependency overrides in constructor or add `.with_cache_store()` builder methods.
+
+---
+
+### 6. Extract Common CLI Setup Pattern
+
+**Status:** Not started
+
+**Problem:** Every CLI module duplicates setup boilerplate:
+
+```python
+config = create_config()
+cache = create_cache_store(config)
+cache_key = get_cache_key(config)
+data_source = _data_source_factory()
+```
+
+**Solution:** Create a `CLIContext` dataclass bundling common dependencies.
+
+---
+
+### 7. Config Uses Global Override State
+
+**Status:** Not started
+
+**Problem:** `config.py` uses mutable global state for CLI overrides:
+
+```python
+_cli_overrides: dict[str, object] = {}
+
+def apply_cli_overrides(**kwargs: object) -> None:
+    global _cli_overrides
+    _cli_overrides = {k: v for k, v in kwargs.items() if v is not None}
+
+def clear_cli_overrides() -> None:
+    global _cli_overrides
+    _cli_overrides = {}
+```
+
+**Issues:**
+- State leakage between CLI invocations
+- Tests must remember to clear overrides
+- Hard to run concurrent CLI operations
+
+**Solution:** Pass overrides explicitly through function parameters or context objects.
+
+---
+
+## Lower Priority
+
+### 8. Resolve `type: ignore` Comments
+
+**Status:** Not started
+
+**Problem:** 14 files contain `type: ignore` comments:
+
+- `agent/core.py` — langchain/langgraph incomplete type stubs
+- `draft/results.py`
+- `pipeline/stages/adjusters.py`
+- And others
+
+**Solution:** Track and resolve as library type stubs improve; consider contributing stubs upstream.
+
+---
+
+### 9. Column Formatting Duplication
+
+**Status:** Not started
+
+**Problem:** Three CLI modules define similar column specification patterns:
+
+- `league/cli.py` (lines 30-79)
+- `draft/cli.py`
+- `keeper/cli.py`
+
+Each defines column specs with lambdas for data extraction and formatting.
+
+**Solution:** Create shared table formatting utilities in `src/shared/tables.py`.
+
+---
+
+### 10. Missing Contract Tests for Protocol Implementations
+
+**Status:** Not started
+
+**Problem:** Multiple implementations of protocols (e.g., `RateComputer`, `RateAdjuster`, `PlayingTimeProjector`) are tested independently but no contract tests verify they all satisfy the protocol correctly.
+
+**Solution:** Add parametrized contract tests that run against all implementations of each protocol.
+
+---
+
+## Summary Metrics
+
+| Metric | Value |
+|--------|-------|
+| Total source files | 105 |
+| Total test files | 101 |
+| Largest file | `keeper/cli.py` (512 lines) |
+| Global state locations | 1 (services/container.py) + config.py |
+| Files with `type: ignore` | 14 |
+| Duplicated cache wrappers | ✅ Consolidated |
+| CLI modules needing split | 3 |
+
+## Completed Items
+
+1. ✅ **Replace Global Factory Pattern with Dependency Container** — `ServiceContainer` now manages all CLI dependencies centrally
+2. ✅ **Consolidate Cache Wrapper Classes** — Extracted `_cached_fetch()` helper, reducing duplication in cache/sources.py
