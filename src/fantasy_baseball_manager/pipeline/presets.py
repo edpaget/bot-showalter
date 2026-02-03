@@ -15,6 +15,9 @@ from fantasy_baseball_manager.pipeline.stages.adjusters import (
     MarcelAgingAdjuster,
     RebaselineAdjuster,
 )
+from fantasy_baseball_manager.pipeline.stages.batter_babip_adjuster import (
+    BatterBabipAdjuster,
+)
 from fantasy_baseball_manager.pipeline.stages.component_aging import (
     ComponentAgingAdjuster,
 )
@@ -252,6 +255,29 @@ def marcel_full_statcast_pipeline(
     )
 
 
+def marcel_full_statcast_babip_pipeline(
+    statcast_source: StatcastDataSource | None = None,
+    id_mapper: PlayerIdMapper | None = None,
+) -> ProjectionPipeline:
+    source = statcast_source or _cached_statcast_source()
+    mapper = id_mapper or _default_id_mapper()
+    return ProjectionPipeline(
+        name="marcel_full_statcast_babip",
+        rate_computer=StatSpecificRegressionRateComputer(),
+        adjusters=(
+            ParkFactorAdjuster(_cached_park_factor_provider()),
+            PitcherNormalizationAdjuster(),
+            StatcastRateAdjuster(statcast_source=source, id_mapper=mapper),
+            BatterBabipAdjuster(statcast_source=source, id_mapper=mapper),
+            RebaselineAdjuster(),
+            ComponentAgingAdjuster(),
+        ),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
@@ -263,6 +289,7 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_statcast": marcel_statcast_pipeline,
     "marcel_plus_statcast": marcel_plus_statcast_pipeline,
     "marcel_full_statcast": marcel_full_statcast_pipeline,
+    "marcel_full_statcast_babip": marcel_full_statcast_babip_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
