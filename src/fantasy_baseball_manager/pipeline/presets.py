@@ -28,6 +28,9 @@ from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
 from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
     PitcherNormalizationAdjuster,
 )
+from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
+    PitcherStatcastAdjuster,
+)
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateComputer
 from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
@@ -39,6 +42,7 @@ from fantasy_baseball_manager.pipeline.stages.statcast_adjuster import (
 )
 from fantasy_baseball_manager.pipeline.statcast_data import (
     CachedStatcastDataSource,
+    PitcherStatcastDataSource,
     PybaseballStatcastDataSource,
     StatcastDataSource,
 )
@@ -278,6 +282,32 @@ def marcel_full_statcast_babip_pipeline(
     )
 
 
+def marcel_full_statcast_pitching_pipeline(
+    statcast_source: StatcastDataSource | None = None,
+    pitcher_statcast_source: PitcherStatcastDataSource | None = None,
+    id_mapper: PlayerIdMapper | None = None,
+) -> ProjectionPipeline:
+    source = statcast_source or _cached_statcast_source()
+    mapper = id_mapper or _default_id_mapper()
+    p_source = pitcher_statcast_source or source
+    return ProjectionPipeline(
+        name="marcel_full_statcast_pitching",
+        rate_computer=StatSpecificRegressionRateComputer(),
+        adjusters=(
+            ParkFactorAdjuster(_cached_park_factor_provider()),
+            PitcherNormalizationAdjuster(),
+            PitcherStatcastAdjuster(statcast_source=p_source, id_mapper=mapper),
+            StatcastRateAdjuster(statcast_source=source, id_mapper=mapper),
+            BatterBabipAdjuster(statcast_source=source, id_mapper=mapper),
+            RebaselineAdjuster(),
+            ComponentAgingAdjuster(),
+        ),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
@@ -290,6 +320,7 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_plus_statcast": marcel_plus_statcast_pipeline,
     "marcel_full_statcast": marcel_full_statcast_pipeline,
     "marcel_full_statcast_babip": marcel_full_statcast_babip_pipeline,
+    "marcel_full_statcast_pitching": marcel_full_statcast_pitching_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {

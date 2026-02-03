@@ -24,8 +24,26 @@ class StatcastBatterStats:
     xslg: float
 
 
+@dataclass(frozen=True)
+class StatcastPitcherStats:
+    player_id: str  # MLBAM ID
+    name: str
+    year: int
+    pa: int  # PA against
+    xba: float  # expected BA against
+    xslg: float  # expected SLG against
+    xwoba: float  # expected wOBA against
+    xera: float  # expected ERA
+    barrel_rate: float  # barrel% against
+    hard_hit_rate: float  # hard-hit% against
+
+
 class StatcastDataSource(Protocol):
     def batter_expected_stats(self, year: int) -> list[StatcastBatterStats]: ...
+
+
+class PitcherStatcastDataSource(Protocol):
+    def pitcher_expected_stats(self, year: int) -> list[StatcastPitcherStats]: ...
 
 
 class PybaseballStatcastDataSource:
@@ -64,13 +82,54 @@ class PybaseballStatcastDataSource:
         logger.debug("Loaded %d Statcast batter records for %d", len(results), year)
         return results
 
+    def pitcher_expected_stats(self, year: int) -> list[StatcastPitcherStats]:
+        from pybaseball import statcast_pitcher_exitvelo_barrels, statcast_pitcher_expected_stats
+
+        xstats = statcast_pitcher_expected_stats(year, minPA=1)
+        barrels = statcast_pitcher_exitvelo_barrels(year, minBBE=1)
+
+        barrel_lookup: dict[int, tuple[float, float]] = {}
+        for _, row in barrels.iterrows():
+            pid = int(row["player_id"])
+            brl_pct = float(row.get("brl_percent", 0))
+            hh_pct = float(row.get("ev95percent", 0))
+            barrel_lookup[pid] = (brl_pct / 100.0, hh_pct / 100.0)
+
+        results: list[StatcastPitcherStats] = []
+        for _, row in xstats.iterrows():
+            pid = int(row["player_id"])
+            barrel_rate, hard_hit_rate = barrel_lookup.get(pid, (0.0, 0.0))
+            results.append(
+                StatcastPitcherStats(
+                    player_id=str(pid),
+                    name=str(row.get("player_name", row.get("last_name, first_name", ""))),
+                    year=year,
+                    pa=int(row["pa"]),
+                    xba=float(row.get("est_ba", row.get("xba", 0))),
+                    xslg=float(row.get("est_slg", row.get("xslg", 0))),
+                    xwoba=float(row.get("est_woba", row.get("xwoba", 0))),
+                    xera=float(row.get("xera", 0)),
+                    barrel_rate=barrel_rate,
+                    hard_hit_rate=hard_hit_rate,
+                )
+            )
+        logger.debug("Loaded %d Statcast pitcher records for %d", len(results), year)
+        return results
+
+
+class FullStatcastDataSource(Protocol):
+    """Data source that provides both batter and pitcher Statcast data."""
+
+    def batter_expected_stats(self, year: int) -> list[StatcastBatterStats]: ...
+    def pitcher_expected_stats(self, year: int) -> list[StatcastPitcherStats]: ...
+
 
 class CachedStatcastDataSource:
-    """Wraps any StatcastDataSource with CacheStore."""
+    """Wraps any FullStatcastDataSource with CacheStore."""
 
     def __init__(
         self,
-        delegate: StatcastDataSource,
+        delegate: FullStatcastDataSource,
         cache: CacheStore,
         ttl: int = 30 * 86400,
     ) -> None:
@@ -88,6 +147,24 @@ class CachedStatcastDataSource:
 
         logger.debug("Statcast cache miss for year %d, fetching", year)
         results = self._delegate.batter_expected_stats(year)
+        self._cache.put(
+            "statcast",
+            cache_key,
+            json.dumps([asdict(s) for s in results]),
+            self._ttl,
+        )
+        return results
+
+    def pitcher_expected_stats(self, year: int) -> list[StatcastPitcherStats]:
+        cache_key = f"statcast_pitcher_{year}"
+        cached = self._cache.get("statcast", cache_key)
+        if cached is not None:
+            logger.debug("Statcast pitcher cache hit for year %d", year)
+            rows = json.loads(cached)
+            return [StatcastPitcherStats(**row) for row in rows]
+
+        logger.debug("Statcast pitcher cache miss for year %d, fetching", year)
+        results = self._delegate.pitcher_expected_stats(year)
         self._cache.put(
             "statcast",
             cache_key,
