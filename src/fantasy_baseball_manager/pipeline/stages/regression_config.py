@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
     PitcherNormalizationConfig,
 )
+from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
+    PitcherStatcastConfig,
+)
 from fantasy_baseball_manager.pipeline.stages.regression_constants import (
     BATTING_REGRESSION_PA,
     PITCHING_REGRESSION_OUTS,
@@ -35,4 +38,5 @@ class RegressionConfig:
     batting_regression_pa: dict[str, float] = field(default_factory=lambda: dict(BATTING_REGRESSION_PA))
     pitching_regression_outs: dict[str, float] = field(default_factory=lambda: dict(PITCHING_REGRESSION_OUTS))
     pitcher_normalization: PitcherNormalizationConfig = field(default_factory=PitcherNormalizationConfig)
+    pitcher_statcast: PitcherStatcastConfig = field(default_factory=PitcherStatcastConfig)
     platoon: PlatoonConfig = field(default_factory=PlatoonConfig)

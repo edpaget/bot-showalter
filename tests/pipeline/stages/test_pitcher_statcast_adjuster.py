@@ -92,7 +92,7 @@ SAMPLE_PITCHER_STATCAST = StatcastPitcherStats(
 
 class TestHitRateBlending:
     def test_weight_zero_returns_original(self) -> None:
-        config = PitcherStatcastConfig(blend_weight=0.0)
+        config = PitcherStatcastConfig(h_blend_weight=0.0, er_blend_weight=0.0)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
         mapper = FakeIdMapper({"fgp1": "mlb1"})
         adjuster = PitcherStatcastAdjuster(source, mapper, config)
@@ -102,7 +102,7 @@ class TestHitRateBlending:
         assert result[0].rates["er"] == pytest.approx(pitcher.rates["er"])
 
     def test_weight_one_returns_statcast_derived(self) -> None:
-        config = PitcherStatcastConfig(blend_weight=1.0)
+        config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=1.0)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
         mapper = FakeIdMapper({"fgp1": "mlb1"})
         adjuster = PitcherStatcastAdjuster(source, mapper, config)
@@ -113,7 +113,7 @@ class TestHitRateBlending:
         assert result[0].rates["er"] != pytest.approx(pitcher.rates["er"])
 
     def test_partial_blend_interpolates(self) -> None:
-        config = PitcherStatcastConfig(blend_weight=0.5)
+        config = PitcherStatcastConfig(h_blend_weight=0.5, er_blend_weight=0.5)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
         mapper = FakeIdMapper({"fgp1": "mlb1"})
         adjuster = PitcherStatcastAdjuster(source, mapper, config)
@@ -125,10 +125,40 @@ class TestHitRateBlending:
         assert blended_h != pytest.approx(original_h)
 
 
+class TestIndependentWeights:
+    def test_h_zero_er_full_leaves_h_unchanged(self) -> None:
+        """h_blend_weight=0 keeps h at marcel; er_blend_weight=1 uses statcast er."""
+        config = PitcherStatcastConfig(h_blend_weight=0.0, er_blend_weight=1.0)
+        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
+        mapper = FakeIdMapper({"fgp1": "mlb1"})
+        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        pitcher = _make_pitcher()
+        result = adjuster.adjust([pitcher])
+        # h unchanged (weight=0)
+        assert result[0].rates["h"] == pytest.approx(pitcher.rates["h"])
+        # er fully statcast-derived (weight=1)
+        expected_er = SAMPLE_PITCHER_STATCAST.xera / 27.0
+        assert result[0].rates["er"] == pytest.approx(expected_er, abs=1e-6)
+
+    def test_h_full_er_zero_leaves_er_unchanged(self) -> None:
+        """h_blend_weight=1 uses statcast h; er_blend_weight=0 keeps er at marcel."""
+        config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=0.0)
+        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
+        mapper = FakeIdMapper({"fgp1": "mlb1"})
+        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        pitcher = _make_pitcher()
+        result = adjuster.adjust([pitcher])
+        # h fully statcast-derived (weight=1)
+        expected_h = SAMPLE_PITCHER_STATCAST.xba * (1.0 - 0.080 - 0.008)
+        assert result[0].rates["h"] == pytest.approx(expected_h, abs=1e-6)
+        # er unchanged (weight=0)
+        assert result[0].rates["er"] == pytest.approx(pitcher.rates["er"])
+
+
 class TestErDerivation:
     def test_er_derived_from_xera(self) -> None:
         """xERA / 27 gives ER per out."""
-        config = PitcherStatcastConfig(blend_weight=1.0)
+        config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=1.0)
         statcast = StatcastPitcherStats(
             player_id="mlb1",
             name="Test",
@@ -153,7 +183,7 @@ class TestErDerivation:
 class TestHitDerivation:
     def test_h_derived_from_xba_against(self) -> None:
         """x_h = xba * ab_per_bf where ab_per_bf = 1 - bb - hbp."""
-        config = PitcherStatcastConfig(blend_weight=1.0)
+        config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=1.0)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
         mapper = FakeIdMapper({"fgp1": "mlb1"})
         adjuster = PitcherStatcastAdjuster(source, mapper, config)
@@ -224,7 +254,7 @@ class TestPassthrough:
 
 class TestNonBlendedRatesUnchanged:
     def test_bb_so_hbp_unchanged(self) -> None:
-        config = PitcherStatcastConfig(blend_weight=0.5)
+        config = PitcherStatcastConfig(h_blend_weight=0.5, er_blend_weight=0.5)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
         mapper = FakeIdMapper({"fgp1": "mlb1"})
         adjuster = PitcherStatcastAdjuster(source, mapper, config)
@@ -246,7 +276,8 @@ class TestMetadata:
         assert result[0].metadata["pitcher_xera"] == 3.24
         assert result[0].metadata["pitcher_xba_against"] == 0.230
         assert result[0].metadata["pitcher_statcast_blended"] is True
-        assert "pitcher_blend_weight" in result[0].metadata
+        assert "pitcher_h_blend_weight" in result[0].metadata
+        assert "pitcher_er_blend_weight" in result[0].metadata
 
     def test_existing_metadata_preserved(self) -> None:
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})

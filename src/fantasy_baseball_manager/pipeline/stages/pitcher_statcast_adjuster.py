@@ -21,7 +21,8 @@ REQUIRED_RATES = ("h", "er")
 
 @dataclass(frozen=True)
 class PitcherStatcastConfig:
-    blend_weight: float = 0.30
+    h_blend_weight: float = 0.0
+    er_blend_weight: float = 0.25
     min_pa_for_blend: int = 200
     league_hr_per_barrel: float = 0.55
 
@@ -90,12 +91,16 @@ class PitcherStatcastAdjuster:
         return lookup.get(mlbam_id)
 
     def _blend_player(self, player: PlayerRates, statcast: StatcastPitcherStats) -> PlayerRates:
-        w = self._config.blend_weight
+        weights = {
+            "h": self._config.h_blend_weight,
+            "er": self._config.er_blend_weight,
+        }
         rates = dict(player.rates)
 
         sc_rates = self._derive_statcast_rates(player, statcast)
 
         for stat in BLENDED_STATS:
+            w = weights[stat]
             marcel_val = rates.get(stat, 0.0)
             statcast_val = sc_rates.get(stat, marcel_val)
             rates[stat] = w * statcast_val + (1.0 - w) * marcel_val
@@ -104,7 +109,8 @@ class PitcherStatcastAdjuster:
         metadata["pitcher_xera"] = statcast.xera
         metadata["pitcher_xba_against"] = statcast.xba
         metadata["pitcher_statcast_blended"] = True
-        metadata["pitcher_blend_weight"] = w
+        metadata["pitcher_h_blend_weight"] = self._config.h_blend_weight
+        metadata["pitcher_er_blend_weight"] = self._config.er_blend_weight
 
         return PlayerRates(
             player_id=player.player_id,

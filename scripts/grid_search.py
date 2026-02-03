@@ -36,6 +36,9 @@ from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
 from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
     PitcherNormalizationConfig,
 )
+from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
+    PitcherStatcastConfig,
+)
 from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
 from fantasy_baseball_manager.pipeline.stages.regression_constants import (
     BATTING_REGRESSION_PA,
@@ -64,6 +67,17 @@ COARSE_SEARCH_SPACE: dict[str, list[float]] = {
     "pitching_er_outs": [100, 150, 200],
 }
 
+PITCHER_STATCAST_SEARCH_SPACE: dict[str, list[float]] = {
+    "babip_regression_weight": [1.0],
+    "lob_regression_weight": [1.0],
+    "batting_hr_pa": [400],
+    "batting_singles_pa": [1400],
+    "pitching_h_outs": [150],
+    "pitching_er_outs": [150],
+    "h_blend_weight": [0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30],
+    "er_blend_weight": [0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50],
+}
+
 
 @dataclass(frozen=True)
 class SearchPoint:
@@ -73,6 +87,8 @@ class SearchPoint:
     batting_singles_pa: float
     pitching_h_outs: float
     pitching_er_outs: float
+    h_blend_weight: float | None = None
+    er_blend_weight: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -102,10 +118,16 @@ def search_point_to_config(point: SearchPoint) -> RegressionConfig:
         lob_regression_weight=point.lob_regression_weight,
     )
 
+    pitcher_statcast = PitcherStatcastConfig(
+        h_blend_weight=point.h_blend_weight if point.h_blend_weight is not None else 0.0,
+        er_blend_weight=point.er_blend_weight if point.er_blend_weight is not None else 0.25,
+    )
+
     return RegressionConfig(
         batting_regression_pa=batting,
         pitching_regression_outs=pitching,
         pitcher_normalization=norm,
+        pitcher_statcast=pitcher_statcast,
     )
 
 
@@ -170,15 +192,21 @@ def evaluate_point(
     avg_pitching_rho = sum(pitching_rhos) / len(pitching_rhos) if pitching_rhos else 0.0
     avg_rho = (avg_batting_rho + avg_pitching_rho) / 2.0
 
+    params: dict[str, Any] = {
+        "babip_regression_weight": point.babip_regression_weight,
+        "lob_regression_weight": point.lob_regression_weight,
+        "batting_hr_pa": point.batting_hr_pa,
+        "batting_singles_pa": point.batting_singles_pa,
+        "pitching_h_outs": point.pitching_h_outs,
+        "pitching_er_outs": point.pitching_er_outs,
+    }
+    if point.h_blend_weight is not None:
+        params["h_blend_weight"] = point.h_blend_weight
+    if point.er_blend_weight is not None:
+        params["er_blend_weight"] = point.er_blend_weight
+
     return {
-        "params": {
-            "babip_regression_weight": point.babip_regression_weight,
-            "lob_regression_weight": point.lob_regression_weight,
-            "batting_hr_pa": point.batting_hr_pa,
-            "batting_singles_pa": point.batting_singles_pa,
-            "pitching_h_outs": point.pitching_h_outs,
-            "pitching_er_outs": point.pitching_er_outs,
-        },
+        "params": params,
         "metrics": {
             "avg_spearman_rho": round(avg_rho, 5),
             "avg_batting_rho": round(avg_batting_rho, 5),
@@ -225,6 +253,11 @@ def main() -> None:
     parser.add_argument("--min-ip", type=float, default=50.0, help="Minimum innings pitched.")
     parser.add_argument("--top-n", type=int, default=20, help="N for top-N precision.")
     parser.add_argument(
+        "--pitcher-statcast",
+        action="store_true",
+        help="Search pitcher Statcast h/er blend weights (fixes regression constants at best values).",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default="grid_search_results.json",
@@ -232,7 +265,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    space = COARSE_SEARCH_SPACE if args.coarse else FULL_SEARCH_SPACE
+    if args.pitcher_statcast:
+        space = PITCHER_STATCAST_SEARCH_SPACE
+    elif args.coarse:
+        space = COARSE_SEARCH_SPACE
+    else:
+        space = FULL_SEARCH_SPACE
     grid = generate_grid(space)
     eval_years = [int(y.strip()) for y in args.years.split(",")]
 

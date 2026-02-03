@@ -196,7 +196,11 @@ class PipelineBuilder:
         if self._pitcher_statcast:
             source = self._resolve_pitcher_statcast_source()
             mapper = self._resolve_id_mapper()
-            adjusters.append(PitcherStatcastAdjuster(statcast_source=source, id_mapper=mapper))
+            adjusters.append(PitcherStatcastAdjuster(
+                statcast_source=source,
+                id_mapper=mapper,
+                config=self._config.pitcher_statcast,
+            ))
 
         if self._statcast:
             source = self._resolve_statcast_source()
