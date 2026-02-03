@@ -33,6 +33,9 @@ from fantasy_baseball_manager.marcel.data_source import (
 )
 from fantasy_baseball_manager.pipeline.presets import build_pipeline
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
+from fantasy_baseball_manager.pipeline.stages.pitcher_babip_skill_adjuster import (
+    PitcherBabipSkillConfig,
+)
 from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
     PitcherNormalizationConfig,
 )
@@ -78,6 +81,16 @@ PITCHER_STATCAST_SEARCH_SPACE: dict[str, list[float]] = {
     "er_blend_weight": [0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50],
 }
 
+PITCHER_BABIP_SEARCH_SPACE: dict[str, list[float]] = {
+    "babip_regression_weight": [1.0],
+    "lob_regression_weight": [1.0],
+    "batting_hr_pa": [400],
+    "batting_singles_pa": [1400],
+    "pitching_h_outs": [150],
+    "pitching_er_outs": [150],
+    "pitcher_babip_skill_weight": [0.0, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80],
+}
+
 
 @dataclass(frozen=True)
 class SearchPoint:
@@ -89,6 +102,7 @@ class SearchPoint:
     pitching_er_outs: float
     h_blend_weight: float | None = None
     er_blend_weight: float | None = None
+    pitcher_babip_skill_weight: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -123,11 +137,16 @@ def search_point_to_config(point: SearchPoint) -> RegressionConfig:
         er_blend_weight=point.er_blend_weight if point.er_blend_weight is not None else 0.25,
     )
 
+    pitcher_babip_skill = PitcherBabipSkillConfig(
+        blend_weight=point.pitcher_babip_skill_weight if point.pitcher_babip_skill_weight is not None else 0.40,
+    )
+
     return RegressionConfig(
         batting_regression_pa=batting,
         pitching_regression_outs=pitching,
         pitcher_normalization=norm,
         pitcher_statcast=pitcher_statcast,
+        pitcher_babip_skill=pitcher_babip_skill,
     )
 
 
@@ -204,6 +223,8 @@ def evaluate_point(
         params["h_blend_weight"] = point.h_blend_weight
     if point.er_blend_weight is not None:
         params["er_blend_weight"] = point.er_blend_weight
+    if point.pitcher_babip_skill_weight is not None:
+        params["pitcher_babip_skill_weight"] = point.pitcher_babip_skill_weight
 
     return {
         "params": params,
@@ -258,6 +279,11 @@ def main() -> None:
         help="Search pitcher Statcast h/er blend weights (fixes regression constants at best values).",
     )
     parser.add_argument(
+        "--pitcher-babip",
+        action="store_true",
+        help="Search pitcher BABIP skill blend weight (fixes regression constants at best values).",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default="grid_search_results.json",
@@ -265,7 +291,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.pitcher_statcast:
+    if args.pitcher_babip:
+        space = PITCHER_BABIP_SEARCH_SPACE
+    elif args.pitcher_statcast:
         space = PITCHER_STATCAST_SEARCH_SPACE
     elif args.coarse:
         space = COARSE_SEARCH_SPACE

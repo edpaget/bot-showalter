@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from fantasy_baseball_manager.cache.factory import create_cache_store
+from fantasy_baseball_manager.pipeline.batted_ball_data import (
+    CachedBattedBallDataSource,
+    PitcherBattedBallDataSource,
+    PybaseballBattedBallDataSource,
+)
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
 from fantasy_baseball_manager.pipeline.park_factors import (
     CachedParkFactorProvider,
@@ -20,6 +25,9 @@ from fantasy_baseball_manager.pipeline.stages.component_aging import (
 from fantasy_baseball_manager.pipeline.stages.finalizers import StandardFinalizer
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
     ParkFactorAdjuster,
+)
+from fantasy_baseball_manager.pipeline.stages.pitcher_babip_skill_adjuster import (
+    PitcherBabipSkillAdjuster,
 )
 from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
     PitcherNormalizationAdjuster,
@@ -64,7 +72,7 @@ class PipelineBuilder:
     Always includes RebaselineAdjuster and ComponentAgingAdjuster.
     Optional adjusters are added via builder methods and ordered
     automatically: park -> pitcher_norm -> pitcher_statcast ->
-    statcast -> batter_babip -> rebaseline -> aging.
+    pitcher_babip_skill -> statcast -> batter_babip -> rebaseline -> aging.
     """
 
     def __init__(
@@ -83,6 +91,8 @@ class PipelineBuilder:
         self._statcast_source: StatcastDataSource | None = None
         self._pitcher_statcast_source: PitcherStatcastDataSource | None = None
         self._id_mapper: PlayerIdMapper | None = None
+        self._pitcher_babip_skill: bool = False
+        self._pitcher_babip_source: PitcherBattedBallDataSource | None = None
         self._split_source: SplitStatsDataSource | None = None
 
     def rate_computer(self, kind: str) -> PipelineBuilder:
@@ -134,6 +144,15 @@ class PipelineBuilder:
             self._pitcher_statcast_source = pitcher_statcast_source
         if id_mapper is not None:
             self._id_mapper = id_mapper
+        return self
+
+    def with_pitcher_babip_skill(
+        self,
+        source: PitcherBattedBallDataSource | None = None,
+    ) -> PipelineBuilder:
+        self._pitcher_babip_skill = True
+        if source is not None:
+            self._pitcher_babip_source = source
         return self
 
     def with_split_source(self, source: SplitStatsDataSource) -> PipelineBuilder:
@@ -202,6 +221,13 @@ class PipelineBuilder:
                 config=self._config.pitcher_statcast,
             ))
 
+        if self._pitcher_babip_skill:
+            bb_source = self._resolve_pitcher_babip_source()
+            adjusters.append(PitcherBabipSkillAdjuster(
+                source=bb_source,
+                config=self._config.pitcher_babip_skill,
+            ))
+
         if self._statcast:
             source = self._resolve_statcast_source()
             mapper = self._resolve_id_mapper()
@@ -233,7 +259,17 @@ class PipelineBuilder:
             return self._pitcher_statcast_source
         # CachedStatcastDataSource satisfies both protocols
         source = self._resolve_statcast_source()
-        return cast(PitcherStatcastDataSource, source)
+        return cast("PitcherStatcastDataSource", source)
+
+    def _resolve_pitcher_babip_source(self) -> PitcherBattedBallDataSource:
+        if self._pitcher_babip_source is not None:
+            return self._pitcher_babip_source
+        source = CachedBattedBallDataSource(
+            delegate=PybaseballBattedBallDataSource(),
+            cache=create_cache_store(),
+        )
+        self._pitcher_babip_source = source
+        return source
 
     def _resolve_id_mapper(self) -> PlayerIdMapper:
         if self._id_mapper is not None:

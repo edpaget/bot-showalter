@@ -2,6 +2,9 @@
 
 from dataclasses import dataclass, field
 
+from fantasy_baseball_manager.pipeline.stages.pitcher_babip_skill_adjuster import (
+    PitcherBabipSkillConfig,
+)
 from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
     PitcherNormalizationConfig,
 )
@@ -39,4 +42,5 @@ class RegressionConfig:
     pitching_regression_outs: dict[str, float] = field(default_factory=lambda: dict(PITCHING_REGRESSION_OUTS))
     pitcher_normalization: PitcherNormalizationConfig = field(default_factory=PitcherNormalizationConfig)
     pitcher_statcast: PitcherStatcastConfig = field(default_factory=PitcherStatcastConfig)
+    pitcher_babip_skill: PitcherBabipSkillConfig = field(default_factory=PitcherBabipSkillConfig)
     platoon: PlatoonConfig = field(default_factory=PlatoonConfig)
