@@ -38,6 +38,9 @@ Map user intent to the right CLI subcommand:
 | Simulate a full draft | `uv run fantasy-baseball-manager players draft-simulate --teams 12 --seed 42` |
 | Simulate with a specific strategy | `uv run fantasy-baseball-manager players draft-simulate --user-strategy power_hitting --seed 42` |
 | Simulate with keepers | `uv run fantasy-baseball-manager players draft-simulate --keepers keepers.yaml --seed 42` |
+| Rank keeper candidates | `uv run fantasy-baseball-manager keeper rank --yahoo --engine marcel_plus` |
+| Optimize keeper selection | `uv run fantasy-baseball-manager keeper optimize --yahoo --engine marcel_plus` |
+| League-wide keeper analysis | `uv run fantasy-baseball-manager keeper league --engine marcel_plus` |
 
 Adjust `--top` based on how many results the user wants. Use `--sort-by` for custom sorting (e.g., `--sort-by hr`, `--sort-by era`).
 
@@ -100,11 +103,65 @@ When interpreting results and giving advice:
 - Use `players valuate` to see how their stats translate to category value.
 - Use `players draft-rank` to see how positional scarcity affects their overall value.
 
+## Keeper Analysis
+
+When the user wants to evaluate which players to keep in a keeper league, use the `keeper` subcommands. These compute **surplus value** — the difference between a player's projected value and what you'd draft at the corresponding slot.
+
+### Command Routing
+
+| User Intent | Command |
+|---|---|
+| Rank my keeper candidates | `uv run fantasy-baseball-manager keeper rank --yahoo --engine marcel_plus` |
+| Find the optimal keeper combination | `uv run fantasy-baseball-manager keeper optimize --yahoo --engine marcel_plus` |
+| Compute optimal keepers for every team | `uv run fantasy-baseball-manager keeper league --engine marcel_plus` |
+| Rank specific players as keeper candidates | `uv run fantasy-baseball-manager keeper rank --candidates "id1,id2,id3" --engine marcel_plus` |
+
+### How Surplus Value Works
+
+1. **Replacement calculation**: A snake draft is simulated with the remaining player pool (excluding keepers). For each keeper slot, the system records what player value you'd draft at your pick position.
+2. **Surplus**: `Surplus = Player Value - Replacement Value`. Positive surplus means keeping the player is better than drafting at that slot.
+3. **Optimization**: `keeper optimize` tests all valid combinations of candidates and picks the set that maximizes total surplus. This matters because removing top players from the draft pool shifts replacement values.
+
+### `keeper rank` / `keeper optimize` options
+
+- `YEAR` (positional): Projection year (default: current year)
+- `--candidates ID1,ID2,...`: Comma-separated FanGraphs player IDs (not needed with `--yahoo`)
+- `--keepers FILE`: YAML file with other teams' keepers (not needed with `--yahoo`)
+- `--user-pick N`: User's draft position, 1-based (default: 5)
+- `--teams N`: Number of teams (default: 12, auto-detected with `--yahoo`)
+- `--keeper-slots N`: Number of keeper slots per team (default: 4)
+- `--engine NAME`: Projection engine (default: marcel_plus)
+- `--yahoo`: Fetch candidates from Yahoo roster and other teams' keepers automatically
+- `--no-cache`: Bypass cache and fetch fresh data
+- `--league-id ID`: Override league ID from config
+- `--season YEAR`: Override season from config
+
+### `keeper league` options
+
+- `YEAR` (positional): Projection year (default: current year)
+- `--draft-order KEY1,KEY2,...`: Comma-separated team keys defining pick order
+- `--teams N`, `--keeper-slots N`, `--engine`, `--no-cache`, `--league-id`, `--season`: Same as above
+
+### Output Format
+
+Columns: Rk, Name (25 chars), Pos (eligible positions), Value (z-score), Repl (replacement value at assigned slot), Surplus (Value - Repl), Slot (assigned keeper slot number).
+
+For `keeper optimize`, two tables are shown: the recommended optimal keepers with their total surplus, then all candidates ranked.
+
+For `keeper league`, each team's optimal keepers are shown with their pick number and total surplus.
+
+### Interpreting Results
+
+- **High surplus** players are clear keeps — their value far exceeds what you'd draft.
+- **Negative surplus** means you'd get a better player by drafting at that slot — don't keep.
+- **`keeper rank` vs `keeper optimize`**: `rank` assigns each candidate to the next available slot independently. `optimize` finds the globally best combination, which can differ because the draft pool changes depending on which players are kept.
+- When using `--yahoo`, the system auto-detects team count and fetches all rosters, so other teams' keepers are excluded from the draft pool automatically.
+
 ## Draft Simulation
 
 When the user wants to simulate a draft or test strategies:
 
-1. **Analyze keepers** (if applicable): Use `players valuate` / `players draft-rank` to assess keeper values.
+1. **Analyze keepers** (if applicable): Use `keeper rank` or `keeper optimize` to evaluate keeper surplus values.
 2. **Identify category strengths/weaknesses**: Look at the team's keeper pool to determine which categories are strong or weak.
 3. **Recommend a strategy preset**: Based on the analysis, suggest one of: `balanced`, `power_hitting`, `speed`, `pitching_heavy`, `punt_saves`.
 4. **Run the simulation**: Use `players draft-simulate` with appropriate flags.
