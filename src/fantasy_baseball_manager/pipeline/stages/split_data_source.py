@@ -6,11 +6,10 @@ Provides batting stats separated by pitcher handedness (vs-LHP and vs-RHP).
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Protocol
 
-import pybaseball
-import pybaseball.cache
-from pybaseball.datasources.fangraphs import FangraphsBattingStatsTable
+import requests
 
 from fantasy_baseball_manager.marcel.data_source import (
     _deserialize_batting,
@@ -28,6 +27,11 @@ logger = logging.getLogger(__name__)
 _FG_SPLIT_VS_LHP = 13
 _FG_SPLIT_VS_RHP = 14
 
+# FanGraphs new API endpoint for leaderboard data
+_FG_API_URL = "https://www.fangraphs.com/api/leaders/major-league/data"
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
 
 class SplitStatsDataSource(Protocol):
     """Protocol for data sources that provide platoon split batting stats."""
@@ -36,55 +40,46 @@ class SplitStatsDataSource(Protocol):
     def batting_stats_vs_rhp(self, year: int) -> list[BattingSeasonStats]: ...
 
 
+def _strip_html(value: object) -> str:
+    """Remove HTML tags from a value, returning plain text."""
+    s = str(value)
+    return _HTML_TAG_RE.sub("", s).strip()
+
+
 def _fg_split_batting(year: int, split_month: int) -> list[BattingSeasonStats]:
     """Fetch batting stats for a specific FanGraphs split.
 
-    Uses the FanGraphs leaderboard with a custom ``month`` value to select
-    the platoon split (13 = vs LHP, 14 = vs RHP).
+    Uses the FanGraphs JSON API with a custom ``month`` value to select
+    the platoon split (13 = vs LHP, 14 = vs RHP).  Paginates to fetch
+    all players.
     """
-    table = FangraphsBattingStatsTable()
-    # Build query params manually so we can pass a split value that isn't
-    # in pybaseball's FangraphsMonth enum.
-    from pybaseball.enums.fangraphs import (
-        FangraphsLeague,
-        FangraphsPositions,
-    )
-    from pybaseball.enums.fangraphs.batting_data_enum import FangraphsBattingStats
-
-    stat_columns = [col.value for col in FangraphsBattingStats]
-
-    url_options = {
-        "pos": FangraphsPositions.ALL.value,
-        "stats": table.STATS_CATEGORY.value,
-        "lg": FangraphsLeague.ALL.value,
+    params = {
+        "pos": "all",
+        "stats": "bat",
+        "lg": "all",
         "qual": 0,
-        "type": ",".join(str(v) for v in stat_columns),
+        "type": "0",
         "season": year,
         "month": split_month,
         "season1": year,
         "ind": 1,
-        "team": 0,
-        "rost": 0,
-        "age": "0,100",
+        "team": "",
+        "rost": "",
+        "age": "",
         "filter": "",
         "players": "",
-        "page": "1_1000000",
+        "startdate": "",
+        "enddate": "",
+        "pageitems": 2000000000,
+        "pagenum": 1,
     }
-
-    df = table._validate(
-        table._postprocess(
-            table.html_accessor.get_tabular_data_from_options(
-                table.QUERY_ENDPOINT,
-                query_params=url_options,
-                column_name_mapper=table.COLUMN_NAME_MAPPER,  # type: ignore[arg-type]
-                known_percentages=table.KNOWN_PERCENTAGES,
-                row_id_func=table.ROW_ID_FUNC,
-            )
-        )
-    )
+    resp = requests.get(_FG_API_URL, params=params, timeout=60)
+    resp.raise_for_status()
+    body = resp.json()
+    all_rows: list[dict[str, object]] = body.get("data", [])
 
     results: list[BattingSeasonStats] = []
-    for _, row in df.iterrows():
+    for row in all_rows:
         h = int(row.get("H", 0))
         doubles = int(row.get("2B", 0))
         triples = int(row.get("3B", 0))
@@ -92,10 +87,10 @@ def _fg_split_batting(year: int, split_month: int) -> list[BattingSeasonStats]:
         singles = h - doubles - triples - hr
         results.append(
             BattingSeasonStats(
-                player_id=str(row["IDfg"]),
-                name=str(row["Name"]),
+                player_id=str(int(row["playerid"])),
+                name=_strip_html(row.get("Name", "")),
                 year=year,
-                age=int(row["Age"]),
+                age=int(row.get("Age", 0)),
                 pa=int(row.get("PA", 0)),
                 ab=int(row.get("AB", 0)),
                 h=h,
@@ -112,17 +107,14 @@ def _fg_split_batting(year: int, split_month: int) -> list[BattingSeasonStats]:
                 cs=int(row.get("CS", 0)),
                 r=int(row.get("R", 0)),
                 rbi=int(row.get("RBI", 0)),
-                team=str(row.get("Team", "")),
+                team=_strip_html(row.get("Team", "")),
             )
         )
     return results
 
 
 class PybaseballSplitDataSource:
-    """Fetches platoon split batting stats from FanGraphs via pybaseball."""
-
-    def __init__(self) -> None:
-        pybaseball.cache.enable()
+    """Fetches platoon split batting stats from the FanGraphs API."""
 
     def batting_stats_vs_lhp(self, year: int) -> list[BattingSeasonStats]:
         return _fg_split_batting(year, _FG_SPLIT_VS_LHP)
