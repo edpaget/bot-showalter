@@ -1,22 +1,105 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path  # noqa: TC003 — used at runtime by typer
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 
 import typer
 import yaml
 
+from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
+from fantasy_baseball_manager.cache.sources import CachedRosterSource
+from fantasy_baseball_manager.config import (
+    AppConfig,
+    apply_cli_overrides,
+    clear_cli_overrides,
+    create_config,
+)
 from fantasy_baseball_manager.draft.cli import build_projections_and_positions
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.keeper.models import KeeperCandidate
 from fantasy_baseball_manager.keeper.replacement import DraftPoolReplacementCalculator
 from fantasy_baseball_manager.keeper.surplus import SurplusCalculator
+from fantasy_baseball_manager.keeper.yahoo_source import YahooKeeperSource
+from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
+from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
+from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fantasy_baseball_manager.valuation.models import PlayerValue
 
+logger = logging.getLogger(__name__)
+
 keeper_app = typer.Typer(help="Keeper analysis commands.")
+
+# Module-level DI factories for testing
+_roster_source_factory: Callable[[], RosterSource] | None = None
+_id_mapper_factory: Callable[[], PlayerIdMapper] | None = None
+_yahoo_league_factory: Callable[[], object] | None = None
+
+
+def set_roster_source_factory(factory: Callable[[], RosterSource]) -> None:
+    global _roster_source_factory
+    _roster_source_factory = factory
+
+
+def set_id_mapper_factory(factory: Callable[[], PlayerIdMapper]) -> None:
+    global _id_mapper_factory
+    _id_mapper_factory = factory
+
+
+def set_yahoo_league_factory(factory: Callable[[], object]) -> None:
+    global _yahoo_league_factory
+    _yahoo_league_factory = factory
+
+
+def _get_roster_source_and_league(no_cache: bool = False) -> tuple[RosterSource, object]:
+    """Build a roster source and return the league it was built from.
+
+    For keeper leagues in predraft, both the roster source and league resolve
+    to the previous season so that ``league.team_key()`` matches the roster
+    team keys.
+    """
+    if _roster_source_factory is not None:
+        # In test mode the factories are wired independently.
+        league = _yahoo_league_factory() if _yahoo_league_factory is not None else object()
+        return _roster_source_factory(), league
+
+    config = create_config()
+    client = YahooFantasyClient(cast("AppConfig", config))
+
+    target_season: int | None = None
+    if config["league.is_keeper"]:
+        current_league = client.get_league()
+        draft_status = current_league.settings().get("draft_status", "")
+        logger.debug("Keeper league draft_status=%r", draft_status)
+        if draft_status == "predraft":
+            target_season = int(str(config["league.season"])) - 1
+            logger.debug("Using previous season %d for roster source", target_season)
+
+    league = client.get_league_for_season(target_season) if target_season is not None else client.get_league()
+    source: RosterSource = YahooRosterSource(league)
+    if not no_cache:
+        ttl = int(str(config["cache.rosters_ttl"]))
+        cache_store = create_cache_store(config)
+        cache_key = get_cache_key(config)
+        source = CachedRosterSource(source, cache_store, cache_key, ttl)
+    return source, league
+
+
+def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
+    if _id_mapper_factory is not None:
+        return _id_mapper_factory()
+    if no_cache:
+        return build_sfbb_mapper()
+    config = create_config()
+    ttl = int(str(config["cache.id_mappings_ttl"]))
+    cache_store = create_cache_store(config)
+    cache_key = get_cache_key(config)
+    return build_cached_sfbb_mapper(cache_store, cache_key, ttl)
 
 
 def _load_keepers_file(path: Path) -> set[str]:
@@ -37,6 +120,7 @@ def _build_candidates(
     candidate_ids: list[str],
     all_player_values: list[PlayerValue],
     player_positions: dict[tuple[str, str], tuple[str, ...]],
+    yahoo_positions: dict[str, tuple[str, ...]] | None = None,
 ) -> list[KeeperCandidate]:
     """Build KeeperCandidate list from IDs, matching against player values and positions."""
     pv_by_id: dict[str, PlayerValue] = {}
@@ -52,12 +136,15 @@ def _build_candidates(
             typer.echo(f"Unknown candidate ID: {cid}", err=True)
             raise typer.Exit(code=1)
 
-        # Collect positions from composite keys
-        positions: list[str] = []
-        for (pid, _), pos in player_positions.items():
-            if pid == cid:
-                positions.extend(pos)
-        eligible = tuple(dict.fromkeys(positions))  # deduplicate, preserve order
+        if yahoo_positions is not None and cid in yahoo_positions:
+            eligible = yahoo_positions[cid]
+        else:
+            # Collect positions from composite keys
+            positions: list[str] = []
+            for (pid, _), pos in player_positions.items():
+                if pid == cid:
+                    positions.extend(pos)
+            eligible = tuple(dict.fromkeys(positions))  # deduplicate, preserve order
 
         candidates.append(
             KeeperCandidate(
@@ -71,6 +158,57 @@ def _build_candidates(
     return candidates
 
 
+def _resolve_yahoo_inputs(
+    no_cache: bool,
+    league_id: str | None,
+    season: int | None,
+    candidates_str: str,
+    keepers_file: Path | None,
+    teams: int,
+) -> tuple[list[str], set[str], int, dict[str, tuple[str, ...]]]:
+    """Fetch keeper data from Yahoo rosters.
+
+    Returns (candidate_ids, other_keepers, teams, yahoo_positions).
+    """
+    apply_cli_overrides(league_id, season)
+    try:
+        roster_source, league = _get_roster_source_and_league(no_cache=no_cache)
+        id_mapper = _get_id_mapper(no_cache=no_cache)
+        user_team_key: str = league.team_key()  # type: ignore[union-attr]
+
+        yahoo_source = YahooKeeperSource(
+            roster_source=roster_source,
+            id_mapper=id_mapper,
+            user_team_key=user_team_key,
+        )
+        yahoo_data = yahoo_source.fetch_keeper_data()
+
+        if yahoo_data.unmapped_yahoo_ids:
+            typer.echo(
+                f"Warning: {len(yahoo_data.unmapped_yahoo_ids)} player(s) could not be mapped "
+                f"to FanGraphs IDs: {', '.join(yahoo_data.unmapped_yahoo_ids)}",
+                err=True,
+            )
+
+        candidate_ids = list(yahoo_data.user_candidate_ids)
+
+        # If --candidates also provided, use as filter (intersection)
+        if candidates_str.strip():
+            filter_ids = {c.strip() for c in candidates_str.split(",") if c.strip()}
+            candidate_ids = [cid for cid in candidate_ids if cid in filter_ids]
+
+        # If --keepers provided, use YAML file; otherwise use Yahoo other-keepers
+        other_keepers = _load_keepers_file(keepers_file) if keepers_file else set(yahoo_data.other_keeper_ids)
+
+        # Derive team count from roster count if not explicitly set
+        rosters = roster_source.fetch_rosters()
+        num_teams = len(rosters.teams) if teams == 12 else teams
+
+        return candidate_ids, other_keepers, num_teams, dict(yahoo_data.user_candidate_positions)
+    finally:
+        clear_cli_overrides()
+
+
 @keeper_app.command(name="rank")
 def keeper_rank(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
@@ -82,6 +220,12 @@ def keeper_rank(
     teams: Annotated[int, typer.Option("--teams", help="Number of teams in the league.")] = 12,
     keeper_slots: Annotated[int, typer.Option("--keeper-slots", help="Number of keeper slots.")] = 4,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    yahoo: Annotated[bool, typer.Option("--yahoo", help="Fetch candidates from Yahoo roster.")] = False,
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")
+    ] = False,
+    league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Rank keeper candidates by surplus value over draft replacement level."""
     validate_engine(engine)
@@ -89,20 +233,25 @@ def keeper_rank(
     if year is None:
         year = datetime.now().year
 
-    if not candidates.strip():
-        typer.echo("No candidate IDs provided. Use --candidates 'id1,id2,...'", err=True)
-        raise typer.Exit(code=1)
+    yahoo_positions: dict[str, tuple[str, ...]] | None = None
 
-    candidate_ids = [c.strip() for c in candidates.split(",") if c.strip()]
+    if yahoo:
+        candidate_ids, other_keepers, teams, yahoo_positions = _resolve_yahoo_inputs(
+            no_cache, league_id, season, candidates, keepers_file, teams,
+        )
+    else:
+        if not candidates.strip():
+            typer.echo("No candidate IDs provided. Use --candidates 'id1,id2,...' or --yahoo", err=True)
+            raise typer.Exit(code=1)
+        candidate_ids = [c.strip() for c in candidates.split(",") if c.strip()]
+        other_keepers = set()
+        if keepers_file:
+            other_keepers = _load_keepers_file(keepers_file)
 
     typer.echo(f"Generating projections for {year} using {engine}...")
     all_values, composite_positions = build_projections_and_positions(engine, year)
 
-    other_keepers: set[str] = set()
-    if keepers_file:
-        other_keepers = _load_keepers_file(keepers_file)
-
-    candidate_list = _build_candidates(candidate_ids, all_values, composite_positions)
+    candidate_list = _build_candidates(candidate_ids, all_values, composite_positions, yahoo_positions)
 
     calc = DraftPoolReplacementCalculator(user_pick_position=user_pick)
     surplus_calc = SurplusCalculator(calc, num_teams=teams, num_keeper_slots=keeper_slots)
@@ -122,6 +271,12 @@ def keeper_optimize(
     teams: Annotated[int, typer.Option("--teams", help="Number of teams in the league.")] = 12,
     keeper_slots: Annotated[int, typer.Option("--keeper-slots", help="Number of keeper slots.")] = 4,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    yahoo: Annotated[bool, typer.Option("--yahoo", help="Fetch candidates from Yahoo roster.")] = False,
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")
+    ] = False,
+    league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Find the optimal keeper combination that maximizes total surplus."""
     validate_engine(engine)
@@ -129,20 +284,25 @@ def keeper_optimize(
     if year is None:
         year = datetime.now().year
 
-    if not candidates.strip():
-        typer.echo("No candidate IDs provided. Use --candidates 'id1,id2,...'", err=True)
-        raise typer.Exit(code=1)
+    yahoo_positions: dict[str, tuple[str, ...]] | None = None
 
-    candidate_ids = [c.strip() for c in candidates.split(",") if c.strip()]
+    if yahoo:
+        candidate_ids, other_keepers, teams, yahoo_positions = _resolve_yahoo_inputs(
+            no_cache, league_id, season, candidates, keepers_file, teams,
+        )
+    else:
+        if not candidates.strip():
+            typer.echo("No candidate IDs provided. Use --candidates 'id1,id2,...' or --yahoo", err=True)
+            raise typer.Exit(code=1)
+        candidate_ids = [c.strip() for c in candidates.split(",") if c.strip()]
+        other_keepers = set()
+        if keepers_file:
+            other_keepers = _load_keepers_file(keepers_file)
 
     typer.echo(f"Generating projections for {year} using {engine}...")
     all_values, composite_positions = build_projections_and_positions(engine, year)
 
-    other_keepers: set[str] = set()
-    if keepers_file:
-        other_keepers = _load_keepers_file(keepers_file)
-
-    candidate_list = _build_candidates(candidate_ids, all_values, composite_positions)
+    candidate_list = _build_candidates(candidate_ids, all_values, composite_positions, yahoo_positions)
 
     calc = DraftPoolReplacementCalculator(user_pick_position=user_pick)
     surplus_calc = SurplusCalculator(calc, num_teams=teams, num_keeper_slots=keeper_slots)

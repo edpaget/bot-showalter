@@ -1,13 +1,28 @@
-from pathlib import Path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.draft.cli import set_data_source_factory
+from fantasy_baseball_manager.keeper.cli import (
+    set_id_mapper_factory as set_keeper_id_mapper_factory,
+)
+from fantasy_baseball_manager.keeper.cli import (
+    set_roster_source_factory as set_keeper_roster_source_factory,
+)
+from fantasy_baseball_manager.keeper.cli import (
+    set_yahoo_league_factory as set_keeper_yahoo_league_factory,
+)
+from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 runner = CliRunner()
 
@@ -290,3 +305,191 @@ class TestKeeperOptimizeCommand:
         )
         assert result.exit_code == 0, result.output
         assert "Optimal Keepers" in result.output
+
+
+# --- Yahoo integration fakes and helpers ---
+
+
+class FakeKeeperRosterSource:
+    def __init__(self, rosters: LeagueRosters) -> None:
+        self._rosters = rosters
+
+    def fetch_rosters(self) -> LeagueRosters:
+        return self._rosters
+
+
+class FakeKeeperIdMapper:
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self._yahoo_to_fg = mapping
+        self._fg_to_yahoo = {v: k for k, v in mapping.items()}
+
+    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
+        return self._yahoo_to_fg.get(yahoo_id)
+
+    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
+        return self._fg_to_yahoo.get(fangraphs_id)
+
+    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
+        return None
+
+    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
+        return None
+
+
+class FakeYahooLeague:
+    """Mimics yahoo_fantasy_api.League enough for team_key()."""
+
+    def __init__(self, team_key: str) -> None:
+        self._team_key = team_key
+
+    def team_key(self) -> str:
+        return self._team_key
+
+
+def _make_yahoo_rosters() -> LeagueRosters:
+    """Build rosters where Yahoo IDs map to the FakeDataSource's player IDs (b1, b2, p1, etc.)."""
+    user_team = TeamRoster(
+        team_key="422.l.123.t.1",
+        team_name="My Team",
+        players=(
+            RosterPlayer(yahoo_id="Y100", name="Slugger Jones", position_type="B", eligible_positions=("1B", "DH")),
+            RosterPlayer(yahoo_id="Y101", name="Speedy Smith", position_type="B", eligible_positions=("OF",)),
+            RosterPlayer(yahoo_id="Y102", name="Average Andy", position_type="B", eligible_positions=("2B", "SS")),
+        ),
+    )
+    other_team = TeamRoster(
+        team_key="422.l.123.t.2",
+        team_name="Other Team",
+        players=(
+            RosterPlayer(yahoo_id="Y200", name="Power Pete", position_type="B", eligible_positions=("OF",)),
+            RosterPlayer(yahoo_id="Y201", name="Ace Adams", position_type="P", eligible_positions=("SP",)),
+        ),
+    )
+    return LeagueRosters(league_key="422.l.123", teams=(user_team, other_team))
+
+
+def _yahoo_id_mapping() -> dict[str, str]:
+    return {
+        "Y100": "b1",  # Slugger Jones
+        "Y101": "b2",  # Speedy Smith
+        "Y102": "b3",  # Average Andy
+        "Y200": "b4",  # Power Pete
+        "Y201": "p1",  # Ace Adams
+    }
+
+
+def _install_yahoo_fakes() -> None:
+    _install_fake()  # data source
+    rosters = _make_yahoo_rosters()
+    mapping = _yahoo_id_mapping()
+    set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
+    set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
+    set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+
+
+class TestKeeperRankYahoo:
+    def test_yahoo_auto_populates_candidates(self) -> None:
+        _install_yahoo_fakes()
+        result = runner.invoke(
+            app,
+            ["keeper", "rank", "2025", "--yahoo", "--user-pick", "1", "--teams", "2"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Slugger Jones" in result.output
+        assert "Speedy Smith" in result.output
+        assert "Average Andy" in result.output
+
+    def test_yahoo_with_candidates_filter(self) -> None:
+        _install_yahoo_fakes()
+        result = runner.invoke(
+            app,
+            ["keeper", "rank", "2025", "--yahoo", "--candidates", "b1,b3", "--user-pick", "1", "--teams", "2"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Slugger Jones" in result.output
+        assert "Average Andy" in result.output
+        # b2 (Speedy Smith) should be filtered out
+        assert "Speedy Smith" not in result.output
+
+    def test_yahoo_with_keepers_file(self, tmp_path: Path) -> None:
+        _install_yahoo_fakes()
+        keepers_file = tmp_path / "keepers.yaml"
+        keepers_file.write_text(
+            "teams:\n"
+            "  rival:\n"
+            "    keepers: [b4, p1]\n"
+        )
+        result = runner.invoke(
+            app,
+            [
+                "keeper", "rank", "2025",
+                "--yahoo",
+                "--keepers", str(keepers_file),
+                "--user-pick", "1",
+                "--teams", "2",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Slugger Jones" in result.output
+
+    def test_yahoo_unmapped_players_warn(self) -> None:
+        _install_fake()
+        # Add an unmappable player
+        rosters = LeagueRosters(
+            league_key="422.l.123",
+            teams=(
+                TeamRoster(
+                    team_key="422.l.123.t.1",
+                    team_name="My Team",
+                    players=(
+                        RosterPlayer(
+                            yahoo_id="Y100", name="Slugger Jones",
+                            position_type="B", eligible_positions=("1B",),
+                        ),
+                        RosterPlayer(
+                            yahoo_id="Y999", name="Unknown Guy",
+                            position_type="B", eligible_positions=("OF",),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        # Y999 is not in the mapping
+        mapping = {"Y100": "b1"}
+        set_keeper_roster_source_factory(lambda: FakeKeeperRosterSource(rosters))
+        set_keeper_id_mapper_factory(lambda: FakeKeeperIdMapper(mapping))
+        set_keeper_yahoo_league_factory(lambda: FakeYahooLeague("422.l.123.t.1"))
+        result = runner.invoke(
+            app,
+            ["keeper", "rank", "2025", "--yahoo", "--user-pick", "1", "--teams", "1"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "unmapped" in result.output.lower() or "Warning" in result.output
+
+
+class TestKeeperOptimizeYahoo:
+    def test_optimize_yahoo_auto_populates(self) -> None:
+        _install_yahoo_fakes()
+        result = runner.invoke(
+            app,
+            ["keeper", "optimize", "2025", "--yahoo", "--user-pick", "1", "--teams", "2"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Optimal Keepers" in result.output
+        assert "Total Surplus" in result.output
+
+    def test_optimize_yahoo_with_candidates_filter(self) -> None:
+        _install_yahoo_fakes()
+        result = runner.invoke(
+            app,
+            [
+                "keeper", "optimize", "2025",
+                "--yahoo", "--candidates", "b1,b3",
+                "--user-pick", "1",
+                "--teams", "2",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Optimal Keepers" in result.output
+        # Only b1 and b3 should be candidates
+        assert "Speedy Smith" not in result.output or "All Candidates" in result.output
