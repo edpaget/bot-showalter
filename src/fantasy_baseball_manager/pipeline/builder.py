@@ -22,6 +22,9 @@ from fantasy_baseball_manager.pipeline.stages.batter_babip_adjuster import (
 from fantasy_baseball_manager.pipeline.stages.component_aging import (
     ComponentAgingAdjuster,
 )
+from fantasy_baseball_manager.pipeline.stages.enhanced_playing_time import (
+    EnhancedPlayingTimeProjector,
+)
 from fantasy_baseball_manager.pipeline.stages.finalizers import StandardFinalizer
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
     ParkFactorAdjuster,
@@ -64,6 +67,9 @@ from fantasy_baseball_manager.player_id.mapper import (
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.protocols import RateAdjuster, RateComputer
+    from fantasy_baseball_manager.pipeline.stages.playing_time_config import (
+        PlayingTimeConfig,
+    )
 
 
 class PipelineBuilder:
@@ -94,6 +100,8 @@ class PipelineBuilder:
         self._pitcher_babip_skill: bool = False
         self._pitcher_babip_source: PitcherBattedBallDataSource | None = None
         self._split_source: SplitStatsDataSource | None = None
+        self._enhanced_playing_time: bool = False
+        self._playing_time_config: PlayingTimeConfig | None = None
 
     def rate_computer(self, kind: str) -> PipelineBuilder:
         """Set the rate computer: 'stat_specific' (default) or 'platoon'."""
@@ -159,17 +167,33 @@ class PipelineBuilder:
         self._split_source = source
         return self
 
+    def with_enhanced_playing_time(
+        self,
+        config: PlayingTimeConfig | None = None,
+    ) -> PipelineBuilder:
+        """Enable enhanced playing time with injury, age, and volatility adjustments."""
+        self._enhanced_playing_time = True
+        if config is not None:
+            self._playing_time_config = config
+        return self
+
     def build(self) -> ProjectionPipeline:
         rate_computer = self._build_rate_computer()
         adjusters = self._build_adjusters()
+        playing_time = self._build_playing_time()
         return ProjectionPipeline(
             name=self._name,
             rate_computer=rate_computer,
             adjusters=tuple(adjusters),
-            playing_time=MarcelPlayingTime(),
+            playing_time=playing_time,
             finalizer=StandardFinalizer(),
             years_back=3,
         )
+
+    def _build_playing_time(self) -> MarcelPlayingTime | EnhancedPlayingTimeProjector:
+        if self._enhanced_playing_time:
+            return EnhancedPlayingTimeProjector(config=self._playing_time_config)
+        return MarcelPlayingTime()
 
     def _build_rate_computer(self) -> RateComputer:
         cfg = self._config
