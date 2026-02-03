@@ -1,3 +1,5 @@
+from typing import cast
+
 import pytest
 
 from fantasy_baseball_manager.pipeline.stages.batter_babip_adjuster import (
@@ -144,7 +146,7 @@ class TestXBabipDerivation:
         adjuster2 = BatterBabipAdjuster(source2, mapper)
         result2 = adjuster2.adjust([batter])
 
-        assert result[0].metadata["x_babip"] < result2[0].metadata["x_babip"]
+        assert cast(float, result[0].metadata["x_babip"]) < cast(float, result2[0].metadata["x_babip"])
 
 
 class TestSinglesAdjustment:

@@ -117,6 +117,12 @@ class FakeIdMapper:
     def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
         return None
 
+    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
+        return None
+
+    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
+        return None
+
 
 def _make_yahoo_player(
     player_id: int,

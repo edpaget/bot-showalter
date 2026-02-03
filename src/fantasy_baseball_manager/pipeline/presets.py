@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -289,7 +289,7 @@ def marcel_full_statcast_pitching_pipeline(
 ) -> ProjectionPipeline:
     source = statcast_source or _cached_statcast_source()
     mapper = id_mapper or _default_id_mapper()
-    p_source = pitcher_statcast_source or source
+    p_source = cast(PitcherStatcastDataSource, pitcher_statcast_source or source)
     return ProjectionPipeline(
         name="marcel_full_statcast_pitching",
         rate_computer=StatSpecificRegressionRateComputer(),

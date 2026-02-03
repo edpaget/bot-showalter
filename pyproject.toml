@@ -50,6 +50,7 @@ target-version = ["py313"]
 [tool.ty.environment]
 python-version = "3.13"
 root = ["src"]
+extra-paths = ["."]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

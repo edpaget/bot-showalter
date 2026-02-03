@@ -16,6 +16,12 @@ class FakeIdMapper:
     def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
         return self._fg_to_yahoo.get(fangraphs_id)
 
+    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
+        return None
+
+    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
+        return None
+
 
 def _make_batter_projection(
     player_id: str = "fg1",
