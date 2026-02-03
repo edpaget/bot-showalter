@@ -14,6 +14,7 @@ from fantasy_baseball_manager.pipeline.presets import (
     marcel_norm_pipeline,
     marcel_park_pipeline,
     marcel_pipeline,
+    marcel_platoon_pipeline,
     marcel_plus_pipeline,
     marcel_plus_statcast_pipeline,
     marcel_statcast_pipeline,
@@ -26,7 +27,10 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
     PitcherNormalizationAdjuster,
     PitcherNormalizationConfig,
 )
-from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
+from fantasy_baseball_manager.pipeline.stages.platoon_rate_computer import (
+    PlatoonRateComputer,
+)
+from fantasy_baseball_manager.pipeline.stages.regression_config import PlatoonConfig, RegressionConfig
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
@@ -147,6 +151,41 @@ class TestMarcelFullPreset:
         assert "marcel_full" in PIPELINES
 
 
+class FakeSplitSource:
+    def batting_stats_vs_lhp(self, year: int) -> list[BattingSeasonStats]:
+        return []
+
+    def batting_stats_vs_rhp(self, year: int) -> list[BattingSeasonStats]:
+        return []
+
+
+class TestMarcelPlatoonPreset:
+    def test_returns_pipeline(self) -> None:
+        pipeline = marcel_platoon_pipeline(split_source=FakeSplitSource())
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "marcel_platoon"
+        assert pipeline.years_back == 3
+
+    def test_has_two_adjusters(self) -> None:
+        pipeline = marcel_platoon_pipeline(split_source=FakeSplitSource())
+        assert len(pipeline.adjusters) == 2
+
+    def test_rate_computer_is_platoon(self) -> None:
+        pipeline = marcel_platoon_pipeline(split_source=FakeSplitSource())
+        assert isinstance(pipeline.rate_computer, PlatoonRateComputer)
+
+    def test_in_registry(self) -> None:
+        assert "marcel_platoon" in PIPELINES
+
+    def test_custom_config_threads_to_rate_computer(self) -> None:
+        custom_platoon = PlatoonConfig(pct_vs_rhp=0.65, pct_vs_lhp=0.35)
+        config = RegressionConfig(platoon=custom_platoon)
+        pipeline = marcel_platoon_pipeline(config=config, split_source=FakeSplitSource())
+        assert isinstance(pipeline.rate_computer, PlatoonRateComputer)
+        assert pipeline.rate_computer._pct_vs_rhp == 0.65
+        assert pipeline.rate_computer._pct_vs_lhp == 0.35
+
+
 class TestMarcelStatcastPreset:
     def test_returns_pipeline(self) -> None:
         pipeline = marcel_statcast_pipeline(FakeStatcastSource(), FakeIdMapper())
@@ -237,6 +276,7 @@ ALL_PRESET_NAMES = [
     "marcel_plus",
     "marcel_norm",
     "marcel_full",
+    "marcel_platoon",
     "marcel_statcast",
     "marcel_plus_statcast",
     "marcel_full_statcast",
@@ -249,6 +289,11 @@ NON_STATCAST_PRESET_NAMES = [
     "marcel_plus",
     "marcel_norm",
     "marcel_full",
+]
+
+# Presets that need a split source injected (can't be created with zero args)
+SPLIT_PRESET_NAMES = [
+    "marcel_platoon",
 ]
 
 
@@ -692,3 +737,58 @@ class TestAllPipelinesProduceValidProjections:
         assert proj.hr >= 0
         assert proj.h >= 0
         assert proj.bb >= 0
+
+
+class IntegrationSplitSource:
+    """Fake split source for platoon integration tests."""
+
+    def __init__(
+        self,
+        vs_lhp: dict[int, list[BattingSeasonStats]],
+        vs_rhp: dict[int, list[BattingSeasonStats]],
+    ) -> None:
+        self._vs_lhp = vs_lhp
+        self._vs_rhp = vs_rhp
+
+    def batting_stats_vs_lhp(self, year: int) -> list[BattingSeasonStats]:
+        return self._vs_lhp.get(year, [])
+
+    def batting_stats_vs_rhp(self, year: int) -> list[BattingSeasonStats]:
+        return self._vs_rhp.get(year, [])
+
+
+class TestPlatoonPipelineIntegration:
+    """Full pipeline integration tests for platoon preset."""
+
+    def test_platoon_pipeline_produces_projections(self) -> None:
+        league = _make_league_batting()
+        lhp_stats = _make_batting_stats(year=2024, age=28, pa=150, hr=8)
+        rhp_stats = _make_batting_stats(year=2024, age=28, pa=450, hr=20)
+        split_source = IntegrationSplitSource(
+            vs_lhp={2024: [lhp_stats], 2023: [lhp_stats], 2022: [lhp_stats]},
+            vs_rhp={2024: [rhp_stats], 2023: [rhp_stats], 2022: [rhp_stats]},
+        )
+        ds = IntegrationDataSource(
+            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        )
+        pipeline = marcel_platoon_pipeline(split_source=split_source)
+        result = pipeline.project_batters(ds, 2025)
+        assert len(result) == 1
+        proj = result[0]
+        assert isinstance(proj, BattingProjection)
+        assert proj.pa > 0
+        assert proj.hr >= 0
+
+    def test_platoon_pitchers_delegate(self) -> None:
+        league_b = _make_league_batting()
+        league_p = _make_league_pitching()
+        split_source = IntegrationSplitSource(vs_lhp={}, vs_rhp={})
+        ds = IntegrationDataSource(
+            player_pitching={2024: [_make_pitching_stats(year=2024, age=28)]},
+            team_batting={2024: [league_b]},
+            team_pitching={2024: [league_p]},
+        )
+        pipeline = marcel_platoon_pipeline(split_source=split_source)
+        result = pipeline.project_pitchers(ds, 2025)
+        assert len(result) == 1
+        assert result[0].ip > 0

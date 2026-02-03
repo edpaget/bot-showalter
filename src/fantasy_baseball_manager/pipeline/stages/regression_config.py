@@ -9,6 +9,20 @@ from fantasy_baseball_manager.pipeline.stages.regression_constants import (
     BATTING_REGRESSION_PA,
     PITCHING_REGRESSION_OUTS,
 )
+from fantasy_baseball_manager.pipeline.stages.split_regression_constants import (
+    BATTING_SPLIT_REGRESSION_PA,
+)
+
+
+@dataclass(frozen=True)
+class PlatoonConfig:
+    """Configuration for platoon split projections."""
+
+    pct_vs_rhp: float = 0.72
+    pct_vs_lhp: float = 0.28
+    batting_split_regression_pa: dict[str, float] = field(
+        default_factory=lambda: dict(BATTING_SPLIT_REGRESSION_PA)
+    )
 
 
 @dataclass(frozen=True)
@@ -21,3 +35,4 @@ class RegressionConfig:
     batting_regression_pa: dict[str, float] = field(default_factory=lambda: dict(BATTING_REGRESSION_PA))
     pitching_regression_outs: dict[str, float] = field(default_factory=lambda: dict(PITCHING_REGRESSION_OUTS))
     pitcher_normalization: PitcherNormalizationConfig = field(default_factory=PitcherNormalizationConfig)
+    platoon: PlatoonConfig = field(default_factory=PlatoonConfig)

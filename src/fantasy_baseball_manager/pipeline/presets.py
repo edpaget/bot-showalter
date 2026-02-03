@@ -31,9 +31,17 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
 from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
     PitcherStatcastAdjuster,
 )
+from fantasy_baseball_manager.pipeline.stages.platoon_rate_computer import (
+    PlatoonRateComputer,
+)
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateComputer
 from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
+from fantasy_baseball_manager.pipeline.stages.split_data_source import (
+    CachedSplitDataSource,
+    PybaseballSplitDataSource,
+    SplitStatsDataSource,
+)
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
@@ -202,6 +210,36 @@ def marcel_classic_pipeline() -> ProjectionPipeline:
     )
 
 
+def marcel_platoon_pipeline(
+    config: RegressionConfig | None = None,
+    split_source: SplitStatsDataSource | None = None,
+) -> ProjectionPipeline:
+    cfg = config or RegressionConfig()
+    if split_source is None:
+        split_source = CachedSplitDataSource(
+            delegate=PybaseballSplitDataSource(),
+            cache=create_cache_store(),
+        )
+    pitching_delegate = StatSpecificRegressionRateComputer(
+        batting_regression=cfg.batting_regression_pa,
+        pitching_regression=cfg.pitching_regression_outs,
+    )
+    return ProjectionPipeline(
+        name="marcel_platoon",
+        rate_computer=PlatoonRateComputer(
+            split_source=split_source,
+            pitching_delegate=pitching_delegate,
+            batting_regression=cfg.platoon.batting_split_regression_pa,
+            pct_vs_rhp=cfg.platoon.pct_vs_rhp,
+            pct_vs_lhp=cfg.platoon.pct_vs_lhp,
+        ),
+        adjusters=(RebaselineAdjuster(), ComponentAgingAdjuster()),
+        playing_time=MarcelPlayingTime(),
+        finalizer=StandardFinalizer(),
+        years_back=3,
+    )
+
+
 def marcel_statcast_pipeline(
     statcast_source: StatcastDataSource | None = None,
     id_mapper: PlayerIdMapper | None = None,
@@ -316,6 +354,7 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_plus": marcel_plus_pipeline,
     "marcel_norm": marcel_norm_pipeline,
     "marcel_full": marcel_full_pipeline,
+    "marcel_platoon": marcel_platoon_pipeline,
     "marcel_statcast": marcel_statcast_pipeline,
     "marcel_plus_statcast": marcel_plus_statcast_pipeline,
     "marcel_full_statcast": marcel_full_statcast_pipeline,
@@ -328,6 +367,7 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
     "marcel_plus": marcel_plus_pipeline,
     "marcel_norm": marcel_norm_pipeline,
     "marcel_full": marcel_full_pipeline,
+    "marcel_platoon": marcel_platoon_pipeline,
 }
 
 
