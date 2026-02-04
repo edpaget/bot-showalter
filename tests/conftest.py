@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 
 @pytest.fixture
-def reset_service_container() -> Generator[None, None, None]:
+def reset_service_container() -> Generator[None]:
     """Reset the global ServiceContainer after the test.
 
     This fixture is NOT autouse - use it explicitly in tests that need cleanup.
@@ -22,7 +25,7 @@ def reset_service_container() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def mock_container(reset_service_container: None) -> Generator[ServiceContainer, None, None]:
+def mock_container(reset_service_container: None) -> Generator[ServiceContainer]:
     """Create and install a mock ServiceContainer.
 
     The container is created with no dependencies, allowing tests to inject

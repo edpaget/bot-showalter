@@ -61,9 +61,7 @@ def _make_rosters(user_team_key: str = "422.l.12345.t.1") -> LeagueRosters:
     other_team_2 = TeamRoster(
         team_key="422.l.12345.t.3",
         team_name="Other Team 2",
-        players=(
-            _make_player("300", "Batter F", "B", ("2B", "3B")),
-        ),
+        players=(_make_player("300", "Batter F", "B", ("2B", "3B")),),
     )
     return LeagueRosters(league_key="422.l.12345", teams=(user_team, other_team_1, other_team_2))
 
@@ -168,9 +166,7 @@ class TestYahooKeeperSource:
                 TeamRoster(
                     team_key="422.l.12345.t.1",
                     team_name="My Team",
-                    players=(
-                        _make_player("999", "Unknown Guy", "B", ("OF",)),
-                    ),
+                    players=(_make_player("999", "Unknown Guy", "B", ("OF",)),),
                 ),
             ),
         )
@@ -262,9 +258,7 @@ class TestFetchLeagueKeeperData:
                 TeamRoster(
                     team_key="422.l.12345.t.1",
                     team_name="Empty Team",
-                    players=(
-                        _make_player("999", "Unknown", "B", ("OF",)),
-                    ),
+                    players=(_make_player("999", "Unknown", "B", ("OF",)),),
                 ),
             ),
         )

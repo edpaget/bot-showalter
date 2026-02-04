@@ -39,9 +39,7 @@ class SurplusCalculator:
         excluded = candidate_ids | other_keepers
         pool = [pv for pv in all_player_values if pv.player_id not in excluded]
 
-        slot_costs = self._replacement_calculator.compute_slot_costs(
-            pool, self._num_teams, self._num_keeper_slots
-        )
+        slot_costs = self._replacement_calculator.compute_slot_costs(pool, self._num_teams, self._num_keeper_slots)
 
         return self._assign_candidates_to_slots(candidates, slot_costs)
 
@@ -63,9 +61,7 @@ class SurplusCalculator:
             excluded = combo_ids | other_keepers
             pool = [pv for pv in all_player_values if pv.player_id not in excluded]
 
-            slot_costs = self._replacement_calculator.compute_slot_costs(
-                pool, self._num_teams, self._num_keeper_slots
-            )
+            slot_costs = self._replacement_calculator.compute_slot_costs(pool, self._num_teams, self._num_keeper_slots)
 
             assignments = self._assign_candidates_to_slots(list(combo), slot_costs)
             total = sum(a.surplus_value for a in assignments)
@@ -96,9 +92,7 @@ class SurplusCalculator:
         slot_costs: tuple[SlotCost, ...],
     ) -> list[KeeperSurplus]:
         """Assign candidates to slots: highest value player to highest cost slot."""
-        sorted_candidates = sorted(
-            candidates, key=lambda c: c.player_value.total_value, reverse=True
-        )
+        sorted_candidates = sorted(candidates, key=lambda c: c.player_value.total_value, reverse=True)
 
         results: list[KeeperSurplus] = []
         for i, candidate in enumerate(sorted_candidates):

@@ -169,17 +169,13 @@ def _resolve_yahoo_inputs(
 def keeper_rank(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     candidates: Annotated[str, typer.Option("--candidates", help="Comma-separated player IDs.")] = "",
-    keepers_file: Annotated[
-        Path | None, typer.Option("--keepers", help="YAML file with other teams' keepers.")
-    ] = None,
+    keepers_file: Annotated[Path | None, typer.Option("--keepers", help="YAML file with other teams' keepers.")] = None,
     user_pick: Annotated[int, typer.Option("--user-pick", help="User's draft position (1-based).")] = 5,
     teams: Annotated[int, typer.Option("--teams", help="Number of teams in the league.")] = 12,
     keeper_slots: Annotated[int, typer.Option("--keeper-slots", help="Number of keeper slots.")] = 4,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
     yahoo: Annotated[bool, typer.Option("--yahoo", help="Fetch candidates from Yahoo roster.")] = False,
-    no_cache: Annotated[
-        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")
-    ] = False,
+    no_cache: Annotated[bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")] = False,
     league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
@@ -194,7 +190,12 @@ def keeper_rank(
 
     if yahoo:
         candidate_ids, other_keepers, teams, yahoo_positions, position_types = _resolve_yahoo_inputs(
-            no_cache, league_id, season, candidates, keepers_file, teams,
+            no_cache,
+            league_id,
+            season,
+            candidates,
+            keepers_file,
+            teams,
         )
     else:
         if not candidates.strip():
@@ -209,7 +210,10 @@ def keeper_rank(
     all_values, composite_positions = build_projections_and_positions(engine, year)
 
     candidate_list = _build_candidates(
-        candidate_ids, all_values, composite_positions, yahoo_positions,
+        candidate_ids,
+        all_values,
+        composite_positions,
+        yahoo_positions,
         candidate_position_types=position_types,
     )
 
@@ -224,17 +228,13 @@ def keeper_rank(
 def keeper_optimize(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     candidates: Annotated[str, typer.Option("--candidates", help="Comma-separated player IDs.")] = "",
-    keepers_file: Annotated[
-        Path | None, typer.Option("--keepers", help="YAML file with other teams' keepers.")
-    ] = None,
+    keepers_file: Annotated[Path | None, typer.Option("--keepers", help="YAML file with other teams' keepers.")] = None,
     user_pick: Annotated[int, typer.Option("--user-pick", help="User's draft position (1-based).")] = 5,
     teams: Annotated[int, typer.Option("--teams", help="Number of teams in the league.")] = 12,
     keeper_slots: Annotated[int, typer.Option("--keeper-slots", help="Number of keeper slots.")] = 4,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
     yahoo: Annotated[bool, typer.Option("--yahoo", help="Fetch candidates from Yahoo roster.")] = False,
-    no_cache: Annotated[
-        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")
-    ] = False,
+    no_cache: Annotated[bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")] = False,
     league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
@@ -249,7 +249,12 @@ def keeper_optimize(
 
     if yahoo:
         candidate_ids, other_keepers, teams, yahoo_positions, position_types = _resolve_yahoo_inputs(
-            no_cache, league_id, season, candidates, keepers_file, teams,
+            no_cache,
+            league_id,
+            season,
+            candidates,
+            keepers_file,
+            teams,
         )
     else:
         if not candidates.strip():
@@ -264,7 +269,10 @@ def keeper_optimize(
     all_values, composite_positions = build_projections_and_positions(engine, year)
 
     candidate_list = _build_candidates(
-        candidate_ids, all_values, composite_positions, yahoo_positions,
+        candidate_ids,
+        all_values,
+        composite_positions,
+        yahoo_positions,
         candidate_position_types=position_types,
     )
 
@@ -323,9 +331,7 @@ def keeper_league(
     teams: Annotated[int, typer.Option("--teams", help="Number of teams in the league.")] = 12,
     keeper_slots: Annotated[int, typer.Option("--keeper-slots", help="Number of keeper slots.")] = 4,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
-    no_cache: Annotated[
-        bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")
-    ] = False,
+    no_cache: Annotated[bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data.")] = False,
     league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
@@ -336,7 +342,10 @@ def keeper_league(
         year = datetime.now().year
 
     league_data, num_teams = _resolve_league_inputs(
-        no_cache, league_id, season, teams,
+        no_cache,
+        league_id,
+        season,
+        teams,
     )
 
     typer.echo(f"Generating projections for {year} using {engine}...")
@@ -370,8 +379,12 @@ def keeper_league(
                 other_keepers.update(other_team.candidate_ids)
 
         candidate_list = _build_candidates(
-            candidate_ids, all_values, composite_positions, yahoo_positions,
-            candidate_position_types=team_position_types, strict=False,
+            candidate_ids,
+            all_values,
+            composite_positions,
+            yahoo_positions,
+            candidate_position_types=team_position_types,
+            strict=False,
         )
 
         # Skip teams where no candidates had projections

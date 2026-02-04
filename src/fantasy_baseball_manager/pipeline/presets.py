@@ -83,12 +83,7 @@ def marcel_gb_pipeline(
     projection errors based on Statcast features.
     """
     cfg = config or RegressionConfig()
-    return (
-        PipelineBuilder("marcel_gb", config=cfg)
-        .with_statcast()
-        .with_gb_residual()
-        .build()
-    )
+    return PipelineBuilder("marcel_gb", config=cfg).with_statcast().with_gb_residual().build()
 
 
 def marcel_full_gb_pipeline(
@@ -123,10 +118,32 @@ def marcel_skill_change_pipeline(
     adjustments.
     """
     cfg = config or RegressionConfig()
+    return PipelineBuilder("marcel_skill_change", config=cfg).with_statcast().with_skill_change_adjuster().build()
+
+
+def marcel_full_gb_conservative_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Kitchen-sink pipeline with conservative GB residual corrections.
+
+    Only applies HR and SB adjustments to avoid hurting OBP predictions.
+    Use this for better rate stat preservation.
+    """
+    from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import GBResidualConfig
+
+    cfg = config or RegressionConfig()
+    gb_config = GBResidualConfig(
+        batter_allowed_stats=("hr", "sb"),  # Only adjust power stats
+        pitcher_allowed_stats=("so", "bb"),  # Only adjust K/BB for pitchers
+    )
     return (
-        PipelineBuilder("marcel_skill_change", config=cfg)
+        PipelineBuilder("marcel_full_gb_conservative", config=cfg)
+        .with_park_factors()
+        .with_pitcher_normalization()
+        .with_pitcher_statcast()
         .with_statcast()
-        .with_skill_change_adjuster()
+        .with_batter_babip()
+        .with_gb_residual(gb_config)
         .build()
     )
 
@@ -137,6 +154,7 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
     "marcel_full_gb": marcel_full_gb_pipeline,
+    "marcel_full_gb_conservative": marcel_full_gb_conservative_pipeline,
     "marcel_skill_change": marcel_skill_change_pipeline,
 }
 
@@ -145,6 +163,7 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
     "marcel_full_gb": marcel_full_gb_pipeline,
+    "marcel_full_gb_conservative": marcel_full_gb_conservative_pipeline,
     "marcel_skill_change": marcel_skill_change_pipeline,
 }
 

@@ -23,7 +23,6 @@ from fantasy_baseball_manager.pipeline.stages.regression_config import Regressio
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
-from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats
 
 
 class TestMarcelClassicPreset:
@@ -116,7 +115,7 @@ class TestAllPresetsInRegistry:
         assert len(aging_adjusters) == 1
 
     def test_registry_has_expected_entries(self) -> None:
-        assert len(PIPELINES) == 6
+        assert len(PIPELINES) == 7
 
 
 class TestConfigThreading:

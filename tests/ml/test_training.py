@@ -1,7 +1,5 @@
 """Tests for model training orchestration."""
 
-
-
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection,
     BattingSeasonStats,
@@ -204,9 +202,7 @@ class TestResidualModelTrainer:
         for year in [2021, 2022]:
             batting_projections[year] = [_make_batter_projection(p, year) for p in players]
             batting_actuals[year] = [_make_batter_actuals(p, year) for p in players]
-            statcast_batter[year - 1] = [
-                _make_statcast_batter(f"mlbam{i}", year - 1) for i in range(60)
-            ]
+            statcast_batter[year - 1] = [_make_statcast_batter(f"mlbam{i}", year - 1) for i in range(60)]
 
         trainer = ResidualModelTrainer(
             pipeline=FakePipeline(batting_projections, {}),  # type: ignore[arg-type]

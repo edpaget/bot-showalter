@@ -130,7 +130,9 @@ def print_team_projections(
             console.print(table)
 
         if team.unmatched_count > 0:
-            console.print(f"[yellow]Warning: {team.unmatched_count} player(s) could not be matched to projections[/yellow]")
+            console.print(
+                f"[yellow]Warning: {team.unmatched_count} player(s) could not be matched to projections[/yellow]"
+            )
 
 
 def print_compare_table(

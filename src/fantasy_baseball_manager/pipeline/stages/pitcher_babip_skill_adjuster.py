@@ -89,9 +89,7 @@ class PitcherBabipSkillAdjuster:
     def _has_required_rates(self, player: PlayerRates) -> bool:
         return all(stat in player.rates for stat in REQUIRED_RATES)
 
-    def _adjust_pitcher(
-        self, player: PlayerRates, bb_stats: PitcherBattedBallStats
-    ) -> PlayerRates:
+    def _adjust_pitcher(self, player: PlayerRates, bb_stats: PitcherBattedBallStats) -> PlayerRates:
         cfg = self._config
 
         # Compute skill-based xBABIP from batted-ball profile

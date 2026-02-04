@@ -82,9 +82,7 @@ class PitcherStatcastAdjuster:
     def _has_required_rates(self, player: PlayerRates) -> bool:
         return all(stat in player.rates for stat in REQUIRED_RATES)
 
-    def _find_statcast(
-        self, fg_id: str, lookup: dict[str, StatcastPitcherStats]
-    ) -> StatcastPitcherStats | None:
+    def _find_statcast(self, fg_id: str, lookup: dict[str, StatcastPitcherStats]) -> StatcastPitcherStats | None:
         mlbam_id = self._id_mapper.fangraphs_to_mlbam(fg_id)
         if mlbam_id is None:
             return None
@@ -122,9 +120,7 @@ class PitcherStatcastAdjuster:
             metadata=metadata,
         )
 
-    def _derive_statcast_rates(
-        self, player: PlayerRates, statcast: StatcastPitcherStats
-    ) -> dict[str, float]:
+    def _derive_statcast_rates(self, player: PlayerRates, statcast: StatcastPitcherStats) -> dict[str, float]:
         rates = player.rates
         bb = rates.get("bb", 0.0)
         hbp = rates.get("hbp", 0.0)

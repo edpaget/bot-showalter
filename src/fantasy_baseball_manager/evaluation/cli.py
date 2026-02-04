@@ -6,8 +6,6 @@ from rich.console import Console
 from rich.table import Table
 
 from fantasy_baseball_manager.config import load_league_settings
-
-console = Console()
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.evaluation.harness import (
     EvaluationConfig,
@@ -27,6 +25,8 @@ from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
 from fantasy_baseball_manager.services import get_container, set_container
 from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
+
+console = Console()
 
 __all__ = ["evaluate_cmd", "set_container"]
 

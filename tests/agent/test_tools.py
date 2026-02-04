@@ -218,12 +218,14 @@ class TestRankKeepers:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = rank_keepers.invoke({
-                "candidates": "Judge, Soto, Ohtani",
-                "user_pick": 5,
-                "teams": 12,
-                "keeper_slots": 4,
-            })
+            result = rank_keepers.invoke(
+                {
+                    "candidates": "Judge, Soto, Ohtani",
+                    "user_pick": 5,
+                    "teams": 12,
+                    "keeper_slots": 4,
+                }
+            )
 
         assert "Keeper Rankings" in result
         assert "Surplus" in result
@@ -235,12 +237,14 @@ class TestRankKeepers:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = rank_keepers.invoke({
-                "candidates": "Judge, Unknown",
-                "user_pick": 5,
-                "teams": 12,
-                "keeper_slots": 4,
-            })
+            result = rank_keepers.invoke(
+                {
+                    "candidates": "Judge, Unknown",
+                    "user_pick": 5,
+                    "teams": 12,
+                    "keeper_slots": 4,
+                }
+            )
 
         assert "Could not find" in result or "Aaron Judge" in result
 

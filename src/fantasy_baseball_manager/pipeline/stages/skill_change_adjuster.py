@@ -115,10 +115,7 @@ class SkillChangeAdjuster:
         adjustments: dict[str, float] = {}
 
         # Barrel rate -> HR, doubles
-        if (
-            delta.barrel_rate_delta is not None
-            and abs(delta.barrel_rate_delta) >= self.config.barrel_rate_threshold
-        ):
+        if delta.barrel_rate_delta is not None and abs(delta.barrel_rate_delta) >= self.config.barrel_rate_threshold:
             hr_adj = delta.barrel_rate_delta * self.config.barrel_to_hr_factor
             rates["hr"] = max(0.0, rates.get("hr", 0.0) + hr_adj)
             adjustments["barrel->hr"] = hr_adj
@@ -146,10 +143,7 @@ class SkillChangeAdjuster:
             adjustments["ev_max->hr"] = hr_adj
 
         # Chase rate -> BB, SO (note: lower chase is better for hitter)
-        if (
-            delta.chase_rate_delta is not None
-            and abs(delta.chase_rate_delta) >= self.config.chase_rate_threshold
-        ):
+        if delta.chase_rate_delta is not None and abs(delta.chase_rate_delta) >= self.config.chase_rate_threshold:
             # Lower chase = more BB (negative delta * negative factor = positive adj)
             bb_adj = delta.chase_rate_delta * self.config.chase_to_bb_factor
             rates["bb"] = max(0.0, rates.get("bb", 0.0) + bb_adj)
@@ -161,10 +155,7 @@ class SkillChangeAdjuster:
             adjustments["chase->so"] = so_adj
 
         # Whiff rate -> SO
-        if (
-            delta.whiff_rate_delta is not None
-            and abs(delta.whiff_rate_delta) >= self.config.whiff_rate_threshold
-        ):
+        if delta.whiff_rate_delta is not None and abs(delta.whiff_rate_delta) >= self.config.whiff_rate_threshold:
             so_adj = delta.whiff_rate_delta * self.config.whiff_to_so_factor
             rates["so"] = max(0.0, rates.get("so", 0.0) + so_adj)
             adjustments["whiff->so"] = so_adj
@@ -230,19 +221,13 @@ class SkillChangeAdjuster:
                 adjustments["velo->er"] = er_adj
 
         # Whiff rate -> SO
-        if (
-            delta.whiff_rate_delta is not None
-            and abs(delta.whiff_rate_delta) >= self.config.pitcher_whiff_threshold
-        ):
+        if delta.whiff_rate_delta is not None and abs(delta.whiff_rate_delta) >= self.config.pitcher_whiff_threshold:
             so_adj = delta.whiff_rate_delta * self.config.pitcher_whiff_to_so_factor
             rates["so"] = max(0.0, rates.get("so", 0.0) + so_adj)
             adjustments["whiff->so"] = so_adj
 
         # GB rate -> HR allowed
-        if (
-            delta.gb_rate_delta is not None
-            and abs(delta.gb_rate_delta) >= self.config.gb_rate_threshold
-        ):
+        if delta.gb_rate_delta is not None and abs(delta.gb_rate_delta) >= self.config.gb_rate_threshold:
             hr_adj = delta.gb_rate_delta * self.config.gb_to_hr_factor
             rates["hr"] = max(0.0, rates.get("hr", 0.0) + hr_adj)
             adjustments["gb->hr"] = hr_adj

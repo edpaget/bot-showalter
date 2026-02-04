@@ -106,9 +106,7 @@ class EnhancedPlayingTimeProjector:
 
         # Calculate factors
         games_per_year = player.metadata.get("games_per_year")
-        injury_factor = self._compute_injury_factor_pitcher(
-            ip_per_year, games_per_year, is_starter
-        )
+        injury_factor = self._compute_injury_factor_pitcher(ip_per_year, games_per_year, is_starter)
         age_factor = self._compute_age_factor(player.age)
         volatility_factor = self._compute_volatility_factor(ip_per_year)
 
@@ -190,9 +188,7 @@ class EnhancedPlayingTimeProjector:
             # Linear interpolation between min_games_pct and 1.0
             range_pct = 1.0 - cfg.min_games_pct
             position_in_range = (games_ratio - cfg.min_games_pct) / range_pct
-            return (1.0 - cfg.games_played_weight) + (
-                cfg.games_played_weight * position_in_range
-            )
+            return (1.0 - cfg.games_played_weight) + (cfg.games_played_weight * position_in_range)
 
     def _compute_age_factor(self, age: int) -> float:
         """Compute age-based playing time decline factor."""

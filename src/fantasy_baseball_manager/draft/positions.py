@@ -115,11 +115,7 @@ class YahooPositionSource:
 
             mapped_count += 1
             eligible = cast("Iterable[object]", player.get("eligible_positions", ()))
-            raw_positions = [
-                str(p)
-                for p in eligible
-                if str(p) not in _NON_FIELD_POSITIONS
-            ]
+            raw_positions = [str(p) for p in eligible if str(p) not in _NON_FIELD_POSITIONS]
             normalized = tuple(dict.fromkeys(normalize_position(p) for p in raw_positions))
             positions[fg_id] = normalized
 

@@ -2,6 +2,7 @@ from io import StringIO
 
 from rich.console import Console
 
+from fantasy_baseball_manager.draft import simulation_report
 from fantasy_baseball_manager.draft.models import RosterConfig
 from fantasy_baseball_manager.draft.simulation_models import (
     DraftStrategy,
@@ -11,7 +12,6 @@ from fantasy_baseball_manager.draft.simulation_models import (
     TeamConfig,
     TeamResult,
 )
-from fantasy_baseball_manager.draft import simulation_report
 from fantasy_baseball_manager.valuation.models import StatCategory
 
 

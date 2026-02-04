@@ -42,9 +42,9 @@ PITCHING_SORT_FIELDS: dict[str, Callable[[PitchingProjection], float]] = {
 __all__ = [
     "BATTING_SORT_FIELDS",
     "PITCHING_SORT_FIELDS",
+    "marcel",
     "print_batting_table",
     "print_pitching_table",
-    "marcel",
     "set_container",
 ]
 
@@ -154,10 +154,14 @@ def marcel(
     sort_by: Annotated[str | None, typer.Option(help="Stat to sort by (e.g. hr, so, era).")] = None,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
     park_factors: Annotated[bool, typer.Option("--park-factors", help="Enable park factor adjustment.")] = False,
-    pitcher_norm: Annotated[bool, typer.Option("--pitcher-norm", help="Enable pitcher BABIP/LOB normalization.")] = False,
+    pitcher_norm: Annotated[
+        bool, typer.Option("--pitcher-norm", help="Enable pitcher BABIP/LOB normalization.")
+    ] = False,
     statcast: Annotated[bool, typer.Option("--statcast", help="Enable Statcast batter blend.")] = False,
     batter_babip: Annotated[bool, typer.Option("--batter-babip", help="Enable batter BABIP adjustment.")] = False,
-    pitcher_statcast: Annotated[bool, typer.Option("--pitcher-statcast", help="Enable pitcher Statcast blend.")] = False,
+    pitcher_statcast: Annotated[
+        bool, typer.Option("--pitcher-statcast", help="Enable pitcher Statcast blend.")
+    ] = False,
 ) -> None:
     """Generate projections for the given year."""
     if year is None:
@@ -167,7 +171,12 @@ def marcel(
     show_pitching = not batting or pitching
 
     pipeline = _build_pipeline_from_flags(
-        engine, park_factors, pitcher_norm, statcast, batter_babip, pitcher_statcast,
+        engine,
+        park_factors,
+        pitcher_norm,
+        statcast,
+        batter_babip,
+        pitcher_statcast,
     )
 
     console.print(f"[bold]{pipeline.name.upper()} projections for {year}[/bold]")

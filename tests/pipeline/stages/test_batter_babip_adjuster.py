@@ -146,7 +146,7 @@ class TestXBabipDerivation:
         adjuster2 = BatterBabipAdjuster(source2, mapper)
         result2 = adjuster2.adjust([batter])
 
-        assert cast(float, result[0].metadata["x_babip"]) < cast(float, result2[0].metadata["x_babip"])
+        assert cast("float", result[0].metadata["x_babip"]) < cast("float", result2[0].metadata["x_babip"])
 
 
 class TestSinglesAdjustment:

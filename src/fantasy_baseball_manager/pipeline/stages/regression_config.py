@@ -26,9 +26,7 @@ class PlatoonConfig:
 
     pct_vs_rhp: float = 0.72
     pct_vs_lhp: float = 0.28
-    batting_split_regression_pa: dict[str, float] = field(
-        default_factory=lambda: dict(BATTING_SPLIT_REGRESSION_PA)
-    )
+    batting_split_regression_pa: dict[str, float] = field(default_factory=lambda: dict(BATTING_SPLIT_REGRESSION_PA))
 
 
 @dataclass(frozen=True)

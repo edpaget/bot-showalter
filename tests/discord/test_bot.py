@@ -156,9 +156,7 @@ class TestFantasyBaseballBot:
 
         message.reply.assert_not_called()
 
-    async def test_on_message_responds_in_main_channel(
-        self, discord_config_no_channels: DiscordConfig
-    ) -> None:
+    async def test_on_message_responds_in_main_channel(self, discord_config_no_channels: DiscordConfig) -> None:
         """Bot responds to mentions in main channel."""
         bot = create_bot(discord_config_no_channels)
 
@@ -188,9 +186,7 @@ class TestFantasyBaseballBot:
                 mock_create.assert_called_once_with(thread_id="999888777")
                 mock_stream.assert_called_once_with(message, mock_agent, "What's up?")
 
-    async def test_on_message_checks_allowed_channels_for_threads(
-        self, discord_config: DiscordConfig
-    ) -> None:
+    async def test_on_message_checks_allowed_channels_for_threads(self, discord_config: DiscordConfig) -> None:
         """Bot ignores thread messages in non-allowed channels."""
         bot = create_bot(discord_config)
 
@@ -214,9 +210,7 @@ class TestFantasyBaseballBot:
         # Should not reply since channel is not allowed
         message.reply.assert_not_called()
 
-    async def test_on_message_checks_allowed_channels_for_main_channel(
-        self, discord_config: DiscordConfig
-    ) -> None:
+    async def test_on_message_checks_allowed_channels_for_main_channel(self, discord_config: DiscordConfig) -> None:
         """Bot ignores main channel messages in non-allowed channels."""
         bot = create_bot(discord_config)
 
@@ -240,9 +234,7 @@ class TestFantasyBaseballBot:
         # Should not reply since channel is not allowed
         message.reply.assert_not_called()
 
-    async def test_main_channel_uses_ephemeral_agent(
-        self, discord_config_no_channels: DiscordConfig
-    ) -> None:
+    async def test_main_channel_uses_ephemeral_agent(self, discord_config_no_channels: DiscordConfig) -> None:
         """Main channel mentions create a new agent per message (no caching)."""
         bot = create_bot(discord_config_no_channels)
 
@@ -299,9 +291,7 @@ class TestFantasyBaseballBot:
         call_args = message.reply.call_args
         assert "message" in call_args[0][0].lower()
 
-    async def test_get_or_create_agent_caches_by_thread(
-        self, discord_config: DiscordConfig
-    ) -> None:
+    async def test_get_or_create_agent_caches_by_thread(self, discord_config: DiscordConfig) -> None:
         """_get_or_create_agent returns the same agent for the same thread."""
         bot = create_bot(discord_config)
 
@@ -315,9 +305,7 @@ class TestFantasyBaseballBot:
             assert agent1 is agent2
             mock_create.assert_called_once_with(thread_id="thread-123")
 
-    async def test_get_or_create_agent_different_threads(
-        self, discord_config: DiscordConfig
-    ) -> None:
+    async def test_get_or_create_agent_different_threads(self, discord_config: DiscordConfig) -> None:
         """_get_or_create_agent creates different agents for different threads."""
         bot = create_bot(discord_config)
 

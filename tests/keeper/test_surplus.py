@@ -29,10 +29,7 @@ def _candidate(player_id: str, name: str, total_value: float, positions: tuple[s
 
 def _build_pool(count: int, start_value: float = 50.0) -> list[PlayerValue]:
     """Build a pool of players with descending values starting from start_value."""
-    return [
-        _pv(f"pool{i}", f"Pool Player {i}", start_value - i)
-        for i in range(count)
-    ]
+    return [_pv(f"pool{i}", f"Pool Player {i}", start_value - i) for i in range(count)]
 
 
 class TestRankCandidates:

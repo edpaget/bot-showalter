@@ -8,6 +8,4 @@ from fantasy_baseball_manager.pipeline.stages.regression_constants import (
     BATTING_REGRESSION_PA,
 )
 
-BATTING_SPLIT_REGRESSION_PA: dict[str, float] = {
-    stat: value * 2 for stat, value in BATTING_REGRESSION_PA.items()
-}
+BATTING_SPLIT_REGRESSION_PA: dict[str, float] = {stat: value * 2 for stat, value in BATTING_REGRESSION_PA.items()}

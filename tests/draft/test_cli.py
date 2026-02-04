@@ -239,7 +239,7 @@ def _build_fake(
 
 
 @pytest.fixture(autouse=True)
-def reset_container() -> Generator[None, None, None]:
+def reset_container() -> Generator[None]:
     yield
     set_container(None)
 

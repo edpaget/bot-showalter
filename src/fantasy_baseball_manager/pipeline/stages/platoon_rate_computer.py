@@ -112,10 +112,7 @@ class PlatoonRateComputer:
             # Blend by matchup frequency
             blended_rates: dict[str, float] = {}
             for stat in BATTING_COMPONENT_STATS:
-                blended_rates[stat] = (
-                    self._pct_vs_lhp * rates_vs_lhp[stat]
-                    + self._pct_vs_rhp * rates_vs_rhp[stat]
-                )
+                blended_rates[stat] = self._pct_vs_lhp * rates_vs_lhp[stat] + self._pct_vs_rhp * rates_vs_rhp[stat]
 
             # PA per year = sum of both splits
             pa_per_year: list[float] = []
@@ -162,15 +159,12 @@ class PlatoonRateComputer:
         avg_league_rates: dict[str, float],
     ) -> dict[str, float]:
         """Compute regressed rates for a single split."""
-        pa_per_year: list[float] = [
-            float(player_data[y].pa) if y in player_data else 0.0 for y in years
-        ]
+        pa_per_year: list[float] = [float(player_data[y].pa) if y in player_data else 0.0 for y in years]
 
         rates: dict[str, float] = {}
         for stat in BATTING_COMPONENT_STATS:
             stat_per_year: list[float] = [
-                float(getattr(player_data[y], stat)) if y in player_data else 0.0
-                for y in years
+                float(getattr(player_data[y], stat)) if y in player_data else 0.0 for y in years
             ]
             regression_pa = self._batting_regression.get(stat, BATTING_SPLIT_REGRESSION_PA.get(stat, 1200))
             rates[stat] = weighted_rate(

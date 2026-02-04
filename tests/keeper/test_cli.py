@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 import pytest
@@ -15,15 +14,17 @@ from fantasy_baseball_manager.marcel.models import (
 from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
     from pathlib import Path
 
 runner = CliRunner()
 
 
 @pytest.fixture(autouse=True)
-def reset_container() -> Generator[None, None, None]:
+def reset_container() -> Generator[None]:
     yield
     set_container(None)
+
 
 YEARS = [2024, 2023, 2022]
 
@@ -219,9 +220,7 @@ def _install_fake() -> None:
 class TestKeeperRankCommand:
     def test_rank_shows_candidates(self) -> None:
         _install_fake()
-        result = runner.invoke(
-            app, ["keeper", "rank", "2025", "--candidates", "b1,b2,b3", "--user-pick", "1"]
-        )
+        result = runner.invoke(app, ["keeper", "rank", "2025", "--candidates", "b1,b2,b3", "--user-pick", "1"])
         assert result.exit_code == 0, result.output
         assert "Surplus Value" in result.output or "Surplus" in result.output
         assert "Slugger Jones" in result.output
@@ -235,29 +234,26 @@ class TestKeeperRankCommand:
 
     def test_rank_unknown_candidate_errors(self) -> None:
         _install_fake()
-        result = runner.invoke(
-            app, ["keeper", "rank", "2025", "--candidates", "nonexistent"]
-        )
+        result = runner.invoke(app, ["keeper", "rank", "2025", "--candidates", "nonexistent"])
         assert result.exit_code == 1
         assert "Unknown candidate ID" in result.output
 
     def test_rank_with_keepers_file(self, tmp_path: Path) -> None:
         _install_fake()
         keepers_file = tmp_path / "keepers.yaml"
-        keepers_file.write_text(
-            "teams:\n"
-            "  1:\n"
-            "    keepers: [b4, b5]\n"
-            "  2:\n"
-            "    keepers: [p1, p2]\n"
-        )
+        keepers_file.write_text("teams:\n" "  1:\n" "    keepers: [b4, b5]\n" "  2:\n" "    keepers: [p1, p2]\n")
         result = runner.invoke(
             app,
             [
-                "keeper", "rank", "2025",
-                "--candidates", "b1,b2,b3",
-                "--keepers", str(keepers_file),
-                "--user-pick", "1",
+                "keeper",
+                "rank",
+                "2025",
+                "--candidates",
+                "b1,b2,b3",
+                "--keepers",
+                str(keepers_file),
+                "--user-pick",
+                "1",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -270,9 +266,13 @@ class TestKeeperOptimizeCommand:
         result = runner.invoke(
             app,
             [
-                "keeper", "optimize", "2025",
-                "--candidates", "b1,b2,b3,b4,b5,b6",
-                "--user-pick", "1",
+                "keeper",
+                "optimize",
+                "2025",
+                "--candidates",
+                "b1,b2,b3,b4,b5,b6",
+                "--user-pick",
+                "1",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -288,18 +288,19 @@ class TestKeeperOptimizeCommand:
     def test_optimize_with_keepers_file(self, tmp_path: Path) -> None:
         _install_fake()
         keepers_file = tmp_path / "keepers.yaml"
-        keepers_file.write_text(
-            "teams:\n"
-            "  1:\n"
-            "    keepers: [p1, p2]\n"
-        )
+        keepers_file.write_text("teams:\n" "  1:\n" "    keepers: [p1, p2]\n")
         result = runner.invoke(
             app,
             [
-                "keeper", "optimize", "2025",
-                "--candidates", "b1,b2,b3,b4,b5",
-                "--keepers", str(keepers_file),
-                "--user-pick", "1",
+                "keeper",
+                "optimize",
+                "2025",
+                "--candidates",
+                "b1,b2,b3,b4,b5",
+                "--keepers",
+                str(keepers_file),
+                "--user-pick",
+                "1",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -418,19 +419,20 @@ class TestKeeperRankYahoo:
     def test_yahoo_with_keepers_file(self, tmp_path: Path) -> None:
         _install_yahoo_fakes()
         keepers_file = tmp_path / "keepers.yaml"
-        keepers_file.write_text(
-            "teams:\n"
-            "  rival:\n"
-            "    keepers: [b4, p1]\n"
-        )
+        keepers_file.write_text("teams:\n" "  rival:\n" "    keepers: [b4, p1]\n")
         result = runner.invoke(
             app,
             [
-                "keeper", "rank", "2025",
+                "keeper",
+                "rank",
+                "2025",
                 "--yahoo",
-                "--keepers", str(keepers_file),
-                "--user-pick", "1",
-                "--teams", "2",
+                "--keepers",
+                str(keepers_file),
+                "--user-pick",
+                "1",
+                "--teams",
+                "2",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -447,12 +449,16 @@ class TestKeeperRankYahoo:
                     team_name="My Team",
                     players=(
                         RosterPlayer(
-                            yahoo_id="Y100", name="Slugger Jones",
-                            position_type="B", eligible_positions=("1B",),
+                            yahoo_id="Y100",
+                            name="Slugger Jones",
+                            position_type="B",
+                            eligible_positions=("1B",),
                         ),
                         RosterPlayer(
-                            yahoo_id="Y999", name="Unknown Guy",
-                            position_type="B", eligible_positions=("OF",),
+                            yahoo_id="Y999",
+                            name="Unknown Guy",
+                            position_type="B",
+                            eligible_positions=("OF",),
                         ),
                     ),
                 ),
@@ -492,10 +498,16 @@ class TestKeeperOptimizeYahoo:
         result = runner.invoke(
             app,
             [
-                "keeper", "optimize", "2025",
-                "--yahoo", "--candidates", "b1,b3",
-                "--user-pick", "1",
-                "--teams", "2",
+                "keeper",
+                "optimize",
+                "2025",
+                "--yahoo",
+                "--candidates",
+                "b1,b3",
+                "--user-pick",
+                "1",
+                "--teams",
+                "2",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -598,9 +610,13 @@ class TestKeeperLeagueCommand:
         result = runner.invoke(
             app,
             [
-                "keeper", "league", "2025",
-                "--keeper-slots", "1",
-                "--draft-order", "422.l.123.t.3,422.l.123.t.1,422.l.123.t.2",
+                "keeper",
+                "league",
+                "2025",
+                "--keeper-slots",
+                "1",
+                "--draft-order",
+                "422.l.123.t.3,422.l.123.t.1,422.l.123.t.2",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -618,10 +634,12 @@ class TestKeeperLeagueCommand:
                     team_key="422.l.123.t.1",
                     team_name="Team A",
                     players=(
-                        RosterPlayer(yahoo_id="Y100", name="Slugger Jones",
-                                     position_type="B", eligible_positions=("1B",)),
-                        RosterPlayer(yahoo_id="Y999", name="Unknown Guy",
-                                     position_type="B", eligible_positions=("OF",)),
+                        RosterPlayer(
+                            yahoo_id="Y100", name="Slugger Jones", position_type="B", eligible_positions=("1B",)
+                        ),
+                        RosterPlayer(
+                            yahoo_id="Y999", name="Unknown Guy", position_type="B", eligible_positions=("OF",)
+                        ),
                     ),
                 ),
             ),
@@ -652,10 +670,12 @@ class TestKeeperLeagueCommand:
                     team_key="422.l.123.t.1",
                     team_name="Team A",
                     players=(
-                        RosterPlayer(yahoo_id="Y100", name="Slugger Jones",
-                                     position_type="B", eligible_positions=("1B",)),
-                        RosterPlayer(yahoo_id="Y900", name="Minor Leaguer",
-                                     position_type="B", eligible_positions=("OF",)),
+                        RosterPlayer(
+                            yahoo_id="Y100", name="Slugger Jones", position_type="B", eligible_positions=("1B",)
+                        ),
+                        RosterPlayer(
+                            yahoo_id="Y900", name="Minor Leaguer", position_type="B", eligible_positions=("OF",)
+                        ),
                     ),
                 ),
             ),
@@ -692,12 +712,16 @@ class TestSplitPlayerYahoo:
                     team_name="My Team",
                     players=(
                         RosterPlayer(
-                            yahoo_id="Y500", name="Slugger Jones",
-                            position_type="B", eligible_positions=("OF", "DH"),
+                            yahoo_id="Y500",
+                            name="Slugger Jones",
+                            position_type="B",
+                            eligible_positions=("OF", "DH"),
                         ),
                         RosterPlayer(
-                            yahoo_id="Y501", name="Ace Adams",
-                            position_type="P", eligible_positions=("SP",),
+                            yahoo_id="Y501",
+                            name="Ace Adams",
+                            position_type="P",
+                            eligible_positions=("SP",),
                         ),
                     ),
                 ),

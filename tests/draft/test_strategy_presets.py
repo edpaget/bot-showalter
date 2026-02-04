@@ -47,15 +47,9 @@ class TestStrategyPresets:
     def test_batting_strategies_have_pitcher_ratio_rule(self) -> None:
         for name in ("power_hitting", "speed"):
             strategy = STRATEGY_PRESETS[name]
-            pitcher_ratio_rules = [
-                r for r in strategy.rules if isinstance(r, PitcherBatterRatio)
-            ]
-            assert len(pitcher_ratio_rules) == 1, (
-                f"{name} should have exactly one PitcherBatterRatio rule"
-            )
-            assert pitcher_ratio_rules[0].max_pitcher_fraction < 0.5, (
-                f"{name} pitcher fraction should be below 0.5"
-            )
+            pitcher_ratio_rules = [r for r in strategy.rules if isinstance(r, PitcherBatterRatio)]
+            assert len(pitcher_ratio_rules) == 1, f"{name} should have exactly one PitcherBatterRatio rule"
+            assert pitcher_ratio_rules[0].max_pitcher_fraction < 0.5, f"{name} pitcher fraction should be below 0.5"
 
     def test_all_presets_have_valid_noise_scale(self) -> None:
         for name, strategy in STRATEGY_PRESETS.items():

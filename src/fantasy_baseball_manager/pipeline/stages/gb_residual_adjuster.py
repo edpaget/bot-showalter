@@ -37,6 +37,10 @@ class GBResidualConfig:
     max_residual_scale: float = 2.0  # Cap residuals at N * std
     min_rate_denominator_pa: int = 300  # Minimum PA for rate conversion
     min_rate_denominator_ip: int = 100  # Minimum IP for rate conversion
+    # Which stats to apply adjustments for (None = all available)
+    # Use ("hr", "sb") for conservative mode that doesn't hurt OBP
+    batter_allowed_stats: tuple[str, ...] | None = None
+    pitcher_allowed_stats: tuple[str, ...] | None = None
 
 
 @dataclass
@@ -187,13 +191,18 @@ class GBResidualAdjuster:
         opportunities = max(avg_pa, self.config.min_rate_denominator_pa)
 
         if opportunities > 0:
+            # Filter residuals by allowed_stats if configured
+            allowed = self.config.batter_allowed_stats
+            applied_residuals: dict[str, float] = {}
             for stat, residual in residuals.items():
-                if stat in rates:
+                if stat in rates and (allowed is None or stat in allowed):
                     # Convert counting stat residual to rate adjustment
                     rate_adjustment = residual / opportunities
                     rates[stat] = rates[stat] + rate_adjustment
+                    applied_residuals[stat] = residual
 
-            metadata["gb_residual_adjustments"] = residuals
+            if applied_residuals:
+                metadata["gb_residual_adjustments"] = applied_residuals
 
         return PlayerRates(
             player_id=player.player_id,
@@ -253,13 +262,18 @@ class GBResidualAdjuster:
         opportunities = max(avg_ip, self.config.min_rate_denominator_ip) * 3
 
         if opportunities > 0:
+            # Filter residuals by allowed_stats if configured
+            allowed = self.config.pitcher_allowed_stats
+            applied_residuals: dict[str, float] = {}
             for stat, residual in residuals.items():
-                if stat in rates:
+                if stat in rates and (allowed is None or stat in allowed):
                     # Convert counting stat residual to rate adjustment
                     rate_adjustment = residual / opportunities
                     rates[stat] = rates[stat] + rate_adjustment
+                    applied_residuals[stat] = residual
 
-            metadata["gb_residual_adjustments"] = residuals
+            if applied_residuals:
+                metadata["gb_residual_adjustments"] = applied_residuals
 
         return PlayerRates(
             player_id=player.player_id,

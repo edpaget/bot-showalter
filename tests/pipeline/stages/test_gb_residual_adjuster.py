@@ -137,12 +137,31 @@ def trained_batter_models(temp_model_store: ModelStore) -> ModelStore:
     """Create and save trained batter models."""
     np.random.seed(42)
     feature_names = [
-        "marcel_hr", "marcel_so", "marcel_bb", "marcel_singles", "marcel_doubles",
-        "marcel_triples", "marcel_sb", "xba", "xslg", "xwoba", "barrel_rate",
-        "hard_hit_rate", "chase_rate", "whiff_rate", "chase_minus_league_avg",
-        "whiff_minus_league_avg", "chase_x_whiff", "discipline_score", "has_skill_data",
-        "age", "age_squared", "marcel_iso", "xba_minus_marcel_avg",
-        "barrel_vs_hr_ratio", "opportunities",
+        "marcel_hr",
+        "marcel_so",
+        "marcel_bb",
+        "marcel_singles",
+        "marcel_doubles",
+        "marcel_triples",
+        "marcel_sb",
+        "xba",
+        "xslg",
+        "xwoba",
+        "barrel_rate",
+        "hard_hit_rate",
+        "chase_rate",
+        "whiff_rate",
+        "chase_minus_league_avg",
+        "whiff_minus_league_avg",
+        "chase_x_whiff",
+        "discipline_score",
+        "has_skill_data",
+        "age",
+        "age_squared",
+        "marcel_iso",
+        "xba_minus_marcel_avg",
+        "barrel_vs_hr_ratio",
+        "opportunities",
     ]
 
     X = np.random.randn(50, len(feature_names))

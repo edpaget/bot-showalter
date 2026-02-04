@@ -295,25 +295,27 @@ class PipelineBuilder:
             )
 
         if self._pitcher_normalization:
-            adjusters.append(
-                PitcherNormalizationAdjuster(self._config.pitcher_normalization)
-            )
+            adjusters.append(PitcherNormalizationAdjuster(self._config.pitcher_normalization))
 
         if self._pitcher_statcast:
             source = self._resolve_pitcher_statcast_source()
             mapper = self._resolve_id_mapper()
-            adjusters.append(PitcherStatcastAdjuster(
-                statcast_source=source,
-                id_mapper=mapper,
-                config=self._config.pitcher_statcast,
-            ))
+            adjusters.append(
+                PitcherStatcastAdjuster(
+                    statcast_source=source,
+                    id_mapper=mapper,
+                    config=self._config.pitcher_statcast,
+                )
+            )
 
         if self._pitcher_babip_skill:
             bb_source = self._resolve_pitcher_babip_source()
-            adjusters.append(PitcherBabipSkillAdjuster(
-                source=bb_source,
-                config=self._config.pitcher_babip_skill,
-            ))
+            adjusters.append(
+                PitcherBabipSkillAdjuster(
+                    source=bb_source,
+                    config=self._config.pitcher_babip_skill,
+                )
+            )
 
         if self._statcast:
             source = self._resolve_statcast_source()
@@ -330,21 +332,25 @@ class PipelineBuilder:
             bb_source = self._resolve_pitcher_babip_source()
             skill_source = self._resolve_skill_data_source()
             mapper = self._resolve_id_mapper()
-            adjusters.append(GBResidualAdjuster(
-                statcast_source=full_source,
-                batted_ball_source=bb_source,
-                skill_data_source=skill_source,
-                id_mapper=mapper,
-                config=self._gb_residual_config or GBResidualConfig(),
-            ))
+            adjusters.append(
+                GBResidualAdjuster(
+                    statcast_source=full_source,
+                    batted_ball_source=bb_source,
+                    skill_data_source=skill_source,
+                    id_mapper=mapper,
+                    config=self._gb_residual_config or GBResidualConfig(),
+                )
+            )
 
         if self._skill_change:
             skill_source = self._resolve_skill_data_source()
             delta_computer = SkillDeltaComputer(skill_source)
-            adjusters.append(SkillChangeAdjuster(
-                delta_computer=delta_computer,
-                config=self._skill_change_config or SkillChangeConfig(),
-            ))
+            adjusters.append(
+                SkillChangeAdjuster(
+                    delta_computer=delta_computer,
+                    config=self._skill_change_config or SkillChangeConfig(),
+                )
+            )
 
         # Always last: rebaseline then aging
         adjusters.append(RebaselineAdjuster())

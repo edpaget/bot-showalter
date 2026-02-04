@@ -76,18 +76,14 @@ class TestPipelineBuilderWithPitcherNorm:
 class TestPipelineBuilderWithStatcast:
     def test_adds_statcast_adjuster(self) -> None:
         pipeline = (
-            PipelineBuilder()
-            .with_statcast(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper())
-            .build()
+            PipelineBuilder().with_statcast(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper()).build()
         )
         adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
         assert "StatcastRateAdjuster" in adjuster_types
 
     def test_statcast_before_rebaseline(self) -> None:
         pipeline = (
-            PipelineBuilder()
-            .with_statcast(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper())
-            .build()
+            PipelineBuilder().with_statcast(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper()).build()
         )
         adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
         sc_idx = adjuster_types.index("StatcastRateAdjuster")
@@ -98,9 +94,7 @@ class TestPipelineBuilderWithStatcast:
 class TestPipelineBuilderWithBatterBabip:
     def test_adds_batter_babip_adjuster(self) -> None:
         pipeline = (
-            PipelineBuilder()
-            .with_batter_babip(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper())
-            .build()
+            PipelineBuilder().with_batter_babip(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper()).build()
         )
         adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
         assert "BatterBabipAdjuster" in adjuster_types
@@ -174,12 +168,7 @@ class TestPipelineBuilderRateComputer:
             def batting_stats_vs_rhp(self, year: int) -> list[BattingSeasonStats]:
                 return []
 
-        pipeline = (
-            PipelineBuilder()
-            .rate_computer("platoon")
-            .with_split_source(FakeSplitSource())
-            .build()
-        )
+        pipeline = PipelineBuilder().rate_computer("platoon").with_split_source(FakeSplitSource()).build()
         assert isinstance(pipeline.rate_computer, PlatoonRateComputer)
 
 
@@ -211,10 +200,5 @@ class TestPipelineBuilderCacheStore:
     def test_cache_store_via_builder_method(self) -> None:
         """Test that cache_store can be injected via with_cache_store()."""
         fake_cache = FakeCacheStore()
-        pipeline = (
-            PipelineBuilder()
-            .with_cache_store(fake_cache)
-            .with_park_factors()
-            .build()
-        )
+        pipeline = PipelineBuilder().with_cache_store(fake_cache).with_park_factors().build()
         assert "ParkFactorAdjuster" in [type(a).__name__ for a in pipeline.adjusters]

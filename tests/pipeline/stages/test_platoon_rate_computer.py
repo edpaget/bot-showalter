@@ -164,14 +164,10 @@ class FakePitchingDelegate:
         self._pitching_result = pitching_result or []
         self.pitching_calls: list[tuple[object, int, int]] = []
 
-    def compute_batting_rates(
-        self, data_source: object, year: int, years_back: int
-    ) -> list[PlayerRates]:
+    def compute_batting_rates(self, data_source: object, year: int, years_back: int) -> list[PlayerRates]:
         return []
 
-    def compute_pitching_rates(
-        self, data_source: object, year: int, years_back: int
-    ) -> list[PlayerRates]:
+    def compute_pitching_rates(self, data_source: object, year: int, years_back: int) -> list[PlayerRates]:
         self.pitching_calls.append((data_source, year, years_back))
         return self._pitching_result
 
@@ -241,8 +237,8 @@ class TestPlatoonRateComputerBlending:
     def test_blended_rate_is_weighted_average(self) -> None:
         result = self._setup()
         player = result[0]
-        rates_vs_lhp = cast(dict[str, float], player.metadata["rates_vs_lhp"])
-        rates_vs_rhp = cast(dict[str, float], player.metadata["rates_vs_rhp"])
+        rates_vs_lhp = cast("dict[str, float]", player.metadata["rates_vs_lhp"])
+        rates_vs_rhp = cast("dict[str, float]", player.metadata["rates_vs_rhp"])
         expected_hr = 0.28 * rates_vs_lhp["hr"] + 0.72 * rates_vs_rhp["hr"]
         assert player.rates["hr"] == pytest.approx(expected_hr, rel=1e-6)
 
@@ -271,8 +267,8 @@ class TestPlatoonRateComputerBlending:
     def test_custom_matchup_frequency(self) -> None:
         result = self._setup(pct_vs_rhp=0.60, pct_vs_lhp=0.40)
         player = result[0]
-        rates_vs_lhp = cast(dict[str, float], player.metadata["rates_vs_lhp"])
-        rates_vs_rhp = cast(dict[str, float], player.metadata["rates_vs_rhp"])
+        rates_vs_lhp = cast("dict[str, float]", player.metadata["rates_vs_lhp"])
+        rates_vs_rhp = cast("dict[str, float]", player.metadata["rates_vs_rhp"])
         expected_hr = 0.40 * rates_vs_lhp["hr"] + 0.60 * rates_vs_rhp["hr"]
         assert player.rates["hr"] == pytest.approx(expected_hr, rel=1e-6)
         assert player.metadata["pct_vs_rhp"] == 0.60
@@ -311,7 +307,9 @@ class TestPlatoonSplitRegression:
             league_rate=league_hr_rate,
             regression_pa=regression_pa,
         )
-        assert cast(dict[str, float], player.metadata["rates_vs_rhp"])["hr"] == pytest.approx(expected_vs_rhp, rel=1e-6)
+        assert cast("dict[str, float]", player.metadata["rates_vs_rhp"])["hr"] == pytest.approx(
+            expected_vs_rhp, rel=1e-6
+        )
 
     def test_custom_regression_overrides_default(self) -> None:
         lhp_stats = _make_batting(player_id="p1", year=2023, pa=150, hr=5)
@@ -342,7 +340,9 @@ class TestPlatoonSplitRegression:
             league_rate=league_hr_rate,
             regression_pa=100.0,
         )
-        assert cast(dict[str, float], player.metadata["rates_vs_rhp"])["hr"] == pytest.approx(expected_vs_rhp, rel=1e-6)
+        assert cast("dict[str, float]", player.metadata["rates_vs_rhp"])["hr"] == pytest.approx(
+            expected_vs_rhp, rel=1e-6
+        )
 
 
 class TestPlatoonMissingSplit:
@@ -377,9 +377,13 @@ class TestPlatoonMissingSplit:
             league_rate=league_hr_rate,
             regression_pa=regression_pa,
         )
-        assert cast(dict[str, float], player.metadata["rates_vs_lhp"])["hr"] == pytest.approx(expected_vs_lhp, rel=1e-6)
+        assert cast("dict[str, float]", player.metadata["rates_vs_lhp"])["hr"] == pytest.approx(
+            expected_vs_lhp, rel=1e-6
+        )
         # Should be league average since 0 PA → pure regression
-        assert cast(dict[str, float], player.metadata["rates_vs_lhp"])["hr"] == pytest.approx(league_hr_rate, rel=1e-6)
+        assert cast("dict[str, float]", player.metadata["rates_vs_lhp"])["hr"] == pytest.approx(
+            league_hr_rate, rel=1e-6
+        )
 
     def test_player_in_lhp_only(self) -> None:
         lhp_stats = _make_batting(player_id="p1", year=2023, pa=150, hr=5)
@@ -401,16 +405,16 @@ class TestPlatoonMissingSplit:
 
         player = result[0]
         league_hr_rate = 200 / 6000
-        assert cast(dict[str, float], player.metadata["rates_vs_rhp"])["hr"] == pytest.approx(league_hr_rate, rel=1e-6)
+        assert cast("dict[str, float]", player.metadata["rates_vs_rhp"])["hr"] == pytest.approx(
+            league_hr_rate, rel=1e-6
+        )
 
 
 class TestPlatoonPitchingDelegation:
     """Pitching delegates to wrapped computer."""
 
     def test_delegates_to_pitching_delegate(self) -> None:
-        expected = [
-            PlayerRates(player_id="sp1", name="Pitcher", year=2024, age=28, rates={"so": 0.25})
-        ]
+        expected = [PlayerRates(player_id="sp1", name="Pitcher", year=2024, age=28, rates={"so": 0.25})]
         delegate = FakePitchingDelegate(pitching_result=expected)
         split_source = FakeSplitSource()
         data_source = FakeDataSource()
@@ -520,8 +524,8 @@ class TestPlatoonHandCalculation:
 
         expected_blended = 0.28 * expected_lhp + 0.72 * expected_rhp
 
-        assert cast(dict[str, float], player.metadata["rates_vs_lhp"])["hr"] == pytest.approx(expected_lhp, rel=1e-6)
-        assert cast(dict[str, float], player.metadata["rates_vs_rhp"])["hr"] == pytest.approx(expected_rhp, rel=1e-6)
+        assert cast("dict[str, float]", player.metadata["rates_vs_lhp"])["hr"] == pytest.approx(expected_lhp, rel=1e-6)
+        assert cast("dict[str, float]", player.metadata["rates_vs_rhp"])["hr"] == pytest.approx(expected_rhp, rel=1e-6)
         assert player.rates["hr"] == pytest.approx(expected_blended, rel=1e-6)
 
 

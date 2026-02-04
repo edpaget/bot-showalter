@@ -76,9 +76,7 @@ class BatterBabipAdjuster:
     def _is_pitcher(self, player: PlayerRates) -> bool:
         return "pa_per_year" not in player.metadata
 
-    def _find_statcast(
-        self, fg_id: str, lookup: dict[str, StatcastBatterStats]
-    ) -> StatcastBatterStats | None:
+    def _find_statcast(self, fg_id: str, lookup: dict[str, StatcastBatterStats]) -> StatcastBatterStats | None:
         mlbam_id = self._id_mapper.fangraphs_to_mlbam(fg_id)
         if mlbam_id is None:
             return None

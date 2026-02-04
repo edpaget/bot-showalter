@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from config import ConfigurationSet
 
     from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
+    from fantasy_baseball_manager.config import AppConfig
     from fantasy_baseball_manager.league.roster import RosterSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
@@ -136,7 +137,6 @@ class ServiceContainer:
         from typing import cast
 
         from fantasy_baseball_manager.cache.sources import CachedRosterSource
-        from fantasy_baseball_manager.config import AppConfig
         from fantasy_baseball_manager.league.roster import YahooRosterSource
         from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
@@ -208,7 +208,6 @@ class ServiceContainer:
             return self._yahoo_league
         from typing import cast
 
-        from fantasy_baseball_manager.config import AppConfig
         from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
         config = self._create_app_config()

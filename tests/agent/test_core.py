@@ -170,11 +170,7 @@ class TestRun:
 
         mock_graph = MagicMock()
         # Some models return content as list of blocks
-        mock_graph.invoke.return_value = {
-            "messages": [
-                AIMessage(content=[{"type": "text", "text": "Block response"}])
-            ]
-        }
+        mock_graph.invoke.return_value = {"messages": [AIMessage(content=[{"type": "text", "text": "Block response"}])]}
 
         agent = Agent(graph=mock_graph, thread_id="test")
         result = run(agent, "Hello")

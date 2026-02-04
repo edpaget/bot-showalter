@@ -48,9 +48,15 @@ class CachedPositionSource:
 
     def fetch_positions(self) -> dict[str, tuple[str, ...]]:
         return _cached_fetch(
-            self._cache, "positions", self._cache_key, self._ttl_seconds,
+            self._cache,
+            "positions",
+            self._cache_key,
+            self._ttl_seconds,
             self._delegate.fetch_positions,
-            _serialize_positions, _deserialize_positions, len, "players",
+            _serialize_positions,
+            _deserialize_positions,
+            len,
+            "players",
         )
 
 
@@ -63,9 +69,15 @@ class CachedRosterSource:
 
     def fetch_rosters(self) -> LeagueRosters:
         return _cached_fetch(
-            self._cache, "rosters", self._cache_key, self._ttl_seconds,
+            self._cache,
+            "rosters",
+            self._cache_key,
+            self._ttl_seconds,
             self._delegate.fetch_rosters,
-            _serialize_rosters, _deserialize_rosters, lambda r: len(r.teams), "teams",
+            _serialize_rosters,
+            _deserialize_rosters,
+            lambda r: len(r.teams),
+            "teams",
         )
 
 
@@ -78,9 +90,15 @@ class CachedDraftResultsSource:
 
     def fetch_draft_results(self) -> list[YahooDraftPick]:
         return _cached_fetch(
-            self._cache, "draft_results", self._cache_key, self._ttl_seconds,
+            self._cache,
+            "draft_results",
+            self._cache_key,
+            self._ttl_seconds,
             self._delegate.fetch_draft_results,
-            _serialize_draft_results, _deserialize_draft_results, len, "draft picks",
+            _serialize_draft_results,
+            _deserialize_draft_results,
+            len,
+            "draft picks",
         )
 
     def fetch_draft_status(self) -> DraftStatus:
@@ -92,6 +110,7 @@ class CachedDraftResultsSource:
 
 # Serializers for each cached type
 
+
 def _serialize_positions(positions: dict[str, tuple[str, ...]]) -> str:
     return json.dumps({pid: list(pos) for pid, pos in positions.items()})
 
@@ -102,21 +121,27 @@ def _deserialize_positions(data: str) -> dict[str, tuple[str, ...]]:
 
 
 def _serialize_rosters(rosters: LeagueRosters) -> str:
-    return json.dumps({
-        "league_key": rosters.league_key,
-        "teams": [
-            {
-                "team_key": t.team_key,
-                "team_name": t.team_name,
-                "players": [
-                    {"yahoo_id": p.yahoo_id, "name": p.name, "position_type": p.position_type,
-                     "eligible_positions": list(p.eligible_positions)}
-                    for p in t.players
-                ],
-            }
-            for t in rosters.teams
-        ],
-    })
+    return json.dumps(
+        {
+            "league_key": rosters.league_key,
+            "teams": [
+                {
+                    "team_key": t.team_key,
+                    "team_name": t.team_name,
+                    "players": [
+                        {
+                            "yahoo_id": p.yahoo_id,
+                            "name": p.name,
+                            "position_type": p.position_type,
+                            "eligible_positions": list(p.eligible_positions),
+                        }
+                        for p in t.players
+                    ],
+                }
+                for t in rosters.teams
+            ],
+        }
+    )
 
 
 def _deserialize_rosters(data: str) -> LeagueRosters:
@@ -129,8 +154,10 @@ def _deserialize_rosters(data: str) -> LeagueRosters:
                 team_name=t["team_name"],
                 players=tuple(
                     RosterPlayer(
-                        yahoo_id=p["yahoo_id"], name=p["name"],
-                        position_type=p["position_type"], eligible_positions=tuple(p["eligible_positions"]),
+                        yahoo_id=p["yahoo_id"],
+                        name=p["name"],
+                        position_type=p["position_type"],
+                        eligible_positions=tuple(p["eligible_positions"]),
                     )
                     for p in t["players"]
                 ),
@@ -141,18 +168,19 @@ def _deserialize_rosters(data: str) -> LeagueRosters:
 
 
 def _serialize_draft_results(picks: list[YahooDraftPick]) -> str:
-    return json.dumps([
-        {"player_id": p.player_id, "team_key": p.team_key, "round": p.round, "pick": p.pick}
-        for p in picks
-    ])
+    return json.dumps(
+        [{"player_id": p.player_id, "team_key": p.team_key, "round": p.round, "pick": p.pick} for p in picks]
+    )
 
 
 def _deserialize_draft_results(data: str) -> list[YahooDraftPick]:
     raw: list[dict[str, object]] = json.loads(data)
     return [
         YahooDraftPick(
-            player_id=str(i["player_id"]), team_key=str(i["team_key"]),
-            round=int(i["round"]), pick=int(i["pick"]),
+            player_id=str(i["player_id"]),
+            team_key=str(i["team_key"]),
+            round=int(i["round"]),
+            pick=int(i["pick"]),
         )
         for i in raw
     ]
