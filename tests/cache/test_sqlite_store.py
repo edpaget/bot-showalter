@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
@@ -74,12 +75,36 @@ class TestSqliteCacheStore:
 
     def test_wal_mode_enabled(self, tmp_path: Path) -> None:
         store = SqliteCacheStore(tmp_path / "cache.db")
-        conn = store._connect()
-        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
-        assert journal_mode == "wal"
+        with store._pool.connection() as conn:
+            journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+            assert journal_mode == "wal"
 
     def test_busy_timeout_set(self, tmp_path: Path) -> None:
         store = SqliteCacheStore(tmp_path / "cache.db")
-        conn = store._connect()
-        timeout = conn.execute("PRAGMA busy_timeout").fetchone()[0]
-        assert timeout == 5000
+        with store._pool.connection() as conn:
+            timeout = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+            assert timeout == 5000
+
+    def test_concurrent_access_from_multiple_threads(self, tmp_path: Path) -> None:
+        store = SqliteCacheStore(tmp_path / "cache.db")
+        errors: list[Exception] = []
+        results: dict[int, str | None] = {}
+
+        def worker(thread_id: int) -> None:
+            try:
+                key = f"key_{thread_id}"
+                value = f"value_{thread_id}"
+                store.put("ns", key, value, ttl_seconds=300)
+                results[thread_id] = store.get("ns", key)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Errors in threads: {errors}"
+        for i in range(10):
+            assert results[i] == f"value_{i}"
