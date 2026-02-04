@@ -117,17 +117,59 @@ def marcel_gb_pipeline(
     )
 
 
+def mtl_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """MTL standalone pipeline using neural network for rate prediction.
+
+    Uses trained multi-task learning model to predict stat rates directly
+    from Statcast features. Falls back to Marcel rates for players without
+    sufficient Statcast data.
+    """
+    cfg = config or RegressionConfig()
+    return (
+        PipelineBuilder("mtl", config=cfg)
+        .with_mtl_rate_computer()
+        .build()
+    )
+
+
+def marcel_mtl_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Marcel + MTL blend pipeline.
+
+    Uses Marcel for base rates, then blends with MTL neural network predictions.
+    Default blend: 70% Marcel, 30% MTL.
+    """
+    cfg = config or RegressionConfig()
+    return (
+        PipelineBuilder("marcel_mtl", config=cfg)
+        .with_park_factors()
+        .with_pitcher_normalization()
+        .with_pitcher_statcast()
+        .with_statcast()
+        .with_batter_babip()
+        .with_mtl_blender()
+        .build()
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
+    "mtl": mtl_pipeline,
+    "marcel_mtl": marcel_mtl_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
+    "mtl": mtl_pipeline,
+    "marcel_mtl": marcel_mtl_pipeline,
 }
 
 

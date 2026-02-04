@@ -9,14 +9,17 @@ class MTLArchitectureConfig:
 
     Defines the shared trunk and per-stat output head architecture.
     Default architecture:
-        - Shared trunk: Input → 64 → 32 (with batch norm and dropout)
+        - Shared trunk: Input → 64 → 32 (NO batch norm, minimal dropout)
         - Per-stat heads: 32 → 16 → 1
+
+    Note: Batch normalization disabled - it can cause train/test mismatch
+    with small datasets. Minimal dropout to preserve variance.
     """
 
     shared_layers: tuple[int, ...] = (64, 32)
     head_hidden_size: int = 16
-    dropout_rates: tuple[float, ...] = (0.3, 0.2)
-    use_batch_norm: bool = True
+    dropout_rates: tuple[float, ...] = (0.05, 0.0)
+    use_batch_norm: bool = False
 
 
 @dataclass(frozen=True)
@@ -24,13 +27,15 @@ class MTLTrainingConfig:
     """Training configuration for MTL models.
 
     Controls training hyperparameters, early stopping, and data filtering.
+
+    Note: Very low weight decay to avoid over-regularization.
     """
 
     epochs: int = 200
-    batch_size: int = 32
+    batch_size: int = 64
     learning_rate: float = 0.001
-    weight_decay: float = 0.01
-    patience: int = 20
+    weight_decay: float = 0.0001
+    patience: int = 25
     val_fraction: float = 0.15
     min_samples: int = 50
     batter_min_pa: int = 100

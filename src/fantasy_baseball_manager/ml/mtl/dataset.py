@@ -114,7 +114,7 @@ class BatterTrainingDataCollector:
             actuals = self.data_source.batting_stats(target_year)
             actual_lookup = {a.player_id: a for a in actuals}
 
-            # Get Statcast data from prior year
+            # Get Statcast data from prior year (for Statcast features)
             statcast_year = target_year - 1
             statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
             statcast_lookup = {s.player_id: s for s in statcast_data}
@@ -122,6 +122,11 @@ class BatterTrainingDataCollector:
             # Get skill data from prior year
             skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
             skill_lookup = {s.player_id: s for s in skill_data}
+
+            # Get PRIOR year actuals to compute "marcel-like" rates for features
+            # This prevents data leakage - features use Y-1 data, targets use Y data
+            prior_actuals = self.data_source.batting_stats(statcast_year)
+            prior_lookup = {a.player_id: a for a in prior_actuals}
 
             # Process each player with actuals
             for fg_id, actual in actual_lookup.items():
@@ -137,26 +142,30 @@ class BatterTrainingDataCollector:
                 if statcast is None or statcast.pa < self.min_pa:
                     continue
 
+                # Get prior year stats for marcel-like rate features
+                prior = prior_lookup.get(fg_id)
+                if prior is None or prior.pa < self.min_pa:
+                    continue
+
                 player_skill_data = skill_lookup.get(fg_id)
 
-                # Create PlayerRates with actual rates for feature extraction
-                # (extractor expects Marcel rates, but we use actual rates here
-                # since we're predicting rates directly, not residuals)
+                # Create PlayerRates with PRIOR YEAR rates for feature extraction
+                # This matches inference where we use prior year data
                 player_rates = PlayerRates(
                     player_id=fg_id,
-                    name=actual.name if hasattr(actual, "name") else fg_id,
-                    year=target_year,
-                    age=actual.age if hasattr(actual, "age") else 30,
+                    name=prior.name if hasattr(prior, "name") else fg_id,
+                    year=statcast_year,
+                    age=prior.age if hasattr(prior, "age") else 30,
                     rates={
-                        "hr": actual.hr / actual.pa,
-                        "so": actual.so / actual.pa,
-                        "bb": actual.bb / actual.pa,
-                        "singles": actual.singles / actual.pa,
-                        "doubles": actual.doubles / actual.pa,
-                        "triples": actual.triples / actual.pa,
-                        "sb": actual.sb / actual.pa if hasattr(actual, "sb") else 0,
+                        "hr": prior.hr / prior.pa,
+                        "so": prior.so / prior.pa,
+                        "bb": prior.bb / prior.pa,
+                        "singles": prior.singles / prior.pa,
+                        "doubles": prior.doubles / prior.pa,
+                        "triples": prior.triples / prior.pa,
+                        "sb": prior.sb / prior.pa if hasattr(prior, "sb") else 0,
                     },
-                    opportunities=actual.pa,
+                    opportunities=prior.pa,
                 )
 
                 features = extractor.extract(player_rates, statcast, player_skill_data)
@@ -165,7 +174,7 @@ class BatterTrainingDataCollector:
 
                 all_features.append(features)
 
-                # Collect actual rates (target values)
+                # Collect actual rates from TARGET YEAR (what we're predicting)
                 for stat in BATTER_STATS:
                     stat_value = getattr(actual, stat, 0)
                     rate = stat_value / actual.pa if actual.pa > 0 else 0.0
@@ -230,7 +239,7 @@ class PitcherTrainingDataCollector:
             actuals = self.data_source.pitching_stats(target_year)
             actual_lookup = {a.player_id: a for a in actuals}
 
-            # Get Statcast data from prior year
+            # Get Statcast data from prior year (for Statcast features)
             statcast_year = target_year - 1
             statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
             statcast_lookup = {s.player_id: s for s in statcast_data}
@@ -238,6 +247,11 @@ class PitcherTrainingDataCollector:
             # Get batted ball data from prior year
             batted_ball_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
             bb_lookup = {b.player_id: b for b in batted_ball_data}
+
+            # Get PRIOR year actuals to compute "marcel-like" rates for features
+            # This prevents data leakage - features use Y-1 data, targets use Y data
+            prior_actuals = self.data_source.pitching_stats(statcast_year)
+            prior_lookup = {a.player_id: a for a in prior_actuals}
 
             # Process each player with actuals
             for fg_id, actual in actual_lookup.items():
@@ -254,23 +268,32 @@ class PitcherTrainingDataCollector:
                 if statcast is None or statcast.pa < self.min_pa:
                     continue
 
+                # Get prior year stats for marcel-like rate features
+                prior = prior_lookup.get(fg_id)
+                if prior is None:
+                    continue
+                prior_outs = int(prior.ip * 3)
+                if prior_outs < self.min_pa:
+                    continue
+
                 batted_ball = bb_lookup.get(fg_id)
 
-                # Create PlayerRates with actual rates for feature extraction
+                # Create PlayerRates with PRIOR YEAR rates for feature extraction
+                # This matches inference where we use prior year data
                 player_rates = PlayerRates(
                     player_id=fg_id,
-                    name=actual.name if hasattr(actual, "name") else fg_id,
-                    year=target_year,
-                    age=actual.age if hasattr(actual, "age") else 30,
+                    name=prior.name if hasattr(prior, "name") else fg_id,
+                    year=statcast_year,
+                    age=prior.age if hasattr(prior, "age") else 30,
                     rates={
-                        "h": actual.h / actual_outs if actual_outs > 0 else 0,
-                        "er": actual.er / actual_outs if actual_outs > 0 else 0,
-                        "so": actual.so / actual_outs if actual_outs > 0 else 0,
-                        "bb": actual.bb / actual_outs if actual_outs > 0 else 0,
-                        "hr": actual.hr / actual_outs if actual_outs > 0 else 0,
+                        "h": prior.h / prior_outs if prior_outs > 0 else 0,
+                        "er": prior.er / prior_outs if prior_outs > 0 else 0,
+                        "so": prior.so / prior_outs if prior_outs > 0 else 0,
+                        "bb": prior.bb / prior_outs if prior_outs > 0 else 0,
+                        "hr": prior.hr / prior_outs if prior_outs > 0 else 0,
                     },
-                    opportunities=actual_outs,
-                    metadata={"is_starter": actual.gs > actual.g / 2 if actual.g > 0 else False},
+                    opportunities=prior_outs,
+                    metadata={"is_starter": prior.gs > prior.g / 2 if prior.g > 0 else False},
                 )
 
                 features = extractor.extract(player_rates, statcast, batted_ball)
@@ -279,7 +302,7 @@ class PitcherTrainingDataCollector:
 
                 all_features.append(features)
 
-                # Collect actual rates (target values)
+                # Collect actual rates from TARGET YEAR (what we're predicting)
                 for stat in PITCHER_STATS:
                     stat_value = getattr(actual, stat, 0)
                     rate = stat_value / actual_outs if actual_outs > 0 else 0.0
