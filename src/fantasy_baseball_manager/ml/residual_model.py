@@ -58,7 +58,10 @@ class StatResidualModel:
             random_state=hp.random_state,
             verbosity=-1,
         )
-        model.fit(X, y)
+        import pandas as pd
+
+        X_df = pd.DataFrame(X, columns=feature_names)
+        model.fit(X_df, y)
         self._model = model
         self._feature_names = list(feature_names)
         self._is_fitted = True
@@ -80,9 +83,12 @@ class StatResidualModel:
         Raises:
             ValueError: If model has not been fitted
         """
+        import pandas as pd
+
         if not self._is_fitted or self._model is None:
             raise ValueError(f"StatResidualModel for {self.stat_name} has not been fitted")
-        return self._model.predict(X)
+        X_df = pd.DataFrame(X, columns=self._feature_names)
+        return self._model.predict(X_df)
 
     def feature_importances(self) -> dict[str, float]:
         """Return feature importances as a dict mapping feature name to importance.
