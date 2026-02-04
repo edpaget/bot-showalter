@@ -1,9 +1,6 @@
 """Tests for model training orchestration."""
 
-from dataclasses import dataclass
 
-import numpy as np
-import pytest
 
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection,
@@ -13,12 +10,11 @@ from fantasy_baseball_manager.marcel.models import (
 )
 from fantasy_baseball_manager.ml.training import (
     BATTER_STATS,
-    PITCHER_STATS,
     ResidualModelTrainer,
     TrainingConfig,
 )
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
-from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
+from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, PitcherSkillStats
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats, StatcastPitcherStats
 
 
@@ -72,6 +68,24 @@ class FakeBattedBallSource:
 
     def pitcher_batted_ball_stats(self, year: int) -> list[PitcherBattedBallStats]:
         return self._stats.get(year, [])
+
+
+class FakeSkillDataSource:
+    """Fake skill data source for testing."""
+
+    def __init__(
+        self,
+        batter_stats: dict[int, list[BatterSkillStats]] | None = None,
+        pitcher_stats: dict[int, list[PitcherSkillStats]] | None = None,
+    ) -> None:
+        self._batter = batter_stats or {}
+        self._pitcher = pitcher_stats or {}
+
+    def batter_skill_stats(self, year: int) -> list[BatterSkillStats]:
+        return self._batter.get(year, [])
+
+    def pitcher_skill_stats(self, year: int) -> list[PitcherSkillStats]:
+        return self._pitcher.get(year, [])
 
 
 class FakeIdMapper:
@@ -196,9 +210,10 @@ class TestResidualModelTrainer:
 
         trainer = ResidualModelTrainer(
             pipeline=FakePipeline(batting_projections, {}),  # type: ignore[arg-type]
-            data_source=FakeDataSource(batting_actuals, {}),  # type: ignore[arg-type]
-            statcast_source=FakeStatcastSource(statcast_batter, {}),  # type: ignore[arg-type]
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
+            data_source=FakeDataSource(batting_actuals, {}),
+            statcast_source=FakeStatcastSource(statcast_batter, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
             id_mapper=FakeIdMapper(fg_to_mlbam),  # type: ignore[arg-type]
             config=TrainingConfig(min_samples=50, batter_min_pa=100),
         )
@@ -225,9 +240,10 @@ class TestResidualModelTrainer:
 
         trainer = ResidualModelTrainer(
             pipeline=FakePipeline(batting_projections, {}),  # type: ignore[arg-type]
-            data_source=FakeDataSource(batting_actuals, {}),  # type: ignore[arg-type]
-            statcast_source=FakeStatcastSource(statcast_batter, {}),  # type: ignore[arg-type]
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
+            data_source=FakeDataSource(batting_actuals, {}),
+            statcast_source=FakeStatcastSource(statcast_batter, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
             id_mapper=FakeIdMapper(fg_to_mlbam),  # type: ignore[arg-type]
             config=TrainingConfig(min_samples=50),  # Require 50 samples
         )
@@ -250,9 +266,10 @@ class TestResidualModelTrainer:
 
         trainer = ResidualModelTrainer(
             pipeline=FakePipeline(batting_projections, {}),  # type: ignore[arg-type]
-            data_source=FakeDataSource(batting_actuals, {}),  # type: ignore[arg-type]
-            statcast_source=FakeStatcastSource(statcast_batter, {}),  # type: ignore[arg-type]
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
+            data_source=FakeDataSource(batting_actuals, {}),
+            statcast_source=FakeStatcastSource(statcast_batter, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
             id_mapper=FakeIdMapper(fg_to_mlbam),  # type: ignore[arg-type]
             config=TrainingConfig(min_samples=20),
         )

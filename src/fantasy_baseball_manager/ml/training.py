@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
     from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
+    from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
     from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 
@@ -55,6 +56,7 @@ class ResidualModelTrainer:
     data_source: StatsDataSource
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
+    skill_data_source: SkillDataSource
     id_mapper: PlayerIdMapper
     config: TrainingConfig = field(default_factory=TrainingConfig)
 
@@ -93,6 +95,10 @@ class ResidualModelTrainer:
             # Build MLBAM -> Statcast lookup
             statcast_lookup = {s.player_id: s for s in statcast_data}
 
+            # Get skill data from prior year (uses FanGraphs ID)
+            skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
+            skill_lookup = {s.player_id: s for s in skill_data}
+
             # Process each player with available data
             for fg_id, proj in proj_lookup.items():
                 actual = actual_lookup.get(fg_id)
@@ -107,6 +113,9 @@ class ResidualModelTrainer:
                 statcast = statcast_lookup.get(mlbam_id)
                 if statcast is None:
                     continue
+
+                # Get skill data (optional, uses FanGraphs ID)
+                player_skill_data = skill_lookup.get(fg_id)
 
                 # Create a PlayerRates-like object for feature extraction
                 from fantasy_baseball_manager.pipeline.types import PlayerRates
@@ -128,7 +137,7 @@ class ResidualModelTrainer:
                     opportunities=proj.pa,
                 )
 
-                features = extractor.extract(player_rates, statcast)
+                features = extractor.extract(player_rates, statcast, player_skill_data)
                 if features is None:
                     continue
 

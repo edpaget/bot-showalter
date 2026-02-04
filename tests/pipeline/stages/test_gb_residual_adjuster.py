@@ -8,6 +8,7 @@ import pytest
 from fantasy_baseball_manager.ml.persistence import ModelStore
 from fantasy_baseball_manager.ml.residual_model import ResidualModelSet, StatResidualModel
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
+from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, PitcherSkillStats
 from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualAdjuster,
     GBResidualConfig,
@@ -61,6 +62,24 @@ class FakeIdMapper:
 
     def fangraphs_to_yahoo(self, fg_id: str) -> str | None:
         return None
+
+
+class FakeSkillDataSource:
+    """Fake skill data source for testing."""
+
+    def __init__(
+        self,
+        batter_stats: dict[int, list[BatterSkillStats]] | None = None,
+        pitcher_stats: dict[int, list[PitcherSkillStats]] | None = None,
+    ) -> None:
+        self._batter = batter_stats or {}
+        self._pitcher = pitcher_stats or {}
+
+    def batter_skill_stats(self, year: int) -> list[BatterSkillStats]:
+        return self._batter.get(year, [])
+
+    def pitcher_skill_stats(self, year: int) -> list[PitcherSkillStats]:
+        return self._pitcher.get(year, [])
 
 
 def _make_batter(
@@ -120,7 +139,9 @@ def trained_batter_models(temp_model_store: ModelStore) -> ModelStore:
     feature_names = [
         "marcel_hr", "marcel_so", "marcel_bb", "marcel_singles", "marcel_doubles",
         "marcel_triples", "marcel_sb", "xba", "xslg", "xwoba", "barrel_rate",
-        "hard_hit_rate", "age", "age_squared", "marcel_iso", "xba_minus_marcel_avg",
+        "hard_hit_rate", "chase_rate", "whiff_rate", "chase_minus_league_avg",
+        "whiff_minus_league_avg", "chase_x_whiff", "discipline_score", "has_skill_data",
+        "age", "age_squared", "marcel_iso", "xba_minus_marcel_avg",
         "barrel_vs_hr_ratio", "opportunities",
     ]
 
@@ -145,9 +166,10 @@ class TestGBResidualAdjuster:
     def test_passes_through_when_no_models(self, tmp_path: Path) -> None:
         """Test that players pass through unchanged when models don't exist."""
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({}, {}),  # type: ignore[arg-type]
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
-            id_mapper=FakeIdMapper({}),  # type: ignore[arg-type]
+            statcast_source=FakeStatcastSource({}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
+            id_mapper=FakeIdMapper({}),
             config=GBResidualConfig(model_name="nonexistent"),
             model_store=ModelStore(model_dir=tmp_path / "empty_models"),
         )
@@ -165,8 +187,9 @@ class TestGBResidualAdjuster:
         """Test that batters without Statcast data pass through unchanged."""
         adjuster = GBResidualAdjuster(
             statcast_source=FakeStatcastSource({}, {}),  # No Statcast data
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
-            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),  # type: ignore[arg-type]
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
+            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),
             model_store=trained_batter_models,
         )
 
@@ -194,8 +217,9 @@ class TestGBResidualAdjuster:
         )
 
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),  # type: ignore[arg-type]
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
+            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
             id_mapper=FakeIdMapper({}),  # No mapping
             model_store=trained_batter_models,
         )
@@ -224,9 +248,10 @@ class TestGBResidualAdjuster:
         )
 
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),  # type: ignore[arg-type]
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
-            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),  # type: ignore[arg-type]
+            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
+            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),
             model_store=trained_batter_models,
         )
 
@@ -257,9 +282,10 @@ class TestGBResidualAdjuster:
         )
 
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),  # type: ignore[arg-type]
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
-            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),  # type: ignore[arg-type]
+            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
+            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),
             model_store=trained_batter_models,
         )
 
@@ -299,9 +325,10 @@ class TestGBResidualAdjuster:
         try:
             source = FakeStatcastSource({2023: [statcast]}, {})
             adjuster = GBResidualAdjuster(
-                statcast_source=source,  # type: ignore[arg-type]
-                batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
-                id_mapper=FakeIdMapper({"fg123": "mlbam123"}),  # type: ignore[arg-type]
+                statcast_source=source,
+                batted_ball_source=FakeBattedBallSource({}),
+                skill_data_source=FakeSkillDataSource(),
+                id_mapper=FakeIdMapper({"fg123": "mlbam123"}),
                 model_store=trained_batter_models,
             )
 
@@ -320,9 +347,10 @@ class TestGBResidualAdjuster:
 
     def test_empty_list_returns_empty(self) -> None:
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({}, {}),  # type: ignore[arg-type]
-            batted_ball_source=FakeBattedBallSource({}),  # type: ignore[arg-type]
-            id_mapper=FakeIdMapper({}),  # type: ignore[arg-type]
+            statcast_source=FakeStatcastSource({}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
+            id_mapper=FakeIdMapper({}),
         )
 
         result = adjuster.adjust([])
@@ -335,13 +363,19 @@ class TestGBResidualConfig:
         assert config.model_name == "default"
         assert config.batter_min_pa == 100
         assert config.pitcher_min_pa == 100
+        assert config.min_rate_denominator_pa == 300
+        assert config.min_rate_denominator_ip == 100
 
     def test_custom_values(self) -> None:
         config = GBResidualConfig(
             model_name="custom",
             batter_min_pa=200,
             pitcher_min_pa=150,
+            min_rate_denominator_pa=400,
+            min_rate_denominator_ip=120,
         )
         assert config.model_name == "custom"
         assert config.batter_min_pa == 200
         assert config.pitcher_min_pa == 150
+        assert config.min_rate_denominator_pa == 400
+        assert config.min_rate_denominator_ip == 120

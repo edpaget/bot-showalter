@@ -328,10 +328,12 @@ class PipelineBuilder:
         if self._gb_residual:
             full_source = self._resolve_full_statcast_source()
             bb_source = self._resolve_pitcher_babip_source()
+            skill_source = self._resolve_skill_data_source()
             mapper = self._resolve_id_mapper()
             adjusters.append(GBResidualAdjuster(
                 statcast_source=full_source,
                 batted_ball_source=bb_source,
+                skill_data_source=skill_source,
                 id_mapper=mapper,
                 config=self._gb_residual_config or GBResidualConfig(),
             ))
