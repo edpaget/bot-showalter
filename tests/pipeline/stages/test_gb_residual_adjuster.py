@@ -51,8 +51,8 @@ class FakeIdMapper:
     def __init__(self, fg_to_mlbam: dict[str, str]) -> None:
         self._fg_to_mlbam = fg_to_mlbam
 
-    def fangraphs_to_mlbam(self, fg_id: str) -> str | None:
-        return self._fg_to_mlbam.get(fg_id)
+    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
+        return self._fg_to_mlbam.get(fangraphs_id)
 
     def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
         return None
@@ -60,7 +60,7 @@ class FakeIdMapper:
     def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
         return None
 
-    def fangraphs_to_yahoo(self, fg_id: str) -> str | None:
+    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
         return None
 
 
@@ -362,7 +362,7 @@ class TestGBResidualAdjuster:
             adjuster.adjust([batter2])
             assert call_count == 1  # Still 1, not reloaded
         finally:
-            FakeStatcastSource.batter_expected_stats = original_method  # type: ignore[method-assign]
+            FakeStatcastSource.batter_expected_stats = original_method
 
     def test_empty_list_returns_empty(self) -> None:
         adjuster = GBResidualAdjuster(

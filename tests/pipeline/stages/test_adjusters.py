@@ -47,11 +47,11 @@ class TestRebaselineAdjuster:
             year=2025,
             age=29,
             rates={"hr": 0.04},
-            metadata={"avg_league_rates": league_rates, "target_rates": league_rates, "extra": 42},
+            metadata={"avg_league_rates": league_rates, "target_rates": league_rates, "extra": 42},  # type: ignore[typeddict-unknown-key]
         )
         adjuster = RebaselineAdjuster()
         result = adjuster.adjust([p])
-        assert result[0].metadata["extra"] == 42
+        assert result[0].metadata["extra"] == 42  # type: ignore[typeddict-item]
 
 
 class TestMarcelAgingAdjuster:

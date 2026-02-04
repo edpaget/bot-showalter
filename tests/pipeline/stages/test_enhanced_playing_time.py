@@ -346,18 +346,18 @@ class TestPassthrough:
             year=2025,
             age=28,
             rates={"hr": 0.04},
-            metadata={
-                "pa_per_year": [600, 580],
+            metadata={  # type: ignore[invalid-argument-type]
+                "pa_per_year": [600.0, 580.0],
                 "games_per_year": [150.0, 145.0],
                 "team": "NYY",
-                "custom_field": "custom_value",
+                "custom_field": "custom_value",  # type: ignore[invalid-key]
             },
         )
         projector = EnhancedPlayingTimeProjector()
         result = projector.project([p])
 
         assert result[0].metadata["team"] == "NYY"
-        assert result[0].metadata["custom_field"] == "custom_value"
+        assert result[0].metadata["custom_field"] == "custom_value"  # type: ignore[typeddict-item]
 
     def test_pt_metadata_added(self) -> None:
         """Playing time diagnostic metadata should be added."""

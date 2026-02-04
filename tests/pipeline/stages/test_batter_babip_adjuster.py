@@ -302,8 +302,8 @@ class TestMetadata:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
         mapper = FakeIdMapper({"fg1": "mlb1"})
         adjuster = BatterBabipAdjuster(source, mapper)
-        batter = _make_batter(metadata={"statcast_blended": True, "custom_key": 42})
+        batter = _make_batter(metadata={"statcast_blended": True, "custom_key": 42})  # type: ignore[typeddict-unknown-key]
         result = adjuster.adjust([batter])
         assert result[0].metadata["statcast_blended"] is True
-        assert result[0].metadata["custom_key"] == 42
+        assert result[0].metadata["custom_key"] == 42  # type: ignore[typeddict-item]
         assert "x_babip" in result[0].metadata

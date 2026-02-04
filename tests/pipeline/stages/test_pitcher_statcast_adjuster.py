@@ -283,7 +283,7 @@ class TestMetadata:
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
         mapper = FakeIdMapper({"fgp1": "mlb1"})
         adjuster = PitcherStatcastAdjuster(source, mapper)
-        pitcher = _make_pitcher(metadata={"custom_key": "custom_value"})
+        pitcher = _make_pitcher(metadata={"custom_key": "custom_value"})  # type: ignore[typeddict-unknown-key]
         result = adjuster.adjust([pitcher])
-        assert result[0].metadata["custom_key"] == "custom_value"
+        assert result[0].metadata["custom_key"] == "custom_value"  # type: ignore[typeddict-item]
         assert result[0].metadata["pitcher_statcast_blended"] is True

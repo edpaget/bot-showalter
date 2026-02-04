@@ -132,16 +132,14 @@ class TestLobComputation:
         adjuster = PitcherNormalizationAdjuster()
         pitcher = _make_pitcher(rates=rates)
         result = adjuster.adjust([pitcher])
-        assert float(result[0].metadata["expected_lob_pct"]) > 0.73  # type: ignore[invalid-argument-type] # ty doesn't accept object as SupportsFloat
-
+        assert float(result[0].metadata["expected_lob_pct"]) > 0.73  
     def test_low_k_pitcher_lower_expected_lob(self) -> None:
         """A low-K pitcher should get a lower expected LOB%."""
         rates = {"h": 0.24, "hr": 0.03, "bb": 0.08, "hbp": 0.01, "so": 0.10, "er": 0.12}
         adjuster = PitcherNormalizationAdjuster()
         pitcher = _make_pitcher(rates=rates)
         result = adjuster.adjust([pitcher])
-        assert float(result[0].metadata["expected_lob_pct"]) < 0.73  # type: ignore[invalid-argument-type] # ty doesn't accept object as SupportsFloat
-
+        assert float(result[0].metadata["expected_lob_pct"]) < 0.73  
     def test_lob_clamped_to_min(self) -> None:
         """LOB% should not go below min_lob."""
         # Very low K rate to push LOB below min
@@ -150,8 +148,7 @@ class TestLobComputation:
         adjuster = PitcherNormalizationAdjuster(config)
         pitcher = _make_pitcher(rates=rates)
         result = adjuster.adjust([pitcher])
-        assert float(result[0].metadata["expected_lob_pct"]) >= 0.65  # type: ignore[invalid-argument-type] # ty doesn't accept object as SupportsFloat
-
+        assert float(result[0].metadata["expected_lob_pct"]) >= 0.65  
     def test_lob_clamped_to_max(self) -> None:
         """LOB% should not exceed max_lob."""
         # Very high K rate to push LOB above max
@@ -160,8 +157,7 @@ class TestLobComputation:
         adjuster = PitcherNormalizationAdjuster(config)
         pitcher = _make_pitcher(rates=rates)
         result = adjuster.adjust([pitcher])
-        assert float(result[0].metadata["expected_lob_pct"]) <= 0.82  # type: ignore[invalid-argument-type] # ty doesn't accept object as SupportsFloat
-
+        assert float(result[0].metadata["expected_lob_pct"]) <= 0.82  
 
 class TestErAdjustment:
     def test_end_to_end_er_adjustment(self) -> None:

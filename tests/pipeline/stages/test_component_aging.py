@@ -204,10 +204,10 @@ class TestAdjusterEdgeCases:
 
     def test_metadata_preserved(self) -> None:
         player = _make_player(25, {"hr": 0.05}, is_starter=False, position="C")
-        player.metadata["custom_key"] = "custom_value"
+        player.metadata["custom_key"] = "custom_value"  # type: ignore[typeddict-unknown-key]
         adjuster = ComponentAgingAdjuster()
         result = adjuster.adjust([player])
-        assert result[0].metadata["custom_key"] == "custom_value"
+        assert result[0].metadata["custom_key"] == "custom_value"  # type: ignore[typeddict-item]
         assert result[0].metadata["is_starter"] is False
         assert result[0].metadata["position"] == "C"
 

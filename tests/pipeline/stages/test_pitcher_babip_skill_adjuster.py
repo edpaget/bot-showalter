@@ -276,9 +276,9 @@ class TestPassthrough:
         """Pitcher without expected_babip metadata (normalization didn't run)."""
         source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
         adjuster = PitcherBabipSkillAdjuster(source)
-        pitcher = _make_pitcher(metadata={"expected_babip": None})
+        pitcher = _make_pitcher(metadata={"expected_babip": None})  # type: ignore[typeddict-item]
         # Remove expected_babip entirely
-        meta = dict(pitcher.metadata)
+        meta: PlayerMetadata = dict(pitcher.metadata)  # type: ignore[assignment]
         del meta["expected_babip"]
         pitcher = PlayerRates(
             player_id=pitcher.player_id,
@@ -313,7 +313,7 @@ class TestMetadata:
     def test_existing_metadata_preserved(self) -> None:
         source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
         adjuster = PitcherBabipSkillAdjuster(source)
-        pitcher = _make_pitcher(metadata={"custom_key": "custom_value"})
+        pitcher = _make_pitcher(metadata={"custom_key": "custom_value"})  # type: ignore[typeddict-unknown-key]
         result = adjuster.adjust([pitcher])
-        assert result[0].metadata["custom_key"] == "custom_value"
+        assert result[0].metadata["custom_key"] == "custom_value"  # type: ignore[typeddict-item]
         assert "pitcher_x_babip" in result[0].metadata
