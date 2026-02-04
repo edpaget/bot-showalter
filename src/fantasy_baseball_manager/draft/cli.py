@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path  # noqa: TC003 — used at runtime by typer
 from typing import Annotated
@@ -8,15 +10,8 @@ from typing import Annotated
 import typer
 import yaml
 
-from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
 from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
-from contextlib import contextmanager
-from collections.abc import Generator
-
-from fantasy_baseball_manager.config import (
-    create_config,
-    load_league_settings,
-)
+from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
     DEFAULT_ROSTER_CONFIG,
@@ -36,7 +31,6 @@ from fantasy_baseball_manager.draft.state import DraftState
 from fantasy_baseball_manager.draft.strategy_presets import STRATEGY_PRESETS
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
-from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
 from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer, get_container, set_container
 
 
@@ -65,46 +59,15 @@ def _cli_context(
         yield
     finally:
         set_container(None)
+
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
-from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["build_projections_and_positions", "draft_rank", "draft_simulate", "set_container"]
 
 _CATEGORY_MAP: dict[str, StatCategory] = {member.value.lower(): member for member in StatCategory}
-
-
-def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
-    container = get_container()
-    if container._id_mapper is not None:
-        return container.id_mapper
-    if no_cache:
-        return build_sfbb_mapper()
-    config = create_config()
-    ttl = int(str(config["cache.id_mappings_ttl"]))
-    cache_store = create_cache_store(config)
-    cache_key = get_cache_key(config)
-    return build_cached_sfbb_mapper(cache_store, cache_key, ttl)
-
-
-def _get_yahoo_league() -> object:
-    container = get_container()
-    if container._yahoo_league is not None:
-        return container.yahoo_league
-    config = create_config()
-    client = YahooFantasyClient(config)  # type: ignore[arg-type]
-    return client.get_league()
-
-
-def _invalidate_caches() -> None:
-    """Invalidate all cached data so the next cached run fetches fresh."""
-    cache_store = create_cache_store()
-    cache_key = get_cache_key()
-    for ns in ("positions", "sfbb_csv", "draft_results"):
-        cache_store.invalidate(ns, cache_key)
-    logger.debug("Invalidated cached positions, sfbb_csv, and draft_results for key=%s", cache_key)
 
 
 def _parse_weight(raw: str) -> tuple[StatCategory, float]:
@@ -169,25 +132,18 @@ def draft_rank(
         roster_config = _load_roster_config(roster_config_file) if roster_config_file else DEFAULT_ROSTER_CONFIG
 
         # Load position data
+        container = get_container()
         player_positions: dict[str, tuple[str, ...]] = {}
-        yahoo_league: object | None = None
-        yahoo_id_mapper: PlayerIdMapper | None = None
-        if yahoo:
-            yahoo_league = _get_yahoo_league()
-            yahoo_id_mapper = _get_id_mapper(no_cache=no_cache)
 
         if positions_file:
             player_positions = load_positions_file(positions_file)
-        elif yahoo and yahoo_league is not None and yahoo_id_mapper is not None:
-            source: PositionSource = YahooPositionSource(yahoo_league, yahoo_id_mapper)  # type: ignore[arg-type]
-            if not no_cache:
-                config = create_config()
-                ttl = int(str(config["cache.positions_ttl"]))
-                cache_store = create_cache_store(config)
-                cache_key = get_cache_key(config)
-                source = CachedPositionSource(source, cache_store, cache_key, ttl)
+        elif yahoo:
+            source: PositionSource = YahooPositionSource(container.yahoo_league, container.id_mapper)  # type: ignore[arg-type]
+            if not container.config.no_cache:
+                ttl = int(str(container.app_config["cache.positions_ttl"]))
+                source = CachedPositionSource(source, container.cache_store, container.cache_key, ttl)
             else:
-                _invalidate_caches()
+                container.invalidate_caches(("positions", "sfbb_csv", "draft_results"))
             player_positions = source.fetch_positions()
 
         logger.debug("Loaded %d player positions", len(player_positions))
@@ -274,20 +230,19 @@ def draft_rank(
         )
 
         # Apply draft results from Yahoo
-        if yahoo and yahoo_league is not None and yahoo_id_mapper is not None:
-            draft_source = YahooDraftResultsSource(yahoo_league)
+        if yahoo:
+            draft_source = YahooDraftResultsSource(container.yahoo_league)
             draft_status = draft_source.fetch_draft_status()
-            if not no_cache and draft_status != DraftStatus.IN_PROGRESS:
-                config = create_config()
-                dr_ttl = int(str(config["cache.draft_results_ttl"]))
-                cache_store = create_cache_store(config)
-                cache_key = get_cache_key(config)
-                draft_source = CachedDraftResultsSource(draft_source, cache_store, cache_key, dr_ttl)
+            if not container.config.no_cache and draft_status != DraftStatus.IN_PROGRESS:
+                dr_ttl = int(str(container.app_config["cache.draft_results_ttl"]))
+                draft_source = CachedDraftResultsSource(
+                    draft_source, container.cache_store, container.cache_key, dr_ttl
+                )
             picks = draft_source.fetch_draft_results()
             user_team_key = draft_source.fetch_user_team_key()
             logger.debug("User team key: %s, draft picks: %d", user_team_key, len(picks))
             for pick in picks:
-                fg_id = yahoo_id_mapper.yahoo_to_fangraphs(pick.player_id)
+                fg_id = container.id_mapper.yahoo_to_fangraphs(pick.player_id)
                 if fg_id is None:
                     logger.debug("No FanGraphs ID for Yahoo player %s, skipping", pick.player_id)
                     continue

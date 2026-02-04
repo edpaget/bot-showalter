@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from config import ConfigurationSet
+
+    from fantasy_baseball_manager.cache.store import SqliteCacheStore
     from fantasy_baseball_manager.league.roster import RosterSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
     from fantasy_baseball_manager.ros.protocol import ProjectionBlender
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,14 +63,42 @@ class ServiceContainer:
     def config(self) -> ServiceConfig:
         return self._config
 
-    def _create_app_config(self) -> object:
-        """Create an AppConfig with league_id/season overrides applied."""
+    @cached_property
+    def app_config(self) -> ConfigurationSet:
+        """Application config with league_id/season overrides applied."""
         from fantasy_baseball_manager.config import create_config
 
         return create_config(
             league_id=self._config.league_id,
             season=self._config.season,
         )
+
+    @cached_property
+    def cache_store(self) -> SqliteCacheStore:
+        """Cache store for persisting data."""
+        from fantasy_baseball_manager.cache.factory import create_cache_store
+
+        return create_cache_store(self.app_config)
+
+    @cached_property
+    def cache_key(self) -> str:
+        """Cache key derived from league configuration."""
+        from fantasy_baseball_manager.cache.factory import get_cache_key
+
+        return get_cache_key(self.app_config)
+
+    def invalidate_caches(self, namespaces: tuple[str, ...] = ("rosters", "sfbb_csv")) -> None:
+        """Invalidate cached data for given namespaces."""
+        for ns in namespaces:
+            self.cache_store.invalidate(ns, self.cache_key)
+        logger.debug("Invalidated caches %s for key=%s", namespaces, self.cache_key)
+
+    def _create_app_config(self) -> object:
+        """Create an AppConfig with league_id/season overrides applied.
+
+        Deprecated: Use app_config property instead.
+        """
+        return self.app_config
 
     @cached_property
     def data_source(self) -> StatsDataSource:
@@ -78,7 +112,6 @@ class ServiceContainer:
     def id_mapper(self) -> PlayerIdMapper:
         if self._id_mapper is not None:
             return self._id_mapper
-        from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
         from fantasy_baseball_manager.player_id.mapper import (
             build_cached_sfbb_mapper,
             build_sfbb_mapper,
@@ -86,34 +119,56 @@ class ServiceContainer:
 
         if self._config.no_cache:
             return build_sfbb_mapper()
-        config = self._create_app_config()
-        ttl = int(str(config["cache.id_mappings_ttl"]))  # type: ignore[index]
-        cache_store = create_cache_store(config)
-        cache_key = get_cache_key(config)
-        return build_cached_sfbb_mapper(cache_store, cache_key, ttl)
+        ttl = int(str(self.app_config["cache.id_mappings_ttl"]))
+        return build_cached_sfbb_mapper(self.cache_store, self.cache_key, ttl)
 
     @cached_property
-    def roster_source(self) -> RosterSource:
+    def _roster_source_and_league(self) -> tuple[RosterSource, object]:
+        """Build roster source and league together (cached)."""
         if self._roster_source is not None:
-            return self._roster_source
+            # If roster_source was injected, use yahoo_league or a placeholder
+            league = self._yahoo_league if self._yahoo_league is not None else object()
+            return self._roster_source, league
+
         from typing import cast
 
-        from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
         from fantasy_baseball_manager.cache.sources import CachedRosterSource
         from fantasy_baseball_manager.config import AppConfig
         from fantasy_baseball_manager.league.roster import YahooRosterSource
         from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
-        config = self._create_app_config()
+        config = self.app_config
         client = YahooFantasyClient(cast("AppConfig", config))
-        league = client.get_league()
+
+        # For keeper leagues in predraft, use previous season's rosters
+        target_season: int | None = None
+        if config["league.is_keeper"]:
+            current_league = client.get_league()
+            draft_status = current_league.settings().get("draft_status", "")
+            logger.debug("Keeper league draft_status=%r", draft_status)
+            if draft_status == "predraft":
+                target_season = int(str(config["league.season"])) - 1
+                logger.debug("Using previous season %d for roster source", target_season)
+
+        league = client.get_league_for_season(target_season) if target_season is not None else client.get_league()
         source: RosterSource = YahooRosterSource(league)
         if not self._config.no_cache:
-            ttl = int(str(config["cache.rosters_ttl"]))  # type: ignore[index]
-            cache_store = create_cache_store(config)
-            cache_key = get_cache_key(config)
-            source = CachedRosterSource(source, cache_store, cache_key, ttl)
-        return source
+            ttl = int(str(config["cache.rosters_ttl"]))
+            source = CachedRosterSource(source, self.cache_store, self.cache_key, ttl)
+        return source, league
+
+    @property
+    def roster_source(self) -> RosterSource:
+        """Roster source for fetching team rosters."""
+        return self._roster_source_and_league[0]
+
+    @property
+    def roster_league(self) -> object:
+        """Yahoo league object associated with the roster source.
+
+        For keeper leagues in predraft, this is the previous season's league.
+        """
+        return self._roster_source_and_league[1]
 
     @cached_property
     def blender(self) -> ProjectionBlender:

@@ -7,7 +7,6 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.league.cli import (
-    _get_roster_source,
     format_compare_table,
     format_team_projections,
 )
@@ -419,6 +418,8 @@ class TestLeagueIdAndSeasonOptions:
 
 
 class TestKeeperPredraftAutoDetection:
+    """Test keeper league predraft detection in ServiceContainer.roster_source."""
+
     def setup_method(self) -> None:
         set_container(None)
 
@@ -427,7 +428,7 @@ class TestKeeperPredraftAutoDetection:
 
     def test_keeper_predraft_uses_previous_season(self) -> None:
         """When is_keeper is true and draft_status is predraft,
-        _get_roster_source should call get_league_for_season(current - 1)."""
+        roster_source should call get_league_for_season(current - 1)."""
         mock_league = MagicMock()
         mock_league.settings.return_value = {"draft_status": "predraft"}
 
@@ -436,18 +437,21 @@ class TestKeeperPredraftAutoDetection:
         mock_client.get_league_for_season.return_value = mock_league
 
         with (
-            patch("fantasy_baseball_manager.league.cli.create_config") as mock_config,
-            patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client),
-            patch("fantasy_baseball_manager.league.cli.YahooRosterSource"),
+            patch("fantasy_baseball_manager.config.create_config") as mock_config,
+            patch("fantasy_baseball_manager.yahoo_api.YahooFantasyClient", return_value=mock_client),
+            patch("fantasy_baseball_manager.league.roster.YahooRosterSource"),
         ):
             cfg = {"league.is_keeper": True, "league.season": 2025, "cache.rosters_ttl": 3600}
             mock_config.return_value = cfg
-            _get_roster_source(no_cache=True)
+            from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer
+
+            container = ServiceContainer(ServiceConfig(no_cache=True))
+            _ = container.roster_source  # Access to trigger creation
             mock_client.get_league_for_season.assert_called_once_with(2024)
 
     def test_keeper_postdraft_uses_current_season(self) -> None:
         """When is_keeper is true but draft_status is not predraft,
-        _get_roster_source should call get_league() (no season walk)."""
+        roster_source should call get_league() (no season walk)."""
         mock_league = MagicMock()
         mock_league.settings.return_value = {"draft_status": "postdraft"}
 
@@ -455,45 +459,36 @@ class TestKeeperPredraftAutoDetection:
         mock_client.get_league.return_value = mock_league
 
         with (
-            patch("fantasy_baseball_manager.league.cli.create_config") as mock_config,
-            patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client),
-            patch("fantasy_baseball_manager.league.cli.YahooRosterSource"),
+            patch("fantasy_baseball_manager.config.create_config") as mock_config,
+            patch("fantasy_baseball_manager.yahoo_api.YahooFantasyClient", return_value=mock_client),
+            patch("fantasy_baseball_manager.league.roster.YahooRosterSource"),
         ):
             cfg = {"league.is_keeper": True, "league.season": 2025, "cache.rosters_ttl": 3600}
             mock_config.return_value = cfg
-            _get_roster_source(no_cache=True)
+            from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer
+
+            container = ServiceContainer(ServiceConfig(no_cache=True))
+            _ = container.roster_source
             mock_client.get_league_for_season.assert_not_called()
 
     def test_non_keeper_uses_current_season(self) -> None:
-        """When is_keeper is false, _get_roster_source should use get_league()
+        """When is_keeper is false, roster_source should use get_league()
         regardless of draft status."""
         mock_client = MagicMock()
 
         with (
-            patch("fantasy_baseball_manager.league.cli.create_config") as mock_config,
-            patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client),
-            patch("fantasy_baseball_manager.league.cli.YahooRosterSource"),
+            patch("fantasy_baseball_manager.config.create_config") as mock_config,
+            patch("fantasy_baseball_manager.yahoo_api.YahooFantasyClient", return_value=mock_client),
+            patch("fantasy_baseball_manager.league.roster.YahooRosterSource"),
         ):
             cfg = {"league.is_keeper": False, "league.season": 2025, "cache.rosters_ttl": 3600}
             mock_config.return_value = cfg
-            _get_roster_source(no_cache=True)
+            from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer
+
+            container = ServiceContainer(ServiceConfig(no_cache=True))
+            _ = container.roster_source
             mock_client.get_league.assert_called_once()
             mock_client.get_league_for_season.assert_not_called()
-
-    def test_explicit_target_season_skips_keeper_detection(self) -> None:
-        """When target_season is explicitly provided, keeper detection is skipped."""
-        mock_client = MagicMock()
-
-        with (
-            patch("fantasy_baseball_manager.league.cli.create_config") as mock_config,
-            patch("fantasy_baseball_manager.league.cli.YahooFantasyClient", return_value=mock_client),
-            patch("fantasy_baseball_manager.league.cli.YahooRosterSource"),
-        ):
-            cfg = {"league.is_keeper": True, "league.season": 2025, "cache.rosters_ttl": 3600}
-            mock_config.return_value = cfg
-            _get_roster_source(no_cache=True, target_season=2023)
-            mock_client.get_league_for_season.assert_called_once_with(2023)
-            mock_client.get_league.assert_not_called()
 
 
 def _make_team_projection(**overrides: float | int | str) -> TeamProjection:

@@ -1,27 +1,17 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Annotated, cast
+from typing import Annotated
 
 import typer
 
-from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
-from fantasy_baseball_manager.cache.sources import CachedRosterSource
-from fantasy_baseball_manager.config import (
-    AppConfig,
-    create_config,
-    load_league_settings,
-)
-from contextlib import contextmanager
-from collections.abc import Generator
+from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.league.models import TeamProjection
 from fantasy_baseball_manager.league.projections import match_projections
-from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
-from fantasy_baseball_manager.marcel.data_source import StatsDataSource
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
-from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
 from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer, get_container, set_container
 
 
@@ -50,8 +40,8 @@ def _cli_context(
         yield
     finally:
         set_container(None)
+
 from fantasy_baseball_manager.valuation.models import LeagueSettings, StatCategory
-from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
 logger = logging.getLogger(__name__)
 
@@ -107,52 +97,6 @@ _TEAM_PITCHING_COLUMNS: dict[StatCategory, tuple[str, int, str, Callable[[TeamPr
 }
 
 __all__ = ["compare", "projections", "set_container"]
-
-
-def _get_roster_source(no_cache: bool = False, target_season: int | None = None) -> RosterSource:
-    container = get_container()
-    # If roster_source was injected (for tests), return it directly
-    if container._roster_source is not None:
-        return container.roster_source
-    # Otherwise build with the complex keeper-league logic
-    config = create_config()
-    client = YahooFantasyClient(cast("AppConfig", config))
-
-    if target_season is None and config["league.is_keeper"]:
-        current_league = client.get_league()
-        draft_status = current_league.settings().get("draft_status", "")
-        logger.debug("Keeper league draft_status=%r", draft_status)
-        if draft_status == "predraft":
-            target_season = int(str(config["league.season"])) - 1
-            logger.debug("Using previous season %d for roster source", target_season)
-
-    league = client.get_league_for_season(target_season) if target_season is not None else client.get_league()
-    source: RosterSource = YahooRosterSource(league)
-    if not no_cache:
-        ttl = int(str(config["cache.rosters_ttl"]))
-        cache_store = create_cache_store(config)
-        cache_key = get_cache_key(config)
-        source = CachedRosterSource(source, cache_store, cache_key, ttl)
-    return source
-
-
-def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
-    container = get_container()
-    # If id_mapper was injected (for tests), return it directly
-    if container._id_mapper is not None:
-        return container.id_mapper
-    # Otherwise build with cache logic
-    if no_cache:
-        return build_sfbb_mapper()
-    config = create_config()
-    ttl = int(str(config["cache.id_mappings_ttl"]))
-    cache_store = create_cache_store(config)
-    cache_key = get_cache_key(config)
-    return build_cached_sfbb_mapper(cache_store, cache_key, ttl)
-
-
-def _get_data_source() -> StatsDataSource:
-    return get_container().data_source
 
 
 def format_team_projections(
@@ -251,29 +195,17 @@ def format_compare_table(
     return "\n".join(lines)
 
 
-def _invalidate_caches() -> None:
-    """Invalidate all cached data so the next cached run fetches fresh."""
-    cache_store = create_cache_store()
-    cache_key = get_cache_key()
-    for ns in ("rosters", "sfbb_csv"):
-        cache_store.invalidate(ns, cache_key)
-    logger.debug("Invalidated cached rosters and sfbb_csv for key=%s", cache_key)
-
-
-def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE, no_cache: bool = False) -> list[TeamProjection]:
-    if no_cache:
-        _invalidate_caches()
-    roster_source = _get_roster_source(no_cache=no_cache)
-    data_source = _get_data_source()
+def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE) -> list[TeamProjection]:
+    container = get_container()
+    if container.config.no_cache:
+        container.invalidate_caches()
 
     pipeline = PIPELINES[engine]()
-    rosters = roster_source.fetch_rosters()
+    rosters = container.roster_source.fetch_rosters()
+    batting = pipeline.project_batters(container.data_source, year)
+    pitching = pipeline.project_pitchers(container.data_source, year)
 
-    id_mapper = _get_id_mapper(no_cache=no_cache)
-    batting = pipeline.project_batters(data_source, year)
-    pitching = pipeline.project_pitchers(data_source, year)
-
-    return match_projections(rosters, batting, pitching, id_mapper)
+    return match_projections(rosters, batting, pitching, container.id_mapper)
 
 
 def projections(
@@ -300,7 +232,7 @@ def projections(
         league_settings = load_league_settings()
         typer.echo(f"League projections for {year}\n")
 
-        team_projections = _load_team_projections(year, engine=engine, no_cache=no_cache)
+        team_projections = _load_team_projections(year, engine=engine)
         team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
         typer.echo(format_team_projections(team_projections, league_settings))
@@ -332,7 +264,7 @@ def compare(
         league_settings = load_league_settings()
         typer.echo(f"League comparison for {year}\n")
 
-        team_projections = _load_team_projections(year, engine=engine, no_cache=no_cache)
+        team_projections = _load_team_projections(year, engine=engine)
         team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
         typer.echo(format_compare_table(team_projections, league_settings))

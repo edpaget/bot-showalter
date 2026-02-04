@@ -109,18 +109,18 @@ def _build_adjusters(self) -> list[RateAdjuster]:
 
 ### 6. Extract Common CLI Setup Pattern
 
-**Status:** Not started
+**Status:** ✅ Completed
 
-**Problem:** Every CLI module duplicates setup boilerplate:
+**Problem:** Every CLI module duplicated setup boilerplate and had near-identical helper functions like `_get_id_mapper()`, `_get_roster_source()`, etc.
 
-```python
-config = create_config()
-cache = create_cache_store(config)
-cache_key = get_cache_key(config)
-data_source = _data_source_factory()
-```
+**Solution implemented:**
+- Added `app_config`, `cache_store`, `cache_key` properties to `ServiceContainer`
+- Added `invalidate_caches()` method to `ServiceContainer`
+- Added `roster_league` property for keeper CLI needs
+- Removed duplicate `_get_id_mapper()`, `_get_roster_source()`, `_get_yahoo_league()`, `_invalidate_caches()` from all CLI modules
+- CLI modules now use `get_container()` properties directly: `.id_mapper`, `.roster_source`, `.data_source`, `.yahoo_league`, `.cache_store`, `.cache_key`
 
-**Solution:** Create a `CLIContext` dataclass bundling common dependencies.
+**Result:** Removed ~150 lines of duplicated helper functions across 3 CLI modules. Single source of truth for service creation in `ServiceContainer`.
 
 ---
 
@@ -204,3 +204,4 @@ Each defines column specs with lambdas for data extraction and formatting.
 2. ✅ **Consolidate Cache Wrapper Classes** — Extracted `_cached_fetch()` helper, reducing duplication in cache/sources.py
 3. ✅ **Type-Safe Metadata in Pipeline** — Created `PlayerMetadata` TypedDict with all known fields, eliminating cast() calls
 4. ✅ **Config Uses Global Override State** — CLI modules now use `_cli_context()` context managers with `ServiceConfig` overrides instead of mutable global state
+5. ✅ **Extract Common CLI Setup Pattern** — Removed duplicate helper functions from CLI modules; all services now accessed via `ServiceContainer` properties

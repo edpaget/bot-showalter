@@ -5,27 +5,18 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path  # noqa: TC003 — used at runtime by typer
-from typing import TYPE_CHECKING, Annotated, cast
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 import yaml
 
-from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
-from fantasy_baseball_manager.cache.sources import CachedRosterSource
-from fantasy_baseball_manager.config import (
-    AppConfig,
-    create_config,
-)
 from fantasy_baseball_manager.draft.cli import build_projections_and_positions
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.keeper.models import KeeperCandidate, TeamKeeperResult
 from fantasy_baseball_manager.keeper.replacement import DraftPoolReplacementCalculator
 from fantasy_baseball_manager.keeper.surplus import SurplusCalculator
 from fantasy_baseball_manager.keeper.yahoo_source import LeagueKeeperData, YahooKeeperSource
-from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
-from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
 from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer, get_container, set_container
-from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.valuation.models import PlayerValue
@@ -62,54 +53,6 @@ def _cli_context(
         yield
     finally:
         set_container(None)
-
-
-def _get_roster_source_and_league(no_cache: bool = False) -> tuple[RosterSource, object]:
-    """Build a roster source and return the league it was built from.
-
-    For keeper leagues in predraft, both the roster source and league resolve
-    to the previous season so that ``league.team_key()`` matches the roster
-    team keys.
-    """
-    container = get_container()
-    if container._roster_source is not None:
-        # In test mode the dependencies are injected explicitly.
-        league = container._yahoo_league if container._yahoo_league is not None else object()
-        return container.roster_source, league
-
-    config = create_config()
-    client = YahooFantasyClient(cast("AppConfig", config))
-
-    target_season: int | None = None
-    if config["league.is_keeper"]:
-        current_league = client.get_league()
-        draft_status = current_league.settings().get("draft_status", "")
-        logger.debug("Keeper league draft_status=%r", draft_status)
-        if draft_status == "predraft":
-            target_season = int(str(config["league.season"])) - 1
-            logger.debug("Using previous season %d for roster source", target_season)
-
-    league = client.get_league_for_season(target_season) if target_season is not None else client.get_league()
-    source: RosterSource = YahooRosterSource(league)
-    if not no_cache:
-        ttl = int(str(config["cache.rosters_ttl"]))
-        cache_store = create_cache_store(config)
-        cache_key = get_cache_key(config)
-        source = CachedRosterSource(source, cache_store, cache_key, ttl)
-    return source, league
-
-
-def _get_id_mapper(no_cache: bool = False) -> PlayerIdMapper:
-    container = get_container()
-    if container._id_mapper is not None:
-        return container.id_mapper
-    if no_cache:
-        return build_sfbb_mapper()
-    config = create_config()
-    ttl = int(str(config["cache.id_mappings_ttl"]))
-    cache_store = create_cache_store(config)
-    cache_key = get_cache_key(config)
-    return build_cached_sfbb_mapper(cache_store, cache_key, ttl)
 
 
 def _load_keepers_file(path: Path) -> set[str]:
@@ -205,13 +148,12 @@ def _resolve_yahoo_inputs(
     Returns (candidate_ids, other_keepers, teams, yahoo_positions, candidate_position_types).
     """
     with _cli_context(league_id=league_id, season=season, no_cache=no_cache):
-        roster_source, league = _get_roster_source_and_league(no_cache=no_cache)
-        id_mapper = _get_id_mapper(no_cache=no_cache)
-        user_team_key: str = league.team_key()  # type: ignore[union-attr]
+        container = get_container()
+        user_team_key: str = container.roster_league.team_key()  # type: ignore[union-attr]
 
         yahoo_source = YahooKeeperSource(
-            roster_source=roster_source,
-            id_mapper=id_mapper,
+            roster_source=container.roster_source,
+            id_mapper=container.id_mapper,
             user_team_key=user_team_key,
         )
         yahoo_data = yahoo_source.fetch_keeper_data()
@@ -239,7 +181,7 @@ def _resolve_yahoo_inputs(
         other_keepers = _load_keepers_file(keepers_file) if keepers_file else set(yahoo_data.other_keeper_ids)
 
         # Derive team count from roster count if not explicitly set
-        rosters = roster_source.fetch_rosters()
+        rosters = container.roster_source.fetch_rosters()
         num_teams = len(rosters.teams) if teams == 12 else teams
 
         return candidate_ids, other_keepers, num_teams, dict(yahoo_data.user_candidate_positions), position_types
@@ -378,12 +320,11 @@ def _resolve_league_inputs(
     Returns (league_keeper_data, num_teams).
     """
     with _cli_context(league_id=league_id, season=season, no_cache=no_cache):
-        roster_source, _league = _get_roster_source_and_league(no_cache=no_cache)
-        id_mapper = _get_id_mapper(no_cache=no_cache)
+        container = get_container()
 
         yahoo_source = YahooKeeperSource(
-            roster_source=roster_source,
-            id_mapper=id_mapper,
+            roster_source=container.roster_source,
+            id_mapper=container.id_mapper,
             user_team_key="",  # not used by fetch_league_keeper_data
         )
         league_data = yahoo_source.fetch_league_keeper_data()
@@ -395,7 +336,7 @@ def _resolve_league_inputs(
                 err=True,
             )
 
-        rosters = roster_source.fetch_rosters()
+        rosters = container.roster_source.fetch_rosters()
         num_teams = len(rosters.teams) if teams == 12 else teams
 
         return league_data, num_teams
