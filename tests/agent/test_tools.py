@@ -9,6 +9,7 @@ import pytest
 from fantasy_baseball_manager.agent.tools import (
     compare_players,
     get_league_settings,
+    get_player_info,
     lookup_player,
     project_batters,
     project_pitchers,
@@ -263,3 +264,100 @@ class TestGetLeagueSettings:
         assert "Teams: 12" in result
         assert "HR" in result
         assert "ERA" in result
+
+
+class TestGetPlayerInfo:
+    def test_returns_player_info(self, mock_projections: tuple) -> None:
+        all_values, positions = mock_projections
+
+        mock_mlb_response = {
+            "fullName": "Aaron Judge",
+            "currentTeam": {"name": "New York Yankees"},
+            "primaryPosition": {"name": "Outfielder", "abbreviation": "RF"},
+            "currentAge": 32,
+            "batSide": {"code": "R"},
+            "pitchHand": {"code": "R"},
+            "height": "6' 7\"",
+            "weight": 282,
+            "birthCity": "Linden",
+            "birthStateProvince": "CA",
+            "birthCountry": "USA",
+            "mlbDebutDate": "2016-08-13",
+        }
+
+        mock_mapper = type("MockMapper", (), {"fangraphs_to_mlbam": lambda _self, _fid: "592450"})()
+
+        with (
+            patch(
+                "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
+                return_value=(all_values, positions),
+            ),
+            patch(
+                "fantasy_baseball_manager.services.container.get_container",
+                return_value=type("MockContainer", (), {"id_mapper": mock_mapper})(),
+            ),
+            patch(
+                "fantasy_baseball_manager.agent.tools._fetch_mlb_player_info",
+                return_value=mock_mlb_response,
+            ),
+        ):
+            result = get_player_info.invoke({"name": "Judge"})
+
+        assert "Aaron Judge" in result
+        assert "New York Yankees" in result
+        assert "Outfielder" in result
+        assert "Age: 32" in result
+        assert "Bats/Throws: R/R" in result
+
+    def test_player_not_in_projections(self, mock_projections: tuple) -> None:
+        all_values, positions = mock_projections
+
+        with patch(
+            "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
+            return_value=(all_values, positions),
+        ):
+            result = get_player_info.invoke({"name": "Nonexistent Player"})
+
+        assert "No players found" in result
+
+    def test_no_mlbam_id(self, mock_projections: tuple) -> None:
+        all_values, positions = mock_projections
+
+        mock_mapper = type("MockMapper", (), {"fangraphs_to_mlbam": lambda _self, _fid: None})()
+
+        with (
+            patch(
+                "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
+                return_value=(all_values, positions),
+            ),
+            patch(
+                "fantasy_baseball_manager.services.container.get_container",
+                return_value=type("MockContainer", (), {"id_mapper": mock_mapper})(),
+            ),
+        ):
+            result = get_player_info.invoke({"name": "Judge"})
+
+        assert "could not find their MLB ID" in result
+
+    def test_mlb_api_failure(self, mock_projections: tuple) -> None:
+        all_values, positions = mock_projections
+
+        mock_mapper = type("MockMapper", (), {"fangraphs_to_mlbam": lambda _self, _fid: "592450"})()
+
+        with (
+            patch(
+                "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
+                return_value=(all_values, positions),
+            ),
+            patch(
+                "fantasy_baseball_manager.services.container.get_container",
+                return_value=type("MockContainer", (), {"id_mapper": mock_mapper})(),
+            ),
+            patch(
+                "fantasy_baseball_manager.agent.tools._fetch_mlb_player_info",
+                return_value=None,
+            ),
+        ):
+            result = get_player_info.invoke({"name": "Judge"})
+
+        assert "Could not retrieve current info" in result

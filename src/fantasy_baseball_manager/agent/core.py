@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
 
 
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_MODEL = "claude-haiku-4-20250514"
 
 
 def _build_system_prompt() -> str:
