@@ -1,9 +1,12 @@
+import io
 import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Annotated
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
@@ -33,108 +36,108 @@ COMPARE_SORT_FIELDS: dict[str, Callable[[TeamProjection], float]] = {
     "team_whip": lambda t: -t.team_whip,  # lower is better
 }
 
-# Per-player column specs: (header, width, format_spec, extractor)
-_BATTER_COLUMNS: dict[StatCategory, tuple[str, int, str, Callable[[BattingProjection], float]]] = {
-    StatCategory.HR: ("HR", 5, "5.1f", lambda bp: bp.hr),
-    StatCategory.R: ("R", 5, "5.1f", lambda bp: bp.r),
-    StatCategory.RBI: ("RBI", 5, "5.1f", lambda bp: bp.rbi),
-    StatCategory.SB: ("SB", 5, "5.1f", lambda bp: bp.sb),
-    StatCategory.OBP: ("OBP", 6, "6.3f", lambda bp: (bp.h + bp.bb + bp.hbp) / bp.pa if bp.pa > 0 else 0),
+# Per-player column specs: (header, format_spec, extractor)
+_BATTER_COLUMNS: dict[StatCategory, tuple[str, str, Callable[[BattingProjection], float]]] = {
+    StatCategory.HR: ("HR", ".1f", lambda bp: bp.hr),
+    StatCategory.R: ("R", ".1f", lambda bp: bp.r),
+    StatCategory.RBI: ("RBI", ".1f", lambda bp: bp.rbi),
+    StatCategory.SB: ("SB", ".1f", lambda bp: bp.sb),
+    StatCategory.OBP: ("OBP", ".3f", lambda bp: (bp.h + bp.bb + bp.hbp) / bp.pa if bp.pa > 0 else 0),
 }
 
-_PITCHER_COLUMNS: dict[StatCategory, tuple[str, int, str, Callable[[PitchingProjection], float]]] = {
-    StatCategory.W: ("W", 5, "5.1f", lambda pp: pp.w),
-    StatCategory.K: ("K", 5, "5.1f", lambda pp: pp.so),
-    StatCategory.ERA: ("ERA", 5, "5.2f", lambda pp: pp.era),
-    StatCategory.WHIP: ("WHIP", 6, "6.3f", lambda pp: pp.whip),
-    StatCategory.NSVH: ("NSVH", 5, "5.1f", lambda pp: pp.nsvh),
+_PITCHER_COLUMNS: dict[StatCategory, tuple[str, str, Callable[[PitchingProjection], float]]] = {
+    StatCategory.W: ("W", ".1f", lambda pp: pp.w),
+    StatCategory.K: ("K", ".1f", lambda pp: pp.so),
+    StatCategory.ERA: ("ERA", ".2f", lambda pp: pp.era),
+    StatCategory.WHIP: ("WHIP", ".3f", lambda pp: pp.whip),
+    StatCategory.NSVH: ("NSVH", ".1f", lambda pp: pp.nsvh),
 }
 
-# Team aggregate column specs: (header, width, format_spec, extractor)
-_TEAM_BATTING_COLUMNS: dict[StatCategory, tuple[str, int, str, Callable[[TeamProjection], float]]] = {
-    StatCategory.HR: ("HR", 5, "5.0f", lambda t: t.total_hr),
-    StatCategory.R: ("R", 5, "5.0f", lambda t: t.total_r),
-    StatCategory.RBI: ("RBI", 5, "5.0f", lambda t: t.total_rbi),
-    StatCategory.SB: ("SB", 5, "5.0f", lambda t: t.total_sb),
-    StatCategory.OBP: ("OBP", 6, "6.3f", lambda t: t.team_obp),
+# Team aggregate column specs: (header, format_spec, extractor)
+_TEAM_BATTING_COLUMNS: dict[StatCategory, tuple[str, str, Callable[[TeamProjection], float]]] = {
+    StatCategory.HR: ("HR", ".0f", lambda t: t.total_hr),
+    StatCategory.R: ("R", ".0f", lambda t: t.total_r),
+    StatCategory.RBI: ("RBI", ".0f", lambda t: t.total_rbi),
+    StatCategory.SB: ("SB", ".0f", lambda t: t.total_sb),
+    StatCategory.OBP: ("OBP", ".3f", lambda t: t.team_obp),
 }
 
-_TEAM_PITCHING_COLUMNS: dict[StatCategory, tuple[str, int, str, Callable[[TeamProjection], float]]] = {
-    StatCategory.W: ("W", 5, "5.0f", lambda t: t.total_w),
-    StatCategory.K: ("K", 5, "5.0f", lambda t: t.total_so),
-    StatCategory.ERA: ("ERA", 5, "5.2f", lambda t: t.team_era),
-    StatCategory.WHIP: ("WHIP", 5, "5.3f", lambda t: t.team_whip),
-    StatCategory.NSVH: ("NSVH", 5, "5.0f", lambda t: t.total_nsvh),
+_TEAM_PITCHING_COLUMNS: dict[StatCategory, tuple[str, str, Callable[[TeamProjection], float]]] = {
+    StatCategory.W: ("W", ".0f", lambda t: t.total_w),
+    StatCategory.K: ("K", ".0f", lambda t: t.total_so),
+    StatCategory.ERA: ("ERA", ".2f", lambda t: t.team_era),
+    StatCategory.WHIP: ("WHIP", ".3f", lambda t: t.team_whip),
+    StatCategory.NSVH: ("NSVH", ".0f", lambda t: t.total_nsvh),
 }
 
-__all__ = ["compare", "projections", "set_container"]
+console = Console()
+
+__all__ = ["compare", "format_compare_table", "format_team_projections", "projections", "set_container"]
 
 
-def format_team_projections(
+def print_team_projections(
     team_projections: list[TeamProjection],
     league_settings: LeagueSettings,
-) -> str:
+) -> None:
+    """Print team projections using rich tables."""
     bat_cols = [(cat, _BATTER_COLUMNS[cat]) for cat in league_settings.batting_categories if cat in _BATTER_COLUMNS]
     pit_cols = [(cat, _PITCHER_COLUMNS[cat]) for cat in league_settings.pitching_categories if cat in _PITCHER_COLUMNS]
 
-    lines: list[str] = []
-
     for team in team_projections:
-        lines.append(f"\n{'=' * 70}")
-        lines.append(f"  {team.team_name} ({team.team_key})")
-        lines.append(f"{'=' * 70}")
+        console.print(f"\n[bold]{team.team_name}[/bold] ({team.team_key})")
 
         batters = [p for p in team.players if p.roster_player.position_type == "B"]
         pitchers = [p for p in team.players if p.roster_player.position_type == "P"]
 
         if batters:
-            hdr = f"  {'Batters':<25} {'PA':>6}"
-            for _, (header, width, _, _) in bat_cols:
-                hdr += f" {header:>{width}}"
-            lines.append(f"\n{hdr}")
-            lines.append(f"  {'-' * (len(hdr) - 2)}")
+            table = Table(show_header=True, header_style="bold")
+            table.add_column("Batters")
+            table.add_column("PA", justify="right")
+            for _, (header, _, _) in bat_cols:
+                table.add_column(header, justify="right")
+
             for pm in batters:
                 if pm.batting_projection is not None:
                     bp = pm.batting_projection
-                    row = f"  {pm.roster_player.name:<25} {bp.pa:>6.0f}"
-                    for _, (_, _width, fmt, extract) in bat_cols:
-                        row += f" {extract(bp):>{fmt}}"
-                    lines.append(row)
+                    row = [pm.roster_player.name, f"{bp.pa:.0f}"]
+                    for _, (_, fmt, extract) in bat_cols:
+                        row.append(f"{extract(bp):{fmt}}")
+                    table.add_row(*row)
                 else:
-                    row = f"  {pm.roster_player.name:<25} {'--':>6}"
-                    for _, (_, width, _, _) in bat_cols:
-                        row += f" {'--':>{width}}"
-                    lines.append(row)
+                    row = [pm.roster_player.name, "--"]
+                    row.extend(["--"] * len(bat_cols))
+                    table.add_row(*row)
+            console.print(table)
 
         if pitchers:
-            hdr = f"  {'Pitchers':<25} {'IP':>6}"
-            for _, (header, width, _, _) in pit_cols:
-                hdr += f" {header:>{width}}"
-            lines.append(f"\n{hdr}")
-            lines.append(f"  {'-' * (len(hdr) - 2)}")
+            table = Table(show_header=True, header_style="bold")
+            table.add_column("Pitchers")
+            table.add_column("IP", justify="right")
+            for _, (header, _, _) in pit_cols:
+                table.add_column(header, justify="right")
+
             for pm in pitchers:
                 if pm.pitching_projection is not None:
                     pp = pm.pitching_projection
-                    row = f"  {pm.roster_player.name:<25} {pp.ip:>6.1f}"
-                    for _, (_, _width, fmt, extract) in pit_cols:
-                        row += f" {extract(pp):>{fmt}}"
-                    lines.append(row)
+                    row = [pm.roster_player.name, f"{pp.ip:.1f}"]
+                    for _, (_, fmt, extract) in pit_cols:
+                        row.append(f"{extract(pp):{fmt}}")
+                    table.add_row(*row)
                 else:
-                    row = f"  {pm.roster_player.name:<25} {'--':>6}"
-                    for _, (_, width, _, _) in pit_cols:
-                        row += f" {'--':>{width}}"
-                    lines.append(row)
+                    row = [pm.roster_player.name, "--"]
+                    row.extend(["--"] * len(pit_cols))
+                    table.add_row(*row)
+            console.print(table)
 
         if team.unmatched_count > 0:
-            lines.append(f"\n  Warning: {team.unmatched_count} player(s) could not be matched to projections")
-
-    return "\n".join(lines)
+            console.print(f"[yellow]Warning: {team.unmatched_count} player(s) could not be matched to projections[/yellow]")
 
 
-def format_compare_table(
+def print_compare_table(
     team_projections: list[TeamProjection],
     league_settings: LeagueSettings,
-) -> str:
+) -> None:
+    """Print team comparison table using rich."""
     bat_cols = [
         (cat, _TEAM_BATTING_COLUMNS[cat]) for cat in league_settings.batting_categories if cat in _TEAM_BATTING_COLUMNS
     ]
@@ -144,26 +147,135 @@ def format_compare_table(
         if cat in _TEAM_PITCHING_COLUMNS
     ]
 
-    lines: list[str] = []
-    header = f"{'Team':<25}"
-    for _, (hdr, width, _, _) in bat_cols:
-        header += f" {hdr:>{width}}"
-    for _, (hdr, width, _, _) in pit_cols:
-        header += f" {hdr:>{width}}"
-    header += f" {'?':>3}"
-    lines.append(header)
-    lines.append("-" * len(header))
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Team")
+    for _, (header, _, _) in bat_cols:
+        table.add_column(header, justify="right")
+    for _, (header, _, _) in pit_cols:
+        table.add_column(header, justify="right")
+    table.add_column("?", justify="right")
 
     for t in team_projections:
-        row = f"{t.team_name:<25}"
-        for _, (_, _width, fmt, extract) in bat_cols:
-            row += f" {extract(t):>{fmt}}"
-        for _, (_, _width, fmt, extract) in pit_cols:
-            row += f" {extract(t):>{fmt}}"
-        row += f" {t.unmatched_count:>3}"
-        lines.append(row)
+        row: list[str] = [t.team_name]
+        for _, (_, fmt, extract) in bat_cols:
+            row.append(f"{extract(t):{fmt}}")
+        for _, (_, fmt, extract) in pit_cols:
+            row.append(f"{extract(t):{fmt}}")
+        row.append(str(t.unmatched_count))
+        table.add_row(*row)
 
-    return "\n".join(lines)
+    console.print(table)
+
+
+def format_team_projections(
+    team_projections: list[TeamProjection],
+    league_settings: LeagueSettings,
+) -> str:
+    """Format team projections as a string.
+
+    Returns a string representation of the team projections table,
+    useful for testing or non-interactive output.
+    """
+    bat_cols = [(cat, _BATTER_COLUMNS[cat]) for cat in league_settings.batting_categories if cat in _BATTER_COLUMNS]
+    pit_cols = [(cat, _PITCHER_COLUMNS[cat]) for cat in league_settings.pitching_categories if cat in _PITCHER_COLUMNS]
+
+    string_io = io.StringIO()
+    string_console = Console(file=string_io, force_terminal=True, width=120)
+
+    for team in team_projections:
+        string_console.print(f"\n[bold]{team.team_name}[/bold] ({team.team_key})")
+
+        batters = [p for p in team.players if p.roster_player.position_type == "B"]
+        pitchers = [p for p in team.players if p.roster_player.position_type == "P"]
+
+        if batters:
+            table = Table(show_header=True, header_style="bold")
+            table.add_column("Batters")
+            table.add_column("PA", justify="right")
+            for _, (header, _, _) in bat_cols:
+                table.add_column(header, justify="right")
+
+            for pm in batters:
+                if pm.batting_projection is not None:
+                    bp = pm.batting_projection
+                    row = [pm.roster_player.name, f"{bp.pa:.0f}"]
+                    for _, (_, fmt, extract) in bat_cols:
+                        row.append(f"{extract(bp):{fmt}}")
+                    table.add_row(*row)
+                else:
+                    row = [pm.roster_player.name, "--"]
+                    row.extend(["--"] * len(bat_cols))
+                    table.add_row(*row)
+            string_console.print(table)
+
+        if pitchers:
+            table = Table(show_header=True, header_style="bold")
+            table.add_column("Pitchers")
+            table.add_column("IP", justify="right")
+            for _, (header, _, _) in pit_cols:
+                table.add_column(header, justify="right")
+
+            for pm in pitchers:
+                if pm.pitching_projection is not None:
+                    pp = pm.pitching_projection
+                    row = [pm.roster_player.name, f"{pp.ip:.1f}"]
+                    for _, (_, fmt, extract) in pit_cols:
+                        row.append(f"{extract(pp):{fmt}}")
+                    table.add_row(*row)
+                else:
+                    row = [pm.roster_player.name, "--"]
+                    row.extend(["--"] * len(pit_cols))
+                    table.add_row(*row)
+            string_console.print(table)
+
+        if team.unmatched_count > 0:
+            string_console.print(
+                f"[yellow]Warning: {team.unmatched_count} player(s) could not be matched to projections[/yellow]"
+            )
+
+    return string_io.getvalue()
+
+
+def format_compare_table(
+    team_projections: list[TeamProjection],
+    league_settings: LeagueSettings,
+) -> str:
+    """Format team comparison table as a string.
+
+    Returns a string representation of the comparison table,
+    useful for testing or non-interactive output.
+    """
+    bat_cols = [
+        (cat, _TEAM_BATTING_COLUMNS[cat]) for cat in league_settings.batting_categories if cat in _TEAM_BATTING_COLUMNS
+    ]
+    pit_cols = [
+        (cat, _TEAM_PITCHING_COLUMNS[cat])
+        for cat in league_settings.pitching_categories
+        if cat in _TEAM_PITCHING_COLUMNS
+    ]
+
+    string_io = io.StringIO()
+    string_console = Console(file=string_io, force_terminal=True, width=120)
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Team")
+    for _, (header, _, _) in bat_cols:
+        table.add_column(header, justify="right")
+    for _, (header, _, _) in pit_cols:
+        table.add_column(header, justify="right")
+    table.add_column("?", justify="right")
+
+    for t in team_projections:
+        row: list[str] = [t.team_name]
+        for _, (_, fmt, extract) in bat_cols:
+            row.append(f"{extract(t):{fmt}}")
+        for _, (_, fmt, extract) in pit_cols:
+            row.append(f"{extract(t):{fmt}}")
+        row.append(str(t.unmatched_count))
+        table.add_row(*row)
+
+    string_console.print(table)
+    return string_io.getvalue()
 
 
 def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE) -> list[TeamProjection]:
@@ -201,12 +313,12 @@ def projections(
             raise typer.Exit(code=1)
 
         league_settings = load_league_settings()
-        typer.echo(f"League projections for {year}\n")
+        console.print(f"[bold]League projections for {year}[/bold]\n")
 
         team_projections = _load_team_projections(year, engine=engine)
         team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
-        typer.echo(format_team_projections(team_projections, league_settings))
+        print_team_projections(team_projections, league_settings)
 
 
 def compare(
@@ -233,9 +345,9 @@ def compare(
             raise typer.Exit(code=1)
 
         league_settings = load_league_settings()
-        typer.echo(f"League comparison for {year}\n")
+        console.print(f"[bold]League comparison for {year}[/bold]\n")
 
         team_projections = _load_team_projections(year, engine=engine)
         team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
-        typer.echo(format_compare_table(team_projections, league_settings))
+        print_compare_table(team_projections, league_settings)
