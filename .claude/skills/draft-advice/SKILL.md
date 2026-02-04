@@ -16,7 +16,7 @@ Scoring categories are configured in `config.yaml` under `league.batting_categor
 Before running commands, determine:
 
 1. **Year**: Default to the current year. Ask if unclear.
-2. **Engine**: Default to `marcel_plus` (most accurate). Options: `marcel`, `marcel_park`, `marcel_statreg`, `marcel_plus`.
+2. **Engine**: Default to `marcel_gb` (most accurate). Options: `marcel_classic`, `marcel`, `marcel_full`, `marcel_gb`.
 3. **Yahoo integration**: Commands like `teams compare`, `teams roster`, and `players draft-rank --yahoo` require Yahoo Fantasy API access. Use `--yahoo` when the user wants live draft data or team rosters.
 4. **Category weights**: If the user's league values certain categories more, use `--weight` flags (e.g., `--weight HR=2.0 --weight SB=1.5`). These are multipliers on top of the categories already configured in `config.yaml`.
 
@@ -26,21 +26,21 @@ Map user intent to the right CLI subcommand:
 
 | User Intent | Command |
 |---|---|
-| "Who should I draft?" / best available | `uv run fantasy-baseball-manager players draft-rank --engine marcel_plus --top 30` |
-| Best available batters | `uv run fantasy-baseball-manager players draft-rank --engine marcel_plus --top 30 --batting` |
-| Best available pitchers | `uv run fantasy-baseball-manager players draft-rank --engine marcel_plus --top 30 --pitching` |
+| "Who should I draft?" / best available | `uv run fantasy-baseball-manager players draft-rank --engine marcel_gb --top 30` |
+| Best available batters | `uv run fantasy-baseball-manager players draft-rank --engine marcel_gb --top 30 --batting` |
+| Best available pitchers | `uv run fantasy-baseball-manager players draft-rank --engine marcel_gb --top 30 --pitching` |
 | Draft rankings with Yahoo positions/draft state | Add `--yahoo` to any `players draft-rank` command |
-| Raw player projections | `uv run fantasy-baseball-manager players project --engine marcel_plus --top 30` |
-| Z-score valuations | `uv run fantasy-baseball-manager players valuate --engine marcel_plus --top 30` |
-| Compare all teams in league | `uv run fantasy-baseball-manager teams compare --engine marcel_plus` |
-| My team's roster projections | `uv run fantasy-baseball-manager teams roster --engine marcel_plus` |
-| Projection accuracy / backtesting | `uv run fantasy-baseball-manager evaluate 2025 --engine marcel_plus` |
+| Raw player projections | `uv run fantasy-baseball-manager players project --engine marcel_gb --top 30` |
+| Z-score valuations | `uv run fantasy-baseball-manager players valuate --engine marcel_gb --top 30` |
+| Compare all teams in league | `uv run fantasy-baseball-manager teams compare --engine marcel_gb` |
+| My team's roster projections | `uv run fantasy-baseball-manager teams roster --engine marcel_gb` |
+| Projection accuracy / backtesting | `uv run fantasy-baseball-manager evaluate 2025 --engine marcel_gb` |
 | Simulate a full draft | `uv run fantasy-baseball-manager players draft-simulate --teams 12 --seed 42` |
 | Simulate with a specific strategy | `uv run fantasy-baseball-manager players draft-simulate --user-strategy power_hitting --seed 42` |
 | Simulate with keepers | `uv run fantasy-baseball-manager players draft-simulate --keepers keepers.yaml --seed 42` |
-| Rank keeper candidates | `uv run fantasy-baseball-manager keeper rank --yahoo --engine marcel_plus` |
-| Optimize keeper selection | `uv run fantasy-baseball-manager keeper optimize --yahoo --engine marcel_plus` |
-| League-wide keeper analysis | `uv run fantasy-baseball-manager keeper league --engine marcel_plus` |
+| Rank keeper candidates | `uv run fantasy-baseball-manager keeper rank --yahoo --engine marcel_gb` |
+| Optimize keeper selection | `uv run fantasy-baseball-manager keeper optimize --yahoo --engine marcel_gb` |
+| League-wide keeper analysis | `uv run fantasy-baseball-manager keeper league --engine marcel_gb` |
 
 Adjust `--top` based on how many results the user wants. Use `--sort-by` for custom sorting (e.g., `--sort-by hr`, `--sort-by era`).
 
@@ -111,10 +111,10 @@ When the user wants to evaluate which players to keep in a keeper league, use th
 
 | User Intent | Command |
 |---|---|
-| Rank my keeper candidates | `uv run fantasy-baseball-manager keeper rank --yahoo --engine marcel_plus` |
-| Find the optimal keeper combination | `uv run fantasy-baseball-manager keeper optimize --yahoo --engine marcel_plus` |
-| Compute optimal keepers for every team | `uv run fantasy-baseball-manager keeper league --engine marcel_plus` |
-| Rank specific players as keeper candidates | `uv run fantasy-baseball-manager keeper rank --candidates "id1,id2,id3" --engine marcel_plus` |
+| Rank my keeper candidates | `uv run fantasy-baseball-manager keeper rank --yahoo --engine marcel_gb` |
+| Find the optimal keeper combination | `uv run fantasy-baseball-manager keeper optimize --yahoo --engine marcel_gb` |
+| Compute optimal keepers for every team | `uv run fantasy-baseball-manager keeper league --engine marcel_gb` |
+| Rank specific players as keeper candidates | `uv run fantasy-baseball-manager keeper rank --candidates "id1,id2,id3" --engine marcel_gb` |
 
 ### How Surplus Value Works
 
@@ -130,7 +130,7 @@ When the user wants to evaluate which players to keep in a keeper league, use th
 - `--user-pick N`: User's draft position, 1-based (default: 5)
 - `--teams N`: Number of teams (default: 12, auto-detected with `--yahoo`)
 - `--keeper-slots N`: Number of keeper slots per team (default: 4)
-- `--engine NAME`: Projection engine (default: marcel_plus)
+- `--engine NAME`: Projection engine (default: marcel_gb)
 - `--yahoo`: Fetch candidates from Yahoo roster and other teams' keepers automatically
 - `--no-cache`: Bypass cache and fetch fresh data
 - `--league-id ID`: Override league ID from config
@@ -214,7 +214,7 @@ When the user indicates they are in an active draft:
 
 If the user asks which engine to use:
 
-- **marcel**: Basic Marcel projection. Fast, no external data needed beyond stats.
-- **marcel_park**: Adds park factor adjustments (e.g., Coors Field boost).
-- **marcel_statreg**: Uses stat-specific regression rates instead of uniform regression.
-- **marcel_plus**: Combines park factors + stat-specific regression. Most accurate, recommended default.
+- **marcel_classic**: Original Marcel projection with uniform aging. Fast, no external data needed.
+- **marcel**: Per-stat regression rates + component-based aging curves. More accurate than classic.
+- **marcel_full**: Adds park factors, Statcast adjustments, and BABIP corrections. Recommended for detailed analysis.
+- **marcel_gb**: Full pipeline + gradient boosting residual corrections. Most accurate, recommended default.
