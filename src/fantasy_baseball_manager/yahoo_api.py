@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from yahoo_fantasy_api import Game, League
 from yahoo_oauth import OAuth2
@@ -11,6 +11,18 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from fantasy_baseball_manager.config import AppConfig
+
+
+class _YahooCredentials(TypedDict, total=False):
+    """Structure of the Yahoo OAuth credentials file."""
+
+    consumer_key: str
+    consumer_secret: str
+    access_token: str
+    refresh_token: str
+    token_time: float
+    token_type: str
+    guid: str
 
 
 class YahooFantasyClient:
@@ -43,17 +55,17 @@ class YahooFantasyClient:
         consumer_secret = str(self._config["yahoo.client_secret"])
 
         if creds_path.exists():
-            data: dict[str, Any] = json.loads(creds_path.read_text())
+            data: _YahooCredentials = json.loads(creds_path.read_text())
             if data.get("consumer_key") == consumer_key and data.get("consumer_secret") == consumer_secret:
                 return str(creds_path)
             data["consumer_key"] = consumer_key
             data["consumer_secret"] = consumer_secret
         else:
             creds_path.parent.mkdir(parents=True, exist_ok=True)
-            data = {
-                "consumer_key": consumer_key,
-                "consumer_secret": consumer_secret,
-            }
+            data = _YahooCredentials(
+                consumer_key=consumer_key,
+                consumer_secret=consumer_secret,
+            )
 
         creds_path.write_text(json.dumps(data))
         return str(creds_path)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 import torch
@@ -17,6 +17,27 @@ import torch.nn.functional as F
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.ml.mtl.config import MTLArchitectureConfig
+
+
+class _MTLArchitectureConfigDict(TypedDict):
+    """Serialized MTLArchitectureConfig structure."""
+
+    shared_layers: tuple[int, ...]
+    head_hidden_size: int
+    dropout_rates: tuple[float, ...]
+    use_batch_norm: bool
+
+
+class _MultiTaskModelParams(TypedDict):
+    """Serialized MultiTaskBatterModel/MultiTaskPitcherModel structure."""
+
+    state_dict: dict[str, torch.Tensor] | None
+    n_features: int
+    config: _MTLArchitectureConfigDict | None
+    feature_names: list[str]
+    training_years: list[int]
+    validation_metrics: dict[str, float]
+    is_fitted: bool
 
 logger = logging.getLogger(__name__)
 
@@ -235,25 +256,25 @@ class MultiTaskBatterModel:
             raise ValueError("MultiTaskBatterModel has not been fitted")
         return self.network.predict(features)
 
-    def get_params(self) -> dict[str, Any]:
+    def get_params(self) -> _MultiTaskModelParams:
         """Return model state for serialization."""
-        return {
-            "state_dict": self.network.module.state_dict() if self.network else None,
-            "n_features": self.network.n_features if self.network else 0,
-            "config": {
-                "shared_layers": self.network.config.shared_layers,
-                "head_hidden_size": self.network.config.head_hidden_size,
-                "dropout_rates": self.network.config.dropout_rates,
-                "use_batch_norm": self.network.config.use_batch_norm,
-            } if self.network else None,
-            "feature_names": self.feature_names,
-            "training_years": list(self.training_years),
-            "validation_metrics": self.validation_metrics,
-            "is_fitted": self._is_fitted,
-        }
+        return _MultiTaskModelParams(
+            state_dict=self.network.module.state_dict() if self.network else None,
+            n_features=self.network.n_features if self.network else 0,
+            config=_MTLArchitectureConfigDict(
+                shared_layers=self.network.config.shared_layers,
+                head_hidden_size=self.network.config.head_hidden_size,
+                dropout_rates=self.network.config.dropout_rates,
+                use_batch_norm=self.network.config.use_batch_norm,
+            ) if self.network else None,
+            feature_names=self.feature_names,
+            training_years=list(self.training_years),
+            validation_metrics=self.validation_metrics,
+            is_fitted=self._is_fitted,
+        )
 
     @classmethod
-    def from_params(cls, params: dict[str, Any]) -> MultiTaskBatterModel:
+    def from_params(cls, params: _MultiTaskModelParams) -> MultiTaskBatterModel:
         """Reconstruct model from serialized state."""
         from fantasy_baseball_manager.ml.mtl.config import MTLArchitectureConfig
 
@@ -263,14 +284,16 @@ class MultiTaskBatterModel:
             validation_metrics=params.get("validation_metrics", {}),
         )
 
-        if params.get("state_dict") and params.get("config"):
-            config = MTLArchitectureConfig(**params["config"])
+        state_dict = params["state_dict"]
+        config_dict = params["config"]
+        if state_dict is not None and config_dict is not None:
+            config = MTLArchitectureConfig(**config_dict)
             model.network = MultiTaskNet(
                 n_features=params["n_features"],
                 target_stats=cls.STATS,
                 config=config,
             )
-            model.network.module.load_state_dict(params["state_dict"])
+            model.network.module.load_state_dict(state_dict)
             model._is_fitted = params.get("is_fitted", False)
 
         return model
@@ -312,25 +335,25 @@ class MultiTaskPitcherModel:
             raise ValueError("MultiTaskPitcherModel has not been fitted")
         return self.network.predict(features)
 
-    def get_params(self) -> dict[str, Any]:
+    def get_params(self) -> _MultiTaskModelParams:
         """Return model state for serialization."""
-        return {
-            "state_dict": self.network.module.state_dict() if self.network else None,
-            "n_features": self.network.n_features if self.network else 0,
-            "config": {
-                "shared_layers": self.network.config.shared_layers,
-                "head_hidden_size": self.network.config.head_hidden_size,
-                "dropout_rates": self.network.config.dropout_rates,
-                "use_batch_norm": self.network.config.use_batch_norm,
-            } if self.network else None,
-            "feature_names": self.feature_names,
-            "training_years": list(self.training_years),
-            "validation_metrics": self.validation_metrics,
-            "is_fitted": self._is_fitted,
-        }
+        return _MultiTaskModelParams(
+            state_dict=self.network.module.state_dict() if self.network else None,
+            n_features=self.network.n_features if self.network else 0,
+            config=_MTLArchitectureConfigDict(
+                shared_layers=self.network.config.shared_layers,
+                head_hidden_size=self.network.config.head_hidden_size,
+                dropout_rates=self.network.config.dropout_rates,
+                use_batch_norm=self.network.config.use_batch_norm,
+            ) if self.network else None,
+            feature_names=self.feature_names,
+            training_years=list(self.training_years),
+            validation_metrics=self.validation_metrics,
+            is_fitted=self._is_fitted,
+        )
 
     @classmethod
-    def from_params(cls, params: dict[str, Any]) -> MultiTaskPitcherModel:
+    def from_params(cls, params: _MultiTaskModelParams) -> MultiTaskPitcherModel:
         """Reconstruct model from serialized state."""
         from fantasy_baseball_manager.ml.mtl.config import MTLArchitectureConfig
 
@@ -340,14 +363,16 @@ class MultiTaskPitcherModel:
             validation_metrics=params.get("validation_metrics", {}),
         )
 
-        if params.get("state_dict") and params.get("config"):
-            config = MTLArchitectureConfig(**params["config"])
+        state_dict = params["state_dict"]
+        config_dict = params["config"]
+        if state_dict is not None and config_dict is not None:
+            config = MTLArchitectureConfig(**config_dict)
             model.network = MultiTaskNet(
                 n_features=params["n_features"],
                 target_stats=cls.STATS,
                 config=config,
             )
-            model.network.module.load_state_dict(params["state_dict"])
+            model.network.module.load_state_dict(state_dict)
             model._is_fitted = params.get("is_fitted", False)
 
         return model

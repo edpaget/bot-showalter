@@ -4,13 +4,43 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     import numpy as np
     from lightgbm import LGBMRegressor
 
 logger = logging.getLogger(__name__)
+
+
+class _HyperparametersDict(TypedDict):
+    """Serialized hyperparameters structure."""
+
+    n_estimators: int
+    max_depth: int
+    learning_rate: float
+    min_child_samples: int
+    subsample: float
+    random_state: int
+
+
+class _StatResidualModelParams(TypedDict):
+    """Serialized StatResidualModel structure."""
+
+    stat_name: str
+    hyperparameters: _HyperparametersDict
+    feature_names: list[str]
+    model: LGBMRegressor | None
+    is_fitted: bool
+
+
+class _ResidualModelSetParams(TypedDict):
+    """Serialized ResidualModelSet structure."""
+
+    player_type: str
+    models: dict[str, _StatResidualModelParams]
+    feature_names: list[str]
+    training_years: list[int]
 
 
 @dataclass(frozen=True)
@@ -126,25 +156,25 @@ class StatResidualModel:
         """Return whether the model has been trained."""
         return self._is_fitted
 
-    def get_params(self) -> dict[str, Any]:
+    def get_params(self) -> _StatResidualModelParams:
         """Return model state for serialization."""
-        return {
-            "stat_name": self.stat_name,
-            "hyperparameters": {
-                "n_estimators": self.hyperparameters.n_estimators,
-                "max_depth": self.hyperparameters.max_depth,
-                "learning_rate": self.hyperparameters.learning_rate,
-                "min_child_samples": self.hyperparameters.min_child_samples,
-                "subsample": self.hyperparameters.subsample,
-                "random_state": self.hyperparameters.random_state,
-            },
-            "feature_names": self._feature_names,
-            "model": self._model,
-            "is_fitted": self._is_fitted,
-        }
+        return _StatResidualModelParams(
+            stat_name=self.stat_name,
+            hyperparameters=_HyperparametersDict(
+                n_estimators=self.hyperparameters.n_estimators,
+                max_depth=self.hyperparameters.max_depth,
+                learning_rate=self.hyperparameters.learning_rate,
+                min_child_samples=self.hyperparameters.min_child_samples,
+                subsample=self.hyperparameters.subsample,
+                random_state=self.hyperparameters.random_state,
+            ),
+            feature_names=self._feature_names,
+            model=self._model,
+            is_fitted=self._is_fitted,
+        )
 
     @classmethod
-    def from_params(cls, params: dict[str, Any]) -> StatResidualModel:
+    def from_params(cls, params: _StatResidualModelParams) -> StatResidualModel:
         """Reconstruct model from serialized state."""
         hp = ModelHyperparameters(**params["hyperparameters"])
         model = cls(stat_name=params["stat_name"], hyperparameters=hp)
@@ -191,17 +221,17 @@ class ResidualModelSet:
         """Return list of stat names with trained models."""
         return [name for name, model in self.models.items() if model.is_fitted]
 
-    def get_params(self) -> dict[str, Any]:
+    def get_params(self) -> _ResidualModelSetParams:
         """Return model set state for serialization."""
-        return {
-            "player_type": self.player_type,
-            "models": {name: model.get_params() for name, model in self.models.items()},
-            "feature_names": self.feature_names,
-            "training_years": self.training_years,
-        }
+        return _ResidualModelSetParams(
+            player_type=self.player_type,
+            models={name: model.get_params() for name, model in self.models.items()},
+            feature_names=self.feature_names,
+            training_years=list(self.training_years),
+        )
 
     @classmethod
-    def from_params(cls, params: dict[str, Any]) -> ResidualModelSet:
+    def from_params(cls, params: _ResidualModelSetParams) -> ResidualModelSet:
         """Reconstruct model set from serialized state."""
         model_set = cls(
             player_type=params["player_type"],
