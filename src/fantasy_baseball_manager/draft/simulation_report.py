@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.draft.models import DraftRanking
     from fantasy_baseball_manager.draft.simulation_models import (
         SimulationResult,
         TeamResult,
@@ -126,6 +127,35 @@ def print_standings(result: SimulationResult) -> None:
             row.append(str(pts.get(cat, 0)))
         row.append(str(total))
         table.add_row(*row)
+
+    console.print(table)
+
+
+def print_draft_rankings(rankings: list[DraftRanking], year: int) -> None:
+    """Print a draft rankings table."""
+    console.print(f"[bold]Draft rankings for {year}:[/bold]\n")
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Rk", justify="right")
+    table.add_column("Name")
+    table.add_column("Pos")
+    table.add_column("Mult", justify="right")
+    table.add_column("Raw", justify="right")
+    table.add_column("Wtd", justify="right")
+    table.add_column("Adj", justify="right")
+
+    for r in rankings:
+        display_pos = tuple(p for p in r.eligible_positions if p != "Util") or r.eligible_positions
+        pos_str = "/".join(display_pos) if display_pos else "-"
+        table.add_row(
+            str(r.rank),
+            r.name,
+            pos_str,
+            f"{r.position_multiplier:.2f}",
+            f"{r.raw_value:.1f}",
+            f"{r.weighted_value:.1f}",
+            f"{r.adjusted_value:.1f}",
+        )
 
     console.print(table)
 

@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 import typer
 import yaml
 from rich.console import Console
-from rich.table import Table
 
 from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
 from fantasy_baseball_manager.config import load_league_settings
@@ -29,7 +28,12 @@ from fantasy_baseball_manager.draft.simulation_models import (
     SimulationConfig,
     TeamConfig,
 )
-from fantasy_baseball_manager.draft.simulation_report import print_pick_log, print_standings, print_team_roster
+from fantasy_baseball_manager.draft.simulation_report import (
+    print_draft_rankings,
+    print_pick_log,
+    print_standings,
+    print_team_roster,
+)
 from fantasy_baseball_manager.draft.state import DraftState
 from fantasy_baseball_manager.draft.strategy_presets import STRATEGY_PRESETS
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
@@ -238,32 +242,7 @@ def draft_rank(
             typer.echo("No players to rank.")
             return
 
-        # Build output table
-        console.print(f"[bold]Draft rankings for {year}:[/bold]\n")
-
-        table = Table(show_header=True, header_style="bold")
-        table.add_column("Rk", justify="right")
-        table.add_column("Name")
-        table.add_column("Pos")
-        table.add_column("Mult", justify="right")
-        table.add_column("Raw", justify="right")
-        table.add_column("Wtd", justify="right")
-        table.add_column("Adj", justify="right")
-
-        for r in rankings:
-            display_pos = tuple(p for p in r.eligible_positions if p != "Util") or r.eligible_positions
-            pos_str = "/".join(display_pos) if display_pos else "-"
-            table.add_row(
-                str(r.rank),
-                r.name,
-                pos_str,
-                f"{r.position_multiplier:.2f}",
-                f"{r.raw_value:.1f}",
-                f"{r.weighted_value:.1f}",
-                f"{r.adjusted_value:.1f}",
-            )
-
-        console.print(table)
+        print_draft_rankings(rankings, year)
 
 
 def _load_keepers_file(path: Path) -> dict[int, dict[str, object]]:

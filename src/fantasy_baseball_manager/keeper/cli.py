@@ -3,25 +3,24 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path  # noqa: TC003 — used at runtime by typer
-from typing import TYPE_CHECKING, Annotated, cast
+from typing import Annotated
 
 import typer
-import yaml
 from rich.console import Console
-from rich.table import Table
 
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
-from fantasy_baseball_manager.keeper.models import KeeperCandidate, TeamKeeperResult
+from fantasy_baseball_manager.keeper.command_helpers import (
+    build_candidates,
+    load_keepers_file,
+    resolve_league_inputs,
+    resolve_yahoo_inputs,
+)
+from fantasy_baseball_manager.keeper.display import display_table, print_keeper_table
+from fantasy_baseball_manager.keeper.models import TeamKeeperResult
 from fantasy_baseball_manager.keeper.replacement import DraftPoolReplacementCalculator
 from fantasy_baseball_manager.keeper.surplus import SurplusCalculator
-from fantasy_baseball_manager.keeper.yahoo_source import LeagueKeeperData, YahooKeeperSource
-from fantasy_baseball_manager.services import cli_context, get_container, set_container
+from fantasy_baseball_manager.services import set_container
 from fantasy_baseball_manager.shared.orchestration import build_projections_and_positions
-
-if TYPE_CHECKING:
-    import yahoo_fantasy_api
-
-    from fantasy_baseball_manager.valuation.models import PlayerValue
 
 logger = logging.getLogger(__name__)
 
@@ -30,139 +29,6 @@ console = Console()
 keeper_app = typer.Typer(help="Keeper analysis commands.")
 
 __all__ = ["keeper_app", "keeper_league", "keeper_optimize", "keeper_rank", "set_container"]
-
-
-def _load_keepers_file(path: Path) -> set[str]:
-    """Load keepers YAML and return a flat set of all other teams' keeper player IDs."""
-    data = yaml.safe_load(path.read_text())
-    teams_raw = data.get("teams", {})
-    keeper_ids: set[str] = set()
-    if isinstance(teams_raw, dict):
-        for team_info in teams_raw.values():
-            if isinstance(team_info, dict):
-                keepers_raw = team_info.get("keepers", [])
-                if isinstance(keepers_raw, (list, tuple)):
-                    keeper_ids.update(str(k) for k in keepers_raw)
-    return keeper_ids
-
-
-def _build_candidates(
-    candidate_ids: list[str],
-    all_player_values: list[PlayerValue],
-    player_positions: dict[tuple[str, str], tuple[str, ...]],
-    yahoo_positions: dict[tuple[str, str], tuple[str, ...]] | None = None,
-    *,
-    candidate_position_types: list[str] | None = None,
-    strict: bool = True,
-) -> list[KeeperCandidate]:
-    """Build KeeperCandidate list from IDs, matching against player values and positions.
-
-    When *strict* is True (default), unknown IDs cause an error exit.
-    When False, unknown IDs are silently skipped (useful for league-wide processing
-    where some rostered players may lack projections).
-    """
-    pv_by_id: dict[str, PlayerValue] = {}
-    for pv in all_player_values:
-        # Keep the highest-value entry per player_id (a player may appear as both B and P)
-        if pv.player_id not in pv_by_id or pv.total_value > pv_by_id[pv.player_id].total_value:
-            pv_by_id[pv.player_id] = pv
-
-    # Build a lookup keyed by (player_id, position_type) for split-player resolution
-    pv_by_key: dict[tuple[str, str], PlayerValue] = {}
-    for pv in all_player_values:
-        key = (pv.player_id, pv.position_type)
-        if key not in pv_by_key or pv.total_value > pv_by_key[key].total_value:
-            pv_by_key[key] = pv
-
-    candidates: list[KeeperCandidate] = []
-    for i, cid in enumerate(candidate_ids):
-        pos_type = candidate_position_types[i] if candidate_position_types is not None else None
-
-        # Resolve the correct PlayerValue: prefer (id, position_type) match, fall back to best
-        pv: PlayerValue | None = None
-        if pos_type is not None:
-            pv = pv_by_key.get((cid, pos_type))
-        if pv is None:
-            pv = pv_by_id.get(cid)
-        if pv is None:
-            if strict:
-                typer.echo(f"Unknown candidate ID: {cid}", err=True)
-                raise typer.Exit(code=1)
-            continue
-
-        if yahoo_positions is not None and pos_type is not None and (cid, pos_type) in yahoo_positions:
-            eligible = yahoo_positions[(cid, pos_type)]
-        else:
-            # Collect positions from composite keys
-            positions: list[str] = []
-            for (pid, _), pos in player_positions.items():
-                if pid == cid:
-                    positions.extend(pos)
-            eligible = tuple(dict.fromkeys(positions))  # deduplicate, preserve order
-
-        candidates.append(
-            KeeperCandidate(
-                player_id=cid,
-                name=pv.name,
-                player_value=pv,
-                eligible_positions=eligible,
-            )
-        )
-
-    return candidates
-
-
-def _resolve_yahoo_inputs(
-    no_cache: bool,
-    league_id: str | None,
-    season: int | None,
-    candidates_str: str,
-    keepers_file: Path | None,
-    teams: int,
-) -> tuple[list[str], set[str], int, dict[tuple[str, str], tuple[str, ...]], list[str]]:
-    """Fetch keeper data from Yahoo rosters.
-
-    Returns (candidate_ids, other_keepers, teams, yahoo_positions, candidate_position_types).
-    """
-    with cli_context(league_id=league_id, season=season, no_cache=no_cache):
-        container = get_container()
-        league = cast("yahoo_fantasy_api.League", container.roster_league)
-        user_team_key: str = league.team_key()
-
-        yahoo_source = YahooKeeperSource(
-            roster_source=container.roster_source,
-            id_mapper=container.id_mapper,
-            user_team_key=user_team_key,
-        )
-        yahoo_data = yahoo_source.fetch_keeper_data()
-
-        if yahoo_data.unmapped_yahoo_ids:
-            typer.echo(
-                f"Warning: {len(yahoo_data.unmapped_yahoo_ids)} player(s) could not be mapped "
-                f"to FanGraphs IDs: {', '.join(yahoo_data.unmapped_yahoo_ids)}",
-                err=True,
-            )
-
-        candidate_ids = list(yahoo_data.user_candidate_ids)
-        position_types = list(yahoo_data.user_candidate_position_types)
-
-        # If --candidates also provided, use as filter (intersection)
-        if candidates_str.strip():
-            filter_ids = {c.strip() for c in candidates_str.split(",") if c.strip()}
-            filtered_pairs = [
-                (cid, pt) for cid, pt in zip(candidate_ids, position_types, strict=True) if cid in filter_ids
-            ]
-            candidate_ids = [cid for cid, _ in filtered_pairs]
-            position_types = [pt for _, pt in filtered_pairs]
-
-        # If --keepers provided, use YAML file; otherwise use Yahoo other-keepers
-        other_keepers = _load_keepers_file(keepers_file) if keepers_file else set(yahoo_data.other_keeper_ids)
-
-        # Derive team count from roster count if not explicitly set
-        rosters = container.roster_source.fetch_rosters()
-        num_teams = len(rosters.teams) if teams == 12 else teams
-
-        return candidate_ids, other_keepers, num_teams, dict(yahoo_data.user_candidate_positions), position_types
 
 
 @keeper_app.command(name="rank")
@@ -189,7 +55,7 @@ def keeper_rank(
     position_types: list[str] | None = None
 
     if yahoo:
-        candidate_ids, other_keepers, teams, yahoo_positions, position_types = _resolve_yahoo_inputs(
+        candidate_ids, other_keepers, teams, yahoo_positions, position_types = resolve_yahoo_inputs(
             no_cache,
             league_id,
             season,
@@ -204,12 +70,12 @@ def keeper_rank(
         candidate_ids = [c.strip() for c in candidates.split(",") if c.strip()]
         other_keepers = set()
         if keepers_file:
-            other_keepers = _load_keepers_file(keepers_file)
+            other_keepers = load_keepers_file(keepers_file)
 
     typer.echo(f"Generating projections for {year} using {engine}...")
     all_values, composite_positions = build_projections_and_positions(engine, year)
 
-    candidate_list = _build_candidates(
+    candidate_list = build_candidates(
         candidate_ids,
         all_values,
         composite_positions,
@@ -221,7 +87,7 @@ def keeper_rank(
     surplus_calc = SurplusCalculator(calc, num_teams=teams, num_keeper_slots=keeper_slots)
     ranked = surplus_calc.rank_candidates(candidate_list, all_values, other_keepers)
 
-    _display_table(ranked, year, "Keeper Candidates Ranked by Surplus Value")
+    display_table(ranked, year, "Keeper Candidates Ranked by Surplus Value")
 
 
 @keeper_app.command(name="optimize")
@@ -248,7 +114,7 @@ def keeper_optimize(
     position_types: list[str] | None = None
 
     if yahoo:
-        candidate_ids, other_keepers, teams, yahoo_positions, position_types = _resolve_yahoo_inputs(
+        candidate_ids, other_keepers, teams, yahoo_positions, position_types = resolve_yahoo_inputs(
             no_cache,
             league_id,
             season,
@@ -263,12 +129,12 @@ def keeper_optimize(
         candidate_ids = [c.strip() for c in candidates.split(",") if c.strip()]
         other_keepers = set()
         if keepers_file:
-            other_keepers = _load_keepers_file(keepers_file)
+            other_keepers = load_keepers_file(keepers_file)
 
     typer.echo(f"Generating projections for {year} using {engine}...")
     all_values, composite_positions = build_projections_and_positions(engine, year)
 
-    candidate_list = _build_candidates(
+    candidate_list = build_candidates(
         candidate_ids,
         all_values,
         composite_positions,
@@ -282,44 +148,11 @@ def keeper_optimize(
 
     # Display recommended keepers
     console.print(f"\n[bold]Optimal Keepers for {year} (Total Surplus: {result.total_surplus:.1f}):[/bold]\n")
-    _print_keeper_table(list(result.keepers))
+    print_keeper_table(list(result.keepers))
 
     # Display all candidates
     console.print("\n[bold]All Candidates:[/bold]\n")
-    _print_keeper_table(list(result.all_candidates))
-
-
-def _resolve_league_inputs(
-    no_cache: bool,
-    league_id: str | None,
-    season: int | None,
-    teams: int,
-) -> tuple[LeagueKeeperData, int]:
-    """Fetch league-wide keeper data from Yahoo rosters.
-
-    Returns (league_keeper_data, num_teams).
-    """
-    with cli_context(league_id=league_id, season=season, no_cache=no_cache):
-        container = get_container()
-
-        yahoo_source = YahooKeeperSource(
-            roster_source=container.roster_source,
-            id_mapper=container.id_mapper,
-            user_team_key="",  # not used by fetch_league_keeper_data
-        )
-        league_data = yahoo_source.fetch_league_keeper_data()
-
-        if league_data.unmapped_yahoo_ids:
-            typer.echo(
-                f"Warning: {len(league_data.unmapped_yahoo_ids)} player(s) could not be mapped "
-                f"to FanGraphs IDs: {', '.join(league_data.unmapped_yahoo_ids)}",
-                err=True,
-            )
-
-        rosters = container.roster_source.fetch_rosters()
-        num_teams = len(rosters.teams) if teams == 12 else teams
-
-        return league_data, num_teams
+    print_keeper_table(list(result.all_candidates))
 
 
 @keeper_app.command(name="league")
@@ -341,7 +174,7 @@ def keeper_league(
     if year is None:
         year = datetime.now().year
 
-    league_data, num_teams = _resolve_league_inputs(
+    league_data, num_teams = resolve_league_inputs(
         no_cache,
         league_id,
         season,
@@ -378,7 +211,7 @@ def keeper_league(
             if other_team.team_key != team_info.team_key:
                 other_keepers.update(other_team.candidate_ids)
 
-        candidate_list = _build_candidates(
+        candidate_list = build_candidates(
             candidate_ids,
             all_values,
             composite_positions,
@@ -412,34 +245,4 @@ def keeper_league(
             f"\n[bold]=== {team_result.team_name} (Pick #{pick}) "
             f"— Total Surplus: {rec.total_surplus:.1f} ===[/bold]\n"
         )
-        _print_keeper_table(list(rec.keepers))
-
-
-def _display_table(ranked: list, year: int, title: str) -> None:
-    console.print(f"\n[bold]{title} ({year}):[/bold]\n")
-    _print_keeper_table(ranked)
-
-
-def _print_keeper_table(rows: list) -> None:
-    table = Table(show_header=True, header_style="bold")
-    table.add_column("Rk", justify="right")
-    table.add_column("Name")
-    table.add_column("Pos")
-    table.add_column("Value", justify="right")
-    table.add_column("Repl", justify="right")
-    table.add_column("Surplus", justify="right")
-    table.add_column("Slot", justify="right")
-
-    for i, ks in enumerate(rows, start=1):
-        pos_str = "/".join(ks.eligible_positions) if ks.eligible_positions else "-"
-        table.add_row(
-            str(i),
-            ks.name,
-            pos_str,
-            f"{ks.player_value:.1f}",
-            f"{ks.replacement_value:.1f}",
-            f"{ks.surplus_value:.1f}",
-            str(ks.assigned_slot),
-        )
-
-    console.print(table)
+        print_keeper_table(list(rec.keepers))
