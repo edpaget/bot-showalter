@@ -68,6 +68,13 @@ class SprintSpeedSource(Protocol):
     def sprint_speeds(self, year: int) -> dict[str, float]: ...
 
 
+class SkillDeltaComputerProtocol(Protocol):
+    """Protocol for computing skill deltas."""
+
+    def compute_batter_deltas(self, year: int) -> dict[str, BatterSkillDelta]: ...
+    def compute_pitcher_deltas(self, year: int) -> dict[str, PitcherSkillDelta]: ...
+
+
 class FanGraphsSkillDataSource:
     """Fetches skill metrics from FanGraphs via pybaseball."""
 

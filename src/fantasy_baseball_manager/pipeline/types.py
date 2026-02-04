@@ -62,6 +62,9 @@ class PlayerMetadata(TypedDict, total=False):
     # GB residual adjuster metadata
     gb_residual_adjustments: dict[str, float]
 
+    # Skill change adjuster metadata
+    skill_change_adjustments: dict[str, float]
+
 
 @dataclass
 class PlayerRates:
