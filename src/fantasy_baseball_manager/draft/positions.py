@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import csv
 import logging
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
     import yahoo_fantasy_api
@@ -113,9 +114,10 @@ class YahooPositionSource:
                 continue
 
             mapped_count += 1
+            eligible = cast("Iterable[object]", player.get("eligible_positions", ()))
             raw_positions = [
                 str(p)
-                for p in player.get("eligible_positions", ())  # type: ignore[union-attr]
+                for p in eligible
                 if str(p) not in _NON_FIELD_POSITIONS
             ]
             normalized = tuple(dict.fromkeys(normalize_position(p) for p in raw_positions))

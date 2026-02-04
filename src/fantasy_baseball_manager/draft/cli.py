@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path  # noqa: TC003 — used at runtime by typer
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, cast
+
+if TYPE_CHECKING:
+    import yahoo_fantasy_api
 
 import typer
 import yaml
@@ -115,7 +118,8 @@ def draft_rank(
         if positions_file:
             player_positions = load_positions_file(positions_file)
         elif yahoo:
-            source: PositionSource = YahooPositionSource(container.yahoo_league, container.id_mapper)  # type: ignore[arg-type]
+            league = cast("yahoo_fantasy_api.League", container.yahoo_league)
+            source: PositionSource = YahooPositionSource(league, container.id_mapper)
             if not container.config.no_cache:
                 ttl = int(str(container.app_config["cache.positions_ttl"]))
                 source = CachedPositionSource(source, container.cache_store, container.cache_key, ttl)
@@ -208,7 +212,8 @@ def draft_rank(
 
         # Apply draft results from Yahoo
         if yahoo:
-            draft_source = YahooDraftResultsSource(container.yahoo_league)
+            draft_league = cast("yahoo_fantasy_api.League", container.yahoo_league)
+            draft_source = YahooDraftResultsSource(draft_league)
             draft_status = draft_source.fetch_draft_status()
             if not container.config.no_cache and draft_status != DraftStatus.IN_PROGRESS:
                 dr_ttl = int(str(container.app_config["cache.draft_results_ttl"]))

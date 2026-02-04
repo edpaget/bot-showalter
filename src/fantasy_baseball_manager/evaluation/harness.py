@@ -243,17 +243,10 @@ def _compute_strata_pitching(
             rank_acc = _compute_rank_accuracy(ordered_proj, ordered_act, top_n)
         strata.append(StratumAccuracy(name, len(bucket_proj), stat_acc, rank_acc))
 
-    # Age buckets (reuse batting bucket function but cast)
-    age_bucket_tuples = tuple((int(low), int(high)) for low, high in strat_config.age_buckets)
-    age_buckets_raw = _bucket_players_batting(
-        projections,  # type: ignore[arg-type]
-        actuals,  # type: ignore[arg-type]
-        age_bucket_tuples,
-        "age",
-    )
-    for name, (bucket_proj_raw, bucket_act_raw) in age_buckets_raw.items():
-        bucket_proj: list[PitchingProjection] = bucket_proj_raw  # type: ignore[assignment]
-        bucket_act: list[PitchingProjection] = bucket_act_raw  # type: ignore[assignment]
+    # Age buckets
+    age_bucket_floats = tuple((float(low), float(high)) for low, high in strat_config.age_buckets)
+    age_buckets = _bucket_players_pitching(projections, actuals, age_bucket_floats, "age")
+    for name, (bucket_proj, bucket_act) in age_buckets.items():
         if len(bucket_proj) < 2:
             continue
         proj_vals = [[extract_pitching_stat(p, cat) for p in bucket_proj] for cat in categories]

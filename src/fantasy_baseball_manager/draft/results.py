@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    import yahoo_fantasy_api
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +37,11 @@ class DraftResultsSource(Protocol):
 
 
 class YahooDraftResultsSource:
-    def __init__(self, league: object) -> None:
+    def __init__(self, league: yahoo_fantasy_api.League) -> None:
         self._league = league
 
     def fetch_draft_results(self) -> list[YahooDraftPick]:
-        raw_picks: list[dict[str, object]] = self._league.draft_results()  # type: ignore[union-attr]
+        raw_picks: list[dict[str, object]] = self._league.draft_results()
         picks: list[YahooDraftPick] = []
         for raw in raw_picks:
             picks.append(
@@ -53,13 +56,13 @@ class YahooDraftResultsSource:
         return picks
 
     def fetch_draft_status(self) -> DraftStatus:
-        settings: dict[str, object] = self._league.settings()  # type: ignore[union-attr]
+        settings: dict[str, object] = self._league.settings()
         raw_status = str(settings["draft_status"])
         status = _DRAFT_STATUS_MAP.get(raw_status, DraftStatus.PRE_DRAFT)
         logger.debug("Draft status: %s", status)
         return status
 
     def fetch_user_team_key(self) -> str:
-        key: str = self._league.team_key()  # type: ignore[union-attr]
+        key: str = self._league.team_key()
         logger.debug("User team key: %s", key)
         return key

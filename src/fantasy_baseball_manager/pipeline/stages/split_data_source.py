@@ -18,6 +18,8 @@ from fantasy_baseball_manager.marcel.data_source import (
 from fantasy_baseball_manager.marcel.models import BattingSeasonStats
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fantasy_baseball_manager.cache.protocol import CacheStore
 
 
@@ -150,7 +152,7 @@ class CachedSplitDataSource:
         self,
         method_name: str,
         year: int,
-        fetch: object,
+        fetch: Callable[[int], list[BattingSeasonStats]],
     ) -> list[BattingSeasonStats]:
         key = f"{method_name}:{year}"
         cached = self._cache.get(_NAMESPACE, key)
@@ -158,6 +160,6 @@ class CachedSplitDataSource:
             logger.debug("Cache hit for %s [year=%d]", method_name, year)
             return _deserialize_batting(cached)
         logger.debug("Cache miss for %s [year=%d], fetching from source", method_name, year)
-        result = fetch(year)  # type: ignore[operator]
+        result = fetch(year)
         self._cache.put(_NAMESPACE, key, _serialize_batting(result), self._ttl_seconds)
         return result

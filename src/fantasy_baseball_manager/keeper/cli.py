@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path  # noqa: TC003 — used at runtime by typer
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 
 import typer
 import yaml
@@ -19,6 +19,8 @@ from fantasy_baseball_manager.services import cli_context, get_container, set_co
 from fantasy_baseball_manager.shared.orchestration import build_projections_and_positions
 
 if TYPE_CHECKING:
+    import yahoo_fantasy_api
+
     from fantasy_baseball_manager.valuation.models import PlayerValue
 
 logger = logging.getLogger(__name__)
@@ -124,7 +126,8 @@ def _resolve_yahoo_inputs(
     """
     with cli_context(league_id=league_id, season=season, no_cache=no_cache):
         container = get_container()
-        user_team_key: str = container.roster_league.team_key()  # type: ignore[union-attr]
+        league = cast("yahoo_fantasy_api.League", container.roster_league)
+        user_team_key: str = league.team_key()
 
         yahoo_source = YahooKeeperSource(
             roster_source=container.roster_source,

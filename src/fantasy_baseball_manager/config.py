@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 from config import ConfigurationSet, config_from_dict, config_from_env, config_from_yaml
 
@@ -29,7 +32,7 @@ def apply_cli_overrides(league_id: str | None, season: int | None) -> None:
     if league_id is not None:
         overrides["league"] = {"id": league_id}
     if season is not None:
-        league_dict: dict[str, object] = overrides.get("league", {})  # type: ignore[assignment]
+        league_dict = cast("dict[str, object]", overrides.get("league", {}))
         league_dict["season"] = season
         overrides["league"] = league_dict
     if overrides:
@@ -125,8 +128,8 @@ def load_league_settings(cfg: ConfigurationSet | None = None) -> LeagueSettings:
         cfg = create_config()
     team_count = int(str(cfg["league.team_count"]))
     scoring_style = ScoringStyle(str(cfg["league.scoring_style"]))
-    batting_categories = _parse_stat_categories(list(cfg["league.batting_categories"]))  # type: ignore[arg-type]
-    pitching_categories = _parse_stat_categories(list(cfg["league.pitching_categories"]))  # type: ignore[arg-type]
+    batting_categories = _parse_stat_categories(list(cast("Iterable[str]", cfg["league.batting_categories"])))
+    pitching_categories = _parse_stat_categories(list(cast("Iterable[str]", cfg["league.pitching_categories"])))
     return LeagueSettings(
         team_count=team_count,
         scoring_style=scoring_style,

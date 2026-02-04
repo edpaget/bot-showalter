@@ -74,4 +74,4 @@ class PlayerRates:
     age: int
     rates: dict[str, float] = field(default_factory=dict)
     opportunities: float = 0.0
-    metadata: PlayerMetadata = field(default_factory=dict)  # type: ignore[assignment] - dict() is valid for TypedDict at runtime
+    metadata: PlayerMetadata = field(default_factory=dict)
