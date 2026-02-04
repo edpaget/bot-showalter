@@ -57,24 +57,29 @@ All CLI modules now use the container pattern. Tests use `set_container(ServiceC
 
 ### 4. Split Large CLI Modules
 
-**Status:** Not started
+**Status:** ✅ Partially completed
 
 **Problem:** Several CLI modules exceed 400 lines and mix multiple concerns:
 
-| File | Lines | Concerns Mixed |
-|------|-------|----------------|
-| `keeper/cli.py` | 512 | Data orchestration, display formatting, validation, optimization |
-| `draft/cli.py` | 477 | Projections, simulation, display, shared utilities |
-| `agent/tools.py` | 392 | Many similar tool definitions |
+| File | Lines (before) | Lines (after) | Concerns Mixed |
+|------|----------------|---------------|----------------|
+| `keeper/cli.py` | 512 | 428 | Data orchestration, display formatting, validation, optimization |
+| `draft/cli.py` | 477 | 364 | Projections, simulation, display, shared utilities |
+| `agent/tools.py` | 392 | — | Many similar tool definitions |
 
 **Specific issues:**
-- `draft/cli.py` contains `build_projections_and_positions()` which is imported by `keeper/cli.py` — cross-module dependency
+- ~~`draft/cli.py` contains `build_projections_and_positions()` which is imported by `keeper/cli.py` — cross-module dependency~~ ✅ Fixed
+- ~~Duplicated `_cli_context()` context manager in all 3 CLI modules~~ ✅ Fixed
 - Display logic (table formatting) mixed with data orchestration
 - Validation logic scattered throughout
 
-**Solution:**
-- Extract shared data orchestration to `src/shared/orchestration.py`
-- Extract display/formatting to separate modules
+**Solution implemented (Phase 1):**
+- Extracted `cli_context()` to `src/services/cli.py` — removed ~75 lines of duplication across 3 modules
+- Extracted `build_projections_and_positions()` to `src/shared/orchestration.py` — resolved cross-module dependency
+- All CLI modules now import shared utilities instead of defining them locally
+
+**Remaining work:**
+- Extract display/formatting to separate modules (item #9)
 - Consider subcommand modules for complex CLIs
 
 ---
@@ -190,18 +195,19 @@ Each defines column specs with lambdas for data extraction and formatting.
 
 | Metric | Value |
 |--------|-------|
-| Total source files | 105 |
+| Total source files | 107 |
 | Total test files | 101 |
-| Largest file | `keeper/cli.py` (512 lines) |
+| Largest file | `keeper/cli.py` (428 lines) |
 | Global state locations | 1 (services/container.py) |
 | Files with `type: ignore` | 8 (reduced from 14) |
 | Duplicated cache wrappers | ✅ Consolidated |
-| CLI modules needing split | 3 |
+| CLI modules needing split | 1 (`agent/tools.py`) |
 
 ## Completed Items
 
 1. ✅ **Replace Global Factory Pattern with Dependency Container** — `ServiceContainer` now manages all CLI dependencies centrally
 2. ✅ **Consolidate Cache Wrapper Classes** — Extracted `_cached_fetch()` helper, reducing duplication in cache/sources.py
 3. ✅ **Type-Safe Metadata in Pipeline** — Created `PlayerMetadata` TypedDict with all known fields, eliminating cast() calls
-4. ✅ **Config Uses Global Override State** — CLI modules now use `_cli_context()` context managers with `ServiceConfig` overrides instead of mutable global state
+4. ✅ **Config Uses Global Override State** — CLI modules now use `cli_context()` context managers with `ServiceConfig` overrides instead of mutable global state
 5. ✅ **Extract Common CLI Setup Pattern** — Removed duplicate helper functions from CLI modules; all services now accessed via `ServiceContainer` properties
+6. ✅ **Split Large CLI Modules (Phase 1)** — Extracted `cli_context()` to `services/cli.py` and `build_projections_and_positions()` to `shared/orchestration.py`
