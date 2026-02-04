@@ -38,15 +38,25 @@ class StatResidualModel:
     _feature_names: list[str] = field(default_factory=list, repr=False)
     _is_fitted: bool = field(default=False, repr=False)
 
-    def fit(self, X: np.ndarray, y: np.ndarray, feature_names: list[str]) -> None:
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        feature_names: list[str],
+        eval_set: tuple[np.ndarray, np.ndarray] | None = None,
+        early_stopping_rounds: int | None = None,
+    ) -> None:
         """Train the model on feature matrix X and residual targets y.
 
         Args:
             X: Feature matrix of shape (n_samples, n_features)
             y: Target residuals of shape (n_samples,)
             feature_names: Names of features for importance tracking
+            eval_set: Optional (X_val, y_val) tuple for early stopping evaluation
+            early_stopping_rounds: Stop training if no improvement for this many rounds
         """
-        from lightgbm import LGBMRegressor
+        import pandas as pd
+        from lightgbm import LGBMRegressor, early_stopping, log_evaluation
 
         hp = self.hyperparameters
         model = LGBMRegressor(
@@ -58,10 +68,20 @@ class StatResidualModel:
             random_state=hp.random_state,
             verbosity=-1,
         )
-        import pandas as pd
 
         X_df = pd.DataFrame(X, columns=feature_names)
-        model.fit(X_df, y)
+
+        fit_kwargs: dict[str, Any] = {}
+        if eval_set is not None and early_stopping_rounds is not None:
+            X_val, y_val = eval_set
+            X_val_df = pd.DataFrame(X_val, columns=feature_names)
+            fit_kwargs["eval_set"] = [(X_val_df, y_val)]
+            fit_kwargs["callbacks"] = [
+                early_stopping(stopping_rounds=early_stopping_rounds),
+                log_evaluation(period=0),  # Suppress logging
+            ]
+
+        model.fit(X_df, y, **fit_kwargs)
         self._model = model
         self._feature_names = list(feature_names)
         self._is_fitted = True

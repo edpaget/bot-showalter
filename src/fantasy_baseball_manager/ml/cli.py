@@ -247,3 +247,190 @@ def info_cmd(
             table.add_row(feat, f"{imp:.4f}")
 
         console.print(table)
+
+
+@ml_app.command(name="validate")
+def validate_cmd(
+    years: Annotated[
+        str,
+        typer.Option(
+            "--years",
+            "-y",
+            help="Comma-separated years for validation (e.g., 2020,2021,2022,2023)",
+        ),
+    ],
+    strategy: Annotated[
+        str,
+        typer.Option(
+            "--strategy",
+            "-s",
+            help="Validation strategy: 'time_series' or 'loyo' (leave-one-year-out)",
+        ),
+    ] = "time_series",
+    player_type: Annotated[
+        str,
+        typer.Option(
+            "--type",
+            "-t",
+            help="Player type: 'batter', 'pitcher', or 'all'",
+        ),
+    ] = "all",
+    pipeline: Annotated[
+        str,
+        typer.Option(
+            "--pipeline",
+            "-p",
+            help="Base pipeline to use for generating projections (marcel or marcel_full)",
+        ),
+    ] = "marcel",
+    holdout_years: Annotated[
+        int,
+        typer.Option(
+            "--holdout-years",
+            help="Number of holdout years for time_series strategy",
+        ),
+    ] = 1,
+    early_stopping: Annotated[
+        bool,
+        typer.Option(
+            "--early-stopping/--no-early-stopping",
+            help="Enable early stopping during training",
+        ),
+    ] = False,
+) -> None:
+    """Validate models without saving.
+
+    Example:
+        uv run python -m fantasy_baseball_manager ml validate --years 2020,2021,2022,2023 --strategy time_series
+    """
+    from fantasy_baseball_manager.cache.factory import create_cache_store
+    from fantasy_baseball_manager.marcel.data_source import CachedStatsDataSource, PybaseballDataSource
+    from fantasy_baseball_manager.ml.training import ResidualModelTrainer
+    from fantasy_baseball_manager.ml.validation import (
+        EarlyStoppingConfig,
+        LeaveOneYearOut,
+        TimeSeriesHoldout,
+    )
+    from fantasy_baseball_manager.pipeline.batted_ball_data import (
+        CachedBattedBallDataSource,
+        PybaseballBattedBallDataSource,
+    )
+    from fantasy_baseball_manager.pipeline.presets import build_pipeline
+    from fantasy_baseball_manager.pipeline.skill_data import (
+        CachedSkillDataSource,
+        CompositeSkillDataSource,
+        FanGraphsSkillDataSource,
+        StatcastSprintSpeedSource,
+    )
+    from fantasy_baseball_manager.pipeline.statcast_data import (
+        CachedStatcastDataSource,
+        PybaseballStatcastDataSource,
+    )
+    from fantasy_baseball_manager.player_id.mapper import build_cached_sfbb_mapper
+
+    # Parse years
+    target_years = tuple(int(y.strip()) for y in years.split(","))
+    typer.echo(f"Validating models for years: {target_years}")
+
+    # Build validation strategy
+    validation_strategy: TimeSeriesHoldout | LeaveOneYearOut
+    if strategy == "time_series":
+        validation_strategy = TimeSeriesHoldout(holdout_years=holdout_years)
+    elif strategy == "loyo":
+        validation_strategy = LeaveOneYearOut()
+    else:
+        typer.echo(f"Unknown strategy: {strategy}. Use 'time_series' or 'loyo'.")
+        raise typer.Exit(1)
+
+    typer.echo(f"Using strategy: {validation_strategy.name}")
+
+    # Build early stopping config
+    es_config = EarlyStoppingConfig(enabled=early_stopping) if early_stopping else None
+
+    # Build pipeline
+    typer.echo(f"Using pipeline: {pipeline}")
+    proj_pipeline = build_pipeline(pipeline)
+
+    # Setup data sources
+    cache = create_cache_store()
+    data_source = CachedStatsDataSource(
+        delegate=PybaseballDataSource(),
+        cache=cache,
+    )
+    statcast_source = CachedStatcastDataSource(
+        delegate=PybaseballStatcastDataSource(),
+        cache=cache,
+    )
+    batted_ball_source = CachedBattedBallDataSource(
+        delegate=PybaseballBattedBallDataSource(),
+        cache=cache,
+    )
+    id_mapper = build_cached_sfbb_mapper(
+        cache=cache,
+        cache_key="ml_validation",
+        ttl=7 * 86400,
+    )
+    skill_source = CachedSkillDataSource(
+        CompositeSkillDataSource(
+            FanGraphsSkillDataSource(),
+            StatcastSprintSpeedSource(),
+            id_mapper,
+        ),
+        cache,
+    )
+
+    # Create trainer
+    trainer = ResidualModelTrainer(
+        pipeline=proj_pipeline,
+        data_source=data_source,
+        statcast_source=statcast_source,
+        batted_ball_source=batted_ball_source,
+        skill_data_source=skill_source,
+        id_mapper=id_mapper,
+    )
+
+    # Run validation
+    if player_type in ("batter", "all"):
+        typer.echo("\nValidating batter models...")
+        batter_report = trainer.validate_batter_models(
+            target_years, validation_strategy, es_config
+        )
+        _print_validation_report(batter_report)
+
+    if player_type in ("pitcher", "all"):
+        typer.echo("\nValidating pitcher models...")
+        pitcher_report = trainer.validate_pitcher_models(
+            target_years, validation_strategy, es_config
+        )
+        _print_validation_report(pitcher_report)
+
+
+def _print_validation_report(report: object) -> None:
+    """Print a validation report to the console."""
+    from fantasy_baseball_manager.ml.validation import ValidationReport
+
+    if not isinstance(report, ValidationReport):
+        return
+
+    console.print(f"\n[bold]{report.player_type.title()} Validation Results[/bold]")
+    console.print(f"Strategy: {report.strategy_name}")
+    console.print(f"Training years: {', '.join(str(y) for y in report.training_years)}")
+    console.print(f"Holdout years: {', '.join(str(y) for y in report.holdout_years)}")
+
+    table = Table(title="Validation Metrics by Stat")
+    table.add_column("Stat")
+    table.add_column("Mean RMSE", justify="right")
+    table.add_column("Mean MAE", justify="right")
+    table.add_column("Mean R²", justify="right")
+    table.add_column("Samples", justify="right")
+
+    for stat_result in report.stat_results:
+        table.add_row(
+            stat_result.stat_name,
+            f"{stat_result.mean_rmse:.3f}",
+            f"{stat_result.mean_mae:.3f}",
+            f"{stat_result.mean_r_squared:.3f}",
+            str(stat_result.total_samples),
+        )
+
+    console.print(table)

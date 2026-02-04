@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.ml.residual_model import ResidualModelSet
+    from fantasy_baseball_manager.ml.validation import ValidationReport
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class ModelMetadata:
     stats: list[str]
     feature_names: list[str]
     created_at: str
+    validation: dict | None = None
 
 
 @dataclass
@@ -47,12 +49,14 @@ class ModelStore:
         self,
         model_set: ResidualModelSet,
         name: str,
+        validation_report: ValidationReport | None = None,
     ) -> Path:
         """Save a model set to disk.
 
         Args:
             model_set: The trained model set to save
             name: Name for the model (e.g., "default", "2024")
+            validation_report: Optional validation report to save with metadata
 
         Returns:
             Path to the saved model file
@@ -71,6 +75,7 @@ class ModelStore:
         logger.info("Saved %s model to %s", player_type, model_path)
 
         # Save metadata
+        validation_dict = validation_report.to_dict() if validation_report else None
         metadata = ModelMetadata(
             name=name,
             player_type=player_type,
@@ -78,6 +83,7 @@ class ModelStore:
             stats=model_set.get_stats(),
             feature_names=model_set.feature_names,
             created_at=datetime.datetime.now(datetime.UTC).isoformat(),
+            validation=validation_dict,
         )
         with meta_path.open("w") as f:
             json.dump(
@@ -88,6 +94,7 @@ class ModelStore:
                     "stats": metadata.stats,
                     "feature_names": metadata.feature_names,
                     "created_at": metadata.created_at,
+                    "validation": metadata.validation,
                 },
                 f,
                 indent=2,
@@ -157,6 +164,7 @@ class ModelStore:
                 stats=data["stats"],
                 feature_names=data["feature_names"],
                 created_at=data["created_at"],
+                validation=data.get("validation"),
             )
 
     def list_models(self) -> list[ModelMetadata]:
@@ -177,6 +185,7 @@ class ModelStore:
                         stats=data["stats"],
                         feature_names=data["feature_names"],
                         created_at=data["created_at"],
+                        validation=data.get("validation"),
                     )
                 )
         return models
