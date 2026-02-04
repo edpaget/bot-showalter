@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 import yaml
+from rich.console import Console
+from rich.table import Table
 
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.keeper.models import KeeperCandidate, TeamKeeperResult
@@ -20,6 +22,8 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.valuation.models import PlayerValue
 
 logger = logging.getLogger(__name__)
+
+console = Console()
 
 keeper_app = typer.Typer(help="Keeper analysis commands.")
 
@@ -266,18 +270,12 @@ def keeper_optimize(
     result = surplus_calc.find_optimal_keepers(candidate_list, all_values, other_keepers)
 
     # Display recommended keepers
-    lines: list[str] = []
-    lines.append(f"\nOptimal Keepers for {year} (Total Surplus: {result.total_surplus:.1f}):")
-    lines.append("")
-    _append_table_rows(lines, list(result.keepers))
+    console.print(f"\n[bold]Optimal Keepers for {year} (Total Surplus: {result.total_surplus:.1f}):[/bold]\n")
+    _print_keeper_table(list(result.keepers))
 
     # Display all candidates
-    lines.append("")
-    lines.append("All Candidates:")
-    lines.append("")
-    _append_table_rows(lines, list(result.all_candidates))
-
-    typer.echo("\n".join(lines))
+    console.print("\n[bold]All Candidates:[/bold]\n")
+    _print_keeper_table(list(result.all_candidates))
 
 
 def _resolve_league_inputs(
@@ -391,38 +389,41 @@ def keeper_league(
         )
 
     # Display results
-    lines: list[str] = []
     for team_result in results:
         pick = team_pick_order.get(team_result.team_key, 0)
         rec = team_result.recommendation
-        lines.append("")
-        lines.append(
-            f"=== {team_result.team_name} (Pick #{pick}) "
-            f"— Total Surplus: {rec.total_surplus:.1f} ==="
+        console.print(
+            f"\n[bold]=== {team_result.team_name} (Pick #{pick}) "
+            f"— Total Surplus: {rec.total_surplus:.1f} ===[/bold]\n"
         )
-        lines.append("")
-        _append_table_rows(lines, list(rec.keepers))
-        lines.append("")
-
-    typer.echo("\n".join(lines))
+        _print_keeper_table(list(rec.keepers))
 
 
 def _display_table(ranked: list, year: int, title: str) -> None:
-    lines: list[str] = []
-    lines.append(f"\n{title} ({year}):")
-    lines.append("")
-    _append_table_rows(lines, ranked)
-    typer.echo("\n".join(lines))
+    console.print(f"\n[bold]{title} ({year}):[/bold]\n")
+    _print_keeper_table(ranked)
 
 
-def _append_table_rows(lines: list[str], rows: list) -> None:
-    header = f"{'Rk':>4} {'Name':<25} {'Pos':<12} {'Value':>7} {'Repl':>7} {'Surplus':>8} {'Slot':>5}"
-    lines.append(header)
-    lines.append("-" * len(header))
+def _print_keeper_table(rows: list) -> None:
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Rk", justify="right")
+    table.add_column("Name")
+    table.add_column("Pos")
+    table.add_column("Value", justify="right")
+    table.add_column("Repl", justify="right")
+    table.add_column("Surplus", justify="right")
+    table.add_column("Slot", justify="right")
+
     for i, ks in enumerate(rows, start=1):
         pos_str = "/".join(ks.eligible_positions) if ks.eligible_positions else "-"
-        lines.append(
-            f"{i:>4} {ks.name:<25} {pos_str:<12}"
-            f" {ks.player_value:>7.1f} {ks.replacement_value:>7.1f}"
-            f" {ks.surplus_value:>8.1f} {ks.assigned_slot:>5}"
+        table.add_row(
+            str(i),
+            ks.name,
+            pos_str,
+            f"{ks.player_value:.1f}",
+            f"{ks.replacement_value:.1f}",
+            f"{ks.surplus_value:.1f}",
+            str(ks.assigned_slot),
         )
+
+    console.print(table)

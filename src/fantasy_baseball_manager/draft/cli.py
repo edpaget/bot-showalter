@@ -7,6 +7,8 @@ from typing import Annotated
 
 import typer
 import yaml
+from rich.console import Console
+from rich.table import Table
 
 from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
 from fantasy_baseball_manager.config import load_league_settings
@@ -37,6 +39,8 @@ from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 
 logger = logging.getLogger(__name__)
+
+console = Console()
 
 __all__ = ["build_projections_and_positions", "draft_rank", "draft_simulate", "set_container"]
 
@@ -230,23 +234,31 @@ def draft_rank(
             return
 
         # Build output table
-        lines: list[str] = []
-        lines.append(f"Draft rankings for {year}:")
+        console.print(f"[bold]Draft rankings for {year}:[/bold]\n")
 
-        header = f"{'Rk':>4} {'Name':<25} {'Pos':<8} {'Mult':>5} {'Raw':>7} {'Wtd':>7} {'Adj':>7}"
-        lines.append(header)
-        lines.append("-" * len(header))
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Rk", justify="right")
+        table.add_column("Name")
+        table.add_column("Pos")
+        table.add_column("Mult", justify="right")
+        table.add_column("Raw", justify="right")
+        table.add_column("Wtd", justify="right")
+        table.add_column("Adj", justify="right")
 
         for r in rankings:
             display_pos = tuple(p for p in r.eligible_positions if p != "Util") or r.eligible_positions
             pos_str = "/".join(display_pos) if display_pos else "-"
-            lines.append(
-                f"{r.rank:>4} {r.name:<25} {pos_str:<8}"
-                f" {r.position_multiplier:>5.2f}"
-                f" {r.raw_value:>7.1f} {r.weighted_value:>7.1f} {r.adjusted_value:>7.1f}"
+            table.add_row(
+                str(r.rank),
+                r.name,
+                pos_str,
+                f"{r.position_multiplier:.2f}",
+                f"{r.raw_value:.1f}",
+                f"{r.weighted_value:.1f}",
+                f"{r.adjusted_value:.1f}",
             )
 
-        typer.echo("\n".join(lines))
+        console.print(table)
 
 
 def _load_keepers_file(path: Path) -> dict[int, dict[str, object]]:
