@@ -2,6 +2,8 @@ import pytest
 
 from fantasy_baseball_manager.evaluation.harness import (
     EvaluationConfig,
+    StratificationConfig,
+    compare_sources,
     evaluate,
     evaluate_source,
 )
@@ -24,12 +26,13 @@ def _batter_proj(
     h: float = 160.0,
     bb: float = 50.0,
     hbp: float = 5.0,
+    age: int = 28,
 ) -> BattingProjection:
     return BattingProjection(
         player_id=player_id,
         name=name,
         year=2024,
-        age=28,
+        age=age,
         pa=pa,
         ab=540.0,
         h=h,
@@ -87,12 +90,13 @@ def _batting_stats(
     pa: int = 600,
     hr: int = 25,
     sb: int = 10,
+    age: int = 28,
 ) -> BattingSeasonStats:
     return BattingSeasonStats(
         player_id=player_id,
         name=name,
         year=2024,
-        age=28,
+        age=age,
         pa=pa,
         ab=540,
         h=160,
@@ -331,3 +335,227 @@ class TestEvaluate:
         result = evaluate_source(source, "test", ds, _DEFAULT_CONFIG)
         assert len(result.pitching_stat_accuracy) == 3
         assert result.pitching_rank_accuracy is not None
+
+
+class TestStratification:
+    def test_pa_bucket_stratification(self) -> None:
+        """Players are correctly grouped by PA bucket."""
+        # Create players with different PA: 250 (bucket 200-400), 450 (bucket 400-600), 700 (bucket 600-1500)
+        projected = [
+            _batter_proj(player_id="b1", hr=30.0, pa=250.0),
+            _batter_proj(player_id="b2", hr=25.0, pa=250.0),
+            _batter_proj(player_id="b3", hr=20.0, pa=450.0),
+            _batter_proj(player_id="b4", hr=35.0, pa=450.0),
+            _batter_proj(player_id="b5", hr=40.0, pa=700.0),
+            _batter_proj(player_id="b6", hr=28.0, pa=700.0),
+        ]
+        actuals = [
+            _batting_stats(player_id="b1", hr=28, pa=250),
+            _batting_stats(player_id="b2", hr=24, pa=250),
+            _batting_stats(player_id="b3", hr=22, pa=450),
+            _batting_stats(player_id="b4", hr=33, pa=450),
+            _batting_stats(player_id="b5", hr=38, pa=700),
+            _batting_stats(player_id="b6", hr=30, pa=700),
+        ]
+        source = SimpleProjectionSource(_batting=projected, _pitching=[])
+        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        config = EvaluationConfig(
+            year=2024,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(),
+            min_pa=0,
+            min_ip=0.0,
+            top_n=20,
+            stratification=StratificationConfig(),
+        )
+        result = evaluate_source(source, "test", ds, config)
+        assert len(result.batting_strata) > 0
+        # Check that PA buckets exist
+        pa_strata = [s for s in result.batting_strata if s.stratum_name.startswith("PA")]
+        assert len(pa_strata) == 3
+        # Check sample sizes
+        for s in pa_strata:
+            assert s.sample_size == 2
+
+    def test_age_bucket_stratification(self) -> None:
+        """Players are correctly grouped by age bucket."""
+        projected = [
+            _batter_proj(player_id="b1", hr=30.0, age=23),
+            _batter_proj(player_id="b2", hr=25.0, age=24),
+            _batter_proj(player_id="b3", hr=20.0, age=29),
+            _batter_proj(player_id="b4", hr=35.0, age=30),
+            _batter_proj(player_id="b5", hr=40.0, age=35),
+            _batter_proj(player_id="b6", hr=28.0, age=38),
+        ]
+        actuals = [
+            _batting_stats(player_id="b1", hr=28, age=23),
+            _batting_stats(player_id="b2", hr=24, age=24),
+            _batting_stats(player_id="b3", hr=22, age=29),
+            _batting_stats(player_id="b4", hr=33, age=30),
+            _batting_stats(player_id="b5", hr=38, age=35),
+            _batting_stats(player_id="b6", hr=30, age=38),
+        ]
+        source = SimpleProjectionSource(_batting=projected, _pitching=[])
+        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        config = EvaluationConfig(
+            year=2024,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(),
+            min_pa=0,
+            min_ip=0.0,
+            top_n=20,
+            stratification=StratificationConfig(),
+        )
+        result = evaluate_source(source, "test", ds, config)
+        age_strata = [s for s in result.batting_strata if s.stratum_name.startswith("AGE")]
+        assert len(age_strata) == 3
+        for s in age_strata:
+            assert s.sample_size == 2
+
+    def test_empty_bucket_excluded(self) -> None:
+        """Buckets with < 2 players are not included in strata."""
+        # Only players in PA 600-1500 bucket
+        projected = [
+            _batter_proj(player_id="b1", hr=30.0, pa=700.0),
+            _batter_proj(player_id="b2", hr=25.0, pa=650.0),
+        ]
+        actuals = [
+            _batting_stats(player_id="b1", hr=28, pa=700),
+            _batting_stats(player_id="b2", hr=24, pa=650),
+        ]
+        source = SimpleProjectionSource(_batting=projected, _pitching=[])
+        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        config = EvaluationConfig(
+            year=2024,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(),
+            min_pa=0,
+            min_ip=0.0,
+            top_n=20,
+            stratification=StratificationConfig(),
+        )
+        result = evaluate_source(source, "test", ds, config)
+        pa_strata = [s for s in result.batting_strata if s.stratum_name.startswith("PA")]
+        # Only the 600-1500 bucket should be included
+        assert len(pa_strata) == 1
+        assert pa_strata[0].stratum_name == "PA 600-1500"
+
+    def test_residuals_computed_when_requested(self) -> None:
+        """PlayerResidual objects are populated when include_residuals=True."""
+        projected = [
+            _batter_proj(player_id="b1", hr=30.0),
+            _batter_proj(player_id="b2", hr=25.0),
+        ]
+        actuals = [
+            _batting_stats(player_id="b1", hr=28),
+            _batting_stats(player_id="b2", hr=27),
+        ]
+        source = SimpleProjectionSource(_batting=projected, _pitching=[])
+        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        config = EvaluationConfig(
+            year=2024,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(),
+            min_pa=0,
+            min_ip=0.0,
+            top_n=20,
+            stratification=StratificationConfig(include_residuals=True),
+        )
+        result = evaluate_source(source, "test", ds, config)
+        assert result.batting_residuals is not None
+        assert len(result.batting_residuals) == 2  # 2 players * 1 category
+        # Check residual values
+        b1_residual = next(r for r in result.batting_residuals if r.player_id == "b1")
+        assert b1_residual.projected == 30.0
+        assert b1_residual.actual == 28.0
+        assert b1_residual.residual == -2.0
+        assert b1_residual.abs_residual == 2.0
+
+    def test_no_stratification_when_config_none(self) -> None:
+        """Existing behavior preserved when stratification=None."""
+        projected = [
+            _batter_proj(player_id="b1", hr=30.0),
+            _batter_proj(player_id="b2", hr=25.0),
+        ]
+        actuals = [
+            _batting_stats(player_id="b1", hr=28),
+            _batting_stats(player_id="b2", hr=27),
+        ]
+        source = SimpleProjectionSource(_batting=projected, _pitching=[])
+        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        config = EvaluationConfig(
+            year=2024,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(),
+            min_pa=0,
+            min_ip=0.0,
+            top_n=20,
+            stratification=None,
+        )
+        result = evaluate_source(source, "test", ds, config)
+        assert result.batting_strata == ()
+        assert result.batting_residuals is None
+
+
+class TestHeadToHead:
+    def test_compare_sources_wins_counted(self) -> None:
+        """Head-to-head correctly counts wins for each source."""
+        # Source A is better for b1 (error 2), Source B is better for b2 (error 1)
+        projected_a = [
+            _batter_proj(player_id="b1", hr=30.0),  # error: 2
+            _batter_proj(player_id="b2", hr=20.0),  # error: 7
+        ]
+        projected_b = [
+            _batter_proj(player_id="b1", hr=35.0),  # error: 7
+            _batter_proj(player_id="b2", hr=26.0),  # error: 1
+        ]
+        actuals = [
+            _batting_stats(player_id="b1", hr=28),
+            _batting_stats(player_id="b2", hr=27),
+        ]
+        source_a = SimpleProjectionSource(_batting=projected_a, _pitching=[])
+        source_b = SimpleProjectionSource(_batting=projected_b, _pitching=[])
+        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        config = EvaluationConfig(
+            year=2024,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(),
+            min_pa=0,
+            min_ip=0.0,
+            top_n=20,
+            stratification=StratificationConfig(include_residuals=True),
+        )
+        result_a = evaluate_source(source_a, "source_a", ds, config)
+        result_b = evaluate_source(source_b, "source_b", ds, config)
+
+        h2h_results = compare_sources(result_a, result_b)
+        assert len(h2h_results) == 1
+        h2h = h2h_results[0]
+        assert h2h.source_a == "source_a"
+        assert h2h.source_b == "source_b"
+        assert h2h.category == StatCategory.HR
+        assert h2h.sample_size == 2
+        assert h2h.a_wins == 1  # Source A wins for b1
+        assert h2h.b_wins == 1  # Source B wins for b2
+        assert h2h.ties == 0
+
+    def test_compare_requires_residuals(self) -> None:
+        """compare_sources raises ValueError if residuals not included."""
+        projected = [_batter_proj(player_id="b1", hr=30.0)]
+        actuals = [_batting_stats(player_id="b1", hr=28)]
+        source = SimpleProjectionSource(_batting=projected, _pitching=[])
+        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        config = EvaluationConfig(
+            year=2024,
+            batting_categories=(StatCategory.HR,),
+            pitching_categories=(),
+            min_pa=0,
+            min_ip=0.0,
+            top_n=20,
+            stratification=None,  # No residuals
+        )
+        result_a = evaluate_source(source, "a", ds, config)
+        result_b = evaluate_source(source, "b", ds, config)
+
+        with pytest.raises(ValueError, match="Residuals required"):
+            compare_sources(result_a, result_b)

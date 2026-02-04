@@ -193,7 +193,7 @@ def _build_fake_data_source(
 
 
 @pytest.fixture(autouse=True)
-def reset_container() -> Generator[None, None, None]:
+def reset_container() -> Generator[None]:
     yield
     set_container(None)
 
@@ -231,3 +231,29 @@ class TestEvaluateCommand:
             ["evaluate", "2025", "--min-pa", "100", "--min-ip", "30", "--top-n", "10"],
         )
         assert result.exit_code == 0
+
+    def test_stratify_flag(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["evaluate", "2024", "--stratify"])
+        assert result.exit_code == 0
+        assert "by segment" in result.output
+
+    def test_compare_flag_requires_two_engines(self) -> None:
+        _install_fake()
+        result = runner.invoke(
+            app,
+            ["evaluate", "2025", "--engine", "marcel", "--compare", "--include-residuals"],
+        )
+        # Should warn about needing 2+ engines
+        assert result.exit_code == 0
+        assert "requires at least 2 engines" in result.output
+
+    def test_compare_flag_requires_residuals(self) -> None:
+        _install_fake()
+        result = runner.invoke(
+            app,
+            ["evaluate", "2025", "--engine", "marcel", "--compare"],
+        )
+        # Should warn about needing --include-residuals
+        assert result.exit_code == 0
+        assert "requires --include-residuals" in result.output or "requires at least 2 engines" in result.output

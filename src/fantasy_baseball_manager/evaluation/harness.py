@@ -7,18 +7,33 @@ from fantasy_baseball_manager.evaluation.actuals import actuals_as_projections
 from fantasy_baseball_manager.evaluation.metrics import mae, pearson_r, rmse, spearman_rho, top_n_precision
 from fantasy_baseball_manager.evaluation.models import (
     EvaluationResult,
+    HeadToHeadResult,
+    PlayerResidual,
     RankAccuracy,
     SourceEvaluation,
     StatAccuracy,
+    StratumAccuracy,
 )
 from fantasy_baseball_manager.valuation.stat_extractors import extract_batting_stat, extract_pitching_stat
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
     from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
     from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
+
+
+@dataclass(frozen=True)
+class StratificationConfig:
+    """Configuration for player segment stratification."""
+
+    pa_buckets: tuple[tuple[int, int], ...] = ((200, 400), (400, 600), (600, 1500))
+    ip_buckets: tuple[tuple[float, float], ...] = ((50.0, 100.0), (100.0, 150.0), (150.0, 300.0))
+    age_buckets: tuple[tuple[int, int], ...] = ((21, 26), (27, 32), (33, 45))
+    include_residuals: bool = False
 
 
 @dataclass(frozen=True)
@@ -29,6 +44,7 @@ class EvaluationConfig:
     min_pa: int
     min_ip: float
     top_n: int
+    stratification: StratificationConfig | None = None
 
 
 def _compute_stat_accuracies(
@@ -76,6 +92,185 @@ def _compute_rank_accuracy(
         top_n=top_n,
         top_n_precision=precision,
     )
+
+
+def _bucket_players_batting(
+    projections: list[BattingProjection],
+    actuals: list[BattingProjection],
+    buckets: tuple[tuple[int, int], ...],
+    field: str,
+) -> dict[str, tuple[list[BattingProjection], list[BattingProjection]]]:
+    """Group matched batting players into buckets by actual field value."""
+    result: dict[str, tuple[list[BattingProjection], list[BattingProjection]]] = {}
+    for low, high in buckets:
+        name = f"{field.upper()} {low}-{high}"
+        bucket_proj: list[BattingProjection] = []
+        bucket_act: list[BattingProjection] = []
+        for p, a in zip(projections, actuals, strict=True):
+            val = getattr(a, field)
+            if low <= val < high:
+                bucket_proj.append(p)
+                bucket_act.append(a)
+        result[name] = (bucket_proj, bucket_act)
+    return result
+
+
+def _bucket_players_pitching(
+    projections: list[PitchingProjection],
+    actuals: list[PitchingProjection],
+    buckets: tuple[tuple[float, float], ...],
+    field: str,
+) -> dict[str, tuple[list[PitchingProjection], list[PitchingProjection]]]:
+    """Group matched pitching players into buckets by actual field value."""
+    result: dict[str, tuple[list[PitchingProjection], list[PitchingProjection]]] = {}
+    for low, high in buckets:
+        name = f"{field.upper()} {int(low)}-{int(high)}"
+        bucket_proj: list[PitchingProjection] = []
+        bucket_act: list[PitchingProjection] = []
+        for p, a in zip(projections, actuals, strict=True):
+            val = getattr(a, field)
+            if low <= val < high:
+                bucket_proj.append(p)
+                bucket_act.append(a)
+        result[name] = (bucket_proj, bucket_act)
+    return result
+
+
+def _compute_residuals[T: (BattingProjection, PitchingProjection)](
+    projections: list[T],
+    actuals: list[T],
+    categories: tuple[StatCategory, ...],
+    extractor: Callable[[T, StatCategory], float],
+) -> tuple[PlayerResidual, ...]:
+    """Compute per-player residuals for each category."""
+    residuals: list[PlayerResidual] = []
+    for proj, act in zip(projections, actuals, strict=True):
+        for cat in categories:
+            proj_val = extractor(proj, cat)
+            act_val = extractor(act, cat)
+            res = act_val - proj_val
+            residuals.append(
+                PlayerResidual(
+                    player_id=proj.player_id,
+                    player_name=proj.name,
+                    category=cat,
+                    projected=proj_val,
+                    actual=act_val,
+                    residual=res,
+                    abs_residual=abs(res),
+                )
+            )
+    return tuple(residuals)
+
+
+def _compute_strata_batting(
+    projections: list[BattingProjection],
+    actuals: list[BattingProjection],
+    categories: tuple[StatCategory, ...],
+    strat_config: StratificationConfig,
+    top_n: int,
+) -> tuple[StratumAccuracy, ...]:
+    """Compute accuracy metrics for each batting stratum."""
+    strata: list[StratumAccuracy] = []
+
+    # PA buckets
+    pa_buckets = _bucket_players_batting(projections, actuals, strat_config.pa_buckets, "pa")
+    for name, (bucket_proj, bucket_act) in pa_buckets.items():
+        if len(bucket_proj) < 2:
+            continue
+        proj_vals = [[extract_batting_stat(b, cat) for b in bucket_proj] for cat in categories]
+        act_vals = [[extract_batting_stat(b, cat) for b in bucket_act] for cat in categories]
+        stat_acc = _compute_stat_accuracies(proj_vals, act_vals, categories, len(bucket_proj))
+        rank_acc = None
+        if categories:
+            proj_pv = zscore_batting(bucket_proj, categories)
+            act_pv = zscore_batting(bucket_act, categories)
+            proj_by_id = {pv.player_id: pv for pv in proj_pv}
+            act_by_id = {pv.player_id: pv for pv in act_pv}
+            ordered_proj = [proj_by_id[b.player_id] for b in bucket_proj]
+            ordered_act = [act_by_id[b.player_id] for b in bucket_proj]
+            rank_acc = _compute_rank_accuracy(ordered_proj, ordered_act, top_n)
+        strata.append(StratumAccuracy(name, len(bucket_proj), stat_acc, rank_acc))
+
+    # Age buckets
+    age_buckets = _bucket_players_batting(projections, actuals, strat_config.age_buckets, "age")
+    for name, (bucket_proj, bucket_act) in age_buckets.items():
+        if len(bucket_proj) < 2:
+            continue
+        proj_vals = [[extract_batting_stat(b, cat) for b in bucket_proj] for cat in categories]
+        act_vals = [[extract_batting_stat(b, cat) for b in bucket_act] for cat in categories]
+        stat_acc = _compute_stat_accuracies(proj_vals, act_vals, categories, len(bucket_proj))
+        rank_acc = None
+        if categories:
+            proj_pv = zscore_batting(bucket_proj, categories)
+            act_pv = zscore_batting(bucket_act, categories)
+            proj_by_id = {pv.player_id: pv for pv in proj_pv}
+            act_by_id = {pv.player_id: pv for pv in act_pv}
+            ordered_proj = [proj_by_id[b.player_id] for b in bucket_proj]
+            ordered_act = [act_by_id[b.player_id] for b in bucket_proj]
+            rank_acc = _compute_rank_accuracy(ordered_proj, ordered_act, top_n)
+        strata.append(StratumAccuracy(name, len(bucket_proj), stat_acc, rank_acc))
+
+    return tuple(strata)
+
+
+def _compute_strata_pitching(
+    projections: list[PitchingProjection],
+    actuals: list[PitchingProjection],
+    categories: tuple[StatCategory, ...],
+    strat_config: StratificationConfig,
+    top_n: int,
+) -> tuple[StratumAccuracy, ...]:
+    """Compute accuracy metrics for each pitching stratum."""
+    strata: list[StratumAccuracy] = []
+
+    # IP buckets
+    ip_buckets = _bucket_players_pitching(projections, actuals, strat_config.ip_buckets, "ip")
+    for name, (bucket_proj, bucket_act) in ip_buckets.items():
+        if len(bucket_proj) < 2:
+            continue
+        proj_vals = [[extract_pitching_stat(p, cat) for p in bucket_proj] for cat in categories]
+        act_vals = [[extract_pitching_stat(p, cat) for p in bucket_act] for cat in categories]
+        stat_acc = _compute_stat_accuracies(proj_vals, act_vals, categories, len(bucket_proj))
+        rank_acc = None
+        if categories:
+            proj_pv = zscore_pitching(bucket_proj, categories)
+            act_pv = zscore_pitching(bucket_act, categories)
+            proj_by_id = {pv.player_id: pv for pv in proj_pv}
+            act_by_id = {pv.player_id: pv for pv in act_pv}
+            ordered_proj = [proj_by_id[p.player_id] for p in bucket_proj]
+            ordered_act = [act_by_id[p.player_id] for p in bucket_proj]
+            rank_acc = _compute_rank_accuracy(ordered_proj, ordered_act, top_n)
+        strata.append(StratumAccuracy(name, len(bucket_proj), stat_acc, rank_acc))
+
+    # Age buckets (reuse batting bucket function but cast)
+    age_bucket_tuples = tuple((int(low), int(high)) for low, high in strat_config.age_buckets)
+    age_buckets_raw = _bucket_players_batting(
+        projections,  # type: ignore[arg-type]
+        actuals,  # type: ignore[arg-type]
+        age_bucket_tuples,
+        "age",
+    )
+    for name, (bucket_proj_raw, bucket_act_raw) in age_buckets_raw.items():
+        bucket_proj: list[PitchingProjection] = bucket_proj_raw  # type: ignore[assignment]
+        bucket_act: list[PitchingProjection] = bucket_act_raw  # type: ignore[assignment]
+        if len(bucket_proj) < 2:
+            continue
+        proj_vals = [[extract_pitching_stat(p, cat) for p in bucket_proj] for cat in categories]
+        act_vals = [[extract_pitching_stat(p, cat) for p in bucket_act] for cat in categories]
+        stat_acc = _compute_stat_accuracies(proj_vals, act_vals, categories, len(bucket_proj))
+        rank_acc = None
+        if categories:
+            proj_pv = zscore_pitching(bucket_proj, categories)
+            act_pv = zscore_pitching(bucket_act, categories)
+            proj_by_id = {pv.player_id: pv for pv in proj_pv}
+            act_by_id = {pv.player_id: pv for pv in act_pv}
+            ordered_proj = [proj_by_id[p.player_id] for p in bucket_proj]
+            ordered_act = [act_by_id[p.player_id] for p in bucket_proj]
+            rank_acc = _compute_rank_accuracy(ordered_proj, ordered_act, top_n)
+        strata.append(StratumAccuracy(name, len(bucket_proj), stat_acc, rank_acc))
+
+    return tuple(strata)
 
 
 def evaluate_source(
@@ -157,6 +352,45 @@ def evaluate_source(
         ordered_act = [act_by_id[pid] for pid in ordered_ids]
         pitching_rank_accuracy = _compute_rank_accuracy(ordered_proj, ordered_act, config.top_n)
 
+    # Compute stratification if configured
+    batting_strata: tuple[StratumAccuracy, ...] = ()
+    pitching_strata: tuple[StratumAccuracy, ...] = ()
+    batting_residuals: tuple[PlayerResidual, ...] | None = None
+    pitching_residuals: tuple[PlayerResidual, ...] | None = None
+
+    if config.stratification is not None:
+        if bat_n >= 2:
+            batting_strata = _compute_strata_batting(
+                matched_proj_batting,
+                matched_act_batting,
+                config.batting_categories,
+                config.stratification,
+                config.top_n,
+            )
+        if pitch_n >= 2:
+            pitching_strata = _compute_strata_pitching(
+                matched_proj_pitching,
+                matched_act_pitching,
+                config.pitching_categories,
+                config.stratification,
+                config.top_n,
+            )
+        if config.stratification.include_residuals:
+            if bat_n > 0:
+                batting_residuals = _compute_residuals(
+                    matched_proj_batting,
+                    matched_act_batting,
+                    config.batting_categories,
+                    extract_batting_stat,
+                )
+            if pitch_n > 0:
+                pitching_residuals = _compute_residuals(
+                    matched_proj_pitching,
+                    matched_act_pitching,
+                    config.pitching_categories,
+                    extract_pitching_stat,
+                )
+
     return SourceEvaluation(
         source_name=source_name,
         year=config.year,
@@ -164,6 +398,10 @@ def evaluate_source(
         pitching_stat_accuracy=pitching_stat_accuracy,
         batting_rank_accuracy=batting_rank_accuracy,
         pitching_rank_accuracy=pitching_rank_accuracy,
+        batting_strata=batting_strata,
+        pitching_strata=pitching_strata,
+        batting_residuals=batting_residuals,
+        pitching_residuals=pitching_residuals,
     )
 
 
@@ -174,3 +412,104 @@ def evaluate(
 ) -> EvaluationResult:
     evaluations = tuple(evaluate_source(source, name, data_source, config) for name, source in sources)
     return EvaluationResult(evaluations=evaluations)
+
+
+def compare_sources(
+    eval_a: SourceEvaluation,
+    eval_b: SourceEvaluation,
+) -> tuple[HeadToHeadResult, ...]:
+    """Compare two evaluations player-by-player using residuals."""
+    no_batting = eval_a.batting_residuals is None or eval_b.batting_residuals is None
+    no_pitching = eval_a.pitching_residuals is None or eval_b.pitching_residuals is None
+    if no_batting and no_pitching:
+        raise ValueError("Residuals required for head-to-head. Use include_residuals=True.")
+
+    results: list[HeadToHeadResult] = []
+
+    # Compare batting residuals
+    if eval_a.batting_residuals is not None and eval_b.batting_residuals is not None:
+        a_by_cat: dict[StatCategory, dict[str, PlayerResidual]] = {}
+        for r in eval_a.batting_residuals:
+            a_by_cat.setdefault(r.category, {})[r.player_id] = r
+
+        b_by_cat: dict[StatCategory, dict[str, PlayerResidual]] = {}
+        for r in eval_b.batting_residuals:
+            b_by_cat.setdefault(r.category, {})[r.player_id] = r
+
+        for cat in a_by_cat:
+            a_resid = a_by_cat[cat]
+            b_resid = b_by_cat.get(cat, {})
+            common_ids = set(a_resid) & set(b_resid)
+
+            a_wins = b_wins = ties = 0
+            improvements: list[float] = []
+            for pid in common_ids:
+                a_err = a_resid[pid].abs_residual
+                b_err = b_resid[pid].abs_residual
+                if a_err < b_err - 0.001:
+                    a_wins += 1
+                    improvements.append(b_err - a_err)
+                elif b_err < a_err - 0.001:
+                    b_wins += 1
+                else:
+                    ties += 1
+
+            n = len(common_ids)
+            results.append(
+                HeadToHeadResult(
+                    source_a=eval_a.source_name,
+                    source_b=eval_b.source_name,
+                    category=cat,
+                    sample_size=n,
+                    a_wins=a_wins,
+                    b_wins=b_wins,
+                    ties=ties,
+                    a_win_pct=a_wins / n if n > 0 else 0.0,
+                    mean_improvement=sum(improvements) / len(improvements) if improvements else 0.0,
+                )
+            )
+
+    # Compare pitching residuals
+    if eval_a.pitching_residuals is not None and eval_b.pitching_residuals is not None:
+        a_by_cat: dict[StatCategory, dict[str, PlayerResidual]] = {}
+        for r in eval_a.pitching_residuals:
+            a_by_cat.setdefault(r.category, {})[r.player_id] = r
+
+        b_by_cat: dict[StatCategory, dict[str, PlayerResidual]] = {}
+        for r in eval_b.pitching_residuals:
+            b_by_cat.setdefault(r.category, {})[r.player_id] = r
+
+        for cat in a_by_cat:
+            a_resid = a_by_cat[cat]
+            b_resid = b_by_cat.get(cat, {})
+            common_ids = set(a_resid) & set(b_resid)
+
+            a_wins = b_wins = ties = 0
+            improvements: list[float] = []
+            for pid in common_ids:
+                a_err = a_resid[pid].abs_residual
+                b_err = b_resid[pid].abs_residual
+                if a_err < b_err - 0.001:
+                    a_wins += 1
+                    improvements.append(b_err - a_err)
+                elif b_err < a_err - 0.001:
+                    b_wins += 1
+                else:
+                    ties += 1
+
+            n = len(common_ids)
+            results.append(
+                HeadToHeadResult(
+                    source_a=eval_a.source_name,
+                    source_b=eval_b.source_name,
+                    category=cat,
+                    sample_size=n,
+                    a_wins=a_wins,
+                    b_wins=b_wins,
+                    ties=ties,
+                    a_win_pct=a_wins / n if n > 0 else 0.0,
+                    mean_improvement=sum(improvements) / len(improvements) if improvements else 0.0,
+                )
+            )
+
+    return tuple(results)
