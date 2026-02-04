@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
     from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
+    from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
+    from fantasy_baseball_manager.minors.types import MiLBStatcastStats
 
 logger = logging.getLogger(__name__)
 
@@ -168,9 +170,13 @@ class MLETrainingDataCollector:
     min_milb_pa: int = 200
     min_mlb_pa: int = 100
     max_prior_mlb_pa: int = 200
+    feature_extractor: MLEBatterFeatureExtractor | None = None
+    statcast_lookup: dict[tuple[str, int], MiLBStatcastStats] | None = None
 
-    # Feature names for the model
-    _feature_names: list[str] = field(default_factory=list, init=False)
+    # Cache for feature extractor (created lazily if not provided)
+    _cached_extractor: MLEBatterFeatureExtractor | None = field(
+        default=None, init=False, repr=False
+    )
 
     def collect(
         self,
@@ -190,14 +196,15 @@ class MLETrainingDataCollector:
             - feature_names: list of feature names
         """
         samples = self._collect_samples(target_years)
+        feature_names = self.feature_names()
 
         if not samples:
             logger.warning("No qualifying samples found for years %s", target_years)
             return (
-                np.array([]),
+                np.array([]).reshape(0, len(feature_names)),
                 {stat: np.array([]) for stat in BATTER_TARGET_STATS},
                 np.array([]),
-                self._feature_names,
+                feature_names,
             )
 
         # Convert samples to arrays
@@ -214,7 +221,7 @@ class MLETrainingDataCollector:
             target_years,
         )
 
-        return features, targets, weights, self._feature_names
+        return features, targets, weights, feature_names
 
     def _collect_samples(
         self, target_years: tuple[int, ...]
@@ -350,70 +357,36 @@ class MLETrainingDataCollector:
 
         return None, 0
 
+    def _get_feature_extractor(self) -> MLEBatterFeatureExtractor:
+        """Get or create the feature extractor."""
+        if self.feature_extractor is not None:
+            return self.feature_extractor
+
+        if self._cached_extractor is None:
+            # Import here to avoid circular imports
+            from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
+
+            # Use min_pa=1 since we filter by min_milb_pa in the collector
+            object.__setattr__(self, "_cached_extractor", MLEBatterFeatureExtractor(min_pa=1))
+
+        return self._cached_extractor  # type: ignore[return-value]
+
     def _extract_features(self, stats: AggregatedMiLBStats) -> np.ndarray:
         """Extract feature vector from aggregated MiLB stats."""
-        features = [
-            # Rate stats
-            stats.hr_rate,
-            stats.so_rate,
-            stats.bb_rate,
-            stats.hit_rate,
-            stats.singles_rate,
-            stats.doubles_rate,
-            stats.triples_rate,
-            stats.sb_rate,
-            stats.iso,
-            stats.avg,
-            stats.obp,
-            stats.slg,
-            # Age features
-            stats.age,
-            stats.age**2 / 1000,  # Scaled age squared
-            # Level features (one-hot)
-            1.0 if stats.highest_level == MinorLeagueLevel.AAA else 0.0,
-            1.0 if stats.highest_level == MinorLeagueLevel.AA else 0.0,
-            1.0 if stats.highest_level == MinorLeagueLevel.HIGH_A else 0.0,
-            1.0 if stats.highest_level == MinorLeagueLevel.SINGLE_A else 0.0,
-            # Level distribution
-            stats.pct_at_aaa,
-            stats.pct_at_aa,
-            stats.pct_at_high_a,
-            stats.pct_at_single_a,
-            # Sample size
-            stats.total_pa,
-            np.log(stats.total_pa + 1),
-        ]
+        extractor = self._get_feature_extractor()
 
-        # Set feature names on first call
-        if not self._feature_names:
-            self._feature_names = [
-                "hr_rate",
-                "so_rate",
-                "bb_rate",
-                "hit_rate",
-                "singles_rate",
-                "doubles_rate",
-                "triples_rate",
-                "sb_rate",
-                "iso",
-                "avg",
-                "obp",
-                "slg",
-                "age",
-                "age_squared",
-                "level_aaa",
-                "level_aa",
-                "level_high_a",
-                "level_single_a",
-                "pct_at_aaa",
-                "pct_at_aa",
-                "pct_at_high_a",
-                "pct_at_single_a",
-                "total_pa",
-                "log_pa",
-            ]
+        # Look up Statcast data if available
+        statcast = None
+        if self.statcast_lookup is not None:
+            statcast = self.statcast_lookup.get((stats.player_id, stats.season))
 
-        return np.array(features, dtype=np.float32)
+        # Extract features using the extractor
+        features = extractor.extract(stats, statcast)
+        if features is None:
+            # Should not happen since we set min_pa=1 and filter earlier
+            raise ValueError(f"Feature extraction failed for {stats.player_id}")
+
+        return features
 
     def _extract_targets(self, mlb_stats: BattingSeasonStats) -> dict[str, float]:
         """Extract target rates from MLB stats."""
@@ -433,32 +406,4 @@ class MLETrainingDataCollector:
 
     def feature_names(self) -> list[str]:
         """Get list of feature names."""
-        if not self._feature_names:
-            # Generate feature names without data
-            self._extract_features(
-                AggregatedMiLBStats(
-                    player_id="",
-                    name="",
-                    season=0,
-                    age=0,
-                    total_pa=1,
-                    highest_level=MinorLeagueLevel.AAA,
-                    pct_at_aaa=0,
-                    pct_at_aa=0,
-                    pct_at_high_a=0,
-                    pct_at_single_a=0,
-                    hr_rate=0,
-                    so_rate=0,
-                    bb_rate=0,
-                    hit_rate=0,
-                    singles_rate=0,
-                    doubles_rate=0,
-                    triples_rate=0,
-                    sb_rate=0,
-                    iso=0,
-                    avg=0,
-                    obp=0,
-                    slg=0,
-                )
-            )
-        return self._feature_names
+        return self._get_feature_extractor().feature_names()

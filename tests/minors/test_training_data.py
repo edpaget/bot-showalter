@@ -401,8 +401,8 @@ class TestMLETrainingDataCollector:
 
         features, _targets, _weights, feature_names = collector.collect((2024,))
 
-        assert len(feature_names) == 24  # All feature names
-        assert features.shape == (1, 24)
+        assert len(feature_names) == 32  # All feature names (including Statcast)
+        assert features.shape == (1, 32)
 
         # Check some specific features
         hr_idx = feature_names.index("hr_rate")
@@ -482,7 +482,7 @@ class TestMLETrainingDataCollector:
 
         feature_names = collector.feature_names()
 
-        assert len(feature_names) == 24
+        assert len(feature_names) == 32
         assert "hr_rate" in feature_names
         assert "so_rate" in feature_names
         assert "bb_rate" in feature_names
@@ -490,6 +490,9 @@ class TestMLETrainingDataCollector:
         assert "level_aaa" in feature_names
         assert "pct_at_aaa" in feature_names
         assert "total_pa" in feature_names
+        # New Statcast features
+        assert "xba" in feature_names
+        assert "has_statcast" in feature_names
 
 
 class TestBatterTargetStats:

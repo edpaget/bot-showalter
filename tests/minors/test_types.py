@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from fantasy_baseball_manager.minors.types import (
+    MiLBStatcastStats,
     MinorLeagueBatterSeasonStats,
     MinorLeagueLevel,
     MinorLeaguePitcherSeasonStats,
@@ -225,6 +226,61 @@ class TestMinorLeaguePitcherSeasonStats:
         )
         # BF ≈ IP * 3 + H + BB + HBP = 180 + 50 + 15 + 3 = 248
         assert stats.batters_faced == 248.0
+
+
+class TestMiLBStatcastStats:
+    """Tests for MiLBStatcastStats dataclass."""
+
+    def test_create_stats(self) -> None:
+        stats = MiLBStatcastStats(
+            player_id="12345",
+            season=2024,
+            pa=400,
+            xba=0.280,
+            xslg=0.460,
+            xwoba=0.350,
+            barrel_rate=0.10,
+            hard_hit_rate=0.42,
+            sprint_speed=27.5,
+        )
+
+        assert stats.player_id == "12345"
+        assert stats.season == 2024
+        assert stats.pa == 400
+        assert stats.xba == 0.280
+        assert stats.xslg == 0.460
+        assert stats.xwoba == 0.350
+        assert stats.barrel_rate == 0.10
+        assert stats.hard_hit_rate == 0.42
+        assert stats.sprint_speed == 27.5
+
+    def test_create_stats_without_sprint_speed(self) -> None:
+        stats = MiLBStatcastStats(
+            player_id="12345",
+            season=2024,
+            pa=400,
+            xba=0.280,
+            xslg=0.460,
+            xwoba=0.350,
+            barrel_rate=0.10,
+            hard_hit_rate=0.42,
+        )
+
+        assert stats.sprint_speed is None
+
+    def test_frozen(self) -> None:
+        stats = MiLBStatcastStats(
+            player_id="12345",
+            season=2024,
+            pa=400,
+            xba=0.280,
+            xslg=0.460,
+            xwoba=0.350,
+            barrel_rate=0.10,
+            hard_hit_rate=0.42,
+        )
+        with pytest.raises(AttributeError):
+            stats.xba = 0.300  # type: ignore[misc]
 
 
 class TestMLEPrediction:

@@ -719,25 +719,41 @@ The ML MLE model should:
 - ✅ `minors/types.py` - Includes `MinorLeagueLevel` enum, `MinorLeagueBatterSeasonStats`, `MinorLeaguePitcherSeasonStats`, `MLEPrediction`
 - ✅ `minors/data_source.py` - Protocol + MLB Stats API implementation with response parsing
 - ✅ `minors/cached_data_source.py` - Cache wrapper with TTL strategy (1 year historical, 1 day current)
-- ✅ `minors/training_data.py` - `AggregatedMiLBStats` for multi-level seasons, `MLETrainingDataCollector` with 24 features
+- ✅ `minors/training_data.py` - `AggregatedMiLBStats` for multi-level seasons, `MLETrainingDataCollector` (refactored to use feature extractor in Phase 2)
 - ✅ `tests/minors/` - 51 passing tests covering types, data sources, caching, and training data collection
 
 **Implementation Notes**:
 - `MinorLeagueLevel` enum maps sport IDs (AAA=11, AA=12, HIGH_A=13, SINGLE_A=14, ROOKIE=16)
 - Training data uses PA-weighted aggregation for multi-level seasons
-- Features include: rate stats (12), age (2), level one-hot (4), level distribution (4), sample size (2)
+- Initial features: rate stats (12), age (2), level one-hot (4), level distribution (4), sample size (2) — expanded to 32 in Phase 2
 - Temporal alignment: MiLB year Y-1 features → MLB year Y/Y+1 targets
 - Qualifying criteria: ≥200 MiLB PA, ≥100 MLB PA, ≤200 prior MLB PA, AAA or AA level
 
-### Phase 2: Feature Engineering (1 week)
+### Phase 2: Feature Engineering ✅ COMPLETE
 
-1. Implement `MLEFeatureExtractor` with all batter features
-2. Add Statcast feature handling (imputation for missing)
-3. Validate feature distributions and correlations
+1. ✅ Implement `MLEBatterFeatureExtractor` with all batter features
+2. ✅ Add Statcast feature handling (indicator + zero-imputation for missing)
+3. ✅ Refactor `MLETrainingDataCollector` to use feature extractor
 
 **Deliverables**:
-- `minors/features.py`
-- Feature analysis notebook
+- ✅ `minors/features.py` - `MLEBatterFeatureExtractor` with 32 features
+- ✅ `minors/types.py` - Added `MiLBStatcastStats` dataclass for Statcast data
+- ✅ `tests/minors/test_features.py` - 23 tests for feature extraction
+- ✅ Updated `minors/training_data.py` to delegate to feature extractor
+
+**Implementation Notes**:
+- Feature extractor follows frozen dataclass pattern from `ml/features.py`
+- 32 total features:
+  - Rate stats (12): hr_rate, so_rate, bb_rate, hit_rate, singles_rate, doubles_rate, triples_rate, sb_rate, iso, avg, obp, slg
+  - Age features (3): age, age_squared, age_for_level (relative to typical age at level)
+  - Level one-hot (4): level_aaa, level_aa, level_high_a, level_single_a
+  - Level distribution (4): pct_at_aaa, pct_at_aa, pct_at_high_a, pct_at_single_a
+  - Sample size (2): total_pa, log_pa
+  - Statcast (7): xba, xslg, xwoba, barrel_rate, hard_hit_rate, sprint_speed, has_statcast
+- Statcast data handling: indicator + zero-imputation (has_statcast=0 when unavailable)
+- `TYPICAL_AGE_BY_LEVEL` constant: AAA=25, AA=23, HIGH_A=22, SINGLE_A=21, ROOKIE=19
+- `extract_batch()` method for efficient batch extraction with optional Statcast lookup
+- 77 total passing tests in minors module
 
 ### Phase 3: Model Training
 

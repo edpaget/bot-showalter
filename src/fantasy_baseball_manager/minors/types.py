@@ -130,6 +130,25 @@ class MinorLeaguePitcherSeasonStats:
 
 
 @dataclass(frozen=True)
+class MiLBStatcastStats:
+    """Statcast data for minor league players (AAA 2023+ only).
+
+    These metrics are available from Baseball Savant's minor league search
+    for AAA games since 2023 when all AAA parks received Statcast equipment.
+    """
+
+    player_id: str
+    season: int
+    pa: int
+    xba: float
+    xslg: float
+    xwoba: float
+    barrel_rate: float
+    hard_hit_rate: float
+    sprint_speed: float | None = None  # Not available for all players
+
+
+@dataclass(frozen=True)
 class MLEPrediction:
     """Predicted MLB-equivalent rates from minor league stats."""
 
