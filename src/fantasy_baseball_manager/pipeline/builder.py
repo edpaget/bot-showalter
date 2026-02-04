@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from fantasy_baseball_manager.cache.factory import create_cache_store
+from fantasy_baseball_manager.cache.protocol import CacheStore  # noqa: TC001
 from fantasy_baseball_manager.pipeline.batted_ball_data import (
     CachedBattedBallDataSource,
     PitcherBattedBallDataSource,
@@ -14,6 +15,13 @@ from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
 from fantasy_baseball_manager.pipeline.park_factors import (
     CachedParkFactorProvider,
     FanGraphsParkFactorProvider,
+)
+from fantasy_baseball_manager.pipeline.skill_data import (
+    CachedSkillDataSource,
+    CompositeSkillDataSource,
+    FanGraphsSkillDataSource,
+    SkillDataSource,
+    StatcastSprintSpeedSource,
 )
 from fantasy_baseball_manager.pipeline.stages.adjusters import RebaselineAdjuster
 from fantasy_baseball_manager.pipeline.stages.batter_babip_adjuster import (
@@ -29,18 +37,6 @@ from fantasy_baseball_manager.pipeline.stages.finalizers import StandardFinalize
 from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualAdjuster,
     GBResidualConfig,
-)
-from fantasy_baseball_manager.pipeline.stages.skill_change_adjuster import (
-    SkillChangeAdjuster,
-    SkillChangeConfig,
-    SkillDeltaComputer,
-)
-from fantasy_baseball_manager.pipeline.skill_data import (
-    CachedSkillDataSource,
-    CompositeSkillDataSource,
-    FanGraphsSkillDataSource,
-    SkillDataSource,
-    StatcastSprintSpeedSource,
 )
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
     ParkFactorAdjuster,
@@ -59,6 +55,11 @@ from fantasy_baseball_manager.pipeline.stages.platoon_rate_computer import (
 )
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
+from fantasy_baseball_manager.pipeline.stages.skill_change_adjuster import (
+    SkillChangeAdjuster,
+    SkillChangeConfig,
+    SkillDeltaComputer,
+)
 from fantasy_baseball_manager.pipeline.stages.split_data_source import (
     CachedSplitDataSource,
     PybaseballSplitDataSource,
@@ -102,9 +103,11 @@ class PipelineBuilder:
         self,
         name: str = "custom",
         config: RegressionConfig | None = None,
+        cache_store: CacheStore | None = None,
     ) -> None:
         self._name = name
         self._config = config or RegressionConfig()
+        self._cache_store = cache_store
         self._rate_computer_type: str = "stat_specific"
         self._park_factors: bool = False
         self._pitcher_normalization: bool = False
@@ -124,6 +127,16 @@ class PipelineBuilder:
         self._skill_change: bool = False
         self._skill_change_config: SkillChangeConfig | None = None
         self._skill_data_source: SkillDataSource | None = None
+
+    def with_cache_store(self, cache_store: CacheStore) -> PipelineBuilder:
+        """Set the cache store to use for all cached data sources.
+
+        If not set, a new cache store is created via create_cache_store().
+        This is useful for testing or when you want to share a cache across
+        multiple pipelines.
+        """
+        self._cache_store = cache_store
+        return self
 
     def rate_computer(self, kind: str) -> PipelineBuilder:
         """Set the rate computer: 'stat_specific' (default) or 'platoon'."""
@@ -250,7 +263,7 @@ class PipelineBuilder:
         if self._rate_computer_type == "platoon":
             split_source = self._split_source or CachedSplitDataSource(
                 delegate=PybaseballSplitDataSource(),
-                cache=create_cache_store(),
+                cache=self._get_cache_store(),
             )
             pitching_delegate = StatSpecificRegressionRateComputer(
                 batting_regression=cfg.batting_regression_pa,
@@ -276,7 +289,7 @@ class PipelineBuilder:
                 ParkFactorAdjuster(
                     CachedParkFactorProvider(
                         delegate=FanGraphsParkFactorProvider(),
-                        cache=create_cache_store(),
+                        cache=self._get_cache_store(),
                     )
                 )
             )
@@ -342,7 +355,7 @@ class PipelineBuilder:
             return self._statcast_source
         source = CachedStatcastDataSource(
             delegate=PybaseballStatcastDataSource(),
-            cache=create_cache_store(),
+            cache=self._get_cache_store(),
         )
         self._statcast_source = source
         return source
@@ -359,7 +372,7 @@ class PipelineBuilder:
             return self._pitcher_babip_source
         source = CachedBattedBallDataSource(
             delegate=PybaseballBattedBallDataSource(),
-            cache=create_cache_store(),
+            cache=self._get_cache_store(),
         )
         self._pitcher_babip_source = source
         return source
@@ -368,7 +381,7 @@ class PipelineBuilder:
         if self._id_mapper is not None:
             return self._id_mapper
         mapper = build_cached_sfbb_mapper(
-            cache=create_cache_store(),
+            cache=self._get_cache_store(),
             cache_key="builder",
             ttl=7 * 86400,
         )
@@ -388,6 +401,12 @@ class PipelineBuilder:
         fangraphs = FanGraphsSkillDataSource()
         sprint = StatcastSprintSpeedSource()
         composite = CompositeSkillDataSource(fangraphs, sprint, mapper)
-        source = CachedSkillDataSource(composite, create_cache_store())
+        source = CachedSkillDataSource(composite, self._get_cache_store())
         self._skill_data_source = source
         return source
+
+    def _get_cache_store(self) -> CacheStore:
+        """Get the cache store, creating one if not injected."""
+        if self._cache_store is None:
+            self._cache_store = create_cache_store()
+        return self._cache_store

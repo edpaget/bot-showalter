@@ -6,12 +6,6 @@ from fantasy_baseball_manager.pipeline.stages.adjusters import RebaselineAdjuste
 from fantasy_baseball_manager.pipeline.stages.component_aging import (
     ComponentAgingAdjuster,
 )
-from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
-    ParkFactorAdjuster,
-)
-from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
-    PitcherNormalizationAdjuster,
-)
 from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
@@ -187,3 +181,40 @@ class TestPipelineBuilderRateComputer:
             .build()
         )
         assert isinstance(pipeline.rate_computer, PlatoonRateComputer)
+
+
+class FakeCacheStore:
+    """A fake cache store for testing dependency injection."""
+
+    def __init__(self) -> None:
+        self.get_calls: list[tuple[str, str]] = []
+        self.put_calls: list[tuple[str, str]] = []
+
+    def get(self, namespace: str, key: str) -> str | None:
+        self.get_calls.append((namespace, key))
+        return None
+
+    def put(self, namespace: str, key: str, value: str, ttl_seconds: int) -> None:
+        self.put_calls.append((namespace, key))
+
+    def invalidate(self, namespace: str, key: str | None = None) -> None:
+        pass
+
+
+class TestPipelineBuilderCacheStore:
+    def test_cache_store_via_constructor(self) -> None:
+        """Test that cache_store can be injected via constructor."""
+        fake_cache = FakeCacheStore()
+        pipeline = PipelineBuilder(cache_store=fake_cache).with_park_factors().build()
+        assert "ParkFactorAdjuster" in [type(a).__name__ for a in pipeline.adjusters]
+
+    def test_cache_store_via_builder_method(self) -> None:
+        """Test that cache_store can be injected via with_cache_store()."""
+        fake_cache = FakeCacheStore()
+        pipeline = (
+            PipelineBuilder()
+            .with_cache_store(fake_cache)
+            .with_park_factors()
+            .build()
+        )
+        assert "ParkFactorAdjuster" in [type(a).__name__ for a in pipeline.adjusters]
