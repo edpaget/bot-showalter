@@ -18,6 +18,7 @@ dependencies = [
     "scikit-learn>=1.4.0",
     "typer>=0.15.0",
     "yahoo-fantasy-api>=2.12.2",
+    "torch>=2.0.0",
 ]
 
 [project.scripts]

@@ -433,6 +433,155 @@ def validate_cmd(
         _print_validation_report(pitcher_report)
 
 
+@ml_app.command(name="train-mtl")
+def train_mtl_cmd(
+    years: Annotated[
+        str,
+        typer.Option(
+            "--years",
+            "-y",
+            help="Comma-separated target years for training (e.g., 2020,2021,2022,2023)",
+        ),
+    ],
+    name: Annotated[
+        str,
+        typer.Option(
+            "--name",
+            "-n",
+            help="Name for the trained model",
+        ),
+    ] = "default",
+    validate: Annotated[
+        bool,
+        typer.Option(
+            "--validate/--no-validate",
+            help="Print validation metrics after training",
+        ),
+    ] = False,
+) -> None:
+    """Train multi-task learning neural network models on historical data.
+
+    MTL models predict raw stat rates directly using Statcast features.
+    Unlike gradient boosting residual models, MTL can be used as a
+    standalone projection system or blended with Marcel.
+
+    Requires PyTorch: uv sync --extra mtl
+
+    Example:
+        uv run python -m fantasy_baseball_manager ml train-mtl --years 2020,2021,2022,2023 --name default
+        uv run python -m fantasy_baseball_manager ml train-mtl --years 2020,2021,2022,2023 --validate
+    """
+    try:
+        from fantasy_baseball_manager.ml.mtl.persistence import MTLModelStore
+        from fantasy_baseball_manager.ml.mtl.trainer import MTLTrainer
+    except ImportError as e:
+        console.print("[red]Error:[/red] PyTorch is required for MTL models.")
+        console.print("Install with: [bold]uv sync --extra mtl[/bold]")
+        raise typer.Exit(1) from e
+
+    from fantasy_baseball_manager.cache.factory import create_cache_store
+    from fantasy_baseball_manager.marcel.data_source import CachedStatsDataSource, PybaseballDataSource
+    from fantasy_baseball_manager.pipeline.batted_ball_data import (
+        CachedBattedBallDataSource,
+        PybaseballBattedBallDataSource,
+    )
+    from fantasy_baseball_manager.pipeline.skill_data import (
+        CachedSkillDataSource,
+        CompositeSkillDataSource,
+        FanGraphsSkillDataSource,
+        StatcastSprintSpeedSource,
+    )
+    from fantasy_baseball_manager.pipeline.statcast_data import (
+        CachedStatcastDataSource,
+        PybaseballStatcastDataSource,
+    )
+    from fantasy_baseball_manager.player_id.mapper import build_cached_sfbb_mapper
+
+    # Parse years
+    target_years = tuple(int(y.strip()) for y in years.split(","))
+    typer.echo(f"Training MTL models for target years: {target_years}")
+
+    # Setup data sources
+    cache = create_cache_store()
+    data_source = CachedStatsDataSource(
+        delegate=PybaseballDataSource(),
+        cache=cache,
+    )
+    statcast_source = CachedStatcastDataSource(
+        delegate=PybaseballStatcastDataSource(),
+        cache=cache,
+    )
+    batted_ball_source = CachedBattedBallDataSource(
+        delegate=PybaseballBattedBallDataSource(),
+        cache=cache,
+    )
+    id_mapper = build_cached_sfbb_mapper(
+        cache=cache,
+        cache_key="mtl_training",
+        ttl=7 * 86400,
+    )
+    skill_source = CachedSkillDataSource(
+        CompositeSkillDataSource(
+            FanGraphsSkillDataSource(),
+            StatcastSprintSpeedSource(),
+            id_mapper,
+        ),
+        cache,
+    )
+
+    # Create trainer
+    trainer = MTLTrainer(
+        data_source=data_source,
+        statcast_source=statcast_source,
+        batted_ball_source=batted_ball_source,
+        skill_data_source=skill_source,
+        id_mapper=id_mapper,
+    )
+
+    model_store = MTLModelStore()
+
+    # Train batter model
+    typer.echo("\nTraining MTL batter model...")
+    batter_model, batter_metrics = trainer.train_batter_model(target_years)
+
+    if batter_model.is_fitted:
+        model_store.save_batter_model(batter_model, name)
+        typer.echo(f"  Trained batter model with {len(batter_model.feature_names)} features")
+
+        if validate and batter_metrics:
+            _print_mtl_validation_metrics("Batter", batter_metrics)
+    else:
+        typer.echo("  [yellow]Warning:[/yellow] Insufficient data for batter model")
+
+    # Train pitcher model
+    typer.echo("\nTraining MTL pitcher model...")
+    pitcher_model, pitcher_metrics = trainer.train_pitcher_model(target_years)
+
+    if pitcher_model.is_fitted:
+        model_store.save_pitcher_model(pitcher_model, name)
+        typer.echo(f"  Trained pitcher model with {len(pitcher_model.feature_names)} features")
+
+        if validate and pitcher_metrics:
+            _print_mtl_validation_metrics("Pitcher", pitcher_metrics)
+    else:
+        typer.echo("  [yellow]Warning:[/yellow] Insufficient data for pitcher model")
+
+    typer.echo(f"\nMTL models saved as '{name}'")
+
+
+def _print_mtl_validation_metrics(player_type: str, metrics: dict[str, float]) -> None:
+    """Print MTL validation metrics to the console."""
+    table = Table(title=f"{player_type} MTL Validation Metrics (RMSE)")
+    table.add_column("Stat")
+    table.add_column("RMSE", justify="right")
+
+    for key, value in sorted(metrics.items()):
+        stat = key.replace("_rmse", "")
+        table.add_row(stat, f"{value:.6f}")
+
+    console.print(table)
+
+
 def _print_validation_report(report: object) -> None:
     """Print a validation report to the console."""
     from fantasy_baseball_manager.ml.validation import ValidationReport

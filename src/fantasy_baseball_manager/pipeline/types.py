@@ -65,6 +65,13 @@ class PlayerMetadata(TypedDict, total=False):
     # Skill change adjuster metadata
     skill_change_adjustments: dict[str, float]
 
+    # MTL rate computer/blender metadata
+    mtl_predicted: bool
+    marcel_rates: dict[str, float]
+    mtl_blended: bool
+    mtl_blend_weight: float
+    mtl_rates: dict[str, float]
+
 
 @dataclass
 class PlayerRates:

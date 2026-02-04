@@ -55,6 +55,8 @@ from fantasy_baseball_manager.pipeline.stages.platoon_rate_computer import (
 )
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
+from fantasy_baseball_manager.pipeline.stages.mtl_blender import MTLBlender
+from fantasy_baseball_manager.pipeline.stages.mtl_rate_computer import MTLRateComputer
 from fantasy_baseball_manager.pipeline.stages.skill_change_adjuster import (
     SkillChangeAdjuster,
     SkillChangeConfig,
@@ -84,6 +86,7 @@ from fantasy_baseball_manager.player_id.mapper import (
 )
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.ml.mtl.config import MTLBlenderConfig, MTLRateComputerConfig
     from fantasy_baseball_manager.pipeline.protocols import RateAdjuster, RateComputer
     from fantasy_baseball_manager.pipeline.stages.playing_time_config import (
         PlayingTimeConfig,
@@ -127,6 +130,10 @@ class PipelineBuilder:
         self._skill_change: bool = False
         self._skill_change_config: SkillChangeConfig | None = None
         self._skill_data_source: SkillDataSource | None = None
+        self._mtl_rate_computer: bool = False
+        self._mtl_rate_computer_config: MTLRateComputerConfig | None = None
+        self._mtl_blender: bool = False
+        self._mtl_blender_config: MTLBlenderConfig | None = None
 
     def with_cache_store(self, cache_store: CacheStore) -> PipelineBuilder:
         """Set the cache store to use for all cached data sources.
@@ -240,6 +247,34 @@ class PipelineBuilder:
             self._skill_change_config = config
         return self
 
+    def with_mtl_rate_computer(
+        self,
+        config: MTLRateComputerConfig | None = None,
+    ) -> PipelineBuilder:
+        """Use MTL neural network for rate computation (replaces Marcel).
+
+        The MTL model predicts raw stat rates directly using Statcast features.
+        Players without sufficient Statcast data fall back to Marcel rates.
+        """
+        self._mtl_rate_computer = True
+        if config is not None:
+            self._mtl_rate_computer_config = config
+        return self
+
+    def with_mtl_blender(
+        self,
+        config: MTLBlenderConfig | None = None,
+    ) -> PipelineBuilder:
+        """Blend Marcel rates with MTL predictions.
+
+        Ensemble mode: blended = (1 - weight) * marcel + weight * mtl
+        Default weight is 0.3 (30% MTL, 70% Marcel).
+        """
+        self._mtl_blender = True
+        if config is not None:
+            self._mtl_blender_config = config
+        return self
+
     def build(self) -> ProjectionPipeline:
         rate_computer = self._build_rate_computer()
         adjusters = self._build_adjusters()
@@ -260,6 +295,19 @@ class PipelineBuilder:
 
     def _build_rate_computer(self) -> RateComputer:
         cfg = self._config
+
+        # MTL rate computer (replaces Marcel entirely)
+        if self._mtl_rate_computer:
+            from fantasy_baseball_manager.ml.mtl.config import MTLRateComputerConfig
+
+            return MTLRateComputer(
+                statcast_source=self._resolve_full_statcast_source(),
+                batted_ball_source=self._resolve_pitcher_babip_source(),
+                skill_data_source=self._resolve_skill_data_source(),
+                id_mapper=self._resolve_id_mapper(),
+                config=self._mtl_rate_computer_config or MTLRateComputerConfig(),
+            )
+
         if self._rate_computer_type == "platoon":
             split_source = self._split_source or CachedSplitDataSource(
                 delegate=PybaseballSplitDataSource(),
@@ -349,6 +397,23 @@ class PipelineBuilder:
                 SkillChangeAdjuster(
                     delta_computer=delta_computer,
                     config=self._skill_change_config or SkillChangeConfig(),
+                )
+            )
+
+        if self._mtl_blender:
+            from fantasy_baseball_manager.ml.mtl.config import MTLBlenderConfig
+
+            full_source = self._resolve_full_statcast_source()
+            bb_source = self._resolve_pitcher_babip_source()
+            skill_source = self._resolve_skill_data_source()
+            mapper = self._resolve_id_mapper()
+            adjusters.append(
+                MTLBlender(
+                    statcast_source=full_source,
+                    batted_ball_source=bb_source,
+                    skill_data_source=skill_source,
+                    id_mapper=mapper,
+                    config=self._mtl_blender_config or MTLBlenderConfig(),
                 )
             )
 

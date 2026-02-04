@@ -1,0 +1,74 @@
+"""Tests for MTL configuration dataclasses."""
+
+from fantasy_baseball_manager.ml.mtl.config import (
+    MTLArchitectureConfig,
+    MTLBlenderConfig,
+    MTLRateComputerConfig,
+    MTLTrainingConfig,
+)
+
+
+class TestMTLArchitectureConfig:
+    def test_default_values(self) -> None:
+        config = MTLArchitectureConfig()
+        assert config.shared_layers == (64, 32)
+        assert config.head_hidden_size == 16
+        assert config.dropout_rates == (0.3, 0.2)
+        assert config.use_batch_norm is True
+
+    def test_custom_values(self) -> None:
+        config = MTLArchitectureConfig(
+            shared_layers=(128, 64, 32),
+            head_hidden_size=32,
+            dropout_rates=(0.5, 0.4, 0.3),
+            use_batch_norm=False,
+        )
+        assert config.shared_layers == (128, 64, 32)
+        assert config.head_hidden_size == 32
+        assert config.use_batch_norm is False
+
+    def test_frozen(self) -> None:
+        config = MTLArchitectureConfig()
+        try:
+            config.head_hidden_size = 32  # type: ignore
+            assert False, "Should raise FrozenInstanceError"
+        except AttributeError:
+            pass
+
+
+class TestMTLTrainingConfig:
+    def test_default_values(self) -> None:
+        config = MTLTrainingConfig()
+        assert config.epochs == 200
+        assert config.batch_size == 32
+        assert config.learning_rate == 0.001
+        assert config.weight_decay == 0.01
+        assert config.patience == 20
+        assert config.val_fraction == 0.15
+        assert config.min_samples == 50
+        assert config.batter_min_pa == 100
+        assert config.pitcher_min_pa == 100
+
+
+class TestMTLRateComputerConfig:
+    def test_default_values(self) -> None:
+        config = MTLRateComputerConfig()
+        assert config.model_name == "default"
+        assert config.min_pa == 100
+
+    def test_custom_values(self) -> None:
+        config = MTLRateComputerConfig(model_name="custom", min_pa=200)
+        assert config.model_name == "custom"
+        assert config.min_pa == 200
+
+
+class TestMTLBlenderConfig:
+    def test_default_values(self) -> None:
+        config = MTLBlenderConfig()
+        assert config.model_name == "default"
+        assert config.mtl_weight == 0.3
+        assert config.min_pa == 100
+
+    def test_custom_weight(self) -> None:
+        config = MTLBlenderConfig(mtl_weight=0.5)
+        assert config.mtl_weight == 0.5
