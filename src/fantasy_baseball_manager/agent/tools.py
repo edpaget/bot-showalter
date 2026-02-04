@@ -14,6 +14,18 @@ from typing import TYPE_CHECKING
 
 from langchain_core.tools import tool
 
+from fantasy_baseball_manager.agent.formatters import (
+    format_batter_table,
+    format_keeper_rankings,
+    format_pitcher_table,
+    format_player_comparison,
+    format_player_lookup,
+)
+from fantasy_baseball_manager.agent.player_lookup import (
+    find_all_matches,
+    find_player_by_name,
+    find_players_by_names,
+)
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.draft.cli import build_projections_and_positions
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, SUPPORTED_ENGINES
@@ -30,57 +42,6 @@ def _get_default_year() -> int:
     return datetime.now().year
 
 
-def _format_batter_table(values: list[PlayerValue], top_n: int) -> str:
-    """Format a list of batter valuations as a text table."""
-    sorted_values = sorted(values, key=lambda p: p.total_value, reverse=True)[:top_n]
-
-    lines: list[str] = []
-    lines.append(f"Top {len(sorted_values)} Projected Batters:")
-    lines.append("")
-    header = f"{'Rk':>4} {'Name':<25} {'Value':>7}"
-    # Add category columns
-    if sorted_values and sorted_values[0].category_values:
-        for cv in sorted_values[0].category_values:
-            header += f" {cv.category.value:>6}"
-    lines.append(header)
-    lines.append("-" * len(header))
-
-    for i, pv in enumerate(sorted_values, start=1):
-        row = f"{i:>4} {pv.name:<25} {pv.total_value:>7.1f}"
-        for cv in pv.category_values:
-            row += f" {cv.raw_stat:>6.1f}"
-        lines.append(row)
-
-    return "\n".join(lines)
-
-
-def _format_pitcher_table(values: list[PlayerValue], top_n: int) -> str:
-    """Format a list of pitcher valuations as a text table."""
-    sorted_values = sorted(values, key=lambda p: p.total_value, reverse=True)[:top_n]
-
-    lines: list[str] = []
-    lines.append(f"Top {len(sorted_values)} Projected Pitchers:")
-    lines.append("")
-    header = f"{'Rk':>4} {'Name':<25} {'Value':>7}"
-    if sorted_values and sorted_values[0].category_values:
-        for cv in sorted_values[0].category_values:
-            header += f" {cv.category.value:>6}"
-    lines.append(header)
-    lines.append("-" * len(header))
-
-    for i, pv in enumerate(sorted_values, start=1):
-        row = f"{i:>4} {pv.name:<25} {pv.total_value:>7.1f}"
-        for cv in pv.category_values:
-            # Format ERA/WHIP with more decimals
-            if cv.category.value in ("ERA", "WHIP"):
-                row += f" {cv.raw_stat:>6.2f}"
-            else:
-                row += f" {cv.raw_stat:>6.1f}"
-        lines.append(row)
-
-    return "\n".join(lines)
-
-
 @tool
 def project_batters(
     year: int | None = None,
@@ -91,7 +52,7 @@ def project_batters(
 
     Args:
         year: The projection year. Defaults to current year.
-        engine: Projection engine to use. Options: marcel_classic, marcel, marcel_full.
+        engine: Projection engine to use. Options: marcel_classic, marcel, marcel_full, marcel_gb.
             Defaults to 'marcel'.
         top_n: Number of top batters to return. Defaults to 25.
 
@@ -108,7 +69,7 @@ def project_batters(
     all_values, _ = build_projections_and_positions(engine, year)
     batter_values = [pv for pv in all_values if pv.position_type == "B"]
 
-    return _format_batter_table(batter_values, top_n)
+    return format_batter_table(batter_values, top_n)
 
 
 @tool
@@ -121,7 +82,7 @@ def project_pitchers(
 
     Args:
         year: The projection year. Defaults to current year.
-        engine: Projection engine to use. Options: marcel_classic, marcel, marcel_full.
+        engine: Projection engine to use. Options: marcel_classic, marcel, marcel_full, marcel_gb.
             Defaults to 'marcel'.
         top_n: Number of top pitchers to return. Defaults to 25.
 
@@ -138,7 +99,7 @@ def project_pitchers(
     all_values, _ = build_projections_and_positions(engine, year)
     pitcher_values = [pv for pv in all_values if pv.position_type == "P"]
 
-    return _format_pitcher_table(pitcher_values, top_n)
+    return format_pitcher_table(pitcher_values, top_n)
 
 
 @tool
@@ -155,27 +116,12 @@ def lookup_player(name: str) -> str:
     year = _get_default_year()
     all_values, _ = build_projections_and_positions(DEFAULT_ENGINE, year)
 
-    # Case-insensitive partial match
-    name_lower = name.lower()
-    matches = [pv for pv in all_values if name_lower in pv.name.lower()]
+    matches = find_all_matches(name, all_values)
 
     if not matches:
         return f"No players found matching '{name}'."
 
-    lines: list[str] = []
-    for pv in sorted(matches, key=lambda p: p.total_value, reverse=True):
-        pos_type = "Batter" if pv.position_type == "B" else "Pitcher"
-        lines.append(f"{pv.name} ({pos_type})")
-        lines.append(f"  Total Z-Score Value: {pv.total_value:.2f}")
-        lines.append("  Category Breakdown:")
-        for cv in pv.category_values:
-            if cv.category.value in ("ERA", "WHIP"):
-                lines.append(f"    {cv.category.value}: {cv.raw_stat:.2f} (z={cv.value:.2f})")
-            else:
-                lines.append(f"    {cv.category.value}: {cv.raw_stat:.1f} (z={cv.value:.2f})")
-        lines.append("")
-
-    return "\n".join(lines)
+    return format_player_lookup(matches)
 
 
 @tool
@@ -196,76 +142,12 @@ def compare_players(names: str) -> str:
     if len(name_list) < 2:
         return "Please provide at least two player names separated by commas."
 
-    # Find best match for each name
-    found_players: list[PlayerValue] = []
-    not_found: list[str] = []
-
-    for name in name_list:
-        name_lower = name.lower()
-        matches = [pv for pv in all_values if name_lower in pv.name.lower()]
-        if matches:
-            # Take best match by value if multiple
-            best = max(matches, key=lambda p: p.total_value)
-            found_players.append(best)
-        else:
-            not_found.append(name)
+    found_players, not_found = find_players_by_names(name_list, all_values)
 
     if not found_players:
         return f"No players found. Searched for: {', '.join(name_list)}"
 
-    lines: list[str] = []
-
-    if not_found:
-        lines.append(f"Note: Could not find: {', '.join(not_found)}")
-        lines.append("")
-
-    # Build comparison table
-    lines.append("Player Comparison:")
-    lines.append("")
-
-    # Header row
-    header = f"{'Stat':<12}"
-    for pv in found_players:
-        header += f" {pv.name[:15]:<15}"
-    lines.append(header)
-    lines.append("-" * len(header))
-
-    # Position type
-    row = f"{'Type':<12}"
-    for pv in found_players:
-        pos_type = "Batter" if pv.position_type == "B" else "Pitcher"
-        row += f" {pos_type:<15}"
-    lines.append(row)
-
-    # Total value
-    row = f"{'Total Value':<12}"
-    for pv in found_players:
-        row += f" {pv.total_value:<15.2f}"
-    lines.append(row)
-
-    # Category values - collect all unique categories
-    all_cats: dict[str, dict[str, tuple[float, float]]] = {}
-    for pv in found_players:
-        for cv in pv.category_values:
-            cat_name = cv.category.value
-            if cat_name not in all_cats:
-                all_cats[cat_name] = {}
-            all_cats[cat_name][pv.player_id] = (cv.raw_stat, cv.value)
-
-    for cat_name, player_stats in all_cats.items():
-        row = f"{cat_name:<12}"
-        for pv in found_players:
-            if pv.player_id in player_stats:
-                raw, z = player_stats[pv.player_id]
-                if cat_name in ("ERA", "WHIP"):
-                    row += f" {raw:.2f} (z={z:.1f})  "
-                else:
-                    row += f" {raw:.0f} (z={z:.1f})   "
-            else:
-                row += f" {'-':<15}"
-        lines.append(row)
-
-    return "\n".join(lines)
+    return format_player_comparison(found_players, not_found)
 
 
 @tool
@@ -298,28 +180,21 @@ def rank_keepers(
     candidate_list: list[KeeperCandidate] = []
     not_found: list[str] = []
 
-    pv_by_id: dict[str, PlayerValue] = {}
-    for pv in all_values:
-        if pv.player_id not in pv_by_id or pv.total_value > pv_by_id[pv.player_id].total_value:
-            pv_by_id[pv.player_id] = pv
-
     for name in name_list:
-        name_lower = name.lower()
-        matches = [pv for pv in all_values if name_lower in pv.name.lower()]
-        if matches:
-            best = max(matches, key=lambda p: p.total_value)
+        player = find_player_by_name(name, all_values)
+        if player:
             # Get positions
             positions: list[str] = []
             for (pid, _), pos in composite_positions.items():
-                if pid == best.player_id:
+                if pid == player.player_id:
                     positions.extend(pos)
             eligible = tuple(dict.fromkeys(positions))
 
             candidate_list.append(
                 KeeperCandidate(
-                    player_id=best.player_id,
-                    name=best.name,
-                    player_value=best,
+                    player_id=player.player_id,
+                    name=player.name,
+                    player_value=player,
                     eligible_positions=eligible,
                 )
             )
@@ -334,28 +209,7 @@ def rank_keepers(
     surplus_calc = SurplusCalculator(calc, num_teams=teams, num_keeper_slots=keeper_slots)
     ranked = surplus_calc.rank_candidates(candidate_list, all_values, set())
 
-    # Format output
-    lines: list[str] = []
-
-    if not_found:
-        lines.append(f"Note: Could not find: {', '.join(not_found)}")
-        lines.append("")
-
-    lines.append(f"Keeper Rankings (Pick #{user_pick}, {teams} teams, {keeper_slots} keepers):")
-    lines.append("")
-    header = f"{'Rk':>4} {'Name':<25} {'Pos':<12} {'Value':>7} {'Repl':>7} {'Surplus':>8}"
-    lines.append(header)
-    lines.append("-" * len(header))
-
-    for i, ks in enumerate(ranked, start=1):
-        pos_str = "/".join(ks.eligible_positions) if ks.eligible_positions else "-"
-        lines.append(
-            f"{i:>4} {ks.name:<25} {pos_str:<12}"
-            f" {ks.player_value:>7.1f} {ks.replacement_value:>7.1f}"
-            f" {ks.surplus_value:>8.1f}"
-        )
-
-    return "\n".join(lines)
+    return format_keeper_rankings(ranked, not_found, user_pick, teams, keeper_slots)
 
 
 @tool
@@ -419,16 +273,12 @@ def get_player_info(name: str) -> str:
     year = _get_default_year()
     all_values, _ = build_projections_and_positions(DEFAULT_ENGINE, year)
 
-    # Find matching player
-    name_lower = name.lower()
-    matches = [pv for pv in all_values if name_lower in pv.name.lower()]
+    player = find_player_by_name(name, all_values)
 
-    if not matches:
+    if not player:
         return f"No players found matching '{name}'."
 
-    # Use best match by value
-    best = max(matches, key=lambda p: p.total_value)
-    fangraphs_id = best.player_id
+    fangraphs_id = player.player_id
 
     # Map to MLBAM ID
     mapper = get_container().id_mapper
@@ -436,7 +286,7 @@ def get_player_info(name: str) -> str:
 
     if not mlbam_id:
         return (
-            f"Found {best.name} in projections but could not find their MLB ID. "
+            f"Found {player.name} in projections but could not find their MLB ID. "
             "This player may be a minor leaguer or international player."
         )
 
@@ -444,11 +294,11 @@ def get_player_info(name: str) -> str:
     info = _fetch_mlb_player_info(mlbam_id)
 
     if not info:
-        return f"Could not retrieve current info for {best.name} from MLB.com."
+        return f"Could not retrieve current info for {player.name} from MLB.com."
 
     # Format response
     lines: list[str] = []
-    lines.append(f"{info.get('fullName', best.name)}")
+    lines.append(f"{info.get('fullName', player.name)}")
     lines.append("")
 
     # Team info

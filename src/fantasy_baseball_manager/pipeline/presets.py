@@ -1,3 +1,12 @@
+"""Pre-configured projection pipelines.
+
+Available pipelines:
+- marcel_classic: Original Marcel with uniform aging
+- marcel: Modern baseline with per-stat regression and component aging
+- marcel_full: Kitchen-sink with park factors, Statcast, and BABIP adjustments
+- marcel_gb: marcel_full + gradient boosting residual corrections (best accuracy)
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -11,9 +20,7 @@ from fantasy_baseball_manager.pipeline.stages.adjusters import (
     MarcelAgingAdjuster,
     RebaselineAdjuster,
 )
-from fantasy_baseball_manager.pipeline.stages.component_aging import (
-    ComponentAgingAdjuster,
-)
+from fantasy_baseball_manager.pipeline.stages.component_aging import ComponentAgingAdjuster
 from fantasy_baseball_manager.pipeline.stages.finalizers import StandardFinalizer
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateComputer
@@ -38,7 +45,11 @@ def marcel_classic_pipeline() -> ProjectionPipeline:
 def marcel_pipeline(
     config: RegressionConfig | None = None,
 ) -> ProjectionPipeline:
-    """Modern baseline: per-stat regression + component aging."""
+    """Modern baseline: per-stat regression + component aging.
+
+    This is the simplest pipeline, using only historical stats without
+    any Statcast or external data adjustments.
+    """
     cfg = config or RegressionConfig()
     return ProjectionPipeline(
         name="marcel",
@@ -58,9 +69,8 @@ def marcel_full_pipeline(
 ) -> ProjectionPipeline:
     """Kitchen-sink pipeline with all adjusters enabled.
 
-    Uses PipelineBuilder to compose: park factors, pitcher normalization,
-    pitcher statcast, batter statcast, batter BABIP, rebaseline, and
-    component aging.
+    Includes: park factors, pitcher normalization, Statcast xStats,
+    batter BABIP skill adjustment, rebaseline, and component aging.
     """
     cfg = config or RegressionConfig()
     return (
@@ -77,67 +87,26 @@ def marcel_full_pipeline(
 def marcel_gb_pipeline(
     config: RegressionConfig | None = None,
 ) -> ProjectionPipeline:
-    """Marcel with gradient boosting residual corrections.
+    """Best accuracy pipeline with gradient boosting residual corrections.
 
-    Uses trained ML models to predict and correct Marcel's systematic
-    projection errors based on Statcast features.
-    """
-    cfg = config or RegressionConfig()
-    return PipelineBuilder("marcel_gb", config=cfg).with_statcast().with_gb_residual().build()
+    Combines all marcel_full adjusters with ML-predicted residual corrections.
+    Uses conservative mode (HR/SB only for batters) to preserve OBP accuracy.
 
-
-def marcel_full_gb_pipeline(
-    config: RegressionConfig | None = None,
-) -> ProjectionPipeline:
-    """Kitchen-sink pipeline with GB residual corrections.
-
-    Combines all marcel_full adjusters with gradient boosting residual
-    predictions for maximum accuracy.
-    """
-    cfg = config or RegressionConfig()
-    return (
-        PipelineBuilder("marcel_full_gb", config=cfg)
-        .with_park_factors()
-        .with_pitcher_normalization()
-        .with_pitcher_statcast()
-        .with_statcast()
-        .with_batter_babip()
-        .with_gb_residual()
-        .build()
-    )
-
-
-def marcel_skill_change_pipeline(
-    config: RegressionConfig | None = None,
-) -> ProjectionPipeline:
-    """Marcel with skill change adjustments.
-
-    Detects year-over-year changes in player skills (barrel rate, exit velocity,
-    chase rate, whiff rate, sprint speed for batters; fastball velocity, whiff
-    rate, ground ball rate for pitchers) and applies targeted projection
-    adjustments.
-    """
-    cfg = config or RegressionConfig()
-    return PipelineBuilder("marcel_skill_change", config=cfg).with_statcast().with_skill_change_adjuster().build()
-
-
-def marcel_full_gb_conservative_pipeline(
-    config: RegressionConfig | None = None,
-) -> ProjectionPipeline:
-    """Kitchen-sink pipeline with conservative GB residual corrections.
-
-    Only applies HR and SB adjustments to avoid hurting OBP predictions.
-    Use this for better rate stat preservation.
+    Performance vs marcel_full (2021-2024 avg):
+    - HR correlation: +4% (0.652 → 0.678)
+    - SB correlation: +6.5% (0.691 → 0.736)
+    - OBP correlation: +3.7% (0.516 → 0.535)
+    - Rank accuracy: +4.5% (0.577 → 0.603)
     """
     from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import GBResidualConfig
 
     cfg = config or RegressionConfig()
     gb_config = GBResidualConfig(
-        batter_allowed_stats=("hr", "sb"),  # Only adjust power stats
-        pitcher_allowed_stats=("so", "bb"),  # Only adjust K/BB for pitchers
+        batter_allowed_stats=("hr", "sb"),  # Conservative: only power stats
+        pitcher_allowed_stats=("so", "bb"),  # Only K/BB for pitchers
     )
     return (
-        PipelineBuilder("marcel_full_gb_conservative", config=cfg)
+        PipelineBuilder("marcel_gb", config=cfg)
         .with_park_factors()
         .with_pitcher_normalization()
         .with_pitcher_statcast()
@@ -153,18 +122,12 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
-    "marcel_full_gb": marcel_full_gb_pipeline,
-    "marcel_full_gb_conservative": marcel_full_gb_conservative_pipeline,
-    "marcel_skill_change": marcel_skill_change_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
-    "marcel_full_gb": marcel_full_gb_pipeline,
-    "marcel_full_gb_conservative": marcel_full_gb_conservative_pipeline,
-    "marcel_skill_change": marcel_skill_change_pipeline,
 }
 
 

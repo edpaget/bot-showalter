@@ -11,6 +11,7 @@ from fantasy_baseball_manager.pipeline.presets import (
     build_pipeline,
     marcel_classic_pipeline,
     marcel_full_pipeline,
+    marcel_gb_pipeline,
     marcel_pipeline,
 )
 from fantasy_baseball_manager.pipeline.stages.component_aging import (
@@ -87,13 +88,32 @@ class TestMarcelFullPreset:
         assert "marcel_full" in PIPELINES
 
 
+class TestMarcelGBPreset:
+    def test_returns_pipeline(self) -> None:
+        pipeline = marcel_gb_pipeline()
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "marcel_gb"
+        assert pipeline.years_back == 3
+
+    def test_has_eight_adjusters(self) -> None:
+        # park, pitcher_norm, pitcher_statcast, statcast, batter_babip, gb_residual, rebaseline, aging
+        pipeline = marcel_gb_pipeline()
+        assert len(pipeline.adjusters) == 8
+
+    def test_includes_gb_residual_adjuster(self) -> None:
+        pipeline = marcel_gb_pipeline()
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "GBResidualAdjuster" in adjuster_types
+
+    def test_in_registry(self) -> None:
+        assert "marcel_gb" in PIPELINES
+
+
 ALL_PRESET_NAMES = [
     "marcel_classic",
     "marcel",
     "marcel_full",
     "marcel_gb",
-    "marcel_full_gb",
-    "marcel_skill_change",
 ]
 
 
@@ -108,25 +128,25 @@ class TestAllPresetsInRegistry:
         assert isinstance(pipeline, ProjectionPipeline)
         assert pipeline.name == name
 
-    @pytest.mark.parametrize("name", ["marcel", "marcel_full"])
+    @pytest.mark.parametrize("name", ["marcel", "marcel_full", "marcel_gb"])
     def test_aging_adjuster_is_component_aging(self, name: str) -> None:
         pipeline = PIPELINES[name]()
         aging_adjusters = [a for a in pipeline.adjusters if isinstance(a, ComponentAgingAdjuster)]
         assert len(aging_adjusters) == 1
 
     def test_registry_has_expected_entries(self) -> None:
-        assert len(PIPELINES) == 7
+        assert len(PIPELINES) == 4
 
 
 class TestConfigThreading:
     """Verify that RegressionConfig threads through to pipeline components."""
 
     def test_zero_arg_calls_produce_default_pipelines(self) -> None:
-        for factory in [marcel_pipeline, marcel_full_pipeline]:
+        for factory in [marcel_pipeline, marcel_full_pipeline, marcel_gb_pipeline]:
             pipeline = factory()
             assert isinstance(pipeline, ProjectionPipeline)
 
-    @pytest.mark.parametrize("factory", [marcel_pipeline, marcel_full_pipeline])
+    @pytest.mark.parametrize("factory", [marcel_pipeline, marcel_full_pipeline, marcel_gb_pipeline])
     def test_custom_config_threads_to_rate_computer(
         self,
         factory: object,
@@ -163,12 +183,6 @@ class TestBuildPipeline:
         pipeline = build_pipeline("marcel", config=config)
         assert isinstance(pipeline.rate_computer, StatSpecificRegressionRateComputer)
         assert pipeline.rate_computer._batting_regression == custom
-
-    def test_ignores_config_for_non_configurable_pipeline(self) -> None:
-        config = RegressionConfig(batting_regression_pa={"hr": 123.0})
-        pipeline = build_pipeline("marcel_classic", config=config)
-        assert isinstance(pipeline, ProjectionPipeline)
-        assert pipeline.name == "marcel_classic"
 
     def test_raises_for_unknown_pipeline(self) -> None:
         with pytest.raises(ValueError, match="Unknown pipeline"):
@@ -249,54 +263,6 @@ def _make_league_batting(year: int = 2024) -> BattingSeasonStats:
     )
 
 
-def _make_pitching_stats(
-    player_id: str = "sp1",
-    year: int = 2024,
-    age: int = 28,
-) -> PitchingSeasonStats:
-    return PitchingSeasonStats(
-        player_id=player_id,
-        name="Test Pitcher",
-        year=year,
-        age=age,
-        ip=180.0,
-        g=32,
-        gs=32,
-        er=70,
-        h=150,
-        bb=50,
-        so=200,
-        hr=20,
-        hbp=5,
-        w=0,
-        sv=0,
-        hld=0,
-        bs=0,
-    )
-
-
-def _make_league_pitching(year: int = 2024) -> PitchingSeasonStats:
-    return PitchingSeasonStats(
-        player_id="league",
-        name="League Total",
-        year=year,
-        age=0,
-        ip=1450.0,
-        g=500,
-        gs=162,
-        er=650,
-        h=1350,
-        bb=500,
-        so=1400,
-        hr=180,
-        hbp=60,
-        w=0,
-        sv=0,
-        hld=0,
-        bs=0,
-    )
-
-
 class IntegrationDataSource:
     """Fake data source for full pipeline integration tests."""
 
@@ -325,17 +291,10 @@ class IntegrationDataSource:
         return self._team_pitching.get(year, [])
 
 
-NON_STATCAST_PRESET_NAMES = [
-    "marcel_classic",
-    "marcel",
-]
-
-
 class TestAllPipelinesProduceValidProjections:
     """Every registered pipeline produces non-empty, non-negative batting projections."""
 
-    @pytest.mark.parametrize("name", NON_STATCAST_PRESET_NAMES)
-    def test_non_statcast_pipelines_produce_valid_batting(self, name: str) -> None:
+    def test_marcel_produces_valid_batting(self) -> None:
         league = _make_league_batting()
         ds = IntegrationDataSource(
             player_batting={
@@ -346,7 +305,7 @@ class TestAllPipelinesProduceValidProjections:
             team_batting={2024: [league], 2023: [league], 2022: [league]},
         )
 
-        pipeline = PIPELINES[name]()
+        pipeline = PIPELINES["marcel"]()
         result = pipeline.project_batters(ds, 2025)
         assert len(result) == 1
         proj = result[0]
