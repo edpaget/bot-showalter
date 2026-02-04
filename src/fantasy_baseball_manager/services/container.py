@@ -10,9 +10,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from config import ConfigurationSet
 
-    from fantasy_baseball_manager.cache.store import SqliteCacheStore
+    from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
     from fantasy_baseball_manager.league.roster import RosterSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
     from fantasy_baseball_manager.ros.protocol import ProjectionBlender
 
@@ -51,6 +52,7 @@ class ServiceContainer:
         roster_source: RosterSource | None = None,
         blender: ProjectionBlender | None = None,
         yahoo_league: object | None = None,
+        skill_data_source: SkillDataSource | None = None,
     ) -> None:
         self._config = config or ServiceConfig()
         self._data_source = data_source
@@ -58,6 +60,7 @@ class ServiceContainer:
         self._roster_source = roster_source
         self._blender = blender
         self._yahoo_league = yahoo_league
+        self._skill_data_source = skill_data_source
 
     @property
     def config(self) -> ServiceConfig:
@@ -177,6 +180,27 @@ class ServiceContainer:
         from fantasy_baseball_manager.ros.blender import BayesianBlender
 
         return BayesianBlender()
+
+    @cached_property
+    def skill_data_source(self) -> SkillDataSource:
+        """Skill data source for year-over-year skill change detection."""
+        if self._skill_data_source is not None:
+            return self._skill_data_source
+        from fantasy_baseball_manager.pipeline.skill_data import (
+            CachedSkillDataSource,
+            CompositeSkillDataSource,
+            FanGraphsSkillDataSource,
+            StatcastSprintSpeedSource,
+        )
+
+        fangraphs = FanGraphsSkillDataSource()
+        sprint = StatcastSprintSpeedSource()
+        composite = CompositeSkillDataSource(fangraphs, sprint, self.id_mapper)
+
+        if self._config.no_cache:
+            return composite
+
+        return CachedSkillDataSource(composite, self.cache_store)
 
     @cached_property
     def yahoo_league(self) -> object:

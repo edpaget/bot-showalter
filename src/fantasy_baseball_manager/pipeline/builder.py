@@ -30,6 +30,18 @@ from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualAdjuster,
     GBResidualConfig,
 )
+from fantasy_baseball_manager.pipeline.stages.skill_change_adjuster import (
+    SkillChangeAdjuster,
+    SkillChangeConfig,
+    SkillDeltaComputer,
+)
+from fantasy_baseball_manager.pipeline.skill_data import (
+    CachedSkillDataSource,
+    CompositeSkillDataSource,
+    FanGraphsSkillDataSource,
+    SkillDataSource,
+    StatcastSprintSpeedSource,
+)
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
     ParkFactorAdjuster,
 )
@@ -109,6 +121,9 @@ class PipelineBuilder:
         self._playing_time_config: PlayingTimeConfig | None = None
         self._gb_residual: bool = False
         self._gb_residual_config: GBResidualConfig | None = None
+        self._skill_change: bool = False
+        self._skill_change_config: SkillChangeConfig | None = None
+        self._skill_data_source: SkillDataSource | None = None
 
     def rate_computer(self, kind: str) -> PipelineBuilder:
         """Set the rate computer: 'stat_specific' (default) or 'platoon'."""
@@ -192,6 +207,24 @@ class PipelineBuilder:
         self._gb_residual = True
         if config is not None:
             self._gb_residual_config = config
+        return self
+
+    def with_skill_change_adjuster(
+        self,
+        skill_source: SkillDataSource | None = None,
+        config: SkillChangeConfig | None = None,
+    ) -> PipelineBuilder:
+        """Enable skill change adjustments based on year-over-year skill changes.
+
+        Detects changes in barrel rate, exit velocity, chase rate, whiff rate,
+        sprint speed (batters) and fastball velocity, whiff rate, ground ball
+        rate (pitchers) and applies targeted projection adjustments.
+        """
+        self._skill_change = True
+        if skill_source is not None:
+            self._skill_data_source = skill_source
+        if config is not None:
+            self._skill_change_config = config
         return self
 
     def build(self) -> ProjectionPipeline:
@@ -290,6 +323,14 @@ class PipelineBuilder:
                 config=self._gb_residual_config or GBResidualConfig(),
             ))
 
+        if self._skill_change:
+            skill_source = self._resolve_skill_data_source()
+            delta_computer = SkillDeltaComputer(skill_source)
+            adjusters.append(SkillChangeAdjuster(
+                delta_computer=delta_computer,
+                config=self._skill_change_config or SkillChangeConfig(),
+            ))
+
         # Always last: rebaseline then aging
         adjusters.append(RebaselineAdjuster())
         adjusters.append(ComponentAgingAdjuster())
@@ -338,3 +379,15 @@ class PipelineBuilder:
         # CachedStatcastDataSource satisfies FullStatcastDataSource protocol
         source = self._resolve_statcast_source()
         return cast("FullStatcastDataSource", source)
+
+    def _resolve_skill_data_source(self) -> SkillDataSource:
+        """Resolve or create a skill data source."""
+        if self._skill_data_source is not None:
+            return self._skill_data_source
+        mapper = self._resolve_id_mapper()
+        fangraphs = FanGraphsSkillDataSource()
+        sprint = StatcastSprintSpeedSource()
+        composite = CompositeSkillDataSource(fangraphs, sprint, mapper)
+        source = CachedSkillDataSource(composite, create_cache_store())
+        self._skill_data_source = source
+        return source

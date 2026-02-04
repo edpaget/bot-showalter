@@ -112,12 +112,32 @@ def marcel_full_gb_pipeline(
     )
 
 
+def marcel_skill_change_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Marcel with skill change adjustments.
+
+    Detects year-over-year changes in player skills (barrel rate, exit velocity,
+    chase rate, whiff rate, sprint speed for batters; fastball velocity, whiff
+    rate, ground ball rate for pitchers) and applies targeted projection
+    adjustments.
+    """
+    cfg = config or RegressionConfig()
+    return (
+        PipelineBuilder("marcel_skill_change", config=cfg)
+        .with_statcast()
+        .with_skill_change_adjuster()
+        .build()
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
     "marcel_full_gb": marcel_full_gb_pipeline,
+    "marcel_skill_change": marcel_skill_change_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
@@ -125,6 +145,7 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
     "marcel_full_gb": marcel_full_gb_pipeline,
+    "marcel_skill_change": marcel_skill_change_pipeline,
 }
 
 
