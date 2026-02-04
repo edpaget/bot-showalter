@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, TypeVar
 
 import pybaseball
 import pybaseball.cache
@@ -15,9 +15,10 @@ from fantasy_baseball_manager.marcel.models import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import Any
 
     from fantasy_baseball_manager.cache.protocol import CacheStore
+
+_T = TypeVar("_T")
 
 logger = logging.getLogger(__name__)
 
@@ -253,12 +254,12 @@ class CachedStatsDataSource:
         self,
         method_name: str,
         year: int,
-        fetch: Callable[[int], Any],
-        serialize: Callable[..., str],
-        deserialize: Callable[[str], Any],
+        fetch: Callable[[int], _T],
+        serialize: Callable[[_T], str],
+        deserialize: Callable[[str], _T],
         max_retries: int = 6,
         base_delay: float = 5.0,
-    ) -> Any:
+    ) -> _T:
         key = f"{method_name}:{year}"
         cached = self._cache.get(_NAMESPACE, key)
         if cached is not None:
@@ -289,6 +290,8 @@ class CachedStatsDataSource:
                     time.sleep(wait)
                 else:
                     raise
+        # Unreachable if max_retries > 0, but required for type checker
+        raise RuntimeError(f"Failed to fetch {method_name} for year {year} with max_retries=0")
 
     def batting_stats(self, year: int) -> list[BattingSeasonStats]:
         return self._cached_call(

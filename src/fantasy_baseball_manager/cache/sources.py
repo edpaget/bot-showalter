@@ -2,17 +2,63 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol, TypedDict, TypeVar
 
 from fantasy_baseball_manager.draft.results import DraftStatus, YahooDraftPick
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
+class _RosterPlayerDict(TypedDict):
+    yahoo_id: str
+    name: str
+    position_type: str
+    eligible_positions: list[str]
+
+
+class _TeamRosterDict(TypedDict):
+    team_key: str
+    team_name: str
+    players: list[_RosterPlayerDict]
+
+
+class _LeagueRostersDict(TypedDict):
+    league_key: str
+    teams: list[_TeamRosterDict]
+
+
+class _DraftPickDict(TypedDict):
+    player_id: str
+    team_key: str
+    round: int
+    pick: int
+
+if TYPE_CHECKING:
     from fantasy_baseball_manager.cache.protocol import CacheStore
+
+_T = TypeVar("_T")
+
+
+class PositionSource(Protocol):
+    """Protocol for sources that provide player position data."""
+
+    def fetch_positions(self) -> dict[str, tuple[str, ...]]: ...
+
+
+class RosterSource(Protocol):
+    """Protocol for sources that provide league roster data."""
+
+    def fetch_rosters(self) -> LeagueRosters: ...
+
+
+class DraftResultsSource(Protocol):
+    """Protocol for sources that provide draft results data."""
+
+    def fetch_draft_results(self) -> list[YahooDraftPick]: ...
+    def fetch_draft_status(self) -> DraftStatus: ...
+    def fetch_user_team_key(self) -> str: ...
 
 
 def _cached_fetch(
@@ -20,12 +66,12 @@ def _cached_fetch(
     namespace: str,
     cache_key: str,
     ttl_seconds: int,
-    fetch_fn: Callable[[], Any],
-    serialize: Callable[[Any], str],
-    deserialize: Callable[[str], Any],
-    count_fn: Callable[[Any], int],
+    fetch_fn: Callable[[], _T],
+    serialize: Callable[[_T], str],
+    deserialize: Callable[[str], _T],
+    count_fn: Callable[..., int],
     count_label: str,
-) -> Any:
+) -> _T:
     """Shared cache-or-fetch logic for all cached sources."""
     cached = cache.get(namespace, cache_key)
     if cached is not None:
@@ -40,7 +86,7 @@ def _cached_fetch(
 
 
 class CachedPositionSource:
-    def __init__(self, delegate: Any, cache: CacheStore, cache_key: str, ttl_seconds: int) -> None:
+    def __init__(self, delegate: PositionSource, cache: CacheStore, cache_key: str, ttl_seconds: int) -> None:
         self._delegate = delegate
         self._cache = cache
         self._cache_key = cache_key
@@ -61,7 +107,7 @@ class CachedPositionSource:
 
 
 class CachedRosterSource:
-    def __init__(self, delegate: Any, cache: CacheStore, cache_key: str, ttl_seconds: int) -> None:
+    def __init__(self, delegate: RosterSource, cache: CacheStore, cache_key: str, ttl_seconds: int) -> None:
         self._delegate = delegate
         self._cache = cache
         self._cache_key = cache_key
@@ -82,7 +128,7 @@ class CachedRosterSource:
 
 
 class CachedDraftResultsSource:
-    def __init__(self, delegate: Any, cache: CacheStore, cache_key: str, ttl_seconds: int) -> None:
+    def __init__(self, delegate: DraftResultsSource, cache: CacheStore, cache_key: str, ttl_seconds: int) -> None:
         self._delegate = delegate
         self._cache = cache
         self._cache_key = cache_key
@@ -145,7 +191,7 @@ def _serialize_rosters(rosters: LeagueRosters) -> str:
 
 
 def _deserialize_rosters(data: str) -> LeagueRosters:
-    raw: dict[str, Any] = json.loads(data)
+    raw: _LeagueRostersDict = json.loads(data)
     return LeagueRosters(
         league_key=raw["league_key"],
         teams=tuple(
@@ -174,13 +220,13 @@ def _serialize_draft_results(picks: list[YahooDraftPick]) -> str:
 
 
 def _deserialize_draft_results(data: str) -> list[YahooDraftPick]:
-    raw: list[dict[str, object]] = json.loads(data)
+    raw: list[_DraftPickDict] = json.loads(data)
     return [
         YahooDraftPick(
-            player_id=str(i["player_id"]),
-            team_key=str(i["team_key"]),
-            round=int(i["round"]),
-            pick=int(i["pick"]),
+            player_id=i["player_id"],
+            team_key=i["team_key"],
+            round=i["round"],
+            pick=i["pick"],
         )
         for i in raw
     ]

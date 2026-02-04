@@ -37,7 +37,7 @@ class TestValidateEngine:
             assert name in SUPPORTED_ENGINES
 
     def test_supported_engines_has_expected_count(self) -> None:
-        assert len(SUPPORTED_ENGINES) == 4
+        assert len(SUPPORTED_ENGINES) == 6
 
 
 class TestValidateMethod:
