@@ -1,7 +1,10 @@
 """Discord bot client for the fantasy baseball agent.
 
-Provides a Discord client that responds to @mentions in threads,
-streaming responses from the fantasy baseball agent.
+Provides a Discord client that responds to @mentions, streaming responses
+from the fantasy baseball agent.
+
+- Thread mentions: Maintains conversation history via cached agents per thread
+- Main channel mentions: Responds with a fresh agent (no history)
 """
 
 from __future__ import annotations
@@ -23,8 +26,9 @@ logger = logging.getLogger(__name__)
 class FantasyBaseballBot(discord.Client):
     """Discord bot that interfaces with the fantasy baseball agent.
 
-    Each thread maintains its own conversation history via thread-specific agents.
-    The bot responds only to @mentions in threads.
+    - Thread mentions: Each thread maintains its own conversation history via
+      cached thread-specific agents.
+    - Main channel mentions: Responds with a fresh agent per message (no history).
     """
 
     def __init__(self, config: DiscordConfig, **kwargs) -> None:
@@ -51,7 +55,9 @@ class FantasyBaseballBot(discord.Client):
     async def on_message(self, message: discord.Message) -> None:
         """Handle incoming messages.
 
-        Responds only to @mentions in threads (not the original channel message).
+        Responds to @mentions in both threads and main channels:
+        - Threads: Uses cached agents with conversation history
+        - Main channels: Uses ephemeral agents (no history)
 
         Args:
             message: The incoming Discord message.
@@ -64,17 +70,14 @@ class FantasyBaseballBot(discord.Client):
         if not self.user or self.user not in message.mentions:
             return
 
-        # Must be in a thread
-        if not isinstance(message.channel, discord.Thread):
-            # Optionally respond in non-thread contexts with a hint
-            await message.reply("Please mention me in a thread to start a conversation!", mention_author=False)
-            return
-
         # Check allowed channels if configured
         if self._config.allowed_channels:
-            parent_id = message.channel.parent_id
-            if parent_id not in self._config.allowed_channels:
-                logger.debug("Ignoring message in non-allowed channel: %s", parent_id)
+            if isinstance(message.channel, discord.Thread):
+                channel_id = message.channel.parent_id
+            else:
+                channel_id = message.channel.id
+            if channel_id not in self._config.allowed_channels:
+                logger.debug("Ignoring message in non-allowed channel: %s", channel_id)
                 return
 
         # Extract message content (remove bot mention)
@@ -83,9 +86,15 @@ class FantasyBaseballBot(discord.Client):
             await message.reply("Please include a message with your mention!", mention_author=False)
             return
 
-        # Get or create agent for this thread
-        thread_id = str(message.channel.id)
-        agent = await self._get_or_create_agent(thread_id)
+        # Get or create agent based on context
+        if isinstance(message.channel, discord.Thread):
+            # Thread: use cached agent for conversation history
+            context_id = str(message.channel.id)
+            agent = await self._get_or_create_agent(context_id)
+        else:
+            # Main channel: ephemeral agent (no caching, no history)
+            context_id = str(message.id)
+            agent = create_agent(thread_id=context_id)
 
         # Stream the response
         await self._stream_response(message, agent, content)

@@ -156,28 +156,42 @@ class TestFantasyBaseballBot:
 
         message.reply.assert_not_called()
 
-    async def test_on_message_requires_thread(self, discord_config: DiscordConfig) -> None:
-        """Bot prompts user to use a thread when mentioned outside of one."""
-        bot = create_bot(discord_config)
+    async def test_on_message_responds_in_main_channel(
+        self, discord_config_no_channels: DiscordConfig
+    ) -> None:
+        """Bot responds to mentions in main channel."""
+        bot = create_bot(discord_config_no_channels)
 
         bot_user = MagicMock()
+        bot_user.id = 123
         bot._connection.user = bot_user
 
         message = MagicMock()
         message.author = MagicMock()
         message.mentions = [bot_user]
+        message.content = "<@123> What's up?"
+        message.id = 999888777
         # Channel is not a Thread
-        message.channel = MagicMock(spec=discord.TextChannel)
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = 111222333
+        message.channel = channel
         message.reply = AsyncMock()
 
-        await bot.on_message(message)
+        with patch("fantasy_baseball_manager.discord.bot.create_agent") as mock_create:
+            mock_agent = MagicMock()
+            mock_create.return_value = mock_agent
 
-        message.reply.assert_called_once()
-        call_args = message.reply.call_args
-        assert "thread" in call_args[0][0].lower()
+            with patch.object(bot, "_stream_response", new_callable=AsyncMock) as mock_stream:
+                await bot.on_message(message)
 
-    async def test_on_message_checks_allowed_channels(self, discord_config: DiscordConfig) -> None:
-        """Bot ignores messages in non-allowed channels."""
+                # Agent should be created with message ID as context (ephemeral)
+                mock_create.assert_called_once_with(thread_id="999888777")
+                mock_stream.assert_called_once_with(message, mock_agent, "What's up?")
+
+    async def test_on_message_checks_allowed_channels_for_threads(
+        self, discord_config: DiscordConfig
+    ) -> None:
+        """Bot ignores thread messages in non-allowed channels."""
         bot = create_bot(discord_config)
 
         bot_user = MagicMock()
@@ -199,6 +213,66 @@ class TestFantasyBaseballBot:
 
         # Should not reply since channel is not allowed
         message.reply.assert_not_called()
+
+    async def test_on_message_checks_allowed_channels_for_main_channel(
+        self, discord_config: DiscordConfig
+    ) -> None:
+        """Bot ignores main channel messages in non-allowed channels."""
+        bot = create_bot(discord_config)
+
+        bot_user = MagicMock()
+        bot._connection.user = bot_user
+
+        message = MagicMock()
+        message.author = MagicMock()
+        message.mentions = [bot_user]
+        message.content = "<@123> Hello"
+        message.id = 12345
+
+        # Main channel not in allowed_channels
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = 555555555  # Not in allowed_channels
+        message.channel = channel
+        message.reply = AsyncMock()
+
+        await bot.on_message(message)
+
+        # Should not reply since channel is not allowed
+        message.reply.assert_not_called()
+
+    async def test_main_channel_uses_ephemeral_agent(
+        self, discord_config_no_channels: DiscordConfig
+    ) -> None:
+        """Main channel mentions create a new agent per message (no caching)."""
+        bot = create_bot(discord_config_no_channels)
+
+        bot_user = MagicMock()
+        bot_user.id = 123
+        bot._connection.user = bot_user
+
+        def create_message(msg_id: int) -> MagicMock:
+            message = MagicMock()
+            message.author = MagicMock()
+            message.mentions = [bot_user]
+            message.content = "<@123> Hello"
+            message.id = msg_id
+            channel = MagicMock(spec=discord.TextChannel)
+            channel.id = 111222333
+            message.channel = channel
+            message.reply = AsyncMock()
+            return message
+
+        with patch("fantasy_baseball_manager.discord.bot.create_agent") as mock_create:
+            mock_create.side_effect = [MagicMock(), MagicMock()]
+
+            with patch.object(bot, "_stream_response", new_callable=AsyncMock):
+                await bot.on_message(create_message(msg_id=1001))
+                await bot.on_message(create_message(msg_id=1002))
+
+                # Each message should create a new agent (ephemeral)
+                assert mock_create.call_count == 2
+                mock_create.assert_any_call(thread_id="1001")
+                mock_create.assert_any_call(thread_id="1002")
 
     async def test_on_message_requires_content(self, discord_config_no_channels: DiscordConfig) -> None:
         """Bot asks for content when mention has no message."""
