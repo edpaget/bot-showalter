@@ -207,6 +207,181 @@ class CompositeSkillDataSource:
         return self._fangraphs.pitcher_skill_stats(year)
 
 
+@dataclass(frozen=True)
+class BatterSkillDelta:
+    """Year-over-year skill changes for a batter."""
+
+    player_id: str  # FanGraphs ID
+    name: str
+    year: int  # projection year (deltas are year-2 to year-1)
+
+    # Deltas (current - prior), None if data unavailable
+    barrel_rate_delta: float | None
+    hard_hit_rate_delta: float | None
+    exit_velo_avg_delta: float | None
+    exit_velo_max_delta: float | None
+    chase_rate_delta: float | None
+    whiff_rate_delta: float | None
+    sprint_speed_delta: float | None
+
+    # Sample sizes
+    pa_current: int
+    pa_prior: int
+
+    def has_sufficient_sample(self, min_pa: int = 200) -> bool:
+        """Check if both years have enough PA for reliable deltas."""
+        return self.pa_current >= min_pa and self.pa_prior >= min_pa
+
+
+@dataclass(frozen=True)
+class PitcherSkillDelta:
+    """Year-over-year skill changes for a pitcher."""
+
+    player_id: str  # FanGraphs ID
+    name: str
+    year: int  # projection year (deltas are year-2 to year-1)
+
+    # Deltas (current - prior), None if data unavailable
+    fastball_velo_delta: float | None
+    whiff_rate_delta: float | None
+    gb_rate_delta: float | None
+    barrel_rate_against_delta: float | None
+
+    # Sample sizes
+    pa_against_current: int
+    pa_against_prior: int
+
+    def has_sufficient_sample(self, min_pa: int = 200) -> bool:
+        """Check if both years have enough PA against for reliable deltas."""
+        return self.pa_against_current >= min_pa and self.pa_against_prior >= min_pa
+
+
+class SkillDeltaComputer:
+    """Computes skill deltas from two years of skill data."""
+
+    def __init__(
+        self,
+        skill_source: SkillDataSource,
+        min_pa: int = 200,
+    ) -> None:
+        self._skill_source = skill_source
+        self._min_pa = min_pa
+
+    def compute_batter_deltas(self, year: int) -> dict[str, BatterSkillDelta]:
+        """Compute deltas for all batters with data in both years.
+
+        Args:
+            year: The projection year. Computes deltas from year-2 to year-1.
+
+        Returns:
+            Dict mapping FanGraphs player ID to BatterSkillDelta.
+        """
+        prior_year = year - 2
+        current_year = year - 1
+
+        prior_stats = self._skill_source.batter_skill_stats(prior_year)
+        current_stats = self._skill_source.batter_skill_stats(current_year)
+
+        # Index by player_id for fast lookup
+        prior_by_id = {s.player_id: s for s in prior_stats}
+        current_by_id = {s.player_id: s for s in current_stats}
+
+        # Find players with data in both years
+        common_ids = set(prior_by_id.keys()) & set(current_by_id.keys())
+
+        results: dict[str, BatterSkillDelta] = {}
+        for player_id in common_ids:
+            prior = prior_by_id[player_id]
+            current = current_by_id[player_id]
+
+            # Compute sprint speed delta (handle None)
+            sprint_delta: float | None = None
+            if prior.sprint_speed is not None and current.sprint_speed is not None:
+                sprint_delta = current.sprint_speed - prior.sprint_speed
+
+            results[player_id] = BatterSkillDelta(
+                player_id=player_id,
+                name=current.name,
+                year=year,
+                barrel_rate_delta=current.barrel_rate - prior.barrel_rate,
+                hard_hit_rate_delta=current.hard_hit_rate - prior.hard_hit_rate,
+                exit_velo_avg_delta=current.exit_velo_avg - prior.exit_velo_avg,
+                exit_velo_max_delta=current.exit_velo_max - prior.exit_velo_max,
+                chase_rate_delta=current.chase_rate - prior.chase_rate,
+                whiff_rate_delta=current.whiff_rate - prior.whiff_rate,
+                sprint_speed_delta=sprint_delta,
+                pa_current=current.pa,
+                pa_prior=prior.pa,
+            )
+
+        logger.debug(
+            "Computed %d batter skill deltas for year %d (from %d to %d)",
+            len(results),
+            year,
+            prior_year,
+            current_year,
+        )
+        return results
+
+    def compute_pitcher_deltas(self, year: int) -> dict[str, PitcherSkillDelta]:
+        """Compute deltas for all pitchers with data in both years.
+
+        Args:
+            year: The projection year. Computes deltas from year-2 to year-1.
+
+        Returns:
+            Dict mapping FanGraphs player ID to PitcherSkillDelta.
+        """
+        prior_year = year - 2
+        current_year = year - 1
+
+        prior_stats = self._skill_source.pitcher_skill_stats(prior_year)
+        current_stats = self._skill_source.pitcher_skill_stats(current_year)
+
+        # Index by player_id for fast lookup
+        prior_by_id = {s.player_id: s for s in prior_stats}
+        current_by_id = {s.player_id: s for s in current_stats}
+
+        # Find players with data in both years
+        common_ids = set(prior_by_id.keys()) & set(current_by_id.keys())
+
+        results: dict[str, PitcherSkillDelta] = {}
+        for player_id in common_ids:
+            prior = prior_by_id[player_id]
+            current = current_by_id[player_id]
+
+            # Compute fastball velo delta (handle None)
+            velo_delta: float | None = None
+            if prior.fastball_velo is not None and current.fastball_velo is not None:
+                velo_delta = current.fastball_velo - prior.fastball_velo
+
+            # Compute barrel rate against delta (handle None)
+            barrel_delta: float | None = None
+            if prior.barrel_rate_against is not None and current.barrel_rate_against is not None:
+                barrel_delta = current.barrel_rate_against - prior.barrel_rate_against
+
+            results[player_id] = PitcherSkillDelta(
+                player_id=player_id,
+                name=current.name,
+                year=year,
+                fastball_velo_delta=velo_delta,
+                whiff_rate_delta=current.whiff_rate - prior.whiff_rate,
+                gb_rate_delta=current.gb_rate - prior.gb_rate,
+                barrel_rate_against_delta=barrel_delta,
+                pa_against_current=current.pa_against,
+                pa_against_prior=prior.pa_against,
+            )
+
+        logger.debug(
+            "Computed %d pitcher skill deltas for year %d (from %d to %d)",
+            len(results),
+            year,
+            prior_year,
+            current_year,
+        )
+        return results
+
+
 class CachedSkillDataSource:
     """Caches skill data using CacheStore."""
 

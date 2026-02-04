@@ -3,10 +3,13 @@
 import pytest
 
 from fantasy_baseball_manager.pipeline.skill_data import (
+    BatterSkillDelta,
     BatterSkillStats,
     CachedSkillDataSource,
     CompositeSkillDataSource,
+    PitcherSkillDelta,
     PitcherSkillStats,
+    SkillDeltaComputer,
 )
 
 
@@ -330,3 +333,412 @@ class TestCachedSkillDataSource:
         assert len(pitchers) == 1
         assert batters[0].player_id == "19755"
         assert pitchers[0].player_id == "13125"
+
+
+# Sample data for delta tests - two years of data for the same player
+BATTER_2023 = BatterSkillStats(
+    player_id="19755",
+    name="Mike Trout",
+    year=2023,
+    pa=450,
+    barrel_rate=0.16,
+    hard_hit_rate=0.42,
+    exit_velo_avg=92.0,
+    exit_velo_max=113.5,
+    chase_rate=0.28,
+    whiff_rate=0.14,
+    sprint_speed=28.5,
+)
+
+BATTER_2024 = BatterSkillStats(
+    player_id="19755",
+    name="Mike Trout",
+    year=2024,
+    pa=500,
+    barrel_rate=0.18,
+    hard_hit_rate=0.45,
+    exit_velo_avg=93.5,
+    exit_velo_max=115.2,
+    chase_rate=0.25,
+    whiff_rate=0.12,
+    sprint_speed=29.5,
+)
+
+PITCHER_2023 = PitcherSkillStats(
+    player_id="13125",
+    name="Gerrit Cole",
+    year=2023,
+    pa_against=750,
+    fastball_velo=96.5,
+    whiff_rate=0.13,
+    gb_rate=0.40,
+    barrel_rate_against=0.08,
+)
+
+PITCHER_2024 = PitcherSkillStats(
+    player_id="13125",
+    name="Gerrit Cole",
+    year=2024,
+    pa_against=800,
+    fastball_velo=97.5,
+    whiff_rate=0.14,
+    gb_rate=0.42,
+    barrel_rate_against=0.07,
+)
+
+
+class TestBatterSkillDelta:
+    def test_dataclass_fields(self) -> None:
+        delta = BatterSkillDelta(
+            player_id="19755",
+            name="Mike Trout",
+            year=2025,
+            barrel_rate_delta=0.02,
+            hard_hit_rate_delta=0.03,
+            exit_velo_avg_delta=1.5,
+            exit_velo_max_delta=1.7,
+            chase_rate_delta=-0.03,
+            whiff_rate_delta=-0.02,
+            sprint_speed_delta=1.0,
+            pa_current=500,
+            pa_prior=450,
+        )
+        assert delta.player_id == "19755"
+        assert delta.year == 2025
+        assert delta.barrel_rate_delta == 0.02
+        assert delta.chase_rate_delta == -0.03
+        assert delta.pa_current == 500
+        assert delta.pa_prior == 450
+
+    def test_has_sufficient_sample_both_above(self) -> None:
+        delta = BatterSkillDelta(
+            player_id="123",
+            name="Test",
+            year=2025,
+            barrel_rate_delta=0.0,
+            hard_hit_rate_delta=0.0,
+            exit_velo_avg_delta=0.0,
+            exit_velo_max_delta=0.0,
+            chase_rate_delta=0.0,
+            whiff_rate_delta=0.0,
+            sprint_speed_delta=0.0,
+            pa_current=250,
+            pa_prior=220,
+        )
+        assert delta.has_sufficient_sample(min_pa=200)
+
+    def test_has_sufficient_sample_current_below(self) -> None:
+        delta = BatterSkillDelta(
+            player_id="123",
+            name="Test",
+            year=2025,
+            barrel_rate_delta=0.0,
+            hard_hit_rate_delta=0.0,
+            exit_velo_avg_delta=0.0,
+            exit_velo_max_delta=0.0,
+            chase_rate_delta=0.0,
+            whiff_rate_delta=0.0,
+            sprint_speed_delta=0.0,
+            pa_current=150,
+            pa_prior=250,
+        )
+        assert not delta.has_sufficient_sample(min_pa=200)
+
+    def test_has_sufficient_sample_prior_below(self) -> None:
+        delta = BatterSkillDelta(
+            player_id="123",
+            name="Test",
+            year=2025,
+            barrel_rate_delta=0.0,
+            hard_hit_rate_delta=0.0,
+            exit_velo_avg_delta=0.0,
+            exit_velo_max_delta=0.0,
+            chase_rate_delta=0.0,
+            whiff_rate_delta=0.0,
+            sprint_speed_delta=0.0,
+            pa_current=250,
+            pa_prior=150,
+        )
+        assert not delta.has_sufficient_sample(min_pa=200)
+
+    def test_frozen(self) -> None:
+        delta = BatterSkillDelta(
+            player_id="123",
+            name="Test",
+            year=2025,
+            barrel_rate_delta=0.0,
+            hard_hit_rate_delta=0.0,
+            exit_velo_avg_delta=0.0,
+            exit_velo_max_delta=0.0,
+            chase_rate_delta=0.0,
+            whiff_rate_delta=0.0,
+            sprint_speed_delta=0.0,
+            pa_current=250,
+            pa_prior=250,
+        )
+        with pytest.raises(AttributeError):
+            delta.pa_current = 300  # type: ignore[misc]
+
+
+class TestPitcherSkillDelta:
+    def test_dataclass_fields(self) -> None:
+        delta = PitcherSkillDelta(
+            player_id="13125",
+            name="Gerrit Cole",
+            year=2025,
+            fastball_velo_delta=1.0,
+            whiff_rate_delta=0.01,
+            gb_rate_delta=0.02,
+            barrel_rate_against_delta=-0.01,
+            pa_against_current=800,
+            pa_against_prior=750,
+        )
+        assert delta.player_id == "13125"
+        assert delta.fastball_velo_delta == 1.0
+        assert delta.barrel_rate_against_delta == -0.01
+
+    def test_has_sufficient_sample(self) -> None:
+        delta = PitcherSkillDelta(
+            player_id="123",
+            name="Test",
+            year=2025,
+            fastball_velo_delta=0.0,
+            whiff_rate_delta=0.0,
+            gb_rate_delta=0.0,
+            barrel_rate_against_delta=0.0,
+            pa_against_current=300,
+            pa_against_prior=280,
+        )
+        assert delta.has_sufficient_sample(min_pa=200)
+
+    def test_has_insufficient_sample(self) -> None:
+        delta = PitcherSkillDelta(
+            player_id="123",
+            name="Test",
+            year=2025,
+            fastball_velo_delta=0.0,
+            whiff_rate_delta=0.0,
+            gb_rate_delta=0.0,
+            barrel_rate_against_delta=0.0,
+            pa_against_current=100,
+            pa_against_prior=280,
+        )
+        assert not delta.has_sufficient_sample(min_pa=200)
+
+    def test_optional_fields_none(self) -> None:
+        delta = PitcherSkillDelta(
+            player_id="123",
+            name="Test",
+            year=2025,
+            fastball_velo_delta=None,
+            whiff_rate_delta=0.0,
+            gb_rate_delta=0.0,
+            barrel_rate_against_delta=None,
+            pa_against_current=300,
+            pa_against_prior=280,
+        )
+        assert delta.fastball_velo_delta is None
+        assert delta.barrel_rate_against_delta is None
+
+
+class TestSkillDeltaComputer:
+    def test_compute_batter_deltas(self) -> None:
+        source = FakeSkillDataSource(
+            batter_data={
+                2023: [BATTER_2023],
+                2024: [BATTER_2024],
+            }
+        )
+        computer = SkillDeltaComputer(source)
+
+        # Year 2025 means we compare 2023 (year-2) to 2024 (year-1)
+        deltas = computer.compute_batter_deltas(2025)
+
+        assert len(deltas) == 1
+        assert "19755" in deltas
+
+        delta = deltas["19755"]
+        assert delta.player_id == "19755"
+        assert delta.name == "Mike Trout"
+        assert delta.year == 2025
+        assert delta.barrel_rate_delta == pytest.approx(0.02)  # 0.18 - 0.16
+        assert delta.hard_hit_rate_delta == pytest.approx(0.03)  # 0.45 - 0.42
+        assert delta.exit_velo_avg_delta == pytest.approx(1.5)  # 93.5 - 92.0
+        assert delta.exit_velo_max_delta == pytest.approx(1.7)  # 115.2 - 113.5
+        assert delta.chase_rate_delta == pytest.approx(-0.03)  # 0.25 - 0.28
+        assert delta.whiff_rate_delta == pytest.approx(-0.02)  # 0.12 - 0.14
+        assert delta.sprint_speed_delta == pytest.approx(1.0)  # 29.5 - 28.5
+        assert delta.pa_current == 500
+        assert delta.pa_prior == 450
+
+    def test_compute_batter_deltas_missing_prior_year(self) -> None:
+        source = FakeSkillDataSource(
+            batter_data={
+                2024: [BATTER_2024],
+                # 2023 missing
+            }
+        )
+        computer = SkillDeltaComputer(source)
+
+        deltas = computer.compute_batter_deltas(2025)
+
+        assert len(deltas) == 0
+
+    def test_compute_batter_deltas_missing_current_year(self) -> None:
+        source = FakeSkillDataSource(
+            batter_data={
+                2023: [BATTER_2023],
+                # 2024 missing
+            }
+        )
+        computer = SkillDeltaComputer(source)
+
+        deltas = computer.compute_batter_deltas(2025)
+
+        assert len(deltas) == 0
+
+    def test_compute_batter_deltas_different_players(self) -> None:
+        batter_a_2023 = BatterSkillStats(
+            player_id="111",
+            name="Player A",
+            year=2023,
+            pa=400,
+            barrel_rate=0.10,
+            hard_hit_rate=0.40,
+            exit_velo_avg=90.0,
+            exit_velo_max=110.0,
+            chase_rate=0.30,
+            whiff_rate=0.15,
+            sprint_speed=27.0,
+        )
+        batter_b_2024 = BatterSkillStats(
+            player_id="222",
+            name="Player B",
+            year=2024,
+            pa=400,
+            barrel_rate=0.12,
+            hard_hit_rate=0.42,
+            exit_velo_avg=91.0,
+            exit_velo_max=111.0,
+            chase_rate=0.28,
+            whiff_rate=0.13,
+            sprint_speed=28.0,
+        )
+        source = FakeSkillDataSource(
+            batter_data={
+                2023: [batter_a_2023],
+                2024: [batter_b_2024],
+            }
+        )
+        computer = SkillDeltaComputer(source)
+
+        deltas = computer.compute_batter_deltas(2025)
+
+        # No overlap in player IDs
+        assert len(deltas) == 0
+
+    def test_compute_batter_deltas_sprint_speed_none(self) -> None:
+        batter_2023_no_sprint = BatterSkillStats(
+            player_id="19755",
+            name="Mike Trout",
+            year=2023,
+            pa=450,
+            barrel_rate=0.16,
+            hard_hit_rate=0.42,
+            exit_velo_avg=92.0,
+            exit_velo_max=113.5,
+            chase_rate=0.28,
+            whiff_rate=0.14,
+            sprint_speed=None,
+        )
+        source = FakeSkillDataSource(
+            batter_data={
+                2023: [batter_2023_no_sprint],
+                2024: [BATTER_2024],
+            }
+        )
+        computer = SkillDeltaComputer(source)
+
+        deltas = computer.compute_batter_deltas(2025)
+
+        assert len(deltas) == 1
+        delta = deltas["19755"]
+        # Sprint speed delta should be None when prior year is None
+        assert delta.sprint_speed_delta is None
+        # Other deltas should still be computed
+        assert delta.barrel_rate_delta == pytest.approx(0.02)
+
+    def test_compute_pitcher_deltas(self) -> None:
+        source = FakeSkillDataSource(
+            pitcher_data={
+                2023: [PITCHER_2023],
+                2024: [PITCHER_2024],
+            }
+        )
+        computer = SkillDeltaComputer(source)
+
+        deltas = computer.compute_pitcher_deltas(2025)
+
+        assert len(deltas) == 1
+        assert "13125" in deltas
+
+        delta = deltas["13125"]
+        assert delta.player_id == "13125"
+        assert delta.name == "Gerrit Cole"
+        assert delta.year == 2025
+        assert delta.fastball_velo_delta == pytest.approx(1.0)  # 97.5 - 96.5
+        assert delta.whiff_rate_delta == pytest.approx(0.01)  # 0.14 - 0.13
+        assert delta.gb_rate_delta == pytest.approx(0.02)  # 0.42 - 0.40
+        assert delta.barrel_rate_against_delta == pytest.approx(-0.01)  # 0.07 - 0.08
+        assert delta.pa_against_current == 800
+        assert delta.pa_against_prior == 750
+
+    def test_compute_pitcher_deltas_velo_none(self) -> None:
+        pitcher_no_velo = PitcherSkillStats(
+            player_id="99999",
+            name="R.A. Dickey",
+            year=2023,
+            pa_against=600,
+            fastball_velo=None,
+            whiff_rate=0.08,
+            gb_rate=0.50,
+            barrel_rate_against=None,
+        )
+        pitcher_no_velo_2024 = PitcherSkillStats(
+            player_id="99999",
+            name="R.A. Dickey",
+            year=2024,
+            pa_against=580,
+            fastball_velo=None,
+            whiff_rate=0.09,
+            gb_rate=0.48,
+            barrel_rate_against=None,
+        )
+        source = FakeSkillDataSource(
+            pitcher_data={
+                2023: [pitcher_no_velo],
+                2024: [pitcher_no_velo_2024],
+            }
+        )
+        computer = SkillDeltaComputer(source)
+
+        deltas = computer.compute_pitcher_deltas(2025)
+
+        assert len(deltas) == 1
+        delta = deltas["99999"]
+        assert delta.fastball_velo_delta is None
+        assert delta.barrel_rate_against_delta is None
+        assert delta.whiff_rate_delta == pytest.approx(0.01)
+        assert delta.gb_rate_delta == pytest.approx(-0.02)
+
+    def test_compute_pitcher_deltas_missing_year(self) -> None:
+        source = FakeSkillDataSource(
+            pitcher_data={
+                2024: [PITCHER_2024],
+            }
+        )
+        computer = SkillDeltaComputer(source)
+
+        deltas = computer.compute_pitcher_deltas(2025)
+
+        assert len(deltas) == 0
