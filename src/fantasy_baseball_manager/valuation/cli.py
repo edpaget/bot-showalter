@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
@@ -11,6 +13,8 @@ from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.services import get_container, set_container
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
+
+console = Console()
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
@@ -50,34 +54,26 @@ def _parse_categories(
     return tuple(categories)
 
 
-def _format_value_table(
+def _print_value_table(
     title: str,
     categories: tuple[StatCategory, ...],
     values: list[PlayerValue],
     top: int,
-) -> str:
-    cat_headers = [cat.value for cat in categories]
-    header_widths = [max(len(h), 6) for h in cat_headers]
-
-    lines: list[str] = []
-    lines.append(title)
-
-    header = f"{'Name':<25}"
-    for h, w in zip(cat_headers, header_widths, strict=True):
-        header += f" {h:>{w}}"
-    header += f" {'Total':>7}"
-    lines.append(header)
-
-    lines.append("-" * len(header))
+) -> None:
+    table = Table(title=title)
+    table.add_column("Name")
+    for cat in categories:
+        table.add_column(cat.value, justify="right")
+    table.add_column("Total", justify="right")
 
     for pv in values[:top]:
-        line = f"{pv.name:<25}"
-        for cv, w in zip(pv.category_values, header_widths, strict=True):
-            line += f" {cv.value:>{w}.1f}"
-        line += f" {pv.total_value:>7.1f}"
-        lines.append(line)
+        row = [pv.name]
+        for cv in pv.category_values:
+            row.append(f"{cv.value:.1f}")
+        row.append(f"{pv.total_value:.1f}")
+        table.add_row(*row)
 
-    return "\n".join(lines)
+    console.print(table)
 
 
 def valuate(
@@ -112,11 +108,11 @@ def valuate(
         batting_values: list[PlayerValue] = zscore_batting(batting_projections, batting_cats)
         batting_values.sort(key=lambda pv: pv.total_value, reverse=True)
         cat_label = ", ".join(c.value for c in batting_cats)
-        title = f"Z-score batting values for {year} ({cat_label}):"
-        typer.echo(_format_value_table(title, batting_cats, batting_values, top))
+        title = f"Z-score batting values for {year} ({cat_label})"
+        _print_value_table(title, batting_cats, batting_values, top)
 
     if show_batting and show_pitching:
-        typer.echo()
+        console.print()
 
     if show_pitching:
         pitching_cats = (
@@ -126,5 +122,5 @@ def valuate(
         pitching_values: list[PlayerValue] = zscore_pitching(pitching_projections, pitching_cats)
         pitching_values.sort(key=lambda pv: pv.total_value, reverse=True)
         cat_label = ", ".join(c.value for c in pitching_cats)
-        title = f"Z-score pitching values for {year} ({cat_label}):"
-        typer.echo(_format_value_table(title, pitching_cats, pitching_values, top))
+        title = f"Z-score pitching values for {year} ({cat_label})"
+        _print_value_table(title, pitching_cats, pitching_values, top)

@@ -1,3 +1,4 @@
+import re
 from collections.abc import Generator
 
 import pytest
@@ -236,7 +237,7 @@ def _build_fake_data_source(
 
 
 @pytest.fixture(autouse=True)
-def reset_container() -> Generator[None, None, None]:
+def reset_container() -> Generator[None]:
     yield
     set_container(None)
 
@@ -295,14 +296,16 @@ class TestValuateCommand:
         result = runner.invoke(app, ["players", "valuate", "2025", "--batting"])
         assert result.exit_code == 0
         lines = result.output.strip().split("\n")
-        # Find lines with player data (contain Total values)
+        # Find lines with player data (contain player names)
         value_lines = [line for line in lines if any(name in line for name in ["Slugger", "Speedy", "Average"])]
         assert len(value_lines) >= 2
-        # Extract total values (last number on each line)
+        # Extract total values (last number before closing │ in rich table format)
         totals = []
         for line in value_lines:
-            parts = line.split()
-            totals.append(float(parts[-1]))
+            # Rich table cells are separated by │, extract the last numeric value
+            numbers = re.findall(r"-?\d+\.?\d*", line)
+            if numbers:
+                totals.append(float(numbers[-1]))
         assert totals == sorted(totals, reverse=True)
 
     def test_output_contains_player_name(self) -> None:

@@ -2,17 +2,20 @@ from datetime import datetime
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.marcel.cli import (
     BATTING_SORT_FIELDS,
     PITCHING_SORT_FIELDS,
-    format_batting_table,
-    format_pitching_table,
+    print_batting_table,
+    print_pitching_table,
 )
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.ros.projector import ROSProjector
 from fantasy_baseball_manager.services import get_container, set_container
+
+console = Console()
 
 __all__ = ["ros_project", "set_container"]
 
@@ -42,8 +45,8 @@ def ros_project(
         blender=container.blender,
     )
 
-    typer.echo(f"ROS projections for {year} (engine: {engine})")
-    typer.echo(f"Using pre-season prior from {year - pipeline.years_back}-{year - 1}\n")
+    console.print(f"[bold]ROS projections for {year} (engine: {engine})[/bold]")
+    console.print(f"Using pre-season prior from {year - pipeline.years_back}-{year - 1}\n")
 
     if show_batting:
         batting_sort = sort_by or "hr"
@@ -52,10 +55,10 @@ def ros_project(
             raise typer.Exit(code=1)
         projections = projector.project_batters(year)
         projections.sort(key=BATTING_SORT_FIELDS[batting_sort], reverse=True)
-        typer.echo(format_batting_table(projections, top, title="ROS batters"))
+        print_batting_table(projections, top, title="ROS batters")
 
     if show_batting and show_pitching:
-        typer.echo()
+        console.print()
 
     if show_pitching:
         pitching_sort = sort_by or "so"
@@ -64,4 +67,4 @@ def ros_project(
             raise typer.Exit(code=1)
         projections = projector.project_pitchers(year)
         projections.sort(key=PITCHING_SORT_FIELDS[pitching_sort], reverse=True)
-        typer.echo(format_pitching_table(projections, top, title="ROS pitchers"))
+        print_pitching_table(projections, top, title="ROS pitchers")

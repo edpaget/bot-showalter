@@ -2,8 +2,12 @@ import json
 from typing import Annotated
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from fantasy_baseball_manager.config import load_league_settings
+
+console = Console()
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.evaluation.harness import (
     EvaluationConfig,
@@ -27,71 +31,70 @@ from fantasy_baseball_manager.valuation.projection_source import ProjectionSourc
 __all__ = ["evaluate_cmd", "set_container"]
 
 
-def _format_stat_accuracy_table(label: str, accuracies: tuple[StatAccuracy, ...]) -> str:
+def _print_stat_accuracy_table(label: str, accuracies: tuple[StatAccuracy, ...]) -> None:
     if not accuracies:
-        return f"  {label}: no matched players"
-    lines: list[str] = []
-    lines.append(f"  {label} stat accuracy (n={accuracies[0].sample_size}):")
-    lines.append(f"    {'Category':<10} {'RMSE':>8} {'MAE':>8} {'Corr':>8}")
-    lines.append(f"    {'-' * 38}")
+        console.print(f"  {label}: no matched players")
+        return
+    table = Table(title=f"{label} stat accuracy (n={accuracies[0].sample_size})")
+    table.add_column("Category")
+    table.add_column("RMSE", justify="right")
+    table.add_column("MAE", justify="right")
+    table.add_column("Corr", justify="right")
     for sa in accuracies:
-        lines.append(f"    {sa.category.value:<10} {sa.rmse:>8.3f} {sa.mae:>8.3f} {sa.correlation:>8.3f}")
-    return "\n".join(lines)
+        table.add_row(sa.category.value, f"{sa.rmse:.3f}", f"{sa.mae:.3f}", f"{sa.correlation:.3f}")
+    console.print(table)
 
 
-def _format_rank_accuracy(label: str, ra: RankAccuracy | None) -> str:
+def _print_rank_accuracy(label: str, ra: RankAccuracy | None) -> None:
     if ra is None:
-        return f"  {label} rank accuracy: insufficient data"
-    return (
-        f"  {label} rank accuracy (n={ra.sample_size}):\n"
-        f"    Spearman rho: {ra.spearman_rho:.3f}\n"
-        f"    Top-{ra.top_n} precision: {ra.top_n_precision:.3f}"
-    )
+        console.print(f"  {label} rank accuracy: insufficient data")
+        return
+    console.print(f"  [bold]{label} rank accuracy[/bold] (n={ra.sample_size}):")
+    console.print(f"    Spearman rho: {ra.spearman_rho:.3f}")
+    console.print(f"    Top-{ra.top_n} precision: {ra.top_n_precision:.3f}")
 
 
-def _format_strata(strata: tuple[StratumAccuracy, ...], label: str) -> str:
+def _print_strata(strata: tuple[StratumAccuracy, ...], label: str) -> None:
     if not strata:
-        return ""
-    lines = [f"  {label} by segment:"]
-    lines.append(f"    {'Segment':<15} {'N':>5} {'RMSE':>8} {'Corr':>8}")
-    lines.append(f"    {'-' * 40}")
+        return
+    table = Table(title=f"{label} by segment")
+    table.add_column("Segment")
+    table.add_column("N", justify="right")
+    table.add_column("RMSE", justify="right")
+    table.add_column("Corr", justify="right")
     for s in strata:
         if s.stat_accuracy:
             avg_rmse = sum(sa.rmse for sa in s.stat_accuracy) / len(s.stat_accuracy)
             avg_corr = sum(sa.correlation for sa in s.stat_accuracy) / len(s.stat_accuracy)
-            lines.append(f"    {s.stratum_name:<15} {s.sample_size:>5} {avg_rmse:>8.3f} {avg_corr:>8.3f}")
-    return "\n".join(lines)
+            table.add_row(s.stratum_name, str(s.sample_size), f"{avg_rmse:.3f}", f"{avg_corr:.3f}")
+    console.print(table)
 
 
-def _format_head_to_head(results: tuple[HeadToHeadResult, ...]) -> str:
+def _print_head_to_head(results: tuple[HeadToHeadResult, ...]) -> None:
     if not results:
-        return ""
-    lines: list[str] = []
+        return
     for h2h in results:
         pct_a = h2h.a_win_pct * 100
         pct_b = (h2h.b_wins / h2h.sample_size * 100) if h2h.sample_size > 0 else 0.0
-        lines.append(f"=== Head-to-Head: {h2h.source_a} vs {h2h.source_b} ({h2h.category.value}) ===")
-        lines.append(
+        console.print(f"[bold]=== Head-to-Head: {h2h.source_a} vs {h2h.source_b} ({h2h.category.value}) ===[/bold]")
+        console.print(
             f"  N={h2h.sample_size}  {h2h.source_a}: {h2h.a_wins} ({pct_a:.0f}%)  "
             f"{h2h.source_b}: {h2h.b_wins} ({pct_b:.0f}%)  Ties: {h2h.ties}"
         )
         if h2h.mean_improvement > 0:
-            lines.append(f"  Mean improvement when {h2h.source_a} wins: {h2h.mean_improvement:.2f}")
-    return "\n".join(lines)
+            console.print(f"  Mean improvement when {h2h.source_a} wins: {h2h.mean_improvement:.2f}")
 
 
-def _format_evaluation(se: SourceEvaluation, include_strata: bool = False) -> str:
-    lines: list[str] = []
-    lines.append(f"Source: {se.source_name} ({se.year})")
-    lines.append(_format_stat_accuracy_table("Batting", se.batting_stat_accuracy))
-    lines.append(_format_rank_accuracy("Batting", se.batting_rank_accuracy))
+def _print_evaluation(se: SourceEvaluation, include_strata: bool = False) -> None:
+    console.print(f"[bold]Source: {se.source_name} ({se.year})[/bold]")
+    _print_stat_accuracy_table("Batting", se.batting_stat_accuracy)
+    _print_rank_accuracy("Batting", se.batting_rank_accuracy)
     if include_strata and se.batting_strata:
-        lines.append(_format_strata(se.batting_strata, "Batting"))
-    lines.append(_format_stat_accuracy_table("Pitching", se.pitching_stat_accuracy))
-    lines.append(_format_rank_accuracy("Pitching", se.pitching_rank_accuracy))
+        _print_strata(se.batting_strata, "Batting")
+    _print_stat_accuracy_table("Pitching", se.pitching_stat_accuracy)
+    _print_rank_accuracy("Pitching", se.pitching_rank_accuracy)
     if include_strata and se.pitching_strata:
-        lines.append(_format_strata(se.pitching_strata, "Pitching"))
-    return "\n".join(lines)
+        _print_strata(se.pitching_strata, "Pitching")
 
 
 def _build_source(engine: str, data_source: StatsDataSource, year: int) -> tuple[str, ProjectionSource]:
@@ -281,13 +284,13 @@ def evaluate_cmd(
             all_evaluations.append(se)
 
             if not years:
-                typer.echo(_format_evaluation(se, include_strata=stratify))
+                _print_evaluation(se, include_strata=stratify)
 
         if years and len(year_evaluations) > 1:
             avg = _average_evaluations(year_evaluations)
             years_label = ", ".join(str(y) for y in eval_years)
-            typer.echo(f"Average across {years_label}:")
-            typer.echo(_format_evaluation(avg, include_strata=stratify))
+            console.print(f"Average across {years_label}:")
+            _print_evaluation(avg, include_strata=stratify)
 
         for se in year_evaluations:
             all_results.append(_evaluation_to_dict(se))
@@ -295,16 +298,17 @@ def evaluate_cmd(
     # Head-to-head comparison if requested
     if compare:
         if len(engines) < 2:
-            typer.echo("\nWarning: --compare requires at least 2 engines for head-to-head comparison.")
+            console.print("\nWarning: --compare requires at least 2 engines for head-to-head comparison.")
         elif not include_residuals:
-            typer.echo("\nWarning: --compare requires --include-residuals for head-to-head comparison.")
+            console.print("\nWarning: --compare requires --include-residuals for head-to-head comparison.")
         else:
             # Compare first two engines (using first year's evaluations for simplicity)
             engine_evals = {se.source_name: se for se in all_evaluations}
             if len(engine_evals) >= 2:
                 eval_list = list(engine_evals.values())
                 h2h_results = compare_sources(eval_list[0], eval_list[1])
-                typer.echo("\n" + _format_head_to_head(h2h_results))
+                console.print()
+                _print_head_to_head(h2h_results)
 
     if output_json:
         with open(output_json, "w") as f:

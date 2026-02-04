@@ -29,7 +29,7 @@ from fantasy_baseball_manager.draft.simulation_models import (
     SimulationConfig,
     TeamConfig,
 )
-from fantasy_baseball_manager.draft.simulation_report import format_pick_log, format_standings
+from fantasy_baseball_manager.draft.simulation_report import print_pick_log, print_standings, print_team_roster
 from fantasy_baseball_manager.draft.state import DraftState
 from fantasy_baseball_manager.draft.strategy_presets import STRATEGY_PRESETS
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
@@ -365,17 +365,14 @@ def draft_simulate(
 
     # Output
     if log:
-        typer.echo(format_pick_log(result))
-        typer.echo("")
+        print_pick_log(result)
+        console.print()
 
     if rosters:
-        from fantasy_baseball_manager.draft.simulation_report import format_team_roster
-
-        typer.echo("Team Rosters")
-        typer.echo("=" * 80)
+        console.print("[bold]Team Rosters[/bold]")
         for tr in result.team_results:
-            typer.echo(format_team_roster(tr, result.pick_log))
-        typer.echo("")
+            print_team_roster(tr)
+            console.print()
 
     if standings:
-        typer.echo(format_standings(result))
+        print_standings(result)

@@ -1,3 +1,7 @@
+from io import StringIO
+
+from rich.console import Console
+
 from fantasy_baseball_manager.draft.models import RosterConfig
 from fantasy_baseball_manager.draft.simulation_models import (
     DraftStrategy,
@@ -7,12 +11,7 @@ from fantasy_baseball_manager.draft.simulation_models import (
     TeamConfig,
     TeamResult,
 )
-from fantasy_baseball_manager.draft.simulation_report import (
-    format_full_report,
-    format_pick_log,
-    format_standings,
-    format_team_roster,
-)
+from fantasy_baseball_manager.draft import simulation_report
 from fantasy_baseball_manager.valuation.models import StatCategory
 
 
@@ -85,17 +84,30 @@ def _make_result() -> SimulationResult:
     return SimulationResult(pick_log=picks, team_results=team_results, config=config)
 
 
-class TestFormatPickLog:
+def _capture_output(func, *args):
+    """Capture output from a print function by temporarily replacing the console."""
+    output = StringIO()
+    test_console = Console(file=output, force_terminal=True)
+    original_console = simulation_report.console
+    simulation_report.console = test_console
+    try:
+        func(*args)
+    finally:
+        simulation_report.console = original_console
+    return output.getvalue()
+
+
+class TestPrintPickLog:
     def test_contains_header(self) -> None:
         result = _make_result()
-        output = format_pick_log(result)
+        output = _capture_output(simulation_report.print_pick_log, result)
         assert "Pick" in output
         assert "Team" in output
         assert "Player" in output
 
     def test_contains_all_picks(self) -> None:
         result = _make_result()
-        output = format_pick_log(result)
+        output = _capture_output(simulation_report.print_pick_log, result)
         assert "Player 1" in output
         assert "Player 2" in output
         assert "Player 3" in output
@@ -103,54 +115,54 @@ class TestFormatPickLog:
 
     def test_shows_round_numbers(self) -> None:
         result = _make_result()
-        output = format_pick_log(result)
-        assert "Rd 1" in output or "1" in output
+        output = _capture_output(simulation_report.print_pick_log, result)
+        assert "Rd" in output or "1" in output
 
 
-class TestFormatTeamRoster:
+class TestPrintTeamRoster:
     def test_contains_team_name(self) -> None:
         result = _make_result()
         team = result.team_results[0]
-        output = format_team_roster(team, result.pick_log)
+        output = _capture_output(simulation_report.print_team_roster, team)
         assert "Team A" in output
 
     def test_contains_player_names(self) -> None:
         result = _make_result()
         team = result.team_results[0]
-        output = format_team_roster(team, result.pick_log)
+        output = _capture_output(simulation_report.print_team_roster, team)
         assert "Player 1" in output
         assert "Player 4" in output
 
     def test_contains_position(self) -> None:
         result = _make_result()
         team = result.team_results[0]
-        output = format_team_roster(team, result.pick_log)
+        output = _capture_output(simulation_report.print_team_roster, team)
         assert "OF" in output
         assert "SP" in output
 
 
-class TestFormatStandings:
+class TestPrintStandings:
     def test_contains_team_names(self) -> None:
         result = _make_result()
-        output = format_standings(result)
+        output = _capture_output(simulation_report.print_standings, result)
         assert "Team A" in output
         assert "Team B" in output
 
     def test_contains_category_headers(self) -> None:
         result = _make_result()
-        output = format_standings(result)
+        output = _capture_output(simulation_report.print_standings, result)
         assert "HR" in output
 
     def test_contains_total_column(self) -> None:
         result = _make_result()
-        output = format_standings(result)
+        output = _capture_output(simulation_report.print_standings, result)
         assert "Total" in output
 
 
-class TestFormatFullReport:
+class TestPrintFullReport:
     def test_combines_sections(self) -> None:
         result = _make_result()
-        output = format_full_report(result)
+        output = _capture_output(simulation_report.print_full_report, result)
         # Should contain elements from all sections
         assert "Team A" in output
         assert "Team B" in output

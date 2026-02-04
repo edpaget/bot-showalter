@@ -197,7 +197,7 @@ YEARS = [2025, 2024, 2023, 2022]
 
 
 @pytest.fixture(autouse=True)
-def reset_container() -> Generator[None, None, None]:
+def reset_container() -> Generator[None]:
     yield
     set_container(None)
 

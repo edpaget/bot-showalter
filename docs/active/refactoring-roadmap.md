@@ -140,32 +140,18 @@ All CLI modules now use the container pattern. Tests use `set_container(ServiceC
 
 ### 8. Extend Rich Table Formatting to Remaining CLIs
 
-**Status:** Not started
+**Status:** ✅ Completed
 
 **Problem:** While draft, keeper, and league CLIs now use Rich tables, several other CLI modules still use manual string formatting with fixed-width columns.
 
-**Files needing conversion:**
+**Solution implemented:**
+- **marcel/cli.py** — Converted `format_batting_table()` → `print_batting_table()`, `format_pitching_table()` → `print_pitching_table()` using rich tables
+- **valuation/cli.py** — Converted `_format_value_table()` → `_print_value_table()` using rich tables
+- **draft/simulation_report.py** — Converted `format_pick_log()` → `print_pick_log()`, `format_team_roster()` → `print_team_roster()`, `format_standings()` → `print_standings()` using rich tables
+- **evaluation/cli.py** — Converted `_format_stat_accuracy_table()` → `_print_stat_accuracy_table()`, `_format_rank_accuracy()` → `_print_rank_accuracy()`, etc. using rich tables
+- **ml/cli.py** — Converted `list_cmd()` and `info_cmd()` to use rich tables for model listing and feature importance display
 
-| File | Function(s) | Current Approach |
-|------|-------------|------------------|
-| `marcel/cli.py:48-79` | `format_batting_table()`, `format_pitching_table()` | Manual f-string column alignment |
-| `valuation/cli.py:53-80` | `_format_value_table()` | Fixed-width string formatting |
-| `draft/simulation_report.py:19-118` | `format_pick_log()`, `format_team_roster()`, `format_standings()` | Manual header/separator lines |
-| `evaluation/cli.py:30-80` | `_format_stat_accuracy_table()`, `_format_rank_accuracy()`, `_format_strata()`, `_format_head_to_head()` | Plain text formatting |
-| `ml/cli.py:138-147, 209-225` | `list_cmd()`, `info_cmd()` feature importance | Multiple `typer.echo()` calls |
-
-**Priority within this item:**
-1. **Marcel CLI** — Core projection command, high visibility
-2. **Valuation CLI** — Player valuation output, frequently used
-3. **Draft Simulation Report** — Complex multi-section output (standings, rosters, pick log)
-4. **Evaluation CLI** — Accuracy metrics display
-5. **ML CLI** — Model listing and feature importance
-
-**Additional Rich features to consider:**
-- Progress bars for ML training (`ml/cli.py:117-127`)
-- Panels for agent/chat welcome messages (`agent/cli.py:49-51`)
-
-**Solution:** Follow the same pattern used in draft/keeper/league CLIs — replace string formatting with `rich.table.Table` instances.
+**Result:** All CLI modules now use consistent rich table formatting for tabular output.
 
 ---
 
@@ -235,7 +221,7 @@ Each defines column specs with lambdas for data extraction and formatting.
 | Global state locations | 1 (services/container.py) |
 | Files with `type: ignore` | 3 (reduced from 14) |
 | Duplicated cache wrappers | ✅ Consolidated |
-| Column formatting duplication | ✅ Resolved in draft/keeper/league (5 more CLIs pending, item #8) |
+| Column formatting duplication | ✅ All CLI modules now use rich tables |
 | CLI modules needing split | 1 (`agent/tools.py`) |
 
 ## Completed Items
@@ -249,3 +235,4 @@ Each defines column specs with lambdas for data extraction and formatting.
 7. ✅ **Builder Creates Internal Dependencies** — Added `cache_store` injection to `PipelineBuilder` via constructor and `with_cache_store()` method
 8. ✅ **Column Formatting Duplication** — Replaced f-string tables with rich tables across all CLI modules, eliminating duplicated column spec patterns
 9. ✅ **Resolve type: ignore Comments** — Fixed type annotations in 9 files; remaining 3 files have external library stub issues
+10. ✅ **Extend Rich Table Formatting to Remaining CLIs** — Converted marcel, valuation, draft/simulation_report, evaluation, and ml CLIs to use rich tables
