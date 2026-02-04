@@ -42,16 +42,25 @@ def train_cmd(
             help="Base pipeline to use for generating projections (marcel or marcel_full)",
         ),
     ] = "marcel",
+    validate: Annotated[
+        bool,
+        typer.Option(
+            "--validate/--no-validate",
+            help="Run time-series holdout validation and save results with model",
+        ),
+    ] = False,
 ) -> None:
     """Train gradient boosting residual models on historical data.
 
     Example:
         uv run python -m fantasy_baseball_manager ml train --years 2020,2021,2022,2023 --name default
+        uv run python -m fantasy_baseball_manager ml train --years 2020,2021,2022,2023 --validate
     """
     from fantasy_baseball_manager.cache.factory import create_cache_store
     from fantasy_baseball_manager.marcel.data_source import CachedStatsDataSource, PybaseballDataSource
     from fantasy_baseball_manager.ml.persistence import ModelStore
     from fantasy_baseball_manager.ml.training import ResidualModelTrainer
+    from fantasy_baseball_manager.ml.validation import TimeSeriesHoldout, ValidationReport
     from fantasy_baseball_manager.pipeline.batted_ball_data import (
         CachedBattedBallDataSource,
         PybaseballBattedBallDataSource,
@@ -118,17 +127,36 @@ def train_cmd(
     # Train models
     model_store = ModelStore()
 
-    typer.echo("Training batter models...")
+    # Run validation if requested
+    batter_validation: ValidationReport | None = None
+    pitcher_validation: ValidationReport | None = None
+
+    if validate:
+        if len(target_years) < 2:
+            typer.echo("Warning: Need at least 2 years for validation. Skipping validation.")
+        else:
+            strategy = TimeSeriesHoldout(holdout_years=1)
+            typer.echo(f"Running validation with strategy: {strategy.name}")
+
+            typer.echo("Validating batter models...")
+            batter_validation = trainer.validate_batter_models(target_years, strategy)
+            _print_validation_report(batter_validation)
+
+            typer.echo("Validating pitcher models...")
+            pitcher_validation = trainer.validate_pitcher_models(target_years, strategy)
+            _print_validation_report(pitcher_validation)
+
+    typer.echo("\nTraining batter models...")
     batter_models = trainer.train_batter_models(target_years)
-    model_store.save(batter_models, name)
+    model_store.save(batter_models, name, batter_validation)
     typer.echo(f"  Trained stats: {batter_models.get_stats()}")
 
     typer.echo("Training pitcher models...")
     pitcher_models = trainer.train_pitcher_models(target_years)
-    model_store.save(pitcher_models, name)
+    model_store.save(pitcher_models, name, pitcher_validation)
     typer.echo(f"  Trained stats: {pitcher_models.get_stats()}")
 
-    typer.echo(f"Models saved as '{name}'")
+    typer.echo(f"\nModels saved as '{name}'")
 
 
 @ml_app.command(name="list")
