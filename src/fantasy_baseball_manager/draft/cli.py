@@ -12,7 +12,8 @@ import typer
 import yaml
 from rich.console import Console
 
-from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
+from fantasy_baseball_manager.adp.scraper import YahooADPScraper
+from fantasy_baseball_manager.cache.sources import CachedADPSource, CachedDraftResultsSource, CachedPositionSource
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
@@ -91,6 +92,12 @@ def draft_rank(
     ] = False,
     no_cache: Annotated[
         bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
+    ] = False,
+    adp: Annotated[
+        bool, typer.Option("--adp", help="Fetch and display Yahoo ADP for comparison.")
+    ] = False,
+    no_adp_cache: Annotated[
+        bool, typer.Option("--no-adp-cache", help="Bypass ADP cache and fetch fresh data.")
     ] = False,
     weight: Annotated[
         list[str] | None, typer.Option("--weight", help="Category weight multiplier (e.g. HR=2.0).")
@@ -242,7 +249,17 @@ def draft_rank(
             typer.echo("No players to rank.")
             return
 
-        print_draft_rankings(rankings, year)
+        # Fetch ADP data if requested
+        adp_data = None
+        if adp:
+            adp_source = YahooADPScraper()
+            if not no_adp_cache:
+                adp_ttl = 86400  # 24 hours
+                adp_source = CachedADPSource(adp_source, container.cache_store, ttl_seconds=adp_ttl)
+            adp_data = adp_source.fetch_adp()
+            logger.debug("Fetched %d ADP entries", len(adp_data.entries))
+
+        print_draft_rankings(rankings, year, adp_data)
 
 
 def _load_keepers_file(path: Path) -> dict[int, dict[str, object]]:

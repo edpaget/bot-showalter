@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
@@ -7,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.adp.models import ADPData
     from fantasy_baseball_manager.draft.models import DraftRanking
     from fantasy_baseball_manager.draft.simulation_models import (
         SimulationResult,
@@ -131,8 +134,30 @@ def print_standings(result: SimulationResult) -> None:
     console.print(table)
 
 
-def print_draft_rankings(rankings: list[DraftRanking], year: int) -> None:
-    """Print a draft rankings table."""
+def _normalize_name(name: str) -> str:
+    """Normalize a player name for matching."""
+    normalized = unicodedata.normalize("NFD", name)
+    normalized = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+    normalized = normalized.lower()
+    normalized = re.sub(r"\.", "", normalized)
+    return normalized
+
+
+def _build_adp_lookup(adp_data: ADPData) -> dict[str, float]:
+    """Build a lookup dict from normalized names to ADP values."""
+    return {_normalize_name(entry.name): entry.adp for entry in adp_data.entries}
+
+
+def print_draft_rankings(
+    rankings: list[DraftRanking], year: int, adp_data: ADPData | None = None
+) -> None:
+    """Print a draft rankings table.
+
+    Args:
+        rankings: List of draft rankings to display.
+        year: The season year.
+        adp_data: Optional ADP data for comparison. If provided, adds ADP and Diff columns.
+    """
     console.print(f"[bold]Draft rankings for {year}:[/bold]\n")
 
     table = Table(show_header=True, header_style="bold")
@@ -144,10 +169,17 @@ def print_draft_rankings(rankings: list[DraftRanking], year: int) -> None:
     table.add_column("Wtd", justify="right")
     table.add_column("Adj", justify="right")
 
+    if adp_data is not None:
+        table.add_column("ADP", justify="right")
+        table.add_column("Diff", justify="right")
+        adp_lookup = _build_adp_lookup(adp_data)
+    else:
+        adp_lookup = {}
+
     for r in rankings:
         display_pos = tuple(p for p in r.eligible_positions if p != "Util") or r.eligible_positions
         pos_str = "/".join(display_pos) if display_pos else "-"
-        table.add_row(
+        row = [
             str(r.rank),
             r.name,
             pos_str,
@@ -155,7 +187,19 @@ def print_draft_rankings(rankings: list[DraftRanking], year: int) -> None:
             f"{r.raw_value:.1f}",
             f"{r.weighted_value:.1f}",
             f"{r.adjusted_value:.1f}",
-        )
+        ]
+
+        if adp_data is not None:
+            normalized = _normalize_name(r.name)
+            adp = adp_lookup.get(normalized)
+            if adp is not None:
+                diff = round(adp - r.rank)
+                diff_str = f"+{diff}" if diff > 0 else str(diff)
+                row.extend([f"{adp:.1f}", diff_str])
+            else:
+                row.extend(["-", "-"])
+
+        table.add_row(*row)
 
     console.print(table)
 

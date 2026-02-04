@@ -5,6 +5,7 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol, TypedDict, TypeVar
 
+from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
 from fantasy_baseball_manager.draft.results import DraftStatus, YahooDraftPick
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
 
@@ -34,6 +35,20 @@ class _DraftPickDict(TypedDict):
     team_key: str
     round: int
     pick: int
+
+
+class _ADPEntryDict(TypedDict):
+    name: str
+    adp: float
+    positions: list[str]
+    percent_drafted: float | None
+
+
+class _ADPDataDict(TypedDict):
+    entries: list[_ADPEntryDict]
+    fetched_at: str
+    source: str
+
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.cache.protocol import CacheStore
@@ -154,6 +169,34 @@ class CachedDraftResultsSource:
         return self._delegate.fetch_user_team_key()
 
 
+class ADPSource(Protocol):
+    """Protocol for sources that provide ADP data."""
+
+    def fetch_adp(self) -> ADPData: ...
+
+
+class CachedADPSource:
+    """Cached wrapper for ADP data sources."""
+
+    def __init__(self, delegate: ADPSource, cache: CacheStore, ttl_seconds: int = 86400) -> None:
+        self._delegate = delegate
+        self._cache = cache
+        self._ttl_seconds = ttl_seconds
+
+    def fetch_adp(self) -> ADPData:
+        return _cached_fetch(
+            self._cache,
+            "adp_data",
+            "yahoo",
+            self._ttl_seconds,
+            self._delegate.fetch_adp,
+            _serialize_adp_data,
+            _deserialize_adp_data,
+            lambda d: len(d.entries),
+            "ADP entries",
+        )
+
+
 # Serializers for each cached type
 
 
@@ -230,3 +273,40 @@ def _deserialize_draft_results(data: str) -> list[YahooDraftPick]:
         )
         for i in raw
     ]
+
+
+def _serialize_adp_data(adp_data: ADPData) -> str:
+    return json.dumps(
+        {
+            "entries": [
+                {
+                    "name": e.name,
+                    "adp": e.adp,
+                    "positions": list(e.positions),
+                    "percent_drafted": e.percent_drafted,
+                }
+                for e in adp_data.entries
+            ],
+            "fetched_at": adp_data.fetched_at.isoformat(),
+            "source": adp_data.source,
+        }
+    )
+
+
+def _deserialize_adp_data(data: str) -> ADPData:
+    from datetime import datetime
+
+    raw: _ADPDataDict = json.loads(data)
+    return ADPData(
+        entries=tuple(
+            ADPEntry(
+                name=e["name"],
+                adp=e["adp"],
+                positions=tuple(e["positions"]),
+                percent_drafted=e["percent_drafted"],
+            )
+            for e in raw["entries"]
+        ),
+        fetched_at=datetime.fromisoformat(raw["fetched_at"]),
+        source=raw["source"],
+    )

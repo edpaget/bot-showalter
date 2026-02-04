@@ -1,9 +1,11 @@
+from datetime import UTC, datetime
 from io import StringIO
 
 from rich.console import Console
 
+from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
 from fantasy_baseball_manager.draft import simulation_report
-from fantasy_baseball_manager.draft.models import RosterConfig
+from fantasy_baseball_manager.draft.models import DraftRanking, RosterConfig
 from fantasy_baseball_manager.draft.simulation_models import (
     DraftStrategy,
     SimulationConfig,
@@ -168,3 +170,97 @@ class TestPrintFullReport:
         assert "Team B" in output
         assert "Player 1" in output
         assert "Total" in output
+
+
+def _make_draft_ranking(
+    rank: int,
+    player_id: str,
+    name: str,
+    positions: tuple[str, ...] = ("OF",),
+    adjusted_value: float = 10.0,
+) -> DraftRanking:
+    return DraftRanking(
+        rank=rank,
+        player_id=player_id,
+        name=name,
+        eligible_positions=positions,
+        best_position=positions[0] if positions else None,
+        position_multiplier=1.0,
+        raw_value=adjusted_value,
+        weighted_value=adjusted_value,
+        adjusted_value=adjusted_value,
+        category_values=(),
+    )
+
+
+class TestPrintDraftRankingsWithADP:
+    def test_without_adp_unchanged(self) -> None:
+        rankings = [
+            _make_draft_ranking(1, "p1", "Mike Trout", ("OF",), 15.0),
+            _make_draft_ranking(2, "p2", "Shohei Ohtani", ("DH", "SP"), 14.5),
+        ]
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025)
+        assert "Mike Trout" in output
+        assert "Shohei Ohtani" in output
+        # ADP column should not appear
+        assert "ADP" not in output
+        assert "Diff" not in output
+
+    def test_with_adp_shows_columns(self) -> None:
+        rankings = [
+            _make_draft_ranking(1, "p1", "Mike Trout", ("OF",), 15.0),
+            _make_draft_ranking(2, "p2", "Shohei Ohtani", ("DH", "SP"), 14.5),
+        ]
+        adp_data = ADPData(
+            entries=(
+                ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),
+                ADPEntry(name="Shohei Ohtani", adp=3.0, positions=("DH", "SP")),
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        assert "ADP" in output
+        assert "Diff" in output
+        assert "1.5" in output
+        assert "3.0" in output
+
+    def test_diff_calculation_positive_undervalued(self) -> None:
+        """Diff = ADP - rank. Positive means undervalued (ADP higher than our rank)."""
+        rankings = [
+            _make_draft_ranking(1, "p1", "Player A", ("OF",)),
+        ]
+        adp_data = ADPData(
+            entries=(ADPEntry(name="Player A", adp=5.0, positions=("OF",)),),
+            fetched_at=datetime.now(UTC),
+        )
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        # Player ranked 1 with ADP 5 -> Diff = 5 - 1 = +4
+        assert "+4" in output
+
+    def test_diff_calculation_negative_overvalued(self) -> None:
+        """Diff = ADP - rank. Negative means overvalued (ADP lower than our rank)."""
+        rankings = [
+            _make_draft_ranking(10, "p1", "Player B", ("OF",)),
+        ]
+        adp_data = ADPData(
+            entries=(ADPEntry(name="Player B", adp=5.0, positions=("OF",)),),
+            fetched_at=datetime.now(UTC),
+        )
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        # Player ranked 10 with ADP 5 -> Diff = 5 - 10 = -5
+        assert "-5" in output
+
+    def test_unmatched_adp_shows_dash(self) -> None:
+        """Players without ADP data show dash in ADP/Diff columns."""
+        rankings = [
+            _make_draft_ranking(1, "p1", "Mike Trout", ("OF",)),
+            _make_draft_ranking(2, "p2", "Unknown Player", ("1B",)),
+        ]
+        adp_data = ADPData(
+            entries=(ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),),
+            fetched_at=datetime.now(UTC),
+        )
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        # Check that Mike Trout has ADP
+        assert "1.5" in output
+        # Unknown Player should show dash (output contains multiple dashes for various columns)

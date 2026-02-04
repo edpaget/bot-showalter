@@ -1,9 +1,12 @@
 from collections.abc import Generator
+from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
+from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.marcel.models import (
@@ -471,3 +474,85 @@ class TestDraftRankCommand:
         assert result.exit_code == 0
         # --positions file should be used for positions, not Yahoo
         league.taken_players.assert_not_called()
+
+    def test_adp_flag_invokes_adp_source(self) -> None:
+        """Test that --adp flag fetches and displays ADP data."""
+        _install_fake(pitching=False)
+
+        mock_adp_data = ADPData(
+            entries=(
+                ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",)),
+                ADPEntry(name="Speedy Smith", adp=15.0, positions=("OF",)),
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+
+        with patch(
+            "fantasy_baseball_manager.draft.cli.YahooADPScraper"
+        ) as mock_scraper_cls:
+            mock_scraper = MagicMock()
+            mock_scraper.fetch_adp.return_value = mock_adp_data
+            mock_scraper_cls.return_value = mock_scraper
+
+            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--adp"])
+
+            assert result.exit_code == 0
+            assert "ADP" in result.output
+            assert "Diff" in result.output
+            mock_scraper.fetch_adp.assert_called_once()
+
+    def test_no_adp_cache_bypasses_cache(self) -> None:
+        """Test that --no-adp-cache bypasses the ADP cache."""
+        _install_fake(pitching=False)
+
+        mock_adp_data = ADPData(
+            entries=(ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",)),),
+            fetched_at=datetime.now(UTC),
+        )
+
+        with patch(
+            "fantasy_baseball_manager.draft.cli.YahooADPScraper"
+        ) as mock_scraper_cls, patch(
+            "fantasy_baseball_manager.draft.cli.CachedADPSource"
+        ) as mock_cached_cls:
+            mock_scraper = MagicMock()
+            mock_scraper.fetch_adp.return_value = mock_adp_data
+            mock_scraper_cls.return_value = mock_scraper
+
+            result = runner.invoke(
+                app, ["players", "draft-rank", "2025", "--batting", "--adp", "--no-adp-cache"]
+            )
+
+            assert result.exit_code == 0
+            # CachedADPSource should not be used when --no-adp-cache is passed
+            mock_cached_cls.assert_not_called()
+            # Direct scraper fetch should be called
+            mock_scraper.fetch_adp.assert_called_once()
+
+    def test_adp_uses_cache_by_default(self) -> None:
+        """Test that --adp uses cache by default."""
+        _install_fake(pitching=False)
+
+        mock_adp_data = ADPData(
+            entries=(ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",)),),
+            fetched_at=datetime.now(UTC),
+        )
+
+        with patch(
+            "fantasy_baseball_manager.draft.cli.YahooADPScraper"
+        ) as mock_scraper_cls, patch(
+            "fantasy_baseball_manager.draft.cli.CachedADPSource"
+        ) as mock_cached_cls:
+            mock_scraper = MagicMock()
+            mock_scraper_cls.return_value = mock_scraper
+
+            mock_cached = MagicMock()
+            mock_cached.fetch_adp.return_value = mock_adp_data
+            mock_cached_cls.return_value = mock_cached
+
+            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--adp"])
+
+            assert result.exit_code == 0
+            # CachedADPSource should wrap the scraper
+            mock_cached_cls.assert_called_once()
+            mock_cached.fetch_adp.assert_called_once()
