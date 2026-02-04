@@ -178,16 +178,23 @@ class ADPSource(Protocol):
 class CachedADPSource:
     """Cached wrapper for ADP data sources."""
 
-    def __init__(self, delegate: ADPSource, cache: CacheStore, ttl_seconds: int = 86400) -> None:
+    def __init__(
+        self,
+        delegate: ADPSource,
+        cache: CacheStore,
+        cache_key: str = "yahoo",
+        ttl_seconds: int = 86400,
+    ) -> None:
         self._delegate = delegate
         self._cache = cache
+        self._cache_key = cache_key
         self._ttl_seconds = ttl_seconds
 
     def fetch_adp(self) -> ADPData:
         return _cached_fetch(
             self._cache,
             "adp_data",
-            "yahoo",
+            self._cache_key,
             self._ttl_seconds,
             self._delegate.fetch_adp,
             _serialize_adp_data,

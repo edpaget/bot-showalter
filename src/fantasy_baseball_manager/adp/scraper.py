@@ -148,9 +148,18 @@ class YahooADPScraper:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
-                page = browser.new_page()
-                page.goto(self._url, wait_until="networkidle")
-                page.wait_for_selector("table", timeout=10000)
+                page = browser.new_page(
+                    user_agent=(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    )
+                )
+                # Use domcontentloaded instead of networkidle - Yahoo has persistent
+                # analytics requests that prevent networkidle from ever triggering
+                page.goto(self._url, wait_until="domcontentloaded", timeout=60000)
+                # Wait for the table to appear
+                page.wait_for_selector("table", timeout=30000)
                 return page.content()
             finally:
                 browser.close()
