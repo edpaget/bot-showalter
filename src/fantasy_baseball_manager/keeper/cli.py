@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path  # noqa: TC003 — used at runtime by typer
 from typing import TYPE_CHECKING, Annotated, cast
@@ -12,8 +14,6 @@ from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache
 from fantasy_baseball_manager.cache.sources import CachedRosterSource
 from fantasy_baseball_manager.config import (
     AppConfig,
-    apply_cli_overrides,
-    clear_cli_overrides,
     create_config,
 )
 from fantasy_baseball_manager.draft.cli import build_projections_and_positions
@@ -24,7 +24,7 @@ from fantasy_baseball_manager.keeper.surplus import SurplusCalculator
 from fantasy_baseball_manager.keeper.yahoo_source import LeagueKeeperData, YahooKeeperSource
 from fantasy_baseball_manager.league.roster import RosterSource, YahooRosterSource
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
-from fantasy_baseball_manager.services import get_container, set_container
+from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer, get_container, set_container
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
 if TYPE_CHECKING:
@@ -35,6 +35,33 @@ logger = logging.getLogger(__name__)
 keeper_app = typer.Typer(help="Keeper analysis commands.")
 
 __all__ = ["keeper_app", "keeper_league", "keeper_optimize", "keeper_rank", "set_container"]
+
+
+@contextmanager
+def _cli_context(
+    league_id: str | None = None,
+    season: int | None = None,
+    no_cache: bool = False,
+) -> Generator[None, None, None]:
+    """Context manager that sets up ServiceContainer with CLI overrides.
+
+    If a container is already set (e.g., by tests), uses the existing container
+    and doesn't reset it on exit. This allows tests to inject fake dependencies.
+    """
+    from fantasy_baseball_manager.services.container import _container
+
+    if _container is not None:
+        # Container already set (test mode) — use it without changes
+        yield
+        return
+
+    config = ServiceConfig(no_cache=no_cache, league_id=league_id, season=season)
+    container = ServiceContainer(config)
+    set_container(container)
+    try:
+        yield
+    finally:
+        set_container(None)
 
 
 def _get_roster_source_and_league(no_cache: bool = False) -> tuple[RosterSource, object]:
@@ -177,8 +204,7 @@ def _resolve_yahoo_inputs(
 
     Returns (candidate_ids, other_keepers, teams, yahoo_positions, candidate_position_types).
     """
-    apply_cli_overrides(league_id, season)
-    try:
+    with _cli_context(league_id=league_id, season=season, no_cache=no_cache):
         roster_source, league = _get_roster_source_and_league(no_cache=no_cache)
         id_mapper = _get_id_mapper(no_cache=no_cache)
         user_team_key: str = league.team_key()  # type: ignore[union-attr]
@@ -217,8 +243,6 @@ def _resolve_yahoo_inputs(
         num_teams = len(rosters.teams) if teams == 12 else teams
 
         return candidate_ids, other_keepers, num_teams, dict(yahoo_data.user_candidate_positions), position_types
-    finally:
-        clear_cli_overrides()
 
 
 @keeper_app.command(name="rank")
@@ -353,8 +377,7 @@ def _resolve_league_inputs(
 
     Returns (league_keeper_data, num_teams).
     """
-    apply_cli_overrides(league_id, season)
-    try:
+    with _cli_context(league_id=league_id, season=season, no_cache=no_cache):
         roster_source, _league = _get_roster_source_and_league(no_cache=no_cache)
         id_mapper = _get_id_mapper(no_cache=no_cache)
 
@@ -376,8 +399,6 @@ def _resolve_league_inputs(
         num_teams = len(rosters.teams) if teams == 12 else teams
 
         return league_data, num_teams
-    finally:
-        clear_cli_overrides()
 
 
 @keeper_app.command(name="league")

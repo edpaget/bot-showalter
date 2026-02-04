@@ -126,28 +126,20 @@ data_source = _data_source_factory()
 
 ### 7. Config Uses Global Override State
 
-**Status:** Not started
+**Status:** ✅ Completed
 
-**Problem:** `config.py` uses mutable global state for CLI overrides:
+**Problem:** `config.py` used mutable global state for CLI overrides.
 
-```python
-_cli_overrides: dict[str, object] = {}
+**Solution implemented:**
+- Added `league_id` and `season` parameters to `ServiceConfig` and `create_config()`
+- Created `_cli_context()` context manager in each CLI module that:
+  - Sets up a `ServiceContainer` with overrides
+  - Automatically resets the container on exit
+  - Respects existing containers (for test injection)
+- CLI modules (`league/cli.py`, `draft/cli.py`, `keeper/cli.py`) now use context managers instead of `apply_cli_overrides()`/`clear_cli_overrides()`
+- Legacy global override mechanism (`set_cli_overrides`, `clear_cli_overrides`) preserved for backwards compatibility
 
-def apply_cli_overrides(**kwargs: object) -> None:
-    global _cli_overrides
-    _cli_overrides = {k: v for k, v in kwargs.items() if v is not None}
-
-def clear_cli_overrides() -> None:
-    global _cli_overrides
-    _cli_overrides = {}
-```
-
-**Issues:**
-- State leakage between CLI invocations
-- Tests must remember to clear overrides
-- Hard to run concurrent CLI operations
-
-**Solution:** Pass overrides explicitly through function parameters or context objects.
+**Result:** CLI operations are now isolated and don't leak state. Tests can inject fake containers that won't be overwritten.
 
 ---
 
@@ -201,7 +193,7 @@ Each defines column specs with lambdas for data extraction and formatting.
 | Total source files | 105 |
 | Total test files | 101 |
 | Largest file | `keeper/cli.py` (512 lines) |
-| Global state locations | 1 (services/container.py) + config.py |
+| Global state locations | 1 (services/container.py) |
 | Files with `type: ignore` | 8 (reduced from 14) |
 | Duplicated cache wrappers | ✅ Consolidated |
 | CLI modules needing split | 3 |
@@ -211,3 +203,4 @@ Each defines column specs with lambdas for data extraction and formatting.
 1. ✅ **Replace Global Factory Pattern with Dependency Container** — `ServiceContainer` now manages all CLI dependencies centrally
 2. ✅ **Consolidate Cache Wrapper Classes** — Extracted `_cached_fetch()` helper, reducing duplication in cache/sources.py
 3. ✅ **Type-Safe Metadata in Pipeline** — Created `PlayerMetadata` TypedDict with all known fields, eliminating cast() calls
+4. ✅ **Config Uses Global Override State** — CLI modules now use `_cli_context()` context managers with `ServiceConfig` overrides instead of mutable global state

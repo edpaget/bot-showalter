@@ -66,10 +66,20 @@ def create_config(
     yaml_path: str = "config.yaml",
     env_prefix: str = "FANTASY",
     defaults: dict[str, object] | None = None,
+    *,
+    league_id: str | None = None,
+    season: int | None = None,
 ) -> ConfigurationSet:
     """Create a layered configuration.
 
-    Priority (highest to lowest): env vars > YAML file > defaults dict.
+    Priority (highest to lowest): explicit overrides > env vars > YAML file > defaults dict.
+
+    Args:
+        yaml_path: Path to the YAML config file.
+        env_prefix: Prefix for environment variables.
+        defaults: Default configuration values.
+        league_id: Override the league ID (passed explicitly, not from global state).
+        season: Override the season (passed explicitly, not from global state).
     """
     if defaults is None:
         defaults = _DEFAULTS
@@ -79,10 +89,31 @@ def create_config(
         config_from_yaml(yaml_path, read_from_file=True, ignore_missing_paths=True),
         config_from_dict(defaults),
     ]
-    if _cli_overrides:
-        layers.insert(0, config_from_dict(_cli_overrides))
+
+    # Build overrides from explicit parameters (preferred) or legacy global state
+    overrides = _build_overrides(league_id, season)
+    if not overrides and _cli_overrides:
+        # Fallback to legacy global state for backwards compatibility
+        overrides = _cli_overrides
+    if overrides:
+        layers.insert(0, config_from_dict(overrides))
 
     return ConfigurationSet(*layers)
+
+
+def _build_overrides(league_id: str | None, season: int | None) -> dict[str, object]:
+    """Build override dict from explicit parameters."""
+    if league_id is None and season is None:
+        return {}
+    overrides: dict[str, object] = {}
+    league_dict: dict[str, object] = {}
+    if league_id is not None:
+        league_dict["id"] = league_id
+    if season is not None:
+        league_dict["season"] = season
+    if league_dict:
+        overrides["league"] = league_dict
+    return overrides
 
 
 def _parse_stat_categories(raw: list[str]) -> tuple[StatCategory, ...]:

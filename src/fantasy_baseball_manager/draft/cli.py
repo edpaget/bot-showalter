@@ -10,9 +10,10 @@ import yaml
 
 from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
 from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
+from contextlib import contextmanager
+from collections.abc import Generator
+
 from fantasy_baseball_manager.config import (
-    apply_cli_overrides,
-    clear_cli_overrides,
     create_config,
     load_league_settings,
 )
@@ -36,7 +37,34 @@ from fantasy_baseball_manager.draft.strategy_presets import STRATEGY_PRESETS
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
-from fantasy_baseball_manager.services import get_container, set_container
+from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer, get_container, set_container
+
+
+@contextmanager
+def _cli_context(
+    league_id: str | None = None,
+    season: int | None = None,
+    no_cache: bool = False,
+) -> Generator[None, None, None]:
+    """Context manager that sets up ServiceContainer with CLI overrides.
+
+    If a container is already set (e.g., by tests), uses the existing container
+    and doesn't reset it on exit. This allows tests to inject fake dependencies.
+    """
+    from fantasy_baseball_manager.services.container import _container
+
+    if _container is not None:
+        # Container already set (test mode) — use it without changes
+        yield
+        return
+
+    config = ServiceConfig(no_cache=no_cache, league_id=league_id, season=season)
+    container = ServiceContainer(config)
+    set_container(container)
+    try:
+        yield
+    finally:
+        set_container(None)
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
@@ -128,8 +156,7 @@ def draft_rank(
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Produce a ranked draft board from z-score valuations."""
-    apply_cli_overrides(league_id, season)
-    try:
+    with _cli_context(league_id=league_id, season=season, no_cache=no_cache):
         validate_engine(engine)
 
         if year is None:
@@ -292,8 +319,6 @@ def draft_rank(
             )
 
         typer.echo("\n".join(lines))
-    finally:
-        clear_cli_overrides()
 
 
 def build_projections_and_positions(

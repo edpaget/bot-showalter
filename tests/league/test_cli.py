@@ -5,7 +5,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
-from fantasy_baseball_manager.config import clear_cli_overrides, create_config
+from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.league.cli import (
     _get_roster_source,
     format_compare_table,
@@ -383,7 +383,7 @@ class TestLeagueCompareCommand:
 
 class TestLeagueIdAndSeasonOptions:
     def teardown_method(self) -> None:
-        clear_cli_overrides()
+        set_container(None)
 
     def test_projections_accepts_league_id(self) -> None:
         _install_fakes()
@@ -423,7 +423,6 @@ class TestKeeperPredraftAutoDetection:
         set_container(None)
 
     def teardown_method(self) -> None:
-        clear_cli_overrides()
         set_container(None)
 
     def test_keeper_predraft_uses_previous_season(self) -> None:

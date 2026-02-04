@@ -15,9 +15,17 @@ if TYPE_CHECKING:
 
 @dataclass
 class ServiceConfig:
-    """Configuration options for service creation."""
+    """Configuration options for service creation.
+
+    Attributes:
+        no_cache: Disable caching for all services.
+        league_id: Override the league ID from config file.
+        season: Override the season from config file.
+    """
 
     no_cache: bool = False
+    league_id: str | None = None
+    season: int | None = None
 
 
 class ServiceContainer:
@@ -49,6 +57,15 @@ class ServiceContainer:
     def config(self) -> ServiceConfig:
         return self._config
 
+    def _create_app_config(self) -> object:
+        """Create an AppConfig with league_id/season overrides applied."""
+        from fantasy_baseball_manager.config import create_config
+
+        return create_config(
+            league_id=self._config.league_id,
+            season=self._config.season,
+        )
+
     @cached_property
     def data_source(self) -> StatsDataSource:
         if self._data_source is not None:
@@ -62,7 +79,6 @@ class ServiceContainer:
         if self._id_mapper is not None:
             return self._id_mapper
         from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
-        from fantasy_baseball_manager.config import create_config
         from fantasy_baseball_manager.player_id.mapper import (
             build_cached_sfbb_mapper,
             build_sfbb_mapper,
@@ -70,8 +86,8 @@ class ServiceContainer:
 
         if self._config.no_cache:
             return build_sfbb_mapper()
-        config = create_config()
-        ttl = int(str(config["cache.id_mappings_ttl"]))
+        config = self._create_app_config()
+        ttl = int(str(config["cache.id_mappings_ttl"]))  # type: ignore[index]
         cache_store = create_cache_store(config)
         cache_key = get_cache_key(config)
         return build_cached_sfbb_mapper(cache_store, cache_key, ttl)
@@ -84,16 +100,16 @@ class ServiceContainer:
 
         from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache_key
         from fantasy_baseball_manager.cache.sources import CachedRosterSource
-        from fantasy_baseball_manager.config import AppConfig, create_config
+        from fantasy_baseball_manager.config import AppConfig
         from fantasy_baseball_manager.league.roster import YahooRosterSource
         from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
-        config = create_config()
+        config = self._create_app_config()
         client = YahooFantasyClient(cast("AppConfig", config))
         league = client.get_league()
         source: RosterSource = YahooRosterSource(league)
         if not self._config.no_cache:
-            ttl = int(str(config["cache.rosters_ttl"]))
+            ttl = int(str(config["cache.rosters_ttl"]))  # type: ignore[index]
             cache_store = create_cache_store(config)
             cache_key = get_cache_key(config)
             source = CachedRosterSource(source, cache_store, cache_key, ttl)
@@ -113,10 +129,10 @@ class ServiceContainer:
             return self._yahoo_league
         from typing import cast
 
-        from fantasy_baseball_manager.config import AppConfig, create_config
+        from fantasy_baseball_manager.config import AppConfig
         from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
-        config = create_config()
+        config = self._create_app_config()
         client = YahooFantasyClient(cast("AppConfig", config))
         return client.get_league()
 

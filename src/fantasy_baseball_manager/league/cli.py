@@ -9,11 +9,11 @@ from fantasy_baseball_manager.cache.factory import create_cache_store, get_cache
 from fantasy_baseball_manager.cache.sources import CachedRosterSource
 from fantasy_baseball_manager.config import (
     AppConfig,
-    apply_cli_overrides,
-    clear_cli_overrides,
     create_config,
     load_league_settings,
 )
+from contextlib import contextmanager
+from collections.abc import Generator
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.league.models import TeamProjection
 from fantasy_baseball_manager.league.projections import match_projections
@@ -22,7 +22,34 @@ from fantasy_baseball_manager.marcel.data_source import StatsDataSource
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper, build_cached_sfbb_mapper, build_sfbb_mapper
-from fantasy_baseball_manager.services import ServiceContainer, get_container, set_container
+from fantasy_baseball_manager.services import ServiceConfig, ServiceContainer, get_container, set_container
+
+
+@contextmanager
+def _cli_context(
+    league_id: str | None = None,
+    season: int | None = None,
+    no_cache: bool = False,
+) -> Generator[None, None, None]:
+    """Context manager that sets up ServiceContainer with CLI overrides.
+
+    If a container is already set (e.g., by tests), uses the existing container
+    and doesn't reset it on exit. This allows tests to inject fake dependencies.
+    """
+    from fantasy_baseball_manager.services.container import _container
+
+    if _container is not None:
+        # Container already set (test mode) — use it without changes
+        yield
+        return
+
+    config = ServiceConfig(no_cache=no_cache, league_id=league_id, season=season)
+    container = ServiceContainer(config)
+    set_container(container)
+    try:
+        yield
+    finally:
+        set_container(None)
 from fantasy_baseball_manager.valuation.models import LeagueSettings, StatCategory
 from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
@@ -260,8 +287,7 @@ def projections(
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Show projections for all rostered players in the league."""
-    apply_cli_overrides(league_id, season)
-    try:
+    with _cli_context(league_id=league_id, season=season, no_cache=no_cache):
         validate_engine(engine)
 
         if year is None:
@@ -278,8 +304,6 @@ def projections(
         team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
         typer.echo(format_team_projections(team_projections, league_settings))
-    finally:
-        clear_cli_overrides()
 
 
 def compare(
@@ -294,8 +318,7 @@ def compare(
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
     """Compare aggregate projected stats across all teams in the league."""
-    apply_cli_overrides(league_id, season)
-    try:
+    with _cli_context(league_id=league_id, season=season, no_cache=no_cache):
         validate_engine(engine)
         validate_method(method)
 
@@ -313,5 +336,3 @@ def compare(
         team_projections.sort(key=COMPARE_SORT_FIELDS[sort_by], reverse=True)
 
         typer.echo(format_compare_table(team_projections, league_settings))
-    finally:
-        clear_cli_overrides()
