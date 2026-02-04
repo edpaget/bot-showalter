@@ -5,7 +5,7 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
     PitcherStatcastConfig,
 )
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastPitcherStats
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 
 class FakeIdMapper:
@@ -38,7 +38,7 @@ def _make_pitcher(
     player_id: str = "fgp1",
     name: str = "Test Pitcher",
     rates: dict[str, float] | None = None,
-    metadata: dict[str, object] | None = None,
+    metadata: PlayerMetadata | None = None,
 ) -> PlayerRates:
     default_rates: dict[str, float] = {
         "h": 0.240,
@@ -50,7 +50,7 @@ def _make_pitcher(
     }
     if rates:
         default_rates.update(rates)
-    default_metadata: dict[str, object] = {"is_starter": True, "ip_per_year": 180.0}
+    default_metadata: PlayerMetadata = {"is_starter": True, "ip_per_year": 180.0}
     if metadata:
         default_metadata.update(metadata)
     return PlayerRates(
@@ -72,7 +72,7 @@ def _make_batter(player_id: str = "fg1") -> PlayerRates:
         age=30,
         rates={"hr": 0.040, "singles": 0.140, "bb": 0.080, "so": 0.200},
         opportunities=600.0,
-        metadata={"pa_per_year": 600},
+        metadata={"pa_per_year": [600.0]},
     )
 
 

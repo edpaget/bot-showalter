@@ -14,7 +14,7 @@ from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualConfig,
 )
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats, StatcastPitcherStats
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 
 class FakeStatcastSource:
@@ -101,7 +101,7 @@ def _make_batter(
             "sb": 0.020,
         },
         opportunities=500.0,
-        metadata={"pa_per_year": 500},
+        metadata={"pa_per_year": [500.0]},
     )
 
 

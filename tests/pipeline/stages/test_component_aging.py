@@ -8,7 +8,7 @@ from fantasy_baseball_manager.pipeline.stages.component_aging import (
     ComponentAgingAdjuster,
     component_age_multiplier,
 )
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 
 class TestComponentAgeMultiplier:
@@ -52,7 +52,7 @@ def _make_player(
     is_starter: bool | None = None,
     position: str | None = None,
 ) -> PlayerRates:
-    metadata: dict[str, object] = {}
+    metadata: PlayerMetadata = {}
     if is_starter is not None:
         metadata["is_starter"] = is_starter
     if position is not None:

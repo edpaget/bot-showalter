@@ -5,7 +5,7 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_babip_skill_adjuster impor
     PitcherBabipSkillAdjuster,
     PitcherBabipSkillConfig,
 )
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 
 class FakeBattedBallSource:
@@ -20,7 +20,7 @@ def _make_pitcher(
     player_id: str = "fgp1",
     name: str = "Test Pitcher",
     rates: dict[str, float] | None = None,
-    metadata: dict[str, object] | None = None,
+    metadata: PlayerMetadata | None = None,
 ) -> PlayerRates:
     default_rates: dict[str, float] = {
         "h": 0.240,
@@ -32,7 +32,7 @@ def _make_pitcher(
     }
     if rates:
         default_rates.update(rates)
-    default_metadata: dict[str, object] = {
+    default_metadata: PlayerMetadata = {
         "is_starter": True,
         "ip_per_year": 180.0,
         "expected_babip": 0.300,
@@ -59,7 +59,7 @@ def _make_batter(player_id: str = "fg1") -> PlayerRates:
         age=30,
         rates={"hr": 0.040, "singles": 0.140, "bb": 0.080, "so": 0.200},
         opportunities=600.0,
-        metadata={"pa_per_year": 600},
+        metadata={"pa_per_year": [600.0]},
     )
 
 

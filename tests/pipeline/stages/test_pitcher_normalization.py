@@ -4,12 +4,12 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import (
     PitcherNormalizationAdjuster,
     PitcherNormalizationConfig,
 )
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 
 def _make_pitcher(
     rates: dict[str, float] | None = None,
-    metadata: dict[str, object] | None = None,
+    metadata: PlayerMetadata | None = None,
 ) -> PlayerRates:
     default_rates = {
         "h": 0.24,
@@ -19,7 +19,7 @@ def _make_pitcher(
         "so": 0.22,
         "er": 0.12,
     }
-    default_metadata: dict[str, object] = {
+    default_metadata: PlayerMetadata = {
         "ip_per_year": 180.0,
         "is_starter": True,
     }
@@ -44,7 +44,7 @@ def _make_batter(
         age=28,
         rates=rates or {"h": 0.25, "hr": 0.04, "bb": 0.09, "so": 0.20},
         opportunities=600.0,
-        metadata={"pa_per_year": 550.0},
+        metadata={"pa_per_year": [550.0]},
     )
 
 
@@ -251,7 +251,7 @@ class TestEdgeCases:
     def test_league_rates_from_metadata(self) -> None:
         """When avg_league_rates has BABIP-relevant keys, use them."""
         rates = {"h": 0.30, "hr": 0.03, "bb": 0.08, "hbp": 0.01, "so": 0.22, "er": 0.12}
-        metadata: dict[str, object] = {
+        metadata: PlayerMetadata = {
             "ip_per_year": 180.0,
             "is_starter": True,
             "avg_league_rates": {"h": 0.25, "hr": 0.03, "so": 0.22},
