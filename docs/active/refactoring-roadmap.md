@@ -86,29 +86,17 @@ All CLI modules now use the container pattern. Tests use `set_container(ServiceC
 
 ### 5. Builder Creates Internal Dependencies
 
-**Status:** Not started
+**Status:** ✅ Completed
 
-**Problem:** `pipeline/builder.py` (307 lines) creates all dependencies internally:
+**Problem:** `pipeline/builder.py` created all dependencies internally via `create_cache_store()` calls in 6 places, making it hard to inject mocks for testing or swap cache implementations.
 
-```python
-def _build_adjusters(self) -> list[RateAdjuster]:
-    if self._park_factors:
-        adjusters.append(
-            ParkFactorAdjuster(
-                CachedParkFactorProvider(
-                    delegate=FanGraphsParkFactorProvider(),
-                    cache=create_cache_store()  # Creates dependency internally
-                )
-            )
-        )
-```
+**Solution implemented:**
+- Added `cache_store` parameter to `PipelineBuilder.__init__()` for constructor injection
+- Added `with_cache_store()` builder method for fluent API injection
+- Added `_get_cache_store()` helper that returns injected store or creates one lazily
+- All 6 internal `create_cache_store()` calls now use `self._get_cache_store()`
 
-**Issues:**
-- Hard to inject mocks for testing
-- No way to swap cache implementations
-- Tightly coupled to factory functions
-
-**Solution:** Accept optional dependency overrides in constructor or add `.with_cache_store()` builder methods.
+**Result:** Tests can now inject fake cache stores to verify behavior without hitting real caches. Cache implementation can be swapped by callers.
 
 ---
 
@@ -211,3 +199,4 @@ Each defines column specs with lambdas for data extraction and formatting.
 4. ✅ **Config Uses Global Override State** — CLI modules now use `cli_context()` context managers with `ServiceConfig` overrides instead of mutable global state
 5. ✅ **Extract Common CLI Setup Pattern** — Removed duplicate helper functions from CLI modules; all services now accessed via `ServiceContainer` properties
 6. ✅ **Split Large CLI Modules (Phase 1)** — Extracted `cli_context()` to `services/cli.py` and `build_projections_and_positions()` to `shared/orchestration.py`
+7. ✅ **Builder Creates Internal Dependencies** — Added `cache_store` injection to `PipelineBuilder` via constructor and `with_cache_store()` method
