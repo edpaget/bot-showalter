@@ -10,6 +10,8 @@ This project implements several projection pipelines based on the Marcel methodo
 | `marcel` | Active | Simple projections | Modern baseline with per-stat regression |
 | `marcel_full` | Active | Production (no ML) | Full adjustments: park, Statcast, normalization |
 | `marcel_gb` | Active | **Best accuracy** | marcel_full + ML residual corrections |
+| `mtl` | Experimental | Research | Standalone neural network predictions |
+| `marcel_mtl` | Active | **Best pitcher ERA/WHIP** | Marcel + neural network blend |
 
 ## Quick Start
 
@@ -40,24 +42,27 @@ Historical Stats → Rate Computer → Adjusters → Playing Time → Finalizer 
 
 Based on 2021-2024 backtesting (339 batters/year, 200+ PA):
 
-| Pipeline | HR Corr | SB Corr | ERA Corr | Rank Spearman |
-|----------|---------|---------|----------|---------------|
-| marcel_classic | 0.635 | 0.666 | 0.153 | 0.558 |
-| marcel | 0.637 | 0.678 | 0.155 | 0.558 |
-| marcel_full | 0.665 | 0.678 | 0.247 | 0.586 |
-| marcel_gb | 0.678 | 0.736 | 0.247 | 0.603 |
+| Pipeline | HR Corr | SB Corr | ERA Corr | ERA RMSE | Rank ρ |
+|----------|---------|---------|----------|----------|--------|
+| marcel_classic | 0.635 | 0.666 | 0.153 | 1.38 | 0.558 |
+| marcel | 0.637 | 0.678 | 0.155 | 1.38 | 0.558 |
+| marcel_full | 0.665 | 0.678 | 0.247 | 1.27 | 0.586 |
+| marcel_gb | **0.678** | **0.736** | 0.194 | 1.21 | **0.603** |
+| marcel_mtl | 0.648 | 0.680 | **0.174** | **1.18** | 0.547 |
 
 Key findings:
 - **Pitcher normalization** (BABIP/LOB% regression) delivers the largest single improvement: ERA RMSE -8.9%
 - **Statcast blending** improves HR correlation +1.1% and OBP correlation +1.9%
 - **GB residual model** adds +4.5% to rank accuracy, the most important fantasy metric
+- **MTL blend** achieves best ERA RMSE (1.18) but sacrifices some batting accuracy
 
 ## Detailed Documentation
 
 - [Marcel Classic](./marcel-classic.md) - Original Marcel methodology
 - [Marcel](./marcel.md) - Modern baseline with stat-specific regression
 - [Marcel Full](./marcel-full.md) - Kitchen-sink pipeline with all adjustments
-- [Gradient Boosting Residual Model](./gradient-boosting-residual-model.md) - ML-enhanced projections
+- [Gradient Boosting Residual Model](./gradient-boosting-residual-model.md) - ML residual corrections
+- [Multi-Task Learning](./multi-task-learning.md) - Neural network projections
 
 ## Methodology Notes
 

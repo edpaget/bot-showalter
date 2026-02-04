@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -90,7 +91,8 @@ class TestProjectBatters:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = project_batters.invoke({"year": 2025, "engine": "marcel", "top_n": 10})
+            args: dict[str, Any] = {"year": 2025, "engine": "marcel", "top_n": 10}
+            result = project_batters.invoke(args)
 
         assert "Top" in result
         assert "Projected Batters" in result
@@ -104,7 +106,8 @@ class TestProjectBatters:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = project_batters.invoke({"year": 2025, "engine": "marcel", "top_n": 2})
+            args: dict[str, Any] = {"year": 2025, "engine": "marcel", "top_n": 2}
+            result = project_batters.invoke(args)
 
         # Should have 2 batters in output
         assert "Aaron Judge" in result
@@ -115,7 +118,8 @@ class TestProjectBatters:
         assert len(player_lines) <= 2
 
     def test_invalid_engine_returns_error(self) -> None:
-        result = project_batters.invoke({"year": 2025, "engine": "invalid_engine", "top_n": 10})
+        args: dict[str, Any] = {"year": 2025, "engine": "invalid_engine", "top_n": 10}
+        result = project_batters.invoke(args)
         assert "Invalid engine" in result
         assert "invalid_engine" in result
 
@@ -128,7 +132,8 @@ class TestProjectPitchers:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = project_pitchers.invoke({"year": 2025, "engine": "marcel", "top_n": 10})
+            args: dict[str, Any] = {"year": 2025, "engine": "marcel", "top_n": 10}
+            result = project_pitchers.invoke(args)
 
         assert "Top" in result
         assert "Projected Pitchers" in result
@@ -143,7 +148,8 @@ class TestLookupPlayer:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = lookup_player.invoke({"name": "Judge"})
+            args: dict[str, Any] = {"name": "Judge"}
+            result = lookup_player.invoke(args)
 
         assert "Aaron Judge" in result
         assert "Batter" in result
@@ -156,7 +162,8 @@ class TestLookupPlayer:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = lookup_player.invoke({"name": "soto"})
+            args: dict[str, Any] = {"name": "soto"}
+            result = lookup_player.invoke(args)
 
         assert "Juan Soto" in result
 
@@ -167,7 +174,8 @@ class TestLookupPlayer:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = lookup_player.invoke({"name": "Nonexistent Player"})
+            args: dict[str, Any] = {"name": "Nonexistent Player"}
+            result = lookup_player.invoke(args)
 
         assert "No players found" in result
 
@@ -180,7 +188,8 @@ class TestComparePlayers:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = compare_players.invoke({"names": "Judge, Soto"})
+            args: dict[str, Any] = {"names": "Judge, Soto"}
+            result = compare_players.invoke(args)
 
         assert "Comparison" in result
         assert "Aaron Judge" in result or "Judge" in result
@@ -193,7 +202,8 @@ class TestComparePlayers:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = compare_players.invoke({"names": "Judge, Unknown"})
+            args: dict[str, Any] = {"names": "Judge, Unknown"}
+            result = compare_players.invoke(args)
 
         assert "Could not find" in result
         assert "Unknown" in result
@@ -205,7 +215,8 @@ class TestComparePlayers:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = compare_players.invoke({"names": "Judge"})
+            args: dict[str, Any] = {"names": "Judge"}
+            result = compare_players.invoke(args)
 
         assert "at least two" in result
 
@@ -218,14 +229,13 @@ class TestRankKeepers:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = rank_keepers.invoke(
-                {
-                    "candidates": "Judge, Soto, Ohtani",
-                    "user_pick": 5,
-                    "teams": 12,
-                    "keeper_slots": 4,
-                }
-            )
+            args: dict[str, Any] = {
+                "candidates": "Judge, Soto, Ohtani",
+                "user_pick": 5,
+                "teams": 12,
+                "keeper_slots": 4,
+            }
+            result = rank_keepers.invoke(args)
 
         assert "Keeper Rankings" in result
         assert "Surplus" in result
@@ -237,14 +247,13 @@ class TestRankKeepers:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = rank_keepers.invoke(
-                {
-                    "candidates": "Judge, Unknown",
-                    "user_pick": 5,
-                    "teams": 12,
-                    "keeper_slots": 4,
-                }
-            )
+            args: dict[str, Any] = {
+                "candidates": "Judge, Unknown",
+                "user_pick": 5,
+                "teams": 12,
+                "keeper_slots": 4,
+            }
+            result = rank_keepers.invoke(args)
 
         assert "Could not find" in result or "Aaron Judge" in result
 
@@ -262,7 +271,8 @@ class TestGetLeagueSettings:
             "fantasy_baseball_manager.agent.tools.load_league_settings",
             return_value=mock_settings,
         ):
-            result = get_league_settings.invoke({})
+            args: dict[str, Any] = {}
+            result = get_league_settings.invoke(args)
 
         assert "League Settings" in result
         assert "Teams: 12" in result
@@ -305,7 +315,8 @@ class TestGetPlayerInfo:
                 return_value=mock_mlb_response,
             ),
         ):
-            result = get_player_info.invoke({"name": "Judge"})
+            args: dict[str, Any] = {"name": "Judge"}
+            result = get_player_info.invoke(args)
 
         assert "Aaron Judge" in result
         assert "New York Yankees" in result
@@ -320,7 +331,8 @@ class TestGetPlayerInfo:
             "fantasy_baseball_manager.agent.tools.build_projections_and_positions",
             return_value=(all_values, positions),
         ):
-            result = get_player_info.invoke({"name": "Nonexistent Player"})
+            args: dict[str, Any] = {"name": "Nonexistent Player"}
+            result = get_player_info.invoke(args)
 
         assert "No players found" in result
 
@@ -339,7 +351,8 @@ class TestGetPlayerInfo:
                 return_value=type("MockContainer", (), {"id_mapper": mock_mapper})(),
             ),
         ):
-            result = get_player_info.invoke({"name": "Judge"})
+            args: dict[str, Any] = {"name": "Judge"}
+            result = get_player_info.invoke(args)
 
         assert "could not find their MLB ID" in result
 
@@ -362,6 +375,7 @@ class TestGetPlayerInfo:
                 return_value=None,
             ),
         ):
-            result = get_player_info.invoke({"name": "Judge"})
+            args: dict[str, Any] = {"name": "Judge"}
+            result = get_player_info.invoke(args)
 
         assert "Could not retrieve current info" in result
