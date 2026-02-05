@@ -78,6 +78,10 @@ class PlayerMetadata(TypedDict, total=False):
     mle_source_pa: int
     mle_rates: dict[str, float]
 
+    # MLE augmented rate computer metadata
+    mle_augmented: bool
+    delegate_rates: dict[str, float]
+
 
 @dataclass
 class PlayerRates:

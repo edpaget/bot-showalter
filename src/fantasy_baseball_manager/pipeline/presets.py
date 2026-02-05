@@ -125,6 +125,40 @@ def marcel_gb_pipeline(
     )
 
 
+def marcel_gb_mle_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Best accuracy pipeline with MLE augmentation for rookies.
+
+    Combines marcel_gb (the best performing pipeline) with ML-based Minor
+    League Equivalencies for players with limited MLB history (<200 PA).
+
+    This gives you the best of both worlds:
+    - Full marcel_gb accuracy for established players
+    - MLE-enhanced projections for rookies and recent call-ups
+
+    Requires a trained MLE model (run scripts/run_mle_evaluation.py).
+    """
+    from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import GBResidualConfig
+
+    cfg = config or RegressionConfig()
+    gb_config = GBResidualConfig(
+        batter_allowed_stats=("hr", "sb"),
+        pitcher_allowed_stats=("so", "bb"),
+    )
+    return (
+        PipelineBuilder("marcel_gb_mle", config=cfg)
+        .with_park_factors()
+        .with_pitcher_normalization()
+        .with_pitcher_statcast()
+        .with_statcast()
+        .with_batter_babip()
+        .with_gb_residual(gb_config)
+        .with_mle_for_rookies()
+        .build()
+    )
+
+
 def mtl_pipeline(
     config: RegressionConfig | None = None,
 ) -> ProjectionPipeline:
@@ -220,6 +254,7 @@ PIPELINES: dict[str, Callable[[], Any]] = {
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
+    "marcel_gb_mle": marcel_gb_mle_pipeline,
     "mtl": mtl_pipeline,
     "marcel_mtl": marcel_mtl_pipeline,
     "mle": mle_pipeline,
@@ -231,6 +266,7 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
     "marcel_gb": marcel_gb_pipeline,
+    "marcel_gb_mle": marcel_gb_mle_pipeline,
     "mtl": mtl_pipeline,
     "marcel_mtl": marcel_mtl_pipeline,
     "mle": mle_pipeline,

@@ -138,6 +138,8 @@ class PipelineBuilder:
         self._mtl_blender_config: MTLBlenderConfig | None = None
         self._mle_rate_computer: bool = False
         self._mle_rate_computer_config: MLERateComputerConfig | None = None
+        self._mle_for_rookies: bool = False
+        self._mle_for_rookies_config: MLERateComputerConfig | None = None
 
     def with_cache_store(self, cache_store: CacheStore) -> PipelineBuilder:
         """Set the cache store to use for all cached data sources.
@@ -296,6 +298,29 @@ class PipelineBuilder:
             self._mle_rate_computer_config = config
         return self
 
+    def with_mle_for_rookies(
+        self,
+        config: MLERateComputerConfig | None = None,
+    ) -> PipelineBuilder:
+        """Augment rate computation with MLE for rookies.
+
+        This wraps the existing rate computer (e.g., StatSpecificRegression)
+        and augments it with MLE predictions for players with limited MLB
+        history (<200 PA). Established players use the normal rate computer
+        unchanged.
+
+        This is different from with_mle_rate_computer() which replaces the
+        rate computer entirely. Use this method when you want to keep the
+        advanced rate computation (with all adjusters) but add MLE support
+        for rookies.
+
+        Requires a trained MLE model (run scripts/run_mle_evaluation.py).
+        """
+        self._mle_for_rookies = True
+        if config is not None:
+            self._mle_for_rookies_config = config
+        return self
+
     def build(self) -> ProjectionPipeline:
         rate_computer = self._build_rate_computer()
         adjusters = self._build_adjusters()
@@ -341,6 +366,8 @@ class PipelineBuilder:
                 config=self._mle_rate_computer_config or MLERateComputerConfig(),
             )
 
+        # Build base rate computer
+        base_computer: RateComputer
         if self._rate_computer_type == "platoon":
             split_source = self._split_source or CachedSplitDataSource(
                 delegate=PybaseballSplitDataSource(),
@@ -350,17 +377,34 @@ class PipelineBuilder:
                 batting_regression=cfg.batting_regression_pa,
                 pitching_regression=cfg.pitching_regression_outs,
             )
-            return PlatoonRateComputer(
+            base_computer = PlatoonRateComputer(
                 split_source=split_source,
                 pitching_delegate=pitching_delegate,
                 batting_regression=cfg.platoon.batting_split_regression_pa,
                 pct_vs_rhp=cfg.platoon.pct_vs_rhp,
                 pct_vs_lhp=cfg.platoon.pct_vs_lhp,
             )
-        return StatSpecificRegressionRateComputer(
-            batting_regression=cfg.batting_regression_pa,
-            pitching_regression=cfg.pitching_regression_outs,
-        )
+        else:
+            base_computer = StatSpecificRegressionRateComputer(
+                batting_regression=cfg.batting_regression_pa,
+                pitching_regression=cfg.pitching_regression_outs,
+            )
+
+        # Wrap with MLE augmentation for rookies if enabled
+        if self._mle_for_rookies:
+            from fantasy_baseball_manager.minors.rate_computer import (
+                MLEAugmentedRateComputer,
+                MLERateComputerConfig,
+            )
+
+            return MLEAugmentedRateComputer(
+                delegate=base_computer,
+                milb_source=self._resolve_milb_source(),
+                id_mapper=self._resolve_id_mapper(),
+                config=self._mle_for_rookies_config or MLERateComputerConfig(),
+            )
+
+        return base_computer
 
     def _build_adjusters(self) -> list[RateAdjuster]:
         adjusters: list[RateAdjuster] = []

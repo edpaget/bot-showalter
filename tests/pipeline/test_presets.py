@@ -138,6 +138,7 @@ ALL_PRESET_NAMES = [
     "marcel",
     "marcel_full",
     "marcel_gb",
+    "marcel_gb_mle",
     "mtl",
     "marcel_mtl",
     "mle",
@@ -162,7 +163,7 @@ class TestAllPresetsInRegistry:
         assert len(aging_adjusters) == 1
 
     def test_registry_has_expected_entries(self) -> None:
-        assert len(PIPELINES) == 9  # 7 internal + steamer + zips
+        assert len(PIPELINES) == 10  # 8 internal + steamer + zips
 
 
 class TestConfigThreading:
