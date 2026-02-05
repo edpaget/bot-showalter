@@ -66,6 +66,9 @@ class _BattingProjectionDict(TypedDict):
     pa: int
     ab: int
     h: int
+    singles: int
+    doubles: int
+    triples: int
     hr: int
     r: int
     rbi: int
@@ -74,6 +77,8 @@ class _BattingProjectionDict(TypedDict):
     bb: int
     so: int
     hbp: int
+    sf: int
+    sh: int
     obp: float
     slg: float
     ops: float
@@ -95,6 +100,7 @@ class _PitchingProjectionDict(TypedDict):
     hld: int
     so: int
     bb: int
+    hbp: int
     h: int
     er: int
     hr: int
@@ -429,6 +435,9 @@ def _serialize_projection_data(data: ProjectionData) -> str:
                     "pa": p.pa,
                     "ab": p.ab,
                     "h": p.h,
+                    "singles": p.singles,
+                    "doubles": p.doubles,
+                    "triples": p.triples,
                     "hr": p.hr,
                     "r": p.r,
                     "rbi": p.rbi,
@@ -437,6 +446,8 @@ def _serialize_projection_data(data: ProjectionData) -> str:
                     "bb": p.bb,
                     "so": p.so,
                     "hbp": p.hbp,
+                    "sf": p.sf,
+                    "sh": p.sh,
                     "obp": p.obp,
                     "slg": p.slg,
                     "ops": p.ops,
@@ -460,6 +471,7 @@ def _serialize_projection_data(data: ProjectionData) -> str:
                     "hld": p.hld,
                     "so": p.so,
                     "bb": p.bb,
+                    "hbp": p.hbp,
                     "h": p.h,
                     "er": p.er,
                     "hr": p.hr,
@@ -492,6 +504,9 @@ def _deserialize_projection_data(data: str) -> ProjectionData:
                 pa=p["pa"],
                 ab=p["ab"],
                 h=p["h"],
+                singles=p["singles"],
+                doubles=p["doubles"],
+                triples=p["triples"],
                 hr=p["hr"],
                 r=p["r"],
                 rbi=p["rbi"],
@@ -500,6 +515,8 @@ def _deserialize_projection_data(data: str) -> ProjectionData:
                 bb=p["bb"],
                 so=p["so"],
                 hbp=p["hbp"],
+                sf=p["sf"],
+                sh=p["sh"],
                 obp=p["obp"],
                 slg=p["slg"],
                 ops=p["ops"],
@@ -523,6 +540,7 @@ def _deserialize_projection_data(data: str) -> ProjectionData:
                 hld=p["hld"],
                 so=p["so"],
                 bb=p["bb"],
+                hbp=p["hbp"],
                 h=p["h"],
                 er=p["er"],
                 hr=p["hr"],

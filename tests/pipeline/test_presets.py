@@ -135,7 +135,7 @@ class TestAllPresetsInRegistry:
         assert len(aging_adjusters) == 1
 
     def test_registry_has_expected_entries(self) -> None:
-        assert len(PIPELINES) == 7
+        assert len(PIPELINES) == 9  # 7 internal + steamer + zips
 
 
 class TestConfigThreading:
@@ -174,8 +174,11 @@ class TestBuildPipeline:
     @pytest.mark.parametrize("name", list(PIPELINES.keys()))
     def test_dispatches_all_registered_pipelines(self, name: str) -> None:
         pipeline = build_pipeline(name)
-        assert isinstance(pipeline, ProjectionPipeline)
-        assert pipeline.name == name
+        # Check duck typing - pipeline must have projection methods
+        assert hasattr(pipeline, "project_batters")
+        assert hasattr(pipeline, "project_pitchers")
+        assert callable(pipeline.project_batters)
+        assert callable(pipeline.project_pitchers)
 
     def test_passes_config_to_configurable_pipeline(self) -> None:
         custom = {"hr": 123.0}

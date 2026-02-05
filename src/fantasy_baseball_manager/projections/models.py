@@ -27,6 +27,9 @@ class BattingProjection:
         pa: Projected plate appearances.
         ab: Projected at-bats.
         h: Projected hits.
+        singles: Projected singles (1B).
+        doubles: Projected doubles (2B).
+        triples: Projected triples (3B).
         hr: Projected home runs.
         r: Projected runs.
         rbi: Projected RBIs.
@@ -35,6 +38,8 @@ class BattingProjection:
         bb: Projected walks.
         so: Projected strikeouts.
         hbp: Projected hit by pitches.
+        sf: Projected sacrifice flies.
+        sh: Projected sacrifice hits.
         obp: Projected on-base percentage.
         slg: Projected slugging percentage.
         ops: Projected OPS.
@@ -51,6 +56,9 @@ class BattingProjection:
     pa: int
     ab: int
     h: int
+    singles: int
+    doubles: int
+    triples: int
     hr: int
     r: int
     rbi: int
@@ -59,6 +67,8 @@ class BattingProjection:
     bb: int
     so: int
     hbp: int
+    sf: int
+    sh: int
     obp: float
     slg: float
     ops: float
@@ -84,6 +94,7 @@ class PitchingProjection:
         hld: Projected holds.
         so: Projected strikeouts.
         bb: Projected walks.
+        hbp: Projected hit by pitches.
         h: Projected hits allowed.
         er: Projected earned runs.
         hr: Projected home runs allowed.
@@ -106,6 +117,7 @@ class PitchingProjection:
     hld: int
     so: int
     bb: int
+    hbp: int
     h: int
     er: int
     hr: int

@@ -32,6 +32,9 @@ def sample_projection_data() -> ProjectionData:
                 pa=635,
                 ab=510,
                 h=145,
+                singles=78,
+                doubles=24,
+                triples=1,
                 hr=43,
                 r=110,
                 rbi=104,
@@ -40,6 +43,8 @@ def sample_projection_data() -> ProjectionData:
                 bb=112,
                 so=156,
                 hbp=6,
+                sf=4,
+                sh=2,
                 obp=0.417,
                 slg=0.587,
                 ops=1.004,
@@ -62,6 +67,7 @@ def sample_projection_data() -> ProjectionData:
                 hld=0,
                 so=243,
                 bb=44,
+                hbp=7,
                 h=160,
                 er=62,
                 hr=20,
@@ -108,9 +114,7 @@ class TestProjectionSerialization:
         assert deser_pit.era == pytest.approx(orig_pit.era)
         assert deser_pit.sv == orig_pit.sv
 
-    def test_handles_none_mlbam_id(
-        self, sample_projection_data: ProjectionData
-    ) -> None:
+    def test_handles_none_mlbam_id(self) -> None:
         """Serialization handles None MLBAM ID."""
         data = ProjectionData(
             batting=(
@@ -124,6 +128,9 @@ class TestProjectionSerialization:
                     pa=400,
                     ab=350,
                     h=90,
+                    singles=50,
+                    doubles=20,
+                    triples=2,
                     hr=20,
                     r=50,
                     rbi=60,
@@ -132,6 +139,8 @@ class TestProjectionSerialization:
                     bb=40,
                     so=80,
                     hbp=5,
+                    sf=3,
+                    sh=1,
                     obp=0.350,
                     slg=0.450,
                     ops=0.800,

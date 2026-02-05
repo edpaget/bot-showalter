@@ -64,11 +64,16 @@ class TestFanGraphsProjectionSource:
         assert judge.team == "NYY"
         assert judge.position == "OF"
         assert judge.pa == 635
+        assert judge.singles == 78
+        assert judge.doubles == 24
+        assert judge.triples == 1
         assert judge.hr == 43
         assert judge.r == 110
         assert judge.rbi == 104
         assert judge.sb == 9
         assert judge.bb == 112
+        assert judge.sf == 4
+        assert judge.sh == 2
         assert judge.obp == pytest.approx(0.417, abs=0.001)
         assert judge.war == pytest.approx(6.7, abs=0.1)
 
@@ -92,6 +97,7 @@ class TestFanGraphsProjectionSource:
         assert skubal.w == 14
         assert skubal.sv == 0
         assert skubal.so == 243
+        assert skubal.hbp == 7
         assert skubal.era == pytest.approx(2.80, abs=0.01)
         assert skubal.whip == pytest.approx(1.02, abs=0.01)
 

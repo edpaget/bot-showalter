@@ -6,15 +6,19 @@ Available pipelines:
 - marcel_full: Kitchen-sink with park factors, Statcast, and BABIP adjustments
 - marcel_gb: marcel_full + gradient boosting residual corrections (best accuracy)
 - mle: ML-based Minor League Equivalencies for projecting players with limited MLB history
+- steamer: Steamer projections from FanGraphs
+- zips: ZiPS projections from FanGraphs
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from fantasy_baseball_manager.cache.factory import create_cache_store
+from fantasy_baseball_manager.cache.sources import CachedProjectionSource
 from fantasy_baseball_manager.pipeline.builder import PipelineBuilder
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
 from fantasy_baseball_manager.pipeline.stages.adjusters import (
@@ -29,6 +33,9 @@ from fantasy_baseball_manager.pipeline.stages.regression_config import Regressio
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
+from fantasy_baseball_manager.projections.adapter import ExternalProjectionAdapter
+from fantasy_baseball_manager.projections.fangraphs import FanGraphsProjectionSource
+from fantasy_baseball_manager.projections.models import ProjectionSystem
 
 
 def marcel_classic_pipeline() -> ProjectionPipeline:
@@ -175,7 +182,40 @@ def mle_pipeline(
     )
 
 
-PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
+def steamer_pipeline() -> ExternalProjectionAdapter:
+    """Steamer projections from FanGraphs.
+
+    Fetches pre-computed Steamer projections from the FanGraphs API.
+    These are industry-standard projections widely used for fantasy baseball.
+    """
+    cache = create_cache_store()
+    source = CachedProjectionSource(
+        delegate=FanGraphsProjectionSource(ProjectionSystem.STEAMER),
+        cache=cache,
+        cache_key="steamer",
+        ttl_seconds=604800,  # 7 days
+    )
+    return ExternalProjectionAdapter(source)
+
+
+def zips_pipeline() -> ExternalProjectionAdapter:
+    """ZiPS projections from FanGraphs.
+
+    Fetches pre-computed ZiPS projections from the FanGraphs API.
+    ZiPS is Dan Szymborski's projection system, known for aggressive
+    projections on young players.
+    """
+    cache = create_cache_store()
+    source = CachedProjectionSource(
+        delegate=FanGraphsProjectionSource(ProjectionSystem.ZIPS),
+        cache=cache,
+        cache_key="zips",
+        ttl_seconds=604800,  # 7 days
+    )
+    return ExternalProjectionAdapter(source)
+
+
+PIPELINES: dict[str, Callable[[], Any]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
     "marcel_full": marcel_full_pipeline,
@@ -183,6 +223,8 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "mtl": mtl_pipeline,
     "marcel_mtl": marcel_mtl_pipeline,
     "mle": mle_pipeline,
+    "steamer": steamer_pipeline,
+    "zips": zips_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
