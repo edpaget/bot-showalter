@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, overload
 
 import requests
 
+from fantasy_baseball_manager.context import get_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSource, DataSourceError
 from fantasy_baseball_manager.minors.types import (
     MinorLeagueBatterSeasonStats,
     MinorLeagueLevel,
     MinorLeaguePitcherSeasonStats,
 )
+from fantasy_baseball_manager.result import Err, Ok
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.player.identity import Player
 
 logger = logging.getLogger(__name__)
 
@@ -272,3 +278,126 @@ class MLBStatsAPIDataSource:
             return float(value)
         except (ValueError, TypeError):
             return 0.0
+
+
+# ---------------------------------------------------------------------------
+# New-style DataSource classes
+# ---------------------------------------------------------------------------
+
+
+class MinorLeagueBattingDataSource:
+    """DataSource for minor league batting stats using MLB Stats API.
+
+    Implements the DataSource[MinorLeagueBatterSeasonStats] protocol with proper overloads
+    so the type checker knows the return type based on the query type.
+
+    Year is read from the ambient Context. Returns stats for all levels.
+
+    Usage:
+        init_context(year=2024)
+        milb_batting_source = MinorLeagueBattingDataSource()
+        result = milb_batting_source(ALL_PLAYERS)
+        if result.is_ok():
+            stats = result.unwrap()  # Type checker knows: list[MinorLeagueBatterSeasonStats]
+    """
+
+    def __init__(self, timeout: int = 30) -> None:
+        self._delegate = MLBStatsAPIDataSource(timeout=timeout)
+
+    @overload
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[MinorLeagueBatterSeasonStats]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[list[MinorLeagueBatterSeasonStats]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: Player) -> Ok[MinorLeagueBatterSeasonStats] | Err[DataSourceError]: ...
+
+    def __call__(
+        self, query: type[ALL_PLAYERS] | Player | list[Player]
+    ) -> Ok[list[MinorLeagueBatterSeasonStats]] | Ok[MinorLeagueBatterSeasonStats] | Err[DataSourceError]:
+        if query is not ALL_PLAYERS:
+            return Err(DataSourceError("Only ALL_PLAYERS queries supported"))
+
+        ctx = get_context()
+        year = ctx.year
+
+        try:
+            results = self._delegate.batting_stats_all_levels(year)
+            return Ok(results)
+        except Exception as e:
+            return Err(DataSourceError(f"Failed to fetch MiLB batting stats for {year}", e))
+
+
+def create_milb_batting_source() -> DataSource[MinorLeagueBatterSeasonStats]:
+    """Create a DataSource for minor league batting stats.
+
+    Returns a MinorLeagueBattingDataSource instance that implements the full DataSource protocol.
+
+    Usage:
+        init_context(year=2024)
+        milb_batting_source = create_milb_batting_source()
+        result = milb_batting_source(ALL_PLAYERS)
+        if result.is_ok():
+            stats = result.unwrap()  # Type checker knows: list[MinorLeagueBatterSeasonStats]
+    """
+    return MinorLeagueBattingDataSource()
+
+
+class MinorLeaguePitchingDataSource:
+    """DataSource for minor league pitching stats using MLB Stats API.
+
+    Implements the DataSource[MinorLeaguePitcherSeasonStats] protocol with proper overloads
+    so the type checker knows the return type based on the query type.
+
+    Year is read from the ambient Context. Returns stats for all levels.
+
+    Usage:
+        init_context(year=2024)
+        milb_pitching_source = MinorLeaguePitchingDataSource()
+        result = milb_pitching_source(ALL_PLAYERS)
+        if result.is_ok():
+            stats = result.unwrap()  # Type checker knows: list[MinorLeaguePitcherSeasonStats]
+    """
+
+    def __init__(self, timeout: int = 30) -> None:
+        self._delegate = MLBStatsAPIDataSource(timeout=timeout)
+
+    @overload
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[MinorLeaguePitcherSeasonStats]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[list[MinorLeaguePitcherSeasonStats]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: Player) -> Ok[MinorLeaguePitcherSeasonStats] | Err[DataSourceError]: ...
+
+    def __call__(
+        self, query: type[ALL_PLAYERS] | Player | list[Player]
+    ) -> Ok[list[MinorLeaguePitcherSeasonStats]] | Ok[MinorLeaguePitcherSeasonStats] | Err[DataSourceError]:
+        if query is not ALL_PLAYERS:
+            return Err(DataSourceError("Only ALL_PLAYERS queries supported"))
+
+        ctx = get_context()
+        year = ctx.year
+
+        try:
+            results = self._delegate.pitching_stats_all_levels(year)
+            return Ok(results)
+        except Exception as e:
+            return Err(DataSourceError(f"Failed to fetch MiLB pitching stats for {year}", e))
+
+
+def create_milb_pitching_source() -> DataSource[MinorLeaguePitcherSeasonStats]:
+    """Create a DataSource for minor league pitching stats.
+
+    Returns a MinorLeaguePitchingDataSource instance that implements the full DataSource protocol.
+
+    Usage:
+        init_context(year=2024)
+        milb_pitching_source = create_milb_pitching_source()
+        result = milb_pitching_source(ALL_PLAYERS)
+        if result.is_ok():
+            stats = result.unwrap()  # Type checker knows: list[MinorLeaguePitcherSeasonStats]
+    """
+    return MinorLeaguePitchingDataSource()

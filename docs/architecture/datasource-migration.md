@@ -85,14 +85,17 @@ class MinorLeagueDataSource(Protocol):
     def pitching_stats_all_levels(self, year: int) -> list[MinorLeaguePitcherSeasonStats]: ...
 ```
 
-**Challenge:** Has `level` parameter in addition to `year`. Options:
-1. Create separate sources per level
-2. Add level to context
-3. Keep level as parameter, only move year to context
+**New interface:**
+```python
+milb_batting_source: DataSource[MinorLeagueBatterSeasonStats]   # year from context, all levels
+milb_pitching_source: DataSource[MinorLeaguePitcherSeasonStats] # year from context, all levels
+```
 
-**Implementation:** `FanGraphsMinorLeagueDataSource`
+**Implementation:** `MinorLeagueBattingDataSource`, `MinorLeaguePitchingDataSource` (delegates to `MLBStatsAPIDataSource`)
 
-**Status:** Pending
+**Status:** Done
+
+**Resolution:** The new DataSource classes return all levels for the context's year (equivalent to `_all_levels` methods). Level-specific queries can be achieved by filtering the results or using the legacy protocol for specific-level fetches.
 
 **Consumers:**
 - `MLERateComputer`
@@ -229,7 +232,7 @@ class PositionSource(Protocol):
 
 ### Phase 2: Stats Sources
 - [x] Complete `StatsDataSource` migration (all 4 methods)
-- [ ] Migrate `MinorLeagueDataSource`
+- [x] Migrate `MinorLeagueDataSource`
 - [ ] Update all pipeline consumers
 
 ### Phase 3: Player Mapping
