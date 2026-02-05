@@ -7,51 +7,42 @@ import pytest
 from fantasy_baseball_manager.adp.models import ADPData
 from fantasy_baseball_manager.adp.scraper import YahooADPScraper
 
+
+# Fixture mimicking Yahoo's actual HTML structure
 YAHOO_ADP_HTML_FIXTURE = """
 <html>
 <body>
-<table class="Table">
+<table data-tst="table">
   <thead>
-    <tr>
-      <th>Rank</th>
-      <th>Player</th>
-      <th>Avg Pick</th>
-      <th>% Drafted</th>
-    </tr>
+    <tr><th>Player</th><th>Rank</th><th>Pos Rank</th><th>CER</th><th>%Drafted</th><th>Preseason</th><th>All Drafts</th></tr>
   </thead>
   <tbody>
-    <tr class="player-row" data-row="0">
-      <td>1</td>
-      <td>
-        <div class="player-name">
-          <a href="/players/123">Mike Trout</a>
-          <span class="position">OF - LAA</span>
-        </div>
-      </td>
-      <td>1.5</td>
-      <td>99.8%</td>
+    <tr data-tst="table-row-0">
+      <td><div data-tst="player"><div data-tst="player-name">Mike Trout</div><span data-tst="player-position">OF</span></div></td>
+      <td><div class="Ta(c)">1</div></td>
+      <td><div class="Ta(c)">1</div></td>
+      <td><div class="Ta(c)">1</div></td>
+      <td><div class="Ta(c)">99.8%</div></td>
+      <td><div class="Ta(c)">1.5</div></td>
+      <td><div class="Ta(c)">1.5</div></td>
     </tr>
-    <tr class="player-row" data-row="1">
-      <td>2</td>
-      <td>
-        <div class="player-name">
-          <a href="/players/456">Shohei Ohtani</a>
-          <span class="position">DH,SP - LAD</span>
-        </div>
-      </td>
-      <td>2.3</td>
-      <td>99.5%</td>
+    <tr data-tst="table-row-1">
+      <td><div data-tst="player"><div data-tst="player-name">Shohei Ohtani</div><span data-tst="player-position">DH,SP</span></div></td>
+      <td><div class="Ta(c)">2</div></td>
+      <td><div class="Ta(c)">1</div></td>
+      <td><div class="Ta(c)">2</div></td>
+      <td><div class="Ta(c)">99.5%</div></td>
+      <td><div class="Ta(c)">2.3</div></td>
+      <td><div class="Ta(c)">2.3</div></td>
     </tr>
-    <tr class="player-row" data-row="2">
-      <td>3</td>
-      <td>
-        <div class="player-name">
-          <a href="/players/789">Ronald Acuña Jr.</a>
-          <span class="position">OF - ATL</span>
-        </div>
-      </td>
-      <td>3.1</td>
-      <td>98.2%</td>
+    <tr data-tst="table-row-2">
+      <td><div data-tst="player"><div data-tst="player-name">Ronald Acuña Jr.</div><span data-tst="player-position">OF</span></div></td>
+      <td><div class="Ta(c)">3</div></td>
+      <td><div class="Ta(c)">2</div></td>
+      <td><div class="Ta(c)">3</div></td>
+      <td><div class="Ta(c)">98.2%</div></td>
+      <td><div class="Ta(c)">3.1</div></td>
+      <td><div class="Ta(c)">3.1</div></td>
     </tr>
   </tbody>
 </table>
@@ -62,30 +53,30 @@ YAHOO_ADP_HTML_FIXTURE = """
 YAHOO_ADP_HTML_MALFORMED = """
 <html>
 <body>
-<table class="Table">
+<table data-tst="table">
   <tbody>
-    <tr class="player-row" data-row="0">
-      <td>1</td>
-      <td>
-        <div class="player-name">
-          <a href="/players/123">Valid Player</a>
-          <span class="position">OF - NYY</span>
-        </div>
-      </td>
-      <td>5.0</td>
-      <td>90%</td>
+    <tr data-tst="table-row-0">
+      <td><div data-tst="player"><div data-tst="player-name">Valid Player</div><span data-tst="player-position">OF</span></div></td>
+      <td><div class="Ta(c)">1</div></td>
+      <td><div class="Ta(c)">1</div></td>
+      <td><div class="Ta(c)">1</div></td>
+      <td><div class="Ta(c)">90%</div></td>
+      <td><div class="Ta(c)">5.0</div></td>
+      <td><div class="Ta(c)">5.0</div></td>
     </tr>
-    <tr class="player-row" data-row="1">
-      <td>2</td>
-      <td>
-        <div class="player-name">
-          <span class="position">1B - BOS</span>
-        </div>
-      </td>
-      <td>invalid</td>
-      <td>80%</td>
+    <tr data-tst="table-row-1">
+      <td><div data-tst="player"><span data-tst="player-position">1B</span></div></td>
+      <td><div class="Ta(c)">2</div></td>
+      <td><div class="Ta(c)">1</div></td>
+      <td><div class="Ta(c)">2</div></td>
+      <td><div class="Ta(c)">80%</div></td>
+      <td><div class="Ta(c)">invalid</div></td>
+      <td><div class="Ta(c)">invalid</div></td>
     </tr>
-    <tr class="player-row" data-row="2">
+    <tr data-tst="table-row-2">
+      <td></td>
+      <td></td>
+      <td></td>
       <td></td>
       <td></td>
       <td></td>
