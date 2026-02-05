@@ -222,10 +222,10 @@ class PositionSource(Protocol):
 
 ## Migration Strategy
 
-### Phase 1: Proof of Concept
-- [ ] Migrate `StatsDataSource.batting_stats` to new pattern
-- [ ] Update one consumer (e.g., `RateComputer`) to use new source
-- [ ] Verify caching works via `cached()` wrapper
+### Phase 1: Proof of Concept ✅
+- [x] Migrate `StatsDataSource.batting_stats` to new pattern (`create_batting_source()`)
+- [x] Update one consumer (`MarcelRateComputer.compute_batting_rates_v2`) to use new source
+- [x] Verify caching works via `cached()` wrapper (tests in `test_batting_data_source.py`)
 
 ### Phase 2: Stats Sources
 - [ ] Complete `StatsDataSource` migration (all 4 methods)

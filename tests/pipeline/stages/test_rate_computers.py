@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import pytest
 
 from fantasy_baseball_manager.marcel.models import (
@@ -5,6 +7,10 @@ from fantasy_baseball_manager.marcel.models import (
     PitchingSeasonStats,
 )
 from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateComputer
+from fantasy_baseball_manager.result import Ok
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.context import Context
 
 
 def _make_player(
@@ -243,3 +249,71 @@ class TestMarcelRateComputerPitching:
         computer = MarcelRateComputer()
         rates = computer.compute_pitching_rates(ds, 2025, 3)
         assert rates[0].metadata["is_starter"] is False
+
+
+class TestMarcelRateComputerNewStyleDataSources:
+    """Tests for new DataSource[T] pattern integration."""
+
+    def test_compute_batting_rates_with_new_style_source(self, test_context: "Context") -> None:
+        """MarcelRateComputer works with new-style DataSource callables."""
+        player_batting = {
+            2024: [_make_player(year=2024, age=28)],
+            2023: [_make_player(year=2023, age=27)],
+            2022: [_make_player(year=2022, age=26)],
+        }
+        league = _make_league()
+        team_batting = {2024: [league], 2023: [league], 2022: [league]}
+
+        def batting_source(query: object) -> Ok[list[BattingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            return Ok(player_batting.get(year, []))
+
+        def team_batting_source(query: object) -> Ok[list[BattingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            return Ok(team_batting.get(year, []))
+
+        computer = MarcelRateComputer()
+        rates = computer.compute_batting_rates_v2(
+            batting_source=batting_source,  # type: ignore[arg-type]
+            team_batting_source=team_batting_source,  # type: ignore[arg-type]
+            year=2025,
+            years_back=3,
+        )
+
+        assert len(rates) == 1
+        assert rates[0].player_id == "p1"
+        assert rates[0].year == 2025
+        assert rates[0].age == 29
+
+    def test_new_style_source_uses_context_for_years(self, test_context: "Context") -> None:
+        """Verifies that multi-year queries use context switching."""
+        years_queried: list[int] = []
+        league = _make_league()
+
+        def batting_source(query: object) -> Ok[list[BattingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            years_queried.append(year)
+            return Ok([_make_player(year=year, age=25 + (2024 - year))])
+
+        def team_batting_source(query: object) -> Ok[list[BattingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            _ = get_context().year  # Access context to ensure it's set
+            return Ok([league])
+
+        computer = MarcelRateComputer()
+        computer.compute_batting_rates_v2(
+            batting_source=batting_source,  # type: ignore[arg-type]
+            team_batting_source=team_batting_source,  # type: ignore[arg-type]
+            year=2025,
+            years_back=3,
+        )
+
+        # Should query years 2024, 2023, 2022
+        assert set(years_queried) == {2024, 2023, 2022}

@@ -3,20 +3,25 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Protocol, TypeVar
 
 import pybaseball
 import pybaseball.cache
 
+from fantasy_baseball_manager.context import get_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from fantasy_baseball_manager.cache.protocol import CacheStore
+    from fantasy_baseball_manager.data.protocol import DataSourceResult, Query
 
 _T = TypeVar("_T")
 
@@ -161,6 +166,80 @@ class PybaseballDataSource:
                 )
             )
         return results
+
+
+# ---------------------------------------------------------------------------
+# New-style DataSource factories
+# ---------------------------------------------------------------------------
+
+
+def create_batting_source() -> Callable[[Query], DataSourceResult[BattingSeasonStats]]:
+    """Create a DataSource for batting stats.
+
+    Returns a callable that fetches batting stats using pybaseball.
+    Year is read from the ambient Context.
+
+    Usage:
+        init_context(year=2024)
+        batting_source = create_batting_source()
+        result = batting_source(ALL_PLAYERS)
+        if result.is_ok():
+            stats = result.unwrap()  # Sequence[BattingSeasonStats]
+
+    Returns:
+        A DataSource[BattingSeasonStats] callable.
+    """
+    pybaseball.cache.enable()
+
+    def source(
+        query: Query,
+    ) -> Ok[Sequence[BattingSeasonStats]] | Ok[BattingSeasonStats] | Err[DataSourceError]:
+        # Single player and batch queries not supported - this is a bulk source
+        if query is not ALL_PLAYERS:
+            return Err(DataSourceError("Single player queries not supported by batting source"))
+
+        ctx = get_context()
+        year = ctx.year
+
+        try:
+            df = pybaseball.batting_stats(year, qual=0)
+            results: list[BattingSeasonStats] = []
+            for _, row in df.iterrows():
+                h = int(row.get("H", 0))
+                doubles = int(row.get("2B", 0))
+                triples = int(row.get("3B", 0))
+                hr = int(row.get("HR", 0))
+                singles = h - doubles - triples - hr
+                results.append(
+                    BattingSeasonStats(
+                        player_id=str(row["IDfg"]),
+                        name=str(row["Name"]),
+                        year=year,
+                        age=int(row["Age"]),
+                        pa=int(row.get("PA", 0)),
+                        ab=int(row.get("AB", 0)),
+                        h=h,
+                        singles=singles,
+                        doubles=doubles,
+                        triples=triples,
+                        hr=hr,
+                        bb=int(row.get("BB", 0)),
+                        so=int(row.get("SO", 0)),
+                        hbp=int(row.get("HBP", 0)),
+                        sf=int(row.get("SF", 0)),
+                        sh=int(row.get("SH", 0)),
+                        sb=int(row.get("SB", 0)),
+                        cs=int(row.get("CS", 0)),
+                        r=int(row.get("R", 0)),
+                        rbi=int(row.get("RBI", 0)),
+                        team=str(row.get("Team", "")),
+                    )
+                )
+            return Ok[Sequence[BattingSeasonStats]](results)
+        except Exception as e:
+            return Err(DataSourceError(f"Failed to fetch batting stats for {year}", e))
+
+    return source
 
 
 # ---------------------------------------------------------------------------
