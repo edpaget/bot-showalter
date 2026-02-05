@@ -1,144 +1,123 @@
 """ESPN ADP scraper using Playwright."""
 
-import contextlib
+import logging
+import re
 from datetime import UTC, datetime
-from html.parser import HTMLParser
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Page, sync_playwright
 
 from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
 
 ESPN_ADP_URL = "https://fantasy.espn.com/baseball/livedraftresults"
 
+logger = logging.getLogger(__name__)
 
-class _ESPNTableParser(HTMLParser):
-    """HTML parser for extracting ADP data from ESPN's table.
 
-    ESPN's table structure:
+def _parse_espn_rows(html: str) -> list[ADPEntry]:
+    """Parse ADP entries from ESPN HTML.
+
+    ESPN's table structure (as of 2025):
     - Table body: <tbody class="Table__TBODY">
-    - Rows: <tr data-idx="N" class="Table__TR">
-    - Player name: <span class="player-name">Name</span> or <a class="AnchorLink">Name</a>
-    - Columns: RK, PLAYER, POS, ADP, AVG $, %ROST
+    - Each row has cells with specific classes:
+      - "ranking": Rank number
+      - "player__column": Contains player name and position
+      - "adp": Average Draft Position
+      - "pcadp": ADP percent change
+      - "avc": Auction value
+      - "own": Ownership %
+
+    Player name is in: <a class="AnchorLink ...">Name</a>
+    Position is in: <span class="playerinfo__playerpos ...">POS</span>
+    ADP is in: <div class="...adp...">value</div>
+
+    Args:
+        html: The page HTML content.
+
+    Returns:
+        List of ADPEntry objects.
     """
+    entries: list[ADPEntry] = []
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.entries: list[ADPEntry] = []
-        self._in_table_body = False
-        self._in_player_row = False
-        self._in_player_name = False
-        self._current_name: str | None = None
-        self._current_position: str | None = None
-        self._current_adp: float | None = None
-        self._cell_index = 0
-        self._in_cell = False
-        self._cell_text = ""
+    # Find all table rows
+    row_pattern = re.compile(r'<tr[^>]*class="[^"]*Table__TR[^"]*"[^>]*>(.*?)</tr>', re.DOTALL)
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        attrs_dict = dict(attrs)
-        class_attr = attrs_dict.get("class") or ""
+    for row_match in row_pattern.finditer(html):
+        row_html = row_match.group(1)
 
-        # Start of table body
-        if tag == "tbody" and "Table__TBODY" in class_attr:
-            self._in_table_body = True
-
-        elif self._in_table_body:
-            # Start of a player row
-            if tag == "tr" and "Table__TR" in class_attr:
-                self._in_player_row = True
-                self._current_name = None
-                self._current_position = None
-                self._current_adp = None
-                self._cell_index = 0
-
-            elif self._in_player_row:
-                # Track cell boundaries
-                if tag == "td":
-                    self._cell_index += 1
-                    self._in_cell = True
-                    self._cell_text = ""
-
-                # Player name - look for common ESPN patterns
-                elif tag == "span" and "player-name" in class_attr:
-                    self._in_player_name = True
-                elif tag == "a" and "AnchorLink" in class_attr and self._cell_index == 2:
-                    # ESPN sometimes uses anchor links for player names
-                    self._in_player_name = True
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "tbody":
-            self._in_table_body = False
-
-        elif tag == "tr" and self._in_player_row:
-            self._finalize_row()
-            self._in_player_row = False
-
-        elif (tag == "span" or tag == "a") and self._in_player_name:
-            self._in_player_name = False
-
-        elif tag == "td" and self._in_cell:
-            self._process_cell()
-            self._in_cell = False
-
-    def handle_data(self, data: str) -> None:
-        data = data.strip()
-        if not data:
-            return
-
-        if self._in_player_name:
-            self._current_name = data
-
-        elif self._in_cell and self._in_player_row:
-            # Accumulate cell text
-            if self._cell_text:
-                self._cell_text += " "
-            self._cell_text += data
-
-    def _process_cell(self) -> None:
-        """Process accumulated cell text based on column index."""
-        text = self._cell_text.strip()
-        if not text:
-            return
-
-        # Cell 3: Position
-        if self._cell_index == 3:
-            self._current_position = text
-
-        # Cell 4: ADP
-        elif self._cell_index == 4:
-            with contextlib.suppress(ValueError):
-                self._current_adp = float(text)
-
-    def _finalize_row(self) -> None:
-        if not self._current_name or not self._current_position or self._current_adp is None:
-            return
-
-        # Parse positions (ESPN uses ", " as separator)
-        positions = tuple(p.strip() for p in self._current_position.split(","))
-
-        entry = ADPEntry(
-            name=self._current_name,
-            adp=self._current_adp,
-            positions=positions,
-            percent_drafted=None,  # ESPN %ROST is roster % not draft %
+        # Extract player name from AnchorLink in player column
+        # Pattern: <a class="AnchorLink link clr-link pointer" ...>Player Name</a>
+        name_match = re.search(
+            r'<a[^>]*class="[^"]*AnchorLink[^"]*"[^>]*>([^<]+)</a>',
+            row_html,
         )
-        self.entries.append(entry)
+        if not name_match:
+            continue
+        name = name_match.group(1).strip()
+
+        # Extract position from playerinfo__playerpos span
+        # Pattern: <span class="playerinfo__playerpos ttu">DH, SP</span>
+        pos_match = re.search(
+            r'<span[^>]*class="[^"]*playerinfo__playerpos[^"]*"[^>]*>([^<]+)</span>',
+            row_html,
+        )
+        if not pos_match:
+            continue
+        position_str = pos_match.group(1).strip()
+        positions = tuple(p.strip() for p in position_str.split(","))
+
+        # Extract ADP from the cell with class "adp"
+        # Pattern: <div ... class="...adp tar...">....</div>
+        # The ADP value might be a number or "--"
+        adp_match = re.search(
+            r'<div[^>]*class="[^"]*\badp\b[^"]*"[^>]*>([^<]*)</div>',
+            row_html,
+        )
+        if not adp_match:
+            continue
+
+        adp_text = adp_match.group(1).strip()
+        if adp_text == "--" or not adp_text:
+            # No ADP data available (off-season)
+            continue
+
+        try:
+            adp = float(adp_text)
+        except ValueError:
+            continue
+
+        entries.append(
+            ADPEntry(
+                name=name,
+                adp=adp,
+                positions=positions,
+                percent_drafted=None,
+            )
+        )
+
+    return entries
 
 
 class ESPNADPScraper:
     """Scraper for ESPN Fantasy Baseball ADP data.
 
     Uses Playwright to render the React-based ESPN ADP page and extracts
-    player ADP information.
+    player ADP information. Handles pagination to fetch all players.
+
+    Note: ESPN's "Live Draft Results" page only has ADP data when drafts
+    are actively happening (typically closer to and during the season).
+    During the off-season, ADP values will be "--" and no entries will
+    be returned.
     """
 
-    def __init__(self, url: str = ESPN_ADP_URL) -> None:
+    def __init__(self, url: str = ESPN_ADP_URL, max_pages: int = 10) -> None:
         """Initialize the scraper.
 
         Args:
             url: The ESPN ADP page URL.
+            max_pages: Maximum number of pages to scrape.
         """
         self._url = url
+        self._max_pages = max_pages
 
     def fetch_adp(self) -> ADPData:
         """Fetch ADP data from ESPN.
@@ -146,21 +125,8 @@ class ESPNADPScraper:
         Returns:
             ADPData containing all player ADP entries.
         """
-        html = self._fetch_page_html()
-        entries = self._parse_adp_table(html)
+        all_entries: list[ADPEntry] = []
 
-        return ADPData(
-            entries=tuple(entries),
-            fetched_at=datetime.now(UTC),
-            source="espn",
-        )
-
-    def _fetch_page_html(self) -> str:
-        """Fetch the page HTML using Playwright.
-
-        Returns:
-            The rendered HTML content.
-        """
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
@@ -172,11 +138,74 @@ class ESPNADPScraper:
                     )
                 )
                 page.goto(self._url, wait_until="domcontentloaded", timeout=60000)
-                # Wait for table data to load
                 page.wait_for_selector("table tbody tr", timeout=30000)
-                return page.content()
+
+                # Parse first page
+                html = page.content()
+                entries = self._parse_adp_table(html)
+                all_entries.extend(entries)
+                logger.debug("Page 1: found %d entries", len(entries))
+
+                # Handle pagination
+                for page_num in range(2, self._max_pages + 1):
+                    if not self._go_to_next_page(page, page_num):
+                        break
+                    html = page.content()
+                    entries = self._parse_adp_table(html)
+                    if not entries:
+                        break
+                    all_entries.extend(entries)
+                    logger.debug("Page %d: found %d entries", page_num, len(entries))
+
             finally:
                 browser.close()
+
+        logger.info("ESPN scraper: fetched %d total entries", len(all_entries))
+
+        return ADPData(
+            entries=tuple(all_entries),
+            fetched_at=datetime.now(UTC),
+            source="espn",
+        )
+
+    def _go_to_next_page(self, page: Page, page_num: int) -> bool:
+        """Navigate to the next page of results.
+
+        Args:
+            page: Playwright page object.
+            page_num: The page number to navigate to.
+
+        Returns:
+            True if navigation succeeded, False if no more pages.
+        """
+        try:
+            # ESPN uses pagination with numbered links
+            # Look for the pagination item with the target page number
+            selector = f'.Pagination__list__item:has-text("{page_num}")'
+            pagination_item = page.query_selector(selector)
+
+            if not pagination_item:
+                logger.debug("No pagination item found for page %d", page_num)
+                return False
+
+            # Check if it's already active (current page)
+            class_attr = pagination_item.get_attribute("class") or ""
+            if "active" in class_attr:
+                logger.debug("Page %d is already active", page_num)
+                return False
+
+            # Click the pagination item
+            pagination_item.click()
+
+            # Wait for table to update
+            page.wait_for_timeout(1000)  # Brief wait for React to update
+            page.wait_for_selector("table tbody tr", timeout=10000)
+
+            return True
+
+        except Exception as e:
+            logger.debug("Failed to navigate to page %d: %s", page_num, e)
+            return False
 
     def _parse_adp_table(self, html: str) -> list[ADPEntry]:
         """Parse ADP entries from HTML.
@@ -187,6 +216,4 @@ class ESPNADPScraper:
         Returns:
             List of ADPEntry objects.
         """
-        parser = _ESPNTableParser()
-        parser.feed(html)
-        return parser.entries
+        return _parse_espn_rows(html)
