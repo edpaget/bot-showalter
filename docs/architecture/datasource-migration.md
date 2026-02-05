@@ -148,14 +148,28 @@ class ADPSource(Protocol):
 
 **New interface:**
 ```python
-adp_source: DataSource[ADPEntry]  # Returns Sequence[ADPEntry]
+adp_source: DataSource[ADPEntry]  # Returns list[ADPEntry]
 ```
 
-**Implementations:** `YahooADPSource`, `EspnADPScraper`
+**Implementations:**
+- `YahooADPDataSource` (new-style, callable)
+- `ESPNADPDataSource` (new-style, callable)
+- `CompositeADPDataSource` (new-style, aggregates multiple sources)
+- Legacy: `YahooADPScraper`, `ESPNADPScraper`, `CompositeADPSource`
 
-**Status:** Pending
+**Factory functions:**
+- `create_yahoo_adp_source() -> DataSource[ADPEntry]`
+- `create_espn_adp_source() -> DataSource[ADPEntry]`
+- `create_composite_adp_source(sources) -> DataSource[ADPEntry]`
 
-**Notes:** Has registry pattern in `adp/registry.py`
+**Registry functions:**
+- `get_datasource(name) -> DataSource[ADPEntry]`
+- `register_datasource(name, factory)`
+- `list_datasources() -> tuple[str, ...]`
+
+**Status:** Done
+
+**Resolution:** The new DataSource classes (`YahooADPDataSource`, `ESPNADPDataSource`, `CompositeADPDataSource`) implement the callable interface returning `Ok[list[ADPEntry]] | Err[DataSourceError]`. Legacy classes remain available for backward compatibility. The registry supports both patterns via `get_source()` (legacy) and `get_datasource()` (new).
 
 ---
 
@@ -245,9 +259,9 @@ class PositionSource(Protocol):
 - [ ] Update consumers to use `Player` type
 
 ### Phase 4: External Data
-- [ ] Migrate `ADPSource`
+- [x] Migrate `ADPSource`
 - [ ] Migrate `ProjectionSource`
-- [ ] Update registry patterns
+- [x] Update registry patterns (for ADP)
 
 ### Phase 5: Yahoo Sources
 - [ ] Evaluate if Yahoo sources fit DataSource pattern

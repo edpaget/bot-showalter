@@ -1,14 +1,22 @@
 """Yahoo ADP scraper using Playwright."""
 
+from __future__ import annotations
+
 import contextlib
 import re
 import unicodedata
 from datetime import UTC, datetime
 from html.parser import HTMLParser
+from typing import TYPE_CHECKING, overload
 
 from playwright.sync_api import sync_playwright
 
 from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSource, DataSourceError
+from fantasy_baseball_manager.result import Err, Ok
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.player.identity import Player
 
 YAHOO_ADP_URL = "https://baseball.fantasysports.yahoo.com/b1/draftanalysis?count=300"
 
@@ -218,3 +226,68 @@ class YahooADPScraper:
         normalized = normalized.lower()
         normalized = re.sub(r"\.", "", normalized)
         return normalized
+
+
+# ---------------------------------------------------------------------------
+# New-style DataSource class
+# ---------------------------------------------------------------------------
+
+
+class YahooADPDataSource:
+    """DataSource for Yahoo ADP data.
+
+    Implements the DataSource[ADPEntry] protocol with proper overloads
+    so the type checker knows the return type based on the query type.
+
+    Usage:
+        init_context(year=2025)
+        adp_source = YahooADPDataSource()
+        result = adp_source(ALL_PLAYERS)
+        if result.is_ok():
+            entries = result.unwrap()  # Type checker knows: list[ADPEntry]
+    """
+
+    def __init__(self, url: str = YAHOO_ADP_URL) -> None:
+        """Initialize the data source.
+
+        Args:
+            url: The Yahoo ADP page URL.
+        """
+        self._scraper = YahooADPScraper(url)
+
+    @overload
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[ADPEntry]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[list[ADPEntry]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: Player) -> Ok[ADPEntry] | Err[DataSourceError]: ...
+
+    def __call__(
+        self, query: type[ALL_PLAYERS] | Player | list[Player]
+    ) -> Ok[list[ADPEntry]] | Ok[ADPEntry] | Err[DataSourceError]:
+        # Only ALL_PLAYERS queries are supported
+        if query is not ALL_PLAYERS:
+            return Err(DataSourceError("Only ALL_PLAYERS queries supported for ADP data"))
+
+        try:
+            data = self._scraper.fetch_adp()
+            return Ok(list(data.entries))
+        except Exception as e:
+            return Err(DataSourceError("Failed to fetch Yahoo ADP data", e))
+
+
+def create_yahoo_adp_source() -> DataSource[ADPEntry]:
+    """Create a DataSource for Yahoo ADP data.
+
+    Returns a YahooADPDataSource instance that implements the full DataSource protocol.
+
+    Usage:
+        init_context(year=2025)
+        adp_source = create_yahoo_adp_source()
+        result = adp_source(ALL_PLAYERS)
+        if result.is_ok():
+            entries = result.unwrap()
+    """
+    return YahooADPDataSource()

@@ -1,12 +1,20 @@
 """ESPN ADP scraper using Playwright."""
 
+from __future__ import annotations
+
 import logging
 import re
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING, overload
 
 from playwright.sync_api import Page, sync_playwright
 
 from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSource, DataSourceError
+from fantasy_baseball_manager.result import Err, Ok
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.player.identity import Player
 
 ESPN_ADP_URL = "https://fantasy.espn.com/baseball/livedraftresults"
 
@@ -217,3 +225,69 @@ class ESPNADPScraper:
             List of ADPEntry objects.
         """
         return _parse_espn_rows(html)
+
+
+# ---------------------------------------------------------------------------
+# New-style DataSource class
+# ---------------------------------------------------------------------------
+
+
+class ESPNADPDataSource:
+    """DataSource for ESPN ADP data.
+
+    Implements the DataSource[ADPEntry] protocol with proper overloads
+    so the type checker knows the return type based on the query type.
+
+    Usage:
+        init_context(year=2025)
+        adp_source = ESPNADPDataSource()
+        result = adp_source(ALL_PLAYERS)
+        if result.is_ok():
+            entries = result.unwrap()  # Type checker knows: list[ADPEntry]
+    """
+
+    def __init__(self, url: str = ESPN_ADP_URL, max_pages: int = 10) -> None:
+        """Initialize the data source.
+
+        Args:
+            url: The ESPN ADP page URL.
+            max_pages: Maximum number of pages to scrape.
+        """
+        self._scraper = ESPNADPScraper(url, max_pages)
+
+    @overload
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[ADPEntry]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[list[ADPEntry]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: Player) -> Ok[ADPEntry] | Err[DataSourceError]: ...
+
+    def __call__(
+        self, query: type[ALL_PLAYERS] | Player | list[Player]
+    ) -> Ok[list[ADPEntry]] | Ok[ADPEntry] | Err[DataSourceError]:
+        # Only ALL_PLAYERS queries are supported
+        if query is not ALL_PLAYERS:
+            return Err(DataSourceError("Only ALL_PLAYERS queries supported for ADP data"))
+
+        try:
+            data = self._scraper.fetch_adp()
+            return Ok(list(data.entries))
+        except Exception as e:
+            return Err(DataSourceError("Failed to fetch ESPN ADP data", e))
+
+
+def create_espn_adp_source() -> DataSource[ADPEntry]:
+    """Create a DataSource for ESPN ADP data.
+
+    Returns an ESPNADPDataSource instance that implements the full DataSource protocol.
+
+    Usage:
+        init_context(year=2025)
+        adp_source = create_espn_adp_source()
+        result = adp_source(ALL_PLAYERS)
+        if result.is_ok():
+            entries = result.unwrap()
+    """
+    return ESPNADPDataSource()
