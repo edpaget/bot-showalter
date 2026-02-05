@@ -8,6 +8,12 @@ from typing import TYPE_CHECKING, Protocol, TypedDict, TypeVar
 from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
 from fantasy_baseball_manager.draft.results import DraftStatus, YahooDraftPick
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
+from fantasy_baseball_manager.projections.models import (
+    BattingProjection,
+    PitchingProjection,
+    ProjectionData,
+    ProjectionSystem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +54,61 @@ class _ADPDataDict(TypedDict):
     entries: list[_ADPEntryDict]
     fetched_at: str
     source: str
+
+
+class _BattingProjectionDict(TypedDict):
+    player_id: str
+    mlbam_id: str | None
+    name: str
+    team: str
+    position: str
+    g: int
+    pa: int
+    ab: int
+    h: int
+    hr: int
+    r: int
+    rbi: int
+    sb: int
+    cs: int
+    bb: int
+    so: int
+    hbp: int
+    obp: float
+    slg: float
+    ops: float
+    woba: float
+    war: float
+
+
+class _PitchingProjectionDict(TypedDict):
+    player_id: str
+    mlbam_id: str | None
+    name: str
+    team: str
+    g: int
+    gs: int
+    ip: float
+    w: int
+    l: int
+    sv: int
+    hld: int
+    so: int
+    bb: int
+    h: int
+    er: int
+    hr: int
+    era: float
+    whip: float
+    fip: float
+    war: float
+
+
+class _ProjectionDataDict(TypedDict):
+    batting: list[_BattingProjectionDict]
+    pitching: list[_PitchingProjectionDict]
+    system: str
+    fetched_at: str
 
 
 if TYPE_CHECKING:
@@ -204,6 +265,41 @@ class CachedADPSource:
         )
 
 
+class ProjectionSource(Protocol):
+    """Protocol for sources that provide projection data."""
+
+    def fetch_projections(self) -> ProjectionData: ...
+
+
+class CachedProjectionSource:
+    """Cached wrapper for projection data sources."""
+
+    def __init__(
+        self,
+        delegate: ProjectionSource,
+        cache: CacheStore,
+        cache_key: str,
+        ttl_seconds: int = 604800,  # 7 days default
+    ) -> None:
+        self._delegate = delegate
+        self._cache = cache
+        self._cache_key = cache_key
+        self._ttl_seconds = ttl_seconds
+
+    def fetch_projections(self) -> ProjectionData:
+        return _cached_fetch(
+            self._cache,
+            "projections",
+            self._cache_key,
+            self._ttl_seconds,
+            self._delegate.fetch_projections,
+            _serialize_projection_data,
+            _deserialize_projection_data,
+            lambda d: len(d.batting) + len(d.pitching),
+            "projections",
+        )
+
+
 # Serializers for each cached type
 
 
@@ -316,4 +412,127 @@ def _deserialize_adp_data(data: str) -> ADPData:
         ),
         fetched_at=datetime.fromisoformat(raw["fetched_at"]),
         source=raw["source"],
+    )
+
+
+def _serialize_projection_data(data: ProjectionData) -> str:
+    return json.dumps(
+        {
+            "batting": [
+                {
+                    "player_id": p.player_id,
+                    "mlbam_id": p.mlbam_id,
+                    "name": p.name,
+                    "team": p.team,
+                    "position": p.position,
+                    "g": p.g,
+                    "pa": p.pa,
+                    "ab": p.ab,
+                    "h": p.h,
+                    "hr": p.hr,
+                    "r": p.r,
+                    "rbi": p.rbi,
+                    "sb": p.sb,
+                    "cs": p.cs,
+                    "bb": p.bb,
+                    "so": p.so,
+                    "hbp": p.hbp,
+                    "obp": p.obp,
+                    "slg": p.slg,
+                    "ops": p.ops,
+                    "woba": p.woba,
+                    "war": p.war,
+                }
+                for p in data.batting
+            ],
+            "pitching": [
+                {
+                    "player_id": p.player_id,
+                    "mlbam_id": p.mlbam_id,
+                    "name": p.name,
+                    "team": p.team,
+                    "g": p.g,
+                    "gs": p.gs,
+                    "ip": p.ip,
+                    "w": p.w,
+                    "l": p.l,
+                    "sv": p.sv,
+                    "hld": p.hld,
+                    "so": p.so,
+                    "bb": p.bb,
+                    "h": p.h,
+                    "er": p.er,
+                    "hr": p.hr,
+                    "era": p.era,
+                    "whip": p.whip,
+                    "fip": p.fip,
+                    "war": p.war,
+                }
+                for p in data.pitching
+            ],
+            "system": data.system.value,
+            "fetched_at": data.fetched_at.isoformat(),
+        }
+    )
+
+
+def _deserialize_projection_data(data: str) -> ProjectionData:
+    from datetime import datetime
+
+    raw: _ProjectionDataDict = json.loads(data)
+    return ProjectionData(
+        batting=tuple(
+            BattingProjection(
+                player_id=p["player_id"],
+                mlbam_id=p["mlbam_id"],
+                name=p["name"],
+                team=p["team"],
+                position=p["position"],
+                g=p["g"],
+                pa=p["pa"],
+                ab=p["ab"],
+                h=p["h"],
+                hr=p["hr"],
+                r=p["r"],
+                rbi=p["rbi"],
+                sb=p["sb"],
+                cs=p["cs"],
+                bb=p["bb"],
+                so=p["so"],
+                hbp=p["hbp"],
+                obp=p["obp"],
+                slg=p["slg"],
+                ops=p["ops"],
+                woba=p["woba"],
+                war=p["war"],
+            )
+            for p in raw["batting"]
+        ),
+        pitching=tuple(
+            PitchingProjection(
+                player_id=p["player_id"],
+                mlbam_id=p["mlbam_id"],
+                name=p["name"],
+                team=p["team"],
+                g=p["g"],
+                gs=p["gs"],
+                ip=p["ip"],
+                w=p["w"],
+                l=p["l"],
+                sv=p["sv"],
+                hld=p["hld"],
+                so=p["so"],
+                bb=p["bb"],
+                h=p["h"],
+                er=p["er"],
+                hr=p["hr"],
+                era=p["era"],
+                whip=p["whip"],
+                fip=p["fip"],
+                war=p["war"],
+            )
+            for p in raw["pitching"]
+        ),
+        system=ProjectionSystem(raw["system"]),
+        fetched_at=datetime.fromisoformat(raw["fetched_at"]),
     )
