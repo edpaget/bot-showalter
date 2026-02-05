@@ -134,8 +134,19 @@ def print_standings(result: SimulationResult) -> None:
     console.print(table)
 
 
+_PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP", "P"})
+
+
 def _normalize_name(name: str) -> str:
-    """Normalize a player name for matching."""
+    """Normalize a player name for matching.
+
+    - Removes accents/diacritics
+    - Converts to lowercase
+    - Removes periods (for Jr./Sr.)
+    - Strips Yahoo-specific suffixes like (Batter)/(Pitcher)
+    """
+    # Strip Yahoo-specific suffixes for two-way players
+    name = re.sub(r"\s*\((Batter|Pitcher)\)\s*$", "", name)
     normalized = unicodedata.normalize("NFD", name)
     normalized = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
     normalized = normalized.lower()
@@ -143,9 +154,65 @@ def _normalize_name(name: str) -> str:
     return normalized
 
 
-def _build_adp_lookup(adp_data: ADPData) -> dict[str, float]:
-    """Build a lookup dict from normalized names to ADP values."""
-    return {_normalize_name(entry.name): entry.adp for entry in adp_data.entries}
+def _parse_yahoo_name(name: str) -> tuple[str, str | None]:
+    """Parse Yahoo player name, extracting position type suffix.
+
+    Returns:
+        Tuple of (normalized_name, position_type) where position_type is
+        "B" for (Batter), "P" for (Pitcher), or None for regular players.
+    """
+    match = re.search(r"\s*\((Batter|Pitcher)\)\s*$", name)
+    if match:
+        suffix = match.group(1)
+        position_type = "B" if suffix == "Batter" else "P"
+        base_name = name[: match.start()]
+    else:
+        position_type = None
+        base_name = name
+
+    normalized = unicodedata.normalize("NFD", base_name)
+    normalized = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+    normalized = normalized.lower()
+    normalized = re.sub(r"\.", "", normalized)
+    return normalized, position_type
+
+
+class _ADPLookup:
+    """ADP lookup that handles two-way players correctly."""
+
+    def __init__(self, adp_data: ADPData) -> None:
+        # For two-way players: (name, position_type) -> ADP
+        self._typed: dict[tuple[str, str], float] = {}
+        # For regular players: name -> ADP
+        self._untyped: dict[str, float] = {}
+
+        for entry in adp_data.entries:
+            normalized, position_type = _parse_yahoo_name(entry.name)
+            if position_type is not None:
+                self._typed[(normalized, position_type)] = entry.adp
+            else:
+                self._untyped[normalized] = entry.adp
+
+    def get(self, name: str, is_pitcher: bool) -> float | None:
+        """Look up ADP for a player.
+
+        Args:
+            name: Player name from projection.
+            is_pitcher: True if this is a pitcher projection.
+
+        Returns:
+            ADP value or None if not found.
+        """
+        normalized = _normalize_name(name)
+        position_type = "P" if is_pitcher else "B"
+
+        # First try position-specific lookup (for two-way players)
+        adp = self._typed.get((normalized, position_type))
+        if adp is not None:
+            return adp
+
+        # Fall back to untyped lookup
+        return self._untyped.get(normalized)
 
 
 def print_draft_rankings(
@@ -172,9 +239,9 @@ def print_draft_rankings(
     if adp_data is not None:
         table.add_column("ADP", justify="right")
         table.add_column("Diff", justify="right")
-        adp_lookup = _build_adp_lookup(adp_data)
+        adp_lookup = _ADPLookup(adp_data)
     else:
-        adp_lookup = {}
+        adp_lookup = None
 
     for r in rankings:
         display_pos = tuple(p for p in r.eligible_positions if p != "Util") or r.eligible_positions
@@ -189,9 +256,10 @@ def print_draft_rankings(
             f"{r.adjusted_value:.1f}",
         ]
 
-        if adp_data is not None:
-            normalized = _normalize_name(r.name)
-            adp = adp_lookup.get(normalized)
+        if adp_lookup is not None:
+            # Determine if this is a pitcher based on eligible positions
+            is_pitcher = bool(set(r.eligible_positions) & _PITCHER_POSITIONS)
+            adp = adp_lookup.get(r.name, is_pitcher)
             if adp is not None:
                 diff = round(adp - r.rank)
                 diff_str = f"+{diff}" if diff > 0 else str(diff)

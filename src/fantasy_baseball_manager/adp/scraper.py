@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 
 from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
 
-YAHOO_ADP_URL = "https://baseball.fantasysports.yahoo.com/b1/draftanalysis"
+YAHOO_ADP_URL = "https://baseball.fantasysports.yahoo.com/b1/draftanalysis?count=300"
 
 
 class _ADPTableParser(HTMLParser):

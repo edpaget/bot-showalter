@@ -264,3 +264,113 @@ class TestPrintDraftRankingsWithADP:
         # Check that Mike Trout has ADP
         assert "1.5" in output
         # Unknown Player should show dash (output contains multiple dashes for various columns)
+
+    def test_two_way_player_batter_matches_batter_adp(self) -> None:
+        """Two-way player with batter positions gets batter ADP."""
+        rankings = [
+            _make_draft_ranking(1, "p1", "Shohei Ohtani", ("OF", "DH"), 15.0),
+        ]
+        adp_data = ADPData(
+            entries=(
+                ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
+                ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        assert "2.0" in output  # Batter ADP
+        assert "100.0" not in output  # Not pitcher ADP
+
+    def test_two_way_player_pitcher_matches_pitcher_adp(self) -> None:
+        """Two-way player with pitcher positions gets pitcher ADP."""
+        rankings = [
+            _make_draft_ranking(1, "p1", "Shohei Ohtani", ("SP", "P"), 15.0),
+        ]
+        adp_data = ADPData(
+            entries=(
+                ADPEntry(name="Shohei Ohtani (Batter)", adp=3.5, positions=("DH",)),
+                ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        assert "100.0" in output  # Pitcher ADP
+        assert "3.5" not in output  # Not batter ADP
+
+
+class TestParseYahooName:
+    def test_regular_name(self) -> None:
+        name, pos_type = simulation_report._parse_yahoo_name("Mike Trout")
+        assert name == "mike trout"
+        assert pos_type is None
+
+    def test_batter_suffix(self) -> None:
+        name, pos_type = simulation_report._parse_yahoo_name("Shohei Ohtani (Batter)")
+        assert name == "shohei ohtani"
+        assert pos_type == "B"
+
+    def test_pitcher_suffix(self) -> None:
+        name, pos_type = simulation_report._parse_yahoo_name("Shohei Ohtani (Pitcher)")
+        assert name == "shohei ohtani"
+        assert pos_type == "P"
+
+    def test_removes_accents(self) -> None:
+        name, pos_type = simulation_report._parse_yahoo_name("José Ramírez")
+        assert name == "jose ramirez"
+        assert pos_type is None
+
+    def test_removes_periods(self) -> None:
+        name, pos_type = simulation_report._parse_yahoo_name("Bobby Witt Jr.")
+        assert name == "bobby witt jr"
+        assert pos_type is None
+
+
+class TestADPLookup:
+    def test_regular_player_lookup(self) -> None:
+        adp_data = ADPData(
+            entries=(ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),),
+            fetched_at=datetime.now(UTC),
+        )
+        lookup = simulation_report._ADPLookup(adp_data)
+        assert lookup.get("Mike Trout", is_pitcher=False) == 1.5
+
+    def test_two_way_batter_lookup(self) -> None:
+        adp_data = ADPData(
+            entries=(
+                ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
+                ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+        lookup = simulation_report._ADPLookup(adp_data)
+        assert lookup.get("Shohei Ohtani", is_pitcher=False) == 2.0
+
+    def test_two_way_pitcher_lookup(self) -> None:
+        adp_data = ADPData(
+            entries=(
+                ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
+                ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+        lookup = simulation_report._ADPLookup(adp_data)
+        assert lookup.get("Shohei Ohtani", is_pitcher=True) == 100.0
+
+    def test_unmatched_returns_none(self) -> None:
+        adp_data = ADPData(
+            entries=(ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),),
+            fetched_at=datetime.now(UTC),
+        )
+        lookup = simulation_report._ADPLookup(adp_data)
+        assert lookup.get("Unknown Player", is_pitcher=False) is None
+
+    def test_fallback_to_untyped_for_regular_player(self) -> None:
+        """Regular players without (Batter)/(Pitcher) suffix work for both types."""
+        adp_data = ADPData(
+            entries=(ADPEntry(name="Tarik Skubal", adp=5.0, positions=("SP",)),),
+            fetched_at=datetime.now(UTC),
+        )
+        lookup = simulation_report._ADPLookup(adp_data)
+        # Even though we ask for pitcher, it falls back to untyped lookup
+        assert lookup.get("Tarik Skubal", is_pitcher=True) == 5.0
+        assert lookup.get("Tarik Skubal", is_pitcher=False) == 5.0

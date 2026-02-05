@@ -13,7 +13,7 @@ from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
-from fantasy_baseball_manager.services import ServiceContainer, set_container
+from fantasy_baseball_manager.services import ServiceContainer, get_container, set_container
 
 runner = CliRunner()
 
@@ -501,9 +501,10 @@ class TestDraftRankCommand:
             assert "Diff" in result.output
             mock_scraper.fetch_adp.assert_called_once()
 
-    def test_no_adp_cache_bypasses_cache(self) -> None:
-        """Test that --no-adp-cache bypasses the ADP cache."""
+    def test_no_adp_cache_invalidates_and_fetches_fresh(self) -> None:
+        """Test that --no-adp-cache invalidates cache and fetches fresh data."""
         _install_fake(pitching=False)
+        container = get_container()
 
         mock_adp_data = ADPData(
             entries=(ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",)),),
@@ -514,20 +515,25 @@ class TestDraftRankCommand:
             "fantasy_baseball_manager.draft.cli.YahooADPScraper"
         ) as mock_scraper_cls, patch(
             "fantasy_baseball_manager.draft.cli.CachedADPSource"
-        ) as mock_cached_cls:
+        ) as mock_cached_cls, patch.object(
+            container.cache_store, "invalidate"
+        ) as mock_invalidate:
             mock_scraper = MagicMock()
-            mock_scraper.fetch_adp.return_value = mock_adp_data
             mock_scraper_cls.return_value = mock_scraper
+
+            mock_cached = MagicMock()
+            mock_cached.fetch_adp.return_value = mock_adp_data
+            mock_cached_cls.return_value = mock_cached
 
             result = runner.invoke(
                 app, ["players", "draft-rank", "2025", "--batting", "--adp", "--no-adp-cache"]
             )
 
             assert result.exit_code == 0
-            # CachedADPSource should not be used when --no-adp-cache is passed
-            mock_cached_cls.assert_not_called()
-            # Direct scraper fetch should be called
-            mock_scraper.fetch_adp.assert_called_once()
+            # Cache should be invalidated before fetch
+            mock_invalidate.assert_called_once_with("adp_data", "yahoo_v2")
+            # CachedADPSource should still be used (to write fresh data)
+            mock_cached_cls.assert_called_once()
 
     def test_adp_uses_cache_by_default(self) -> None:
         """Test that --adp uses cache by default."""

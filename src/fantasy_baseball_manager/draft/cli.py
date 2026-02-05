@@ -252,10 +252,15 @@ def draft_rank(
         # Fetch ADP data if requested
         adp_data = None
         if adp:
-            adp_source = YahooADPScraper()
-            if not no_adp_cache:
-                adp_ttl = 86400  # 24 hours
-                adp_source = CachedADPSource(adp_source, container.cache_store, ttl_seconds=adp_ttl)
+            adp_ttl = 86400  # 24 hours
+            # Cache key includes version to invalidate when URL/parsing changes
+            adp_cache_key = "yahoo_v2"
+            if no_adp_cache:
+                # Invalidate so fresh fetch gets cached for subsequent runs
+                container.cache_store.invalidate("adp_data", adp_cache_key)
+            adp_source: CachedADPSource | YahooADPScraper = CachedADPSource(
+                YahooADPScraper(), container.cache_store, cache_key=adp_cache_key, ttl_seconds=adp_ttl
+            )
             adp_data = adp_source.fetch_adp()
             logger.debug("Fetched %d ADP entries", len(adp_data.entries))
 
