@@ -65,7 +65,7 @@ team_pitching_source: DataSource[PitchingSeasonStats]
 
 **Implementation:** `PybaseballDataSource`
 
-**Status:** Pending
+**Status:** Done
 
 **Consumers:**
 - `MarcelProjector`
@@ -228,7 +228,7 @@ class PositionSource(Protocol):
 - [x] Verify caching works via `cached()` wrapper (tests in `test_batting_data_source.py`)
 
 ### Phase 2: Stats Sources
-- [ ] Complete `StatsDataSource` migration (all 4 methods)
+- [x] Complete `StatsDataSource` migration (all 4 methods)
 - [ ] Migrate `MinorLeagueDataSource`
 - [ ] Update all pipeline consumers
 
