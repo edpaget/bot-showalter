@@ -21,7 +21,7 @@ from fantasy_baseball_manager.evaluation.models import (
     StratumAccuracy,
 )
 from fantasy_baseball_manager.marcel.data_source import StatsDataSource
-from fantasy_baseball_manager.pipeline.presets import PIPELINES
+from fantasy_baseball_manager.pipeline.presets import get_pipeline
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
 from fantasy_baseball_manager.services import get_container, set_container
 from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
@@ -98,10 +98,22 @@ def _print_evaluation(se: SourceEvaluation, include_strata: bool = False) -> Non
 
 
 def _build_source(engine: str, data_source: StatsDataSource, year: int) -> tuple[str, ProjectionSource]:
-    if engine in PIPELINES:
-        pipeline = PIPELINES[engine]()
-        return (engine, PipelineProjectionSource(pipeline, data_source, year))
-    raise ValueError(f"Unknown engine: {engine}")
+    """Build a projection source for evaluation.
+
+    For external projection systems (steamer, zips), checks for local CSV
+    files first (e.g., steamer_2023_batting.csv) before falling back to
+    the live API. This enables backtesting against historical projections.
+
+    Args:
+        engine: Engine name (e.g., "marcel", "steamer").
+        data_source: Stats data source for pipeline projections.
+        year: Projection year (used to find historical CSV files).
+
+    Returns:
+        Tuple of (engine_name, projection_source).
+    """
+    pipeline = get_pipeline(engine, year=year)
+    return (engine, PipelineProjectionSource(pipeline, data_source, year))
 
 
 def _average_evaluations(

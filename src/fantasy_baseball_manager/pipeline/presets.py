@@ -8,6 +8,7 @@ Available pipelines:
 - mle: ML-based Minor League Equivalencies for projecting players with limited MLB history
 - steamer: Steamer projections from FanGraphs
 - zips: ZiPS projections from FanGraphs
+- steamer_{year}, zips_{year}: Historical projections from local CSV files
 """
 
 from __future__ import annotations
@@ -274,4 +275,48 @@ def build_pipeline(
         return _CONFIGURABLE_FACTORIES[name](config)
     if name in PIPELINES:
         return PIPELINES[name]()
+    raise ValueError(f"Unknown pipeline: {name}")
+
+
+def get_pipeline(name: str, year: int | None = None) -> Any:
+    """Get a pipeline by name, with optional CSV override for backtesting.
+
+    When a year is provided, checks for local CSV files first (e.g.,
+    steamer_2023_batting.csv). If found, uses those instead of the live API.
+    This enables backtesting against historical projections.
+
+    Args:
+        name: Pipeline name (e.g., "marcel", "steamer", "zips").
+        year: Optional year for historical CSV lookup.
+
+    Returns:
+        Pipeline instance (ProjectionPipeline or ExternalProjectionAdapter).
+
+    Raises:
+        ValueError: If the pipeline name is unknown.
+    """
+    # For external projection systems, check for CSV files first when year is provided
+    if year is not None and name in ("steamer", "zips", "zipsdc"):
+        from fantasy_baseball_manager.projections.csv_resolver import CSVProjectionResolver
+        from fantasy_baseball_manager.projections.csv_source import CSVProjectionSource
+
+        system_map = {
+            "steamer": ProjectionSystem.STEAMER,
+            "zips": ProjectionSystem.ZIPS,
+            "zipsdc": ProjectionSystem.ZIPS_DC,
+        }
+        system = system_map[name]
+        resolver = CSVProjectionResolver()
+
+        try:
+            batting_path, pitching_path = resolver.resolve(system, year)
+            source = CSVProjectionSource(batting_path, pitching_path, system)
+            return ExternalProjectionAdapter(source, projection_year=year)
+        except FileNotFoundError:
+            # Fall through to live API
+            pass
+
+    if name in PIPELINES:
+        return PIPELINES[name]()
+
     raise ValueError(f"Unknown pipeline: {name}")
