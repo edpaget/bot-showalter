@@ -72,6 +72,12 @@ class PlayerMetadata(TypedDict, total=False):
     mtl_blend_weight: float
     mtl_rates: dict[str, float]
 
+    # MLE rate computer metadata
+    mle_applied: bool
+    mle_source_level: str
+    mle_source_pa: int
+    mle_rates: dict[str, float]
+
 
 @dataclass
 class PlayerRates:

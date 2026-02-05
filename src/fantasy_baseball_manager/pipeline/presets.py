@@ -5,6 +5,7 @@ Available pipelines:
 - marcel: Modern baseline with per-stat regression and component aging
 - marcel_full: Kitchen-sink with park factors, Statcast, and BABIP adjustments
 - marcel_gb: marcel_full + gradient boosting residual corrections (best accuracy)
+- mle: ML-based Minor League Equivalencies for projecting players with limited MLB history
 """
 
 from __future__ import annotations
@@ -155,6 +156,25 @@ def marcel_mtl_pipeline(
     )
 
 
+def mle_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """ML-based Minor League Equivalencies pipeline.
+
+    Uses trained MLE models to translate minor league stats to MLB equivalents
+    for players with limited MLB history (<200 PA). This enables meaningful
+    projections for rookies and players recently called up from the minors.
+
+    Players with sufficient MLB history fall back to Marcel rates.
+    """
+    cfg = config or RegressionConfig()
+    return (
+        PipelineBuilder("mle", config=cfg)
+        .with_mle_rate_computer()
+        .build()
+    )
+
+
 PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_classic": marcel_classic_pipeline,
     "marcel": marcel_pipeline,
@@ -162,6 +182,7 @@ PIPELINES: dict[str, Callable[[], ProjectionPipeline]] = {
     "marcel_gb": marcel_gb_pipeline,
     "mtl": mtl_pipeline,
     "marcel_mtl": marcel_mtl_pipeline,
+    "mle": mle_pipeline,
 }
 
 _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], ProjectionPipeline]] = {
@@ -170,6 +191,7 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
     "marcel_gb": marcel_gb_pipeline,
     "mtl": mtl_pipeline,
     "marcel_mtl": marcel_mtl_pipeline,
+    "mle": mle_pipeline,
 }
 
 

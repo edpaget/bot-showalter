@@ -781,16 +781,28 @@ The ML MLE model should:
 - Model metadata includes training years, stats, feature names, and optional validation metrics
 - Serialization roundtrip preserves prediction accuracy
 
-### Phase 4: Integration
+### Phase 4: Integration ✅ COMPLETE
 
-1. Implement `MLERateComputer` wrapper
-2. Add `marcel_mle_pipeline()` preset
-3. Integration tests with existing pipeline
+1. ✅ Implement `MLERateComputer` wrapper
+2. ✅ Add `mle_pipeline()` preset
+3. ✅ Update `PipelineBuilder` with `with_mle_rate_computer()` method
+4. ✅ Integration tests with existing pipeline
 
 **Deliverables**:
-- `minors/rate_computer.py`
-- Pipeline preset
-- Integration tests
+- ✅ `minors/rate_computer.py` - `MLERateComputer`, `MLERateComputerConfig`
+- ✅ `pipeline/presets.py` - `mle_pipeline()` added to PIPELINES registry
+- ✅ `pipeline/builder.py` - `with_mle_rate_computer()` method added
+- ✅ `tests/minors/test_rate_computer.py` - 10 tests for rate computer
+
+**Implementation Notes**:
+- `MLERateComputer` implements the `RateComputer` protocol
+- For players with `<mlb_pa_threshold` (default 200) MLB PA, MLE predictions are blended with Marcel rates
+- Blending uses PA-weighted average: `(mlb_pa * marcel + milb_pa * mle) / total_pa`
+- Requires MiLB stats from AAA or AA level with `min_milb_pa` (default 200) PA
+- Falls back to Marcel for pitchers (MLE pitchers not yet implemented)
+- Lazy-loads MLE model from `MLEModelStore` on first use
+- Adds metadata to `PlayerRates`: `mle_applied`, `mle_source_level`, `mle_source_pa`, `marcel_rates`, `mle_rates`
+- MiLB data cached via `CachedMinorLeagueDataSource` with appropriate TTLs
 
 ### Phase 5: Evaluation
 

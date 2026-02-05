@@ -86,6 +86,8 @@ from fantasy_baseball_manager.player_id.mapper import (
 )
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
+    from fantasy_baseball_manager.minors.rate_computer import MLERateComputerConfig
     from fantasy_baseball_manager.ml.mtl.config import MTLBlenderConfig, MTLRateComputerConfig
     from fantasy_baseball_manager.pipeline.protocols import RateAdjuster, RateComputer
     from fantasy_baseball_manager.pipeline.stages.playing_time_config import (
@@ -134,6 +136,8 @@ class PipelineBuilder:
         self._mtl_rate_computer_config: MTLRateComputerConfig | None = None
         self._mtl_blender: bool = False
         self._mtl_blender_config: MTLBlenderConfig | None = None
+        self._mle_rate_computer: bool = False
+        self._mle_rate_computer_config: MLERateComputerConfig | None = None
 
     def with_cache_store(self, cache_store: CacheStore) -> PipelineBuilder:
         """Set the cache store to use for all cached data sources.
@@ -275,6 +279,23 @@ class PipelineBuilder:
             self._mtl_blender_config = config
         return self
 
+    def with_mle_rate_computer(
+        self,
+        config: MLERateComputerConfig | None = None,
+    ) -> PipelineBuilder:
+        """Use ML-based Minor League Equivalencies for rate computation.
+
+        For players with limited MLB history (<200 PA), uses trained MLE models
+        to translate their minor league stats to MLB equivalents and blends
+        them with available MLB data.
+
+        Players with sufficient MLB history fall back to Marcel rates.
+        """
+        self._mle_rate_computer = True
+        if config is not None:
+            self._mle_rate_computer_config = config
+        return self
+
     def build(self) -> ProjectionPipeline:
         rate_computer = self._build_rate_computer()
         adjusters = self._build_adjusters()
@@ -306,6 +327,18 @@ class PipelineBuilder:
                 skill_data_source=self._resolve_skill_data_source(),
                 id_mapper=self._resolve_id_mapper(),
                 config=self._mtl_rate_computer_config or MTLRateComputerConfig(),
+            )
+
+        # MLE rate computer (ML-based Minor League Equivalencies)
+        if self._mle_rate_computer:
+            from fantasy_baseball_manager.minors.rate_computer import (
+                MLERateComputer,
+                MLERateComputerConfig,
+            )
+
+            return MLERateComputer(
+                milb_source=self._resolve_milb_source(),
+                config=self._mle_rate_computer_config or MLERateComputerConfig(),
             )
 
         if self._rate_computer_type == "platoon":
@@ -477,6 +510,21 @@ class PipelineBuilder:
         source = CachedSkillDataSource(composite, self._get_cache_store())
         self._skill_data_source = source
         return source
+
+    def _resolve_milb_source(self) -> MinorLeagueDataSource:
+        """Resolve or create a minor league data source."""
+        from fantasy_baseball_manager.minors.cached_data_source import (
+            CachedMinorLeagueDataSource,
+        )
+        from fantasy_baseball_manager.minors.data_source import (
+            MinorLeagueDataSource,
+            MLBStatsAPIDataSource,
+        )
+
+        return CachedMinorLeagueDataSource(
+            delegate=MLBStatsAPIDataSource(),
+            cache=self._get_cache_store(),
+        )
 
     def _get_cache_store(self) -> CacheStore:
         """Get the cache store, creating one if not injected."""
