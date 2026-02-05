@@ -126,13 +126,11 @@ class MarcelRateComputer:
                 team_result = team_batting_source(ALL_PLAYERS)
 
                 if batting_result.is_ok():
-                    # BatchDataSource returns Sequence[T] - no cast needed!
                     player_seasons[y] = list(batting_result.unwrap())
                 else:
                     player_seasons[y] = []
 
                 if team_result.is_ok():
-                    # BatchDataSource returns Sequence[T] - no cast needed!
                     team_stats = team_result.unwrap()
                     if team_stats:
                         league_rates[y] = compute_batting_league_rates(list(team_stats))

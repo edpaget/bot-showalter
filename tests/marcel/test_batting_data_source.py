@@ -68,7 +68,6 @@ class TestBattingDataSource:
             result = source(ALL_PLAYERS)
 
             assert result.is_ok()
-            # BatchDataSource returns Sequence[T] - no cast needed!
             stats = result.unwrap()
             assert len(stats) == 1
             assert isinstance(stats[0], BattingSeasonStats)
@@ -107,8 +106,7 @@ class TestBattingDataSource:
             assert isinstance(error, DataSourceError)
             assert "Network error" in str(error)
 
-    # Note: Single-player queries are now prevented at the type level
-    # by BatchDataSource - no runtime test needed.
+    # Note: Single-player queries return Err at runtime for batch-only sources.
 
     def test_calculates_singles_from_hits(self, test_context: Context) -> None:
         """Singles are calculated as H - 2B - 3B - HR."""
@@ -147,7 +145,6 @@ class TestBattingDataSource:
             source = create_batting_source()
             result = source(ALL_PLAYERS)
 
-            # BatchDataSource returns Sequence[T] - no cast needed!
             stats = result.unwrap()
             assert stats[0].singles == 15  # 30 - 8 - 2 - 5
 

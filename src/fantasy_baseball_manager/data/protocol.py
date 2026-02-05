@@ -6,7 +6,7 @@ Usage:
     # Batch query for all players in context's year
     result = batting_source(ALL_PLAYERS)
     if result.is_ok():
-        stats = result.unwrap()  # Type checker knows this is Sequence[T]
+        stats = result.unwrap()  # Type checker knows this is list[T]
 
     # Single player query (if supported)
     result = batting_source(player)
@@ -14,9 +14,9 @@ Usage:
         stat = result.unwrap()  # Type checker knows this is T
 
 Return type behavior (with full type inference):
-    - source(ALL_PLAYERS) -> Ok[Sequence[T]] | Err[DataSourceError]
+    - source(ALL_PLAYERS) -> Ok[list[T]] | Err[DataSourceError]
     - source(player) -> Ok[T] | Err[DataSourceError]
-    - source([p1, p2]) -> Ok[Sequence[T]] | Err[DataSourceError]
+    - source([p1, p2]) -> Ok[list[T]] | Err[DataSourceError]
 
 Implementation flexibility:
     DataSources are NOT required to support all query types. They can return
@@ -96,19 +96,7 @@ class DataSource(Protocol[T_co]):
     ) -> Ok[list[T_co]] | Ok[T_co] | Err[DataSourceError]: ...
 
 
-# Simpler type for batch-only sources (most common case)
-# This avoids Protocol complexity when you only need ALL_PLAYERS queries
-class BatchDataSource(Protocol[T_co]):
-    """Protocol for batch-only data sources.
-
-    Simpler than DataSource - only supports ALL_PLAYERS queries.
-    Returns list[T] directly, so type checker knows the result type.
-    """
-
-    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[T_co]] | Err[DataSourceError]: ...
-
-
-# Legacy type aliases for backward compatibility
+# Type aliases for convenience
 if TYPE_CHECKING:
     # Query type for DataSource
     Query = type[ALL_PLAYERS] | Player | list[Player]
