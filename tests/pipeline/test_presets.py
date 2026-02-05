@@ -6,6 +6,7 @@ from fantasy_baseball_manager.marcel.models import (
     PitchingSeasonStats,
 )
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
+from fantasy_baseball_manager.minors.rate_computer import MLERateComputer
 from fantasy_baseball_manager.pipeline.presets import (
     PIPELINES,
     build_pipeline,
@@ -13,6 +14,7 @@ from fantasy_baseball_manager.pipeline.presets import (
     marcel_full_pipeline,
     marcel_gb_pipeline,
     marcel_pipeline,
+    mle_pipeline,
 )
 from fantasy_baseball_manager.pipeline.stages.component_aging import (
     ComponentAgingAdjuster,
@@ -109,11 +111,36 @@ class TestMarcelGBPreset:
         assert "marcel_gb" in PIPELINES
 
 
+class TestMLEPreset:
+    def test_returns_pipeline(self) -> None:
+        pipeline = mle_pipeline()
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "mle"
+        assert pipeline.years_back == 3
+
+    def test_has_two_adjusters(self) -> None:
+        """MLE should have RebaselineAdjuster and ComponentAgingAdjuster."""
+        pipeline = mle_pipeline()
+        assert len(pipeline.adjusters) == 2
+
+    def test_uses_mle_rate_computer(self) -> None:
+        """MLE should use MLERateComputer."""
+        pipeline = mle_pipeline()
+        assert isinstance(pipeline.rate_computer, MLERateComputer)
+
+    def test_in_registry(self) -> None:
+        """MLE should be in PIPELINES registry."""
+        assert "mle" in PIPELINES
+
+
 ALL_PRESET_NAMES = [
     "marcel_classic",
     "marcel",
     "marcel_full",
     "marcel_gb",
+    "mtl",
+    "marcel_mtl",
+    "mle",
 ]
 
 
@@ -317,3 +344,52 @@ class TestAllPipelinesProduceValidProjections:
         assert proj.hr >= 0
         assert proj.h >= 0
         assert proj.bb >= 0
+
+    def test_mle_produces_valid_batting(self) -> None:
+        """MLE pipeline produces valid batting projections (falls back to Marcel)."""
+        league = _make_league_batting()
+        ds = IntegrationDataSource(
+            player_batting={
+                2024: [_make_batting_stats(year=2024, age=28)],
+                2023: [_make_batting_stats(year=2023, age=27)],
+                2022: [_make_batting_stats(year=2022, age=26)],
+            },
+            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        )
+
+        pipeline = PIPELINES["mle"]()
+        result = pipeline.project_batters(ds, 2025)
+        assert len(result) == 1
+        proj = result[0]
+        assert isinstance(proj, BattingProjection)
+        assert proj.pa > 0
+        assert proj.hr >= 0
+        assert proj.h >= 0
+        assert proj.bb >= 0
+
+
+class TestMLEFallbackBehavior:
+    """Test MLE gracefully falls back to Marcel when no model exists."""
+
+    def test_mle_pipeline_falls_back_when_no_model(self) -> None:
+        """MLE should produce valid projections even without trained model."""
+        league = _make_league_batting()
+        ds = IntegrationDataSource(
+            player_batting={
+                2024: [_make_batting_stats(year=2024, age=28)],
+                2023: [_make_batting_stats(year=2023, age=27)],
+                2022: [_make_batting_stats(year=2022, age=26)],
+            },
+            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        )
+
+        # MLE pipeline without a trained model should fall back to Marcel rates
+        pipeline = mle_pipeline()
+        result = pipeline.project_batters(ds, 2025)
+
+        # Should still produce valid projections via Marcel fallback
+        assert len(result) == 1
+        proj = result[0]
+        assert isinstance(proj, BattingProjection)
+        assert proj.pa > 0
+        assert proj.hr >= 0
