@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, fields, is_dataclass
-from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -33,7 +33,7 @@ class Serializer(Protocol[T]):
         ...
 
 
-class DataclassListSerializer(Generic[T]):
+class DataclassListSerializer[T]:
     """Serializer for lists of frozen dataclasses.
 
     Uses JSON for serialization. Supports nested dataclasses and enums.
@@ -69,7 +69,7 @@ class DataclassListSerializer(Generic[T]):
         return self._dataclass_type(**data)
 
 
-class JsonSerializer(Generic[T]):
+class JsonSerializer[T]:
     """Generic JSON serializer for simple types.
 
     Works with any JSON-serializable type (dicts, lists, primitives).

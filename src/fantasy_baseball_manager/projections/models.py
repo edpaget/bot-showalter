@@ -112,7 +112,7 @@ class PitchingProjection:
     gs: int
     ip: float
     w: int
-    l: int
+    l: int  # noqa: E741 - standard baseball abbreviation for losses
     sv: int
     hld: int
     so: int

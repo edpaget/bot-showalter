@@ -240,6 +240,6 @@ class TestROSProjectCommand:
 
     def test_invalid_engine_exits_with_code_1(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["players", "ros-project", "2025", "--engine", "steamer"])
+        result = runner.invoke(app, ["players", "ros-project", "2025", "--engine", "not_a_real_engine"])
         assert result.exit_code == 1
         assert "Unknown engine" in result.output

@@ -23,7 +23,7 @@ class TestMTLArchitectureConfig:
         config = MTLArchitectureConfig()
         try:
             config.head_hidden_size = 32  # type: ignore
-            assert False, "Should raise FrozenInstanceError"
+            raise AssertionError("Should raise FrozenInstanceError")
         except AttributeError:
             pass
 

@@ -1,9 +1,8 @@
 """Tests for FanGraphs projection fetcher."""
 
 import json
-from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 

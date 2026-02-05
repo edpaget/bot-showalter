@@ -77,7 +77,7 @@ class TestDataSourceContract:
 
     def test_source_returns_result(self, test_context: ...) -> None:
         """DataSources return Result types for explicit error handling."""
-        from fantasy_baseball_manager.result import Err, Ok
+        from fantasy_baseball_manager.result import Err
 
         def source_with_error(query: ...) -> ...:
             return Err(DataSourceError("Network error"))

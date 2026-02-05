@@ -387,7 +387,7 @@ class HoldoutEvaluationReport:
             for e in data["stat_evaluations"]
         )
         baseline_comparisons = None
-        if "baseline_comparisons" in data and data["baseline_comparisons"]:
+        if data.get("baseline_comparisons"):
             baseline_comparisons = tuple(
                 BaselineComparison(
                     stat_name=c["stat_name"],

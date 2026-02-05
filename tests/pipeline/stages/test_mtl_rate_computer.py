@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from unittest.mock import MagicMock
 
-import pytest
-
 from fantasy_baseball_manager.ml.mtl.config import MTLRateComputerConfig
 from fantasy_baseball_manager.pipeline.stages.mtl_rate_computer import MTLRateComputer
 from fantasy_baseball_manager.pipeline.types import PlayerRates

@@ -12,7 +12,6 @@ from fantasy_baseball_manager.ml.mtl.model import BATTER_STATS, PITCHER_STATS
 from fantasy_baseball_manager.ml.mtl.persistence import MTLModelStore
 from fantasy_baseball_manager.pipeline.stages.rate_computers import (
     MarcelRateComputer,
-    STARTER_GS_RATIO,
 )
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
@@ -103,7 +102,7 @@ class MTLRateComputer:
 
         # Get Marcel rates as fallback and for metadata
         marcel_rates = self._marcel_computer.compute_batting_rates(data_source, year, years_back)
-        marcel_lookup = {p.player_id: p for p in marcel_rates}
+        {p.player_id: p for p in marcel_rates}
 
         if self._batter_model is None or not self._batter_model.is_fitted:
             logger.debug("No MTL batter model available, using Marcel rates")

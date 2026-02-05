@@ -8,12 +8,14 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection as MarcelBattingProjection,
+)
+from fantasy_baseball_manager.marcel.models import (
     PitchingProjection as MarcelPitchingProjection,
 )
-from fantasy_baseball_manager.projections.models import ProjectionData
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.projections.models import ProjectionData
     from fantasy_baseball_manager.projections.protocol import ProjectionSource
 
 logger = logging.getLogger(__name__)

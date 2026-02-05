@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
 from fantasy_baseball_manager.minors.persistence import MLEModelStore
 from fantasy_baseball_manager.minors.training_data import (
-    BATTER_TARGET_STATS,
     AggregatedMiLBStats,
 )
 from fantasy_baseball_manager.minors.types import MinorLeagueLevel

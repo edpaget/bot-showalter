@@ -8,7 +8,6 @@ import pytest
 
 from fantasy_baseball_manager.context import (
     Context,
-    ContextNotInitializedError,
     get_context,
     init_context,
     new_context,
@@ -133,10 +132,9 @@ class TestNewContext:
         """Context is restored even when exception is raised."""
         original_year = test_context.year
 
-        with pytest.raises(ValueError):
-            with new_context(year=2024):
-                assert get_context().year == 2024
-                raise ValueError("Test error")
+        with pytest.raises(ValueError), new_context(year=2024):
+            assert get_context().year == 2024
+            raise ValueError("Test error")
 
         assert get_context().year == original_year
 

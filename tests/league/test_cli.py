@@ -297,7 +297,7 @@ class TestLeagueProjectionsCommand:
 
     def test_engine_unknown_rejected(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["teams", "roster", "2025", "--engine", "steamer"])
+        result = runner.invoke(app, ["teams", "roster", "2025", "--engine", "not_a_real_engine"])
         assert result.exit_code == 1
         assert "Unknown engine" in result.output
 
@@ -364,7 +364,7 @@ class TestLeagueCompareCommand:
 
     def test_engine_unknown_rejected(self) -> None:
         _install_fakes()
-        result = runner.invoke(app, ["teams", "compare", "2025", "--engine", "steamer"])
+        result = runner.invoke(app, ["teams", "compare", "2025", "--engine", "not_a_real_engine"])
         assert result.exit_code == 1
         assert "Unknown engine" in result.output
 

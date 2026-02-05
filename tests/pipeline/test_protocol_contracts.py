@@ -7,14 +7,10 @@ same tests against all implementations.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
-from fantasy_baseball_manager.pipeline.protocols import (
-    PlayingTimeProjector,
-    ProjectionFinalizer,
-    RateAdjuster,
-    RateComputer,
-)
 from fantasy_baseball_manager.pipeline.stages.adjusters import (
     MarcelAgingAdjuster,
     RebaselineAdjuster,
@@ -26,6 +22,14 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_normalization import Pitch
 from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateComputer
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import StatSpecificRegressionRateComputer
 from fantasy_baseball_manager.pipeline.types import PlayerRates
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.pipeline.protocols import (
+        PlayingTimeProjector,
+        ProjectionFinalizer,
+        RateAdjuster,
+        RateComputer,
+    )
 
 # =============================================================================
 # Fixtures for creating test data

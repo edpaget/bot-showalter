@@ -15,16 +15,16 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from fantasy_baseball_manager.ml.validation import (
-    HoldoutEvaluationReport,
-    HoldoutEvaluator,
-)
 from fantasy_baseball_manager.minors.training_data import (
     BATTER_TARGET_STATS,
     AggregatedMiLBStats,
     MLETrainingDataCollector,
 )
 from fantasy_baseball_manager.minors.types import MinorLeagueLevel
+from fantasy_baseball_manager.ml.validation import (
+    HoldoutEvaluationReport,
+    HoldoutEvaluator,
+)
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
@@ -68,7 +68,7 @@ class TraditionalMLEBaseline:
         Returns:
             Dict mapping stat name to array of predicted MLB rates
         """
-        n_samples = len(aggregated_stats)
+        len(aggregated_stats)
         predictions: dict[str, list[float]] = {stat: [] for stat in BATTER_TARGET_STATS}
 
         for stats in aggregated_stats:
@@ -209,7 +209,7 @@ class MLEEvaluator:
         Returns:
             HoldoutEvaluationReport with per-stat metrics
         """
-        features, targets, weights, feature_names, _ = self._collect_test_data(test_years)
+        features, targets, weights, _feature_names, _ = self._collect_test_data(test_years)
 
         if len(features) == 0:
             logger.warning("No test samples found for years %s", test_years)
@@ -248,7 +248,7 @@ class MLEEvaluator:
         Returns:
             Tuple of (model_report, baseline_reports_dict)
         """
-        features, targets, weights, feature_names, aggregated_stats = self._collect_test_data(test_years)
+        features, targets, weights, _feature_names, aggregated_stats = self._collect_test_data(test_years)
 
         if len(features) == 0:
             logger.warning("No test samples found for years %s", test_years)

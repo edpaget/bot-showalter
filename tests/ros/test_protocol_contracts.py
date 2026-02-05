@@ -6,6 +6,8 @@ satisfy the protocol's contract correctly.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from fantasy_baseball_manager.marcel.models import (
@@ -15,7 +17,9 @@ from fantasy_baseball_manager.marcel.models import (
     PitchingSeasonStats,
 )
 from fantasy_baseball_manager.ros.blender import BayesianBlender
-from fantasy_baseball_manager.ros.protocol import ProjectionBlender
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.ros.protocol import ProjectionBlender
 
 # =============================================================================
 # Fixtures for creating test data

@@ -38,6 +38,8 @@ from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualAdjuster,
     GBResidualConfig,
 )
+from fantasy_baseball_manager.pipeline.stages.mtl_blender import MTLBlender
+from fantasy_baseball_manager.pipeline.stages.mtl_rate_computer import MTLRateComputer
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
     ParkFactorAdjuster,
 )
@@ -55,8 +57,6 @@ from fantasy_baseball_manager.pipeline.stages.platoon_rate_computer import (
 )
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
-from fantasy_baseball_manager.pipeline.stages.mtl_blender import MTLBlender
-from fantasy_baseball_manager.pipeline.stages.mtl_rate_computer import MTLRateComputer
 from fantasy_baseball_manager.pipeline.stages.skill_change_adjuster import (
     SkillChangeAdjuster,
     SkillChangeConfig,
@@ -561,7 +561,6 @@ class PipelineBuilder:
             CachedMinorLeagueDataSource,
         )
         from fantasy_baseball_manager.minors.data_source import (
-            MinorLeagueDataSource,
             MLBStatsAPIDataSource,
         )
 

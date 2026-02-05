@@ -1,5 +1,6 @@
 """Yahoo ADP scraper using Playwright."""
 
+import contextlib
 import re
 import unicodedata
 from datetime import UTC, datetime
@@ -114,10 +115,8 @@ class _ADPTableParser(HTMLParser):
         percent_drafted: float | None = None
         pct_str = values_by_col.get(5)
         if pct_str:
-            try:
+            with contextlib.suppress(ValueError):
                 percent_drafted = float(pct_str.rstrip("%"))
-            except ValueError:
-                pass
 
         # Parse position
         positions = tuple(p.strip() for p in self._current_position.split(","))

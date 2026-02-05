@@ -21,11 +21,14 @@ Usage:
 
 from __future__ import annotations
 
-from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @dataclass(frozen=True)
@@ -141,9 +144,7 @@ def init_context(
 
 def reset_context() -> None:
     """Reset the context. Primarily for testing."""
-    try:
+    with suppress(Exception):
         # Get the token by setting and immediately getting
         # This is a workaround since ContextVar doesn't have a direct reset
         _context.set(Context(year=0))  # Temporary set
-    except Exception:
-        pass

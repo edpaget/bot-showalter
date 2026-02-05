@@ -5,7 +5,7 @@ import torch
 
 from fantasy_baseball_manager.ml.mtl.config import MTLArchitectureConfig, MTLTrainingConfig
 from fantasy_baseball_manager.ml.mtl.dataset import MTLDataset
-from fantasy_baseball_manager.ml.mtl.model import BATTER_STATS, MultiTaskNet
+from fantasy_baseball_manager.ml.mtl.model import MultiTaskNet
 
 
 class TestMTLTrainerInternal:
@@ -33,7 +33,7 @@ class TestMTLTrainerInternal:
         val_dataset = MTLDataset(X[:n_val], {k: v[:n_val] for k, v in rates.items()})
 
         train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+        DataLoader(val_dataset, batch_size=16, shuffle=False)
 
         # Create network
         network = MultiTaskNet(
@@ -52,7 +52,7 @@ class TestMTLTrainerInternal:
         initial_loss = None
         final_loss = None
 
-        for epoch in range(20):
+        for _epoch in range(20):
             module.train()
             epoch_loss = 0.0
             for batch_features, batch_rates in train_loader:
@@ -114,7 +114,7 @@ class TestMTLTrainerInternal:
         # Simulate: losses decrease for 5 epochs, then plateau
         val_losses = [1.0, 0.8, 0.6, 0.5, 0.45, 0.45, 0.46, 0.45, 0.47, 0.48]
 
-        for epoch, val_loss in enumerate(val_losses):
+        for epoch, val_loss in enumerate(val_losses):  # noqa: B007 - epoch used in assertion
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0

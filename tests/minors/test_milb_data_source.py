@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 
 from fantasy_baseball_manager.cache.wrapper import cached
 from fantasy_baseball_manager.context import Context, new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.minors.cached_data_source import (
     _deserialize_batting,
     _serialize_batting,
 )
-from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.minors.data_source import (
     MinorLeagueBattingDataSource,
     MinorLeaguePitchingDataSource,

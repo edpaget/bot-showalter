@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from pathlib import Path
 
 from fantasy_baseball_manager.context import Context, init_context
 from fantasy_baseball_manager.services import ServiceContainer, set_container

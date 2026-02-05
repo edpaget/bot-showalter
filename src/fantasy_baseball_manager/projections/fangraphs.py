@@ -1,10 +1,9 @@
 """FanGraphs projection source."""
 
+import json
 import logging
 from datetime import UTC, datetime
 from urllib.request import Request, urlopen
-
-import json
 
 from fantasy_baseball_manager.projections.models import (
     BattingProjection,

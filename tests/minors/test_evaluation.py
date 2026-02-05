@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -332,7 +332,6 @@ class TestPrintEvaluationReport:
     def test_prints_without_error(self, capsys) -> None:
         """Test that print_evaluation_report runs without errors."""
         from fantasy_baseball_manager.ml.validation import (
-            BaselineComparison,
             HoldoutEvaluation,
             HoldoutEvaluationReport,
         )

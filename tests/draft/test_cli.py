@@ -295,7 +295,7 @@ class TestDraftRankCommand:
 
     def test_unknown_engine_rejected(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["players", "draft-rank", "2025", "--engine", "steamer"])
+        result = runner.invoke(app, ["players", "draft-rank", "2025", "--engine", "not_a_real_engine"])
         assert result.exit_code == 1
 
     def test_positions_file(self, tmp_path: Path) -> None:
@@ -487,17 +487,17 @@ class TestDraftRankCommand:
             fetched_at=datetime.now(UTC),
         )
 
-        with patch("fantasy_baseball_manager.draft.cli.YahooADPScraper") as mock_scraper_cls:
+        with patch("fantasy_baseball_manager.draft.cli.get_source") as mock_get_source:
             mock_scraper = MagicMock()
             mock_scraper.fetch_adp.return_value = mock_adp_data
-            mock_scraper_cls.return_value = mock_scraper
+            mock_get_source.return_value = mock_scraper
 
             result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--adp"])
 
             assert result.exit_code == 0
             assert "ADP" in result.output
             assert "Diff" in result.output
-            mock_scraper.fetch_adp.assert_called_once()
+            mock_get_source.assert_called_once_with("yahoo")
 
     def test_no_adp_cache_invalidates_and_fetches_fresh(self) -> None:
         """Test that --no-adp-cache invalidates cache and fetches fresh data."""
@@ -510,12 +510,12 @@ class TestDraftRankCommand:
         )
 
         with (
-            patch("fantasy_baseball_manager.draft.cli.YahooADPScraper") as mock_scraper_cls,
+            patch("fantasy_baseball_manager.draft.cli.get_source") as mock_get_source,
             patch("fantasy_baseball_manager.draft.cli.CachedADPSource") as mock_cached_cls,
             patch.object(container.cache_store, "invalidate") as mock_invalidate,
         ):
             mock_scraper = MagicMock()
-            mock_scraper_cls.return_value = mock_scraper
+            mock_get_source.return_value = mock_scraper
 
             mock_cached = MagicMock()
             mock_cached.fetch_adp.return_value = mock_adp_data
@@ -525,7 +525,7 @@ class TestDraftRankCommand:
 
             assert result.exit_code == 0
             # Cache should be invalidated before fetch
-            mock_invalidate.assert_called_once_with("adp_data", "yahoo_v2")
+            mock_invalidate.assert_called_once_with("adp_data", "yahoo_v1")
             # CachedADPSource should still be used (to write fresh data)
             mock_cached_cls.assert_called_once()
 
@@ -539,11 +539,11 @@ class TestDraftRankCommand:
         )
 
         with (
-            patch("fantasy_baseball_manager.draft.cli.YahooADPScraper") as mock_scraper_cls,
+            patch("fantasy_baseball_manager.draft.cli.get_source") as mock_get_source,
             patch("fantasy_baseball_manager.draft.cli.CachedADPSource") as mock_cached_cls,
         ):
             mock_scraper = MagicMock()
-            mock_scraper_cls.return_value = mock_scraper
+            mock_get_source.return_value = mock_scraper
 
             mock_cached = MagicMock()
             mock_cached.fetch_adp.return_value = mock_adp_data

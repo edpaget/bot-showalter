@@ -10,12 +10,13 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypedDict
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from fantasy_baseball_manager.ml.mtl.config import MTLArchitectureConfig
 
 
@@ -180,7 +181,7 @@ class MultiTaskNet:
         """Compute uncertainty-weighted multi-task loss.
 
         Uses homoscedastic uncertainty to automatically learn per-stat weights.
-        Loss for stat i: (1/2σ²_i) * MSE_i + log(σ_i)
+        Loss for stat i: (1/2*sigma^2_i) * MSE_i + log(sigma_i)
 
         Args:
             predictions: Dict mapping stat to predicted values.
@@ -199,7 +200,7 @@ class MultiTaskNet:
             target = targets[stat]
             log_var = self._log_vars[stat]
 
-            # Uncertainty-weighted loss: (1/2σ²) * MSE + log(σ)
+            # Uncertainty-weighted loss: (1/2*sigma^2) * MSE + log(sigma)
             # = (1/2) * exp(-log_var) * MSE + 0.5 * log_var
             precision = torch.exp(-log_var)
             mse = F.mse_loss(pred, target)

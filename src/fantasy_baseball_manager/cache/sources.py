@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol, TypedDict, TypeVar
 
 from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
@@ -95,7 +94,7 @@ class _PitchingProjectionDict(TypedDict):
     gs: int
     ip: float
     w: int
-    l: int
+    l: int  # noqa: E741 - standard baseball abbreviation for losses
     sv: int
     hld: int
     so: int
@@ -118,6 +117,8 @@ class _ProjectionDataDict(TypedDict):
 
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fantasy_baseball_manager.cache.protocol import CacheStore
 
 _T = TypeVar("_T")

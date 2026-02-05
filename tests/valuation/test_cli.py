@@ -329,7 +329,7 @@ class TestValuateCommand:
 
     def test_engine_unknown_rejected(self) -> None:
         _install_fake()
-        result = runner.invoke(app, ["players", "valuate", "2025", "--engine", "steamer"])
+        result = runner.invoke(app, ["players", "valuate", "2025", "--engine", "not_a_real_engine"])
         assert result.exit_code == 1
         assert "Unknown engine" in result.output
 

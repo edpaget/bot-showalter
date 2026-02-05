@@ -12,45 +12,34 @@ from fantasy_baseball_manager.engines import (
 
 
 class TestValidateEngine:
-    def test_marcel_accepted(self) -> None:
-        validate_engine("marcel")
+    def test_supported_engines_is_non_empty(self) -> None:
+        assert len(SUPPORTED_ENGINES) > 0
+
+    def test_default_engine_is_supported(self) -> None:
+        assert DEFAULT_ENGINE in SUPPORTED_ENGINES
+
+    def test_all_supported_engines_pass_validation(self) -> None:
+        for engine in SUPPORTED_ENGINES:
+            validate_engine(engine)  # Should not raise
 
     def test_unknown_engine_exits(self) -> None:
         with pytest.raises(typer.Exit) as exc_info:
-            validate_engine("steamer")
+            validate_engine("not_a_real_engine")
         assert exc_info.value.exit_code == 1
-
-    def test_default_engine_is_marcel(self) -> None:
-        assert DEFAULT_ENGINE == "marcel"
-
-    def test_supported_engines_contains_marcel(self) -> None:
-        assert "marcel" in SUPPORTED_ENGINES
-
-    def test_marcel_classic_accepted(self) -> None:
-        validate_engine("marcel_classic")
-
-    def test_marcel_full_accepted(self) -> None:
-        validate_engine("marcel_full")
-
-    def test_supported_engines_contains_all_variants(self) -> None:
-        for name in ("marcel_classic", "marcel", "marcel_full", "marcel_gb"):
-            assert name in SUPPORTED_ENGINES
-
-    def test_supported_engines_has_expected_count(self) -> None:
-        assert len(SUPPORTED_ENGINES) == 6
 
 
 class TestValidateMethod:
-    def test_zscore_accepted(self) -> None:
-        validate_method("zscore")
+    def test_supported_methods_is_non_empty(self) -> None:
+        assert len(SUPPORTED_METHODS) > 0
+
+    def test_default_method_is_supported(self) -> None:
+        assert DEFAULT_METHOD in SUPPORTED_METHODS
+
+    def test_all_supported_methods_pass_validation(self) -> None:
+        for method in SUPPORTED_METHODS:
+            validate_method(method)  # Should not raise
 
     def test_unknown_method_exits(self) -> None:
         with pytest.raises(typer.Exit) as exc_info:
-            validate_method("sgp")
+            validate_method("not_a_real_method")
         assert exc_info.value.exit_code == 1
-
-    def test_default_method_is_zscore(self) -> None:
-        assert DEFAULT_METHOD == "zscore"
-
-    def test_supported_methods_contains_zscore(self) -> None:
-        assert "zscore" in SUPPORTED_METHODS

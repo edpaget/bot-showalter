@@ -4,16 +4,14 @@ from dataclasses import dataclass, field
 from unittest.mock import MagicMock
 
 import numpy as np
-import pytest
 
 from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
 from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel, MLEStatModel
-from fantasy_baseball_manager.minors.training_data import AggregatedMiLBStats
 from fantasy_baseball_manager.minors.types import (
     MinorLeagueBatterSeasonStats,
     MinorLeagueLevel,
+    MinorLeaguePitcherSeasonStats,
 )
-from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 
 def _make_player(
@@ -224,6 +222,7 @@ class FakeMinorLeagueDataSource:
     """Fake MiLB data source for testing."""
 
     batting_data: dict[int, list[MinorLeagueBatterSeasonStats]] = field(default_factory=dict)
+    pitching_data: dict[int, list[MinorLeaguePitcherSeasonStats]] = field(default_factory=dict)
 
     def batting_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeagueBatterSeasonStats]:
         all_stats = self.batting_data.get(year, [])
@@ -231,6 +230,13 @@ class FakeMinorLeagueDataSource:
 
     def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
         return self.batting_data.get(year, [])
+
+    def pitching_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeaguePitcherSeasonStats]:
+        all_stats = self.pitching_data.get(year, [])
+        return [s for s in all_stats if s.level == level]
+
+    def pitching_stats_all_levels(self, year: int) -> list[MinorLeaguePitcherSeasonStats]:
+        return self.pitching_data.get(year, [])
 
 
 def _create_fitted_mle_model(feature_names: list[str]) -> MLEGradientBoostingModel:
@@ -527,7 +533,6 @@ class TestMLERateComputerIntegration:
     def test_protocol_compliance(self) -> None:
         """MLERateComputer should satisfy RateComputer protocol."""
         from fantasy_baseball_manager.minors.rate_computer import MLERateComputer
-        from fantasy_baseball_manager.pipeline.protocols import RateComputer
 
         computer = MLERateComputer(
             milb_source=MagicMock(),

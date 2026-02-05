@@ -18,6 +18,7 @@ from fantasy_baseball_manager.ml.mtl.trainer import MTLTrainer
 
 __all__ = [
     "BATTER_STATS",
+    "PITCHER_STATS",
     "MTLArchitectureConfig",
     "MTLBlenderConfig",
     "MTLModelMetadata",
@@ -28,5 +29,4 @@ __all__ = [
     "MultiTaskBatterModel",
     "MultiTaskNet",
     "MultiTaskPitcherModel",
-    "PITCHER_STATS",
 ]

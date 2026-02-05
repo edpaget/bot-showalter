@@ -14,7 +14,7 @@ from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualConfig,
 )
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats, StatcastPitcherStats
-from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
+from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 
 class FakeStatcastSource:

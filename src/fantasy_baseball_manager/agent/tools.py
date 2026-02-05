@@ -10,7 +10,6 @@ import json
 import logging
 import urllib.request
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from langchain_core.tools import tool
 
@@ -32,9 +31,6 @@ from fantasy_baseball_manager.engines import DEFAULT_ENGINE, SUPPORTED_ENGINES
 from fantasy_baseball_manager.keeper.models import KeeperCandidate
 from fantasy_baseball_manager.keeper.replacement import DraftPoolReplacementCalculator
 from fantasy_baseball_manager.keeper.surplus import SurplusCalculator
-
-if TYPE_CHECKING:
-    from fantasy_baseball_manager.valuation.models import PlayerValue
 
 
 def _get_default_year() -> int:

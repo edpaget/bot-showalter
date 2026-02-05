@@ -6,7 +6,6 @@ and building keeper candidates.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import typer
@@ -17,6 +16,8 @@ from fantasy_baseball_manager.keeper.yahoo_source import LeagueKeeperData, Yahoo
 from fantasy_baseball_manager.services import cli_context, get_container
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import yahoo_fantasy_api
 
     from fantasy_baseball_manager.valuation.models import PlayerValue

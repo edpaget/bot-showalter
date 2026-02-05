@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from fantasy_baseball_manager.cache.protocol import CacheStore
 from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.cache.protocol import CacheStore
 
 # =============================================================================
 # CacheStore Protocol Contract Tests

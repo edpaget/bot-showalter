@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
 from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
 from fantasy_baseball_manager.cache.wrapper import cached
-from fantasy_baseball_manager.context import Context, get_context, init_context, new_context
+from fantasy_baseball_manager.context import Context, init_context, new_context
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -144,7 +143,7 @@ class TestCached:
         player = Player(name="Test", yahoo_id="123")
 
         # Single player query
-        result = wrapped(player)
+        wrapped(player)
 
         # Should pass through to source
         assert len(mock_source.calls) == 1
@@ -185,8 +184,8 @@ class TestCacheWithMultipleNamespaces:
             pitching_calls.append(query)
             return Ok([MockStats("pitcher", 50)])
 
-        batting = cached(batting_source, "batting", ttl_seconds=3600, serializer=serializer)  # type: ignore[arg-type]
-        pitching = cached(pitching_source, "pitching", ttl_seconds=3600, serializer=serializer)  # type: ignore[arg-type]
+        batting = cached(batting_source, "batting", ttl_seconds=3600, serializer=serializer)
+        pitching = cached(pitching_source, "pitching", ttl_seconds=3600, serializer=serializer)
 
         # Fetch batting - caches
         batting(ALL_PLAYERS)
