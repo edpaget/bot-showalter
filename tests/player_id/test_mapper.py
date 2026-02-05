@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
+from fantasy_baseball_manager.player.identity import Player
 from fantasy_baseball_manager.player_id.mapper import (
     _YAHOO_SPLIT_OVERRIDES,
+    PlayerMapperError,
     SfbbMapper,
     _parse_sfbb_csv,
     build_cached_sfbb_mapper,
@@ -188,3 +190,157 @@ class TestSplitOverrides:
         mapper = _parse_sfbb_csv(csv_without_ohtani)
         for synthetic_id in _YAHOO_SPLIT_OVERRIDES:
             assert mapper.yahoo_to_fangraphs(synthetic_id) is None
+
+
+class TestSfbbMapperCallable:
+    """Tests for the DataSource-style callable interface."""
+
+    def test_call_single_player_enriches_ids(self) -> None:
+        """Calling mapper with a single Player returns enriched Player."""
+        mapper = SfbbMapper(
+            {"10155": "19054"},
+            {"19054": "10155"},
+            fg_to_mlbam={"19054": "545361"},
+            mlbam_to_fg={"545361": "19054"},
+        )
+        player = Player(name="Mike Trout", yahoo_id="10155")
+
+        result = mapper(player)
+
+        assert result.is_ok()
+        enriched = result.unwrap()
+        assert enriched.fangraphs_id == "19054"
+        assert enriched.mlbam_id == "545361"
+        assert enriched.name == "Mike Trout"
+        assert enriched.yahoo_id == "10155"
+
+    def test_call_single_player_unmapped_returns_unchanged(self) -> None:
+        """Calling mapper with unmapped Player returns Player with None IDs."""
+        mapper = SfbbMapper({}, {})
+        player = Player(name="Unknown", yahoo_id="99999")
+
+        result = mapper(player)
+
+        assert result.is_ok()
+        enriched = result.unwrap()
+        assert enriched.fangraphs_id is None
+        assert enriched.mlbam_id is None
+
+    def test_call_list_enriches_all_players(self) -> None:
+        """Calling mapper with list of Players returns list of enriched Players."""
+        mapper = SfbbMapper(
+            {"10155": "19054", "10835": "19755"},
+            {"19054": "10155", "19755": "10835"},
+            fg_to_mlbam={"19054": "545361", "19755": "660271"},
+            mlbam_to_fg={"545361": "19054", "660271": "19755"},
+        )
+        players = [
+            Player(name="Mike Trout", yahoo_id="10155"),
+            Player(name="Shohei Ohtani", yahoo_id="10835"),
+        ]
+
+        result = mapper(players)
+
+        assert result.is_ok()
+        enriched_list = result.unwrap()
+        assert len(enriched_list) == 2
+        assert enriched_list[0].fangraphs_id == "19054"
+        assert enriched_list[0].mlbam_id == "545361"
+        assert enriched_list[1].fangraphs_id == "19755"
+        assert enriched_list[1].mlbam_id == "660271"
+
+    def test_call_empty_list_returns_empty_list(self) -> None:
+        """Calling mapper with empty list returns empty list."""
+        mapper = SfbbMapper({}, {})
+
+        result = mapper([])
+
+        assert result.is_ok()
+        assert result.unwrap() == []
+
+    def test_call_preserves_existing_player_fields(self) -> None:
+        """Enrichment preserves all existing Player fields."""
+        mapper = SfbbMapper({"10155": "19054"}, {"19054": "10155"})
+        player = Player(
+            name="Mike Trout",
+            yahoo_id="10155",
+            team="LAA",
+            eligible_positions=("CF", "OF"),
+            age=32,
+        )
+
+        result = mapper(player)
+
+        assert result.is_ok()
+        enriched = result.unwrap()
+        assert enriched.team == "LAA"
+        assert enriched.eligible_positions == ("CF", "OF")
+        assert enriched.age == 32
+
+    def test_call_does_not_override_existing_ids(self) -> None:
+        """If Player already has IDs, they are preserved (not overridden by None)."""
+        mapper = SfbbMapper({}, {})  # No mappings
+        player = Player(
+            name="Mike Trout",
+            yahoo_id="10155",
+            fangraphs_id="already_set",
+            mlbam_id="also_set",
+        )
+
+        result = mapper(player)
+
+        assert result.is_ok()
+        enriched = result.unwrap()
+        # with_ids only overrides with non-None, so existing values preserved
+        assert enriched.fangraphs_id == "already_set"
+        assert enriched.mlbam_id == "also_set"
+
+    def test_call_two_way_player_uses_synthetic_id(self) -> None:
+        """Two-way players use yahoo_sub_id (synthetic) for lookup."""
+        # Synthetic ID 1000001 maps to Ohtani's real ID in the sample CSV
+        mapper = _parse_sfbb_csv(SAMPLE_CSV)
+        player = Player(
+            name="Shohei Ohtani",
+            yahoo_id="10835",
+            yahoo_sub_id="1000001",  # Synthetic batter ID
+        )
+
+        result = mapper(player)
+
+        assert result.is_ok()
+        enriched = result.unwrap()
+        # Synthetic ID 1000001 -> FG 19755 (via split override)
+        assert enriched.fangraphs_id == "19755"
+        assert enriched.mlbam_id == "660271"
+
+    def test_call_mixed_mapped_unmapped(self) -> None:
+        """List with both mapped and unmapped players handles both correctly."""
+        mapper = SfbbMapper({"10155": "19054"}, {"19054": "10155"})
+        players = [
+            Player(name="Mike Trout", yahoo_id="10155"),
+            Player(name="Unknown", yahoo_id="99999"),
+        ]
+
+        result = mapper(players)
+
+        assert result.is_ok()
+        enriched_list = result.unwrap()
+        assert enriched_list[0].fangraphs_id == "19054"
+        assert enriched_list[1].fangraphs_id is None
+
+
+class TestPlayerMapperError:
+    """Tests for the PlayerMapperError exception."""
+
+    def test_error_with_message_only(self) -> None:
+        error = PlayerMapperError("Test error")
+        assert str(error) == "Test error"
+        assert error.message == "Test error"
+        assert error.cause is None
+
+    def test_error_with_cause(self) -> None:
+        cause = ValueError("Original error")
+        error = PlayerMapperError("Wrapper error", cause=cause)
+        assert str(error) == "Wrapper error: Original error"
+        assert error.message == "Wrapper error"
+        assert error.cause is cause

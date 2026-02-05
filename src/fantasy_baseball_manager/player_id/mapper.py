@@ -4,10 +4,13 @@ import csv
 import io
 import logging
 import urllib.request
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, overload
+
+from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.cache.protocol import CacheStore
+    from fantasy_baseball_manager.player.identity import Player
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,31 @@ _YAHOO_SPLIT_OVERRIDES: dict[str, str] = {
 }
 
 
+class PlayerMapperError(Exception):
+    """Raised when player ID mapping fails.
+
+    Attributes:
+        message: Human-readable error description.
+        cause: Optional underlying exception that caused this error.
+    """
+
+    def __init__(self, message: str, cause: Exception | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.cause = cause
+
+    def __str__(self) -> str:
+        if self.cause:
+            return f"{self.message}: {self.cause}"
+        return self.message
+
+
 class PlayerIdMapper(Protocol):
+    """Legacy protocol for player ID mapping.
+
+    Deprecated: Use the callable interface on SfbbMapper instead.
+    """
+
     def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None: ...
     def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None: ...
     def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None: ...
@@ -62,6 +89,41 @@ class SfbbMapper:
     @property
     def fg_to_yahoo_map(self) -> dict[str, str]:
         return dict(self._fg_to_yahoo)
+
+    # DataSource-style callable interface
+
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[list[Player]] | Err[PlayerMapperError]: ...
+
+    @overload
+    def __call__(self, query: Player) -> Ok[Player] | Err[PlayerMapperError]: ...
+
+    def __call__(self, query: Player | list[Player]) -> Ok[Player] | Ok[list[Player]] | Err[PlayerMapperError]:
+        """Enrich Player(s) with additional IDs.
+
+        Takes Player objects and returns new Player objects with fangraphs_id
+        and mlbam_id fields populated based on the yahoo_id.
+
+        Args:
+            query: A single Player or list of Players to enrich.
+
+        Returns:
+            Ok containing the enriched Player(s), or Err if mapping fails.
+            For unmapped IDs, the Player is returned unchanged (IDs remain None).
+        """
+        if isinstance(query, list):
+            return Ok([self._enrich_player(p) for p in query])
+        return Ok(self._enrich_player(query))
+
+    def _enrich_player(self, player: Player) -> Player:
+        """Enrich a single Player with IDs from the mapping tables."""
+        # Use effective_yahoo_id which handles two-way player synthetic IDs
+        yahoo_id = player.effective_yahoo_id
+
+        fg_id = self._yahoo_to_fg.get(yahoo_id)
+        mlbam_id = self._fg_to_mlbam.get(fg_id) if fg_id else None
+
+        return player.with_ids(fangraphs_id=fg_id, mlbam_id=mlbam_id)
 
 
 def _download_sfbb_csv(csv_url: str) -> str:

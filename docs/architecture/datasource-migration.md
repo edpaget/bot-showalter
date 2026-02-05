@@ -116,14 +116,18 @@ class PlayerIdMapper(Protocol):
 
 **New interface:**
 ```python
-PlayerMapper = Callable[[Player | Sequence[Player]], Result[Player | Sequence[Player], PlayerMapperError]]
+# SfbbMapper now implements callable interface:
+mapper(player: Player) -> Ok[Player] | Err[PlayerMapperError]
+mapper(players: list[Player]) -> Ok[list[Player]] | Err[PlayerMapperError]
 ```
 
-Takes `Player` objects, returns enriched `Player` with additional IDs populated.
+Takes `Player` objects, returns enriched `Player` with fangraphs_id and mlbam_id populated.
 
-**Implementation:** `SfbbMapper`
+**Implementation:** `SfbbMapper` (with callable `__call__` method)
 
-**Status:** Pending
+**Status:** Done
+
+**Resolution:** `SfbbMapper` now implements both the legacy `PlayerIdMapper` protocol (for backward compatibility) and the new callable interface. The callable interface enriches `Player` objects directly using `Player.with_ids()`. Legacy methods remain available for consumers not yet migrated.
 
 **Consumers:**
 - Many pipeline stages
@@ -236,8 +240,8 @@ class PositionSource(Protocol):
 - [ ] Update all pipeline consumers
 
 ### Phase 3: Player Mapping
-- [ ] Create `PlayerMapper` following DataSource pattern
-- [ ] Migrate `SfbbMapper` to return enriched `Player` objects
+- [x] Create `PlayerMapper` following DataSource pattern (`PlayerMapperError`, callable interface on `SfbbMapper`)
+- [x] Migrate `SfbbMapper` to return enriched `Player` objects (via `__call__` method)
 - [ ] Update consumers to use `Player` type
 
 ### Phase 4: External Data
