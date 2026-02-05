@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
     from fantasy_baseball_manager.minors.types import MiLBStatcastStats
+    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ class MLEModelTrainer:
     config: MLETrainingConfig = field(default_factory=MLETrainingConfig)
     feature_extractor: MLEBatterFeatureExtractor | None = None
     statcast_lookup: dict[tuple[str, int], MiLBStatcastStats] | None = None
+    id_mapper: PlayerIdMapper | None = None
 
     def train_batter_models(
         self,
@@ -83,11 +85,12 @@ class MLEModelTrainer:
             max_prior_mlb_pa=self.config.max_prior_mlb_pa,
             feature_extractor=self.feature_extractor,
             statcast_lookup=self.statcast_lookup,
+            id_mapper=self.id_mapper,
         )
 
         # Collect training data
         logger.info("Collecting training data for years %s", target_years)
-        X_train, y_train, w_train, feature_names = collector.collect(target_years)
+        X_train, y_train, w_train, feature_names, _ = collector.collect(target_years)
 
         if len(X_train) == 0:
             logger.warning("No training samples collected")
@@ -104,7 +107,7 @@ class MLEModelTrainer:
         y_val: dict[str, np.ndarray] | None = None
         if validation_years is not None:
             logger.info("Collecting validation data for years %s", validation_years)
-            X_val_collected, y_val_collected, _, _ = collector.collect(validation_years)
+            X_val_collected, y_val_collected, _, _, _ = collector.collect(validation_years)
             if len(X_val_collected) > 0:
                 X_val = X_val_collected
                 y_val = y_val_collected

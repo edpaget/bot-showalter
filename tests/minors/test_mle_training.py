@@ -98,8 +98,8 @@ class TestMLEModelTrainer:
         # Patch the collector to return synthetic data
         with pytest.MonkeyPatch.context() as mp:
 
-            def mock_collect(_self, _target_years: tuple[int, ...]):
-                return X, targets, weights, feature_names
+            def mock_collect(_self, _target_years: tuple[int, ...], include_aggregated_stats: bool = False):
+                return X, targets, weights, feature_names, None
 
             mp.setattr(
                 "fantasy_baseball_manager.minors.training.MLETrainingDataCollector.collect",
@@ -138,8 +138,8 @@ class TestMLEModelTrainer:
 
         with pytest.MonkeyPatch.context() as mp:
 
-            def mock_collect(_self, _target_years: tuple[int, ...]):
-                return X, targets, weights, feature_names
+            def mock_collect(_self, _target_years: tuple[int, ...], include_aggregated_stats: bool = False):
+                return X, targets, weights, feature_names, None
 
             mp.setattr(
                 "fantasy_baseball_manager.minors.training.MLETrainingDataCollector.collect",
@@ -179,12 +179,12 @@ class TestMLEModelTrainer:
 
         call_count = [0]
 
-        def mock_collect(_self, _target_years: tuple[int, ...]):
+        def mock_collect(_self, _target_years: tuple[int, ...], include_aggregated_stats: bool = False):
             call_count[0] += 1
             if call_count[0] == 1:
-                return X_train, targets_train, weights_train, feature_names
+                return X_train, targets_train, weights_train, feature_names, None
             else:
-                return X_val, targets_val, weights_val, feature_names
+                return X_val, targets_val, weights_val, feature_names, None
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(

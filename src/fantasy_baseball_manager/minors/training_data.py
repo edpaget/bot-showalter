@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
     from fantasy_baseball_manager.minors.types import MiLBStatcastStats
+    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,7 @@ class MLETrainingSample:
     features: np.ndarray
     targets: dict[str, float]
     mlb_pa: int
+    aggregated_stats: AggregatedMiLBStats | None = None
 
 
 @dataclass
@@ -172,6 +174,7 @@ class MLETrainingDataCollector:
     max_prior_mlb_pa: int = 200
     feature_extractor: MLEBatterFeatureExtractor | None = None
     statcast_lookup: dict[tuple[str, int], MiLBStatcastStats] | None = None
+    id_mapper: PlayerIdMapper | None = None
 
     # Cache for feature extractor (created lazily if not provided)
     _cached_extractor: MLEBatterFeatureExtractor | None = field(
@@ -181,12 +184,15 @@ class MLETrainingDataCollector:
     def collect(
         self,
         target_years: tuple[int, ...],
-    ) -> tuple[np.ndarray, dict[str, np.ndarray], np.ndarray, list[str]]:
+        include_aggregated_stats: bool = False,
+    ) -> tuple[np.ndarray, dict[str, np.ndarray], np.ndarray, list[str], list[AggregatedMiLBStats] | None]:
         """Collect training data for MLE model.
 
         Args:
             target_years: MLB seasons to use as targets. MiLB features come from
                          year-1 for each target year.
+            include_aggregated_stats: If True, also return aggregated MiLB stats
+                         for baseline comparisons.
 
         Returns:
             Tuple of:
@@ -194,6 +200,7 @@ class MLETrainingDataCollector:
             - targets: dict mapping stat name to (N,) array of MLB rates
             - sample_weights: (N,) array of MLB PA for weighting
             - feature_names: list of feature names
+            - aggregated_stats (optional): list of AggregatedMiLBStats if requested
         """
         samples = self._collect_samples(target_years)
         feature_names = self.feature_names()
@@ -205,6 +212,7 @@ class MLETrainingDataCollector:
                 {stat: np.array([]) for stat in BATTER_TARGET_STATS},
                 np.array([]),
                 feature_names,
+                [] if include_aggregated_stats else None,
             )
 
         # Convert samples to arrays
@@ -221,7 +229,11 @@ class MLETrainingDataCollector:
             target_years,
         )
 
-        return features, targets, weights, feature_names
+        aggregated_stats: list[AggregatedMiLBStats] | None = None
+        if include_aggregated_stats:
+            aggregated_stats = [s.aggregated_stats for s in samples if s.aggregated_stats is not None]
+
+        return features, targets, weights, feature_names, aggregated_stats
 
     def _collect_samples(
         self, target_years: tuple[int, ...]
@@ -237,6 +249,15 @@ class MLETrainingDataCollector:
             )
 
         return samples
+
+    def _translate_mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
+        """Translate MLBAM ID to FanGraphs ID using the mapper.
+
+        If no mapper is configured, returns the original ID (assumes same ID system).
+        """
+        if self.id_mapper is None:
+            return mlbam_id
+        return self.id_mapper.mlbam_to_fangraphs(mlbam_id)
 
     def _collect_year_samples(self, target_year: int) -> list[MLETrainingSample]:
         """Collect samples for a single target year.
@@ -283,14 +304,20 @@ class MLETrainingDataCollector:
             ):
                 continue
 
+            # Translate MLBAM ID to FanGraphs ID for MLB lookups
+            fg_id = self._translate_mlbam_to_fangraphs(player_id)
+            if fg_id is None:
+                # No mapping found, skip this player
+                continue
+
             # Check for prior MLB experience (exclude veterans)
-            prior_mlb = mlb_prior_lookup.get(player_id)
+            prior_mlb = mlb_prior_lookup.get(fg_id)
             if prior_mlb and prior_mlb.pa > self.max_prior_mlb_pa:
                 continue
 
             # Get MLB outcome from target year or year+1
             mlb_stats, mlb_season = self._get_mlb_outcome(
-                player_id, mlb_lookup, mlb_next_lookup, target_year
+                fg_id, mlb_lookup, mlb_next_lookup, target_year
             )
             if mlb_stats is None:
                 continue
@@ -305,13 +332,14 @@ class MLETrainingDataCollector:
 
             samples.append(
                 MLETrainingSample(
-                    player_id=player_id,
+                    player_id=player_id,  # Keep MLBAM ID for consistency
                     name=aggregated.name,
                     milb_season=milb_year,
                     mlb_season=mlb_season,
                     features=features,
                     targets=targets,
                     mlb_pa=mlb_stats.pa,
+                    aggregated_stats=aggregated,
                 )
             )
 

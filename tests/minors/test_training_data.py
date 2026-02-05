@@ -243,7 +243,7 @@ class TestMLETrainingDataCollector:
             max_prior_mlb_pa=200,
         )
 
-        features, targets, weights, feature_names = collector.collect((2024,))
+        features, targets, weights, feature_names, _ = collector.collect((2024,))
 
         assert features.shape[0] == 1
         assert len(feature_names) > 0
@@ -270,7 +270,7 @@ class TestMLETrainingDataCollector:
             min_mlb_pa=100,
         )
 
-        features, _targets, _weights, _ = collector.collect((2024,))
+        features, _targets, _weights, _, _ = collector.collect((2024,))
         assert features.shape[0] == 0
 
     def test_excludes_insufficient_mlb_pa(self) -> None:
@@ -293,7 +293,7 @@ class TestMLETrainingDataCollector:
             min_mlb_pa=100,  # Requires 100, player has max 50
         )
 
-        features, _, _, _ = collector.collect((2024,))
+        features, _, _, _, _ = collector.collect((2024,))
         # Player excluded - neither target year nor year+1 has enough PA
         assert features.shape[0] == 0
 
@@ -317,7 +317,7 @@ class TestMLETrainingDataCollector:
             min_mlb_pa=100,
         )
 
-        features, _targets, _weights, _ = collector.collect((2024,))
+        features, _targets, _weights, _, _ = collector.collect((2024,))
         assert features.shape[0] == 0
 
     def test_excludes_veteran_players(self) -> None:
@@ -341,7 +341,7 @@ class TestMLETrainingDataCollector:
             max_prior_mlb_pa=200,  # Player has 300 PA in prior year
         )
 
-        features, _targets, _weights, _ = collector.collect((2024,))
+        features, _targets, _weights, _, _ = collector.collect((2024,))
         assert features.shape[0] == 0
 
     def test_uses_year_plus_one_for_late_callups(self) -> None:
@@ -364,7 +364,7 @@ class TestMLETrainingDataCollector:
             min_mlb_pa=100,
         )
 
-        features, _targets, weights, _ = collector.collect((2024,))
+        features, _targets, weights, _, _ = collector.collect((2024,))
         assert features.shape[0] == 1
         assert weights[0] == 200  # Uses 2025 PA
 
@@ -399,7 +399,7 @@ class TestMLETrainingDataCollector:
             mlb_source=mlb_source,  # type: ignore[arg-type]
         )
 
-        features, _targets, _weights, feature_names = collector.collect((2024,))
+        features, _targets, _weights, feature_names, _ = collector.collect((2024,))
 
         assert len(feature_names) == 32  # All feature names (including Statcast)
         assert features.shape == (1, 32)
@@ -441,7 +441,7 @@ class TestMLETrainingDataCollector:
             mlb_source=mlb_source,  # type: ignore[arg-type]
         )
 
-        _features, targets, _weights, _ = collector.collect((2024,))
+        _features, targets, _weights, _, _ = collector.collect((2024,))
 
         assert targets["hr"][0] == pytest.approx(16 / 400)
         assert targets["so"][0] == pytest.approx(80 / 400)
@@ -470,7 +470,7 @@ class TestMLETrainingDataCollector:
             mlb_source=mlb_source,  # type: ignore[arg-type]
         )
 
-        features, _targets, _weights, _ = collector.collect((2023, 2024))
+        features, _targets, _weights, _, _ = collector.collect((2023, 2024))
         assert features.shape[0] == 2
 
     def test_feature_names_method(self) -> None:

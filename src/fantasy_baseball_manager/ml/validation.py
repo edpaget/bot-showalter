@@ -304,3 +304,373 @@ def compute_validation_metrics(
         mae=mae,
         r_squared=r_squared,
     )
+
+
+# =============================================================================
+# Holdout Evaluation Framework
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class HoldoutEvaluation:
+    """Evaluation metrics for a single stat on a held-out test set."""
+
+    stat_name: str
+    n_samples: int
+    rmse: float
+    weighted_rmse: float
+    mae: float
+    spearman_rho: float
+
+
+@dataclass(frozen=True)
+class BaselineComparison:
+    """Comparison of model predictions vs a baseline."""
+
+    stat_name: str
+    model_rmse: float
+    baseline_rmse: float
+    rmse_improvement: float
+    rmse_improvement_pct: float
+    model_spearman: float
+    baseline_spearman: float
+
+
+@dataclass(frozen=True)
+class HoldoutEvaluationReport:
+    """Complete holdout evaluation report for a model."""
+
+    model_name: str
+    test_years: tuple[int, ...]
+    n_samples: int
+    stat_evaluations: tuple[HoldoutEvaluation, ...]
+    baseline_comparisons: tuple[BaselineComparison, ...] | None = None
+
+    def to_dict(self) -> dict:
+        """Serialize to a dictionary for persistence."""
+        result: dict = {
+            "model_name": self.model_name,
+            "test_years": list(self.test_years),
+            "n_samples": self.n_samples,
+            "stat_evaluations": [
+                {
+                    "stat_name": e.stat_name,
+                    "n_samples": e.n_samples,
+                    "rmse": e.rmse,
+                    "weighted_rmse": e.weighted_rmse,
+                    "mae": e.mae,
+                    "spearman_rho": e.spearman_rho,
+                }
+                for e in self.stat_evaluations
+            ],
+        }
+        if self.baseline_comparisons is not None:
+            result["baseline_comparisons"] = [
+                {
+                    "stat_name": c.stat_name,
+                    "model_rmse": c.model_rmse,
+                    "baseline_rmse": c.baseline_rmse,
+                    "rmse_improvement": c.rmse_improvement,
+                    "rmse_improvement_pct": c.rmse_improvement_pct,
+                    "model_spearman": c.model_spearman,
+                    "baseline_spearman": c.baseline_spearman,
+                }
+                for c in self.baseline_comparisons
+            ]
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> HoldoutEvaluationReport:
+        """Deserialize from a dictionary."""
+        stat_evaluations = tuple(
+            HoldoutEvaluation(
+                stat_name=e["stat_name"],
+                n_samples=e["n_samples"],
+                rmse=e["rmse"],
+                weighted_rmse=e["weighted_rmse"],
+                mae=e["mae"],
+                spearman_rho=e["spearman_rho"],
+            )
+            for e in data["stat_evaluations"]
+        )
+        baseline_comparisons = None
+        if "baseline_comparisons" in data and data["baseline_comparisons"]:
+            baseline_comparisons = tuple(
+                BaselineComparison(
+                    stat_name=c["stat_name"],
+                    model_rmse=c["model_rmse"],
+                    baseline_rmse=c["baseline_rmse"],
+                    rmse_improvement=c["rmse_improvement"],
+                    rmse_improvement_pct=c["rmse_improvement_pct"],
+                    model_spearman=c["model_spearman"],
+                    baseline_spearman=c["baseline_spearman"],
+                )
+                for c in data["baseline_comparisons"]
+            )
+        return cls(
+            model_name=data["model_name"],
+            test_years=tuple(data["test_years"]),
+            n_samples=data["n_samples"],
+            stat_evaluations=stat_evaluations,
+            baseline_comparisons=baseline_comparisons,
+        )
+
+
+def compute_weighted_rmse(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    weights: np.ndarray,
+) -> float:
+    """Compute weighted RMSE.
+
+    Args:
+        y_true: Actual values.
+        y_pred: Predicted values.
+        weights: Sample weights (e.g., PA for baseball stats).
+
+    Returns:
+        Weighted RMSE value.
+
+    Raises:
+        ValueError: If arrays are empty or have mismatched lengths.
+    """
+    import numpy as np
+
+    if len(y_true) == 0:
+        raise ValueError("Cannot compute metrics on empty arrays")
+    if len(y_true) != len(y_pred) or len(y_true) != len(weights):
+        raise ValueError(
+            f"Array length mismatch: y_true={len(y_true)}, "
+            f"y_pred={len(y_pred)}, weights={len(weights)}"
+        )
+
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+    weights = np.asarray(weights)
+
+    # Normalize weights
+    weight_sum = weights.sum()
+    if weight_sum == 0:
+        return 0.0
+
+    normalized_weights = weights / weight_sum
+
+    # Weighted MSE
+    squared_errors = (y_true - y_pred) ** 2
+    weighted_mse = float(np.sum(normalized_weights * squared_errors))
+
+    return float(np.sqrt(weighted_mse))
+
+
+def compute_spearman_rho(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Compute Spearman rank correlation coefficient.
+
+    Args:
+        y_true: Actual values.
+        y_pred: Predicted values.
+
+    Returns:
+        Spearman rho correlation coefficient.
+
+    Raises:
+        ValueError: If arrays are empty or have mismatched lengths.
+    """
+    import numpy as np
+    from scipy.stats import spearmanr
+
+    if len(y_true) == 0:
+        raise ValueError("Cannot compute metrics on empty arrays")
+    if len(y_true) != len(y_pred):
+        raise ValueError(
+            f"Array length mismatch: y_true={len(y_true)}, y_pred={len(y_pred)}"
+        )
+    if len(y_true) < 2:
+        return 0.0
+
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    result = spearmanr(y_true, y_pred)
+    # Handle NaN (can occur with constant arrays)
+    # scipy.stats returns SignificanceResult with 'statistic' attribute
+    correlation = result.statistic
+    if np.isnan(correlation):
+        return 0.0
+    return float(correlation)
+
+
+@dataclass
+class HoldoutEvaluator:
+    """Generic evaluator for ML models on held-out test data.
+
+    This evaluator computes standard metrics (RMSE, weighted RMSE, MAE,
+    Spearman rho) for multi-output models where predictions and targets
+    are dictionaries mapping stat names to arrays.
+
+    Example:
+        evaluator = HoldoutEvaluator(model_name="mle_v1", test_years=(2024,))
+        report = evaluator.evaluate(
+            y_true={"hr": hr_actual, "so": so_actual},
+            y_pred={"hr": hr_pred, "so": so_pred},
+            sample_weights=mlb_pa,
+        )
+    """
+
+    model_name: str
+    test_years: tuple[int, ...]
+
+    def evaluate(
+        self,
+        y_true: dict[str, np.ndarray],
+        y_pred: dict[str, np.ndarray],
+        sample_weights: np.ndarray | None = None,
+    ) -> HoldoutEvaluationReport:
+        """Evaluate model predictions against actual values.
+
+        Args:
+            y_true: Dict mapping stat names to arrays of actual values.
+            y_pred: Dict mapping stat names to arrays of predicted values.
+            sample_weights: Optional array of sample weights for weighted RMSE.
+
+        Returns:
+            HoldoutEvaluationReport with per-stat metrics.
+
+        Raises:
+            ValueError: If stat names don't match or arrays are empty.
+        """
+        import numpy as np
+
+        if set(y_true.keys()) != set(y_pred.keys()):
+            raise ValueError(
+                f"Stat names don't match: y_true has {set(y_true.keys())}, "
+                f"y_pred has {set(y_pred.keys())}"
+            )
+
+        if not y_true:
+            raise ValueError("No stats provided for evaluation")
+
+        # Get sample count from first stat
+        first_stat = next(iter(y_true.keys()))
+        n_samples = len(y_true[first_stat])
+
+        if n_samples == 0:
+            raise ValueError("Cannot evaluate on empty arrays")
+
+        # Default weights to uniform if not provided
+        if sample_weights is None:
+            sample_weights = np.ones(n_samples)
+
+        stat_evaluations: list[HoldoutEvaluation] = []
+
+        for stat_name in sorted(y_true.keys()):
+            true_vals = np.asarray(y_true[stat_name])
+            pred_vals = np.asarray(y_pred[stat_name])
+
+            if len(true_vals) != n_samples or len(pred_vals) != n_samples:
+                raise ValueError(
+                    f"Array length mismatch for stat {stat_name}: "
+                    f"expected {n_samples}, got true={len(true_vals)}, pred={len(pred_vals)}"
+                )
+
+            # Compute metrics
+            rmse = float(np.sqrt(np.mean((true_vals - pred_vals) ** 2)))
+            weighted_rmse = compute_weighted_rmse(true_vals, pred_vals, sample_weights)
+            mae = float(np.mean(np.abs(true_vals - pred_vals)))
+            spearman = compute_spearman_rho(true_vals, pred_vals)
+
+            stat_evaluations.append(
+                HoldoutEvaluation(
+                    stat_name=stat_name,
+                    n_samples=n_samples,
+                    rmse=rmse,
+                    weighted_rmse=weighted_rmse,
+                    mae=mae,
+                    spearman_rho=spearman,
+                )
+            )
+
+        return HoldoutEvaluationReport(
+            model_name=self.model_name,
+            test_years=self.test_years,
+            n_samples=n_samples,
+            stat_evaluations=tuple(stat_evaluations),
+        )
+
+    def compare_to_baseline(
+        self,
+        y_true: dict[str, np.ndarray],
+        y_pred: dict[str, np.ndarray],
+        y_baseline: dict[str, np.ndarray],
+        sample_weights: np.ndarray | None = None,
+        baseline_name: str = "baseline",
+    ) -> HoldoutEvaluationReport:
+        """Evaluate model and compare to a baseline.
+
+        Args:
+            y_true: Dict mapping stat names to arrays of actual values.
+            y_pred: Dict mapping stat names to arrays of model predictions.
+            y_baseline: Dict mapping stat names to arrays of baseline predictions.
+            sample_weights: Optional array of sample weights for weighted RMSE.
+            baseline_name: Name for the baseline in the report.
+
+        Returns:
+            HoldoutEvaluationReport with per-stat metrics and baseline comparisons.
+
+        Raises:
+            ValueError: If stat names don't match or arrays are empty.
+        """
+        import numpy as np
+
+        # First get the base evaluation
+        report = self.evaluate(y_true, y_pred, sample_weights)
+
+        # Validate baseline has same stats
+        if set(y_true.keys()) != set(y_baseline.keys()):
+            raise ValueError(
+                f"Baseline stat names don't match: y_true has {set(y_true.keys())}, "
+                f"y_baseline has {set(y_baseline.keys())}"
+            )
+
+        n_samples = report.n_samples
+        comparisons: list[BaselineComparison] = []
+
+        for eval_result in report.stat_evaluations:
+            stat_name = eval_result.stat_name
+            true_vals = np.asarray(y_true[stat_name])
+            baseline_vals = np.asarray(y_baseline[stat_name])
+
+            if len(baseline_vals) != n_samples:
+                raise ValueError(
+                    f"Baseline array length mismatch for stat {stat_name}: "
+                    f"expected {n_samples}, got {len(baseline_vals)}"
+                )
+
+            # Compute baseline metrics
+            baseline_rmse = float(np.sqrt(np.mean((true_vals - baseline_vals) ** 2)))
+            baseline_spearman = compute_spearman_rho(true_vals, baseline_vals)
+
+            # Compute improvement
+            rmse_improvement = baseline_rmse - eval_result.rmse
+            rmse_improvement_pct = (
+                (rmse_improvement / baseline_rmse * 100) if baseline_rmse > 0 else 0.0
+            )
+
+            comparisons.append(
+                BaselineComparison(
+                    stat_name=stat_name,
+                    model_rmse=eval_result.rmse,
+                    baseline_rmse=baseline_rmse,
+                    rmse_improvement=rmse_improvement,
+                    rmse_improvement_pct=rmse_improvement_pct,
+                    model_spearman=eval_result.spearman_rho,
+                    baseline_spearman=baseline_spearman,
+                )
+            )
+
+        return HoldoutEvaluationReport(
+            model_name=f"{self.model_name} vs {baseline_name}",
+            test_years=report.test_years,
+            n_samples=report.n_samples,
+            stat_evaluations=report.stat_evaluations,
+            baseline_comparisons=tuple(comparisons),
+        )
