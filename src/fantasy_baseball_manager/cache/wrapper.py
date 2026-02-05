@@ -19,9 +19,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from functools import lru_cache
-from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
@@ -30,10 +28,12 @@ from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
+
     from fantasy_baseball_manager.cache.protocol import CacheStore
     from fantasy_baseball_manager.cache.serialization import Serializer
-    from fantasy_baseball_manager.data.protocol import DataSource, Query
-    from fantasy_baseball_manager.player.identity import Player
+    from fantasy_baseball_manager.data.protocol import BatchDataSource, DataSource, Query
 
 
 logger = logging.getLogger(__name__)
@@ -114,12 +114,87 @@ def cached(
         if result.is_ok():
             try:
                 value = result.unwrap()
-                # ALL_PLAYERS returns Sequence[T] - cast for serializer
+                # ALL_PLAYERS returns Sequence[T]
                 serialized = serializer.serialize(value)  # type: ignore[arg-type]
                 store.put(namespace, cache_key, serialized, ttl_seconds)
                 logger.debug("Cached %s (year=%d)", namespace, ctx.year)
             except Exception as e:
                 # Serialization failure shouldn't break the data flow
+                logger.warning("Failed to cache %s: %s", namespace, e)
+
+        return result
+
+    return wrapper
+
+
+def cached_batch(
+    source: BatchDataSource[T],
+    namespace: str,
+    ttl_seconds: int,
+    serializer: Serializer[list[T]],
+) -> BatchDataSource[T]:
+    """Wrap a BatchDataSource with caching. Simpler than cached().
+
+    Since BatchDataSource only supports ALL_PLAYERS queries, this wrapper
+    provides better type inference - no casts needed on the result.
+
+    Args:
+        source: The underlying BatchDataSource to wrap.
+        namespace: Cache namespace for this data type (e.g., "batting_stats").
+        ttl_seconds: Time-to-live for cached entries in seconds.
+        serializer: Serializer for converting Sequence[T] to/from strings.
+
+    Returns:
+        A wrapped BatchDataSource that caches results.
+
+    Example:
+        raw_source = create_batting_source()
+        cached_source = cached_batch(
+            raw_source,
+            namespace="batting_stats",
+            ttl_seconds=30 * 86400,
+            serializer=DataclassListSerializer(BattingStats),
+        )
+        result = cached_source(ALL_PLAYERS)
+        if result.is_ok():
+            stats = result.unwrap()  # Type: Sequence[BattingStats] - no cast!
+    """
+
+    def wrapper(
+        query: type[ALL_PLAYERS],
+    ) -> Ok[list[T]] | Err[DataSourceError]:
+        ctx = get_context()
+
+        # Check cache settings from context
+        if not ctx.cache_enabled:
+            return source(query)
+
+        # Build cache key from context
+        cache_key = f"{namespace}:{ctx.year}"
+        store = _get_cache_store(ctx.db_path)
+
+        # Check cache (unless invalidated/refresh mode)
+        if not ctx.cache_invalidated:
+            cached_value = store.get(namespace, cache_key)
+            if cached_value is not None:
+                try:
+                    data = serializer.deserialize(cached_value)
+                    logger.debug("Cache hit for %s (year=%d)", namespace, ctx.year)
+                    return Ok(data)
+                except Exception as e:
+                    logger.warning("Failed to deserialize cached %s: %s", namespace, e)
+
+        # Fetch from source
+        result = source(query)
+
+        # Cache successful results
+        if result.is_ok():
+            try:
+                value = result.unwrap()
+                serialized = serializer.serialize(value)
+                store.put(namespace, cache_key, serialized, ttl_seconds)
+                logger.debug("Cached %s (year=%d)", namespace, ctx.year)
+            except Exception as e:
                 logger.warning("Failed to cache %s: %s", namespace, e)
 
         return result

@@ -14,7 +14,7 @@ from fantasy_baseball_manager.marcel.weights import weighted_rate
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.data.protocol import BatchDataSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
 
@@ -95,8 +95,8 @@ class MarcelRateComputer:
 
     def compute_batting_rates_v2(
         self,
-        batting_source: DataSource[BattingSeasonStats],
-        team_batting_source: DataSource[BattingSeasonStats],
+        batting_source: BatchDataSource[BattingSeasonStats],
+        team_batting_source: BatchDataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
@@ -126,17 +126,16 @@ class MarcelRateComputer:
                 team_result = team_batting_source(ALL_PLAYERS)
 
                 if batting_result.is_ok():
-                    # ALL_PLAYERS returns Sequence, cast to satisfy type checker
-                    batting_data = batting_result.unwrap()
-                    player_seasons[y] = list(batting_data)  # type: ignore[arg-type]
+                    # BatchDataSource returns Sequence[T] - no cast needed!
+                    player_seasons[y] = list(batting_result.unwrap())
                 else:
                     player_seasons[y] = []
 
                 if team_result.is_ok():
-                    # ALL_PLAYERS returns Sequence, cast to satisfy type checker
+                    # BatchDataSource returns Sequence[T] - no cast needed!
                     team_stats = team_result.unwrap()
                     if team_stats:
-                        league_rates[y] = compute_batting_league_rates(list(team_stats))  # type: ignore[arg-type]
+                        league_rates[y] = compute_batting_league_rates(list(team_stats))
 
         target_rates = league_rates.get(years[0], {})
 

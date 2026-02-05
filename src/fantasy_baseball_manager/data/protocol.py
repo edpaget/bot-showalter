@@ -6,18 +6,17 @@ Usage:
     # Batch query for all players in context's year
     result = batting_source(ALL_PLAYERS)
     if result.is_ok():
-        stats = result.unwrap()
+        stats = result.unwrap()  # Type checker knows this is Sequence[T]
 
     # Single player query (if supported)
     result = batting_source(player)
-    if result.is_err():
-        # Source may not support single-player queries
-        error = result.unwrap_err()
+    if result.is_ok():
+        stat = result.unwrap()  # Type checker knows this is T
 
-Return type behavior:
-    - source(ALL_PLAYERS) -> Result[Sequence[T], DataSourceError]
-    - source(player) -> Result[T, DataSourceError]
-    - source([p1, p2]) -> Result[Sequence[T], DataSourceError]
+Return type behavior (with full type inference):
+    - source(ALL_PLAYERS) -> Ok[Sequence[T]] | Err[DataSourceError]
+    - source(player) -> Ok[T] | Err[DataSourceError]
+    - source([p1, p2]) -> Ok[Sequence[T]] | Err[DataSourceError]
 
 Implementation flexibility:
     DataSources are NOT required to support all query types. They can return
@@ -28,14 +27,16 @@ Implementation flexibility:
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, TypeVar, final
+from typing import TYPE_CHECKING, Protocol, TypeVar, final, overload
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from fantasy_baseball_manager.player.identity import Player
     from fantasy_baseball_manager.result import Err, Ok
 
 T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
 
 
 @final
@@ -71,17 +72,45 @@ class DataSourceError(Exception):
         return self.message
 
 
-# Type aliases need to be in TYPE_CHECKING block or use forward references
-# to avoid runtime errors when Player hasn't been imported yet
+class DataSource(Protocol[T_co]):
+    """Protocol for data sources with overloaded return types.
+
+    Using @overload allows the type checker to infer the correct return type
+    based on the query type, eliminating the need for casts.
+
+    Overload resolution order matters - more specific types first.
+    """
+
+    @overload
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[Sequence[T_co]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[Sequence[T_co]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: Player) -> Ok[T_co] | Err[DataSourceError]: ...
+
+    def __call__(
+        self, query: type[ALL_PLAYERS] | Player | list[Player]
+    ) -> Ok[Sequence[T_co]] | Ok[T_co] | Err[DataSourceError]: ...
+
+
+# Simpler type for batch-only sources (most common case)
+# This avoids Protocol complexity when you only need ALL_PLAYERS queries
+class BatchDataSource(Protocol[T_co]):
+    """Protocol for batch-only data sources.
+
+    Simpler than DataSource - only supports ALL_PLAYERS queries.
+    Returns list[T] directly, so type checker knows the result type.
+    """
+
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[T_co]] | Err[DataSourceError]: ...
+
+
+# Legacy type aliases for backward compatibility
 if TYPE_CHECKING:
     # Query type for DataSource
-    Query = type[ALL_PLAYERS] | Player | Sequence[Player]
+    Query = type[ALL_PLAYERS] | Player | list[Player]
 
-    # Result type returned by DataSource
-    # For ALL_PLAYERS and Sequence[Player] queries: Sequence[T]
-    # For single Player query: T
+    # Result type returned by DataSource (union form, less precise)
     DataSourceResult = Ok[Sequence[T]] | Ok[T] | Err[DataSourceError]
-
-    # The unified DataSource type
-    # A callable that accepts a query and returns a Result
-    DataSource = Callable[[Query], DataSourceResult[T]]

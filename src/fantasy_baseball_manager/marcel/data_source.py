@@ -3,14 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, Protocol, TypeVar
 
 import pybaseball
 import pybaseball.cache
 
 from fantasy_baseball_manager.context import get_context
-from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, BatchDataSource, DataSourceError
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
@@ -21,7 +20,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from fantasy_baseball_manager.cache.protocol import CacheStore
-    from fantasy_baseball_manager.data.protocol import DataSourceResult, Query
 
 _T = TypeVar("_T")
 
@@ -173,30 +171,30 @@ class PybaseballDataSource:
 # ---------------------------------------------------------------------------
 
 
-def create_batting_source() -> Callable[[Query], DataSourceResult[BattingSeasonStats]]:
-    """Create a DataSource for batting stats.
+def create_batting_source() -> BatchDataSource[BattingSeasonStats]:
+    """Create a batch DataSource for batting stats.
 
     Returns a callable that fetches batting stats using pybaseball.
-    Year is read from the ambient Context.
+    Year is read from the ambient Context. Only supports ALL_PLAYERS queries.
 
     Usage:
         init_context(year=2024)
         batting_source = create_batting_source()
         result = batting_source(ALL_PLAYERS)
         if result.is_ok():
-            stats = result.unwrap()  # Sequence[BattingSeasonStats]
+            stats = result.unwrap()  # Type checker knows: Sequence[BattingSeasonStats]
 
     Returns:
-        A DataSource[BattingSeasonStats] callable.
+        A BatchDataSource[BattingSeasonStats] callable.
     """
     pybaseball.cache.enable()
 
     def source(
-        query: Query,
-    ) -> Ok[Sequence[BattingSeasonStats]] | Ok[BattingSeasonStats] | Err[DataSourceError]:
-        # Single player and batch queries not supported - this is a bulk source
+        query: type[ALL_PLAYERS],
+    ) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]:
+        # This is a batch-only source
         if query is not ALL_PLAYERS:
-            return Err(DataSourceError("Single player queries not supported by batting source"))
+            return Err(DataSourceError("Only ALL_PLAYERS queries supported"))
 
         ctx = get_context()
         year = ctx.year
@@ -235,7 +233,7 @@ def create_batting_source() -> Callable[[Query], DataSourceResult[BattingSeasonS
                         team=str(row.get("Team", "")),
                     )
                 )
-            return Ok[Sequence[BattingSeasonStats]](results)
+            return Ok(results)
         except Exception as e:
             return Err(DataSourceError(f"Failed to fetch batting stats for {year}", e))
 

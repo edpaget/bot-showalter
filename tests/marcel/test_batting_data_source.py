@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock, patch
 
 from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
-from fantasy_baseball_manager.cache.wrapper import cached
+from fantasy_baseball_manager.cache.wrapper import cached_batch
 from fantasy_baseball_manager.context import Context, new_context
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.marcel.data_source import (
     BattingSeasonStats,
     create_batting_source,
 )
-from fantasy_baseball_manager.result import Ok
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
+from fantasy_baseball_manager.result import Err, Ok
 
 
 class TestCreateBattingSource:
@@ -66,7 +62,8 @@ class TestCreateBattingSource:
             result = source(ALL_PLAYERS)
 
             assert result.is_ok()
-            stats = cast("Sequence[BattingSeasonStats]", result.unwrap())
+            # BatchDataSource returns Sequence[T] - no cast needed!
+            stats = result.unwrap()
             assert len(stats) == 1
             assert isinstance(stats[0], BattingSeasonStats)
             assert stats[0].player_id == "12345"
@@ -104,17 +101,8 @@ class TestCreateBattingSource:
             assert isinstance(error, DataSourceError)
             assert "Network error" in str(error)
 
-    def test_single_player_query_not_supported(self, test_context: Context) -> None:
-        """Single player queries return Err (batch-only source)."""
-        from fantasy_baseball_manager.player.identity import Player
-
-        source = create_batting_source()
-        player = Player(name="Test", yahoo_id="123", fangraphs_id="12345")
-
-        result = source(player)
-
-        assert result.is_err()
-        assert "not supported" in str(result.unwrap_err()).lower()
+    # Note: Single-player queries are now prevented at the type level
+    # by BatchDataSource - no runtime test needed.
 
     def test_calculates_singles_from_hits(self, test_context: Context) -> None:
         """Singles are calculated as H - 2B - 3B - HR."""
@@ -153,7 +141,8 @@ class TestCreateBattingSource:
             source = create_batting_source()
             result = source(ALL_PLAYERS)
 
-            stats = cast("Sequence[BattingSeasonStats]", result.unwrap())
+            # BatchDataSource returns Sequence[T] - no cast needed!
+            stats = result.unwrap()
             assert stats[0].singles == 15  # 30 - 8 - 2 - 5
 
 
@@ -161,46 +150,47 @@ class TestCachedBattingSource:
     """Tests for cached batting DataSource."""
 
     def test_caching_integrates_with_batting_source(self, test_context: Context) -> None:
-        """cached() wrapper works with create_batting_source()."""
+        """cached_batch() wrapper works with create_batting_source()."""
         call_count = 0
 
-        def mock_source(query: object) -> Ok[list[BattingSeasonStats]]:
+        def mock_source(
+            query: type[ALL_PLAYERS],
+        ) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]:
             nonlocal call_count
             call_count += 1
-            return Ok(
-                [
-                    BattingSeasonStats(
-                        player_id="1",
-                        name="Test",
-                        year=2025,
-                        age=25,
-                        pa=100,
-                        ab=90,
-                        h=25,
-                        singles=15,
-                        doubles=5,
-                        triples=2,
-                        hr=3,
-                        bb=5,
-                        so=20,
-                        hbp=2,
-                        sf=1,
-                        sh=0,
-                        sb=3,
-                        cs=1,
-                        r=15,
-                        rbi=20,
-                        team="BOS",
-                    )
-                ]
-            )
+            stats: list[BattingSeasonStats] = [
+                BattingSeasonStats(
+                    player_id="1",
+                    name="Test",
+                    year=2025,
+                    age=25,
+                    pa=100,
+                    ab=90,
+                    h=25,
+                    singles=15,
+                    doubles=5,
+                    triples=2,
+                    hr=3,
+                    bb=5,
+                    so=20,
+                    hbp=2,
+                    sf=1,
+                    sh=0,
+                    sb=3,
+                    cs=1,
+                    r=15,
+                    rbi=20,
+                    team="BOS",
+                )
+            ]
+            return Ok(stats)
 
         serializer = DataclassListSerializer(BattingSeasonStats)
-        cached_source = cached(
+        cached_source = cached_batch(
             mock_source,
             namespace="batting_stats",
             ttl_seconds=3600,
-            serializer=serializer,  # type: ignore[arg-type]
+            serializer=serializer,
         )
 
         # First call fetches from source
@@ -220,17 +210,20 @@ class TestCachedBattingSource:
         """Cache entries are scoped by year from context."""
         call_count = 0
 
-        def mock_source(query: object) -> Ok[list[BattingSeasonStats]]:
+        def mock_source(
+            query: type[ALL_PLAYERS],
+        ) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]:
             nonlocal call_count
             call_count += 1
-            return Ok([])
+            empty: list[BattingSeasonStats] = []
+            return Ok(empty)
 
         serializer = DataclassListSerializer(BattingSeasonStats)
-        cached_source = cached(
+        cached_source = cached_batch(
             mock_source,
             namespace="batting_stats",
             ttl_seconds=3600,
-            serializer=serializer,  # type: ignore[arg-type]
+            serializer=serializer,
         )
 
         # Fetch 2025 (default context year)
