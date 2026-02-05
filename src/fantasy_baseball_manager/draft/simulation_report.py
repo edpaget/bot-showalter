@@ -154,19 +154,30 @@ def _normalize_name(name: str) -> str:
     return normalized
 
 
-def _parse_yahoo_name(name: str) -> tuple[str, str | None]:
-    """Parse Yahoo player name, extracting position type suffix.
+def _parse_player_name(name: str, positions: tuple[str, ...]) -> tuple[str, str | None]:
+    """Parse player name and determine position type.
+
+    Handles multiple ADP source formats:
+    - Yahoo: Uses (Batter)/(Pitcher) suffixes for two-way players
+    - ESPN: Uses positions like "DH, SP" for two-way players
+
+    Args:
+        name: Player name from ADP source.
+        positions: Player's positions from the ADP entry.
 
     Returns:
         Tuple of (normalized_name, position_type) where position_type is
-        "B" for (Batter), "P" for (Pitcher), or None for regular players.
+        "B" for batters, "P" for pitchers, or None for non-two-way players.
     """
+    # Check for Yahoo-style suffixes first
     match = re.search(r"\s*\((Batter|Pitcher)\)\s*$", name)
     if match:
         suffix = match.group(1)
         position_type = "B" if suffix == "Batter" else "P"
         base_name = name[: match.start()]
     else:
+        # For sources without suffixes (like ESPN), there's only one entry
+        # for two-way players. Store them as untyped so they match any lookup.
         position_type = None
         base_name = name
 
@@ -178,7 +189,13 @@ def _parse_yahoo_name(name: str) -> tuple[str, str | None]:
 
 
 class _ADPLookup:
-    """ADP lookup that handles two-way players correctly."""
+    """ADP lookup that handles two-way players correctly.
+
+    Supports multiple ADP source formats:
+    - Yahoo: Uses (Batter)/(Pitcher) suffixes for two-way players
+    - ESPN: Uses positions to identify player type
+    - Composite: Handles averaged data from multiple sources
+    """
 
     def __init__(self, adp_data: ADPData) -> None:
         # For two-way players: (name, position_type) -> ADP
@@ -187,7 +204,7 @@ class _ADPLookup:
         self._untyped: dict[str, float] = {}
 
         for entry in adp_data.entries:
-            normalized, position_type = _parse_yahoo_name(entry.name)
+            normalized, position_type = _parse_player_name(entry.name, entry.positions)
             if position_type is not None:
                 self._typed[(normalized, position_type)] = entry.adp
             else:

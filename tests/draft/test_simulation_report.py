@@ -298,30 +298,53 @@ class TestPrintDraftRankingsWithADP:
         assert "3.5" not in output  # Not batter ADP
 
 
-class TestParseYahooName:
-    def test_regular_name(self) -> None:
-        name, pos_type = simulation_report._parse_yahoo_name("Mike Trout")
+class TestParsePlayerName:
+    """Tests for _parse_player_name function."""
+
+    def test_regular_name_no_suffix(self) -> None:
+        """Test regular player name without Yahoo suffix."""
+        name, pos_type = simulation_report._parse_player_name("Mike Trout", ("OF",))
         assert name == "mike trout"
         assert pos_type is None
 
-    def test_batter_suffix(self) -> None:
-        name, pos_type = simulation_report._parse_yahoo_name("Shohei Ohtani (Batter)")
+    def test_yahoo_batter_suffix(self) -> None:
+        """Test Yahoo-style (Batter) suffix."""
+        name, pos_type = simulation_report._parse_player_name("Shohei Ohtani (Batter)", ("DH",))
         assert name == "shohei ohtani"
         assert pos_type == "B"
 
-    def test_pitcher_suffix(self) -> None:
-        name, pos_type = simulation_report._parse_yahoo_name("Shohei Ohtani (Pitcher)")
+    def test_yahoo_pitcher_suffix(self) -> None:
+        """Test Yahoo-style (Pitcher) suffix."""
+        name, pos_type = simulation_report._parse_player_name("Shohei Ohtani (Pitcher)", ("SP",))
         assert name == "shohei ohtani"
         assert pos_type == "P"
 
     def test_removes_accents(self) -> None:
-        name, pos_type = simulation_report._parse_yahoo_name("José Ramírez")
+        """Test that accents/diacritics are removed."""
+        name, pos_type = simulation_report._parse_player_name("José Ramírez", ("3B",))
         assert name == "jose ramirez"
         assert pos_type is None
 
     def test_removes_periods(self) -> None:
-        name, pos_type = simulation_report._parse_yahoo_name("Bobby Witt Jr.")
+        """Test that periods are removed (Jr./Sr.)."""
+        name, pos_type = simulation_report._parse_player_name("Bobby Witt Jr.", ("SS",))
         assert name == "bobby witt jr"
+        assert pos_type is None
+
+    def test_espn_two_way_player_pitcher(self) -> None:
+        """Test ESPN-style two-way player with pitcher positions."""
+        name, pos_type = simulation_report._parse_player_name("Shohei Ohtani", ("SP",))
+        assert name == "shohei ohtani"
+        # Without Yahoo-style suffix, position_type is always None
+        # so the entry goes into untyped lookup and matches any search
+        assert pos_type is None
+
+    def test_espn_two_way_player_mixed(self) -> None:
+        """Test ESPN-style two-way player with mixed positions."""
+        name, pos_type = simulation_report._parse_player_name("Shohei Ohtani", ("DH", "SP"))
+        assert name == "shohei ohtani"
+        # Without Yahoo-style suffix, position_type is always None
+        # ESPN two-way players have one entry that should match either batter or pitcher lookups
         assert pos_type is None
 
 

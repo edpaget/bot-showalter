@@ -7,7 +7,6 @@ import pytest
 from fantasy_baseball_manager.adp.models import ADPData
 from fantasy_baseball_manager.adp.scraper import YahooADPScraper
 
-
 # Fixture mimicking Yahoo's actual HTML structure
 YAHOO_ADP_HTML_FIXTURE = """
 <html>

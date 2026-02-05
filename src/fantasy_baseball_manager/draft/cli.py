@@ -8,11 +8,14 @@ from typing import TYPE_CHECKING, Annotated, cast
 if TYPE_CHECKING:
     import yahoo_fantasy_api
 
+    from fantasy_baseball_manager.adp.protocol import ADPSource
+
 import typer
 import yaml
 from rich.console import Console
 
-from fantasy_baseball_manager.adp.scraper import YahooADPScraper
+from fantasy_baseball_manager.adp.composite import CompositeADPSource
+from fantasy_baseball_manager.adp.registry import get_source, list_sources
 from fantasy_baseball_manager.cache.sources import CachedADPSource, CachedDraftResultsSource, CachedPositionSource
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
@@ -94,8 +97,11 @@ def draft_rank(
         bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
     ] = False,
     adp: Annotated[
-        bool, typer.Option("--adp", help="Fetch and display Yahoo ADP for comparison.")
+        bool, typer.Option("--adp", help="Fetch and display ADP for comparison.")
     ] = False,
+    adp_source_name: Annotated[
+        str, typer.Option("--adp-source", help="ADP source: yahoo, espn, or composite.")
+    ] = "yahoo",
     no_adp_cache: Annotated[
         bool, typer.Option("--no-adp-cache", help="Bypass ADP cache and fetch fresh data.")
     ] = False,
@@ -253,16 +259,31 @@ def draft_rank(
         adp_data = None
         if adp:
             adp_ttl = 86400  # 24 hours
-            # Cache key includes version to invalidate when URL/parsing changes
-            adp_cache_key = "yahoo_v2"
+            available_sources = list_sources()
+            if adp_source_name not in available_sources and adp_source_name != "composite":
+                typer.echo(
+                    f"Unknown ADP source: {adp_source_name!r}. Available: {', '.join(available_sources)}, composite",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+
+            if adp_source_name == "composite":
+                # Composite uses all available sources
+                sources = [get_source(name) for name in available_sources]
+                base_source: ADPSource = CompositeADPSource(sources)
+                adp_cache_key = "composite_v1"
+            else:
+                base_source = get_source(adp_source_name)
+                adp_cache_key = f"{adp_source_name}_v1"
+
             if no_adp_cache:
-                # Invalidate so fresh fetch gets cached for subsequent runs
                 container.cache_store.invalidate("adp_data", adp_cache_key)
-            adp_source: CachedADPSource | YahooADPScraper = CachedADPSource(
-                YahooADPScraper(), container.cache_store, cache_key=adp_cache_key, ttl_seconds=adp_ttl
+
+            cached_source = CachedADPSource(
+                base_source, container.cache_store, cache_key=adp_cache_key, ttl_seconds=adp_ttl
             )
-            adp_data = adp_source.fetch_adp()
-            logger.debug("Fetched %d ADP entries", len(adp_data.entries))
+            adp_data = cached_source.fetch_adp()
+            logger.debug("Fetched %d ADP entries from %s", len(adp_data.entries), adp_source_name)
 
         print_draft_rankings(rankings, year, adp_data)
 
