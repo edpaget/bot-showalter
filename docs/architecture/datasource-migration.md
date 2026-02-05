@@ -187,9 +187,18 @@ batting_projection_source: DataSource[BattingProjection]
 pitching_projection_source: DataSource[PitchingProjection]
 ```
 
-**Implementations:** `SteamerSource`, `ZipsSource`, `FanGraphsProjectionSource`
+**Implementations:**
+- `BattingProjectionDataSource` (new-style, wraps any ProjectionSource)
+- `PitchingProjectionDataSource` (new-style, wraps any ProjectionSource)
+- Legacy: `FanGraphsProjectionSource`, `CSVProjectionSource`
 
-**Status:** Pending
+**Factory functions:**
+- `create_batting_projection_source(system) -> DataSource[BattingProjection]`
+- `create_pitching_projection_source(system) -> DataSource[PitchingProjection]`
+
+**Status:** Done
+
+**Resolution:** The new DataSource classes (`BattingProjectionDataSource`, `PitchingProjectionDataSource`) wrap any `ProjectionSource` implementation and implement the callable interface returning `Ok[list[T]] | Err[DataSourceError]`. Factory functions use `FanGraphsProjectionSource` by default. Legacy classes remain available for backward compatibility.
 
 ---
 
@@ -252,6 +261,9 @@ class PositionSource(Protocol):
 - [x] Complete `StatsDataSource` migration (all 4 methods)
 - [x] Migrate `MinorLeagueDataSource`
 - [ ] Update all pipeline consumers
+  - [x] Add `MarcelRateComputer.compute_pitching_rates_v2()` (matches `_v2` pattern for batting)
+  - [ ] Update `RateComputer` protocol to use new signature
+  - [ ] Migrate other rate computer implementations
 
 ### Phase 3: Player Mapping
 - [x] Create `PlayerMapper` following DataSource pattern (`PlayerMapperError`, callable interface on `SfbbMapper`)
@@ -260,7 +272,7 @@ class PositionSource(Protocol):
 
 ### Phase 4: External Data
 - [x] Migrate `ADPSource`
-- [ ] Migrate `ProjectionSource`
+- [x] Migrate `ProjectionSource`
 - [x] Update registry patterns (for ADP)
 
 ### Phase 5: Yahoo Sources

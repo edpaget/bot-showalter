@@ -317,3 +317,131 @@ class TestMarcelRateComputerNewStyleDataSources:
 
         # Should query years 2024, 2023, 2022
         assert set(years_queried) == {2024, 2023, 2022}
+
+    def test_compute_pitching_rates_with_new_style_source(self, test_context: "Context") -> None:
+        """MarcelRateComputer works with new-style DataSource callables for pitching."""
+        player_pitching = {
+            2024: [_make_pitcher(year=2024, age=28)],
+            2023: [_make_pitcher(year=2023, age=27)],
+            2022: [_make_pitcher(year=2022, age=26)],
+        }
+        league = _make_league_pitching()
+        team_pitching = {2024: [league], 2023: [league], 2022: [league]}
+
+        def pitching_source(query: object) -> Ok[list[PitchingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            return Ok(player_pitching.get(year, []))
+
+        def team_pitching_source(query: object) -> Ok[list[PitchingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            return Ok(team_pitching.get(year, []))
+
+        computer = MarcelRateComputer()
+        rates = computer.compute_pitching_rates_v2(
+            pitching_source=pitching_source,  # type: ignore[arg-type]
+            team_pitching_source=team_pitching_source,  # type: ignore[arg-type]
+            year=2025,
+            years_back=3,
+        )
+
+        assert len(rates) == 1
+        assert rates[0].player_id == "sp1"
+        assert rates[0].year == 2025
+        assert rates[0].age == 29
+
+    def test_pitching_v2_detects_starter(self, test_context: "Context") -> None:
+        """Verifies starter detection in new-style pitching method."""
+        player_pitching = {
+            2024: [_make_pitcher(year=2024, gs=32, g=32)],
+            2023: [_make_pitcher(year=2023, gs=30, g=30)],
+            2022: [_make_pitcher(year=2022, gs=28, g=28)],
+        }
+        league = _make_league_pitching()
+        team_pitching = {2024: [league], 2023: [league], 2022: [league]}
+
+        def pitching_source(query: object) -> Ok[list[PitchingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            return Ok(player_pitching.get(year, []))
+
+        def team_pitching_source(query: object) -> Ok[list[PitchingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            return Ok(team_pitching.get(year, []))
+
+        computer = MarcelRateComputer()
+        rates = computer.compute_pitching_rates_v2(
+            pitching_source=pitching_source,  # type: ignore[arg-type]
+            team_pitching_source=team_pitching_source,  # type: ignore[arg-type]
+            year=2025,
+            years_back=3,
+        )
+
+        assert rates[0].metadata["is_starter"] is True
+
+    def test_pitching_v2_detects_reliever(self, test_context: "Context") -> None:
+        """Verifies reliever detection in new-style pitching method."""
+        player_pitching = {
+            2024: [_make_pitcher(year=2024, gs=0, g=65, ip=70.0)],
+            2023: [_make_pitcher(year=2023, gs=0, g=60, ip=65.0)],
+            2022: [_make_pitcher(year=2022, gs=0, g=55, ip=60.0)],
+        }
+        league = _make_league_pitching()
+        team_pitching = {2024: [league], 2023: [league], 2022: [league]}
+
+        def pitching_source(query: object) -> Ok[list[PitchingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            return Ok(player_pitching.get(year, []))
+
+        def team_pitching_source(query: object) -> Ok[list[PitchingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            return Ok(team_pitching.get(year, []))
+
+        computer = MarcelRateComputer()
+        rates = computer.compute_pitching_rates_v2(
+            pitching_source=pitching_source,  # type: ignore[arg-type]
+            team_pitching_source=team_pitching_source,  # type: ignore[arg-type]
+            year=2025,
+            years_back=3,
+        )
+
+        assert rates[0].metadata["is_starter"] is False
+
+    def test_pitching_v2_uses_context_for_years(self, test_context: "Context") -> None:
+        """Verifies that multi-year queries use context switching."""
+        years_queried: list[int] = []
+        league = _make_league_pitching()
+
+        def pitching_source(query: object) -> Ok[list[PitchingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            year = get_context().year
+            years_queried.append(year)
+            return Ok([_make_pitcher(year=year, age=25 + (2024 - year))])
+
+        def team_pitching_source(query: object) -> Ok[list[PitchingSeasonStats]]:
+            from fantasy_baseball_manager.context import get_context
+
+            _ = get_context().year  # Access context to ensure it's set
+            return Ok([league])
+
+        computer = MarcelRateComputer()
+        computer.compute_pitching_rates_v2(
+            pitching_source=pitching_source,  # type: ignore[arg-type]
+            team_pitching_source=team_pitching_source,  # type: ignore[arg-type]
+            year=2025,
+            years_back=3,
+        )
+
+        # Should query years 2024, 2023, 2022
+        assert set(years_queried) == {2024, 2023, 2022}

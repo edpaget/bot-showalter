@@ -259,3 +259,103 @@ class MarcelRateComputer:
             )
 
         return result
+
+    def compute_pitching_rates_v2(
+        self,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
+        year: int,
+        years_back: int,
+    ) -> list[PlayerRates]:
+        """Compute pitching rates using new-style DataSource callables.
+
+        This method uses the DataSource[T] pattern where year comes from
+        ambient Context. Multi-year queries use context switching.
+
+        Args:
+            pitching_source: DataSource that returns player pitching stats.
+            team_pitching_source: DataSource that returns league pitching stats.
+            year: Target projection year.
+            years_back: Number of historical years to use.
+
+        Returns:
+            List of PlayerRates for each player.
+        """
+        years = [year - i for i in range(1, years_back + 1)]
+        weights = list(MARCEL_PITCHING_WEIGHTS[:years_back])
+
+        player_seasons: dict[int, list[PitchingSeasonStats]] = {}
+        league_rates: dict[int, dict[str, float]] = {}
+
+        for y in years:
+            with new_context(year=y):
+                pitching_result = pitching_source(ALL_PLAYERS)
+                team_result = team_pitching_source(ALL_PLAYERS)
+
+                if pitching_result.is_ok():
+                    player_seasons[y] = list(pitching_result.unwrap())
+                else:
+                    player_seasons[y] = []
+
+                if team_result.is_ok():
+                    team_stats = team_result.unwrap()
+                    if team_stats:
+                        league_rates[y] = compute_pitching_league_rates(list(team_stats))
+
+        target_rates = league_rates.get(years[0], {})
+
+        avg_league_rates: dict[str, float] = {}
+        for stat in PITCHING_COMPONENT_STATS:
+            rates_for_stat = [league_rates[y][stat] for y in years if y in league_rates]
+            if rates_for_stat:
+                avg_league_rates[stat] = sum(rates_for_stat) / len(rates_for_stat)
+
+        player_data: dict[str, dict[int, PitchingSeasonStats]] = {}
+        for y in years:
+            for p in player_seasons.get(y, []):
+                if p.player_id not in player_data:
+                    player_data[p.player_id] = {}
+                player_data[p.player_id][y] = p
+
+        result: list[PlayerRates] = []
+        for player_id, seasons in player_data.items():
+            most_recent = next(seasons[y] for y in years if y in seasons)
+            projection_age = most_recent.age + (year - most_recent.year)
+
+            outs_per_year: list[float] = [seasons[y].ip * 3 if y in seasons else 0.0 for y in years]
+            ip_per_year = [seasons[y].ip if y in seasons else 0.0 for y in years]
+
+            # Determine starter/reliever
+            total_gs = sum(s.gs for s in seasons.values())
+            total_g = sum(s.g for s in seasons.values())
+            is_starter = (total_gs / total_g) >= STARTER_GS_RATIO if total_g > 0 else True
+
+            raw_rates: dict[str, float] = {}
+            for stat in PITCHING_COMPONENT_STATS:
+                stat_per_year: list[float] = [float(getattr(seasons[y], stat)) if y in seasons else 0.0 for y in years]
+                raw_rates[stat] = weighted_rate(
+                    stats=stat_per_year,
+                    opportunities=outs_per_year,
+                    weights=weights,
+                    league_rate=avg_league_rates.get(stat, 0.0),
+                    regression_pa=MARCEL_REGRESSION_OUTS,
+                )
+
+            result.append(
+                PlayerRates(
+                    player_id=player_id,
+                    name=most_recent.name,
+                    year=year,
+                    age=projection_age,
+                    rates=raw_rates,
+                    metadata={
+                        "ip_per_year": ip_per_year,
+                        "is_starter": is_starter,
+                        "avg_league_rates": avg_league_rates,
+                        "target_rates": target_rates,
+                        "team": most_recent.team,
+                    },
+                )
+            )
+
+        return result
