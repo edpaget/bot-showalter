@@ -14,7 +14,7 @@ from fantasy_baseball_manager.marcel.weights import weighted_rate
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.data.protocol import BatchDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
 
@@ -95,8 +95,8 @@ class MarcelRateComputer:
 
     def compute_batting_rates_v2(
         self,
-        batting_source: BatchDataSource[BattingSeasonStats],
-        team_batting_source: BatchDataSource[BattingSeasonStats],
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:

@@ -28,7 +28,6 @@ from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
     from pathlib import Path
 
     from fantasy_baseball_manager.cache.protocol import CacheStore
@@ -54,7 +53,7 @@ def cached(
     source: DataSource[T],
     namespace: str,
     ttl_seconds: int,
-    serializer: Serializer[Sequence[T]],
+    serializer: Serializer[list[T]],
 ) -> DataSource[T]:
     """Wrap a DataSource with caching. Cache key derived from context.
 
@@ -80,7 +79,7 @@ def cached(
         )
     """
 
-    def wrapper(query: Query) -> Ok[Sequence[T]] | Ok[T] | Err[DataSourceError]:
+    def wrapper(query: Query) -> Ok[list[T]] | Ok[T] | Err[DataSourceError]:
         ctx = get_context()
 
         # Check cache settings from context
@@ -114,8 +113,8 @@ def cached(
         if result.is_ok():
             try:
                 value = result.unwrap()
-                # ALL_PLAYERS returns Sequence[T]
-                serialized = serializer.serialize(value)  # type: ignore[arg-type]
+                # ALL_PLAYERS returns list[T]
+                serialized = serializer.serialize(value)
                 store.put(namespace, cache_key, serialized, ttl_seconds)
                 logger.debug("Cached %s (year=%d)", namespace, ctx.year)
             except Exception as e:
@@ -124,7 +123,8 @@ def cached(
 
         return result
 
-    return wrapper
+    # Inner functions can't satisfy Protocol with overloads
+    return wrapper  # type: ignore[return-value]
 
 
 def cached_batch(
@@ -225,7 +225,7 @@ def cached_single(
         A wrapped DataSource that caches single-player results.
     """
 
-    def wrapper(query: Query) -> Ok[Sequence[T]] | Ok[T] | Err[DataSourceError]:
+    def wrapper(query: Query) -> Ok[list[T]] | Ok[T] | Err[DataSourceError]:
         ctx = get_context()
 
         # Check cache settings
@@ -256,14 +256,14 @@ def cached_single(
             result = source(query)
             if result.is_ok():
                 try:
-                    serialized = serializer.serialize(result.unwrap())  # type: ignore[arg-type]
+                    serialized = serializer.serialize(result.unwrap())
                     store.put(namespace, cache_key, serialized, ttl_seconds)
                 except Exception:
                     pass
 
             return result
 
-        # Sequence of players - fetch individually
+        # List of players - fetch individually
         results: list[object] = []
         for player in query:
             single_result = wrapper(player)
@@ -272,4 +272,5 @@ def cached_single(
             results.append(single_result.unwrap())
         return Ok(results)  # type: ignore[return-value]
 
-    return wrapper
+    # Inner functions can't satisfy Protocol with overloads
+    return wrapper  # type: ignore[return-value]

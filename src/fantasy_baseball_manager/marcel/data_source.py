@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Protocol, TypeVar
+from typing import TYPE_CHECKING, Protocol, TypeVar, overload
 
 import pybaseball
 import pybaseball.cache
 
 from fantasy_baseball_manager.context import get_context
-from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, BatchDataSource, DataSourceError
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSource, DataSourceError
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from fantasy_baseball_manager.cache.protocol import CacheStore
+    from fantasy_baseball_manager.player.identity import Player
 
 _T = TypeVar("_T")
 
@@ -167,32 +168,42 @@ class PybaseballDataSource:
 
 
 # ---------------------------------------------------------------------------
-# New-style DataSource factories
+# New-style DataSource classes
 # ---------------------------------------------------------------------------
 
 
-def create_batting_source() -> BatchDataSource[BattingSeasonStats]:
-    """Create a batch DataSource for batting stats.
+class BattingDataSource:
+    """DataSource for batting stats using pybaseball.
 
-    Returns a callable that fetches batting stats using pybaseball.
-    Year is read from the ambient Context. Only supports ALL_PLAYERS queries.
+    Implements the DataSource[BattingSeasonStats] protocol with proper overloads
+    so the type checker knows the return type based on the query type.
+
+    Year is read from the ambient Context.
 
     Usage:
         init_context(year=2024)
-        batting_source = create_batting_source()
+        batting_source = BattingDataSource()
         result = batting_source(ALL_PLAYERS)
         if result.is_ok():
             stats = result.unwrap()  # Type checker knows: Sequence[BattingSeasonStats]
-
-    Returns:
-        A BatchDataSource[BattingSeasonStats] callable.
     """
-    pybaseball.cache.enable()
 
-    def source(
-        query: type[ALL_PLAYERS],
-    ) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]:
-        # This is a batch-only source
+    def __init__(self) -> None:
+        pybaseball.cache.enable()
+
+    @overload
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]: ...
+
+    @overload
+    def __call__(self, query: Player) -> Ok[BattingSeasonStats] | Err[DataSourceError]: ...
+
+    def __call__(
+        self, query: type[ALL_PLAYERS] | Player | list[Player]
+    ) -> Ok[list[BattingSeasonStats]] | Ok[BattingSeasonStats] | Err[DataSourceError]:
+        # Only ALL_PLAYERS queries are supported - return Err for others
         if query is not ALL_PLAYERS:
             return Err(DataSourceError("Only ALL_PLAYERS queries supported"))
 
@@ -237,7 +248,20 @@ def create_batting_source() -> BatchDataSource[BattingSeasonStats]:
         except Exception as e:
             return Err(DataSourceError(f"Failed to fetch batting stats for {year}", e))
 
-    return source
+
+def create_batting_source() -> DataSource[BattingSeasonStats]:
+    """Create a DataSource for batting stats.
+
+    Returns a BattingDataSource instance that implements the full DataSource protocol.
+
+    Usage:
+        init_context(year=2024)
+        batting_source = create_batting_source()
+        result = batting_source(ALL_PLAYERS)
+        if result.is_ok():
+            stats = result.unwrap()  # Type checker knows: Sequence[BattingSeasonStats]
+    """
+    return BattingDataSource()
 
 
 # ---------------------------------------------------------------------------

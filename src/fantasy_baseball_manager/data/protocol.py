@@ -78,21 +78,22 @@ class DataSource(Protocol[T_co]):
     Using @overload allows the type checker to infer the correct return type
     based on the query type, eliminating the need for casts.
 
-    Overload resolution order matters - more specific types first.
+    Uses list[T] instead of Sequence[T] to avoid generic invariance issues
+    (Ok[list[T]] doesn't match Ok[Sequence[T]] in the type system).
     """
 
     @overload
-    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[Sequence[T_co]] | Err[DataSourceError]: ...
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[T_co]] | Err[DataSourceError]: ...
 
     @overload
-    def __call__(self, query: list[Player]) -> Ok[Sequence[T_co]] | Err[DataSourceError]: ...
+    def __call__(self, query: list[Player]) -> Ok[list[T_co]] | Err[DataSourceError]: ...
 
     @overload
     def __call__(self, query: Player) -> Ok[T_co] | Err[DataSourceError]: ...
 
     def __call__(
         self, query: type[ALL_PLAYERS] | Player | list[Player]
-    ) -> Ok[Sequence[T_co]] | Ok[T_co] | Err[DataSourceError]: ...
+    ) -> Ok[list[T_co]] | Ok[T_co] | Err[DataSourceError]: ...
 
 
 # Simpler type for batch-only sources (most common case)

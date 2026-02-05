@@ -5,23 +5,29 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
-from fantasy_baseball_manager.cache.wrapper import cached_batch
+from fantasy_baseball_manager.cache.wrapper import cached
 from fantasy_baseball_manager.context import Context, new_context
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.marcel.data_source import (
+    BattingDataSource,
     BattingSeasonStats,
     create_batting_source,
 )
 from fantasy_baseball_manager.result import Err, Ok
 
 
-class TestCreateBattingSource:
-    """Tests for the create_batting_source factory."""
+class TestBattingDataSource:
+    """Tests for the BattingDataSource class."""
 
-    def test_returns_callable_data_source(self, test_context: Context) -> None:
-        """Factory returns a callable DataSource."""
-        source = create_batting_source()
+    def test_is_callable(self, test_context: Context) -> None:
+        """BattingDataSource is callable."""
+        source = BattingDataSource()
         assert callable(source)
+
+    def test_factory_returns_data_source(self, test_context: Context) -> None:
+        """create_batting_source() returns a BattingDataSource."""
+        source = create_batting_source()
+        assert isinstance(source, BattingDataSource)
 
     def test_all_players_returns_sequence(self, test_context: Context) -> None:
         """ALL_PLAYERS query returns Ok with sequence of BattingSeasonStats."""
@@ -150,44 +156,46 @@ class TestCachedBattingSource:
     """Tests for cached batting DataSource."""
 
     def test_caching_integrates_with_batting_source(self, test_context: Context) -> None:
-        """cached_batch() wrapper works with create_batting_source()."""
+        """cached() wrapper works with DataSource classes."""
         call_count = 0
 
-        def mock_source(
-            query: type[ALL_PLAYERS],
-        ) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]:
-            nonlocal call_count
-            call_count += 1
-            stats: list[BattingSeasonStats] = [
-                BattingSeasonStats(
-                    player_id="1",
-                    name="Test",
-                    year=2025,
-                    age=25,
-                    pa=100,
-                    ab=90,
-                    h=25,
-                    singles=15,
-                    doubles=5,
-                    triples=2,
-                    hr=3,
-                    bb=5,
-                    so=20,
-                    hbp=2,
-                    sf=1,
-                    sh=0,
-                    sb=3,
-                    cs=1,
-                    r=15,
-                    rbi=20,
-                    team="BOS",
-                )
-            ]
-            return Ok(stats)
+        class MockBattingSource:
+            """Mock DataSource with proper overloads."""
 
+            def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]:
+                nonlocal call_count
+                call_count += 1
+                stats: list[BattingSeasonStats] = [
+                    BattingSeasonStats(
+                        player_id="1",
+                        name="Test",
+                        year=2025,
+                        age=25,
+                        pa=100,
+                        ab=90,
+                        h=25,
+                        singles=15,
+                        doubles=5,
+                        triples=2,
+                        hr=3,
+                        bb=5,
+                        so=20,
+                        hbp=2,
+                        sf=1,
+                        sh=0,
+                        sb=3,
+                        cs=1,
+                        r=15,
+                        rbi=20,
+                        team="BOS",
+                    )
+                ]
+                return Ok(stats)
+
+        mock_source = MockBattingSource()
         serializer = DataclassListSerializer(BattingSeasonStats)
-        cached_source = cached_batch(
-            mock_source,
+        cached_source = cached(
+            mock_source,  # type: ignore[arg-type]
             namespace="batting_stats",
             ttl_seconds=3600,
             serializer=serializer,
@@ -210,17 +218,17 @@ class TestCachedBattingSource:
         """Cache entries are scoped by year from context."""
         call_count = 0
 
-        def mock_source(
-            query: type[ALL_PLAYERS],
-        ) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]:
-            nonlocal call_count
-            call_count += 1
-            empty: list[BattingSeasonStats] = []
-            return Ok(empty)
+        class MockBattingSource:
+            def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[BattingSeasonStats]] | Err[DataSourceError]:
+                nonlocal call_count
+                call_count += 1
+                empty: list[BattingSeasonStats] = []
+                return Ok(empty)
 
+        mock_source = MockBattingSource()
         serializer = DataclassListSerializer(BattingSeasonStats)
-        cached_source = cached_batch(
-            mock_source,
+        cached_source = cached(
+            mock_source,  # type: ignore[arg-type]
             namespace="batting_stats",
             ttl_seconds=3600,
             serializer=serializer,
