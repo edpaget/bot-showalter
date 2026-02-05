@@ -223,19 +223,13 @@ class FakeMLBDataSource:
 class FakeMinorLeagueDataSource:
     """Fake MiLB data source for testing."""
 
-    batting_data: dict[int, list[MinorLeagueBatterSeasonStats]] = field(
-        default_factory=dict
-    )
+    batting_data: dict[int, list[MinorLeagueBatterSeasonStats]] = field(default_factory=dict)
 
-    def batting_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeagueBatterSeasonStats]:
         all_stats = self.batting_data.get(year, [])
         return [s for s in all_stats if s.level == level]
 
-    def batting_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
         return self.batting_data.get(year, [])
 
 
@@ -380,9 +374,7 @@ class TestMLERateComputer:
             age=24,
             pa=450,
         )
-        milb_source = FakeMinorLeagueDataSource(
-            batting_data={2024: [milb_player]}
-        )
+        milb_source = FakeMinorLeagueDataSource(batting_data={2024: [milb_player]})
 
         mock_store = MagicMock()
         mock_store.exists.return_value = True
@@ -509,9 +501,7 @@ class TestMLERateComputer:
             season=2024,
             pa=400,
         )
-        milb_source = FakeMinorLeagueDataSource(
-            batting_data={2024: [milb_player]}
-        )
+        milb_source = FakeMinorLeagueDataSource(batting_data={2024: [milb_player]})
 
         mock_store = MagicMock()
         mock_store.exists.return_value = True

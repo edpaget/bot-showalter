@@ -169,11 +169,7 @@ def mtl_pipeline(
     sufficient Statcast data.
     """
     cfg = config or RegressionConfig()
-    return (
-        PipelineBuilder("mtl", config=cfg)
-        .with_mtl_rate_computer()
-        .build()
-    )
+    return PipelineBuilder("mtl", config=cfg).with_mtl_rate_computer().build()
 
 
 def marcel_mtl_pipeline(
@@ -209,11 +205,7 @@ def mle_pipeline(
     Players with sufficient MLB history fall back to Marcel rates.
     """
     cfg = config or RegressionConfig()
-    return (
-        PipelineBuilder("mle", config=cfg)
-        .with_mle_rate_computer()
-        .build()
-    )
+    return PipelineBuilder("mle", config=cfg).with_mle_rate_computer().build()
 
 
 def steamer_pipeline() -> ExternalProjectionAdapter:

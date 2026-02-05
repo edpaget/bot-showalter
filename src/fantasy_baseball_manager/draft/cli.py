@@ -96,9 +96,7 @@ def draft_rank(
     no_cache: Annotated[
         bool, typer.Option("--no-cache", help="Bypass cache and fetch fresh data from Yahoo API.")
     ] = False,
-    adp: Annotated[
-        bool, typer.Option("--adp", help="Fetch and display ADP for comparison.")
-    ] = False,
+    adp: Annotated[bool, typer.Option("--adp", help="Fetch and display ADP for comparison.")] = False,
     adp_source_name: Annotated[
         str, typer.Option("--adp-source", help="ADP source: yahoo, espn, or composite.")
     ] = "yahoo",

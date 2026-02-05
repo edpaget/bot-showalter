@@ -487,9 +487,7 @@ class TestDraftRankCommand:
             fetched_at=datetime.now(UTC),
         )
 
-        with patch(
-            "fantasy_baseball_manager.draft.cli.YahooADPScraper"
-        ) as mock_scraper_cls:
+        with patch("fantasy_baseball_manager.draft.cli.YahooADPScraper") as mock_scraper_cls:
             mock_scraper = MagicMock()
             mock_scraper.fetch_adp.return_value = mock_adp_data
             mock_scraper_cls.return_value = mock_scraper
@@ -511,13 +509,11 @@ class TestDraftRankCommand:
             fetched_at=datetime.now(UTC),
         )
 
-        with patch(
-            "fantasy_baseball_manager.draft.cli.YahooADPScraper"
-        ) as mock_scraper_cls, patch(
-            "fantasy_baseball_manager.draft.cli.CachedADPSource"
-        ) as mock_cached_cls, patch.object(
-            container.cache_store, "invalidate"
-        ) as mock_invalidate:
+        with (
+            patch("fantasy_baseball_manager.draft.cli.YahooADPScraper") as mock_scraper_cls,
+            patch("fantasy_baseball_manager.draft.cli.CachedADPSource") as mock_cached_cls,
+            patch.object(container.cache_store, "invalidate") as mock_invalidate,
+        ):
             mock_scraper = MagicMock()
             mock_scraper_cls.return_value = mock_scraper
 
@@ -525,9 +521,7 @@ class TestDraftRankCommand:
             mock_cached.fetch_adp.return_value = mock_adp_data
             mock_cached_cls.return_value = mock_cached
 
-            result = runner.invoke(
-                app, ["players", "draft-rank", "2025", "--batting", "--adp", "--no-adp-cache"]
-            )
+            result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--adp", "--no-adp-cache"])
 
             assert result.exit_code == 0
             # Cache should be invalidated before fetch
@@ -544,11 +538,10 @@ class TestDraftRankCommand:
             fetched_at=datetime.now(UTC),
         )
 
-        with patch(
-            "fantasy_baseball_manager.draft.cli.YahooADPScraper"
-        ) as mock_scraper_cls, patch(
-            "fantasy_baseball_manager.draft.cli.CachedADPSource"
-        ) as mock_cached_cls:
+        with (
+            patch("fantasy_baseball_manager.draft.cli.YahooADPScraper") as mock_scraper_cls,
+            patch("fantasy_baseball_manager.draft.cli.CachedADPSource") as mock_cached_cls,
+        ):
             mock_scraper = MagicMock()
             mock_scraper_cls.return_value = mock_scraper
 

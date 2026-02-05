@@ -19,27 +19,19 @@ logger = logging.getLogger(__name__)
 class MinorLeagueDataSource(Protocol):
     """Protocol for fetching minor league statistics."""
 
-    def batting_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeagueBatterSeasonStats]:
         """Fetch batting stats for a specific level and year."""
         ...
 
-    def batting_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
         """Fetch batting stats across all MiLB levels for a year."""
         ...
 
-    def pitching_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeaguePitcherSeasonStats]:
+    def pitching_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeaguePitcherSeasonStats]:
         """Fetch pitching stats for a specific level and year."""
         ...
 
-    def pitching_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeaguePitcherSeasonStats]:
+    def pitching_stats_all_levels(self, year: int) -> list[MinorLeaguePitcherSeasonStats]:
         """Fetch pitching stats across all MiLB levels for a year."""
         ...
 
@@ -62,9 +54,7 @@ class MLBStatsAPIDataSource:
     def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
         self._timeout = timeout
 
-    def batting_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeagueBatterSeasonStats]:
         """Fetch batting stats for a specific level and year."""
         response = requests.get(
             f"{self.BASE_URL}/stats",
@@ -80,18 +70,14 @@ class MLBStatsAPIDataSource:
         response.raise_for_status()
         return self._parse_batting_response(response.json(), year, level)
 
-    def batting_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
         """Fetch batting stats across all MiLB levels for a year."""
         all_stats: list[MinorLeagueBatterSeasonStats] = []
         for level in MinorLeagueLevel:
             try:
                 stats = self.batting_stats(year, level)
                 all_stats.extend(stats)
-                logger.debug(
-                    "Fetched %d batters for %s %d", len(stats), level.display_name, year
-                )
+                logger.debug("Fetched %d batters for %s %d", len(stats), level.display_name, year)
             except requests.RequestException as e:
                 logger.warning(
                     "Failed to fetch %s batting for %d: %s",
@@ -101,9 +87,7 @@ class MLBStatsAPIDataSource:
                 )
         return all_stats
 
-    def pitching_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeaguePitcherSeasonStats]:
+    def pitching_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeaguePitcherSeasonStats]:
         """Fetch pitching stats for a specific level and year."""
         response = requests.get(
             f"{self.BASE_URL}/stats",
@@ -119,9 +103,7 @@ class MLBStatsAPIDataSource:
         response.raise_for_status()
         return self._parse_pitching_response(response.json(), year, level)
 
-    def pitching_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeaguePitcherSeasonStats]:
+    def pitching_stats_all_levels(self, year: int) -> list[MinorLeaguePitcherSeasonStats]:
         """Fetch pitching stats across all MiLB levels for a year."""
         all_stats: list[MinorLeaguePitcherSeasonStats] = []
         for level in MinorLeagueLevel:

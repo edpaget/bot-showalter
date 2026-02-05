@@ -46,9 +46,7 @@ class TestFanGraphsProjectionSource:
         assert len(result.pitching) == 3
         assert result.fetched_at is not None
 
-    def test_parses_batting_projections(
-        self, batting_json: list[dict], pitching_json: list[dict]
-    ) -> None:
+    def test_parses_batting_projections(self, batting_json: list[dict], pitching_json: list[dict]) -> None:
         """Correctly parses batting projection fields."""
         source = FanGraphsProjectionSource(system=ProjectionSystem.STEAMER)
 
@@ -77,9 +75,7 @@ class TestFanGraphsProjectionSource:
         assert judge.obp == pytest.approx(0.417, abs=0.001)
         assert judge.war == pytest.approx(6.7, abs=0.1)
 
-    def test_parses_pitching_projections(
-        self, batting_json: list[dict], pitching_json: list[dict]
-    ) -> None:
+    def test_parses_pitching_projections(self, batting_json: list[dict], pitching_json: list[dict]) -> None:
         """Correctly parses pitching projection fields."""
         source = FanGraphsProjectionSource(system=ProjectionSystem.STEAMER)
 
@@ -101,9 +97,7 @@ class TestFanGraphsProjectionSource:
         assert skubal.era == pytest.approx(2.80, abs=0.01)
         assert skubal.whip == pytest.approx(1.02, abs=0.01)
 
-    def test_parses_reliever_saves_holds(
-        self, batting_json: list[dict], pitching_json: list[dict]
-    ) -> None:
+    def test_parses_reliever_saves_holds(self, batting_json: list[dict], pitching_json: list[dict]) -> None:
         """Correctly parses saves and holds for relievers."""
         source = FanGraphsProjectionSource(system=ProjectionSystem.STEAMER)
 
@@ -118,9 +112,7 @@ class TestFanGraphsProjectionSource:
         assert suarez.hld == 5
         assert suarez.gs == 0
 
-    def test_handles_missing_mlbam_id(
-        self, batting_json: list[dict], pitching_json: list[dict]
-    ) -> None:
+    def test_handles_missing_mlbam_id(self, batting_json: list[dict], pitching_json: list[dict]) -> None:
         """Handles missing xMLBAMID gracefully."""
         batting_json[0]["xMLBAMID"] = None
         source = FanGraphsProjectionSource(system=ProjectionSystem.STEAMER)
@@ -132,9 +124,7 @@ class TestFanGraphsProjectionSource:
 
         assert result.batting[0].mlbam_id is None
 
-    def test_zips_system(
-        self, batting_json: list[dict], pitching_json: list[dict]
-    ) -> None:
+    def test_zips_system(self, batting_json: list[dict], pitching_json: list[dict]) -> None:
         """Can fetch ZiPS projections."""
         source = FanGraphsProjectionSource(system=ProjectionSystem.ZIPS)
 

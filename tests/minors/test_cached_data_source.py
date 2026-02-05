@@ -149,27 +149,19 @@ class _FakeMinorLeagueDataSource:
             "pitching_stats_all_levels": 0,
         }
 
-    def batting_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeagueBatterSeasonStats]:
         self.call_counts["batting_stats"] += 1
         return _sample_batting()
 
-    def batting_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
         self.call_counts["batting_stats_all_levels"] += 1
         return _sample_batting()
 
-    def pitching_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeaguePitcherSeasonStats]:
+    def pitching_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeaguePitcherSeasonStats]:
         self.call_counts["pitching_stats"] += 1
         return _sample_pitching()
 
-    def pitching_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeaguePitcherSeasonStats]:
+    def pitching_stats_all_levels(self, year: int) -> list[MinorLeaguePitcherSeasonStats]:
         self.call_counts["pitching_stats_all_levels"] += 1
         return _sample_pitching()
 
@@ -177,9 +169,7 @@ class _FakeMinorLeagueDataSource:
 class TestCachedMinorLeagueDataSource:
     """Tests for CachedMinorLeagueDataSource."""
 
-    def _make_cached(
-        self, tmp_path: Path
-    ) -> tuple[CachedMinorLeagueDataSource, _FakeMinorLeagueDataSource]:
+    def _make_cached(self, tmp_path: Path) -> tuple[CachedMinorLeagueDataSource, _FakeMinorLeagueDataSource]:
         delegate = _FakeMinorLeagueDataSource()
         cache = SqliteCacheStore(tmp_path / "cache.db")
         # Set current year high so all test years are "historical"
@@ -204,9 +194,7 @@ class TestCachedMinorLeagueDataSource:
         assert result1 == result2 == _sample_pitching()
         assert delegate.call_counts["pitching_stats"] == 1
 
-    def test_batting_stats_all_levels_cache_miss_then_hit(
-        self, tmp_path: Path
-    ) -> None:
+    def test_batting_stats_all_levels_cache_miss_then_hit(self, tmp_path: Path) -> None:
         cached, delegate = self._make_cached(tmp_path)
 
         result1 = cached.batting_stats_all_levels(2024)
@@ -215,9 +203,7 @@ class TestCachedMinorLeagueDataSource:
         assert result1 == result2 == _sample_batting()
         assert delegate.call_counts["batting_stats_all_levels"] == 1
 
-    def test_pitching_stats_all_levels_cache_miss_then_hit(
-        self, tmp_path: Path
-    ) -> None:
+    def test_pitching_stats_all_levels_cache_miss_then_hit(self, tmp_path: Path) -> None:
         cached, delegate = self._make_cached(tmp_path)
 
         result1 = cached.pitching_stats_all_levels(2024)

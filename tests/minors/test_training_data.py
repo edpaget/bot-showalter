@@ -120,12 +120,8 @@ class TestAggregatedMiLBStats:
     def test_from_multi_level_season_pa_weighted(self) -> None:
         """Multi-level season should PA-weight stats."""
         milb_stats = [
-            _make_milb_stats(
-                level=MinorLeagueLevel.AA, pa=300, hr=12, so=60, bb=30
-            ),
-            _make_milb_stats(
-                level=MinorLeagueLevel.AAA, pa=200, hr=8, so=50, bb=20
-            ),
+            _make_milb_stats(level=MinorLeagueLevel.AA, pa=300, hr=12, so=60, bb=30),
+            _make_milb_stats(level=MinorLeagueLevel.AAA, pa=200, hr=8, so=50, bb=20),
         ]
         agg = AggregatedMiLBStats.from_seasons(milb_stats)
 
@@ -180,23 +176,17 @@ class TestAggregatedMiLBStats:
 class _FakeMinorLeagueDataSource:
     """Fake MiLB data source for testing."""
 
-    def __init__(
-        self, data: dict[int, list[MinorLeagueBatterSeasonStats]] | None = None
-    ) -> None:
+    def __init__(self, data: dict[int, list[MinorLeagueBatterSeasonStats]] | None = None) -> None:
         self._data = data or {}
 
-    def batting_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
         return self._data.get(year, [])
 
 
 class _FakeMLBDataSource:
     """Fake MLB data source for testing."""
 
-    def __init__(
-        self, data: dict[int, list[BattingSeasonStats]] | None = None
-    ) -> None:
+    def __init__(self, data: dict[int, list[BattingSeasonStats]] | None = None) -> None:
         self._data = data or {}
 
     def batting_stats(self, year: int) -> list[BattingSeasonStats]:
@@ -226,11 +216,7 @@ class TestMLETrainingDataCollector:
         mlb_source = _FakeMLBDataSource(
             {
                 2023: [],  # No prior MLB experience
-                2024: [
-                    _make_mlb_stats(
-                        player_id="123", pa=150, hr=10, so=40, bb=15
-                    )
-                ],
+                2024: [_make_mlb_stats(player_id="123", pa=150, hr=10, so=40, bb=15)],
                 2025: [],
             }
         )

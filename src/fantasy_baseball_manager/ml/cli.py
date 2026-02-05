@@ -420,16 +420,12 @@ def validate_cmd(
     # Run validation
     if player_type in ("batter", "all"):
         typer.echo("\nValidating batter models...")
-        batter_report = trainer.validate_batter_models(
-            target_years, validation_strategy, es_config
-        )
+        batter_report = trainer.validate_batter_models(target_years, validation_strategy, es_config)
         _print_validation_report(batter_report)
 
     if player_type in ("pitcher", "all"):
         typer.echo("\nValidating pitcher models...")
-        pitcher_report = trainer.validate_pitcher_models(
-            target_years, validation_strategy, es_config
-        )
+        pitcher_report = trainer.validate_pitcher_models(target_years, validation_strategy, es_config)
         _print_validation_report(pitcher_report)
 
 

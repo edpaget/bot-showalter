@@ -342,9 +342,7 @@ class ResidualModelTrainer:
                 )
 
                 # Collect training data
-                train_features, train_residuals = self._collect_batter_data(
-                    split.train_years, extractor, stat
-                )
+                train_features, train_residuals = self._collect_batter_data(split.train_years, extractor, stat)
 
                 if len(train_features) < self.config.min_samples:
                     logger.warning(
@@ -356,9 +354,7 @@ class ResidualModelTrainer:
                     continue
 
                 # Collect validation data
-                val_features, val_residuals = self._collect_batter_data(
-                    split.val_years, extractor, stat
-                )
+                val_features, val_residuals = self._collect_batter_data(split.val_years, extractor, stat)
 
                 if len(val_features) == 0:
                     logger.warning("No validation samples for batter %s", stat)
@@ -370,9 +366,7 @@ class ResidualModelTrainer:
                 y_val = np.array(val_residuals)
 
                 # Train model
-                model = StatResidualModel(
-                    stat_name=stat, hyperparameters=self.config.hyperparameters
-                )
+                model = StatResidualModel(stat_name=stat, hyperparameters=self.config.hyperparameters)
 
                 if early_stopping is not None and early_stopping.enabled:
                     # Split off a portion of training data for early stopping
@@ -398,9 +392,7 @@ class ResidualModelTrainer:
                 fold_metrics.append(metrics)
 
             if fold_metrics:
-                stat_results.append(
-                    StatValidationResult(stat_name=stat, fold_metrics=tuple(fold_metrics))
-                )
+                stat_results.append(StatValidationResult(stat_name=stat, fold_metrics=tuple(fold_metrics)))
 
         # Compute training years (union of all training years)
         all_train_years: set[int] = set()
@@ -454,9 +446,7 @@ class ResidualModelTrainer:
                 )
 
                 # Collect training data
-                train_features, train_residuals = self._collect_pitcher_data(
-                    split.train_years, extractor, stat
-                )
+                train_features, train_residuals = self._collect_pitcher_data(split.train_years, extractor, stat)
 
                 if len(train_features) < self.config.min_samples:
                     logger.warning(
@@ -468,9 +458,7 @@ class ResidualModelTrainer:
                     continue
 
                 # Collect validation data
-                val_features, val_residuals = self._collect_pitcher_data(
-                    split.val_years, extractor, stat
-                )
+                val_features, val_residuals = self._collect_pitcher_data(split.val_years, extractor, stat)
 
                 if len(val_features) == 0:
                     logger.warning("No validation samples for pitcher %s", stat)
@@ -482,9 +470,7 @@ class ResidualModelTrainer:
                 y_val = np.array(val_residuals)
 
                 # Train model
-                model = StatResidualModel(
-                    stat_name=stat, hyperparameters=self.config.hyperparameters
-                )
+                model = StatResidualModel(stat_name=stat, hyperparameters=self.config.hyperparameters)
 
                 if early_stopping is not None and early_stopping.enabled:
                     # Split off a portion of training data for early stopping
@@ -510,9 +496,7 @@ class ResidualModelTrainer:
                 fold_metrics.append(metrics)
 
             if fold_metrics:
-                stat_results.append(
-                    StatValidationResult(stat_name=stat, fold_metrics=tuple(fold_metrics))
-                )
+                stat_results.append(StatValidationResult(stat_name=stat, fold_metrics=tuple(fold_metrics)))
 
         # Compute training years (union of all training years)
         all_train_years: set[int] = set()

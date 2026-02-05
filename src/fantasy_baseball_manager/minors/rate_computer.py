@@ -59,14 +59,10 @@ class MLERateComputer:
     model_store: MLEModelStore = field(default_factory=MLEModelStore)
 
     # Fallback to Marcel for established MLB players or when MLE unavailable
-    _marcel_computer: MarcelRateComputer = field(
-        default_factory=MarcelRateComputer, repr=False
-    )
+    _marcel_computer: MarcelRateComputer = field(default_factory=MarcelRateComputer, repr=False)
 
     # Lazy-loaded model
-    _batter_model: MLEGradientBoostingModel | None = field(
-        default=None, init=False, repr=False
-    )
+    _batter_model: MLEGradientBoostingModel | None = field(default=None, init=False, repr=False)
     _model_loaded: bool = field(default=False, init=False, repr=False)
 
     # Cache for MiLB data by year
@@ -80,9 +76,7 @@ class MLERateComputer:
             return
 
         if self.model_store.exists(self.config.model_name, "batter"):
-            self._batter_model = self.model_store.load(
-                self.config.model_name, "batter"
-            )
+            self._batter_model = self.model_store.load(self.config.model_name, "batter")
             logger.debug("Loaded MLE batter model: %s", self.config.model_name)
         else:
             logger.warning(
@@ -118,9 +112,7 @@ class MLERateComputer:
         self._ensure_model_loaded()
 
         # Get Marcel rates as baseline
-        marcel_rates = self._marcel_computer.compute_batting_rates(
-            data_source, year, years_back
-        )
+        marcel_rates = self._marcel_computer.compute_batting_rates(data_source, year, years_back)
 
         if self._batter_model is None:
             logger.debug("No MLE batter model available, using Marcel rates")
@@ -231,13 +223,9 @@ class MLERateComputer:
             List of PlayerRates from Marcel.
         """
         # MLE for pitchers not yet implemented - fall back to Marcel
-        return self._marcel_computer.compute_pitching_rates(
-            data_source, year, years_back
-        )
+        return self._marcel_computer.compute_pitching_rates(data_source, year, years_back)
 
-    def _get_milb_stats_by_player(
-        self, year: int
-    ) -> dict[str, list[MinorLeagueBatterSeasonStats]]:
+    def _get_milb_stats_by_player(self, year: int) -> dict[str, list[MinorLeagueBatterSeasonStats]]:
         """Get MiLB stats grouped by player ID for a year."""
         if year in self._milb_cache:
             return self._milb_cache[year]
@@ -300,9 +288,7 @@ class MLERateComputer:
             if stat in mle_rates:
                 # PA-weighted blend for stats MLE predicts
                 mle_val = mle_rates[stat]
-                blended[stat] = (
-                    marcel_pa * marcel_val + mle_pa * mle_val
-                ) / total_pa
+                blended[stat] = (marcel_pa * marcel_val + mle_pa * mle_val) / total_pa
             else:
                 # Use Marcel for stats MLE doesn't predict
                 blended[stat] = marcel_val
@@ -335,9 +321,7 @@ class MLEAugmentedRateComputer:
     model_store: MLEModelStore = field(default_factory=MLEModelStore)
 
     # Lazy-loaded model
-    _batter_model: MLEGradientBoostingModel | None = field(
-        default=None, init=False, repr=False
-    )
+    _batter_model: MLEGradientBoostingModel | None = field(default=None, init=False, repr=False)
     _model_loaded: bool = field(default=False, init=False, repr=False)
 
     # Cache for MiLB data by year
@@ -351,9 +335,7 @@ class MLEAugmentedRateComputer:
             return
 
         if self.model_store.exists(self.config.model_name, "batter"):
-            self._batter_model = self.model_store.load(
-                self.config.model_name, "batter"
-            )
+            self._batter_model = self.model_store.load(self.config.model_name, "batter")
             logger.debug("Loaded MLE batter model: %s", self.config.model_name)
         else:
             logger.warning(
@@ -382,9 +364,7 @@ class MLEAugmentedRateComputer:
         self._ensure_model_loaded()
 
         # Get base rates from delegate
-        delegate_rates = self.delegate.compute_batting_rates(  # type: ignore[union-attr]
-            data_source, year, years_back
-        )
+        delegate_rates = self.delegate.compute_batting_rates(data_source, year, years_back)  # type: ignore[union-attr]
 
         if self._batter_model is None:
             logger.debug("No MLE batter model available, returning delegate rates")
@@ -502,13 +482,9 @@ class MLEAugmentedRateComputer:
             List of PlayerRates from delegate.
         """
         # MLE for pitchers not yet implemented - delegate unchanged
-        return self.delegate.compute_pitching_rates(  # type: ignore[union-attr]
-            data_source, year, years_back
-        )
+        return self.delegate.compute_pitching_rates(data_source, year, years_back)  # type: ignore[union-attr]
 
-    def _get_milb_stats_by_player(
-        self, year: int
-    ) -> dict[str, list[MinorLeagueBatterSeasonStats]]:
+    def _get_milb_stats_by_player(self, year: int) -> dict[str, list[MinorLeagueBatterSeasonStats]]:
         """Get MiLB stats grouped by player ID for a year."""
         if year in self._milb_cache:
             return self._milb_cache[year]
@@ -558,9 +534,7 @@ class MLEAugmentedRateComputer:
             if stat in mle_rates:
                 # PA-weighted blend for stats MLE predicts
                 mle_val = mle_rates[stat]
-                blended[stat] = (
-                    delegate_pa * delegate_val + mle_pa * mle_val
-                ) / total_pa
+                blended[stat] = (delegate_pa * delegate_val + mle_pa * mle_val) / total_pa
             else:
                 # Use delegate for stats MLE doesn't predict
                 blended[stat] = delegate_val

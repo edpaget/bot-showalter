@@ -7,7 +7,6 @@ import pytest
 from fantasy_baseball_manager.adp.espn_scraper import ESPNADPScraper, _parse_espn_rows
 from fantasy_baseball_manager.adp.models import ADPData
 
-
 # Fixture mimicking ESPN's actual HTML structure (as of 2025)
 ESPN_ADP_HTML_FIXTURE = """
 <html>

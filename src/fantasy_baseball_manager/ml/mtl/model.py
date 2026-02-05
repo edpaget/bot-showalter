@@ -39,6 +39,7 @@ class _MultiTaskModelParams(TypedDict):
     validation_metrics: dict[str, float]
     is_fitted: bool
 
+
 logger = logging.getLogger(__name__)
 
 # Target stats for each player type
@@ -130,9 +131,7 @@ class MultiTaskNet:
 
         # Learnable log-variance for uncertainty-weighted loss
         # Initialize to 0 (variance=1)
-        log_vars = nn.ParameterDict(
-            {stat: nn.Parameter(torch.zeros(1)) for stat in target_stats}
-        )
+        log_vars = nn.ParameterDict({stat: nn.Parameter(torch.zeros(1)) for stat in target_stats})
 
         # Combine into a single module for training
         self._module = _MTLModule(trunk, heads, log_vars)
@@ -261,12 +260,16 @@ class MultiTaskBatterModel:
         return _MultiTaskModelParams(
             state_dict=self.network.module.state_dict() if self.network else None,
             n_features=self.network.n_features if self.network else 0,
-            config=_MTLArchitectureConfigDict(
-                shared_layers=self.network.config.shared_layers,
-                head_hidden_size=self.network.config.head_hidden_size,
-                dropout_rates=self.network.config.dropout_rates,
-                use_batch_norm=self.network.config.use_batch_norm,
-            ) if self.network else None,
+            config=(
+                _MTLArchitectureConfigDict(
+                    shared_layers=self.network.config.shared_layers,
+                    head_hidden_size=self.network.config.head_hidden_size,
+                    dropout_rates=self.network.config.dropout_rates,
+                    use_batch_norm=self.network.config.use_batch_norm,
+                )
+                if self.network
+                else None
+            ),
             feature_names=self.feature_names,
             training_years=list(self.training_years),
             validation_metrics=self.validation_metrics,
@@ -340,12 +343,16 @@ class MultiTaskPitcherModel:
         return _MultiTaskModelParams(
             state_dict=self.network.module.state_dict() if self.network else None,
             n_features=self.network.n_features if self.network else 0,
-            config=_MTLArchitectureConfigDict(
-                shared_layers=self.network.config.shared_layers,
-                head_hidden_size=self.network.config.head_hidden_size,
-                dropout_rates=self.network.config.dropout_rates,
-                use_batch_norm=self.network.config.use_batch_norm,
-            ) if self.network else None,
+            config=(
+                _MTLArchitectureConfigDict(
+                    shared_layers=self.network.config.shared_layers,
+                    head_hidden_size=self.network.config.head_hidden_size,
+                    dropout_rates=self.network.config.dropout_rates,
+                    use_batch_norm=self.network.config.use_batch_norm,
+                )
+                if self.network
+                else None
+            ),
             feature_names=self.feature_names,
             training_years=list(self.training_years),
             validation_metrics=self.validation_metrics,

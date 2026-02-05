@@ -85,9 +85,7 @@ def sample_projection_data() -> ProjectionData:
 class TestProjectionSerialization:
     """Tests for projection data serialization."""
 
-    def test_round_trip_preserves_data(
-        self, sample_projection_data: ProjectionData
-    ) -> None:
+    def test_round_trip_preserves_data(self, sample_projection_data: ProjectionData) -> None:
         """Serializing and deserializing preserves all data."""
         serialized = _serialize_projection_data(sample_projection_data)
         deserialized = _deserialize_projection_data(serialized)
@@ -162,9 +160,7 @@ class TestProjectionSerialization:
 class TestCachedProjectionSource:
     """Tests for CachedProjectionSource."""
 
-    def test_returns_cached_data_on_hit(
-        self, sample_projection_data: ProjectionData
-    ) -> None:
+    def test_returns_cached_data_on_hit(self, sample_projection_data: ProjectionData) -> None:
         """Returns cached data without calling delegate on cache hit."""
 
         class FakeCache:
@@ -175,9 +171,7 @@ class TestCachedProjectionSource:
             def get(self, namespace: str, key: str) -> str | None:
                 return self._data
 
-            def put(
-                self, namespace: str, key: str, value: str, ttl: int
-            ) -> None:
+            def put(self, namespace: str, key: str, value: str, ttl: int) -> None:
                 self.put_called = True
                 self._data = value
 
@@ -204,9 +198,7 @@ class TestCachedProjectionSource:
         assert result.system == ProjectionSystem.STEAMER
         assert len(result.batting) == 1
 
-    def test_fetches_and_caches_on_miss(
-        self, sample_projection_data: ProjectionData
-    ) -> None:
+    def test_fetches_and_caches_on_miss(self, sample_projection_data: ProjectionData) -> None:
         """Fetches from delegate and caches on cache miss."""
 
         class FakeCache:
@@ -217,9 +209,7 @@ class TestCachedProjectionSource:
             def get(self, namespace: str, key: str) -> str | None:
                 return self._data
 
-            def put(
-                self, namespace: str, key: str, value: str, ttl: int
-            ) -> None:
+            def put(self, namespace: str, key: str, value: str, ttl: int) -> None:
                 self.put_called = True
                 self._data = value
 

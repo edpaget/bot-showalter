@@ -27,8 +27,6 @@ from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateCo
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import StatSpecificRegressionRateComputer
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
-
-
 # =============================================================================
 # Fixtures for creating test data
 # =============================================================================

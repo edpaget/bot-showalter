@@ -177,10 +177,7 @@ class TimeSeriesHoldout:
             ValueError: If not enough years available for the holdout.
         """
         if len(available_years) <= self.holdout_years:
-            raise ValueError(
-                f"Need more than {self.holdout_years} years for holdout, "
-                f"got {len(available_years)}"
-            )
+            raise ValueError(f"Need more than {self.holdout_years} years for holdout, " f"got {len(available_years)}")
 
         sorted_years = tuple(sorted(available_years))
         split_idx = len(sorted_years) - self.holdout_years
@@ -225,9 +222,7 @@ class LeaveOneYearOut:
             ValueError: If fewer than 2 years available.
         """
         if len(available_years) < 2:
-            raise ValueError(
-                f"Need at least 2 years for leave-one-year-out, got {len(available_years)}"
-            )
+            raise ValueError(f"Need at least 2 years for leave-one-year-out, got {len(available_years)}")
 
         sorted_years = tuple(sorted(available_years))
         splits: list[ValidationSplit] = []
@@ -277,9 +272,7 @@ def compute_validation_metrics(
     if len(y_true) == 0:
         raise ValueError("Cannot compute metrics on empty arrays")
     if len(y_true) != len(y_pred):
-        raise ValueError(
-            f"Array length mismatch: y_true has {len(y_true)}, y_pred has {len(y_pred)}"
-        )
+        raise ValueError(f"Array length mismatch: y_true has {len(y_true)}, y_pred has {len(y_pred)}")
 
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
@@ -440,8 +433,7 @@ def compute_weighted_rmse(
         raise ValueError("Cannot compute metrics on empty arrays")
     if len(y_true) != len(y_pred) or len(y_true) != len(weights):
         raise ValueError(
-            f"Array length mismatch: y_true={len(y_true)}, "
-            f"y_pred={len(y_pred)}, weights={len(weights)}"
+            f"Array length mismatch: y_true={len(y_true)}, " f"y_pred={len(y_pred)}, weights={len(weights)}"
         )
 
     y_true = np.asarray(y_true)
@@ -481,9 +473,7 @@ def compute_spearman_rho(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     if len(y_true) == 0:
         raise ValueError("Cannot compute metrics on empty arrays")
     if len(y_true) != len(y_pred):
-        raise ValueError(
-            f"Array length mismatch: y_true={len(y_true)}, y_pred={len(y_pred)}"
-        )
+        raise ValueError(f"Array length mismatch: y_true={len(y_true)}, y_pred={len(y_pred)}")
     if len(y_true) < 2:
         return 0.0
 
@@ -542,8 +532,7 @@ class HoldoutEvaluator:
 
         if set(y_true.keys()) != set(y_pred.keys()):
             raise ValueError(
-                f"Stat names don't match: y_true has {set(y_true.keys())}, "
-                f"y_pred has {set(y_pred.keys())}"
+                f"Stat names don't match: y_true has {set(y_true.keys())}, " f"y_pred has {set(y_pred.keys())}"
             )
 
         if not y_true:
@@ -651,9 +640,7 @@ class HoldoutEvaluator:
 
             # Compute improvement
             rmse_improvement = baseline_rmse - eval_result.rmse
-            rmse_improvement_pct = (
-                (rmse_improvement / baseline_rmse * 100) if baseline_rmse > 0 else 0.0
-            )
+            rmse_improvement_pct = (rmse_improvement / baseline_rmse * 100) if baseline_rmse > 0 else 0.0
 
             comparisons.append(
                 BaselineComparison(

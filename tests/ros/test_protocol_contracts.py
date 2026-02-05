@@ -17,7 +17,6 @@ from fantasy_baseball_manager.marcel.models import (
 from fantasy_baseball_manager.ros.blender import BayesianBlender
 from fantasy_baseball_manager.ros.protocol import ProjectionBlender
 
-
 # =============================================================================
 # Fixtures for creating test data
 # =============================================================================

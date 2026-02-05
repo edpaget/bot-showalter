@@ -251,9 +251,15 @@ class TestMLEEvaluator:
         # Mock empty data
         evaluator._cached_test_data[(2024,)] = (
             np.array([]).reshape(0, 3),
-            {"hr": np.array([]), "so": np.array([]), "bb": np.array([]),
-             "singles": np.array([]), "doubles": np.array([]),
-             "triples": np.array([]), "sb": np.array([])},
+            {
+                "hr": np.array([]),
+                "so": np.array([]),
+                "bb": np.array([]),
+                "singles": np.array([]),
+                "doubles": np.array([]),
+                "triples": np.array([]),
+                "sb": np.array([]),
+            },
             np.array([]),
             ["f1", "f2", "f3"],
             [],
@@ -310,9 +316,7 @@ class TestMLEEvaluator:
             mock_aggregated,
         )
 
-        model_report, baseline_reports = evaluator.evaluate_with_baselines(
-            model, test_years=(2024,)
-        )
+        model_report, baseline_reports = evaluator.evaluate_with_baselines(model, test_years=(2024,))
 
         assert model_report.n_samples == 2
         assert "traditional_mle" in baseline_reports
@@ -363,21 +367,15 @@ class TestPrintEvaluationReport:
             model_name="mle",
             test_years=(2024,),
             n_samples=100,
-            stat_evaluations=(
-                HoldoutEvaluation("hr", 100, 0.01, 0.012, 0.008, 0.85),
-            ),
+            stat_evaluations=(HoldoutEvaluation("hr", 100, 0.01, 0.012, 0.008, 0.85),),
         )
 
         baseline_report = HoldoutEvaluationReport(
             model_name="mle vs traditional_mle",
             test_years=(2024,),
             n_samples=100,
-            stat_evaluations=(
-                HoldoutEvaluation("hr", 100, 0.01, 0.012, 0.008, 0.85),
-            ),
-            baseline_comparisons=(
-                BaselineComparison("hr", 0.01, 0.015, 0.005, 33.3, 0.85, 0.70),
-            ),
+            stat_evaluations=(HoldoutEvaluation("hr", 100, 0.01, 0.012, 0.008, 0.85),),
+            baseline_comparisons=(BaselineComparison("hr", 0.01, 0.015, 0.005, 33.3, 0.85, 0.70),),
         )
 
         print_evaluation_report(model_report, {"traditional_mle": baseline_report})

@@ -54,9 +54,7 @@ class TraditionalMLEBaseline:
     based on the level of play (AAA=0.90, AA=0.80, etc.).
     """
 
-    factors: dict[MinorLeagueLevel, float] = field(
-        default_factory=lambda: TRADITIONAL_MLE_FACTORS.copy()
-    )
+    factors: dict[MinorLeagueLevel, float] = field(default_factory=lambda: TRADITIONAL_MLE_FACTORS.copy())
 
     def predict(
         self,
@@ -156,9 +154,7 @@ class MLEEvaluator:
 
     # Cached collector and test data
     _collector: MLETrainingDataCollector | None = field(default=None, init=False, repr=False)
-    _cached_test_data: dict[tuple[int, ...], tuple] = field(
-        default_factory=dict, init=False, repr=False
-    )
+    _cached_test_data: dict[tuple[int, ...], tuple] = field(default_factory=dict, init=False, repr=False)
 
     def _get_collector(self) -> MLETrainingDataCollector:
         """Get or create the training data collector."""
@@ -252,9 +248,7 @@ class MLEEvaluator:
         Returns:
             Tuple of (model_report, baseline_reports_dict)
         """
-        features, targets, weights, feature_names, aggregated_stats = self._collect_test_data(
-            test_years
-        )
+        features, targets, weights, feature_names, aggregated_stats = self._collect_test_data(test_years)
 
         if len(features) == 0:
             logger.warning("No test samples found for years %s", test_years)
@@ -346,9 +340,7 @@ def print_evaluation_report(
             if baseline_report.baseline_comparisons:
                 print(f"\nComparison vs {baseline_name}:")
                 print("-" * 60)
-                print(
-                    f"{'Stat':<10} {'Model':>10} {'Baseline':>10} {'Improve':>10} {'Pct':>8}"
-                )
+                print(f"{'Stat':<10} {'Model':>10} {'Baseline':>10} {'Improve':>10} {'Pct':>8}")
                 print("-" * 60)
                 for comp in baseline_report.baseline_comparisons:
                     print(

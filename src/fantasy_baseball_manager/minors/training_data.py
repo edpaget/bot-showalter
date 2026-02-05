@@ -62,9 +62,7 @@ class AggregatedMiLBStats:
     slg: float
 
     @classmethod
-    def from_seasons(
-        cls, seasons: list[MinorLeagueBatterSeasonStats]
-    ) -> AggregatedMiLBStats | None:
+    def from_seasons(cls, seasons: list[MinorLeagueBatterSeasonStats]) -> AggregatedMiLBStats | None:
         """Create aggregated stats from multiple level seasons.
 
         Args:
@@ -177,9 +175,7 @@ class MLETrainingDataCollector:
     id_mapper: PlayerIdMapper | None = None
 
     # Cache for feature extractor (created lazily if not provided)
-    _cached_extractor: MLEBatterFeatureExtractor | None = field(
-        default=None, init=False, repr=False
-    )
+    _cached_extractor: MLEBatterFeatureExtractor | None = field(default=None, init=False, repr=False)
 
     def collect(
         self,
@@ -217,10 +213,7 @@ class MLETrainingDataCollector:
 
         # Convert samples to arrays
         features = np.array([s.features for s in samples])
-        targets = {
-            stat: np.array([s.targets[stat] for s in samples])
-            for stat in BATTER_TARGET_STATS
-        }
+        targets = {stat: np.array([s.targets[stat] for s in samples]) for stat in BATTER_TARGET_STATS}
         weights = np.array([s.mlb_pa for s in samples], dtype=np.float32)
 
         logger.info(
@@ -235,18 +228,14 @@ class MLETrainingDataCollector:
 
         return features, targets, weights, feature_names, aggregated_stats
 
-    def _collect_samples(
-        self, target_years: tuple[int, ...]
-    ) -> list[MLETrainingSample]:
+    def _collect_samples(self, target_years: tuple[int, ...]) -> list[MLETrainingSample]:
         """Collect training samples for given target years."""
         samples: list[MLETrainingSample] = []
 
         for target_year in target_years:
             year_samples = self._collect_year_samples(target_year)
             samples.extend(year_samples)
-            logger.info(
-                "Year %d: %d qualifying samples", target_year, len(year_samples)
-            )
+            logger.info("Year %d: %d qualifying samples", target_year, len(year_samples))
 
         return samples
 
@@ -316,9 +305,7 @@ class MLETrainingDataCollector:
                 continue
 
             # Get MLB outcome from target year or year+1
-            mlb_stats, mlb_season = self._get_mlb_outcome(
-                fg_id, mlb_lookup, mlb_next_lookup, target_year
-            )
+            mlb_stats, mlb_season = self._get_mlb_outcome(fg_id, mlb_lookup, mlb_next_lookup, target_year)
             if mlb_stats is None:
                 continue
 

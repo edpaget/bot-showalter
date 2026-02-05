@@ -100,9 +100,7 @@ class CachedMinorLeagueDataSource:
         self._cache = cache
         self._current_year = current_year or datetime.now().year
 
-    def batting_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeagueBatterSeasonStats]:
         """Fetch batting stats with caching."""
         key = f"batting:{year}:{level.value}"
         cached = self._cache.get(_NAMESPACE, key)
@@ -133,31 +131,23 @@ class CachedMinorLeagueDataSource:
         )
         return result
 
-    def batting_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeagueBatterSeasonStats]:
+    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
         """Fetch batting stats across all levels with caching."""
         key = f"batting_all:{year}"
         cached = self._cache.get(_NAMESPACE, key)
         if cached is not None:
             result = _deserialize_batting(cached)
-            logger.debug(
-                "Cache hit for all-level batting %d (%d players)", year, len(result)
-            )
+            logger.debug("Cache hit for all-level batting %d (%d players)", year, len(result))
             return result
 
-        logger.debug(
-            "Cache miss for all-level batting %d, fetching from source", year
-        )
+        logger.debug("Cache miss for all-level batting %d, fetching from source", year)
         result = self._delegate.batting_stats_all_levels(year)
         ttl = _TTL_CURRENT if year >= self._current_year else _TTL_HISTORICAL
         self._cache.put(_NAMESPACE, key, _serialize_batting(result), ttl)
         logger.debug("Cached %d batters for all levels %d [ttl=%ds]", len(result), year, ttl)
         return result
 
-    def pitching_stats(
-        self, year: int, level: MinorLeagueLevel
-    ) -> list[MinorLeaguePitcherSeasonStats]:
+    def pitching_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeaguePitcherSeasonStats]:
         """Fetch pitching stats with caching."""
         key = f"pitching:{year}:{level.value}"
         cached = self._cache.get(_NAMESPACE, key)
@@ -188,28 +178,20 @@ class CachedMinorLeagueDataSource:
         )
         return result
 
-    def pitching_stats_all_levels(
-        self, year: int
-    ) -> list[MinorLeaguePitcherSeasonStats]:
+    def pitching_stats_all_levels(self, year: int) -> list[MinorLeaguePitcherSeasonStats]:
         """Fetch pitching stats across all levels with caching."""
         key = f"pitching_all:{year}"
         cached = self._cache.get(_NAMESPACE, key)
         if cached is not None:
             result = _deserialize_pitching(cached)
-            logger.debug(
-                "Cache hit for all-level pitching %d (%d players)", year, len(result)
-            )
+            logger.debug("Cache hit for all-level pitching %d (%d players)", year, len(result))
             return result
 
-        logger.debug(
-            "Cache miss for all-level pitching %d, fetching from source", year
-        )
+        logger.debug("Cache miss for all-level pitching %d, fetching from source", year)
         result = self._delegate.pitching_stats_all_levels(year)
         ttl = _TTL_CURRENT if year >= self._current_year else _TTL_HISTORICAL
         self._cache.put(_NAMESPACE, key, _serialize_pitching(result), ttl)
-        logger.debug(
-            "Cached %d pitchers for all levels %d [ttl=%ds]", len(result), year, ttl
-        )
+        logger.debug("Cached %d pitchers for all levels %d [ttl=%ds]", len(result), year, ttl)
         return result
 
 

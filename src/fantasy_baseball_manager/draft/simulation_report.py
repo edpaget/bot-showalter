@@ -232,9 +232,7 @@ class _ADPLookup:
         return self._untyped.get(normalized)
 
 
-def print_draft_rankings(
-    rankings: list[DraftRanking], year: int, adp_data: ADPData | None = None
-) -> None:
+def print_draft_rankings(rankings: list[DraftRanking], year: int, adp_data: ADPData | None = None) -> None:
     """Print a draft rankings table.
 
     Args:

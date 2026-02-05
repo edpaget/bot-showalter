@@ -260,15 +260,11 @@ class TestValidationReport:
             stat_results=(
                 StatValidationResult(
                     stat_name="hr",
-                    fold_metrics=(
-                        ValidationMetrics("holdout", 100, rmse=2.5, mae=2.0, r_squared=0.75),
-                    ),
+                    fold_metrics=(ValidationMetrics("holdout", 100, rmse=2.5, mae=2.0, r_squared=0.75),),
                 ),
                 StatValidationResult(
                     stat_name="so",
-                    fold_metrics=(
-                        ValidationMetrics("holdout", 100, rmse=5.0, mae=4.0, r_squared=0.80),
-                    ),
+                    fold_metrics=(ValidationMetrics("holdout", 100, rmse=5.0, mae=4.0, r_squared=0.80),),
                 ),
             ),
             training_years=(2019, 2020, 2021),
@@ -450,9 +446,7 @@ class TestHoldoutEvaluationReport:
                 HoldoutEvaluation("hr", 150, 0.01, 0.012, 0.008, 0.85),
                 HoldoutEvaluation("so", 150, 0.05, 0.055, 0.04, 0.90),
             ),
-            baseline_comparisons=(
-                BaselineComparison("hr", 0.01, 0.015, 0.005, 33.3, 0.85, 0.70),
-            ),
+            baseline_comparisons=(BaselineComparison("hr", 0.01, 0.015, 0.005, 33.3, 0.85, 0.70),),
         )
 
         serialized = original.to_dict()
@@ -473,9 +467,7 @@ class TestHoldoutEvaluationReport:
             model_name="test_model",
             test_years=(2024,),
             n_samples=100,
-            stat_evaluations=(
-                HoldoutEvaluation("hr", 100, 0.01, 0.012, 0.008, 0.85),
-            ),
+            stat_evaluations=(HoldoutEvaluation("hr", 100, 0.01, 0.012, 0.008, 0.85),),
         )
 
         serialized = report.to_dict()
@@ -573,9 +565,7 @@ class TestHoldoutEvaluator:
             "hr": np.array([0.035, 0.035, 0.025, 0.045, 0.035]),
         }
 
-        report = evaluator.compare_to_baseline(
-            y_true, y_pred, y_baseline, baseline_name="traditional_mle"
-        )
+        report = evaluator.compare_to_baseline(y_true, y_pred, y_baseline, baseline_name="traditional_mle")
 
         assert "vs traditional_mle" in report.model_name
         assert report.baseline_comparisons is not None

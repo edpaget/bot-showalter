@@ -42,9 +42,7 @@ class Context:
     year: int
     cache_enabled: bool = True
     cache_invalidated: bool = False
-    db_path: Path = field(
-        default_factory=lambda: Path("~/.config/fbm/cache.db").expanduser()
-    )
+    db_path: Path = field(default_factory=lambda: Path("~/.config/fbm/cache.db").expanduser())
 
     def copy(self, **overrides: int | bool | Path) -> Context:
         """Create child context with overrides. No shared references.
@@ -86,9 +84,7 @@ def get_context() -> Context:
     try:
         return _context.get()
     except LookupError:
-        raise ContextNotInitializedError(
-            "Context not initialized. Call init_context() at application entry."
-        ) from None
+        raise ContextNotInitializedError("Context not initialized. Call init_context() at application entry.") from None
 
 
 @contextmanager

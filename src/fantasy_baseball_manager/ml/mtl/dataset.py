@@ -44,17 +44,14 @@ class MTLDataset(Dataset):
         """
         self.features = torch.tensor(features, dtype=torch.float32)
         self.target_rates = {
-            stat: torch.tensor(rates, dtype=torch.float32).unsqueeze(1)
-            for stat, rates in target_rates.items()
+            stat: torch.tensor(rates, dtype=torch.float32).unsqueeze(1) for stat, rates in target_rates.items()
         }
         self._len = len(features)
 
     def __len__(self) -> int:
         return self._len
 
-    def __getitem__(  # type: ignore[override]
-        self, idx: int
-    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:  # type: ignore[override]
         """Get a single sample.
 
         Returns:

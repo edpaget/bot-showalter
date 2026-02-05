@@ -12,6 +12,7 @@ This project implements several projection pipelines based on the Marcel methodo
 | `marcel_gb` | Active | **Best accuracy** | marcel_full + ML residual corrections |
 | `mtl` | Experimental | Research | Standalone neural network predictions |
 | `marcel_mtl` | Active | **Best pitcher ERA/WHIP** | Marcel + neural network blend |
+| `mle` | Active | **Rookies & call-ups** | ML-based minor league translations |
 
 ## Quick Start
 
@@ -63,6 +64,7 @@ Key findings:
 - [Marcel Full](./marcel-full.md) - Kitchen-sink pipeline with all adjustments
 - [Gradient Boosting Residual Model](./gradient-boosting-residual-model.md) - ML residual corrections
 - [Multi-Task Learning](./multi-task-learning.md) - Neural network projections
+- [Minor League Equivalencies](./minor-league-equivalencies.md) - ML-based MiLB translations
 
 ## Methodology Notes
 
