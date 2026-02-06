@@ -69,7 +69,11 @@ class TestStatusCommand:
         with patch("fantasy_baseball_manager.statcast.cli._get_data_dir", return_value=data_dir):
             result = runner.invoke(statcast_app, ["status"])
         assert result.exit_code == 0
-        assert "No statcast data" in result.output.lower() or "no data" in result.output.lower() or result.output.strip() != ""
+        assert (
+            "No statcast data" in result.output.lower()
+            or "no data" in result.output.lower()
+            or result.output.strip() != ""
+        )
 
     def test_status_with_data(self, data_dir: Path) -> None:
         store = StatcastStore(data_dir=data_dir)

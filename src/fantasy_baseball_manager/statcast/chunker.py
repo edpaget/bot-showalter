@@ -14,8 +14,4 @@ def pending_chunks(
     all_dates = game_dates(season)
     if force:
         return [DateChunk(date=d, season=season) for d in all_dates]
-    return [
-        DateChunk(date=d, season=season)
-        for d in all_dates
-        if d.isoformat() not in manifest.fetched_dates
-    ]
+    return [DateChunk(date=d, season=season) for d in all_dates if d.isoformat() not in manifest.fetched_dates]

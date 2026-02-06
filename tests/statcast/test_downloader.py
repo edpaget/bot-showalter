@@ -27,10 +27,12 @@ class FakeFetcher:
 
 
 def _make_sample_df(n: int = 3) -> pd.DataFrame:
-    return pd.DataFrame({
-        "pitch_type": ["FF"] * n,
-        "release_speed": [95.0] * n,
-    })
+    return pd.DataFrame(
+        {
+            "pitch_type": ["FF"] * n,
+            "release_speed": [95.0] * n,
+        }
+    )
 
 
 @pytest.fixture

@@ -69,9 +69,7 @@ def download_cmd(
 
     def on_progress(result: ChunkResult) -> None:
         status = "[green]OK[/green]" if result.success else "[red]FAIL[/red]"
-        console.print(
-            f"  {result.date.isoformat()} {status} ({result.row_count} rows)"
-        )
+        console.print(f"  {result.date.isoformat()} {status} ({result.row_count} rows)")
 
     downloader = StatcastDownloader(
         fetcher=fetcher,
@@ -141,11 +139,7 @@ def status_cmd(
         if not resolved_dir.exists():
             console.print("No statcast data found.")
             return
-        seasons = sorted(
-            int(d.name)
-            for d in resolved_dir.iterdir()
-            if d.is_dir() and d.name.isdigit()
-        )
+        seasons = sorted(int(d.name) for d in resolved_dir.iterdir() if d.is_dir() and d.name.isdigit())
 
     if not seasons:
         console.print("No statcast data found.")

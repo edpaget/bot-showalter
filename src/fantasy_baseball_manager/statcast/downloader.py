@@ -72,17 +72,13 @@ class StatcastDownloader:
         self._store.save_manifest(manifest)
         return Ok(manifest)
 
-    def _fetch_with_retry(
-        self, day: date, season: int
-    ) -> tuple[ChunkResult, pd.DataFrame | None]:
+    def _fetch_with_retry(self, day: date, season: int) -> tuple[ChunkResult, pd.DataFrame | None]:
         for attempt in range(self._config.max_retries):
             try:
                 df = self._fetcher.fetch_day(day)
                 row_count = len(df)
                 return (
-                    ChunkResult(
-                        date=day, season=season, row_count=row_count, success=True
-                    ),
+                    ChunkResult(date=day, season=season, row_count=row_count, success=True),
                     df if row_count > 0 else None,
                 )
             except Exception as e:
@@ -119,9 +115,7 @@ class StatcastDownloader:
                     )
         # Unreachable when max_retries > 0
         return (
-            ChunkResult(
-                date=day, season=season, row_count=0, success=False, error="max_retries=0"
-            ),
+            ChunkResult(date=day, season=season, row_count=0, success=False, error="max_retries=0"),
             None,
         )
 
