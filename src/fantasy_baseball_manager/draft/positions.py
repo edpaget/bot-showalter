@@ -53,6 +53,14 @@ def infer_pitcher_role(proj: PitchingProjection) -> str:
 
 
 class PositionSource(Protocol):
+    """Maps FanGraphs player IDs to their eligible positions.
+
+    Not migrated to ``DataSource[T]`` because the return type is a mapping
+    (``dict[str, tuple[str, ...]]``), not a ``list[T]``.  Two lightweight
+    implementations exist (``YahooPositionSource``, ``CsvPositionSource``) and
+    the only consumer is ``draft/cli.py``.  Already cached via ``cached_call()``.
+    """
+
     def fetch_positions(self) -> dict[str, tuple[str, ...]]: ...
 
 

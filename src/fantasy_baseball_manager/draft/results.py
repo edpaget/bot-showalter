@@ -29,6 +29,16 @@ _DRAFT_STATUS_MAP: dict[str, DraftStatus] = {s.value: s for s in DraftStatus}
 
 
 class DraftResultsSource(Protocol):
+    """Provides draft picks, draft status, and user team key from Yahoo.
+
+    Not migrated to ``DataSource[T]`` because this is a multi-method protocol
+    whose three methods return unrelated types (``list[YahooDraftPick]``,
+    ``DraftStatus``, ``str``).  Splitting into three separate ``DataSource[T]``
+    instances would add complexity with no benefit — this protocol has a single
+    implementation (``YahooDraftResultsSource``) and a single consumer
+    (``draft/cli.py``).
+    """
+
     def fetch_draft_results(self) -> list[YahooDraftPick]: ...
 
     def fetch_draft_status(self) -> DraftStatus: ...

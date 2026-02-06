@@ -7,6 +7,14 @@ if TYPE_CHECKING:
 
 
 class RosterSource(Protocol):
+    """Fetches all rosters for a Yahoo Fantasy league.
+
+    Not migrated to ``DataSource[T]`` because the return type is a singular
+    ``LeagueRosters`` aggregate (not a ``list[T]``), the source is session-bound
+    to a specific Yahoo league instance, and there is only one implementation
+    (``YahooRosterSource``).  Already cached via ``cached_call()``.
+    """
+
     def fetch_rosters(self) -> LeagueRosters: ...
 
 
