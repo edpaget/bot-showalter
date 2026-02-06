@@ -14,9 +14,12 @@ from rich.console import Console
 
 from fantasy_baseball_manager.adp.composite import create_composite_adp_source
 from fantasy_baseball_manager.adp.registry import get_datasource, list_datasources
-from fantasy_baseball_manager.cache.serialization import TupleFieldDataclassListSerializer
-from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
-from fantasy_baseball_manager.cache.wrapper import cached
+from fantasy_baseball_manager.cache.serialization import (
+    DataclassListSerializer,
+    PositionDictSerializer,
+    TupleFieldDataclassListSerializer,
+)
+from fantasy_baseball_manager.cache.wrapper import cached, cached_call
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.context import new_context
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
@@ -28,7 +31,7 @@ from fantasy_baseball_manager.draft.positions import (
     infer_pitcher_role,
     load_positions_file,
 )
-from fantasy_baseball_manager.draft.results import DraftStatus, YahooDraftResultsSource
+from fantasy_baseball_manager.draft.results import DraftStatus, YahooDraftPick, YahooDraftResultsSource
 from fantasy_baseball_manager.draft.simulation import simulate_draft
 from fantasy_baseball_manager.draft.simulation_models import (
     SimulationConfig,
@@ -139,10 +142,17 @@ def draft_rank(
             source: PositionSource = YahooPositionSource(league, container.id_mapper)
             if not container.config.no_cache:
                 ttl = int(str(container.app_config["cache.positions_ttl"]))
-                source = CachedPositionSource(source, container.cache_store, container.cache_key, ttl)
+                player_positions = cached_call(
+                    source.fetch_positions,
+                    store=container.cache_store,
+                    namespace="positions",
+                    cache_key=container.cache_key,
+                    ttl_seconds=ttl,
+                    serializer=PositionDictSerializer(),
+                )
             else:
                 container.invalidate_caches(("positions", "sfbb_csv", "draft_results"))
-            player_positions = source.fetch_positions()
+                player_positions = source.fetch_positions()
 
         logger.debug("Loaded %d player positions", len(player_positions))
         if player_positions:
@@ -234,10 +244,16 @@ def draft_rank(
             draft_status = draft_source.fetch_draft_status()
             if not container.config.no_cache and draft_status != DraftStatus.IN_PROGRESS:
                 dr_ttl = int(str(container.app_config["cache.draft_results_ttl"]))
-                draft_source = CachedDraftResultsSource(
-                    draft_source, container.cache_store, container.cache_key, dr_ttl
+                picks = cached_call(
+                    draft_source.fetch_draft_results,
+                    store=container.cache_store,
+                    namespace="draft_results",
+                    cache_key=container.cache_key,
+                    ttl_seconds=dr_ttl,
+                    serializer=DataclassListSerializer(YahooDraftPick),
                 )
-            picks = draft_source.fetch_draft_results()
+            else:
+                picks = draft_source.fetch_draft_results()
             user_team_key = draft_source.fetch_user_team_key()
             logger.debug("User team key: %s, draft picks: %d", user_team_key, len(picks))
             for pick in picks:

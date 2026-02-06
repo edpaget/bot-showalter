@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
     from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
     from fantasy_baseball_manager.config import AppConfig
+    from fantasy_baseball_manager.league.models import LeagueRosters
     from fantasy_baseball_manager.league.roster import RosterSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
@@ -136,7 +137,6 @@ class ServiceContainer:
 
         from typing import cast
 
-        from fantasy_baseball_manager.cache.sources import CachedRosterSource
         from fantasy_baseball_manager.league.roster import YahooRosterSource
         from fantasy_baseball_manager.yahoo_api import YahooFantasyClient
 
@@ -156,8 +156,26 @@ class ServiceContainer:
         league = client.get_league_for_season(target_season) if target_season is not None else client.get_league()
         source: RosterSource = YahooRosterSource(league)
         if not self._config.no_cache:
+            from fantasy_baseball_manager.cache.serialization import LeagueRostersSerializer
+            from fantasy_baseball_manager.cache.wrapper import cached_call
+
             ttl = int(str(config["cache.rosters_ttl"]))
-            source = CachedRosterSource(source, self.cache_store, self.cache_key, ttl)
+            delegate = source
+
+            class _CachedRosters:
+                """Wraps RosterSource with cached_call() caching."""
+
+                def fetch_rosters(inner_self) -> LeagueRosters:
+                    return cached_call(
+                        delegate.fetch_rosters,
+                        store=self.cache_store,
+                        namespace="rosters",
+                        cache_key=self.cache_key,
+                        ttl_seconds=ttl,
+                        serializer=LeagueRostersSerializer(),
+                    )
+
+            source = _CachedRosters()
         return source, league
 
     @property

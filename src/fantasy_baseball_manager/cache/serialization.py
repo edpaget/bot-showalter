@@ -15,6 +15,8 @@ import json
 from dataclasses import asdict, fields, is_dataclass
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
+from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -117,3 +119,67 @@ class StringSerializer:
     def deserialize(self, data: str) -> str:
         """Return the string unchanged."""
         return data
+
+
+class PositionDictSerializer:
+    """Serializer for position dicts (``dict[str, tuple[str, ...]]``).
+
+    JSON round-trips tuples as lists, so deserialization converts values
+    back to tuples.
+    """
+
+    def serialize(self, value: dict[str, tuple[str, ...]]) -> str:
+        return json.dumps({k: list(v) for k, v in value.items()})
+
+    def deserialize(self, data: str) -> dict[str, tuple[str, ...]]:
+        raw: dict[str, list[str]] = json.loads(data)
+        return {k: tuple(v) for k, v in raw.items()}
+
+
+class LeagueRostersSerializer:
+    """Serializer for ``LeagueRosters`` with nested ``TeamRoster`` / ``RosterPlayer``."""
+
+    def serialize(self, value: LeagueRosters) -> str:
+        return json.dumps(
+            {
+                "league_key": value.league_key,
+                "teams": [
+                    {
+                        "team_key": t.team_key,
+                        "team_name": t.team_name,
+                        "players": [
+                            {
+                                "yahoo_id": p.yahoo_id,
+                                "name": p.name,
+                                "position_type": p.position_type,
+                                "eligible_positions": list(p.eligible_positions),
+                            }
+                            for p in t.players
+                        ],
+                    }
+                    for t in value.teams
+                ],
+            }
+        )
+
+    def deserialize(self, data: str) -> LeagueRosters:
+        raw = json.loads(data)
+        return LeagueRosters(
+            league_key=raw["league_key"],
+            teams=tuple(
+                TeamRoster(
+                    team_key=t["team_key"],
+                    team_name=t["team_name"],
+                    players=tuple(
+                        RosterPlayer(
+                            yahoo_id=p["yahoo_id"],
+                            name=p["name"],
+                            position_type=p["position_type"],
+                            eligible_positions=tuple(p["eligible_positions"]),
+                        )
+                        for p in t["players"]
+                    ),
+                )
+                for t in raw["teams"]
+            ),
+        )

@@ -1,19 +1,29 @@
-"""Generic cache wrapper for DataSource functions.
+"""Generic cache wrappers for DataSource functions and legacy callables.
 
-Provides a functional wrapper that can wrap any DataSource[T] with caching.
-Cache key is derived from the context's year.
+Provides:
+- ``cached()``: wraps a ``DataSource[T]`` with cache-key derived from context.
+- ``cached_call()``: wraps any zero-argument callable with explicit cache params.
 
-Usage:
-    raw_batting = create_batting_source()
+Usage (DataSource)::
+
     batting_source = cached(
-        raw_batting,
+        create_batting_source(),
         namespace="batting_stats",
         ttl_seconds=30 * 86400,
-        serializer=BattingSerializer(),
+        serializer=DataclassListSerializer(BattingStats),
     )
-
-    # Use wrapped source - automatically caches ALL_PLAYERS queries
     result = batting_source(ALL_PLAYERS)
+
+Usage (legacy callable)::
+
+    rosters = cached_call(
+        source.fetch_rosters,
+        store=cache_store,
+        namespace="rosters",
+        cache_key=cache_key,
+        ttl_seconds=3600,
+        serializer=LeagueRostersSerializer(),
+    )
 """
 
 from __future__ import annotations
@@ -28,6 +38,7 @@ from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from fantasy_baseball_manager.cache.protocol import CacheStore
@@ -125,6 +136,42 @@ def cached(
 
     # Inner functions can't satisfy Protocol with overloads
     return wrapper  # type: ignore[return-value]
+
+
+def cached_call(
+    fetch_fn: Callable[[], T],
+    *,
+    store: CacheStore,
+    namespace: str,
+    cache_key: str,
+    ttl_seconds: int,
+    serializer: Serializer[T],
+) -> T:
+    """Cache the result of a zero-argument callable using a Serializer.
+
+    Unlike ``cached()`` which wraps a ``DataSource[T]`` and derives the
+    cache key from context, this function works with any callable and
+    accepts explicit cache parameters.  Use it for legacy protocol methods
+    (e.g. ``source.fetch_rosters()``) that don't follow the DataSource
+    pattern.
+    """
+    cached_value = store.get(namespace, cache_key)
+    if cached_value is not None:
+        try:
+            data = serializer.deserialize(cached_value)
+            logger.debug("Cache hit for %s [key=%s]", namespace, cache_key)
+            return data
+        except Exception as e:
+            logger.warning("Failed to deserialize cached %s: %s", namespace, e)
+
+    logger.debug("Cache miss for %s [key=%s], fetching from source", namespace, cache_key)
+    result = fetch_fn()
+    try:
+        store.put(namespace, cache_key, serializer.serialize(result), ttl_seconds)
+        logger.debug("Cached %s [key=%s, ttl=%ds]", namespace, cache_key, ttl_seconds)
+    except Exception as e:
+        logger.warning("Failed to cache %s: %s", namespace, e)
+    return result
 
 
 def cached_single(
