@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+
 from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
 from fantasy_baseball_manager.cache.wrapper import cached
 from fantasy_baseball_manager.pipeline.builder import PipelineBuilder
@@ -288,7 +290,7 @@ def build_pipeline(
     raise ValueError(f"Unknown pipeline: {name}")
 
 
-def get_pipeline(name: str, year: int | None = None) -> Any:
+def get_pipeline(name: str, year: int | None = None, id_mapper: PlayerIdMapper | None = None) -> Any:
     """Get a pipeline by name, with optional CSV override for backtesting.
 
     When a year is provided, checks for local CSV files first (e.g.,
@@ -298,6 +300,7 @@ def get_pipeline(name: str, year: int | None = None) -> Any:
     Args:
         name: Pipeline name (e.g., "marcel", "steamer", "zips").
         year: Optional year for historical CSV lookup.
+        id_mapper: Optional mapper to resolve FanGraphs IDs from MLBAM IDs.
 
     Returns:
         Pipeline instance (ProjectionPipeline or ExternalProjectionAdapter).
@@ -321,7 +324,9 @@ def get_pipeline(name: str, year: int | None = None) -> Any:
         try:
             batting_path, pitching_path = resolver.resolve(system, year)
             source = CSVProjectionSource(batting_path, pitching_path, system)
-            return ExternalProjectionAdapter.from_projection_source(source, projection_year=year)
+            return ExternalProjectionAdapter.from_projection_source(
+                source, projection_year=year, id_mapper=id_mapper
+            )
         except FileNotFoundError:
             # Fall through to live API
             pass

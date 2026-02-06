@@ -17,6 +17,7 @@ from fantasy_baseball_manager.marcel.models import (
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
     from fantasy_baseball_manager.projections.models import BattingProjection, PitchingProjection
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class ExternalProjectionAdapter:
         *,
         name: str = "external",
         projection_year: int | None = None,
+        id_mapper: PlayerIdMapper | None = None,
     ) -> None:
         """Initialize the adapter.
 
@@ -48,11 +50,13 @@ class ExternalProjectionAdapter:
             pitching_source: DataSource providing pitching projections.
             name: Display name for this adapter (e.g., "steamer", "zips").
             projection_year: The year these projections are for. Defaults to current year.
+            id_mapper: Optional mapper to resolve FanGraphs IDs from MLBAM IDs.
         """
         self._batting_source = batting_source
         self._pitching_source = pitching_source
         self._name = name
         self._projection_year = projection_year or datetime.now().year
+        self._id_mapper = id_mapper
 
     @classmethod
     def from_projection_source(
@@ -60,6 +64,7 @@ class ExternalProjectionAdapter:
         source: ...,  # ProjectionSource (avoids import for rarely-used path)
         *,
         projection_year: int | None = None,
+        id_mapper: PlayerIdMapper | None = None,
     ) -> ExternalProjectionAdapter:
         """Create from a legacy ProjectionSource.
 
@@ -69,6 +74,7 @@ class ExternalProjectionAdapter:
         Args:
             source: A ProjectionSource with a fetch_projections() method.
             projection_year: The year these projections are for.
+            id_mapper: Optional mapper to resolve FanGraphs IDs from MLBAM IDs.
 
         Returns:
             An ExternalProjectionAdapter wrapping the source.
@@ -83,6 +89,7 @@ class ExternalProjectionAdapter:
             PitchingProjectionDataSource(source),
             name=getattr(source, "name", "external"),
             projection_year=projection_year,
+            id_mapper=id_mapper,
         )
 
     @property
@@ -221,8 +228,9 @@ class ExternalProjectionAdapter:
     ) -> str:
         """Resolve to a consistent player ID.
 
-        Prefers MLBAM ID for cross-system compatibility, falls back to
-        FanGraphs ID prefixed with 'fg:' to avoid collisions.
+        Prefers FanGraphs ID to match actuals (which use IDfg). When the
+        FanGraphs ID is missing and an id_mapper is available, attempts to
+        resolve from the MLBAM ID. Falls back to MLBAM ID as a last resort.
 
         Args:
             mlbam_id: MLB Advanced Media ID if available.
@@ -231,6 +239,13 @@ class ExternalProjectionAdapter:
         Returns:
             Resolved player ID string.
         """
+        if fangraphs_id:
+            return fangraphs_id
+        if mlbam_id and self._id_mapper is not None:
+            resolved = self._id_mapper.mlbam_to_fangraphs(mlbam_id)
+            if resolved:
+                return resolved
         if mlbam_id:
             return mlbam_id
-        return f"fg:{fangraphs_id}"
+        logger.warning("Player has no usable ID (fangraphs_id and mlbam_id both empty)")
+        return ""

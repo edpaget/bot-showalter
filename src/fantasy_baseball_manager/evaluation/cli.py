@@ -23,7 +23,8 @@ from fantasy_baseball_manager.evaluation.models import (
 from fantasy_baseball_manager.marcel.data_source import StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import get_pipeline
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
-from fantasy_baseball_manager.services import get_container, set_container
+from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+from fantasy_baseball_manager.services import cli_context, get_container, set_container
 from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
 
 console = Console()
@@ -97,7 +98,12 @@ def _print_evaluation(se: SourceEvaluation, include_strata: bool = False) -> Non
         _print_strata(se.pitching_strata, "Pitching")
 
 
-def _build_source(engine: str, data_source: StatsDataSource, year: int) -> tuple[str, ProjectionSource]:
+def _build_source(
+    engine: str,
+    data_source: StatsDataSource,
+    year: int,
+    id_mapper: PlayerIdMapper | None = None,
+) -> tuple[str, ProjectionSource]:
     """Build a projection source for evaluation.
 
     For external projection systems (steamer, zips), checks for local CSV
@@ -108,11 +114,12 @@ def _build_source(engine: str, data_source: StatsDataSource, year: int) -> tuple
         engine: Engine name (e.g., "marcel", "steamer").
         data_source: Stats data source for pipeline projections.
         year: Projection year (used to find historical CSV files).
+        id_mapper: Optional player ID mapper for resolving FanGraphs IDs.
 
     Returns:
         Tuple of (engine_name, projection_source).
     """
-    pipeline = get_pipeline(engine, year=year)
+    pipeline = get_pipeline(engine, year=year, id_mapper=id_mapper)
     return (engine, PipelineProjectionSource(pipeline, data_source, year))
 
 
@@ -266,63 +273,66 @@ def evaluate_cmd(
 
     eval_years = [int(y.strip()) for y in years.split(",")] if years else [year]
 
-    data_source = get_container().data_source
-    league_settings = load_league_settings()
+    with cli_context():
+        container = get_container()
+        data_source = container.data_source
+        id_mapper = container.id_mapper
+        league_settings = load_league_settings()
 
-    # Build stratification config if requested
-    stratification: StratificationConfig | None = None
-    if stratify or include_residuals:
-        stratification = StratificationConfig(include_residuals=include_residuals)
+        # Build stratification config if requested
+        stratification: StratificationConfig | None = None
+        if stratify or include_residuals:
+            stratification = StratificationConfig(include_residuals=include_residuals)
 
-    all_results: list[dict[str, object]] = []
-    all_evaluations: list[SourceEvaluation] = []
+        all_results: list[dict[str, object]] = []
+        all_evaluations: list[SourceEvaluation] = []
 
-    for eng in engines:
-        year_evaluations: list[SourceEvaluation] = []
-        for eval_year in eval_years:
-            config = EvaluationConfig(
-                year=eval_year,
-                batting_categories=league_settings.batting_categories,
-                pitching_categories=league_settings.pitching_categories,
-                min_pa=min_pa,
-                min_ip=min_ip,
-                top_n=top_n,
-                stratification=stratification,
-            )
-            source = _build_source(eng, data_source, eval_year)
-            result = evaluate(sources=[source], data_source=data_source, config=config)
-            se = result.evaluations[0]
-            year_evaluations.append(se)
-            all_evaluations.append(se)
+        for eng in engines:
+            year_evaluations: list[SourceEvaluation] = []
+            for eval_year in eval_years:
+                config = EvaluationConfig(
+                    year=eval_year,
+                    batting_categories=league_settings.batting_categories,
+                    pitching_categories=league_settings.pitching_categories,
+                    min_pa=min_pa,
+                    min_ip=min_ip,
+                    top_n=top_n,
+                    stratification=stratification,
+                )
+                source = _build_source(eng, data_source, eval_year, id_mapper=id_mapper)
+                result = evaluate(sources=[source], data_source=data_source, config=config)
+                se = result.evaluations[0]
+                year_evaluations.append(se)
+                all_evaluations.append(se)
 
-            if not years:
-                _print_evaluation(se, include_strata=stratify)
+                if not years:
+                    _print_evaluation(se, include_strata=stratify)
 
-        if years and len(year_evaluations) > 1:
-            avg = _average_evaluations(year_evaluations)
-            years_label = ", ".join(str(y) for y in eval_years)
-            console.print(f"Average across {years_label}:")
-            _print_evaluation(avg, include_strata=stratify)
+            if years and len(year_evaluations) > 1:
+                avg = _average_evaluations(year_evaluations)
+                years_label = ", ".join(str(y) for y in eval_years)
+                console.print(f"Average across {years_label}:")
+                _print_evaluation(avg, include_strata=stratify)
 
-        for se in year_evaluations:
-            all_results.append(_evaluation_to_dict(se))
+            for se in year_evaluations:
+                all_results.append(_evaluation_to_dict(se))
 
-    # Head-to-head comparison if requested
-    if compare:
-        if len(engines) < 2:
-            console.print("\nWarning: --compare requires at least 2 engines for head-to-head comparison.")
-        elif not include_residuals:
-            console.print("\nWarning: --compare requires --include-residuals for head-to-head comparison.")
-        else:
-            # Compare first two engines (using first year's evaluations for simplicity)
-            engine_evals = {se.source_name: se for se in all_evaluations}
-            if len(engine_evals) >= 2:
-                eval_list = list(engine_evals.values())
-                h2h_results = compare_sources(eval_list[0], eval_list[1])
-                console.print()
-                _print_head_to_head(h2h_results)
+        # Head-to-head comparison if requested
+        if compare:
+            if len(engines) < 2:
+                console.print("\nWarning: --compare requires at least 2 engines for head-to-head comparison.")
+            elif not include_residuals:
+                console.print("\nWarning: --compare requires --include-residuals for head-to-head comparison.")
+            else:
+                # Compare first two engines (using first year's evaluations for simplicity)
+                engine_evals = {se.source_name: se for se in all_evaluations}
+                if len(engine_evals) >= 2:
+                    eval_list = list(engine_evals.values())
+                    h2h_results = compare_sources(eval_list[0], eval_list[1])
+                    console.print()
+                    _print_head_to_head(h2h_results)
 
-    if output_json:
-        with open(output_json, "w") as f:
-            json.dump(all_results, f, indent=2)
-        typer.echo(f"\nResults written to {output_json}")
+        if output_json:
+            with open(output_json, "w") as f:
+                json.dump(all_results, f, indent=2)
+            typer.echo(f"\nResults written to {output_json}")
