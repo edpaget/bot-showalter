@@ -8,16 +8,18 @@ from typing import TYPE_CHECKING, Annotated, cast
 if TYPE_CHECKING:
     import yahoo_fantasy_api
 
-    from fantasy_baseball_manager.adp.protocol import ADPSource
-
 import typer
 import yaml
 from rich.console import Console
 
-from fantasy_baseball_manager.adp.composite import CompositeADPSource
-from fantasy_baseball_manager.adp.registry import get_source, list_sources
-from fantasy_baseball_manager.cache.sources import CachedADPSource, CachedDraftResultsSource, CachedPositionSource
+from fantasy_baseball_manager.adp.composite import create_composite_adp_source
+from fantasy_baseball_manager.adp.registry import get_datasource, list_datasources
+from fantasy_baseball_manager.cache.serialization import TupleFieldDataclassListSerializer
+from fantasy_baseball_manager.cache.sources import CachedDraftResultsSource, CachedPositionSource
+from fantasy_baseball_manager.cache.wrapper import cached
 from fantasy_baseball_manager.config import load_league_settings
+from fantasy_baseball_manager.context import new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.draft.positions import (
     DEFAULT_ROSTER_CONFIG,
@@ -254,10 +256,12 @@ def draft_rank(
             return
 
         # Fetch ADP data if requested
-        adp_data = None
+        adp_entries = None
         if adp:
+            from fantasy_baseball_manager.adp.models import ADPEntry
+
             adp_ttl = 86400  # 24 hours
-            available_sources = list_sources()
+            available_sources = list_datasources()
             if adp_source_name not in available_sources and adp_source_name != "composite":
                 typer.echo(
                     f"Unknown ADP source: {adp_source_name!r}. Available: {', '.join(available_sources)}, composite",
@@ -266,24 +270,33 @@ def draft_rank(
                 raise typer.Exit(code=1)
 
             if adp_source_name == "composite":
-                # Composite uses all available sources
-                sources = [get_source(name) for name in available_sources]
-                base_source: ADPSource = CompositeADPSource(sources)
-                adp_cache_key = "composite_v1"
+                ds_list = [get_datasource(name) for name in available_sources]
+                base_ds = create_composite_adp_source(ds_list)
+                namespace = "adp_composite"
             else:
-                base_source = get_source(adp_source_name)
-                adp_cache_key = f"{adp_source_name}_v1"
+                base_ds = get_datasource(adp_source_name)
+                namespace = f"adp_{adp_source_name}"
+
+            cached_ds = cached(
+                base_ds,
+                namespace=namespace,
+                ttl_seconds=adp_ttl,
+                serializer=TupleFieldDataclassListSerializer(ADPEntry, tuple_fields=("positions",)),
+            )
 
             if no_adp_cache:
-                container.cache_store.invalidate("adp_data", adp_cache_key)
+                with new_context(cache_invalidated=True):
+                    result = cached_ds(ALL_PLAYERS)
+            else:
+                result = cached_ds(ALL_PLAYERS)
 
-            cached_source = CachedADPSource(
-                base_source, container.cache_store, cache_key=adp_cache_key, ttl_seconds=adp_ttl
-            )
-            adp_data = cached_source.fetch_adp()
-            logger.debug("Fetched %d ADP entries from %s", len(adp_data.entries), adp_source_name)
+            if result.is_err():
+                typer.echo(f"Failed to fetch ADP data: {result.unwrap_err()}", err=True)
+                raise typer.Exit(code=1)
+            adp_entries = result.unwrap()
+            logger.debug("Fetched %d ADP entries from %s", len(adp_entries), adp_source_name)
 
-        print_draft_rankings(rankings, year, adp_data)
+        print_draft_rankings(rankings, year, adp_entries)
 
 
 def _load_keepers_file(path: Path) -> dict[int, dict[str, object]]:

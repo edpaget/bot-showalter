@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from fantasy_baseball_manager.cache.factory import create_cache_store
-from fantasy_baseball_manager.cache.sources import CachedProjectionSource
+from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+from fantasy_baseball_manager.cache.wrapper import cached
 from fantasy_baseball_manager.pipeline.builder import PipelineBuilder
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
 from fantasy_baseball_manager.pipeline.stages.adjusters import (
@@ -209,20 +209,37 @@ def mle_pipeline(
     return PipelineBuilder("mle", config=cfg).with_mle_rate_computer().build()
 
 
+def _external_pipeline(system: ProjectionSystem) -> ExternalProjectionAdapter:
+    """Build an ExternalProjectionAdapter with cached DataSources for a given system."""
+    from fantasy_baseball_manager.projections.data_source import (
+        BattingProjectionDataSource,
+        PitchingProjectionDataSource,
+    )
+    from fantasy_baseball_manager.projections.models import BattingProjection, PitchingProjection
+
+    source = FanGraphsProjectionSource(system)
+    batting_ds = cached(
+        BattingProjectionDataSource(source),
+        namespace=f"projection_batting_{system.value}",
+        ttl_seconds=604800,  # 7 days
+        serializer=DataclassListSerializer(BattingProjection),
+    )
+    pitching_ds = cached(
+        PitchingProjectionDataSource(source),
+        namespace=f"projection_pitching_{system.value}",
+        ttl_seconds=604800,  # 7 days
+        serializer=DataclassListSerializer(PitchingProjection),
+    )
+    return ExternalProjectionAdapter(batting_ds, pitching_ds, name=system.value)
+
+
 def steamer_pipeline() -> ExternalProjectionAdapter:
     """Steamer projections from FanGraphs.
 
     Fetches pre-computed Steamer projections from the FanGraphs API.
     These are industry-standard projections widely used for fantasy baseball.
     """
-    cache = create_cache_store()
-    source = CachedProjectionSource(
-        delegate=FanGraphsProjectionSource(ProjectionSystem.STEAMER),
-        cache=cache,
-        cache_key="steamer",
-        ttl_seconds=604800,  # 7 days
-    )
-    return ExternalProjectionAdapter(source)
+    return _external_pipeline(ProjectionSystem.STEAMER)
 
 
 def zips_pipeline() -> ExternalProjectionAdapter:
@@ -232,14 +249,7 @@ def zips_pipeline() -> ExternalProjectionAdapter:
     ZiPS is Dan Szymborski's projection system, known for aggressive
     projections on young players.
     """
-    cache = create_cache_store()
-    source = CachedProjectionSource(
-        delegate=FanGraphsProjectionSource(ProjectionSystem.ZIPS),
-        cache=cache,
-        cache_key="zips",
-        ttl_seconds=604800,  # 7 days
-    )
-    return ExternalProjectionAdapter(source)
+    return _external_pipeline(ProjectionSystem.ZIPS)
 
 
 PIPELINES: dict[str, Callable[[], Any]] = {
@@ -311,7 +321,7 @@ def get_pipeline(name: str, year: int | None = None) -> Any:
         try:
             batting_path, pitching_path = resolver.resolve(system, year)
             source = CSVProjectionSource(batting_path, pitching_path, system)
-            return ExternalProjectionAdapter(source, projection_year=year)
+            return ExternalProjectionAdapter.from_projection_source(source, projection_year=year)
         except FileNotFoundError:
             # Fall through to live API
             pass

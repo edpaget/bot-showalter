@@ -1,19 +1,18 @@
 from collections.abc import Generator
-from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
-from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
+from fantasy_baseball_manager.adp.models import ADPEntry
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
-from fantasy_baseball_manager.services import ServiceContainer, get_container, set_container
+from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 runner = CliRunner()
 
@@ -477,81 +476,76 @@ class TestDraftRankCommand:
 
     def test_adp_flag_invokes_adp_source(self) -> None:
         """Test that --adp flag fetches and displays ADP data."""
+        from fantasy_baseball_manager.result import Ok
+
         _install_fake(pitching=False)
 
-        mock_adp_data = ADPData(
-            entries=(
-                ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",)),
-                ADPEntry(name="Speedy Smith", adp=15.0, positions=("OF",)),
-            ),
-            fetched_at=datetime.now(UTC),
-        )
+        adp_entries = [
+            ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",)),
+            ADPEntry(name="Speedy Smith", adp=15.0, positions=("OF",)),
+        ]
 
-        with patch("fantasy_baseball_manager.draft.cli.get_source") as mock_get_source:
-            mock_scraper = MagicMock()
-            mock_scraper.fetch_adp.return_value = mock_adp_data
-            mock_get_source.return_value = mock_scraper
+        mock_ds = MagicMock()
+        mock_ds.return_value = Ok(adp_entries)
+
+        with (
+            patch("fantasy_baseball_manager.draft.cli.get_datasource") as mock_get_ds,
+            patch("fantasy_baseball_manager.draft.cli.cached", return_value=mock_ds),
+        ):
+            mock_get_ds.return_value = MagicMock()
 
             result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--adp"])
 
             assert result.exit_code == 0
             assert "ADP" in result.output
             assert "Diff" in result.output
-            mock_get_source.assert_called_once_with("yahoo")
+            mock_get_ds.assert_called_once_with("yahoo")
 
     def test_no_adp_cache_invalidates_and_fetches_fresh(self) -> None:
-        """Test that --no-adp-cache invalidates cache and fetches fresh data."""
-        _install_fake(pitching=False)
-        container = get_container()
+        """Test that --no-adp-cache uses new_context(cache_invalidated=True)."""
+        from fantasy_baseball_manager.result import Ok
 
-        mock_adp_data = ADPData(
-            entries=(ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",)),),
-            fetched_at=datetime.now(UTC),
-        )
+        _install_fake(pitching=False)
+
+        adp_entries = [ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",))]
+
+        mock_ds = MagicMock()
+        mock_ds.return_value = Ok(adp_entries)
 
         with (
-            patch("fantasy_baseball_manager.draft.cli.get_source") as mock_get_source,
-            patch("fantasy_baseball_manager.draft.cli.CachedADPSource") as mock_cached_cls,
-            patch.object(container.cache_store, "invalidate") as mock_invalidate,
+            patch("fantasy_baseball_manager.draft.cli.get_datasource") as mock_get_ds,
+            patch("fantasy_baseball_manager.draft.cli.cached", return_value=mock_ds),
+            patch("fantasy_baseball_manager.draft.cli.new_context") as mock_new_ctx,
         ):
-            mock_scraper = MagicMock()
-            mock_get_source.return_value = mock_scraper
-
-            mock_cached = MagicMock()
-            mock_cached.fetch_adp.return_value = mock_adp_data
-            mock_cached_cls.return_value = mock_cached
+            mock_get_ds.return_value = MagicMock()
+            mock_new_ctx.return_value.__enter__ = MagicMock()
+            mock_new_ctx.return_value.__exit__ = MagicMock(return_value=False)
 
             result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--adp", "--no-adp-cache"])
 
             assert result.exit_code == 0
-            # Cache should be invalidated before fetch
-            mock_invalidate.assert_called_once_with("adp_data", "yahoo_v1")
-            # CachedADPSource should still be used (to write fresh data)
-            mock_cached_cls.assert_called_once()
+            mock_new_ctx.assert_called_once_with(cache_invalidated=True)
 
     def test_adp_uses_cache_by_default(self) -> None:
-        """Test that --adp uses cache by default."""
+        """Test that --adp uses cached() wrapper by default."""
+        from fantasy_baseball_manager.result import Ok
+
         _install_fake(pitching=False)
 
-        mock_adp_data = ADPData(
-            entries=(ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",)),),
-            fetched_at=datetime.now(UTC),
-        )
+        adp_entries = [ADPEntry(name="Slugger Jones", adp=5.0, positions=("1B",))]
+
+        mock_ds = MagicMock()
+        mock_ds.return_value = Ok(adp_entries)
 
         with (
-            patch("fantasy_baseball_manager.draft.cli.get_source") as mock_get_source,
-            patch("fantasy_baseball_manager.draft.cli.CachedADPSource") as mock_cached_cls,
+            patch("fantasy_baseball_manager.draft.cli.get_datasource") as mock_get_ds,
+            patch("fantasy_baseball_manager.draft.cli.cached", return_value=mock_ds) as mock_cached,
         ):
-            mock_scraper = MagicMock()
-            mock_get_source.return_value = mock_scraper
-
-            mock_cached = MagicMock()
-            mock_cached.fetch_adp.return_value = mock_adp_data
-            mock_cached_cls.return_value = mock_cached
+            mock_get_ds.return_value = MagicMock()
 
             result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--adp"])
 
             assert result.exit_code == 0
-            # CachedADPSource should wrap the scraper
-            mock_cached_cls.assert_called_once()
-            mock_cached.fetch_adp.assert_called_once()
+            # cached() wrapper should be invoked
+            mock_cached.assert_called_once()
+            mock_ds.assert_called_once()

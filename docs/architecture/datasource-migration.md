@@ -25,8 +25,8 @@ Located in `src/fantasy_baseball_manager/cache/sources.py`:
 | `CachedPositionSource` | Low | Pending | Yahoo-specific |
 | `CachedRosterSource` | Low | Pending | Yahoo-specific, session-bound |
 | `CachedDraftResultsSource` | Low | Pending | Yahoo-specific, multi-method |
-| `CachedADPSource` | Medium | Pending | Simple single-method |
-| `CachedProjectionSource` | Medium | Pending | Simple single-method |
+| `CachedADPSource` | Medium | Done | Replaced by `cached()` + `TupleFieldDataclassListSerializer` |
+| `CachedProjectionSource` | Medium | Done | Replaced by `cached()` + `DataclassListSerializer` |
 
 ### Serializers to Consolidate
 
@@ -35,8 +35,8 @@ These will be replaced by `DataclassListSerializer` or type-specific `Serializer
 - [ ] `_serialize_positions` / `_deserialize_positions`
 - [ ] `_serialize_rosters` / `_deserialize_rosters`
 - [ ] `_serialize_draft_results` / `_deserialize_draft_results`
-- [ ] `_serialize_adp_data` / `_deserialize_adp_data`
-- [ ] `_serialize_projection_data` / `_deserialize_projection_data`
+- [x] `_serialize_adp_data` / `_deserialize_adp_data`
+- [x] `_serialize_projection_data` / `_deserialize_projection_data`
 
 ---
 
@@ -286,8 +286,13 @@ class PositionSource(Protocol):
 - [ ] Migrate or leave as-is with clear documentation
 
 ### Phase 6: Cleanup
-- [ ] Remove old cached wrapper classes
-- [ ] Remove old serializer functions
+- [x] Remove `CachedADPSource` and `CachedProjectionSource` cached wrappers
+- [x] Remove `_serialize_adp_data`/`_deserialize_adp_data` and `_serialize_projection_data`/`_deserialize_projection_data`
+- [x] Migrate `draft/cli.py` to use `get_datasource()` + `cached()` for ADP
+- [x] Migrate `pipeline/presets.py` to use `cached()` + `DataclassListSerializer` for projections
+- [x] Update `ExternalProjectionAdapter` to accept `DataSource[T]` directly
+- [ ] Remove remaining old cached wrapper classes (`CachedPositionSource`, `CachedRosterSource`, `CachedDraftResultsSource`)
+- [ ] Remove remaining old serializer functions
 - [ ] Update `ServiceContainer` to build new-style sources
 - [ ] Archive old protocols (mark deprecated)
 

@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection as MarcelBattingProjection,
 )
@@ -14,9 +15,9 @@ from fantasy_baseball_manager.marcel.models import (
 )
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
-    from fantasy_baseball_manager.projections.models import ProjectionData
-    from fantasy_baseball_manager.projections.protocol import ProjectionSource
+    from fantasy_baseball_manager.projections.models import BattingProjection, PitchingProjection
 
 logger = logging.getLogger(__name__)
 
@@ -27,29 +28,67 @@ class ExternalProjectionAdapter:
     This adapter allows external projection systems (Steamer, ZiPS) to be used
     anywhere a ProjectionPipeline is expected. It converts external projection
     models to the internal Marcel projection format.
+
+    Accepts separate DataSource[BattingProjection] and DataSource[PitchingProjection]
+    for integration with the unified DataSource/cached() infrastructure.
     """
 
     def __init__(
         self,
-        source: ProjectionSource,
+        batting_source: DataSource[BattingProjection],
+        pitching_source: DataSource[PitchingProjection],
+        *,
+        name: str = "external",
         projection_year: int | None = None,
     ) -> None:
         """Initialize the adapter.
 
         Args:
-            source: The external projection source to fetch from.
+            batting_source: DataSource providing batting projections.
+            pitching_source: DataSource providing pitching projections.
+            name: Display name for this adapter (e.g., "steamer", "zips").
             projection_year: The year these projections are for. Defaults to current year.
         """
-        self._source = source
+        self._batting_source = batting_source
+        self._pitching_source = pitching_source
+        self._name = name
         self._projection_year = projection_year or datetime.now().year
-        self._data: ProjectionData | None = None
+
+    @classmethod
+    def from_projection_source(
+        cls,
+        source: ...,  # ProjectionSource (avoids import for rarely-used path)
+        *,
+        projection_year: int | None = None,
+    ) -> ExternalProjectionAdapter:
+        """Create from a legacy ProjectionSource.
+
+        Convenience constructor for backward compatibility with ProjectionSource
+        implementations (e.g. CSVProjectionSource).
+
+        Args:
+            source: A ProjectionSource with a fetch_projections() method.
+            projection_year: The year these projections are for.
+
+        Returns:
+            An ExternalProjectionAdapter wrapping the source.
+        """
+        from fantasy_baseball_manager.projections.data_source import (
+            BattingProjectionDataSource,
+            PitchingProjectionDataSource,
+        )
+
+        return cls(
+            BattingProjectionDataSource(source),
+            PitchingProjectionDataSource(source),
+            name=getattr(source, "name", "external"),
+            projection_year=projection_year,
+        )
 
     @property
     def name(self) -> str:
         """Return the name of this adapter for display."""
-        if self._data is not None:
-            return self._data.system.value
-        return "external"
+        return self._name
 
     @property
     def years_back(self) -> int:
@@ -74,10 +113,10 @@ class ExternalProjectionAdapter:
         Returns:
             List of Marcel-format batting projections.
         """
-        data = self._get_data()
+        batting = self._fetch_batting()
         result: list[MarcelBattingProjection] = []
 
-        for ext in data.batting:
+        for ext in batting:
             # Skip players with minimal playing time
             if ext.pa < 50:
                 continue
@@ -126,10 +165,10 @@ class ExternalProjectionAdapter:
         Returns:
             List of Marcel-format pitching projections.
         """
-        data = self._get_data()
+        pitching = self._fetch_pitching()
         result: list[MarcelPitchingProjection] = []
 
-        for ext in data.pitching:
+        for ext in pitching:
             # Skip players with minimal innings
             if ext.ip < 10:
                 continue
@@ -161,11 +200,19 @@ class ExternalProjectionAdapter:
         )
         return result
 
-    def _get_data(self) -> ProjectionData:
-        """Fetch and cache projection data."""
-        if self._data is None:
-            self._data = self._source.fetch_projections()
-        return self._data
+    def _fetch_batting(self) -> list[BattingProjection]:
+        """Fetch batting projections from the DataSource."""
+        result = self._batting_source(ALL_PLAYERS)
+        if result.is_err():
+            raise DataSourceError(f"Failed to fetch batting projections: {result.unwrap_err()}")
+        return result.unwrap()
+
+    def _fetch_pitching(self) -> list[PitchingProjection]:
+        """Fetch pitching projections from the DataSource."""
+        result = self._pitching_source(ALL_PLAYERS)
+        if result.is_err():
+            raise DataSourceError(f"Failed to fetch pitching projections: {result.unwrap_err()}")
+        return result.unwrap()
 
     def _resolve_player_id(
         self,

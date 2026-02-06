@@ -69,6 +69,29 @@ class DataclassListSerializer[T]:
         return self._dataclass_type(**data)
 
 
+class TupleFieldDataclassListSerializer[T](DataclassListSerializer[T]):
+    """DataclassListSerializer that converts specified fields back to tuples on deserialization.
+
+    JSON round-trips tuples as lists, so dataclasses with tuple fields need
+    explicit conversion. Provide ``tuple_fields`` with the names of fields
+    that should be restored to tuples.
+
+    Args:
+        dataclass_type: The dataclass type to serialize/deserialize.
+        tuple_fields: Names of fields whose values should be converted to tuples.
+    """
+
+    def __init__(self, dataclass_type: type[T], *, tuple_fields: tuple[str, ...]) -> None:
+        super().__init__(dataclass_type)
+        self._tuple_fields = tuple_fields
+
+    def _from_dict(self, data: dict[str, Any]) -> T:
+        for field_name in self._tuple_fields:
+            if field_name in data and isinstance(data[field_name], list):
+                data[field_name] = tuple(data[field_name])
+        return self._dataclass_type(**data)
+
+
 class JsonSerializer[T]:
     """Generic JSON serializer for simple types.
 

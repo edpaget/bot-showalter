@@ -9,7 +9,9 @@ from rich.console import Console
 from rich.table import Table
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.adp.models import ADPData
+    from collections.abc import Sequence
+
+    from fantasy_baseball_manager.adp.models import ADPEntry
     from fantasy_baseball_manager.draft.models import DraftRanking
     from fantasy_baseball_manager.draft.simulation_models import (
         SimulationResult,
@@ -197,13 +199,13 @@ class _ADPLookup:
     - Composite: Handles averaged data from multiple sources
     """
 
-    def __init__(self, adp_data: ADPData) -> None:
+    def __init__(self, entries: Sequence[ADPEntry]) -> None:
         # For two-way players: (name, position_type) -> ADP
         self._typed: dict[tuple[str, str], float] = {}
         # For regular players: name -> ADP
         self._untyped: dict[str, float] = {}
 
-        for entry in adp_data.entries:
+        for entry in entries:
             normalized, position_type = _parse_player_name(entry.name, entry.positions)
             if position_type is not None:
                 self._typed[(normalized, position_type)] = entry.adp
@@ -232,13 +234,15 @@ class _ADPLookup:
         return self._untyped.get(normalized)
 
 
-def print_draft_rankings(rankings: list[DraftRanking], year: int, adp_data: ADPData | None = None) -> None:
+def print_draft_rankings(
+    rankings: list[DraftRanking], year: int, adp_entries: Sequence[ADPEntry] | None = None
+) -> None:
     """Print a draft rankings table.
 
     Args:
         rankings: List of draft rankings to display.
         year: The season year.
-        adp_data: Optional ADP data for comparison. If provided, adds ADP and Diff columns.
+        adp_entries: Optional ADP entries for comparison. If provided, adds ADP and Diff columns.
     """
     console.print(f"[bold]Draft rankings for {year}:[/bold]\n")
 
@@ -251,10 +255,10 @@ def print_draft_rankings(rankings: list[DraftRanking], year: int, adp_data: ADPD
     table.add_column("Wtd", justify="right")
     table.add_column("Adj", justify="right")
 
-    if adp_data is not None:
+    if adp_entries is not None:
         table.add_column("ADP", justify="right")
         table.add_column("Diff", justify="right")
-        adp_lookup = _ADPLookup(adp_data)
+        adp_lookup = _ADPLookup(adp_entries)
     else:
         adp_lookup = None
 

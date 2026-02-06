@@ -1,237 +1,280 @@
-"""Tests for cached projection source."""
+"""Tests for projection caching via the cached() wrapper with DataclassListSerializer."""
 
-from datetime import UTC, datetime
+from __future__ import annotations
+
+import tempfile
+from pathlib import Path
+from typing import TYPE_CHECKING, overload
 
 import pytest
 
-from fantasy_baseball_manager.cache.sources import (
-    CachedProjectionSource,
-    _deserialize_projection_data,
-    _serialize_projection_data,
-)
+from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+from fantasy_baseball_manager.cache.wrapper import cached
+from fantasy_baseball_manager.context import init_context, reset_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.player.identity import Player
 from fantasy_baseball_manager.projections.models import (
     BattingProjection,
     PitchingProjection,
-    ProjectionData,
-    ProjectionSystem,
 )
+from fantasy_baseball_manager.result import Err, Ok
+
+
+class FakeBattingDataSource:
+    """Fake DataSource[BattingProjection] for testing."""
+
+    def __init__(self, projections: list[BattingProjection]) -> None:
+        self._projections = projections
+        self.call_count = 0
+
+    @overload
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[BattingProjection]] | Err[DataSourceError]: ...
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[list[BattingProjection]] | Err[DataSourceError]: ...
+    @overload
+    def __call__(self, query: Player) -> Ok[BattingProjection] | Err[DataSourceError]: ...
+
+    def __call__(
+        self, query: type[ALL_PLAYERS] | Player | list[Player]
+    ) -> Ok[list[BattingProjection]] | Ok[BattingProjection] | Err[DataSourceError]:
+        self.call_count += 1
+        return Ok(self._projections)
+
+
+class FakePitchingDataSource:
+    """Fake DataSource[PitchingProjection] for testing."""
+
+    def __init__(self, projections: list[PitchingProjection]) -> None:
+        self._projections = projections
+        self.call_count = 0
+
+    @overload
+    def __call__(self, query: type[ALL_PLAYERS]) -> Ok[list[PitchingProjection]] | Err[DataSourceError]: ...
+    @overload
+    def __call__(self, query: list[Player]) -> Ok[list[PitchingProjection]] | Err[DataSourceError]: ...
+    @overload
+    def __call__(self, query: Player) -> Ok[PitchingProjection] | Err[DataSourceError]: ...
+
+    def __call__(
+        self, query: type[ALL_PLAYERS] | Player | list[Player]
+    ) -> Ok[list[PitchingProjection]] | Ok[PitchingProjection] | Err[DataSourceError]:
+        self.call_count += 1
+        return Ok(self._projections)
 
 
 @pytest.fixture
-def sample_projection_data() -> ProjectionData:
-    """Create sample projection data for testing."""
-    return ProjectionData(
-        batting=(
-            BattingProjection(
-                player_id="15640",
-                mlbam_id="592450",
-                name="Aaron Judge",
-                team="NYY",
-                position="OF",
-                g=141,
-                pa=635,
-                ab=510,
-                h=145,
-                singles=78,
-                doubles=24,
-                triples=1,
-                hr=43,
-                r=110,
-                rbi=104,
-                sb=9,
-                cs=2,
-                bb=112,
-                so=156,
-                hbp=6,
-                sf=4,
-                sh=2,
-                obp=0.417,
-                slg=0.587,
-                ops=1.004,
-                woba=0.415,
-                war=6.7,
-            ),
+def sample_batting() -> list[BattingProjection]:
+    return [
+        BattingProjection(
+            player_id="15640",
+            mlbam_id="592450",
+            name="Aaron Judge",
+            team="NYY",
+            position="OF",
+            g=141,
+            pa=635,
+            ab=510,
+            h=145,
+            singles=78,
+            doubles=24,
+            triples=1,
+            hr=43,
+            r=110,
+            rbi=104,
+            sb=9,
+            cs=2,
+            bb=112,
+            so=156,
+            hbp=6,
+            sf=4,
+            sh=2,
+            obp=0.417,
+            slg=0.587,
+            ops=1.004,
+            woba=0.415,
+            war=6.7,
         ),
-        pitching=(
-            PitchingProjection(
-                player_id="22267",
-                mlbam_id="669373",
-                name="Tarik Skubal",
-                team="DET",
-                g=32,
-                gs=32,
-                ip=199.8,
-                w=14,
-                l=9,
-                sv=0,
-                hld=0,
-                so=243,
-                bb=44,
-                hbp=7,
-                h=160,
-                er=62,
-                hr=20,
-                era=2.80,
-                whip=1.02,
-                fip=2.78,
-                war=5.9,
-            ),
+    ]
+
+
+@pytest.fixture
+def sample_pitching() -> list[PitchingProjection]:
+    return [
+        PitchingProjection(
+            player_id="22267",
+            mlbam_id="669373",
+            name="Tarik Skubal",
+            team="DET",
+            g=32,
+            gs=32,
+            ip=199.8,
+            w=14,
+            l=9,
+            sv=0,
+            hld=0,
+            so=243,
+            bb=44,
+            hbp=7,
+            h=160,
+            er=62,
+            hr=20,
+            era=2.80,
+            whip=1.02,
+            fip=2.78,
+            war=5.9,
         ),
-        system=ProjectionSystem.STEAMER,
-        fetched_at=datetime(2025, 3, 1, 12, 0, 0, tzinfo=UTC),
-    )
+    ]
 
 
-class TestProjectionSerialization:
-    """Tests for projection data serialization."""
+class TestBattingProjectionSerialization:
+    """Tests for batting projection round-trip via DataclassListSerializer."""
 
-    def test_round_trip_preserves_data(self, sample_projection_data: ProjectionData) -> None:
-        """Serializing and deserializing preserves all data."""
-        serialized = _serialize_projection_data(sample_projection_data)
-        deserialized = _deserialize_projection_data(serialized)
+    def test_round_trip_preserves_data(self, sample_batting: list[BattingProjection]) -> None:
+        serializer = DataclassListSerializer(BattingProjection)
+        serialized = serializer.serialize(sample_batting)
+        deserialized = serializer.deserialize(serialized)
 
-        assert deserialized.system == sample_projection_data.system
-        assert deserialized.fetched_at == sample_projection_data.fetched_at
-        assert len(deserialized.batting) == len(sample_projection_data.batting)
-        assert len(deserialized.pitching) == len(sample_projection_data.pitching)
-
-        # Check batting
-        orig_bat = sample_projection_data.batting[0]
-        deser_bat = deserialized.batting[0]
-        assert deser_bat.player_id == orig_bat.player_id
-        assert deser_bat.mlbam_id == orig_bat.mlbam_id
-        assert deser_bat.name == orig_bat.name
-        assert deser_bat.hr == orig_bat.hr
-        assert deser_bat.obp == pytest.approx(orig_bat.obp)
-
-        # Check pitching
-        orig_pit = sample_projection_data.pitching[0]
-        deser_pit = deserialized.pitching[0]
-        assert deser_pit.player_id == orig_pit.player_id
-        assert deser_pit.name == orig_pit.name
-        assert deser_pit.era == pytest.approx(orig_pit.era)
-        assert deser_pit.sv == orig_pit.sv
+        assert len(deserialized) == 1
+        orig = sample_batting[0]
+        deser = deserialized[0]
+        assert deser.player_id == orig.player_id
+        assert deser.mlbam_id == orig.mlbam_id
+        assert deser.name == orig.name
+        assert deser.hr == orig.hr
+        assert deser.obp == pytest.approx(orig.obp)
 
     def test_handles_none_mlbam_id(self) -> None:
-        """Serialization handles None MLBAM ID."""
-        data = ProjectionData(
-            batting=(
-                BattingProjection(
-                    player_id="12345",
-                    mlbam_id=None,
-                    name="Test Player",
-                    team="TST",
-                    position="1B",
-                    g=100,
-                    pa=400,
-                    ab=350,
-                    h=90,
-                    singles=50,
-                    doubles=20,
-                    triples=2,
-                    hr=20,
-                    r=50,
-                    rbi=60,
-                    sb=5,
-                    cs=2,
-                    bb=40,
-                    so=80,
-                    hbp=5,
-                    sf=3,
-                    sh=1,
-                    obp=0.350,
-                    slg=0.450,
-                    ops=0.800,
-                    woba=0.340,
-                    war=2.5,
-                ),
-            ),
-            pitching=(),
-            system=ProjectionSystem.ZIPS,
-            fetched_at=datetime(2025, 3, 1, tzinfo=UTC),
+        data = [
+            BattingProjection(
+                player_id="12345",
+                mlbam_id=None,
+                name="Test Player",
+                team="TST",
+                position="1B",
+                g=100,
+                pa=400,
+                ab=350,
+                h=90,
+                singles=50,
+                doubles=20,
+                triples=2,
+                hr=20,
+                r=50,
+                rbi=60,
+                sb=5,
+                cs=2,
+                bb=40,
+                so=80,
+                hbp=5,
+                sf=3,
+                sh=1,
+                obp=0.350,
+                slg=0.450,
+                ops=0.800,
+                woba=0.340,
+                war=2.5,
+            )
+        ]
+        serializer = DataclassListSerializer(BattingProjection)
+        serialized = serializer.serialize(data)
+        deserialized = serializer.deserialize(serialized)
+
+        assert deserialized[0].mlbam_id is None
+
+
+class TestPitchingProjectionSerialization:
+    """Tests for pitching projection round-trip via DataclassListSerializer."""
+
+    def test_round_trip_preserves_data(self, sample_pitching: list[PitchingProjection]) -> None:
+        serializer = DataclassListSerializer(PitchingProjection)
+        serialized = serializer.serialize(sample_pitching)
+        deserialized = serializer.deserialize(serialized)
+
+        assert len(deserialized) == 1
+        orig = sample_pitching[0]
+        deser = deserialized[0]
+        assert deser.player_id == orig.player_id
+        assert deser.name == orig.name
+        assert deser.era == pytest.approx(orig.era)
+        assert deser.sv == orig.sv
+
+
+class TestCachedBattingProjectionDataSource:
+    """Tests for batting projections cached via cached() wrapper."""
+
+    def setup_method(self) -> None:
+        fd, tmp_name = tempfile.mkstemp(suffix=".db")
+        import os
+
+        os.close(fd)
+        self._tmp_path = Path(tmp_name)
+        init_context(year=2025, db_path=self._tmp_path)
+
+    def teardown_method(self) -> None:
+        reset_context()
+        self._tmp_path.unlink(missing_ok=True)
+
+    def test_returns_cached_data_on_hit(self, sample_batting: list[BattingProjection]) -> None:
+        delegate = FakeBattingDataSource(sample_batting)
+        source = cached(
+            delegate,
+            namespace="proj_batting_test",
+            ttl_seconds=604800,
+            serializer=DataclassListSerializer(BattingProjection),
         )
 
-        serialized = _serialize_projection_data(data)
-        deserialized = _deserialize_projection_data(serialized)
+        source(ALL_PLAYERS)  # populate cache
+        result = source(ALL_PLAYERS)  # should hit cache
 
-        assert deserialized.batting[0].mlbam_id is None
+        assert result.is_ok()
+        assert len(result.unwrap()) == 1
+        assert delegate.call_count == 1  # Only called once
 
-
-class TestCachedProjectionSource:
-    """Tests for CachedProjectionSource."""
-
-    def test_returns_cached_data_on_hit(self, sample_projection_data: ProjectionData) -> None:
-        """Returns cached data without calling delegate on cache hit."""
-
-        class FakeCache:
-            def __init__(self, cached_data: str | None):
-                self._data = cached_data
-                self.put_called = False
-
-            def get(self, namespace: str, key: str) -> str | None:
-                return self._data
-
-            def put(self, namespace: str, key: str, value: str, ttl: int) -> None:
-                self.put_called = True
-                self._data = value
-
-        class FakeDelegate:
-            def __init__(self) -> None:
-                self.fetch_called = False
-
-            def fetch_projections(self) -> ProjectionData:
-                self.fetch_called = True
-                return sample_projection_data
-
-        cached_data = _serialize_projection_data(sample_projection_data)
-        cache = FakeCache(cached_data)
-        delegate = FakeDelegate()
-
-        source = CachedProjectionSource(
-            delegate=delegate,
-            cache=cache,  # type: ignore[arg-type]
-            cache_key="steamer",
+    def test_fetches_and_caches_on_miss(self, sample_batting: list[BattingProjection]) -> None:
+        delegate = FakeBattingDataSource(sample_batting)
+        source = cached(
+            delegate,
+            namespace="proj_batting_test2",
+            ttl_seconds=604800,
+            serializer=DataclassListSerializer(BattingProjection),
         )
-        result = source.fetch_projections()
 
-        assert not delegate.fetch_called
-        assert result.system == ProjectionSystem.STEAMER
-        assert len(result.batting) == 1
+        result = source(ALL_PLAYERS)
 
-    def test_fetches_and_caches_on_miss(self, sample_projection_data: ProjectionData) -> None:
-        """Fetches from delegate and caches on cache miss."""
+        assert result.is_ok()
+        assert delegate.call_count == 1
+        assert result.unwrap()[0].name == "Aaron Judge"
 
-        class FakeCache:
-            def __init__(self) -> None:
-                self._data: str | None = None
-                self.put_called = False
 
-            def get(self, namespace: str, key: str) -> str | None:
-                return self._data
+class TestCachedPitchingProjectionDataSource:
+    """Tests for pitching projections cached via cached() wrapper."""
 
-            def put(self, namespace: str, key: str, value: str, ttl: int) -> None:
-                self.put_called = True
-                self._data = value
+    def setup_method(self) -> None:
+        fd, tmp_name = tempfile.mkstemp(suffix=".db")
+        import os
 
-        class FakeDelegate:
-            def __init__(self, data: ProjectionData) -> None:
-                self._data = data
-                self.fetch_called = False
+        os.close(fd)
+        self._tmp_path = Path(tmp_name)
+        init_context(year=2025, db_path=self._tmp_path)
 
-            def fetch_projections(self) -> ProjectionData:
-                self.fetch_called = True
-                return self._data
+    def teardown_method(self) -> None:
+        reset_context()
+        self._tmp_path.unlink(missing_ok=True)
 
-        cache = FakeCache()
-        delegate = FakeDelegate(sample_projection_data)
-
-        source = CachedProjectionSource(
-            delegate=delegate,
-            cache=cache,  # type: ignore[arg-type]
-            cache_key="steamer",
+    def test_cache_hit(self, sample_pitching: list[PitchingProjection]) -> None:
+        delegate = FakePitchingDataSource(sample_pitching)
+        source = cached(
+            delegate,
+            namespace="proj_pitching_test",
+            ttl_seconds=604800,
+            serializer=DataclassListSerializer(PitchingProjection),
         )
-        result = source.fetch_projections()
 
-        assert delegate.fetch_called
-        assert cache.put_called
-        assert result.system == ProjectionSystem.STEAMER
+        source(ALL_PLAYERS)
+        result = source(ALL_PLAYERS)
+
+        assert result.is_ok()
+        assert delegate.call_count == 1
+        assert result.unwrap()[0].name == "Tarik Skubal"

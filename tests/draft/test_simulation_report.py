@@ -1,9 +1,8 @@
-from datetime import UTC, datetime
 from io import StringIO
 
 from rich.console import Console
 
-from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
+from fantasy_baseball_manager.adp.models import ADPEntry
 from fantasy_baseball_manager.draft import simulation_report
 from fantasy_baseball_manager.draft.models import DraftRanking, RosterConfig
 from fantasy_baseball_manager.draft.simulation_models import (
@@ -211,14 +210,11 @@ class TestPrintDraftRankingsWithADP:
             _make_draft_ranking(1, "p1", "Mike Trout", ("OF",), 15.0),
             _make_draft_ranking(2, "p2", "Shohei Ohtani", ("DH", "SP"), 14.5),
         ]
-        adp_data = ADPData(
-            entries=(
-                ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),
-                ADPEntry(name="Shohei Ohtani", adp=3.0, positions=("DH", "SP")),
-            ),
-            fetched_at=datetime.now(UTC),
-        )
-        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        adp_entries = [
+            ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),
+            ADPEntry(name="Shohei Ohtani", adp=3.0, positions=("DH", "SP")),
+        ]
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_entries)
         assert "ADP" in output
         assert "Diff" in output
         assert "1.5" in output
@@ -229,11 +225,8 @@ class TestPrintDraftRankingsWithADP:
         rankings = [
             _make_draft_ranking(1, "p1", "Player A", ("OF",)),
         ]
-        adp_data = ADPData(
-            entries=(ADPEntry(name="Player A", adp=5.0, positions=("OF",)),),
-            fetched_at=datetime.now(UTC),
-        )
-        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        adp_entries = [ADPEntry(name="Player A", adp=5.0, positions=("OF",))]
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_entries)
         # Player ranked 1 with ADP 5 -> Diff = 5 - 1 = +4
         assert "+4" in output
 
@@ -242,11 +235,8 @@ class TestPrintDraftRankingsWithADP:
         rankings = [
             _make_draft_ranking(10, "p1", "Player B", ("OF",)),
         ]
-        adp_data = ADPData(
-            entries=(ADPEntry(name="Player B", adp=5.0, positions=("OF",)),),
-            fetched_at=datetime.now(UTC),
-        )
-        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        adp_entries = [ADPEntry(name="Player B", adp=5.0, positions=("OF",))]
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_entries)
         # Player ranked 10 with ADP 5 -> Diff = 5 - 10 = -5
         assert "-5" in output
 
@@ -256,11 +246,8 @@ class TestPrintDraftRankingsWithADP:
             _make_draft_ranking(1, "p1", "Mike Trout", ("OF",)),
             _make_draft_ranking(2, "p2", "Unknown Player", ("1B",)),
         ]
-        adp_data = ADPData(
-            entries=(ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),),
-            fetched_at=datetime.now(UTC),
-        )
-        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        adp_entries = [ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",))]
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_entries)
         # Check that Mike Trout has ADP
         assert "1.5" in output
         # Unknown Player should show dash (output contains multiple dashes for various columns)
@@ -270,14 +257,11 @@ class TestPrintDraftRankingsWithADP:
         rankings = [
             _make_draft_ranking(1, "p1", "Shohei Ohtani", ("OF", "DH"), 15.0),
         ]
-        adp_data = ADPData(
-            entries=(
-                ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
-                ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
-            ),
-            fetched_at=datetime.now(UTC),
-        )
-        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        adp_entries = [
+            ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
+            ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
+        ]
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_entries)
         assert "2.0" in output  # Batter ADP
         assert "100.0" not in output  # Not pitcher ADP
 
@@ -286,14 +270,11 @@ class TestPrintDraftRankingsWithADP:
         rankings = [
             _make_draft_ranking(1, "p1", "Shohei Ohtani", ("SP", "P"), 15.0),
         ]
-        adp_data = ADPData(
-            entries=(
-                ADPEntry(name="Shohei Ohtani (Batter)", adp=3.5, positions=("DH",)),
-                ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
-            ),
-            fetched_at=datetime.now(UTC),
-        )
-        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_data)
+        adp_entries = [
+            ADPEntry(name="Shohei Ohtani (Batter)", adp=3.5, positions=("DH",)),
+            ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
+        ]
+        output = _capture_output(simulation_report.print_draft_rankings, rankings, 2025, adp_entries)
         assert "100.0" in output  # Pitcher ADP
         assert "3.5" not in output  # Not batter ADP
 
@@ -350,50 +331,35 @@ class TestParsePlayerName:
 
 class TestADPLookup:
     def test_regular_player_lookup(self) -> None:
-        adp_data = ADPData(
-            entries=(ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),),
-            fetched_at=datetime.now(UTC),
-        )
-        lookup = simulation_report._ADPLookup(adp_data)
+        entries = [ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",))]
+        lookup = simulation_report._ADPLookup(entries)
         assert lookup.get("Mike Trout", is_pitcher=False) == 1.5
 
     def test_two_way_batter_lookup(self) -> None:
-        adp_data = ADPData(
-            entries=(
-                ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
-                ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
-            ),
-            fetched_at=datetime.now(UTC),
-        )
-        lookup = simulation_report._ADPLookup(adp_data)
+        entries = [
+            ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
+            ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
+        ]
+        lookup = simulation_report._ADPLookup(entries)
         assert lookup.get("Shohei Ohtani", is_pitcher=False) == 2.0
 
     def test_two_way_pitcher_lookup(self) -> None:
-        adp_data = ADPData(
-            entries=(
-                ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
-                ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
-            ),
-            fetched_at=datetime.now(UTC),
-        )
-        lookup = simulation_report._ADPLookup(adp_data)
+        entries = [
+            ADPEntry(name="Shohei Ohtani (Batter)", adp=2.0, positions=("DH",)),
+            ADPEntry(name="Shohei Ohtani (Pitcher)", adp=100.0, positions=("SP",)),
+        ]
+        lookup = simulation_report._ADPLookup(entries)
         assert lookup.get("Shohei Ohtani", is_pitcher=True) == 100.0
 
     def test_unmatched_returns_none(self) -> None:
-        adp_data = ADPData(
-            entries=(ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",)),),
-            fetched_at=datetime.now(UTC),
-        )
-        lookup = simulation_report._ADPLookup(adp_data)
+        entries = [ADPEntry(name="Mike Trout", adp=1.5, positions=("OF",))]
+        lookup = simulation_report._ADPLookup(entries)
         assert lookup.get("Unknown Player", is_pitcher=False) is None
 
     def test_fallback_to_untyped_for_regular_player(self) -> None:
         """Regular players without (Batter)/(Pitcher) suffix work for both types."""
-        adp_data = ADPData(
-            entries=(ADPEntry(name="Tarik Skubal", adp=5.0, positions=("SP",)),),
-            fetched_at=datetime.now(UTC),
-        )
-        lookup = simulation_report._ADPLookup(adp_data)
+        entries = [ADPEntry(name="Tarik Skubal", adp=5.0, positions=("SP",))]
+        lookup = simulation_report._ADPLookup(entries)
         # Even though we ask for pitcher, it falls back to untyped lookup
         assert lookup.get("Tarik Skubal", is_pitcher=True) == 5.0
         assert lookup.get("Tarik Skubal", is_pitcher=False) == 5.0
