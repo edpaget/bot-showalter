@@ -1,21 +1,32 @@
-from typing import Protocol
+from __future__ import annotations
 
-from fantasy_baseball_manager.marcel.data_source import StatsDataSource
-from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
-from fantasy_baseball_manager.pipeline.types import PlayerRates
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.marcel.models import (
+        BattingProjection,
+        BattingSeasonStats,
+        PitchingProjection,
+        PitchingSeasonStats,
+    )
+    from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 
 class RateComputer(Protocol):
     def compute_batting_rates(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]: ...
 
     def compute_pitching_rates(
         self,
-        data_source: StatsDataSource,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]: ...

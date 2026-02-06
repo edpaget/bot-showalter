@@ -262,7 +262,7 @@ class PositionSource(Protocol):
 - [x] Migrate `MinorLeagueDataSource`
 - [ ] Update all pipeline consumers
   - [x] Add `MarcelRateComputer.compute_pitching_rates_v2()` (matches `_v2` pattern for batting)
-  - [ ] Update `RateComputer` protocol to use new signature
+  - [x] Update `RateComputer` protocol to use new signature
   - [ ] Migrate other rate computer implementations
 
 ### Phase 3: Player Mapping

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fantasy_baseball_manager.cache.factory import create_cache_store
 from fantasy_baseball_manager.cache.protocol import CacheStore  # noqa: TC001
@@ -89,7 +89,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.rate_computer import MLERateComputerConfig
     from fantasy_baseball_manager.ml.mtl.config import MTLBlenderConfig, MTLRateComputerConfig
-    from fantasy_baseball_manager.pipeline.protocols import RateAdjuster, RateComputer
+    from fantasy_baseball_manager.pipeline.protocols import RateAdjuster
     from fantasy_baseball_manager.pipeline.stages.playing_time_config import (
         PlayingTimeConfig,
     )
@@ -339,7 +339,7 @@ class PipelineBuilder:
             return EnhancedPlayingTimeProjector(config=self._playing_time_config)
         return MarcelPlayingTime()
 
-    def _build_rate_computer(self) -> RateComputer:
+    def _build_rate_computer(self) -> Any:  # TODO: restore -> RateComputer after all implementations migrated
         cfg = self._config
 
         # MTL rate computer (replaces Marcel entirely)
@@ -367,7 +367,8 @@ class PipelineBuilder:
             )
 
         # Build base rate computer
-        base_computer: RateComputer
+        # TODO: restore RateComputer type after migrating all implementations
+        base_computer: Any
         if self._rate_computer_type == "platoon":
             split_source = self._split_source or CachedSplitDataSource(
                 delegate=PybaseballSplitDataSource(),

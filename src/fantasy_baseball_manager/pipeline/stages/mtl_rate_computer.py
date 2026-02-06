@@ -101,7 +101,7 @@ class MTLRateComputer:
         self._ensure_models_loaded()
 
         # Get Marcel rates as fallback and for metadata
-        marcel_rates = self._marcel_computer.compute_batting_rates(data_source, year, years_back)
+        marcel_rates = self._marcel_computer.compute_batting_rates_legacy(data_source, year, years_back)
         {p.player_id: p for p in marcel_rates}
 
         if self._batter_model is None or not self._batter_model.is_fitted:
@@ -196,7 +196,7 @@ class MTLRateComputer:
         self._ensure_models_loaded()
 
         # Get Marcel rates as fallback and for metadata
-        marcel_rates = self._marcel_computer.compute_pitching_rates(data_source, year, years_back)
+        marcel_rates = self._marcel_computer.compute_pitching_rates_legacy(data_source, year, years_back)
 
         if self._pitcher_model is None or not self._pitcher_model.is_fitted:
             logger.debug("No MTL pitcher model available, using Marcel rates")

@@ -111,7 +111,7 @@ class MLERateComputer:
         self._ensure_model_loaded()
 
         # Get Marcel rates as baseline
-        marcel_rates = self._marcel_computer.compute_batting_rates(data_source, year, years_back)
+        marcel_rates = self._marcel_computer.compute_batting_rates_legacy(data_source, year, years_back)
 
         if self._batter_model is None:
             logger.debug("No MLE batter model available, using Marcel rates")
@@ -222,7 +222,7 @@ class MLERateComputer:
             List of PlayerRates from Marcel.
         """
         # MLE for pitchers not yet implemented - fall back to Marcel
-        return self._marcel_computer.compute_pitching_rates(data_source, year, years_back)
+        return self._marcel_computer.compute_pitching_rates_legacy(data_source, year, years_back)
 
     def _get_milb_stats_by_player(self, year: int) -> dict[str, list[MinorLeagueBatterSeasonStats]]:
         """Get MiLB stats grouped by player ID for a year."""

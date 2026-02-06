@@ -8,7 +8,7 @@ RateComputer.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.marcel.league_averages import (
     BATTING_COMPONENT_STATS,
@@ -28,7 +28,6 @@ if TYPE_CHECKING:
 
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
-    from fantasy_baseball_manager.pipeline.protocols import RateComputer
     from fantasy_baseball_manager.pipeline.stages.split_data_source import (
         SplitStatsDataSource,
     )
@@ -45,7 +44,7 @@ class PlatoonRateComputer:
     def __init__(
         self,
         split_source: SplitStatsDataSource,
-        pitching_delegate: RateComputer,
+        pitching_delegate: Any,  # TODO: restore RateComputer type after migration
         batting_regression: dict[str, float] | None = None,
         pct_vs_rhp: float = 0.72,
         pct_vs_lhp: float = 0.28,

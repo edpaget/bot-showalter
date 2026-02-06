@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
 
 from fantasy_baseball_manager.marcel.models import (
@@ -7,6 +11,9 @@ from fantasy_baseball_manager.marcel.models import (
     PitchingSeasonStats,
 )
 from fantasy_baseball_manager.pipeline.presets import marcel_pipeline
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.context import Context
 
 
 def _make_player(
@@ -165,7 +172,7 @@ class FakeDataSource:
 
 
 class TestMarcelBattingPipeline:
-    def test_single_player_three_years(self) -> None:
+    def test_single_player_three_years(self, test_context: Context) -> None:
         """Pipeline returns a BattingProjection with correct metadata."""
         league = _make_league()
         ds = FakeDataSource(
@@ -185,7 +192,7 @@ class TestMarcelBattingPipeline:
         assert result[0].year == 2025
         assert result[0].age == 29
 
-    def test_projected_pa_three_years(self) -> None:
+    def test_projected_pa_three_years(self, test_context: Context) -> None:
         """Projected PA = 0.5 * PA_y1 + 0.1 * PA_y2 + 200."""
         league = _make_league()
         ds = FakeDataSource(
@@ -201,7 +208,7 @@ class TestMarcelBattingPipeline:
         # 0.5*600 + 0.1*550 + 200 = 555
         assert proj.pa == pytest.approx(555.0)
 
-    def test_hr_projection_hand_calculated(self) -> None:
+    def test_hr_projection_hand_calculated(self, test_context: Context) -> None:
         """Verify HR projection with hand-calculated values.
 
         Player: 25 HR in 600 PA (y1), 20 HR in 550 PA (y2), 18 HR in 500 PA (y3)
@@ -237,7 +244,7 @@ class TestMarcelBattingPipeline:
         # 273.167/7125 * 0.985 * 555 = 20.96
         assert proj.hr == pytest.approx(20.96, abs=0.1)
 
-    def test_single_player_one_year(self) -> None:
+    def test_single_player_one_year(self, test_context: Context) -> None:
         """Player with only 1 year of data should still project."""
         league = _make_league()
         ds = FakeDataSource(
@@ -252,7 +259,7 @@ class TestMarcelBattingPipeline:
         assert proj.pa == pytest.approx(300.0)
         assert proj.hr > 0
 
-    def test_multiple_players(self) -> None:
+    def test_multiple_players(self, test_context: Context) -> None:
         """Two players should both get projections."""
         league = _make_league()
         p1 = _make_player(player_id="p1", name="Young", year=2024, age=24, pa=600, hr=25)
@@ -267,7 +274,7 @@ class TestMarcelBattingPipeline:
         ids = {p.player_id for p in result}
         assert ids == {"p1", "p2"}
 
-    def test_age_adjustment_applied(self) -> None:
+    def test_age_adjustment_applied(self, test_context: Context) -> None:
         """Young player should project higher rates than old player, all else equal."""
         league = _make_league()
         young = _make_player(player_id="young", year=2024, age=24, pa=600, hr=25)
@@ -283,7 +290,7 @@ class TestMarcelBattingPipeline:
 
 
 class TestMarcelPitchingPipeline:
-    def test_single_starter_three_years(self) -> None:
+    def test_single_starter_three_years(self, test_context: Context) -> None:
         """Pipeline returns a PitchingProjection with correct metadata."""
         league = _make_league_pitching()
         ds = FakeDataSource(
@@ -302,7 +309,7 @@ class TestMarcelPitchingPipeline:
         assert result[0].year == 2025
         assert result[0].age == 29
 
-    def test_starter_projected_ip(self) -> None:
+    def test_starter_projected_ip(self, test_context: Context) -> None:
         """Starter: 0.5*IP_y1 + 0.1*IP_y2 + 60."""
         league = _make_league_pitching()
         ds = FakeDataSource(
@@ -317,7 +324,7 @@ class TestMarcelPitchingPipeline:
         # 0.5*180 + 0.1*170 + 60 = 167
         assert proj.ip == pytest.approx(167.0)
 
-    def test_reliever_projected_ip(self) -> None:
+    def test_reliever_projected_ip(self, test_context: Context) -> None:
         """Reliever: 0.5*IP_y1 + 0.1*IP_y2 + 25."""
         league = _make_league_pitching()
         ds = FakeDataSource(
@@ -332,7 +339,7 @@ class TestMarcelPitchingPipeline:
         # 0.5*70 + 0.1*65 + 25 = 66.5
         assert proj.ip == pytest.approx(66.5)
 
-    def test_era_and_whip_computed(self) -> None:
+    def test_era_and_whip_computed(self, test_context: Context) -> None:
         """ERA and WHIP are derived correctly from projected counting stats."""
         league = _make_league_pitching()
         ds = FakeDataSource(
@@ -346,7 +353,7 @@ class TestMarcelPitchingPipeline:
         expected_whip = (proj.h + proj.bb) / proj.ip
         assert proj.whip == pytest.approx(expected_whip)
 
-    def test_multiple_pitchers(self) -> None:
+    def test_multiple_pitchers(self, test_context: Context) -> None:
         """Multiple pitchers should all get projections."""
         league = _make_league_pitching()
         sp = _make_pitcher(player_id="sp1", year=2024, age=28, gs=30, g=30)
@@ -361,7 +368,7 @@ class TestMarcelPitchingPipeline:
         ids = {p.player_id for p in result}
         assert ids == {"sp1", "rp1"}
 
-    def test_age_adjustment_applied(self) -> None:
+    def test_age_adjustment_applied(self, test_context: Context) -> None:
         """Young pitcher should project more strikeouts than old pitcher."""
         league = _make_league_pitching()
         young = _make_pitcher(player_id="young", year=2024, age=24, so=200, ip=180.0)
