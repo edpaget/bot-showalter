@@ -1,3 +1,5 @@
+from typing import Any
+
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection,
     BattingSeasonStats,
@@ -5,6 +7,7 @@ from fantasy_baseball_manager.marcel.models import (
 )
 from fantasy_baseball_manager.pipeline.presets import marcel_pipeline
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
+from fantasy_baseball_manager.result import Ok
 
 
 def _make_player(year: int = 2024, age: int = 28) -> BattingSeasonStats:
@@ -79,45 +82,34 @@ def _make_league_pitching(year: int = 2024) -> PitchingSeasonStats:
     )
 
 
-class FakeDataSource:
-    def __init__(
-        self,
-        player_batting: dict[int, list[BattingSeasonStats]] | None = None,
-        team_batting: dict[int, list[BattingSeasonStats]] | None = None,
-        player_pitching: dict[int, list[PitchingSeasonStats]] | None = None,
-        team_pitching: dict[int, list[PitchingSeasonStats]] | None = None,
-    ) -> None:
-        self._player_batting = player_batting or {}
-        self._team_batting = team_batting or {}
-        self._player_pitching = player_pitching or {}
-        self._team_pitching = team_pitching or {}
+def _fake_batting_source(data: dict[int, list[BattingSeasonStats]]) -> Any:
+    """Create a fake DataSource[BattingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[BattingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+        return Ok(data.get(get_context().year, []))
+    return source
 
-    def batting_stats(self, year: int) -> list[BattingSeasonStats]:
-        return self._player_batting.get(year, [])
 
-    def pitching_stats(self, year: int) -> list[PitchingSeasonStats]:
-        return self._player_pitching.get(year, [])
-
-    def team_batting(self, year: int) -> list[BattingSeasonStats]:
-        return self._team_batting.get(year, [])
-
-    def team_pitching(self, year: int) -> list[PitchingSeasonStats]:
-        return self._team_pitching.get(year, [])
+def _fake_pitching_source(data: dict[int, list[PitchingSeasonStats]]) -> Any:
+    """Create a fake DataSource[PitchingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+        return Ok(data.get(get_context().year, []))
+    return source
 
 
 class TestPipelineProjectionSource:
     def test_implements_projection_source(self) -> None:
         league = _make_league()
-        ds = FakeDataSource(
-            player_batting={2024: [_make_player()]},
-            team_batting={2024: [league], 2023: [league], 2022: [league]},
-            team_pitching={
-                2024: [_make_league_pitching()],
-                2023: [_make_league_pitching()],
-                2022: [_make_league_pitching()],
-            },
-        )
-        source = PipelineProjectionSource(marcel_pipeline(), ds, 2025)
+        batting_src = _fake_batting_source({2024: [_make_player()]})
+        team_batting_src = _fake_batting_source({2024: [league], 2023: [league], 2022: [league]})
+        pitching_src = _fake_pitching_source({})
+        team_pitching_src = _fake_pitching_source({
+            2024: [_make_league_pitching()],
+            2023: [_make_league_pitching()],
+            2022: [_make_league_pitching()],
+        })
+        source = PipelineProjectionSource(marcel_pipeline(), batting_src, team_batting_src, pitching_src, team_pitching_src, 2025)
         batting = source.batting_projections()
         pitching = source.pitching_projections()
         assert len(batting) == 1

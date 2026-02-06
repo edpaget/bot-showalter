@@ -27,14 +27,14 @@ def build_projections_and_positions(
         - composite_positions: Dict mapping (player_id, position_type) to eligible positions.
     """
     league_settings = load_league_settings()
-    data_source = get_container().data_source
+    container = get_container()
     pipeline = PIPELINES[engine]()
 
-    batting_projections = pipeline.project_batters(data_source, year)
+    batting_projections = pipeline.project_batters(container.batting_source, container.team_batting_source, year)
     batting_values = zscore_batting(batting_projections, league_settings.batting_categories)
     batting_ids = {p.player_id for p in batting_projections}
 
-    pitching_projections = pipeline.project_pitchers(data_source, year)
+    pitching_projections = pipeline.project_pitchers(container.pitching_source, container.team_pitching_source, year)
     player_positions: dict[str, tuple[str, ...]] = {}
     for proj in pitching_projections:
         if proj.player_id not in player_positions:

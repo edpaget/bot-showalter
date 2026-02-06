@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from fantasy_baseball_manager.context import init_context, reset_context
 from fantasy_baseball_manager.minors.evaluation import (
     MLEEvaluator,
     NoTranslationBaseline,
@@ -181,6 +182,12 @@ class TestNoTranslationBaseline:
 
 
 class TestMLEEvaluator:
+    def setup_method(self) -> None:
+        init_context(year=2024)
+
+    def teardown_method(self) -> None:
+        reset_context()
+
     def test_evaluate_returns_report(self) -> None:
         """Test that evaluate returns a proper HoldoutEvaluationReport."""
         # Create mock data sources
@@ -201,7 +208,7 @@ class TestMLEEvaluator:
 
         evaluator = MLEEvaluator(
             milb_source=milb_source,
-            mlb_source=mlb_source,
+            mlb_batting_source=mlb_source,
         )
 
         # Mock the collector to return test data
@@ -245,7 +252,7 @@ class TestMLEEvaluator:
 
         evaluator = MLEEvaluator(
             milb_source=milb_source,
-            mlb_source=mlb_source,
+            mlb_batting_source=mlb_source,
         )
 
         # Mock empty data
@@ -288,7 +295,7 @@ class TestMLEEvaluator:
 
         evaluator = MLEEvaluator(
             milb_source=milb_source,
-            mlb_source=mlb_source,
+            mlb_batting_source=mlb_source,
         )
 
         mock_features = np.array([[1, 2, 3], [4, 5, 6]])

@@ -155,12 +155,18 @@ class TestSearchPointToConfig:
 
 class TestEvaluatePoint:
     @patch("scripts.grid_search.evaluate_source")
-    @patch("scripts.grid_search.PybaseballDataSource")
+    @patch("scripts.grid_search.create_team_pitching_source")
+    @patch("scripts.grid_search.create_pitching_source")
+    @patch("scripts.grid_search.create_team_batting_source")
+    @patch("scripts.grid_search.create_batting_source")
     @patch("scripts.grid_search.load_league_settings")
     def test_returns_expected_structure(
         self,
         mock_settings: MagicMock,
-        mock_ds: MagicMock,
+        mock_batting: MagicMock,
+        mock_team_batting: MagicMock,
+        mock_pitching: MagicMock,
+        mock_team_pitching: MagicMock,
         mock_eval: MagicMock,
     ) -> None:
         from scripts.grid_search import evaluate_point
@@ -170,7 +176,10 @@ class TestEvaluatePoint:
             batting_categories=("HR",),
             pitching_categories=("K",),
         )
-        mock_ds.return_value = MagicMock()
+        mock_batting.return_value = MagicMock()
+        mock_team_batting.return_value = MagicMock()
+        mock_pitching.return_value = MagicMock()
+        mock_team_pitching.return_value = MagicMock()
 
         mock_bat_rank = MagicMock()
         mock_bat_rank.spearman_rho = 0.8

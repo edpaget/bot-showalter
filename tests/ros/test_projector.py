@@ -1,9 +1,13 @@
+from typing import Any
+
+from fantasy_baseball_manager.context import init_context, reset_context
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection,
     BattingSeasonStats,
     PitchingProjection,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.ros.projector import ROSProjector
 
 
@@ -129,35 +133,25 @@ class FakePipeline:
         self._batters = batters or []
         self._pitchers = pitchers or []
 
-    def project_batters(self, data_source: object, year: int) -> list[BattingProjection]:
+    def project_batters(self, batting_source: Any, team_batting_source: Any, year: int) -> list[BattingProjection]:
         return list(self._batters)
 
-    def project_pitchers(self, data_source: object, year: int) -> list[PitchingProjection]:
+    def project_pitchers(self, pitching_source: Any, team_pitching_source: Any, year: int) -> list[PitchingProjection]:
         return list(self._pitchers)
 
 
-class FakeDataSource:
-    """Fake data source that returns pre-configured actuals."""
+def _fake_batting_source(data: list[BattingSeasonStats]) -> Any:
+    """Create a fake DataSource[BattingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[BattingSeasonStats]]:
+        return Ok(list(data))
+    return source
 
-    def __init__(
-        self,
-        batting: list[BattingSeasonStats] | None = None,
-        pitching: list[PitchingSeasonStats] | None = None,
-    ) -> None:
-        self._batting = batting or []
-        self._pitching = pitching or []
 
-    def batting_stats(self, year: int) -> list[BattingSeasonStats]:
-        return list(self._batting)
-
-    def pitching_stats(self, year: int) -> list[PitchingSeasonStats]:
-        return list(self._pitching)
-
-    def team_batting(self, year: int) -> list[BattingSeasonStats]:
-        return []
-
-    def team_pitching(self, year: int) -> list[PitchingSeasonStats]:
-        return []
+def _fake_pitching_source(data: list[PitchingSeasonStats]) -> Any:
+    """Create a fake DataSource[PitchingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
+        return Ok(list(data))
+    return source
 
 
 class FakeBlender:
@@ -224,11 +218,27 @@ class FakeBlender:
 
 
 class TestROSProjectorBatting:
+    def setup_method(self) -> None:
+        init_context(year=2025)
+
+    def teardown_method(self) -> None:
+        reset_context()
+
     def test_player_with_preseason_and_actuals_gets_blended(self) -> None:
         pipeline = FakePipeline(batters=[_make_batting_projection()])
-        ds = FakeDataSource(batting=[_make_batting_actuals()])
+        batting_src = _fake_batting_source([_make_batting_actuals()])
+        pitching_src = _fake_pitching_source([])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         results = projector.project_batters(2025)
 
@@ -238,9 +248,19 @@ class TestROSProjectorBatting:
     def test_player_with_preseason_only_passes_through(self) -> None:
         preseason = _make_batting_projection(player_id="b1")
         pipeline = FakePipeline(batters=[preseason])
-        ds = FakeDataSource(batting=[])  # no actuals
+        batting_src = _fake_batting_source([])  # no actuals
+        pitching_src = _fake_pitching_source([])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         results = projector.project_batters(2025)
 
@@ -250,9 +270,19 @@ class TestROSProjectorBatting:
 
     def test_player_with_actuals_only_excluded(self) -> None:
         pipeline = FakePipeline(batters=[])  # no preseason
-        ds = FakeDataSource(batting=[_make_batting_actuals(player_id="b2")])
+        batting_src = _fake_batting_source([_make_batting_actuals(player_id="b2")])
+        pitching_src = _fake_pitching_source([])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         results = projector.project_batters(2025)
 
@@ -265,14 +295,22 @@ class TestROSProjectorBatting:
                 _make_batting_projection(player_id="b2", name="B"),
             ]
         )
-        ds = FakeDataSource(
-            batting=[
-                _make_batting_actuals(player_id="b1", name="A"),
-                _make_batting_actuals(player_id="b2", name="B"),
-            ]
-        )
+        batting_src = _fake_batting_source([
+            _make_batting_actuals(player_id="b1", name="A"),
+            _make_batting_actuals(player_id="b2", name="B"),
+        ])
+        pitching_src = _fake_pitching_source([])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         results = projector.project_batters(2025)
 
@@ -281,9 +319,19 @@ class TestROSProjectorBatting:
 
     def test_projector_calls_blender_not_hardcoded(self) -> None:
         pipeline = FakePipeline(batters=[_make_batting_projection()])
-        ds = FakeDataSource(batting=[_make_batting_actuals()])
+        batting_src = _fake_batting_source([_make_batting_actuals()])
+        pitching_src = _fake_pitching_source([])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         projector.project_batters(2025)
 
@@ -294,11 +342,27 @@ class TestROSProjectorBatting:
 
 
 class TestROSProjectorPitching:
+    def setup_method(self) -> None:
+        init_context(year=2025)
+
+    def teardown_method(self) -> None:
+        reset_context()
+
     def test_player_with_preseason_and_actuals_gets_blended(self) -> None:
         pipeline = FakePipeline(pitchers=[_make_pitching_projection()])
-        ds = FakeDataSource(pitching=[_make_pitching_actuals()])
+        batting_src = _fake_batting_source([])
+        pitching_src = _fake_pitching_source([_make_pitching_actuals()])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         results = projector.project_pitchers(2025)
 
@@ -308,9 +372,19 @@ class TestROSProjectorPitching:
     def test_player_with_preseason_only_passes_through(self) -> None:
         preseason = _make_pitching_projection(player_id="p1")
         pipeline = FakePipeline(pitchers=[preseason])
-        ds = FakeDataSource(pitching=[])
+        batting_src = _fake_batting_source([])
+        pitching_src = _fake_pitching_source([])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         results = projector.project_pitchers(2025)
 
@@ -320,9 +394,19 @@ class TestROSProjectorPitching:
 
     def test_player_with_actuals_only_excluded(self) -> None:
         pipeline = FakePipeline(pitchers=[])
-        ds = FakeDataSource(pitching=[_make_pitching_actuals(player_id="p2")])
+        batting_src = _fake_batting_source([])
+        pitching_src = _fake_pitching_source([_make_pitching_actuals(player_id="p2")])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         results = projector.project_pitchers(2025)
 
@@ -336,9 +420,19 @@ class TestROSProjectorPitching:
                 _make_pitching_projection(player_id="p2"),
             ]
         )
-        ds = FakeDataSource(pitching=[_make_pitching_actuals(player_id="p1")])
+        batting_src = _fake_batting_source([])
+        pitching_src = _fake_pitching_source([_make_pitching_actuals(player_id="p1")])
+        team_batting_src = _fake_batting_source([])
+        team_pitching_src = _fake_pitching_source([])
         blender = FakeBlender()
-        projector = ROSProjector(pipeline=pipeline, data_source=ds, blender=blender)
+        projector = ROSProjector(
+            pipeline=pipeline,
+            batting_source=batting_src,
+            team_batting_source=team_batting_src,
+            pitching_source=pitching_src,
+            team_pitching_source=team_pitching_src,
+            blender=blender,
+        )
 
         results = projector.project_pitchers(2025)
 

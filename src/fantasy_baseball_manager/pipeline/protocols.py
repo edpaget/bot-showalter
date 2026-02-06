@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.marcel.models import (
         BattingProjection,
         BattingSeasonStats,
@@ -47,6 +46,16 @@ class ProjectionFinalizer(Protocol):
 
 
 class ProjectionPipelineProtocol(Protocol):
-    def project_batters(self, data_source: StatsDataSource, year: int) -> list[BattingProjection]: ...
+    def project_batters(
+        self,
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
+        year: int,
+    ) -> list[BattingProjection]: ...
 
-    def project_pitchers(self, data_source: StatsDataSource, year: int) -> list[PitchingProjection]: ...
+    def project_pitchers(
+        self,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
+        year: int,
+    ) -> list[PitchingProjection]: ...

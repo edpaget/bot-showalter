@@ -20,8 +20,13 @@ from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pit
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
-    from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import (
+        BattingProjection,
+        BattingSeasonStats,
+        PitchingProjection,
+        PitchingSeasonStats,
+    )
     from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
     from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
 
@@ -269,12 +274,13 @@ def _compute_strata_pitching(
 def evaluate_source(
     source: ProjectionSource,
     source_name: str,
-    data_source: StatsDataSource,
+    batting_source: DataSource[BattingSeasonStats],
+    pitching_source: DataSource[PitchingSeasonStats],
     config: EvaluationConfig,
 ) -> SourceEvaluation:
     proj_batting = source.batting_projections()
     proj_pitching = source.pitching_projections()
-    actual_batting, actual_pitching = actuals_as_projections(data_source, config.year, config.min_pa, config.min_ip)
+    actual_batting, actual_pitching = actuals_as_projections(batting_source, pitching_source, config.year, config.min_pa, config.min_ip)
 
     # Inner join batting by player_id
     actual_batting_map = {b.player_id: b for b in actual_batting}
@@ -400,10 +406,11 @@ def evaluate_source(
 
 def evaluate(
     sources: list[tuple[str, ProjectionSource]],
-    data_source: StatsDataSource,
+    batting_source: DataSource[BattingSeasonStats],
+    pitching_source: DataSource[PitchingSeasonStats],
     config: EvaluationConfig,
 ) -> EvaluationResult:
-    evaluations = tuple(evaluate_source(source, name, data_source, config) for name, source in sources)
+    evaluations = tuple(evaluate_source(source, name, batting_source, pitching_source, config) for name, source in sources)
     return EvaluationResult(evaluations=evaluations)
 
 

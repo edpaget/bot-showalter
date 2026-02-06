@@ -12,9 +12,10 @@ if TYPE_CHECKING:
 
     from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
     from fantasy_baseball_manager.config import AppConfig
+    from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.league.models import LeagueRosters
     from fantasy_baseball_manager.league.roster import RosterSource
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
     from fantasy_baseball_manager.ros.protocol import ProjectionBlender
@@ -49,7 +50,10 @@ class ServiceContainer:
         self,
         config: ServiceConfig | None = None,
         *,
-        data_source: StatsDataSource | None = None,
+        batting_source: DataSource[BattingSeasonStats] | None = None,
+        team_batting_source: DataSource[BattingSeasonStats] | None = None,
+        pitching_source: DataSource[PitchingSeasonStats] | None = None,
+        team_pitching_source: DataSource[PitchingSeasonStats] | None = None,
         id_mapper: SfbbMapper | None = None,
         roster_source: RosterSource | None = None,
         blender: ProjectionBlender | None = None,
@@ -57,7 +61,10 @@ class ServiceContainer:
         skill_data_source: SkillDataSource | None = None,
     ) -> None:
         self._config = config or ServiceConfig()
-        self._data_source = data_source
+        self._batting_source = batting_source
+        self._team_batting_source = team_batting_source
+        self._pitching_source = pitching_source
+        self._team_pitching_source = team_pitching_source
         self._id_mapper = id_mapper
         self._roster_source = roster_source
         self._blender = blender
@@ -106,12 +113,68 @@ class ServiceContainer:
         return self.app_config
 
     @cached_property
-    def data_source(self) -> StatsDataSource:
-        if self._data_source is not None:
-            return self._data_source
-        from fantasy_baseball_manager.marcel.data_source import PybaseballDataSource
+    def batting_source(self) -> DataSource[BattingSeasonStats]:
+        if self._batting_source is not None:
+            return self._batting_source
+        from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+        from fantasy_baseball_manager.cache.wrapper import cached
+        from fantasy_baseball_manager.marcel.data_source import create_batting_source
+        from fantasy_baseball_manager.marcel.models import BattingSeasonStats as BattingStats
 
-        return PybaseballDataSource()
+        return cached(
+            create_batting_source(),
+            namespace="stats_batting",
+            ttl_seconds=30 * 86400,
+            serializer=DataclassListSerializer(BattingStats),
+        )
+
+    @cached_property
+    def team_batting_source(self) -> DataSource[BattingSeasonStats]:
+        if self._team_batting_source is not None:
+            return self._team_batting_source
+        from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+        from fantasy_baseball_manager.cache.wrapper import cached
+        from fantasy_baseball_manager.marcel.data_source import create_team_batting_source
+        from fantasy_baseball_manager.marcel.models import BattingSeasonStats as BattingStats
+
+        return cached(
+            create_team_batting_source(),
+            namespace="stats_team_batting",
+            ttl_seconds=30 * 86400,
+            serializer=DataclassListSerializer(BattingStats),
+        )
+
+    @cached_property
+    def pitching_source(self) -> DataSource[PitchingSeasonStats]:
+        if self._pitching_source is not None:
+            return self._pitching_source
+        from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+        from fantasy_baseball_manager.cache.wrapper import cached
+        from fantasy_baseball_manager.marcel.data_source import create_pitching_source
+        from fantasy_baseball_manager.marcel.models import PitchingSeasonStats as PitchingStats
+
+        return cached(
+            create_pitching_source(),
+            namespace="stats_pitching",
+            ttl_seconds=30 * 86400,
+            serializer=DataclassListSerializer(PitchingStats),
+        )
+
+    @cached_property
+    def team_pitching_source(self) -> DataSource[PitchingSeasonStats]:
+        if self._team_pitching_source is not None:
+            return self._team_pitching_source
+        from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+        from fantasy_baseball_manager.cache.wrapper import cached
+        from fantasy_baseball_manager.marcel.data_source import create_team_pitching_source
+        from fantasy_baseball_manager.marcel.models import PitchingSeasonStats as PitchingStats
+
+        return cached(
+            create_team_pitching_source(),
+            namespace="stats_team_pitching",
+            ttl_seconds=30 * 86400,
+            serializer=DataclassListSerializer(PitchingStats),
+        )
 
     @cached_property
     def id_mapper(self) -> SfbbMapper:

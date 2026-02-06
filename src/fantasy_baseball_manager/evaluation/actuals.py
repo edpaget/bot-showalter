@@ -1,10 +1,18 @@
-from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from fantasy_baseball_manager.context import new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection,
     BattingSeasonStats,
     PitchingProjection,
     PitchingSeasonStats,
 )
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.data.protocol import DataSource
 
 
 def batting_stats_to_projection(stats: BattingSeasonStats) -> BattingProjection:
@@ -59,11 +67,19 @@ def pitching_stats_to_projection(stats: PitchingSeasonStats) -> PitchingProjecti
 
 
 def actuals_as_projections(
-    data_source: StatsDataSource,
+    batting_source: DataSource[BattingSeasonStats],
+    pitching_source: DataSource[PitchingSeasonStats],
     year: int,
     min_pa: int = 0,
     min_ip: float = 0.0,
 ) -> tuple[list[BattingProjection], list[PitchingProjection]]:
-    batting = [batting_stats_to_projection(s) for s in data_source.batting_stats(year) if s.pa >= min_pa]
-    pitching = [pitching_stats_to_projection(s) for s in data_source.pitching_stats(year) if s.ip >= min_ip]
+    with new_context(year=year):
+        batting_result = batting_source(ALL_PLAYERS)
+        pitching_result = pitching_source(ALL_PLAYERS)
+
+    all_batting = list(batting_result.unwrap()) if batting_result.is_ok() else []
+    all_pitching = list(pitching_result.unwrap()) if pitching_result.is_ok() else []
+
+    batting = [batting_stats_to_projection(s) for s in all_batting if s.pa >= min_pa]
+    pitching = [pitching_stats_to_projection(s) for s in all_pitching if s.ip >= min_ip]
     return batting, pitching

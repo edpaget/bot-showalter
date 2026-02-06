@@ -8,13 +8,15 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from fantasy_baseball_manager.context import new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.minors.types import (
     MinorLeagueBatterSeasonStats,
     MinorLeagueLevel,
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
     from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
@@ -166,7 +168,7 @@ class MLETrainingDataCollector:
     """
 
     milb_source: MinorLeagueDataSource
-    mlb_source: StatsDataSource
+    mlb_batting_source: DataSource[BattingSeasonStats]
     min_milb_pa: int = 200
     min_mlb_pa: int = 100
     max_prior_mlb_pa: int = 200
@@ -265,15 +267,21 @@ class MLETrainingDataCollector:
         milb_by_player = self._group_by_player(milb_batters)
 
         # Get MLB stats for target year and year+1 (for late-season call-ups)
-        mlb_target = self.mlb_source.batting_stats(target_year)
-        mlb_target_next = self.mlb_source.batting_stats(target_year + 1)
+        with new_context(year=target_year):
+            mlb_target_result = self.mlb_batting_source(ALL_PLAYERS)
+        mlb_target = list(mlb_target_result.unwrap()) if mlb_target_result.is_ok() else []
+        with new_context(year=target_year + 1):
+            mlb_next_result = self.mlb_batting_source(ALL_PLAYERS)
+        mlb_target_next = list(mlb_next_result.unwrap()) if mlb_next_result.is_ok() else []
 
         mlb_lookup = {s.player_id: s for s in mlb_target}
         mlb_next_lookup = {s.player_id: s for s in mlb_target_next}
 
         # Also need to check prior MLB experience
         # Players with >max_prior_mlb_pa before the MiLB season are excluded
-        mlb_prior = self.mlb_source.batting_stats(milb_year)
+        with new_context(year=milb_year):
+            mlb_prior_result = self.mlb_batting_source(ALL_PLAYERS)
+        mlb_prior = list(mlb_prior_result.unwrap()) if mlb_prior_result.is_ok() else []
         mlb_prior_lookup = {s.player_id: s for s in mlb_prior}
 
         for player_id, milb_seasons in milb_by_player.items():

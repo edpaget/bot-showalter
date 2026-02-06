@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
+from fantasy_baseball_manager.context import get_context
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
 from fantasy_baseball_manager.player_id.mapper import SfbbMapper
+from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 if TYPE_CHECKING:
@@ -213,9 +215,26 @@ def _build_fake(num_batters: int = 8, num_pitchers: int = 8) -> FakeDataSource:
     )
 
 
+def _wrap_source(method: Any) -> Any:
+    """Wrap a FakeDataSource method as a DataSource[T] callable."""
+    def source(query: Any) -> Ok:
+        return Ok(method(get_context().year))
+    return source
+
+
+def _sources_kwargs(ds: Any) -> dict[str, Any]:
+    """Convert a FakeDataSource to ServiceContainer kwargs."""
+    return {
+        "batting_source": _wrap_source(ds.batting_stats),
+        "team_batting_source": _wrap_source(ds.team_batting),
+        "pitching_source": _wrap_source(ds.pitching_stats),
+        "team_pitching_source": _wrap_source(ds.team_pitching),
+    }
+
+
 def _install_fake() -> None:
     ds = _build_fake()
-    set_container(ServiceContainer(data_source=ds))
+    set_container(ServiceContainer(**_sources_kwargs(ds)))
 
 
 class TestKeeperRankCommand:
@@ -372,7 +391,7 @@ def _install_yahoo_fakes() -> None:
     mapping = _yahoo_id_mapping()
     set_container(
         ServiceContainer(
-            data_source=ds,
+            **_sources_kwargs(ds),
             roster_source=FakeKeeperRosterSource(rosters),
             id_mapper=_make_mapper(mapping),
             yahoo_league=FakeYahooLeague("422.l.123.t.1"),
@@ -456,7 +475,7 @@ class TestKeeperRankYahoo:
         mapping = {"Y100": "b1"}
         set_container(
             ServiceContainer(
-                data_source=ds,
+                **_sources_kwargs(ds),
                 roster_source=FakeKeeperRosterSource(rosters),
                 id_mapper=_make_mapper(mapping),
                 yahoo_league=FakeYahooLeague("422.l.123.t.1"),
@@ -553,7 +572,7 @@ def _install_league_fakes() -> None:
     mapping = _league_id_mapping()
     set_container(
         ServiceContainer(
-            data_source=ds,
+            **_sources_kwargs(ds),
             roster_source=FakeKeeperRosterSource(rosters),
             id_mapper=_make_mapper(mapping),
             yahoo_league=FakeYahooLeague("422.l.123.t.1"),
@@ -635,7 +654,7 @@ class TestKeeperLeagueCommand:
         mapping = {"Y100": "b1"}
         set_container(
             ServiceContainer(
-                data_source=ds,
+                **_sources_kwargs(ds),
                 roster_source=FakeKeeperRosterSource(rosters),
                 id_mapper=_make_mapper(mapping),
                 yahoo_league=FakeYahooLeague("422.l.123.t.1"),
@@ -672,7 +691,7 @@ class TestKeeperLeagueCommand:
         mapping = {"Y100": "b1", "Y900": "no_projection"}
         set_container(
             ServiceContainer(
-                data_source=ds,
+                **_sources_kwargs(ds),
                 roster_source=FakeKeeperRosterSource(rosters),
                 id_mapper=_make_mapper(mapping),
                 yahoo_league=FakeYahooLeague("422.l.123.t.1"),
@@ -723,7 +742,7 @@ class TestSplitPlayerYahoo:
         mapping = {"Y500": "b1", "Y501": "p1"}
         set_container(
             ServiceContainer(
-                data_source=ds,
+                **_sources_kwargs(ds),
                 roster_source=FakeKeeperRosterSource(rosters),
                 id_mapper=_make_mapper(mapping),
                 yahoo_league=FakeYahooLeague("422.l.123.t.1"),

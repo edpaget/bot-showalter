@@ -16,7 +16,7 @@ from fantasy_baseball_manager.marcel.models import (
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
     from fantasy_baseball_manager.projections.models import BattingProjection, PitchingProjection
 
@@ -108,13 +108,15 @@ class ExternalProjectionAdapter:
 
     def project_batters(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
         year: int,
     ) -> list[MarcelBattingProjection]:
         """Convert external batting projections to internal format.
 
         Args:
-            data_source: Ignored - external projections are pre-computed.
+            batting_source: Ignored - external projections are pre-computed.
+            team_batting_source: Ignored - external projections are pre-computed.
             year: Ignored - uses projection_year from constructor.
 
         Returns:
@@ -160,13 +162,15 @@ class ExternalProjectionAdapter:
 
     def project_pitchers(
         self,
-        data_source: StatsDataSource,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
         year: int,
     ) -> list[MarcelPitchingProjection]:
         """Convert external pitching projections to internal format.
 
         Args:
-            data_source: Ignored - external projections are pre-computed.
+            pitching_source: Ignored - external projections are pre-computed.
+            team_pitching_source: Ignored - external projections are pre-computed.
             year: Ignored - uses projection_year from constructor.
 
         Returns:

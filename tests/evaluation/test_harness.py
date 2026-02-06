@@ -1,5 +1,9 @@
+from collections.abc import Generator
+from typing import Any
+
 import pytest
 
+from fantasy_baseball_manager.context import init_context, reset_context
 from fantasy_baseball_manager.evaluation.harness import (
     EvaluationConfig,
     StratificationConfig,
@@ -13,6 +17,7 @@ from fantasy_baseball_manager.marcel.models import (
     PitchingProjection,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.valuation.models import StatCategory
 from fantasy_baseball_manager.valuation.projection_source import SimpleProjectionSource
 
@@ -144,26 +149,27 @@ def _pitching_stats(
     )
 
 
-class FakeDataSource:
-    def __init__(
-        self,
-        batting: dict[int, list[BattingSeasonStats]],
-        pitching: dict[int, list[PitchingSeasonStats]],
-    ) -> None:
-        self._batting = batting
-        self._pitching = pitching
+def _fake_batting_source(data: dict[int, list[BattingSeasonStats]]) -> Any:
+    """Create a fake DataSource[BattingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[BattingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+        return Ok(data.get(get_context().year, []))
+    return source
 
-    def batting_stats(self, year: int) -> list[BattingSeasonStats]:
-        return self._batting.get(year, [])
 
-    def pitching_stats(self, year: int) -> list[PitchingSeasonStats]:
-        return self._pitching.get(year, [])
+def _fake_pitching_source(data: dict[int, list[PitchingSeasonStats]]) -> Any:
+    """Create a fake DataSource[PitchingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+        return Ok(data.get(get_context().year, []))
+    return source
 
-    def team_batting(self, year: int) -> list[BattingSeasonStats]:
-        return []
 
-    def team_pitching(self, year: int) -> list[PitchingSeasonStats]:
-        return []
+@pytest.fixture(autouse=True)
+def _setup_context() -> Generator[None]:
+    init_context(year=2024)
+    yield
+    reset_context()
 
 
 _DEFAULT_CONFIG = EvaluationConfig(
@@ -188,11 +194,9 @@ class TestEvaluateSourceInnerJoin:
             _batting_stats(player_id="b3", hr=15),  # not in projections
         ]
         source = SimpleProjectionSource(_batting=projected_batters, _pitching=[])
-        ds = FakeDataSource(
-            batting={2024: actual_batters},
-            pitching={2024: []},
-        )
-        result = evaluate_source(source, "test", ds, _DEFAULT_CONFIG)
+        batting_src = _fake_batting_source({2024: actual_batters})
+        pitching_src = _fake_pitching_source({2024: []})
+        result = evaluate_source(source, "test", batting_src, pitching_src, _DEFAULT_CONFIG)
         # HR stat accuracy should have sample_size=1 (only b1 matched)
         hr_acc = next(sa for sa in result.batting_stat_accuracy if sa.category == StatCategory.HR)
         assert hr_acc.sample_size == 1
@@ -210,8 +214,9 @@ class TestEvaluateSourceInnerJoin:
             min_ip=0.0,
             top_n=20,
         )
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
-        result = evaluate_source(source, "test", ds, config)
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
+        result = evaluate_source(source, "test", batting_src, pitching_src, config)
         assert result.batting_stat_accuracy == ()
 
 
@@ -237,8 +242,9 @@ class TestEvaluateSourceStatAccuracy:
             min_ip=0.0,
             top_n=20,
         )
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
-        result = evaluate_source(source, "test", ds, config)
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
+        result = evaluate_source(source, "test", batting_src, pitching_src, config)
         hr_acc = result.batting_stat_accuracy[0]
         assert hr_acc.rmse == pytest.approx(0.0, abs=1e-10)
         assert hr_acc.mae == pytest.approx(0.0, abs=1e-10)
@@ -259,8 +265,9 @@ class TestEvaluateSourceRankAccuracy:
             _batting_stats(player_id="b3", hr=22, sb=24),
         ]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
-        result = evaluate_source(source, "test", ds, _DEFAULT_CONFIG)
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
+        result = evaluate_source(source, "test", batting_src, pitching_src, _DEFAULT_CONFIG)
         assert result.batting_rank_accuracy is not None
         assert result.batting_rank_accuracy.sample_size == 3
 
@@ -269,8 +276,9 @@ class TestEvaluateSourceRankAccuracy:
         projected = [_batter_proj(player_id="b1", hr=30.0)]
         actuals = [_batting_stats(player_id="b1", hr=28)]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
-        result = evaluate_source(source, "test", ds, _DEFAULT_CONFIG)
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
+        result = evaluate_source(source, "test", batting_src, pitching_src, _DEFAULT_CONFIG)
         assert result.batting_rank_accuracy is None
 
 
@@ -279,8 +287,9 @@ class TestEvaluateSourceNoOverlap:
         projected = [_batter_proj(player_id="b1")]
         actuals = [_batting_stats(player_id="b99")]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
-        result = evaluate_source(source, "test", ds, _DEFAULT_CONFIG)
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
+        result = evaluate_source(source, "test", batting_src, pitching_src, _DEFAULT_CONFIG)
         assert result.batting_stat_accuracy == ()
         assert result.batting_rank_accuracy is None
 
@@ -301,7 +310,8 @@ class TestEvaluate:
         ]
         source_a = SimpleProjectionSource(_batting=projected_a, _pitching=[])
         source_b = SimpleProjectionSource(_batting=projected_b, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
         config = EvaluationConfig(
             year=2024,
             batting_categories=(StatCategory.HR,),
@@ -312,7 +322,8 @@ class TestEvaluate:
         )
         result = evaluate(
             sources=[("source_a", source_a), ("source_b", source_b)],
-            data_source=ds,
+            batting_source=batting_src,
+            pitching_source=pitching_src,
             config=config,
         )
         assert len(result.evaluations) == 2
@@ -331,8 +342,9 @@ class TestEvaluate:
             _pitching_stats(player_id="p3", so=240, ip=195.0, er=52),
         ]
         source = SimpleProjectionSource(_batting=[], _pitching=projected)
-        ds = FakeDataSource(batting={2024: []}, pitching={2024: actuals})
-        result = evaluate_source(source, "test", ds, _DEFAULT_CONFIG)
+        batting_src = _fake_batting_source({2024: []})
+        pitching_src = _fake_pitching_source({2024: actuals})
+        result = evaluate_source(source, "test", batting_src, pitching_src, _DEFAULT_CONFIG)
         assert len(result.pitching_stat_accuracy) == 3
         assert result.pitching_rank_accuracy is not None
 
@@ -358,7 +370,8 @@ class TestStratification:
             _batting_stats(player_id="b6", hr=30, pa=700),
         ]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
         config = EvaluationConfig(
             year=2024,
             batting_categories=(StatCategory.HR,),
@@ -368,7 +381,7 @@ class TestStratification:
             top_n=20,
             stratification=StratificationConfig(),
         )
-        result = evaluate_source(source, "test", ds, config)
+        result = evaluate_source(source, "test", batting_src, pitching_src, config)
         assert len(result.batting_strata) > 0
         # Check that PA buckets exist
         pa_strata = [s for s in result.batting_strata if s.stratum_name.startswith("PA")]
@@ -396,7 +409,8 @@ class TestStratification:
             _batting_stats(player_id="b6", hr=30, age=38),
         ]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
         config = EvaluationConfig(
             year=2024,
             batting_categories=(StatCategory.HR,),
@@ -406,7 +420,7 @@ class TestStratification:
             top_n=20,
             stratification=StratificationConfig(),
         )
-        result = evaluate_source(source, "test", ds, config)
+        result = evaluate_source(source, "test", batting_src, pitching_src, config)
         age_strata = [s for s in result.batting_strata if s.stratum_name.startswith("AGE")]
         assert len(age_strata) == 3
         for s in age_strata:
@@ -424,7 +438,8 @@ class TestStratification:
             _batting_stats(player_id="b2", hr=24, pa=650),
         ]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
         config = EvaluationConfig(
             year=2024,
             batting_categories=(StatCategory.HR,),
@@ -434,7 +449,7 @@ class TestStratification:
             top_n=20,
             stratification=StratificationConfig(),
         )
-        result = evaluate_source(source, "test", ds, config)
+        result = evaluate_source(source, "test", batting_src, pitching_src, config)
         pa_strata = [s for s in result.batting_strata if s.stratum_name.startswith("PA")]
         # Only the 600-1500 bucket should be included
         assert len(pa_strata) == 1
@@ -451,7 +466,8 @@ class TestStratification:
             _batting_stats(player_id="b2", hr=27),
         ]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
         config = EvaluationConfig(
             year=2024,
             batting_categories=(StatCategory.HR,),
@@ -461,7 +477,7 @@ class TestStratification:
             top_n=20,
             stratification=StratificationConfig(include_residuals=True),
         )
-        result = evaluate_source(source, "test", ds, config)
+        result = evaluate_source(source, "test", batting_src, pitching_src, config)
         assert result.batting_residuals is not None
         assert len(result.batting_residuals) == 2  # 2 players * 1 category
         # Check residual values
@@ -482,7 +498,8 @@ class TestStratification:
             _batting_stats(player_id="b2", hr=27),
         ]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
         config = EvaluationConfig(
             year=2024,
             batting_categories=(StatCategory.HR,),
@@ -492,7 +509,7 @@ class TestStratification:
             top_n=20,
             stratification=None,
         )
-        result = evaluate_source(source, "test", ds, config)
+        result = evaluate_source(source, "test", batting_src, pitching_src, config)
         assert result.batting_strata == ()
         assert result.batting_residuals is None
 
@@ -515,7 +532,8 @@ class TestHeadToHead:
         ]
         source_a = SimpleProjectionSource(_batting=projected_a, _pitching=[])
         source_b = SimpleProjectionSource(_batting=projected_b, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
         config = EvaluationConfig(
             year=2024,
             batting_categories=(StatCategory.HR,),
@@ -525,8 +543,8 @@ class TestHeadToHead:
             top_n=20,
             stratification=StratificationConfig(include_residuals=True),
         )
-        result_a = evaluate_source(source_a, "source_a", ds, config)
-        result_b = evaluate_source(source_b, "source_b", ds, config)
+        result_a = evaluate_source(source_a, "source_a", batting_src, pitching_src, config)
+        result_b = evaluate_source(source_b, "source_b", batting_src, pitching_src, config)
 
         h2h_results = compare_sources(result_a, result_b)
         assert len(h2h_results) == 1
@@ -544,7 +562,8 @@ class TestHeadToHead:
         projected = [_batter_proj(player_id="b1", hr=30.0)]
         actuals = [_batting_stats(player_id="b1", hr=28)]
         source = SimpleProjectionSource(_batting=projected, _pitching=[])
-        ds = FakeDataSource(batting={2024: actuals}, pitching={2024: []})
+        batting_src = _fake_batting_source({2024: actuals})
+        pitching_src = _fake_pitching_source({2024: []})
         config = EvaluationConfig(
             year=2024,
             batting_categories=(StatCategory.HR,),
@@ -554,8 +573,8 @@ class TestHeadToHead:
             top_n=20,
             stratification=None,  # No residuals
         )
-        result_a = evaluate_source(source, "a", ds, config)
-        result_b = evaluate_source(source, "b", ds, config)
+        result_a = evaluate_source(source, "a", batting_src, pitching_src, config)
+        result_b = evaluate_source(source, "b", batting_src, pitching_src, config)
 
         with pytest.raises(ValueError, match="Residuals required"):
             compare_sources(result_a, result_b)

@@ -15,7 +15,6 @@ from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
 
 MARCEL_BATTING_WEIGHTS = (5, 4, 3)
@@ -199,46 +198,3 @@ class MarcelRateComputer:
 
         return result
 
-    # -- Legacy methods for callers not yet migrated to DataSource protocol --
-
-    def compute_batting_rates_legacy(
-        self,
-        data_source: StatsDataSource,
-        year: int,
-        years_back: int,
-    ) -> list[PlayerRates]:
-        """Compute batting rates using legacy StatsDataSource interface.
-
-        Adapts StatsDataSource to DataSource callables and delegates to
-        compute_batting_rates. Will be removed when all callers are migrated.
-        """
-        from fantasy_baseball_manager.pipeline.engine import _adapt_batting, _adapt_team_batting
-
-        with new_context(year=year):
-            return self.compute_batting_rates(
-                _adapt_batting(data_source),
-                _adapt_team_batting(data_source),
-                year,
-                years_back,
-            )
-
-    def compute_pitching_rates_legacy(
-        self,
-        data_source: StatsDataSource,
-        year: int,
-        years_back: int,
-    ) -> list[PlayerRates]:
-        """Compute pitching rates using legacy StatsDataSource interface.
-
-        Adapts StatsDataSource to DataSource callables and delegates to
-        compute_pitching_rates. Will be removed when all callers are migrated.
-        """
-        from fantasy_baseball_manager.pipeline.engine import _adapt_pitching, _adapt_team_pitching
-
-        with new_context(year=year):
-            return self.compute_pitching_rates(
-                _adapt_pitching(data_source),
-                _adapt_team_pitching(data_source),
-                year,
-                years_back,
-            )

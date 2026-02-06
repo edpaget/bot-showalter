@@ -25,7 +25,8 @@ from fantasy_baseball_manager.ml.mtl.model import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
@@ -45,7 +46,8 @@ class MTLTrainer:
     4. Return trained model with validation metrics
     """
 
-    data_source: StatsDataSource
+    batting_source: DataSource[BattingSeasonStats]
+    pitching_source: DataSource[PitchingSeasonStats]
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
     skill_data_source: SkillDataSource
@@ -67,7 +69,7 @@ class MTLTrainer:
         """
         # Collect training data
         collector = BatterTrainingDataCollector(
-            data_source=self.data_source,
+            batting_source=self.batting_source,
             statcast_source=self.statcast_source,
             skill_data_source=self.skill_data_source,
             id_mapper=self.id_mapper,
@@ -147,7 +149,7 @@ class MTLTrainer:
         """
         # Collect training data
         collector = PitcherTrainingDataCollector(
-            data_source=self.data_source,
+            pitching_source=self.pitching_source,
             statcast_source=self.statcast_source,
             batted_ball_source=self.batted_ball_source,
             id_mapper=self.id_mapper,

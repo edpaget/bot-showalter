@@ -182,14 +182,14 @@ def marcel(
     console.print(f"[bold]{pipeline.name.upper()} projections for {year}[/bold]")
     console.print(f"Using data from {year - pipeline.years_back}-{year - 1}\n")
 
-    data_source = get_container().data_source
+    container = get_container()
 
     if show_batting:
         batting_sort = sort_by or "hr"
         if batting_sort not in BATTING_SORT_FIELDS:
             typer.echo(f"Unknown batting sort field: {batting_sort}", err=True)
             raise typer.Exit(code=1)
-        projections = pipeline.project_batters(data_source, year)
+        projections = pipeline.project_batters(container.batting_source, container.team_batting_source, year)
         projections.sort(key=BATTING_SORT_FIELDS[batting_sort], reverse=True)
         print_batting_table(projections, top)
 
@@ -201,6 +201,6 @@ def marcel(
         if pitching_sort not in PITCHING_SORT_FIELDS:
             typer.echo(f"Unknown pitching sort field: {pitching_sort}", err=True)
             raise typer.Exit(code=1)
-        projections = pipeline.project_pitchers(data_source, year)
+        projections = pipeline.project_pitchers(container.pitching_source, container.team_pitching_source, year)
         projections.sort(key=PITCHING_SORT_FIELDS[pitching_sort], reverse=True)
         print_pitching_table(projections, top)

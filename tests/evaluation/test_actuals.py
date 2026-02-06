@@ -1,5 +1,8 @@
+from typing import Any
+
 import pytest
 
+from fantasy_baseball_manager.context import init_context, reset_context
 from fantasy_baseball_manager.evaluation.actuals import (
     actuals_as_projections,
     batting_stats_to_projection,
@@ -9,6 +12,7 @@ from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.result import Ok
 
 
 def _make_batting_stats(
@@ -89,26 +93,20 @@ def _make_pitching_stats(
     )
 
 
-class FakeDataSource:
-    def __init__(
-        self,
-        batting: dict[int, list[BattingSeasonStats]],
-        pitching: dict[int, list[PitchingSeasonStats]],
-    ) -> None:
-        self._batting = batting
-        self._pitching = pitching
+def _fake_batting_source(data: dict[int, list[BattingSeasonStats]]) -> Any:
+    """Create a fake DataSource[BattingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[BattingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+        return Ok(data.get(get_context().year, []))
+    return source
 
-    def batting_stats(self, year: int) -> list[BattingSeasonStats]:
-        return self._batting.get(year, [])
 
-    def pitching_stats(self, year: int) -> list[PitchingSeasonStats]:
-        return self._pitching.get(year, [])
-
-    def team_batting(self, year: int) -> list[BattingSeasonStats]:
-        return []
-
-    def team_pitching(self, year: int) -> list[PitchingSeasonStats]:
-        return []
+def _fake_pitching_source(data: dict[int, list[PitchingSeasonStats]]) -> Any:
+    """Create a fake DataSource[PitchingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+        return Ok(data.get(get_context().year, []))
+    return source
 
 
 class TestBattingStatsToProjection:
@@ -140,39 +138,39 @@ class TestPitchingStatsToProjection:
 
 
 class TestActualsAsProjections:
+    def setup_method(self) -> None:
+        init_context(year=2024)
+
+    def teardown_method(self) -> None:
+        reset_context()
+
     def test_returns_batting_and_pitching(self) -> None:
-        ds = FakeDataSource(
-            batting={2024: [_make_batting_stats()]},
-            pitching={2024: [_make_pitching_stats()]},
-        )
-        batting, pitching = actuals_as_projections(ds, 2024)
+        batting_src = _fake_batting_source({2024: [_make_batting_stats()]})
+        pitching_src = _fake_pitching_source({2024: [_make_pitching_stats()]})
+        batting, pitching = actuals_as_projections(batting_src, pitching_src, 2024)
         assert len(batting) == 1
         assert len(pitching) == 1
 
     def test_min_pa_filter(self) -> None:
-        ds = FakeDataSource(
-            batting={
-                2024: [
-                    _make_batting_stats(player_id="b1", pa=100),
-                    _make_batting_stats(player_id="b2", pa=500),
-                ]
-            },
-            pitching={2024: []},
-        )
-        batting, _ = actuals_as_projections(ds, 2024, min_pa=200)
+        batting_src = _fake_batting_source({
+            2024: [
+                _make_batting_stats(player_id="b1", pa=100),
+                _make_batting_stats(player_id="b2", pa=500),
+            ]
+        })
+        pitching_src = _fake_pitching_source({2024: []})
+        batting, _ = actuals_as_projections(batting_src, pitching_src, 2024, min_pa=200)
         assert len(batting) == 1
         assert batting[0].player_id == "b2"
 
     def test_min_ip_filter(self) -> None:
-        ds = FakeDataSource(
-            batting={2024: []},
-            pitching={
-                2024: [
-                    _make_pitching_stats(player_id="p1", ip=30.0),
-                    _make_pitching_stats(player_id="p2", ip=100.0),
-                ]
-            },
-        )
-        _, pitching = actuals_as_projections(ds, 2024, min_ip=50.0)
+        batting_src = _fake_batting_source({2024: []})
+        pitching_src = _fake_pitching_source({
+            2024: [
+                _make_pitching_stats(player_id="p1", ip=30.0),
+                _make_pitching_stats(player_id="p2", ip=100.0),
+            ]
+        })
+        _, pitching = actuals_as_projections(batting_src, pitching_src, 2024, min_ip=50.0)
         assert len(pitching) == 1
         assert pitching[0].player_id == "p2"

@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import json
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.console import Console
@@ -20,12 +22,15 @@ from fantasy_baseball_manager.evaluation.models import (
     StatAccuracy,
     StratumAccuracy,
 )
-from fantasy_baseball_manager.marcel.data_source import StatsDataSource
 from fantasy_baseball_manager.pipeline.presets import get_pipeline
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
-from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 from fantasy_baseball_manager.services import cli_context, get_container, set_container
-from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
+    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
 
 console = Console()
 
@@ -100,7 +105,10 @@ def _print_evaluation(se: SourceEvaluation, include_strata: bool = False) -> Non
 
 def _build_source(
     engine: str,
-    data_source: StatsDataSource,
+    batting_source: DataSource[BattingSeasonStats],
+    team_batting_source: DataSource[BattingSeasonStats],
+    pitching_source: DataSource[PitchingSeasonStats],
+    team_pitching_source: DataSource[PitchingSeasonStats],
     year: int,
     id_mapper: PlayerIdMapper | None = None,
 ) -> tuple[str, ProjectionSource]:
@@ -112,7 +120,10 @@ def _build_source(
 
     Args:
         engine: Engine name (e.g., "marcel", "steamer").
-        data_source: Stats data source for pipeline projections.
+        batting_source: DataSource for batting stats.
+        team_batting_source: DataSource for team batting stats.
+        pitching_source: DataSource for pitching stats.
+        team_pitching_source: DataSource for team pitching stats.
         year: Projection year (used to find historical CSV files).
         id_mapper: Optional player ID mapper for resolving FanGraphs IDs.
 
@@ -120,7 +131,9 @@ def _build_source(
         Tuple of (engine_name, projection_source).
     """
     pipeline = get_pipeline(engine, year=year, id_mapper=id_mapper)
-    return (engine, PipelineProjectionSource(pipeline, data_source, year))
+    return (engine, PipelineProjectionSource(
+        pipeline, batting_source, team_batting_source, pitching_source, team_pitching_source, year
+    ))
 
 
 def _average_evaluations(
@@ -275,7 +288,10 @@ def evaluate_cmd(
 
     with cli_context():
         container = get_container()
-        data_source = container.data_source
+        batting_source = container.batting_source
+        team_batting_source = container.team_batting_source
+        pitching_source = container.pitching_source
+        team_pitching_source = container.team_pitching_source
         id_mapper = container.id_mapper
         league_settings = load_league_settings()
 
@@ -299,8 +315,17 @@ def evaluate_cmd(
                     top_n=top_n,
                     stratification=stratification,
                 )
-                source = _build_source(eng, data_source, eval_year, id_mapper=id_mapper)
-                result = evaluate(sources=[source], data_source=data_source, config=config)
+                source = _build_source(
+                    eng, batting_source, team_batting_source,
+                    pitching_source, team_pitching_source,
+                    eval_year, id_mapper=id_mapper,
+                )
+                result = evaluate(
+                    sources=[source],
+                    batting_source=batting_source,
+                    pitching_source=pitching_source,
+                    config=config,
+                )
                 se = result.evaluations[0]
                 year_evaluations.append(se)
                 all_evaluations.append(se)

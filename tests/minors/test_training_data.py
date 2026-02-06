@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from fantasy_baseball_manager.context import init_context, reset_context
 from fantasy_baseball_manager.marcel.models import BattingSeasonStats
 from fantasy_baseball_manager.minors.training_data import (
     BATTER_TARGET_STATS,
@@ -183,18 +184,27 @@ class _FakeMinorLeagueDataSource:
         return self._data.get(year, [])
 
 
-class _FakeMLBDataSource:
-    """Fake MLB data source for testing."""
+def _fake_mlb_batting_source(data: dict[int, list[BattingSeasonStats]] | None = None) -> object:
+    """Create a fake DataSource[BattingSeasonStats] callable."""
+    from fantasy_baseball_manager.context import get_context
+    from fantasy_baseball_manager.result import Ok
 
-    def __init__(self, data: dict[int, list[BattingSeasonStats]] | None = None) -> None:
-        self._data = data or {}
+    store = data or {}
 
-    def batting_stats(self, year: int) -> list[BattingSeasonStats]:
-        return self._data.get(year, [])
+    def source(query: object) -> Ok[list[BattingSeasonStats]]:
+        return Ok(store.get(get_context().year, []))
+
+    return source
 
 
 class TestMLETrainingDataCollector:
     """Tests for MLETrainingDataCollector."""
+
+    def setup_method(self) -> None:
+        init_context(year=2024)
+
+    def teardown_method(self) -> None:
+        reset_context()
 
     def test_collect_qualifying_sample(self) -> None:
         """Collect a qualifying player with sufficient MiLB and MLB PA."""
@@ -213,7 +223,7 @@ class TestMLETrainingDataCollector:
                 ]
             }
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2023: [],  # No prior MLB experience
                 2024: [_make_mlb_stats(player_id="123", pa=150, hr=10, so=40, bb=15)],
@@ -223,7 +233,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
             min_milb_pa=200,
             min_mlb_pa=100,
             max_prior_mlb_pa=200,
@@ -241,7 +251,7 @@ class TestMLETrainingDataCollector:
         milb_source = _FakeMinorLeagueDataSource(
             {2023: [_make_milb_stats(player_id="123", pa=100, level=MinorLeagueLevel.AAA)]}
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2023: [],
                 2024: [_make_mlb_stats(player_id="123", pa=200)],
@@ -251,7 +261,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
             min_milb_pa=200,  # Requires 200, player has 100
             min_mlb_pa=100,
         )
@@ -264,7 +274,7 @@ class TestMLETrainingDataCollector:
         milb_source = _FakeMinorLeagueDataSource(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.AAA)]}
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2023: [],
                 2024: [_make_mlb_stats(player_id="123", pa=50)],  # Below threshold
@@ -274,7 +284,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
             min_milb_pa=200,
             min_mlb_pa=100,  # Requires 100, player has max 50
         )
@@ -288,7 +298,7 @@ class TestMLETrainingDataCollector:
         milb_source = _FakeMinorLeagueDataSource(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.HIGH_A)]}
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2023: [],
                 2024: [_make_mlb_stats(player_id="123", pa=200)],
@@ -298,7 +308,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
             min_milb_pa=200,
             min_mlb_pa=100,
         )
@@ -311,7 +321,7 @@ class TestMLETrainingDataCollector:
         milb_source = _FakeMinorLeagueDataSource(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.AAA)]}
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2023: [_make_mlb_stats(player_id="123", pa=300)],  # Prior experience
                 2024: [_make_mlb_stats(player_id="123", pa=400)],
@@ -321,7 +331,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
             min_milb_pa=200,
             min_mlb_pa=100,
             max_prior_mlb_pa=200,  # Player has 300 PA in prior year
@@ -335,7 +345,7 @@ class TestMLETrainingDataCollector:
         milb_source = _FakeMinorLeagueDataSource(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.AAA)]}
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2023: [],
                 2024: [_make_mlb_stats(player_id="123", pa=50)],  # Below threshold
@@ -345,7 +355,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
             min_milb_pa=200,
             min_mlb_pa=100,
         )
@@ -372,7 +382,7 @@ class TestMLETrainingDataCollector:
                 ]
             }
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2023: [],
                 2024: [_make_mlb_stats(player_id="123", pa=200)],
@@ -382,7 +392,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
         )
 
         features, _targets, _weights, feature_names, _ = collector.collect((2024,))
@@ -405,7 +415,7 @@ class TestMLETrainingDataCollector:
         milb_source = _FakeMinorLeagueDataSource(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.AAA)]}
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2023: [],
                 2024: [
@@ -424,7 +434,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
         )
 
         _features, targets, _weights, _, _ = collector.collect((2024,))
@@ -442,7 +452,7 @@ class TestMLETrainingDataCollector:
                 2023: [_make_milb_stats(player_id="200", pa=300, level=MinorLeagueLevel.AAA)],
             }
         )
-        mlb_source = _FakeMLBDataSource(
+        mlb_source = _fake_mlb_batting_source(
             {
                 2022: [],
                 2023: [_make_mlb_stats(player_id="100", pa=200)],
@@ -453,7 +463,7 @@ class TestMLETrainingDataCollector:
 
         collector = MLETrainingDataCollector(
             milb_source=milb_source,  # type: ignore[arg-type]
-            mlb_source=mlb_source,  # type: ignore[arg-type]
+            mlb_batting_source=mlb_source,  # type: ignore[arg-type]
         )
 
         features, _targets, _weights, _, _ = collector.collect((2023, 2024))
@@ -463,7 +473,7 @@ class TestMLETrainingDataCollector:
         """feature_names() should return consistent feature names."""
         collector = MLETrainingDataCollector(
             milb_source=_FakeMinorLeagueDataSource(),  # type: ignore[arg-type]
-            mlb_source=_FakeMLBDataSource(),  # type: ignore[arg-type]
+            mlb_batting_source=_fake_mlb_batting_source(),  # type: ignore[arg-type]
         )
 
         feature_names = collector.feature_names()

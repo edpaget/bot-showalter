@@ -1,13 +1,16 @@
 from collections.abc import Generator
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
+from fantasy_baseball_manager.context import get_context
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 runner = CliRunner()
@@ -198,9 +201,21 @@ def reset_container() -> Generator[None]:
     set_container(None)
 
 
+def _wrap_source(method: Any) -> Any:
+    """Wrap a FakeDataSource method as a DataSource[T] callable."""
+    def source(query: Any) -> Ok:
+        return Ok(method(get_context().year))
+    return source
+
+
 def _install_fake() -> None:
     ds = _build_fake_data_source()
-    set_container(ServiceContainer(data_source=ds))
+    set_container(ServiceContainer(
+        batting_source=_wrap_source(ds.batting_stats),
+        team_batting_source=_wrap_source(ds.team_batting),
+        pitching_source=_wrap_source(ds.pitching_stats),
+        team_pitching_source=_wrap_source(ds.team_pitching),
+    ))
 
 
 class TestEvaluateCommand:

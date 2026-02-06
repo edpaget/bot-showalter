@@ -169,14 +169,14 @@ def draft_rank(
 
         # Generate projections and valuations
         league_settings = load_league_settings()
-        data_source = get_container().data_source
+        container = get_container()
         pipeline = PIPELINES[engine]()
         all_values: list[PlayerValue] = []
         batting_ids: set[str] = set()
         pitching_ids: set[str] = set()
 
         if show_batting:
-            batting_projections = pipeline.project_batters(data_source, year)
+            batting_projections = pipeline.project_batters(container.batting_source, container.team_batting_source, year)
             batting_values = zscore_batting(batting_projections, league_settings.batting_categories)
             all_values.extend(batting_values)
             batting_ids = {p.player_id for p in batting_projections}
@@ -185,7 +185,7 @@ def draft_rank(
                 logger.debug("  sample batting IDs: %s", list(batting_ids)[:5])
 
         if show_pitching:
-            pitching_projections = pipeline.project_pitchers(data_source, year)
+            pitching_projections = pipeline.project_pitchers(container.pitching_source, container.team_pitching_source, year)
             # Infer pitcher positions (into the plain player_positions dict)
             for proj in pitching_projections:
                 if proj.player_id not in player_positions:

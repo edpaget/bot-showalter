@@ -1,5 +1,8 @@
+from typing import Any
+
 import pytest
 
+from fantasy_baseball_manager.context import get_context, init_context, reset_context
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection,
     BattingSeasonStats,
@@ -177,11 +180,11 @@ class TestConfigThreading:
     @pytest.mark.parametrize("factory", [marcel_pipeline, marcel_full_pipeline, marcel_gb_pipeline])
     def test_custom_config_threads_to_rate_computer(
         self,
-        factory: object,
+        factory: Any,
     ) -> None:
         custom_batting = {"hr": 999.0}
         config = RegressionConfig(batting_regression_pa=custom_batting)
-        pipeline = factory(config=config)  # type: ignore[operator]
+        pipeline = factory(config=config)
         assert isinstance(pipeline.rate_computer, StatSpecificRegressionRateComputer)
         assert pipeline.rate_computer._batting_regression == custom_batting
 
@@ -322,8 +325,23 @@ class IntegrationDataSource:
         return self._team_pitching.get(year, [])
 
 
+def _wrap_source(method: Any) -> Any:
+    """Wrap a method as a DataSource[T] callable."""
+    from fantasy_baseball_manager.result import Ok
+
+    def source(query: Any) -> Ok:
+        return Ok(method(get_context().year))
+    return source
+
+
 class TestAllPipelinesProduceValidProjections:
     """Every registered pipeline produces non-empty, non-negative batting projections."""
+
+    def setup_method(self) -> None:
+        init_context(year=2025)
+
+    def teardown_method(self) -> None:
+        reset_context()
 
     def test_marcel_produces_valid_batting(self) -> None:
         league = _make_league_batting()
@@ -337,7 +355,8 @@ class TestAllPipelinesProduceValidProjections:
         )
 
         pipeline = PIPELINES["marcel"]()
-        result = pipeline.project_batters(ds, 2025)
+        result = pipeline.project_batters(
+            _wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025        )
         assert len(result) == 1
         proj = result[0]
         assert isinstance(proj, BattingProjection)
@@ -359,7 +378,8 @@ class TestAllPipelinesProduceValidProjections:
         )
 
         pipeline = PIPELINES["mle"]()
-        result = pipeline.project_batters(ds, 2025)
+        result = pipeline.project_batters(
+            _wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025        )
         assert len(result) == 1
         proj = result[0]
         assert isinstance(proj, BattingProjection)
@@ -371,6 +391,12 @@ class TestAllPipelinesProduceValidProjections:
 
 class TestMLEFallbackBehavior:
     """Test MLE gracefully falls back to Marcel when no model exists."""
+
+    def setup_method(self) -> None:
+        init_context(year=2025)
+
+    def teardown_method(self) -> None:
+        reset_context()
 
     def test_mle_pipeline_falls_back_when_no_model(self) -> None:
         """MLE should produce valid projections even without trained model."""
@@ -386,7 +412,8 @@ class TestMLEFallbackBehavior:
 
         # MLE pipeline without a trained model should fall back to Marcel rates
         pipeline = mle_pipeline()
-        result = pipeline.project_batters(ds, 2025)
+        result = pipeline.project_batters(
+            _wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025        )
 
         # Should still produce valid projections via Marcel fallback
         assert len(result) == 1

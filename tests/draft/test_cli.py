@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,10 +9,12 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.adp.models import ADPEntry
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import create_config
+from fantasy_baseball_manager.context import get_context
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
 )
+from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.services import ServiceContainer, set_container
 
 runner = CliRunner()
@@ -246,9 +249,26 @@ def reset_container() -> Generator[None]:
     set_container(None)
 
 
+def _wrap_source(method: Any) -> Any:
+    """Wrap a FakeDataSource method as a DataSource[T] callable."""
+    def source(query: Any) -> Ok:
+        return Ok(method(get_context().year))
+    return source
+
+
+def _sources_kwargs(ds: Any) -> dict[str, Any]:
+    """Convert a FakeDataSource to ServiceContainer kwargs."""
+    return {
+        "batting_source": _wrap_source(ds.batting_stats),
+        "team_batting_source": _wrap_source(ds.team_batting),
+        "pitching_source": _wrap_source(ds.pitching_stats),
+        "team_pitching_source": _wrap_source(ds.team_pitching),
+    }
+
+
 def _install_fake(batting: bool = True, pitching: bool = True) -> None:
     ds = _build_fake(batting=batting, pitching=pitching)
-    set_container(ServiceContainer(data_source=ds))
+    set_container(ServiceContainer(**_sources_kwargs(ds)))
 
 
 class TestDraftRankCommand:
@@ -343,7 +363,7 @@ class TestDraftRankCommand:
             "103": "b3",
         }.get(yid)
 
-        set_container(ServiceContainer(data_source=ds, yahoo_league=league, id_mapper=mapper))
+        set_container(ServiceContainer(**_sources_kwargs(ds), yahoo_league=league, id_mapper=mapper))
         result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo"])
         assert result.exit_code == 0
         # b1 was drafted by another team — should be excluded
@@ -372,7 +392,7 @@ class TestDraftRankCommand:
         mapper = MagicMock()
         mapper.yahoo_to_fangraphs.side_effect = lambda yid: {"101": "b1", "102": "b2"}.get(yid)
 
-        set_container(ServiceContainer(data_source=ds, yahoo_league=league, id_mapper=mapper))
+        set_container(ServiceContainer(**_sources_kwargs(ds), yahoo_league=league, id_mapper=mapper))
         result = runner.invoke(app, ["players", "draft-rank", "2025", "--batting", "--yahoo"])
         assert result.exit_code == 0
         # b1 was drafted by user's team — should be excluded from rankings
@@ -430,7 +450,7 @@ class TestDraftRankCommand:
             for p in year_pitchers:
                 object.__setattr__(p, "player_id", "two_way")
                 object.__setattr__(p, "name", "Two Way Player")
-        set_container(ServiceContainer(data_source=ds))
+        set_container(ServiceContainer(**_sources_kwargs(ds)))
 
         pos_file = tmp_path / "positions.csv"
         # Simulate Yahoo-like positions: Util (from DH) + P (generic pitcher)
@@ -462,7 +482,7 @@ class TestDraftRankCommand:
         league.settings.return_value = {"draft_status": "predraft"}
         league.team_key.return_value = "422.l.1.t.1"
 
-        set_container(ServiceContainer(data_source=ds, yahoo_league=league, id_mapper=MagicMock()))
+        set_container(ServiceContainer(**_sources_kwargs(ds), yahoo_league=league, id_mapper=MagicMock()))
 
         pos_file = tmp_path / "positions.csv"
         pos_file.write_text("b1,SS\n")

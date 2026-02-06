@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from fantasy_baseball_manager.context import new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.ml.features import BatterFeatureExtractor, PitcherFeatureExtractor
 from fantasy_baseball_manager.ml.residual_model import (
     ModelHyperparameters,
@@ -24,7 +26,8 @@ from fantasy_baseball_manager.ml.validation import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
     from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
@@ -61,7 +64,10 @@ class ResidualModelTrainer:
     """
 
     pipeline: ProjectionPipeline
-    data_source: StatsDataSource
+    batting_source: DataSource[BattingSeasonStats]
+    team_batting_source: DataSource[BattingSeasonStats]
+    pitching_source: DataSource[PitchingSeasonStats]
+    team_pitching_source: DataSource[PitchingSeasonStats]
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
     skill_data_source: SkillDataSource
@@ -89,11 +95,13 @@ class ResidualModelTrainer:
             logger.info("Processing batter training data for target year %d", target_year)
 
             # Get projections for target year
-            projections = self.pipeline.project_batters(self.data_source, target_year)
+            projections = self.pipeline.project_batters(self.batting_source, self.team_batting_source, target_year)
             proj_lookup = {p.player_id: p for p in projections}
 
             # Get actuals for target year
-            actuals = self.data_source.batting_stats(target_year)
+            with new_context(year=target_year):
+                actuals_result = self.batting_source(ALL_PLAYERS)
+            actuals = list(actuals_result.unwrap()) if actuals_result.is_ok() else []
             actual_lookup = {a.player_id: a for a in actuals}
 
             # Get Statcast data from prior year (most recent available when making projection)
@@ -205,11 +213,13 @@ class ResidualModelTrainer:
             logger.info("Processing pitcher training data for target year %d", target_year)
 
             # Get projections for target year
-            projections = self.pipeline.project_pitchers(self.data_source, target_year)
+            projections = self.pipeline.project_pitchers(self.pitching_source, self.team_pitching_source, target_year)
             proj_lookup = {p.player_id: p for p in projections}
 
             # Get actuals for target year
-            actuals = self.data_source.pitching_stats(target_year)
+            with new_context(year=target_year):
+                actuals_result = self.pitching_source(ALL_PLAYERS)
+            actuals = list(actuals_result.unwrap()) if actuals_result.is_ok() else []
             actual_lookup = {a.player_id: a for a in actuals}
 
             # Get Statcast and batted ball data from prior year
@@ -534,11 +544,13 @@ class ResidualModelTrainer:
 
         for target_year in years:
             # Get projections for target year
-            projections = self.pipeline.project_batters(self.data_source, target_year)
+            projections = self.pipeline.project_batters(self.batting_source, self.team_batting_source, target_year)
             proj_lookup = {p.player_id: p for p in projections}
 
             # Get actuals for target year
-            actuals = self.data_source.batting_stats(target_year)
+            with new_context(year=target_year):
+                actuals_result = self.batting_source(ALL_PLAYERS)
+            actuals = list(actuals_result.unwrap()) if actuals_result.is_ok() else []
             actual_lookup = {a.player_id: a for a in actuals}
 
             # Get Statcast data from prior year
@@ -618,11 +630,13 @@ class ResidualModelTrainer:
 
         for target_year in years:
             # Get projections for target year
-            projections = self.pipeline.project_pitchers(self.data_source, target_year)
+            projections = self.pipeline.project_pitchers(self.pitching_source, self.team_pitching_source, target_year)
             proj_lookup = {p.player_id: p for p in projections}
 
             # Get actuals for target year
-            actuals = self.data_source.pitching_stats(target_year)
+            with new_context(year=target_year):
+                actuals_result = self.pitching_source(ALL_PLAYERS)
+            actuals = list(actuals_result.unwrap()) if actuals_result.is_ok() else []
             actual_lookup = {a.player_id: a for a in actuals}
 
             # Get Statcast and batted ball data from prior year

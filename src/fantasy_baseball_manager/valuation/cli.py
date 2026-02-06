@@ -95,7 +95,7 @@ def valuate(
     show_batting = not pitching or batting
     show_pitching = not batting or pitching
 
-    data_source = get_container().data_source
+    container = get_container()
     pipeline = PIPELINES[engine]()
 
     league_settings = load_league_settings()
@@ -104,7 +104,7 @@ def valuate(
         batting_cats = (
             _parse_categories(categories, _SUPPORTED_BATTING) if categories else league_settings.batting_categories
         )
-        batting_projections: list[BattingProjection] = pipeline.project_batters(data_source, year)
+        batting_projections: list[BattingProjection] = pipeline.project_batters(container.batting_source, container.team_batting_source, year)
         batting_values: list[PlayerValue] = zscore_batting(batting_projections, batting_cats)
         batting_values.sort(key=lambda pv: pv.total_value, reverse=True)
         cat_label = ", ".join(c.value for c in batting_cats)
@@ -118,7 +118,7 @@ def valuate(
         pitching_cats = (
             _parse_categories(categories, _SUPPORTED_PITCHING) if categories else league_settings.pitching_categories
         )
-        pitching_projections: list[PitchingProjection] = pipeline.project_pitchers(data_source, year)
+        pitching_projections: list[PitchingProjection] = pipeline.project_pitchers(container.pitching_source, container.team_pitching_source, year)
         pitching_values: list[PlayerValue] = zscore_pitching(pitching_projections, pitching_cats)
         pitching_values.sort(key=lambda pv: pv.total_value, reverse=True)
         cat_label = ", ".join(c.value for c in pitching_cats)

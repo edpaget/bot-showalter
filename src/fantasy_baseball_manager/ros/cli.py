@@ -41,7 +41,10 @@ def ros_project(
     container = get_container()
     projector = ROSProjector(
         pipeline=pipeline,
-        data_source=container.data_source,
+        batting_source=container.batting_source,
+        team_batting_source=container.team_batting_source,
+        pitching_source=container.pitching_source,
+        team_pitching_source=container.team_pitching_source,
         blender=container.blender,
     )
 

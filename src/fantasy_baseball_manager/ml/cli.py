@@ -57,7 +57,15 @@ def train_cmd(
         uv run python -m fantasy_baseball_manager ml train --years 2020,2021,2022,2023 --validate
     """
     from fantasy_baseball_manager.cache.factory import create_cache_store
-    from fantasy_baseball_manager.marcel.data_source import CachedStatsDataSource, PybaseballDataSource
+    from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+    from fantasy_baseball_manager.cache.wrapper import cached
+    from fantasy_baseball_manager.marcel.data_source import (
+        create_batting_source,
+        create_pitching_source,
+        create_team_batting_source,
+        create_team_pitching_source,
+    )
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.ml.persistence import ModelStore
     from fantasy_baseball_manager.ml.training import ResidualModelTrainer
     from fantasy_baseball_manager.ml.validation import TimeSeriesHoldout, ValidationReport
@@ -88,9 +96,30 @@ def train_cmd(
 
     # Setup data sources
     cache = create_cache_store()
-    data_source = CachedStatsDataSource(
-        delegate=PybaseballDataSource(),
-        cache=cache,
+    stats_ttl = 30 * 86400  # 30 days
+    batting_source = cached(
+        create_batting_source(),
+        namespace="stats_batting",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(BattingSeasonStats),
+    )
+    team_batting_source = cached(
+        create_team_batting_source(),
+        namespace="stats_team_batting",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(BattingSeasonStats),
+    )
+    pitching_source = cached(
+        create_pitching_source(),
+        namespace="stats_pitching",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(PitchingSeasonStats),
+    )
+    team_pitching_source = cached(
+        create_team_pitching_source(),
+        namespace="stats_team_pitching",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(PitchingSeasonStats),
     )
     statcast_source = CachedStatcastDataSource(
         delegate=PybaseballStatcastDataSource(),
@@ -117,7 +146,10 @@ def train_cmd(
     # Create trainer
     trainer = ResidualModelTrainer(
         pipeline=proj_pipeline,
-        data_source=data_source,
+        batting_source=batting_source,
+        team_batting_source=team_batting_source,
+        pitching_source=pitching_source,
+        team_pitching_source=team_pitching_source,
         statcast_source=statcast_source,
         batted_ball_source=batted_ball_source,
         skill_data_source=skill_source,
@@ -332,7 +364,15 @@ def validate_cmd(
         uv run python -m fantasy_baseball_manager ml validate --years 2020,2021,2022,2023 --strategy time_series
     """
     from fantasy_baseball_manager.cache.factory import create_cache_store
-    from fantasy_baseball_manager.marcel.data_source import CachedStatsDataSource, PybaseballDataSource
+    from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+    from fantasy_baseball_manager.cache.wrapper import cached
+    from fantasy_baseball_manager.marcel.data_source import (
+        create_batting_source,
+        create_pitching_source,
+        create_team_batting_source,
+        create_team_pitching_source,
+    )
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.ml.training import ResidualModelTrainer
     from fantasy_baseball_manager.ml.validation import (
         EarlyStoppingConfig,
@@ -381,9 +421,30 @@ def validate_cmd(
 
     # Setup data sources
     cache = create_cache_store()
-    data_source = CachedStatsDataSource(
-        delegate=PybaseballDataSource(),
-        cache=cache,
+    stats_ttl = 30 * 86400  # 30 days
+    batting_source = cached(
+        create_batting_source(),
+        namespace="stats_batting",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(BattingSeasonStats),
+    )
+    team_batting_source = cached(
+        create_team_batting_source(),
+        namespace="stats_team_batting",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(BattingSeasonStats),
+    )
+    pitching_source = cached(
+        create_pitching_source(),
+        namespace="stats_pitching",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(PitchingSeasonStats),
+    )
+    team_pitching_source = cached(
+        create_team_pitching_source(),
+        namespace="stats_team_pitching",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(PitchingSeasonStats),
     )
     statcast_source = CachedStatcastDataSource(
         delegate=PybaseballStatcastDataSource(),
@@ -410,7 +471,10 @@ def validate_cmd(
     # Create trainer
     trainer = ResidualModelTrainer(
         pipeline=proj_pipeline,
-        data_source=data_source,
+        batting_source=batting_source,
+        team_batting_source=team_batting_source,
+        pitching_source=pitching_source,
+        team_pitching_source=team_pitching_source,
         statcast_source=statcast_source,
         batted_ball_source=batted_ball_source,
         skill_data_source=skill_source,
@@ -476,7 +540,13 @@ def train_mtl_cmd(
         raise typer.Exit(1) from e
 
     from fantasy_baseball_manager.cache.factory import create_cache_store
-    from fantasy_baseball_manager.marcel.data_source import CachedStatsDataSource, PybaseballDataSource
+    from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+    from fantasy_baseball_manager.cache.wrapper import cached
+    from fantasy_baseball_manager.marcel.data_source import (
+        create_batting_source,
+        create_pitching_source,
+    )
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.batted_ball_data import (
         CachedBattedBallDataSource,
         PybaseballBattedBallDataSource,
@@ -499,9 +569,18 @@ def train_mtl_cmd(
 
     # Setup data sources
     cache = create_cache_store()
-    data_source = CachedStatsDataSource(
-        delegate=PybaseballDataSource(),
-        cache=cache,
+    stats_ttl = 30 * 86400  # 30 days
+    batting_source = cached(
+        create_batting_source(),
+        namespace="stats_batting",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(BattingSeasonStats),
+    )
+    pitching_source = cached(
+        create_pitching_source(),
+        namespace="stats_pitching",
+        ttl_seconds=stats_ttl,
+        serializer=DataclassListSerializer(PitchingSeasonStats),
     )
     statcast_source = CachedStatcastDataSource(
         delegate=PybaseballStatcastDataSource(),
@@ -527,7 +606,8 @@ def train_mtl_cmd(
 
     # Create trainer
     trainer = MTLTrainer(
-        data_source=data_source,
+        batting_source=batting_source,
+        pitching_source=pitching_source,
         statcast_source=statcast_source,
         batted_ball_source=batted_ball_source,
         skill_data_source=skill_source,

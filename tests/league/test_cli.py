@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -6,6 +7,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import create_config
+from fantasy_baseball_manager.context import get_context
 from fantasy_baseball_manager.league.cli import (
     format_compare_table,
     format_team_projections,
@@ -13,6 +15,7 @@ from fantasy_baseball_manager.league.cli import (
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamProjection, TeamRoster
 from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
 from fantasy_baseball_manager.player_id.mapper import SfbbMapper
+from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.services import ServiceContainer, set_container
 from fantasy_baseball_manager.valuation.models import LeagueSettings, StatCategory
 
@@ -184,6 +187,23 @@ def reset_container() -> Generator[None]:
     set_container(None)
 
 
+def _wrap_source(method: Any) -> Any:
+    """Wrap a FakeDataSource method as a DataSource[T] callable."""
+    def source(query: Any) -> Ok:
+        return Ok(method(get_context().year))
+    return source
+
+
+def _sources_kwargs(ds: Any) -> dict[str, Any]:
+    """Convert a FakeDataSource to ServiceContainer kwargs."""
+    return {
+        "batting_source": _wrap_source(ds.batting_stats),
+        "team_batting_source": _wrap_source(ds.team_batting),
+        "pitching_source": _wrap_source(ds.pitching_stats),
+        "team_pitching_source": _wrap_source(ds.team_pitching),
+    }
+
+
 def _install_fakes(
     rosters: LeagueRosters | None = None,
     id_mapping: dict[str, str] | None = None,
@@ -227,7 +247,7 @@ def _install_fakes(
 
     set_container(
         ServiceContainer(
-            data_source=ds,
+            **_sources_kwargs(ds),
             id_mapper=_make_mapper(id_mapping),
             roster_source=FakeRosterSource(rosters),
         )
@@ -483,7 +503,7 @@ class TestKeeperPredraftAutoDetection:
 def _make_team_projection(**overrides: float | int | str) -> TeamProjection:
     from fantasy_baseball_manager.league.models import PlayerMatchResult
 
-    defaults: dict[str, object] = {
+    defaults: dict[str, Any] = {
         "team_name": "Test Team",
         "team_key": "t1",
         "players": (
@@ -511,7 +531,7 @@ def _make_team_projection(**overrides: float | int | str) -> TeamProjection:
         "unmatched_count": 0,
     }
     defaults.update(overrides)
-    return TeamProjection(**defaults)  # type: ignore[arg-type]
+    return TeamProjection(**defaults)
 
 
 class TestLeagueSettingsColumns:

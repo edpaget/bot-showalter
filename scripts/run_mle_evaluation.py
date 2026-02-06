@@ -21,7 +21,10 @@ logger = logging.getLogger(__name__)
 
 def main() -> int:
     from fantasy_baseball_manager.cache.factory import create_cache_store
-    from fantasy_baseball_manager.marcel.data_source import CachedStatsDataSource, PybaseballDataSource
+    from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
+    from fantasy_baseball_manager.cache.wrapper import cached
+    from fantasy_baseball_manager.marcel.data_source import create_batting_source
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats
     from fantasy_baseball_manager.minors.cached_data_source import CachedMinorLeagueDataSource
     from fantasy_baseball_manager.minors.data_source import MLBStatsAPIDataSource
     from fantasy_baseball_manager.minors.evaluation import (
@@ -44,9 +47,11 @@ def main() -> int:
         delegate=MLBStatsAPIDataSource(),
         cache=cache,
     )
-    mlb_source = CachedStatsDataSource(
-        delegate=PybaseballDataSource(),
-        cache=cache,
+    mlb_batting_source = cached(
+        create_batting_source(),
+        namespace="stats_batting",
+        ttl_seconds=30 * 86400,
+        serializer=DataclassListSerializer(BattingSeasonStats),
     )
 
     # Check if model already exists
@@ -71,7 +76,7 @@ def main() -> int:
         )
         trainer = MLEModelTrainer(
             milb_source=milb_source,
-            mlb_source=mlb_source,
+            mlb_batting_source=mlb_batting_source,
             config=config,
             id_mapper=id_mapper,
         )
@@ -89,7 +94,7 @@ def main() -> int:
     logger.info("Evaluating on 2024 holdout set...")
     evaluator = MLEEvaluator(
         milb_source=milb_source,
-        mlb_source=mlb_source,
+        mlb_batting_source=mlb_batting_source,
         min_milb_pa=200,
         min_mlb_pa=100,
         max_prior_mlb_pa=200,

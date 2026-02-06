@@ -1,5 +1,8 @@
 """Tests for model training orchestration."""
 
+from typing import Any, cast
+
+from fantasy_baseball_manager.context import init_context, reset_context
 from fantasy_baseball_manager.marcel.models import (
     BattingProjection,
     BattingSeasonStats,
@@ -14,30 +17,23 @@ from fantasy_baseball_manager.ml.training import (
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
 from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, PitcherSkillStats
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats, StatcastPitcherStats
+from fantasy_baseball_manager.result import Ok
 
 
-class FakeDataSource:
-    """Fake data source for testing."""
+def _fake_batting_source(data: dict[int, list[BattingSeasonStats]]) -> Any:
+    """Create a fake DataSource[BattingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[BattingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+        return Ok(data.get(get_context().year, []))
+    return source
 
-    def __init__(
-        self,
-        batting_stats: dict[int, list[BattingSeasonStats]],
-        pitching_stats: dict[int, list[PitchingSeasonStats]],
-    ) -> None:
-        self._batting = batting_stats
-        self._pitching = pitching_stats
 
-    def batting_stats(self, year: int) -> list[BattingSeasonStats]:
-        return self._batting.get(year, [])
-
-    def pitching_stats(self, year: int) -> list[PitchingSeasonStats]:
-        return self._pitching.get(year, [])
-
-    def team_batting(self, year: int) -> list[BattingSeasonStats]:
-        return []
-
-    def team_pitching(self, year: int) -> list[PitchingSeasonStats]:
-        return []
+def _fake_pitching_source(data: dict[int, list[PitchingSeasonStats]]) -> Any:
+    """Create a fake DataSource[PitchingSeasonStats] callable."""
+    def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+        return Ok(data.get(get_context().year, []))
+    return source
 
 
 class FakeStatcastSource:
@@ -117,10 +113,10 @@ class FakePipeline:
         self._batting = batting_projections
         self._pitching = pitching_projections
 
-    def project_batters(self, data_source: object, year: int) -> list[BattingProjection]:
+    def project_batters(self, batting_source: Any, team_batting_source: Any, year: int) -> list[BattingProjection]:
         return self._batting.get(year, [])
 
-    def project_pitchers(self, data_source: object, year: int) -> list[PitchingProjection]:
+    def project_pitchers(self, pitching_source: Any, team_pitching_source: Any, year: int) -> list[PitchingProjection]:
         return self._pitching.get(year, [])
 
 
@@ -189,6 +185,12 @@ def _make_statcast_batter(mlbam_id: str, year: int) -> StatcastBatterStats:
 
 
 class TestResidualModelTrainer:
+    def setup_method(self) -> None:
+        init_context(year=2024)
+
+    def teardown_method(self) -> None:
+        reset_context()
+
     def test_train_batter_models_with_sufficient_data(self) -> None:
         """Test training batter models with enough samples."""
         # Create data for multiple years and players
@@ -204,13 +206,18 @@ class TestResidualModelTrainer:
             batting_actuals[year] = [_make_batter_actuals(p, year) for p in players]
             statcast_batter[year - 1] = [_make_statcast_batter(f"mlbam{i}", year - 1) for i in range(60)]
 
+        pipeline = cast("Any", FakePipeline(batting_projections, {}))
+        id_mapper = cast("Any", FakeIdMapper(fg_to_mlbam))
         trainer = ResidualModelTrainer(
-            pipeline=FakePipeline(batting_projections, {}),  # type: ignore[arg-type]
-            data_source=FakeDataSource(batting_actuals, {}),
+            pipeline=pipeline,
+            batting_source=_fake_batting_source(batting_actuals),
+            team_batting_source=_fake_batting_source({}),
+            pitching_source=_fake_pitching_source({}),
+            team_pitching_source=_fake_pitching_source({}),
             statcast_source=FakeStatcastSource(statcast_batter, {}),
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper(fg_to_mlbam),  # type: ignore[arg-type]
+            id_mapper=id_mapper,
             config=TrainingConfig(min_samples=50, batter_min_pa=100),
         )
 
@@ -234,13 +241,18 @@ class TestResidualModelTrainer:
         batting_actuals = {2022: [_make_batter_actuals(p, 2022) for p in players]}
         statcast_batter = {2021: [_make_statcast_batter(f"mlbam{i}", 2021) for i in range(10)]}
 
+        pipeline = cast("Any", FakePipeline(batting_projections, {}))
+        id_mapper = cast("Any", FakeIdMapper(fg_to_mlbam))
         trainer = ResidualModelTrainer(
-            pipeline=FakePipeline(batting_projections, {}),  # type: ignore[arg-type]
-            data_source=FakeDataSource(batting_actuals, {}),
+            pipeline=pipeline,
+            batting_source=_fake_batting_source(batting_actuals),
+            team_batting_source=_fake_batting_source({}),
+            pitching_source=_fake_pitching_source({}),
+            team_pitching_source=_fake_pitching_source({}),
             statcast_source=FakeStatcastSource(statcast_batter, {}),
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper(fg_to_mlbam),  # type: ignore[arg-type]
+            id_mapper=id_mapper,
             config=TrainingConfig(min_samples=50),  # Require 50 samples
         )
 
@@ -260,13 +272,18 @@ class TestResidualModelTrainer:
         # Statcast only for mapped players
         statcast_batter = {2021: [_make_statcast_batter(f"mlbam{i}", 2021) for i in range(30)]}
 
+        pipeline = cast("Any", FakePipeline(batting_projections, {}))
+        id_mapper = cast("Any", FakeIdMapper(fg_to_mlbam))
         trainer = ResidualModelTrainer(
-            pipeline=FakePipeline(batting_projections, {}),  # type: ignore[arg-type]
-            data_source=FakeDataSource(batting_actuals, {}),
+            pipeline=pipeline,
+            batting_source=_fake_batting_source(batting_actuals),
+            team_batting_source=_fake_batting_source({}),
+            pitching_source=_fake_pitching_source({}),
+            team_pitching_source=_fake_pitching_source({}),
             statcast_source=FakeStatcastSource(statcast_batter, {}),
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper(fg_to_mlbam),  # type: ignore[arg-type]
+            id_mapper=id_mapper,
             config=TrainingConfig(min_samples=20),
         )
 

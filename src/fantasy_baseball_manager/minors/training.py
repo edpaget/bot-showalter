@@ -19,7 +19,8 @@ from fantasy_baseball_manager.minors.training_data import (
 if TYPE_CHECKING:
     import numpy as np
 
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats
     from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
     from fantasy_baseball_manager.minors.types import MiLBStatcastStats
@@ -53,7 +54,7 @@ class MLEModelTrainer:
     """
 
     milb_source: MinorLeagueDataSource
-    mlb_source: StatsDataSource
+    mlb_batting_source: DataSource[BattingSeasonStats]
     config: MLETrainingConfig = field(default_factory=MLETrainingConfig)
     feature_extractor: MLEBatterFeatureExtractor | None = None
     statcast_lookup: dict[tuple[str, int], MiLBStatcastStats] | None = None
@@ -79,7 +80,7 @@ class MLEModelTrainer:
         # Create training data collector
         collector = MLETrainingDataCollector(
             milb_source=self.milb_source,
-            mlb_source=self.mlb_source,
+            mlb_batting_source=self.mlb_batting_source,
             min_milb_pa=self.config.min_milb_pa,
             min_mlb_pa=self.config.min_mlb_pa,
             max_prior_mlb_pa=self.config.max_prior_mlb_pa,

@@ -21,15 +21,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fantasy_baseball_manager.cache.sqlite_store import SqliteCacheStore
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.evaluation.harness import (
     EvaluationConfig,
     evaluate_source,
 )
 from fantasy_baseball_manager.marcel.data_source import (
-    CachedStatsDataSource,
-    PybaseballDataSource,
+    create_batting_source,
+    create_pitching_source,
+    create_team_batting_source,
+    create_team_pitching_source,
 )
 from fantasy_baseball_manager.pipeline.presets import build_pipeline
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
@@ -162,18 +163,13 @@ def evaluate_point(
     """Run a multi-year backtest for a single search point.
 
     Each call creates its own data source so workers don't share state.
-    When *cache_db_path* is provided, the data source is wrapped with
-    ``CachedStatsDataSource`` so that multiple workers share a single
-    SQLite cache (each opens its own connection).
     """
     config = search_point_to_config(point)
     pipeline = build_pipeline(pipeline_name, config=config)
-    raw_source = PybaseballDataSource()
-    if cache_db_path is not None:
-        cache = SqliteCacheStore(Path(cache_db_path))
-        data_source: PybaseballDataSource | CachedStatsDataSource = CachedStatsDataSource(raw_source, cache)
-    else:
-        data_source = raw_source
+    batting_source = create_batting_source()
+    team_batting_source = create_team_batting_source()
+    pitching_source = create_pitching_source()
+    team_pitching_source = create_team_pitching_source()
     league_settings = load_league_settings()
 
     batting_rhos: list[float] = []
@@ -192,8 +188,10 @@ def evaluate_point(
             min_ip=min_ip,
             top_n=top_n,
         )
-        source = PipelineProjectionSource(pipeline, data_source, year)
-        evaluation = evaluate_source(source, pipeline_name, data_source, eval_config)
+        source = PipelineProjectionSource(
+            pipeline, batting_source, team_batting_source, pitching_source, team_pitching_source, year
+        )
+        evaluation = evaluate_source(source, pipeline_name, batting_source, pitching_source, eval_config)
 
         if evaluation.batting_rank_accuracy:
             batting_rhos.append(evaluation.batting_rank_accuracy.spearman_rho)

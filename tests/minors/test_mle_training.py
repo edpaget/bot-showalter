@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from fantasy_baseball_manager.context import init_context, reset_context
 from fantasy_baseball_manager.minors.model import MLEHyperparameters
 from fantasy_baseball_manager.minors.training import (
     MLEModelTrainer,
@@ -40,6 +41,12 @@ class TestMLETrainingConfig:
 class TestMLEModelTrainer:
     """Tests for MLEModelTrainer."""
 
+    def setup_method(self) -> None:
+        init_context(year=2024)
+
+    def teardown_method(self) -> None:
+        reset_context()
+
     @pytest.fixture
     def mock_milb_source(self) -> MagicMock:
         """Create a mock MiLB data source."""
@@ -62,7 +69,7 @@ class TestMLEModelTrainer:
 
         trainer = MLEModelTrainer(
             milb_source=mock_milb_source,
-            mlb_source=mock_mlb_source,
+            mlb_batting_source=mock_mlb_source,
         )
 
         model_set = trainer.train_batter_models(target_years=(2022,))
@@ -91,7 +98,7 @@ class TestMLEModelTrainer:
 
         trainer = MLEModelTrainer(
             milb_source=mock_milb_source,
-            mlb_source=mock_mlb_source,
+            mlb_batting_source=mock_mlb_source,
             feature_extractor=mock_extractor,
         )
 
@@ -131,7 +138,7 @@ class TestMLEModelTrainer:
 
         trainer = MLEModelTrainer(
             milb_source=mock_milb_source,
-            mlb_source=mock_mlb_source,
+            mlb_batting_source=mock_mlb_source,
             feature_extractor=mock_extractor,
             config=MLETrainingConfig(min_samples=50),
         )
@@ -173,7 +180,7 @@ class TestMLEModelTrainer:
 
         trainer = MLEModelTrainer(
             milb_source=mock_milb_source,
-            mlb_source=mock_mlb_source,
+            mlb_batting_source=mock_mlb_source,
             feature_extractor=mock_extractor,
         )
 
@@ -215,7 +222,7 @@ class TestMLEModelTrainer:
 
         trainer = MLEModelTrainer(
             milb_source=mock_milb_source,
-            mlb_source=mock_mlb_source,
+            mlb_batting_source=mock_mlb_source,
             config=config,
         )
 

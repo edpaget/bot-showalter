@@ -27,7 +27,8 @@ from fantasy_baseball_manager.ml.validation import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats
     from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel
     from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
@@ -146,7 +147,7 @@ class MLEEvaluator:
     """
 
     milb_source: MinorLeagueDataSource
-    mlb_source: StatsDataSource
+    mlb_batting_source: DataSource[BattingSeasonStats]
     min_milb_pa: int = 200
     min_mlb_pa: int = 100
     max_prior_mlb_pa: int = 200
@@ -161,7 +162,7 @@ class MLEEvaluator:
         if self._collector is None:
             self._collector = MLETrainingDataCollector(
                 milb_source=self.milb_source,
-                mlb_source=self.mlb_source,
+                mlb_batting_source=self.mlb_batting_source,
                 min_milb_pa=self.min_milb_pa,
                 min_mlb_pa=self.min_mlb_pa,
                 max_prior_mlb_pa=self.max_prior_mlb_pa,

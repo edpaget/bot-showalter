@@ -10,11 +10,14 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from fantasy_baseball_manager.context import new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.ml.features import BatterFeatureExtractor, PitcherFeatureExtractor
 from fantasy_baseball_manager.ml.mtl.model import BATTER_STATS, PITCHER_STATS
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
@@ -70,7 +73,7 @@ class BatterTrainingDataCollector:
     for training the multi-task neural network.
     """
 
-    data_source: StatsDataSource
+    batting_source: DataSource[BattingSeasonStats]
     statcast_source: FullStatcastDataSource
     skill_data_source: SkillDataSource
     id_mapper: PlayerIdMapper
@@ -108,7 +111,9 @@ class BatterTrainingDataCollector:
             logger.info("Collecting batter training data for year %d", target_year)
 
             # Get actuals for target year
-            actuals = self.data_source.batting_stats(target_year)
+            with new_context(year=target_year):
+                actuals_result = self.batting_source(ALL_PLAYERS)
+            actuals = list(actuals_result.unwrap()) if actuals_result.is_ok() else []
             actual_lookup = {a.player_id: a for a in actuals}
 
             # Get Statcast data from prior year (for Statcast features)
@@ -122,7 +127,9 @@ class BatterTrainingDataCollector:
 
             # Get PRIOR year actuals to compute "marcel-like" rates for features
             # This prevents data leakage - features use Y-1 data, targets use Y data
-            prior_actuals = self.data_source.batting_stats(statcast_year)
+            with new_context(year=statcast_year):
+                prior_result = self.batting_source(ALL_PLAYERS)
+            prior_actuals = list(prior_result.unwrap()) if prior_result.is_ok() else []
             prior_lookup = {a.player_id: a for a in prior_actuals}
 
             # Process each player with actuals
@@ -195,7 +202,7 @@ class PitcherTrainingDataCollector:
     for training the multi-task neural network.
     """
 
-    data_source: StatsDataSource
+    pitching_source: DataSource[PitchingSeasonStats]
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
     id_mapper: PlayerIdMapper
@@ -233,7 +240,9 @@ class PitcherTrainingDataCollector:
             logger.info("Collecting pitcher training data for year %d", target_year)
 
             # Get actuals for target year
-            actuals = self.data_source.pitching_stats(target_year)
+            with new_context(year=target_year):
+                actuals_result = self.pitching_source(ALL_PLAYERS)
+            actuals = list(actuals_result.unwrap()) if actuals_result.is_ok() else []
             actual_lookup = {a.player_id: a for a in actuals}
 
             # Get Statcast data from prior year (for Statcast features)
@@ -247,7 +256,9 @@ class PitcherTrainingDataCollector:
 
             # Get PRIOR year actuals to compute "marcel-like" rates for features
             # This prevents data leakage - features use Y-1 data, targets use Y data
-            prior_actuals = self.data_source.pitching_stats(statcast_year)
+            with new_context(year=statcast_year):
+                prior_result = self.pitching_source(ALL_PLAYERS)
+            prior_actuals = list(prior_result.unwrap()) if prior_result.is_ok() else []
             prior_lookup = {a.player_id: a for a in prior_actuals}
 
             # Process each player with actuals

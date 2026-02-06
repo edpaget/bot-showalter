@@ -9,8 +9,8 @@ from fantasy_baseball_manager.services import (
 )
 
 
-class FakeDataSource:
-    """Fake data source for testing."""
+class FakeBattingSource:
+    """Fake DataSource for testing."""
 
     pass
 
@@ -44,10 +44,10 @@ class TestServiceConfig:
 
 
 class TestServiceContainer:
-    def test_injected_data_source_is_returned(self) -> None:
-        fake = FakeDataSource()
-        container = ServiceContainer(data_source=fake)  # type: ignore[arg-type]
-        assert container.data_source is fake
+    def test_injected_batting_source_is_returned(self) -> None:
+        fake = FakeBattingSource()
+        container = ServiceContainer(batting_source=fake)  # type: ignore[arg-type]
+        assert container.batting_source is fake
 
     def test_injected_id_mapper_is_returned(self) -> None:
         fake = SfbbMapper({}, {})
@@ -78,10 +78,10 @@ class TestServiceContainer:
         container = ServiceContainer(config=config)
         assert container.config.no_cache is True
 
-    def test_data_source_is_cached(self) -> None:
-        fake = FakeDataSource()
-        container = ServiceContainer(data_source=fake)  # type: ignore[arg-type]
-        assert container.data_source is container.data_source
+    def test_batting_source_is_cached(self) -> None:
+        fake = FakeBattingSource()
+        container = ServiceContainer(batting_source=fake)  # type: ignore[arg-type]
+        assert container.batting_source is container.batting_source
 
 
 class TestGetSetContainer:
@@ -93,15 +93,15 @@ class TestGetSetContainer:
 
     def test_set_container_replaces_instance(self) -> None:
         set_container(None)  # Reset
-        fake_ds = FakeDataSource()
-        custom = ServiceContainer(data_source=fake_ds)  # type: ignore[arg-type]
+        fake_ds = FakeBattingSource()
+        custom = ServiceContainer(batting_source=fake_ds)  # type: ignore[arg-type]
         set_container(custom)
         assert get_container() is custom
-        assert get_container().data_source is fake_ds
+        assert get_container().batting_source is fake_ds
 
     def test_set_container_none_resets(self) -> None:
-        fake_ds = FakeDataSource()
-        custom = ServiceContainer(data_source=fake_ds)  # type: ignore[arg-type]
+        fake_ds = FakeBattingSource()
+        custom = ServiceContainer(batting_source=fake_ds)  # type: ignore[arg-type]
         set_container(custom)
         set_container(None)
         # Next get should create a new default container

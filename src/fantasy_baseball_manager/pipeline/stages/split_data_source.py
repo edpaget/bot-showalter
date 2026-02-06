@@ -11,11 +11,10 @@ from typing import TYPE_CHECKING, Protocol
 
 import requests
 
-from fantasy_baseball_manager.marcel.data_source import (
-    _deserialize_batting,
-    _serialize_batting,
-)
+from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
 from fantasy_baseball_manager.marcel.models import BattingSeasonStats
+
+_batting_serializer = DataclassListSerializer(BattingSeasonStats)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -158,8 +157,8 @@ class CachedSplitDataSource:
         cached = self._cache.get(_NAMESPACE, key)
         if cached is not None:
             logger.debug("Cache hit for %s [year=%d]", method_name, year)
-            return _deserialize_batting(cached)
+            return _batting_serializer.deserialize(cached)
         logger.debug("Cache miss for %s [year=%d], fetching from source", method_name, year)
         result = fetch(year)
-        self._cache.put(_NAMESPACE, key, _serialize_batting(result), self._ttl_seconds)
+        self._cache.put(_NAMESPACE, key, _batting_serializer.serialize(result), self._ttl_seconds)
         return result

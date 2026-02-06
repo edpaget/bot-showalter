@@ -287,8 +287,8 @@ def _load_team_projections(year: int, engine: str = DEFAULT_ENGINE) -> list[Team
 
     pipeline = PIPELINES[engine]()
     rosters = container.roster_source.fetch_rosters()
-    batting = pipeline.project_batters(container.data_source, year)
-    pitching = pipeline.project_pitchers(container.data_source, year)
+    batting = pipeline.project_batters(container.batting_source, container.team_batting_source, year)
+    pitching = pipeline.project_pitchers(container.pitching_source, container.team_pitching_source, year)
 
     return match_projections(rosters, batting, pitching, container.id_mapper)
 
