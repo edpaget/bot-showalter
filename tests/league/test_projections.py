@@ -3,24 +3,12 @@ import pytest
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
 from fantasy_baseball_manager.league.projections import _normalize_name, match_projections
 from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
+from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 
-class FakeIdMapper:
-    def __init__(self, mapping: dict[str, str]) -> None:
-        self._yahoo_to_fg = mapping
-        self._fg_to_yahoo = {v: k for k, v in mapping.items()}
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return self._yahoo_to_fg.get(yahoo_id)
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return self._fg_to_yahoo.get(fangraphs_id)
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return None
+def _make_mapper(yahoo_to_fg: dict[str, str]) -> SfbbMapper:
+    fg_to_yahoo = {v: k for k, v in yahoo_to_fg.items()}
+    return SfbbMapper(yahoo_to_fg, fg_to_yahoo)
 
 
 def _make_batter_projection(
@@ -116,7 +104,7 @@ class TestMatchProjections:
             _make_batter_projection(player_id="fg1", hr=25.0, sb=10.0, h=150.0, pa=550.0, ab=500.0, bb=40.0, hbp=5.0),
             _make_batter_projection(player_id="fg2", hr=35.0, sb=5.0, h=170.0, pa=650.0, ab=580.0, bb=60.0, hbp=5.0),
         ]
-        mapper = FakeIdMapper({"y1": "fg1", "y2": "fg2"})
+        mapper = _make_mapper({"y1": "fg1", "y2": "fg2"})
 
         result = match_projections(rosters, batting, [], mapper)
 
@@ -140,7 +128,7 @@ class TestMatchProjections:
             ),
         )
         pitching = [_make_pitcher_projection(player_id="fgp1", ip=180.0, er=60.0, h=150.0, bb=50.0, so=200.0)]
-        mapper = FakeIdMapper({"yp1": "fgp1"})
+        mapper = _make_mapper({"yp1": "fgp1"})
 
         result = match_projections(rosters, [], pitching, mapper)
 
@@ -165,7 +153,7 @@ class TestMatchProjections:
             ),
         )
         batting = [_make_batter_projection(player_id="fg1")]
-        mapper = FakeIdMapper({"y1": "fg1"})
+        mapper = _make_mapper({"y1": "fg1"})
 
         result = match_projections(rosters, batting, [], mapper)
 
@@ -191,7 +179,7 @@ class TestMatchProjections:
             _make_batter_projection(player_id="fg1", h=100.0, ab=400.0, pa=450.0, bb=40.0, hbp=5.0),
             _make_batter_projection(player_id="fg2", h=200.0, ab=600.0, pa=650.0, bb=40.0, hbp=5.0),
         ]
-        mapper = FakeIdMapper({"y1": "fg1", "y2": "fg2"})
+        mapper = _make_mapper({"y1": "fg1", "y2": "fg2"})
 
         result = match_projections(rosters, batting, [], mapper)
 
@@ -221,7 +209,7 @@ class TestMatchProjections:
             _make_batter_projection(player_id="fg1", hr=20.0),
             _make_batter_projection(player_id="fg2", hr=40.0),
         ]
-        mapper = FakeIdMapper({"y1": "fg1", "y2": "fg2"})
+        mapper = _make_mapper({"y1": "fg1", "y2": "fg2"})
 
         result = match_projections(rosters, batting, [], mapper)
 
@@ -235,7 +223,7 @@ class TestMatchProjections:
             league_key="lg1",
             teams=(TeamRoster(team_key="t1", team_name="Empty", players=()),),
         )
-        mapper = FakeIdMapper({})
+        mapper = _make_mapper({})
 
         result = match_projections(rosters, [], [], mapper)
 
@@ -257,7 +245,7 @@ class TestMatchProjections:
             ),
         )
         # Mapper has the ID but projection doesn't exist
-        mapper = FakeIdMapper({"yp1": "fgp_missing"})
+        mapper = _make_mapper({"yp1": "fgp_missing"})
 
         result = match_projections(rosters, [], [], mapper)
 
@@ -281,7 +269,7 @@ class TestMatchProjections:
             _make_pitcher_projection(player_id="fgp1", ip=200.0, er=40.0, h=160.0, bb=40.0, so=220.0),
             _make_pitcher_projection(player_id="fgp2", ip=100.0, er=50.0, h=100.0, bb=40.0, so=80.0),
         ]
-        mapper = FakeIdMapper({"yp1": "fgp1", "yp2": "fgp2"})
+        mapper = _make_mapper({"yp1": "fgp1", "yp2": "fgp2"})
 
         result = match_projections(rosters, [], pitching, mapper)
 
@@ -320,7 +308,7 @@ class TestNameFallback:
             ),
         )
         batting = [_make_batter_projection(player_id="fg_sj", name="Spencer Jones", hr=15.0)]
-        mapper = FakeIdMapper({})
+        mapper = _make_mapper({})
 
         result = match_projections(rosters, batting, [], mapper)
 
@@ -340,7 +328,7 @@ class TestNameFallback:
             ),
         )
         pitching = [_make_pitcher_projection(player_id="fg_bk", name="Bryan King", so=100.0)]
-        mapper = FakeIdMapper({})
+        mapper = _make_mapper({})
 
         result = match_projections(rosters, [], pitching, mapper)
 
@@ -360,7 +348,7 @@ class TestNameFallback:
             ),
         )
         batting = [_make_batter_projection(player_id="fg_foo", name="Foo", hr=20.0)]
-        mapper = FakeIdMapper({})
+        mapper = _make_mapper({})
 
         result = match_projections(rosters, batting, [], mapper)
 
@@ -381,7 +369,7 @@ class TestNameFallback:
             _make_batter_projection(player_id="fg1", name="John Smith", hr=10.0),
             _make_batter_projection(player_id="fg2", name="John Smith", hr=20.0),
         ]
-        mapper = FakeIdMapper({})
+        mapper = _make_mapper({})
 
         result = match_projections(rosters, batting, [], mapper)
 
@@ -403,7 +391,7 @@ class TestNameFallback:
             _make_batter_projection(player_id="fg1", name="Batter One", hr=30.0),
             _make_batter_projection(player_id="fg_other", name="Batter One", hr=99.0),
         ]
-        mapper = FakeIdMapper({"y1": "fg1"})
+        mapper = _make_mapper({"y1": "fg1"})
 
         result = match_projections(rosters, batting, [], mapper)
 

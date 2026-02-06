@@ -1,5 +1,6 @@
 """Tests for the service container."""
 
+from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 from fantasy_baseball_manager.services import (
     ServiceConfig,
     ServiceContainer,
@@ -12,22 +13,6 @@ class FakeDataSource:
     """Fake data source for testing."""
 
     pass
-
-
-class FakeIdMapper:
-    """Fake ID mapper for testing."""
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return None
 
 
 class FakeRosterSource:
@@ -65,7 +50,7 @@ class TestServiceContainer:
         assert container.data_source is fake
 
     def test_injected_id_mapper_is_returned(self) -> None:
-        fake = FakeIdMapper()
+        fake = SfbbMapper({}, {})
         container = ServiceContainer(id_mapper=fake)
         assert container.id_mapper is fake
 

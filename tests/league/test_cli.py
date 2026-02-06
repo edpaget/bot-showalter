@@ -12,27 +12,16 @@ from fantasy_baseball_manager.league.cli import (
 )
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamProjection, TeamRoster
 from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
+from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 from fantasy_baseball_manager.services import ServiceContainer, set_container
 from fantasy_baseball_manager.valuation.models import LeagueSettings, StatCategory
 
 runner = CliRunner()
 
 
-class FakeIdMapper:
-    def __init__(self, mapping: dict[str, str]) -> None:
-        self._yahoo_to_fg = mapping
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return self._yahoo_to_fg.get(yahoo_id)
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return None
+def _make_mapper(yahoo_to_fg: dict[str, str]) -> SfbbMapper:
+    fg_to_yahoo = {v: k for k, v in yahoo_to_fg.items()}
+    return SfbbMapper(yahoo_to_fg, fg_to_yahoo)
 
 
 class FakeRosterSource:
@@ -239,7 +228,7 @@ def _install_fakes(
     set_container(
         ServiceContainer(
             data_source=ds,
-            id_mapper=FakeIdMapper(id_mapping),
+            id_mapper=_make_mapper(id_mapping),
             roster_source=FakeRosterSource(rosters),
         )
     )

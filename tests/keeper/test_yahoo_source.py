@@ -9,6 +9,7 @@ from fantasy_baseball_manager.keeper.yahoo_source import (
     YahooKeeperSource,
 )
 from fantasy_baseball_manager.league.models import LeagueRosters, RosterPlayer, TeamRoster
+from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 
 class FakeRosterSource:
@@ -19,21 +20,9 @@ class FakeRosterSource:
         return self._rosters
 
 
-class FakeIdMapper:
-    def __init__(self, mapping: dict[str, str]) -> None:
-        self._yahoo_to_fg = mapping
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return self._yahoo_to_fg.get(yahoo_id)
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return None
+def _make_mapper(yahoo_to_fg: dict[str, str]) -> SfbbMapper:
+    fg_to_yahoo = {v: k for k, v in yahoo_to_fg.items()}
+    return SfbbMapper(yahoo_to_fg, fg_to_yahoo)
 
 
 def _make_player(yahoo_id: str, name: str, position_type: str, positions: tuple[str, ...]) -> RosterPlayer:
@@ -80,7 +69,7 @@ def _make_id_mapping() -> dict[str, str]:
 class TestYahooKeeperSource:
     def test_splits_user_vs_other_teams(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -96,7 +85,7 @@ class TestYahooKeeperSource:
 
     def test_maps_yahoo_ids_to_fangraphs(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper({"100": "fg100", "101": "fg101", "102": "fg102", "200": "fg200", "201": "fg201"})
+        mapper = _make_mapper({"100": "fg100", "101": "fg101", "102": "fg102", "200": "fg200", "201": "fg201"})
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -110,7 +99,7 @@ class TestYahooKeeperSource:
     def test_tracks_unmapped_ids(self) -> None:
         rosters = _make_rosters()
         # Only map user players + one other; "300" is unmapped
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -122,7 +111,7 @@ class TestYahooKeeperSource:
 
     def test_carries_eligible_positions(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -136,7 +125,7 @@ class TestYahooKeeperSource:
 
     def test_carries_position_types(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -148,7 +137,7 @@ class TestYahooKeeperSource:
 
     def test_raises_when_user_team_not_found(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -170,7 +159,7 @@ class TestYahooKeeperSource:
                 ),
             ),
         )
-        mapper = FakeIdMapper({})  # No mappings
+        mapper = _make_mapper({})  # No mappings
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -185,7 +174,7 @@ class TestYahooKeeperSource:
 class TestFetchLeagueKeeperData:
     def test_returns_all_teams(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -197,7 +186,7 @@ class TestFetchLeagueKeeperData:
 
     def test_maps_candidate_ids_per_team(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -214,7 +203,7 @@ class TestFetchLeagueKeeperData:
 
     def test_preserves_team_names(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -227,7 +216,7 @@ class TestFetchLeagueKeeperData:
 
     def test_carries_positions_per_team(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())
+        mapper = _make_mapper(_make_id_mapping())
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -241,7 +230,7 @@ class TestFetchLeagueKeeperData:
 
     def test_tracks_unmapped_ids(self) -> None:
         rosters = _make_rosters()
-        mapper = FakeIdMapper(_make_id_mapping())  # 300 is unmapped
+        mapper = _make_mapper(_make_id_mapping())  # 300 is unmapped
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -262,7 +251,7 @@ class TestFetchLeagueKeeperData:
                 ),
             ),
         )
-        mapper = FakeIdMapper({})
+        mapper = _make_mapper({})
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(rosters),
             id_mapper=mapper,
@@ -345,7 +334,7 @@ class TestDuplicateFanGraphsId:
     def test_both_entries_in_candidate_ids(self) -> None:
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(self._make_split_rosters()),
-            id_mapper=FakeIdMapper(self._make_split_mapping()),
+            id_mapper=_make_mapper(self._make_split_mapping()),
             user_team_key="422.l.12345.t.1",
         )
         data = source.fetch_keeper_data()
@@ -356,7 +345,7 @@ class TestDuplicateFanGraphsId:
     def test_position_types_track_both(self) -> None:
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(self._make_split_rosters()),
-            id_mapper=FakeIdMapper(self._make_split_mapping()),
+            id_mapper=_make_mapper(self._make_split_mapping()),
             user_team_key="422.l.12345.t.1",
         )
         data = source.fetch_keeper_data()
@@ -366,7 +355,7 @@ class TestDuplicateFanGraphsId:
     def test_distinct_positions_per_entry(self) -> None:
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(self._make_split_rosters()),
-            id_mapper=FakeIdMapper(self._make_split_mapping()),
+            id_mapper=_make_mapper(self._make_split_mapping()),
             user_team_key="422.l.12345.t.1",
         )
         data = source.fetch_keeper_data()
@@ -377,7 +366,7 @@ class TestDuplicateFanGraphsId:
     def test_league_data_split_player(self) -> None:
         source = YahooKeeperSource(
             roster_source=FakeRosterSource(self._make_split_rosters()),
-            id_mapper=FakeIdMapper(self._make_split_mapping()),
+            id_mapper=_make_mapper(self._make_split_mapping()),
             user_team_key="422.l.12345.t.1",
         )
         data = source.fetch_league_keeper_data()

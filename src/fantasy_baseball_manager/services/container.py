@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.league.roster import RosterSource
     from fantasy_baseball_manager.marcel.data_source import StatsDataSource
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
     from fantasy_baseball_manager.ros.protocol import ProjectionBlender
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class ServiceContainer:
         config: ServiceConfig | None = None,
         *,
         data_source: StatsDataSource | None = None,
-        id_mapper: PlayerIdMapper | None = None,
+        id_mapper: SfbbMapper | None = None,
         roster_source: RosterSource | None = None,
         blender: ProjectionBlender | None = None,
         yahoo_league: object | None = None,
@@ -113,7 +113,7 @@ class ServiceContainer:
         return PybaseballDataSource()
 
     @cached_property
-    def id_mapper(self) -> PlayerIdMapper:
+    def id_mapper(self) -> SfbbMapper:
         if self._id_mapper is not None:
             return self._id_mapper
         from fantasy_baseball_manager.player_id.mapper import (

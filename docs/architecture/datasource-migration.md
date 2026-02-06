@@ -274,7 +274,7 @@ class PositionSource(Protocol):
 ### Phase 3: Player Mapping
 - [x] Create `PlayerMapper` following DataSource pattern (`PlayerMapperError`, callable interface on `SfbbMapper`)
 - [x] Migrate `SfbbMapper` to return enriched `Player` objects (via `__call__` method)
-- [ ] Update consumers to use `Player` type
+- [x] Update consumers to use `Player` type
 
 ### Phase 4: External Data
 - [x] Migrate `ADPSource`

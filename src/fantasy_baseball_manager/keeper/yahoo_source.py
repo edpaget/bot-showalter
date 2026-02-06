@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.player.identity import Player
+
 if TYPE_CHECKING:
     from fantasy_baseball_manager.league.roster import RosterSource
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 
 @dataclass(frozen=True)
@@ -38,7 +40,7 @@ class YahooKeeperSource:
     def __init__(
         self,
         roster_source: RosterSource,
-        id_mapper: PlayerIdMapper,
+        id_mapper: SfbbMapper,
         user_team_key: str,
     ) -> None:
         self._roster_source = roster_source
@@ -65,23 +67,25 @@ class YahooKeeperSource:
         candidate_position_types: list[str] = []
         candidate_positions: dict[tuple[str, str], tuple[str, ...]] = {}
 
-        for player in user_team.players:
-            fg_id = self._id_mapper.yahoo_to_fangraphs(player.yahoo_id)
-            if fg_id is None:
-                unmapped.append(player.yahoo_id)
+        for roster_player in user_team.players:
+            enriched = self._id_mapper(Player(name=roster_player.name, yahoo_id=roster_player.yahoo_id)).unwrap()
+            if enriched.fangraphs_id is None:
+                unmapped.append(roster_player.yahoo_id)
             else:
-                candidate_ids.append(fg_id)
-                candidate_position_types.append(player.position_type)
-                candidate_positions[(fg_id, player.position_type)] = player.eligible_positions
+                candidate_ids.append(enriched.fangraphs_id)
+                candidate_position_types.append(roster_player.position_type)
+                candidate_positions[(enriched.fangraphs_id, roster_player.position_type)] = (
+                    roster_player.eligible_positions
+                )
 
         other_keeper_ids: set[str] = set()
         for team in other_teams:
-            for player in team.players:
-                fg_id = self._id_mapper.yahoo_to_fangraphs(player.yahoo_id)
-                if fg_id is None:
-                    unmapped.append(player.yahoo_id)
+            for roster_player in team.players:
+                enriched = self._id_mapper(Player(name=roster_player.name, yahoo_id=roster_player.yahoo_id)).unwrap()
+                if enriched.fangraphs_id is None:
+                    unmapped.append(roster_player.yahoo_id)
                 else:
-                    other_keeper_ids.add(fg_id)
+                    other_keeper_ids.add(enriched.fangraphs_id)
 
         return YahooKeeperData(
             user_candidate_ids=tuple(candidate_ids),
@@ -103,14 +107,16 @@ class YahooKeeperSource:
             candidate_position_types: list[str] = []
             candidate_positions: dict[tuple[str, str], tuple[str, ...]] = {}
 
-            for player in team.players:
-                fg_id = self._id_mapper.yahoo_to_fangraphs(player.yahoo_id)
-                if fg_id is None:
-                    unmapped.append(player.yahoo_id)
+            for roster_player in team.players:
+                enriched = self._id_mapper(Player(name=roster_player.name, yahoo_id=roster_player.yahoo_id)).unwrap()
+                if enriched.fangraphs_id is None:
+                    unmapped.append(roster_player.yahoo_id)
                 else:
-                    candidate_ids.append(fg_id)
-                    candidate_position_types.append(player.position_type)
-                    candidate_positions[(fg_id, player.position_type)] = player.eligible_positions
+                    candidate_ids.append(enriched.fangraphs_id)
+                    candidate_position_types.append(roster_player.position_type)
+                    candidate_positions[(enriched.fangraphs_id, roster_player.position_type)] = (
+                        roster_player.eligible_positions
+                    )
 
             team_infos.append(
                 TeamKeeperInfo(

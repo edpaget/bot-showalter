@@ -1,13 +1,19 @@
+from __future__ import annotations
+
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.league.models import (
     LeagueRosters,
     PlayerMatchResult,
     TeamProjection,
 )
-from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
-from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+from fantasy_baseball_manager.player.identity import Player
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +28,7 @@ def match_projections(
     rosters: LeagueRosters,
     batting_projections: list[BattingProjection],
     pitching_projections: list[PitchingProjection],
-    id_mapper: PlayerIdMapper,
+    id_mapper: SfbbMapper,
 ) -> list[TeamProjection]:
     batting_by_fg: dict[str, BattingProjection] = {p.player_id: p for p in batting_projections}
     pitching_by_fg: dict[str, PitchingProjection] = {p.player_id: p for p in pitching_projections}
@@ -79,7 +85,8 @@ def match_projections(
         total_nsvh = 0.0
 
         for roster_player in team.players:
-            fg_id = id_mapper.yahoo_to_fangraphs(roster_player.yahoo_id)
+            enriched = id_mapper(Player(name=roster_player.name, yahoo_id=roster_player.yahoo_id)).unwrap()
+            fg_id = enriched.fangraphs_id
             batting_proj: BattingProjection | None = None
             pitching_proj: PitchingProjection | None = None
             matched = False
