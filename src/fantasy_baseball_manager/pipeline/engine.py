@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +19,7 @@ if TYPE_CHECKING:
         PlayingTimeProjector,
         ProjectionFinalizer,
         RateAdjuster,
+        RateComputer,
     )
     from fantasy_baseball_manager.result import Err
 
@@ -64,25 +64,10 @@ def _adapt_team_pitching(data_source: StatsDataSource) -> DataSource[PitchingSea
     return _source  # type: ignore[return-value]
 
 
-def _uses_datasource_protocol(rate_computer: Any) -> bool:
-    """Check if rate_computer uses new DataSource-based signature.
-
-    Detects the calling convention by inspecting parameter names.
-    New-style: compute_batting_rates(batting_source, team_batting_source, year, years_back)
-    Legacy:    compute_batting_rates(data_source, year, years_back)
-    """
-    try:
-        sig = inspect.signature(rate_computer.compute_batting_rates)
-        return "batting_source" in sig.parameters
-    except (ValueError, TypeError):
-        return False
-
-
 @dataclass(frozen=True)
 class ProjectionPipeline:
     name: str
-    # TODO: Restore RateComputer type after migrating all rate computer implementations
-    rate_computer: Any
+    rate_computer: RateComputer
     adjusters: tuple[RateAdjuster, ...]
     playing_time: PlayingTimeProjector
     finalizer: ProjectionFinalizer
@@ -93,15 +78,12 @@ class ProjectionPipeline:
         data_source: StatsDataSource,
         year: int,
     ) -> list[BattingProjection]:
-        if _uses_datasource_protocol(self.rate_computer):
-            batting_source = _adapt_batting(data_source)
-            team_batting_source = _adapt_team_batting(data_source)
-            with new_context(year=year):
-                players = self.rate_computer.compute_batting_rates(
-                    batting_source, team_batting_source, year, self.years_back
-                )
-        else:
-            players = self.rate_computer.compute_batting_rates(data_source, year, self.years_back)
+        batting_source = _adapt_batting(data_source)
+        team_batting_source = _adapt_team_batting(data_source)
+        with new_context(year=year):
+            players = self.rate_computer.compute_batting_rates(
+                batting_source, team_batting_source, year, self.years_back
+            )
         for adjuster in self.adjusters:
             players = adjuster.adjust(players)
         players = self.playing_time.project(players)
@@ -112,15 +94,12 @@ class ProjectionPipeline:
         data_source: StatsDataSource,
         year: int,
     ) -> list[PitchingProjection]:
-        if _uses_datasource_protocol(self.rate_computer):
-            pitching_source = _adapt_pitching(data_source)
-            team_pitching_source = _adapt_team_pitching(data_source)
-            with new_context(year=year):
-                players = self.rate_computer.compute_pitching_rates(
-                    pitching_source, team_pitching_source, year, self.years_back
-                )
-        else:
-            players = self.rate_computer.compute_pitching_rates(data_source, year, self.years_back)
+        pitching_source = _adapt_pitching(data_source)
+        team_pitching_source = _adapt_team_pitching(data_source)
+        with new_context(year=year):
+            players = self.rate_computer.compute_pitching_rates(
+                pitching_source, team_pitching_source, year, self.years_back
+            )
         for adjuster in self.adjusters:
             players = adjuster.adjust(players)
         players = self.playing_time.project(players)

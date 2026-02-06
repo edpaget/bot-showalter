@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.context import new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.marcel.league_averages import (
     BATTING_COMPONENT_STATS,
     PITCHING_COMPONENT_STATS,
@@ -23,7 +25,7 @@ from fantasy_baseball_manager.pipeline.stages.regression_constants import (
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
 
 
@@ -45,7 +47,8 @@ class StatSpecificRegressionRateComputer:
 
     def compute_batting_rates(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
@@ -55,17 +58,27 @@ class StatSpecificRegressionRateComputer:
         player_seasons: dict[int, list[BattingSeasonStats]] = {}
         league_rates: dict[int, dict[str, float]] = {}
         for y in years:
-            player_seasons[y] = data_source.batting_stats(y)
-            team_stats = data_source.team_batting(y)
-            if team_stats:
-                league_rates[y] = compute_batting_league_rates(team_stats)
+            with new_context(year=y):
+                batting_result = batting_source(ALL_PLAYERS)
+                team_result = team_batting_source(ALL_PLAYERS)
 
-        target_rates = league_rates[years[0]]
+                if batting_result.is_ok():
+                    player_seasons[y] = list(batting_result.unwrap())
+                else:
+                    player_seasons[y] = []
+
+                if team_result.is_ok():
+                    team_stats = team_result.unwrap()
+                    if team_stats:
+                        league_rates[y] = compute_batting_league_rates(list(team_stats))
+
+        target_rates = league_rates.get(years[0], {})
 
         avg_league_rates: dict[str, float] = {}
         for stat in BATTING_COMPONENT_STATS:
             rates_for_stat = [league_rates[y][stat] for y in years if y in league_rates]
-            avg_league_rates[stat] = sum(rates_for_stat) / len(rates_for_stat)
+            if rates_for_stat:
+                avg_league_rates[stat] = sum(rates_for_stat) / len(rates_for_stat)
 
         player_data: dict[str, dict[int, BattingSeasonStats]] = {}
         for y in years:
@@ -116,7 +129,8 @@ class StatSpecificRegressionRateComputer:
 
     def compute_pitching_rates(
         self,
-        data_source: StatsDataSource,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
@@ -126,17 +140,27 @@ class StatSpecificRegressionRateComputer:
         player_seasons: dict[int, list[PitchingSeasonStats]] = {}
         league_rates: dict[int, dict[str, float]] = {}
         for y in years:
-            player_seasons[y] = data_source.pitching_stats(y)
-            team_stats = data_source.team_pitching(y)
-            if team_stats:
-                league_rates[y] = compute_pitching_league_rates(team_stats)
+            with new_context(year=y):
+                pitching_result = pitching_source(ALL_PLAYERS)
+                team_result = team_pitching_source(ALL_PLAYERS)
 
-        target_rates = league_rates[years[0]]
+                if pitching_result.is_ok():
+                    player_seasons[y] = list(pitching_result.unwrap())
+                else:
+                    player_seasons[y] = []
+
+                if team_result.is_ok():
+                    team_stats = team_result.unwrap()
+                    if team_stats:
+                        league_rates[y] = compute_pitching_league_rates(list(team_stats))
+
+        target_rates = league_rates.get(years[0], {})
 
         avg_league_rates: dict[str, float] = {}
         for stat in PITCHING_COMPONENT_STATS:
             rates_for_stat = [league_rates[y][stat] for y in years if y in league_rates]
-            avg_league_rates[stat] = sum(rates_for_stat) / len(rates_for_stat)
+            if rates_for_stat:
+                avg_league_rates[stat] = sum(rates_for_stat) / len(rates_for_stat)
 
         player_data: dict[str, dict[int, PitchingSeasonStats]] = {}
         for y in years:

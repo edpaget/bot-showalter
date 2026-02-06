@@ -16,7 +16,8 @@ from fantasy_baseball_manager.pipeline.stages.rate_computers import (
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.ml.mtl.model import (
         MultiTaskBatterModel,
         MultiTaskPitcherModel,
@@ -81,7 +82,8 @@ class MTLRateComputer:
 
     def compute_batting_rates(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
@@ -89,20 +91,13 @@ class MTLRateComputer:
 
         For players with sufficient Statcast data, uses the MTL model.
         For others, falls back to Marcel rates.
-
-        Args:
-            data_source: Source for historical stats.
-            year: Target projection year.
-            years_back: Number of years of history to consider.
-
-        Returns:
-            List of PlayerRates with predicted rates.
         """
         self._ensure_models_loaded()
 
         # Get Marcel rates as fallback and for metadata
-        marcel_rates = self._marcel_computer.compute_batting_rates_legacy(data_source, year, years_back)
-        {p.player_id: p for p in marcel_rates}
+        marcel_rates = self._marcel_computer.compute_batting_rates(
+            batting_source, team_batting_source, year, years_back
+        )
 
         if self._batter_model is None or not self._batter_model.is_fitted:
             logger.debug("No MTL batter model available, using Marcel rates")
@@ -176,7 +171,8 @@ class MTLRateComputer:
 
     def compute_pitching_rates(
         self,
-        data_source: StatsDataSource,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
@@ -184,19 +180,13 @@ class MTLRateComputer:
 
         For players with sufficient Statcast data, uses the MTL model.
         For others, falls back to Marcel rates.
-
-        Args:
-            data_source: Source for historical stats.
-            year: Target projection year.
-            years_back: Number of years of history to consider.
-
-        Returns:
-            List of PlayerRates with predicted rates.
         """
         self._ensure_models_loaded()
 
         # Get Marcel rates as fallback and for metadata
-        marcel_rates = self._marcel_computer.compute_pitching_rates_legacy(data_source, year, years_back)
+        marcel_rates = self._marcel_computer.compute_pitching_rates(
+            pitching_source, team_pitching_source, year, years_back
+        )
 
         if self._pitcher_model is None or not self._pitcher_model.is_fitted:
             logger.debug("No MTL pitcher model available, using Marcel rates")

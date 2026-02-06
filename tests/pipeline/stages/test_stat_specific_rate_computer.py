@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any
+
 import pytest
 
 from fantasy_baseball_manager.marcel.models import (
@@ -7,6 +9,10 @@ from fantasy_baseball_manager.marcel.models import (
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
+from fantasy_baseball_manager.result import Ok
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.context import Context
 
 
 def _make_player(
@@ -142,34 +148,36 @@ def _make_league_pitching(year: int = 2024) -> PitchingSeasonStats:
     )
 
 
-class FakeDataSource:
-    def __init__(
-        self,
-        player_batting: dict[int, list[BattingSeasonStats]] | None = None,
-        team_batting: dict[int, list[BattingSeasonStats]] | None = None,
-        player_pitching: dict[int, list[PitchingSeasonStats]] | None = None,
-        team_pitching: dict[int, list[PitchingSeasonStats]] | None = None,
-    ) -> None:
-        self._player_batting = player_batting or {}
-        self._team_batting = team_batting or {}
-        self._player_pitching = player_pitching or {}
-        self._team_pitching = team_pitching or {}
+def _make_batting_source(
+    player_batting: dict[int, list[BattingSeasonStats]],
+) -> Any:
+    """Create a fake DataSource[BattingSeasonStats] that reads year from context."""
 
-    def batting_stats(self, year: int) -> list[BattingSeasonStats]:
-        return self._player_batting.get(year, [])
+    def source(_query: object) -> Ok[list[BattingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
 
-    def pitching_stats(self, year: int) -> list[PitchingSeasonStats]:
-        return self._player_pitching.get(year, [])
+        year = get_context().year
+        return Ok(player_batting.get(year, []))
 
-    def team_batting(self, year: int) -> list[BattingSeasonStats]:
-        return self._team_batting.get(year, [])
+    return source
 
-    def team_pitching(self, year: int) -> list[PitchingSeasonStats]:
-        return self._team_pitching.get(year, [])
+
+def _make_pitching_source(
+    player_pitching: dict[int, list[PitchingSeasonStats]],
+) -> Any:
+    """Create a fake DataSource[PitchingSeasonStats] that reads year from context."""
+
+    def source(_query: object) -> Ok[list[PitchingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+
+        year = get_context().year
+        return Ok(player_pitching.get(year, []))
+
+    return source
 
 
 class TestStatSpecificRegressionBatting:
-    def test_so_rate_weighted_more_toward_actual(self) -> None:
+    def test_so_rate_weighted_more_toward_actual(self, test_context: "Context") -> None:
         """SO has regression_pa=200, much less than the 1200 default.
 
         With lower regression, the player's actual rate carries more weight
@@ -177,14 +185,19 @@ class TestStatSpecificRegressionBatting:
         """
         league = _make_league()
         player = _make_player(year=2024, age=28, pa=600, so=120)
-        ds = FakeDataSource(
-            player_batting={2024: [player]},
-            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        batting_source = _make_batting_source({2024: [player]})
+        team_batting_source = _make_batting_source(
+            {2024: [league], 2023: [league], 2022: [league]},
         )
 
         # Stat-specific: SO regression = 200
         computer = StatSpecificRegressionRateComputer()
-        rates = computer.compute_batting_rates(ds, 2025, 3)
+        rates = computer.compute_batting_rates(
+            batting_source,
+            team_batting_source,
+            2025,
+            3,
+        )
         so_rate_specific = rates[0].rates["so"]
 
         # Hand calculation: num = 5*120 + 200*(1400/6000) = 600 + 46.667 = 646.667
@@ -193,20 +206,25 @@ class TestStatSpecificRegressionBatting:
         expected = (5 * 120 + 200 * (1400 / 6000)) / (5 * 600 + 200)
         assert so_rate_specific == pytest.approx(expected, abs=1e-6)
 
-    def test_doubles_rate_regresses_more(self) -> None:
+    def test_doubles_rate_regresses_more(self, test_context: "Context") -> None:
         """Doubles has regression_pa=1600, more than the 1200 default.
 
         With higher regression, the rate moves closer to the league mean.
         """
         league = _make_league()
         player = _make_player(year=2024, age=28, pa=600, doubles=60)
-        ds = FakeDataSource(
-            player_batting={2024: [player]},
-            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        batting_source = _make_batting_source({2024: [player]})
+        team_batting_source = _make_batting_source(
+            {2024: [league], 2023: [league], 2022: [league]},
         )
 
         computer = StatSpecificRegressionRateComputer()
-        rates = computer.compute_batting_rates(ds, 2025, 3)
+        rates = computer.compute_batting_rates(
+            batting_source,
+            team_batting_source,
+            2025,
+            3,
+        )
         doubles_rate = rates[0].rates["doubles"]
 
         # num = 5*60 + 1600*(300/6000) = 300 + 80 = 380
@@ -215,17 +233,22 @@ class TestStatSpecificRegressionBatting:
         expected = (5 * 60 + 1600 * (300 / 6000)) / (5 * 600 + 1600)
         assert doubles_rate == pytest.approx(expected, abs=1e-6)
 
-    def test_custom_regression_overrides_defaults(self) -> None:
+    def test_custom_regression_overrides_defaults(self, test_context: "Context") -> None:
         league = _make_league()
         player = _make_player(year=2024, age=28, pa=600, hr=25)
-        ds = FakeDataSource(
-            player_batting={2024: [player]},
-            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        batting_source = _make_batting_source({2024: [player]})
+        team_batting_source = _make_batting_source(
+            {2024: [league], 2023: [league], 2022: [league]},
         )
 
         custom_reg = {"hr": 100}  # Very low regression
         computer = StatSpecificRegressionRateComputer(batting_regression=custom_reg)
-        rates = computer.compute_batting_rates(ds, 2025, 3)
+        rates = computer.compute_batting_rates(
+            batting_source,
+            team_batting_source,
+            2025,
+            3,
+        )
         hr_rate = rates[0].rates["hr"]
 
         # num = 5*25 + 100*(200/6000) = 125 + 3.333 = 128.333
@@ -233,30 +256,40 @@ class TestStatSpecificRegressionBatting:
         expected = (5 * 25 + 100 * (200 / 6000)) / (5 * 600 + 100)
         assert hr_rate == pytest.approx(expected, abs=1e-6)
 
-    def test_metadata_contains_team(self) -> None:
+    def test_metadata_contains_team(self, test_context: "Context") -> None:
         league = _make_league()
         player = _make_player(team="BOS")
-        ds = FakeDataSource(
-            player_batting={2024: [player]},
-            team_batting={2024: [league], 2023: [league], 2022: [league]},
+        batting_source = _make_batting_source({2024: [player]})
+        team_batting_source = _make_batting_source(
+            {2024: [league], 2023: [league], 2022: [league]},
         )
         computer = StatSpecificRegressionRateComputer()
-        rates = computer.compute_batting_rates(ds, 2025, 3)
+        rates = computer.compute_batting_rates(
+            batting_source,
+            team_batting_source,
+            2025,
+            3,
+        )
         assert rates[0].metadata["team"] == "BOS"
 
 
 class TestStatSpecificRegressionPitching:
-    def test_so_rate_regression(self) -> None:
+    def test_so_rate_regression(self, test_context: "Context") -> None:
         """Pitching SO regression is 30 outs (very low), trusting K rate."""
         league = _make_league_pitching()
         pitcher = _make_pitcher(year=2024, ip=180.0, so=200)
-        ds = FakeDataSource(
-            player_pitching={2024: [pitcher]},
-            team_pitching={2024: [league], 2023: [league], 2022: [league]},
+        pitching_source = _make_pitching_source({2024: [pitcher]})
+        team_pitching_source = _make_pitching_source(
+            {2024: [league], 2023: [league], 2022: [league]},
         )
 
         computer = StatSpecificRegressionRateComputer()
-        rates = computer.compute_pitching_rates(ds, 2025, 3)
+        rates = computer.compute_pitching_rates(
+            pitching_source,
+            team_pitching_source,
+            2025,
+            3,
+        )
         so_rate = rates[0].rates["so"]
 
         # outs = 180*3 = 540
@@ -267,17 +300,22 @@ class TestStatSpecificRegressionPitching:
         expected = (3 * 200 + 30 * league_rate) / (3 * 540 + 30)
         assert so_rate == pytest.approx(expected, abs=1e-6)
 
-    def test_h_rate_high_regression(self) -> None:
+    def test_h_rate_high_regression(self, test_context: "Context") -> None:
         """Pitching H regression is 200 outs (high), regressing BABIP."""
         league = _make_league_pitching()
         pitcher = _make_pitcher(year=2024, ip=180.0, h=150)
-        ds = FakeDataSource(
-            player_pitching={2024: [pitcher]},
-            team_pitching={2024: [league], 2023: [league], 2022: [league]},
+        pitching_source = _make_pitching_source({2024: [pitcher]})
+        team_pitching_source = _make_pitching_source(
+            {2024: [league], 2023: [league], 2022: [league]},
         )
 
         computer = StatSpecificRegressionRateComputer()
-        rates = computer.compute_pitching_rates(ds, 2025, 3)
+        rates = computer.compute_pitching_rates(
+            pitching_source,
+            team_pitching_source,
+            2025,
+            3,
+        )
         h_rate = rates[0].rates["h"]
 
         league_rate = 1350 / (1450 * 3)

@@ -8,8 +8,10 @@ RateComputer.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.context import new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.marcel.league_averages import (
     BATTING_COMPONENT_STATS,
     compute_batting_league_rates,
@@ -26,8 +28,9 @@ from fantasy_baseball_manager.pipeline.types import PlayerRates
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
-    from fantasy_baseball_manager.marcel.models import BattingSeasonStats
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
+    from fantasy_baseball_manager.pipeline.protocols import RateComputer
     from fantasy_baseball_manager.pipeline.stages.split_data_source import (
         SplitStatsDataSource,
     )
@@ -44,7 +47,7 @@ class PlatoonRateComputer:
     def __init__(
         self,
         split_source: SplitStatsDataSource,
-        pitching_delegate: Any,  # TODO: restore RateComputer type after migration
+        pitching_delegate: RateComputer,
         batting_regression: dict[str, float] | None = None,
         pct_vs_rhp: float = 0.72,
         pct_vs_lhp: float = 0.28,
@@ -57,7 +60,8 @@ class PlatoonRateComputer:
 
     def compute_batting_rates(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
@@ -72,11 +76,14 @@ class PlatoonRateComputer:
         for y in years:
             lhp_seasons[y] = self._split_source.batting_stats_vs_lhp(y)
             rhp_seasons[y] = self._split_source.batting_stats_vs_rhp(y)
-            team_stats = data_source.team_batting(y)
-            if team_stats:
-                league_rates[y] = compute_batting_league_rates(team_stats)
+            with new_context(year=y):
+                team_result = team_batting_source(ALL_PLAYERS)
+                if team_result.is_ok():
+                    team_stats = team_result.unwrap()
+                    if team_stats:
+                        league_rates[y] = compute_batting_league_rates(list(team_stats))
 
-        target_rates = league_rates[years[0]]
+        target_rates = league_rates.get(years[0], {})
 
         avg_league_rates: dict[str, float] = {}
         for stat in BATTING_COMPONENT_STATS:
@@ -144,11 +151,12 @@ class PlatoonRateComputer:
 
     def compute_pitching_rates(
         self,
-        data_source: StatsDataSource,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
-        return self._pitching_delegate.compute_pitching_rates(data_source, year, years_back)
+        return self._pitching_delegate.compute_pitching_rates(pitching_source, team_pitching_source, year, years_back)
 
     def _compute_split_rates(
         self,

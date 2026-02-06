@@ -257,13 +257,19 @@ class PositionSource(Protocol):
 - [x] Update one consumer (`MarcelRateComputer.compute_batting_rates_v2`) to use new source
 - [x] Verify caching works via `cached()` wrapper (tests in `test_batting_data_source.py`)
 
-### Phase 2: Stats Sources
+### Phase 2: Stats Sources ✅
 - [x] Complete `StatsDataSource` migration (all 4 methods)
 - [x] Migrate `MinorLeagueDataSource`
-- [ ] Update all pipeline consumers
+- [x] Update all pipeline consumers
   - [x] Add `MarcelRateComputer.compute_pitching_rates_v2()` (matches `_v2` pattern for batting)
   - [x] Update `RateComputer` protocol to use new signature
-  - [ ] Migrate other rate computer implementations
+  - [x] Migrate other rate computer implementations
+    - [x] `StatSpecificRegressionRateComputer`
+    - [x] `PlatoonRateComputer`
+    - [x] `MTLRateComputer`
+    - [x] `MLERateComputer`
+    - [x] `MLEAugmentedRateComputer`
+  - [x] Restore `RateComputer` type on `ProjectionPipeline.rate_computer`
 
 ### Phase 3: Player Mapping
 - [x] Create `PlayerMapper` following DataSource pattern (`PlayerMapperError`, callable interface on `SfbbMapper`)

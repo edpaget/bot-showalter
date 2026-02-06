@@ -6,6 +6,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.context import new_context
+from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
 from fantasy_baseball_manager.minors.persistence import MLEModelStore
 from fantasy_baseball_manager.minors.training_data import (
@@ -16,10 +18,12 @@ from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateCo
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.marcel.data_source import StatsDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
+    from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel
     from fantasy_baseball_manager.minors.types import MinorLeagueBatterSeasonStats
+    from fantasy_baseball_manager.pipeline.protocols import RateComputer
     from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 
 logger = logging.getLogger(__name__)
@@ -87,7 +91,8 @@ class MLERateComputer:
 
     def compute_batting_rates(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
@@ -99,19 +104,13 @@ class MLERateComputer:
         3. Blend MLE predictions with available MLB data (PA-weighted)
 
         For players with sufficient MLB history, returns standard Marcel rates.
-
-        Args:
-            data_source: Source for historical MLB stats.
-            year: Target projection year.
-            years_back: Number of years of history to consider.
-
-        Returns:
-            List of PlayerRates with rates and metadata.
         """
         self._ensure_model_loaded()
 
         # Get Marcel rates as baseline
-        marcel_rates = self._marcel_computer.compute_batting_rates_legacy(data_source, year, years_back)
+        marcel_rates = self._marcel_computer.compute_batting_rates(
+            batting_source, team_batting_source, year, years_back
+        )
 
         if self._batter_model is None:
             logger.debug("No MLE batter model available, using Marcel rates")
@@ -122,7 +121,7 @@ class MLERateComputer:
         milb_by_player = self._get_milb_stats_by_player(milb_year)
 
         # Calculate total MLB PA per player from recent years
-        mlb_pa_by_player = self._calculate_mlb_pa(data_source, year, years_back)
+        mlb_pa_by_player = self._calculate_mlb_pa(batting_source, year, years_back)
 
         feature_extractor = MLEBatterFeatureExtractor(min_pa=50)
 
@@ -207,22 +206,14 @@ class MLERateComputer:
 
     def compute_pitching_rates(
         self,
-        data_source: StatsDataSource,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
-        """Compute pitching rates using Marcel (MLE pitchers not yet implemented).
-
-        Args:
-            data_source: Source for historical MLB stats.
-            year: Target projection year.
-            years_back: Number of years of history to consider.
-
-        Returns:
-            List of PlayerRates from Marcel.
-        """
+        """Compute pitching rates using Marcel (MLE pitchers not yet implemented)."""
         # MLE for pitchers not yet implemented - fall back to Marcel
-        return self._marcel_computer.compute_pitching_rates_legacy(data_source, year, years_back)
+        return self._marcel_computer.compute_pitching_rates(pitching_source, team_pitching_source, year, years_back)
 
     def _get_milb_stats_by_player(self, year: int) -> dict[str, list[MinorLeagueBatterSeasonStats]]:
         """Get MiLB stats grouped by player ID for a year."""
@@ -241,7 +232,7 @@ class MLERateComputer:
 
     def _calculate_mlb_pa(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> dict[str, int]:
@@ -249,10 +240,13 @@ class MLERateComputer:
         pa_by_player: dict[str, int] = {}
 
         for y in range(year - years_back, year):
-            for player in data_source.batting_stats(y):
-                if player.player_id not in pa_by_player:
-                    pa_by_player[player.player_id] = 0
-                pa_by_player[player.player_id] += player.pa
+            with new_context(year=y):
+                result = batting_source(ALL_PLAYERS)
+                if result.is_ok():
+                    for player in result.unwrap():
+                        if player.player_id not in pa_by_player:
+                            pa_by_player[player.player_id] = 0
+                        pa_by_player[player.player_id] += player.pa
 
         return pa_by_player
 
@@ -263,20 +257,7 @@ class MLERateComputer:
         mle_rates: dict[str, float],
         mle_pa: int,
     ) -> dict[str, float]:
-        """Blend Marcel and MLE rates using PA-weighted average.
-
-        For stats that MLE predicts, uses PA-weighted blend.
-        For other stats, uses Marcel rates.
-
-        Args:
-            marcel_rates: Rates from Marcel projection
-            marcel_pa: MLB PA used for Marcel
-            mle_rates: Rates from MLE prediction
-            mle_pa: MiLB PA used for MLE
-
-        Returns:
-            Blended rates dictionary
-        """
+        """Blend Marcel and MLE rates using PA-weighted average."""
         total_pa = marcel_pa + mle_pa
         if total_pa == 0:
             return marcel_rates.copy()
@@ -313,7 +294,7 @@ class MLEAugmentedRateComputer:
     Implements the RateComputer protocol.
     """
 
-    delegate: object  # RateComputer protocol
+    delegate: RateComputer
     milb_source: MinorLeagueDataSource
     id_mapper: PlayerIdMapper  # Maps FanGraphs IDs to MLBAM IDs
     config: MLERateComputerConfig = field(default_factory=MLERateComputerConfig)
@@ -346,24 +327,16 @@ class MLEAugmentedRateComputer:
 
     def compute_batting_rates(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
+        team_batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
-        """Compute batting rates, augmenting rookies with MLE predictions.
-
-        Args:
-            data_source: Source for historical MLB stats.
-            year: Target projection year.
-            years_back: Number of years of history to consider.
-
-        Returns:
-            List of PlayerRates with MLE augmentation for rookies.
-        """
+        """Compute batting rates, augmenting rookies with MLE predictions."""
         self._ensure_model_loaded()
 
         # Get base rates from delegate
-        delegate_rates = self.delegate.compute_batting_rates(data_source, year, years_back)  # type: ignore[union-attr]
+        delegate_rates = self.delegate.compute_batting_rates(batting_source, team_batting_source, year, years_back)
 
         if self._batter_model is None:
             logger.debug("No MLE batter model available, returning delegate rates")
@@ -374,7 +347,7 @@ class MLEAugmentedRateComputer:
         milb_by_player = self._get_milb_stats_by_player(milb_year)
 
         # Calculate total MLB PA per player from recent years
-        mlb_pa_by_player = self._calculate_mlb_pa(data_source, year, years_back)
+        mlb_pa_by_player = self._calculate_mlb_pa(batting_source, year, years_back)
 
         feature_extractor = MLEBatterFeatureExtractor(min_pa=50)
 
@@ -466,22 +439,14 @@ class MLEAugmentedRateComputer:
 
     def compute_pitching_rates(
         self,
-        data_source: StatsDataSource,
+        pitching_source: DataSource[PitchingSeasonStats],
+        team_pitching_source: DataSource[PitchingSeasonStats],
         year: int,
         years_back: int,
     ) -> list[PlayerRates]:
-        """Compute pitching rates (MLE pitchers not yet implemented).
-
-        Args:
-            data_source: Source for historical MLB stats.
-            year: Target projection year.
-            years_back: Number of years of history to consider.
-
-        Returns:
-            List of PlayerRates from delegate.
-        """
+        """Compute pitching rates (MLE pitchers not yet implemented)."""
         # MLE for pitchers not yet implemented - delegate unchanged
-        return self.delegate.compute_pitching_rates(data_source, year, years_back)  # type: ignore[union-attr]
+        return self.delegate.compute_pitching_rates(pitching_source, team_pitching_source, year, years_back)
 
     def _get_milb_stats_by_player(self, year: int) -> dict[str, list[MinorLeagueBatterSeasonStats]]:
         """Get MiLB stats grouped by player ID for a year."""
@@ -500,7 +465,7 @@ class MLEAugmentedRateComputer:
 
     def _calculate_mlb_pa(
         self,
-        data_source: StatsDataSource,
+        batting_source: DataSource[BattingSeasonStats],
         year: int,
         years_back: int,
     ) -> dict[str, int]:
@@ -508,10 +473,13 @@ class MLEAugmentedRateComputer:
         pa_by_player: dict[str, int] = {}
 
         for y in range(year - years_back, year):
-            for player in data_source.batting_stats(y):
-                if player.player_id not in pa_by_player:
-                    pa_by_player[player.player_id] = 0
-                pa_by_player[player.player_id] += player.pa
+            with new_context(year=y):
+                result = batting_source(ALL_PLAYERS)
+                if result.is_ok():
+                    for player in result.unwrap():
+                        if player.player_id not in pa_by_player:
+                            pa_by_player[player.player_id] = 0
+                        pa_by_player[player.player_id] += player.pa
 
         return pa_by_player
 

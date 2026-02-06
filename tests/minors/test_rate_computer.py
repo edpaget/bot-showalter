@@ -1,6 +1,7 @@
 """Tests for minors/rate_computer.py - MLE rate computer pipeline stage."""
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -12,6 +13,10 @@ from fantasy_baseball_manager.minors.types import (
     MinorLeagueLevel,
     MinorLeaguePitcherSeasonStats,
 )
+from fantasy_baseball_manager.result import Ok
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.context import Context
 
 
 def _make_player(
@@ -143,6 +148,34 @@ def _make_league_pitching(year: int = 2024) -> PitchingSeasonStats:
     )
 
 
+def _make_batting_source(
+    data: dict[int, list[BattingSeasonStats]],
+) -> Any:
+    """Create a fake DataSource[BattingSeasonStats] that reads year from context."""
+
+    def source(_query: object) -> Ok[list[BattingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+
+        year = get_context().year
+        return Ok(data.get(year, []))
+
+    return source
+
+
+def _make_pitching_source(
+    data: dict[int, list[PitchingSeasonStats]],
+) -> Any:
+    """Create a fake DataSource[PitchingSeasonStats] that reads year from context."""
+
+    def source(_query: object) -> Ok[list[PitchingSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
+
+        year = get_context().year
+        return Ok(data.get(year, []))
+
+    return source
+
+
 def _make_milb_batter(
     player_id: str = "123456",
     name: str = "Test Batter",
@@ -187,34 +220,6 @@ def _make_milb_batter(
         obp=0.340,
         slg=0.450,
     )
-
-
-class FakeMLBDataSource:
-    """Fake MLB data source for testing."""
-
-    def __init__(
-        self,
-        player_batting: dict[int, list[BattingSeasonStats]] | None = None,
-        team_batting_data: dict[int, list[BattingSeasonStats]] | None = None,
-        player_pitching: dict[int, list[PitchingSeasonStats]] | None = None,
-        team_pitching_data: dict[int, list[PitchingSeasonStats]] | None = None,
-    ) -> None:
-        self._player_batting = player_batting or {}
-        self._team_batting_data = team_batting_data or {}
-        self._player_pitching = player_pitching or {}
-        self._team_pitching_data = team_pitching_data or {}
-
-    def batting_stats(self, year: int) -> list[BattingSeasonStats]:
-        return self._player_batting.get(year, [])
-
-    def pitching_stats(self, year: int) -> list[PitchingSeasonStats]:
-        return self._player_pitching.get(year, [])
-
-    def team_batting(self, year: int) -> list[BattingSeasonStats]:
-        return self._team_batting_data.get(year, [])
-
-    def team_pitching(self, year: int) -> list[PitchingSeasonStats]:
-        return self._team_pitching_data.get(year, [])
 
 
 @dataclass
@@ -342,7 +347,7 @@ class TestMLERateComputer:
         mock_store.exists.assert_called()
         assert computer._batter_model is None
 
-    def test_compute_batting_rates_uses_mle_for_low_mlb_pa(self) -> None:
+    def test_compute_batting_rates_uses_mle_for_low_mlb_pa(self, test_context: "Context") -> None:
         """Players with low MLB PA should get MLE predictions blended in."""
         from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
         from fantasy_baseball_manager.minors.rate_computer import MLERateComputer
@@ -360,17 +365,19 @@ class TestMLERateComputer:
         )
         league = _make_league(year=2024)
 
-        mlb_source = FakeMLBDataSource(
-            player_batting={
+        batting_source = _make_batting_source(
+            {
                 2024: [mlb_player],
                 2023: [],
                 2022: [],
-            },
-            team_batting_data={
+            }
+        )
+        team_batting_source = _make_batting_source(
+            {
                 2024: [league],
                 2023: [_make_league(2023)],
                 2022: [_make_league(2022)],
-            },
+            }
         )
 
         # MiLB stats from prior year (2024 for 2025 projections)
@@ -391,7 +398,12 @@ class TestMLERateComputer:
             model_store=mock_store,
         )
 
-        rates = computer.compute_batting_rates(mlb_source, 2025, 3)
+        rates = computer.compute_batting_rates(
+            batting_source,
+            team_batting_source,
+            2025,
+            3,
+        )
 
         assert len(rates) == 1
         assert rates[0].player_id == "123456"
@@ -400,7 +412,7 @@ class TestMLERateComputer:
         assert rates[0].metadata.get("mle_applied") is True
         assert "mle_source_level" in rates[0].metadata
 
-    def test_compute_batting_rates_skips_mle_for_high_mlb_pa(self) -> None:
+    def test_compute_batting_rates_skips_mle_for_high_mlb_pa(self, test_context: "Context") -> None:
         """Players with sufficient MLB PA should not use MLE."""
         from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
         from fantasy_baseball_manager.minors.rate_computer import MLERateComputer
@@ -418,13 +430,13 @@ class TestMLERateComputer:
         )
         league = _make_league(year=2024)
 
-        mlb_source = FakeMLBDataSource(
-            player_batting={2024: [mlb_player], 2023: [], 2022: []},
-            team_batting_data={
+        batting_source = _make_batting_source({2024: [mlb_player], 2023: [], 2022: []})
+        team_batting_source = _make_batting_source(
+            {
                 2024: [league],
                 2023: [_make_league(2023)],
                 2022: [_make_league(2022)],
-            },
+            }
         )
 
         mock_store = MagicMock()
@@ -436,27 +448,32 @@ class TestMLERateComputer:
             model_store=mock_store,
         )
 
-        rates = computer.compute_batting_rates(mlb_source, 2025, 3)
+        rates = computer.compute_batting_rates(
+            batting_source,
+            team_batting_source,
+            2025,
+            3,
+        )
 
         assert len(rates) == 1
         assert rates[0].player_id == "654321"
         # MLE should NOT be applied
         assert rates[0].metadata.get("mle_applied") is not True
 
-    def test_compute_pitching_rates_falls_back_to_marcel(self) -> None:
+    def test_compute_pitching_rates_falls_back_to_marcel(self, test_context: "Context") -> None:
         """Pitching rates should fall back to Marcel (MLE pitchers not implemented)."""
         from fantasy_baseball_manager.minors.rate_computer import MLERateComputer
 
         pitcher = _make_pitcher(player_id="sp1", year=2024)
         league = _make_league_pitching(year=2024)
 
-        mlb_source = FakeMLBDataSource(
-            player_pitching={2024: [pitcher], 2023: [], 2022: []},
-            team_pitching_data={
+        pitching_source = _make_pitching_source({2024: [pitcher], 2023: [], 2022: []})
+        team_pitching_source = _make_pitching_source(
+            {
                 2024: [league],
                 2023: [_make_league_pitching(2023)],
                 2022: [_make_league_pitching(2022)],
-            },
+            }
         )
 
         computer = MLERateComputer(
@@ -464,14 +481,19 @@ class TestMLERateComputer:
             model_store=MagicMock(),
         )
 
-        rates = computer.compute_pitching_rates(mlb_source, 2025, 3)
+        rates = computer.compute_pitching_rates(
+            pitching_source,
+            team_pitching_source,
+            2025,
+            3,
+        )
 
         assert len(rates) == 1
         assert rates[0].player_id == "sp1"
         # Should have Marcel metadata, not MLE
         assert rates[0].metadata.get("mle_applied") is not True
 
-    def test_blends_mlb_and_mle_rates(self) -> None:
+    def test_blends_mlb_and_mle_rates(self, test_context: "Context") -> None:
         """MLE rates should be blended with MLB rates based on PA."""
         from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
         from fantasy_baseball_manager.minors.rate_computer import MLERateComputer
@@ -489,17 +511,19 @@ class TestMLERateComputer:
         )
         league = _make_league(year=2024)
 
-        mlb_source = FakeMLBDataSource(
-            player_batting={
+        batting_source = _make_batting_source(
+            {
                 2024: [mlb_player],
                 2023: [],
                 2022: [],
-            },
-            team_batting_data={
+            }
+        )
+        team_batting_source = _make_batting_source(
+            {
                 2024: [league],
                 2023: [_make_league(2023)],
                 2022: [_make_league(2022)],
-            },
+            }
         )
 
         milb_player = _make_milb_batter(
@@ -518,7 +542,12 @@ class TestMLERateComputer:
             model_store=mock_store,
         )
 
-        rates = computer.compute_batting_rates(mlb_source, 2025, 3)
+        rates = computer.compute_batting_rates(
+            batting_source,
+            team_batting_source,
+            2025,
+            3,
+        )
 
         # Should have blended rates
         assert len(rates) == 1
