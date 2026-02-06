@@ -281,9 +281,13 @@ class PositionSource(Protocol):
 - [x] Migrate `ProjectionSource`
 - [x] Update registry patterns (for ADP)
 
-### Phase 5: Yahoo Sources
-- [ ] Evaluate if Yahoo sources fit DataSource pattern
-- [ ] Migrate or leave as-is with clear documentation
+### Phase 5: Yahoo Sources ✅ (Keep As-Is)
+
+Evaluated — these protocols do not fit the `DataSource[T]` pattern and should remain as-is:
+
+- [x] **`RosterSource`** — Returns singular `LeagueRosters` (not a list). Session-bound to Yahoo league. Single implementation (`YahooRosterSource`). Already cached via `cached_call()`. Structural mismatch with `DataSource[T]`.
+- [x] **`DraftResultsSource`** — Multi-method protocol (3 methods returning unrelated types: `list[YahooDraftPick]`, `DraftStatus`, `str`). Only used in `draft/cli.py`. Cannot be meaningfully split into separate `DataSource[T]` instances.
+- [x] **`PositionSource`** — Returns `dict[str, tuple[str, ...]]` (a mapping, not a list). Two lightweight implementations (`YahooPositionSource`, `CsvPositionSource`). Only used in `draft/cli.py`. Already cached via `cached_call()`.
 
 ### Phase 6: Cleanup
 - [x] Remove `CachedADPSource` and `CachedProjectionSource` cached wrappers
@@ -294,33 +298,277 @@ class PositionSource(Protocol):
 - [x] Remove remaining old cached wrapper classes (`CachedPositionSource`, `CachedRosterSource`, `CachedDraftResultsSource`)
 - [x] Remove remaining old serializer functions
 - [x] Update `ServiceContainer` to build new-style sources
-- [ ] Archive old protocols (mark deprecated)
+- [ ] Archive old protocols (mark deprecated) — see Phase 7
+
+### Phase 7: Migrate Consumers Off Old Protocols
+
+The new `DataSource[T]` implementations exist but ~90 call sites still reference the old
+protocols in type annotations and method calls. This phase migrates those consumers.
+
+#### 7a. `StatsDataSource` → `DataSource[T]` callables (~37 refs)
+
+**Current state:** Rate computers already accept `DataSource[T]`. `pipeline/engine.py` has
+internal `_adapt_batting`/`_adapt_pitching` adapter functions wrapping `StatsDataSource` into
+`DataSource[T]`. All other consumers call methods directly: `data_source.batting_stats(year)`.
+
+**Approach — bottom-up, guided by `ProjectionPipeline`:**
+
+1. Change `ProjectionPipeline.project_batters` / `project_pitchers` signatures to accept
+   `DataSource[T]` pairs directly instead of `StatsDataSource`:
+   ```python
+   # Before
+   def project_batters(self, data_source: StatsDataSource, year: int) -> ...
+   # After
+   def project_batters(
+       self,
+       batting_source: DataSource[BattingSeasonStats],
+       team_batting_source: DataSource[BattingSeasonStats],
+       year: int,
+   ) -> ...
+   ```
+   Remove the `_adapt_*` helper functions (no longer needed).
+
+2. Update `ProjectionPipelineProtocol` (pipeline/protocols.py) to match.
+
+3. Migrate direct `data_source.method(year)` consumers. Common call-site pattern:
+   ```python
+   # Before
+   actuals = data_source.batting_stats(year)
+   # After
+   with new_context(year=year):
+       actuals = batting_source(ALL_PLAYERS).unwrap()
+   ```
+   Key files (in dependency order):
+   - [ ] `evaluation/actuals.py` — `actuals_as_projections()` takes 2 DataSource params
+   - [ ] `evaluation/harness.py` — `evaluate_source()` takes 2 DataSource params
+   - [ ] `evaluation/cli.py` — thread sources through CLI entry points
+   - [ ] `ros/projector.py` — `ROSProjector.__init__` takes batting/pitching sources
+   - [ ] `ml/training.py` — `ResidualModelTrainer` fields become DataSource params
+   - [ ] `ml/mtl/dataset.py` — replace `StatsDataSource` field
+   - [ ] `ml/mtl/trainer.py` — replace `StatsDataSource` field
+   - [ ] `ml/cli.py` — thread sources through CLI entry points
+   - [ ] `pipeline/engine.py` — update `ProjectionPipeline` signatures
+   - [ ] `pipeline/protocols.py` — update `ProjectionPipelineProtocol`
+   - [ ] `pipeline/source.py` — `PipelineProjectionSource` adapts pipeline
+   - [ ] `services/container.py` — build DataSource instances instead of `PybaseballDataSource`
+   - [ ] `minors/training.py`, `minors/evaluation.py`, `minors/training_data.py` — update MLE consumers
+
+4. Remove `StatsDataSource` protocol, `PybaseballDataSource` class, and
+   `CachedStatsDataSource` wrapper.
+
+#### 7b. `MinorLeagueDataSource` → `DataSource[T]` callables (~14 refs)
+
+**Current state:** `MinorLeagueBattingDataSource` and `MinorLeaguePitchingDataSource` exist.
+Every consumer only calls the `*_all_levels` methods — no consumer uses level-specific queries.
+`CachedMinorLeagueDataSource` is the sole consumer of level-specific methods.
+
+**Approach:**
+
+1. Update consumers to accept `DataSource[MinorLeagueBatterSeasonStats]` instead of
+   `MinorLeagueDataSource`:
+   - [ ] `minors/rate_computer.py` — `MLERateComputer.milb_source` and `MLEAugmentedRateComputer.milb_source`
+   - [ ] `minors/training_data.py` — `MLETrainingDataCollector.milb_source`
+   - [ ] `minors/training.py` — `MLEModelTrainer.milb_source` (passes to collector)
+   - [ ] `minors/evaluation.py` — `MLEEvaluator.milb_source` (passes to collector)
+   - [ ] `pipeline/builder.py` — `_resolve_milb_source()` returns `DataSource[T]`
+
+2. Replace `CachedMinorLeagueDataSource` with `cached()` wrapping the new DataSource
+   implementations.
+
+3. Remove `MinorLeagueDataSource` protocol and `CachedMinorLeagueDataSource`.
+
+#### 7c. `PlayerIdMapper` → `Player` Identity Through the Pipeline (~40 refs)
+
+**Current state:** `SfbbMapper` implements both the legacy `PlayerIdMapper` protocol and a new
+callable interface (`Player → Player` enrichment). Consumer usage breaks down as:
+
+| Method | Calls | Where | Pattern |
+|--------|-------|-------|---------|
+| `fangraphs_to_mlbam` | 9+ | Pipeline stages, ML training, skill data | `PlayerRates.player_id` (FG) → MLBAM for Statcast lookup |
+| `mlbam_to_fangraphs` | 5 | projections/adapter, minors/training_data | External data (MLBAM) → FG for internal lookups |
+| `yahoo_to_fangraphs` | 2 | draft/cli, draft/positions | Yahoo API → FG for internal lookups |
+| `fangraphs_to_yahoo` | 0 | — | Unused, delete |
+
+**Root cause:** Pipeline data structures (`PlayerRates`, `BattingProjection`, etc.) carry only
+a single `player_id: str` with no ID system annotation. `PlayerRates.player_id` is a FanGraphs
+ID; `StatcastBatterStats.player_id` is an MLBAM ID. Stages must call the mapper to bridge
+between them. The `Player` dataclass already has `fangraphs_id`, `mlbam_id`, and `yahoo_id`
+fields — the fix is to carry `Player` identity through the pipeline so stages can read IDs
+directly.
+
+**Approach — embed `Player` in `PlayerRates`, enrich at boundaries:**
+
+##### Step 1: Add `player: Player` to `PlayerRates`
+
+`PlayerRates` (pipeline/types.py) currently has `player_id: str` and `name: str`. Add a
+`player: Player` field that carries full identity. Keep `player_id` as a derived property
+for backward compatibility during migration.
+
+```python
+@dataclass
+class PlayerRates:
+    player: Player           # carries fangraphs_id, mlbam_id, yahoo_id
+    year: int
+    age: int
+    rates: dict[str, float]
+    opportunities: float
+    metadata: PlayerMetadata
+
+    @property
+    def player_id(self) -> str:
+        return self.player.fangraphs_id or ""
+
+    @property
+    def name(self) -> str:
+        return self.player.name
+```
+
+##### Step 2: Enrich at rate computation boundary
+
+Rate computers produce `PlayerRates` from `BattingSeasonStats` (which have FanGraphs IDs).
+After rates are computed, enrich the `Player` objects with MLBAM IDs using `SfbbMapper`:
+
+```python
+# In PipelineBuilder or a pipeline stage wrapper
+mapper = SfbbMapper(...)
+for pr in player_rates:
+    enriched = mapper(Player(yahoo_id="", fangraphs_id=pr.player_id, name=pr.name))
+    pr.player = enriched.unwrap()
+```
+
+This is a single enrichment pass — all downstream stages get both IDs for free.
+
+##### Step 3: Remove `id_mapper` from pipeline stages (~9 calls)
+
+All `fangraphs_to_mlbam` calls follow the same pattern:
+```python
+# Before — stage needs id_mapper injected
+mlbam_id = self.id_mapper.fangraphs_to_mlbam(player.player_id)
+statcast = statcast_lookup.get(mlbam_id) if mlbam_id else None
+
+# After — identity already on PlayerRates
+statcast = statcast_lookup.get(player.player.mlbam_id) if player.player.mlbam_id else None
+```
+
+Files to update (all pipeline stages):
+- [ ] `pipeline/stages/statcast_adjuster.py` — remove `id_mapper` field
+- [ ] `pipeline/stages/pitcher_statcast_adjuster.py` — remove `id_mapper` field
+- [ ] `pipeline/stages/batter_babip_adjuster.py` — remove `id_mapper` field
+- [ ] `pipeline/stages/gb_residual_adjuster.py` — remove `id_mapper` field (2 calls)
+- [ ] `pipeline/stages/mtl_rate_computer.py` — remove `id_mapper` field (2 calls)
+- [ ] `pipeline/stages/mtl_blender.py` — remove `id_mapper` field (2 calls)
+- [ ] `pipeline/skill_data.py` — `CompositeSkillDataSource` (1 call)
+- [ ] `agent/tools.py` — `get_player_info()` (1 call)
+
+Also update ML training consumers that follow the same pattern:
+- [ ] `ml/training.py` — `ResidualModelTrainer` (4 calls)
+- [ ] `ml/mtl/dataset.py` — `BatterTrainingDataCollector`, `PitcherTrainingDataCollector` (2 calls)
+
+##### Step 4: Enrich external data at source boundaries (~5 `mlbam_to_fangraphs` calls)
+
+Data entering the system with MLBAM IDs (MiLB stats, external projections) should be
+enriched with FanGraphs IDs at the data source boundary, not inside consumers.
+
+**projections/adapter.py** (`_resolve_player_id`, 1 call):
+- `ExternalProjectionAdapter` receives projections with `mlbam_id` and optional
+  `fangraphs_id`. Enrich with `SfbbMapper` at construction/load time so
+  `_resolve_player_id` can read `player.fangraphs_id` directly.
+
+**minors/training_data.py** (`_translate_mlbam_to_fangraphs`, 2 calls):
+- MiLB stats arrive keyed by MLBAM ID. Build a `Player` for each MiLB player and
+  enrich via `SfbbMapper` once after loading. Downstream code reads
+  `player.fangraphs_id` instead of calling the mapper per-player.
+
+##### Step 5: Enrich Yahoo data at source boundaries (~2 `yahoo_to_fangraphs` calls)
+
+These already align with the `SfbbMapper` callable interface (`yahoo_id → enriched Player`):
+
+**draft/cli.py** (1 call):
+- Create `Player(yahoo_id=pick.player_id, name=pick.player_name)` for each draft pick.
+- Enrich via `SfbbMapper.__call__()`. Read `player.fangraphs_id`.
+
+**draft/positions.py** (`YahooPositionSource`, 1 call):
+- Create `Player(yahoo_id=yahoo_id)` for each Yahoo API player.
+- Enrich via `SfbbMapper.__call__()`. Key positions dict by `player.fangraphs_id`.
+
+##### Step 6: Remove `PlayerIdMapper` protocol
+
+Once all call sites are migrated:
+- [ ] Delete `PlayerIdMapper` protocol from `player_id/mapper.py`
+- [ ] Delete `fangraphs_to_yahoo` (unused) and the 3 remaining legacy methods from `SfbbMapper`
+- [ ] Remove `id_mapper: PlayerIdMapper` type annotations from all constructor signatures
+- [ ] Update `PipelineBuilder` to pass `SfbbMapper` only where needed for enrichment (Steps 2/4/5),
+  not to every pipeline stage
+
+#### 7d. `ADPSource` / `ProjectionSource` — Remove Legacy Side of Dual Registries
+
+These protocols are already bridged — new `DataSource[T]` wrappers exist alongside legacy
+classes. Migration is about removing the legacy side:
+
+- [ ] **ADP registry:** Remove `get_source()` / `ADPSourceFactory` from `adp/registry.py`,
+  keep only `get_datasource()` / `ADPDataSourceFactory`. Update any remaining `ADPSource`
+  imports.
+- [ ] **ADP composite:** Remove `CompositeADPSource`, keep `CompositeADPDataSource`.
+- [ ] **Projection wrappers:** Remove `FanGraphsProjectionSource` / `CSVProjectionSource` if
+  all consumers use the `DataSource[T]` factories. Or keep as inner implementation detail
+  wrapped by `BattingProjectionDataSource` / `PitchingProjectionDataSource`.
+
+#### 7e. `valuation/ProjectionSource` — Separate Concern
+
+This is a *different* protocol from `projections/ProjectionSource`:
+```python
+# valuation/projection_source.py
+class ProjectionSource(Protocol):
+    def batting_projections(self) -> list[BattingProjection]: ...
+    def pitching_projections(self) -> list[PitchingProjection]: ...
+```
+Used by the evaluation harness (`evaluation/harness.py`, `evaluation/cli.py`) and implemented
+by `PipelineProjectionSource` (pipeline/source.py). This is not part of the DataSource
+migration — it models "a source of projection results" for evaluation, not raw data fetching.
+Keep as-is; optionally rename to `ProjectionProvider` to avoid confusion with
+`projections/ProjectionSource`.
 
 ---
 
-## Open Questions
+## Resolved Questions
 
-1. **MinorLeagueDataSource level parameter**: Add to context or keep as parameter?
-2. **Yahoo sources**: Do session-bound sources fit the DataSource pattern?
-3. **DraftResultsSource**: Multi-method protocols - split into separate sources?
-4. **Backward compatibility**: How long to maintain old protocols?
+1. **MinorLeagueDataSource level parameter**: No consumer uses level-specific queries.
+   Level-specific methods only exist in `CachedMinorLeagueDataSource`. The new DataSource
+   implementations return all levels; consumers filter as needed.
+2. **Yahoo sources**: Do not fit `DataSource[T]`. Keep `RosterSource`, `DraftResultsSource`,
+   and `PositionSource` as-is (see Phase 5).
+3. **DraftResultsSource**: Keep as multi-method protocol — splitting into 3 separate
+   DataSources would add complexity with no benefit for a single-consumer protocol.
+4. **Backward compatibility**: Remove old protocols once all consumers are migrated within
+   each phase (7a–7d). No deprecation period needed — this is internal code.
 
 ---
 
 ## Dependencies
 
 ```
-Context ─────────────────────────────────────┐
-Result ──────────────────────────────────────┤
-DataSource[T] ───────────────────────────────┤
-ALL_PLAYERS ─────────────────────────────────┼──► StatsDataSource migration
-cached() ────────────────────────────────────┤
-Serializer ──────────────────────────────────┤
-Player ──────────────────────────────────────┘
-                                             │
-StatsDataSource ─────────────────────────────┼──► MinorLeagueDataSource
-                                             │
-Player + PlayerMapper ───────────────────────┼──► Consumer updates
-                                             │
-All sources migrated ────────────────────────┴──► Remove old wrappers
+Phase 7a (StatsDataSource)
+  └─► pipeline/engine.py, pipeline/protocols.py (signature change)
+      └─► evaluation/*, ros/*, ml/* (consumer updates)
+          └─► services/container.py (wiring)
+              └─► Remove StatsDataSource, PybaseballDataSource, CachedStatsDataSource
+
+Phase 7b (MinorLeagueDataSource)
+  └─► minors/rate_computer.py (field type change)
+      └─► minors/training_data.py, training.py, evaluation.py (field type change)
+          └─► pipeline/builder.py (wiring)
+              └─► Remove MinorLeagueDataSource, CachedMinorLeagueDataSource
+
+Phase 7c (PlayerIdMapper)
+  └─► Step 1: Add player: Player to PlayerRates
+      └─► Step 2: Enrich PlayerRates at rate computation boundary (SfbbMapper)
+          └─► Step 3: Remove id_mapper from pipeline stages (~9 calls)
+              └─► Step 4: Enrich external data at source boundaries (~5 mlbam_to_fangraphs)
+                  └─► Step 5: Enrich Yahoo data at source boundaries (~2 yahoo_to_fangraphs)
+                      └─► Step 6: Remove PlayerIdMapper protocol + legacy SfbbMapper methods
+
+Phase 7d (ADPSource / ProjectionSource)
+  └─► Remove legacy registry functions
+      └─► Remove legacy composite/scraper classes
+          └─► Remove ADPSource, ProjectionSource protocols
 ```
