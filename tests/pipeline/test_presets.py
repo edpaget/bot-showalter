@@ -331,6 +331,7 @@ def _wrap_source(method: Any) -> Any:
 
     def source(query: Any) -> Ok:
         return Ok(method(get_context().year))
+
     return source
 
 
@@ -355,8 +356,7 @@ class TestAllPipelinesProduceValidProjections:
         )
 
         pipeline = PIPELINES["marcel"]()
-        result = pipeline.project_batters(
-            _wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025        )
+        result = pipeline.project_batters(_wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025)
         assert len(result) == 1
         proj = result[0]
         assert isinstance(proj, BattingProjection)
@@ -378,8 +378,7 @@ class TestAllPipelinesProduceValidProjections:
         )
 
         pipeline = PIPELINES["mle"]()
-        result = pipeline.project_batters(
-            _wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025        )
+        result = pipeline.project_batters(_wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025)
         assert len(result) == 1
         proj = result[0]
         assert isinstance(proj, BattingProjection)
@@ -412,8 +411,7 @@ class TestMLEFallbackBehavior:
 
         # MLE pipeline without a trained model should fall back to Marcel rates
         pipeline = mle_pipeline()
-        result = pipeline.project_batters(
-            _wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025        )
+        result = pipeline.project_batters(_wrap_source(ds.batting_stats), _wrap_source(ds.team_batting), 2025)
 
         # Should still produce valid projections via Marcel fallback
         assert len(result) == 1

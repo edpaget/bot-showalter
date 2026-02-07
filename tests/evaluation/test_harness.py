@@ -151,17 +151,23 @@ def _pitching_stats(
 
 def _fake_batting_source(data: dict[int, list[BattingSeasonStats]]) -> Any:
     """Create a fake DataSource[BattingSeasonStats] callable."""
+
     def source(query: Any) -> Ok[list[BattingSeasonStats]]:
         from fantasy_baseball_manager.context import get_context
+
         return Ok(data.get(get_context().year, []))
+
     return source
 
 
 def _fake_pitching_source(data: dict[int, list[PitchingSeasonStats]]) -> Any:
     """Create a fake DataSource[PitchingSeasonStats] callable."""
+
     def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
         from fantasy_baseball_manager.context import get_context
+
         return Ok(data.get(get_context().year, []))
+
     return source
 
 

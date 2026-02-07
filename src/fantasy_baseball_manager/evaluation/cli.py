@@ -131,9 +131,12 @@ def _build_source(
         Tuple of (engine_name, projection_source).
     """
     pipeline = get_pipeline(engine, year=year, id_mapper=id_mapper)
-    return (engine, PipelineProjectionSource(
-        pipeline, batting_source, team_batting_source, pitching_source, team_pitching_source, year
-    ))
+    return (
+        engine,
+        PipelineProjectionSource(
+            pipeline, batting_source, team_batting_source, pitching_source, team_pitching_source, year
+        ),
+    )
 
 
 def _average_evaluations(
@@ -316,9 +319,13 @@ def evaluate_cmd(
                     stratification=stratification,
                 )
                 source = _build_source(
-                    eng, batting_source, team_batting_source,
-                    pitching_source, team_pitching_source,
-                    eval_year, id_mapper=id_mapper,
+                    eng,
+                    batting_source,
+                    team_batting_source,
+                    pitching_source,
+                    team_pitching_source,
+                    eval_year,
+                    id_mapper=id_mapper,
                 )
                 result = evaluate(
                     sources=[source],

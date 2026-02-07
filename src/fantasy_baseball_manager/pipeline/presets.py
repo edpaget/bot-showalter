@@ -324,9 +324,7 @@ def get_pipeline(name: str, year: int | None = None, id_mapper: PlayerIdMapper |
         try:
             batting_path, pitching_path = resolver.resolve(system, year)
             source = CSVProjectionSource(batting_path, pitching_path, system)
-            return ExternalProjectionAdapter.from_projection_source(
-                source, projection_year=year, id_mapper=id_mapper
-            )
+            return ExternalProjectionAdapter.from_projection_source(source, projection_year=year, id_mapper=id_mapper)
         except FileNotFoundError:
             # Fall through to live API
             pass

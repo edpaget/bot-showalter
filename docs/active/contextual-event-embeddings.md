@@ -126,15 +126,17 @@ Processing pipeline to transform raw Statcast pitch data into model-ready sequen
 
 ## New Components
 
-### Data Layer
+### Data Layer (Implemented)
 
 | Component | Type | Description |
 |-----------|------|-------------|
-| `PitchEvent` | dataclass | Single pitch with all features (Statcast + gamestate) |
-| `GameSequence` | dataclass | Ordered sequence of `PitchEvent` for one game |
-| `PlayerContext` | dataclass | N games of sequences for one player/team |
-| `StatcastPitchDataSource` | `DataSource[PitchEvent]` | Fetches pitch-level data via pybaseball |
-| `GameSequenceBuilder` | service | Transforms raw pitch data into model-ready sequences |
+| `PitchEvent` | frozen dataclass | Single pitch with 30 fields (Statcast + gamestate) |
+| `GameSequence` | frozen dataclass | Ordered `tuple[PitchEvent, ...]` for one game from one player's perspective |
+| `PlayerContext` | frozen dataclass | N games of sequences for one player |
+| `Vocabulary` | frozen dataclass | Token-to-index mapping with `<PAD>`/`<UNK>` fallback (5 vocabs defined) |
+| `GameSequenceBuilder` | service | `StatcastStore` → `list[GameSequence]` with batter/pitcher perspective |
+| `PitchSequenceDataSource` | `DataSource[PlayerContext]` | Wraps builder with caching and game window truncation |
+| `SequenceCache` | service | File-based parquet cache for processed sequences |
 
 ### Model Layer
 
@@ -256,30 +258,33 @@ plan before implementation begins.
 - **Evaluation harness**: Backtest framework (2021–2024) with correlation, RMSE, and rank
   metrics against `marcel_gb` baseline (HR=0.678, SB=0.736, rank ρ=0.603).
 
-### Phase 1 — Pitch Event Data Pipeline
+### Phase 1 — Pitch Event Data Pipeline ✅ COMPLETE
 
 **Goal**: Transform raw Statcast parquet into model-ready pitch sequences.
 
-**What exists**: `StatcastStore.read_season()` returns raw `pd.DataFrame` with all Statcast
-fields. No structured pitch-event types or sequence grouping.
+**Status**: Implemented and validated. 82 unit tests passing, smoke-tested against real 2024
+Statcast data (Ohtani: 178 games, 3,173 pitches, 17.8 avg pitches/game).
 
 **Deliverables**:
 
 | Component | Location | Description |
 |-----------|----------|-------------|
-| `PitchEvent` | `contextual/data/models.py` | Frozen dataclass — one pitch with Statcast numerics + gamestate |
-| `GameSequence` | `contextual/data/models.py` | Ordered `list[PitchEvent]` for one game, with game metadata |
-| `PlayerContext` | `contextual/data/models.py` | N games of sequences for one player/team with player identity |
-| `Vocabulary` | `contextual/data/vocab.py` | Enum-to-index mappings for pitch types, event types, gamestate deltas |
-| `GameSequenceBuilder` | `contextual/data/builder.py` | `StatcastStore` → `list[GameSequence]` — groups by game/half-inning/PA, computes gamestate deltas, attaches numerics |
-| `PitchSequenceDataSource` | `contextual/data/source.py` | `DataSource[PlayerContext]` — wraps builder, keyed by `Player` + context year |
-| `SequenceCache` | `contextual/data/cache.py` | Disk cache for processed sequences (expensive to rebuild from raw parquet) |
+| `PitchEvent` | `contextual/data/models.py` | Frozen dataclass — 30 fields: identity, pitch categorical/continuous, batted ball, gamestate, context, PA outcome, run expectancy |
+| `GameSequence` | `contextual/data/models.py` | Ordered `tuple[PitchEvent, ...]` for one game from one player's perspective, with game metadata |
+| `PlayerContext` | `contextual/data/models.py` | N games of sequences for one player with player identity |
+| `Vocabulary` | `contextual/data/vocab.py` | Token-to-index mappings with `<PAD>`=0 and `<UNK>`=1 fallback. 5 vocabs: `PITCH_TYPE_VOCAB` (21), `PITCH_RESULT_VOCAB` (17), `PA_EVENT_VOCAB` (27), `BB_TYPE_VOCAB` (6), `HANDEDNESS_VOCAB` (4) |
+| `GameSequenceBuilder` | `contextual/data/builder.py` | `StatcastStore` → `list[GameSequence]` — groups by `(game_pk, player)`, sorts by `at_bat_number`/`pitch_number`, supports batter/pitcher perspective |
+| `PitchSequenceDataSource` | `contextual/data/source.py` | `DataSource[PlayerContext]` — wraps builder, keyed by `Player.mlbam_id` + context year, optional game window truncation |
+| `SequenceCache` | `contextual/data/cache.py` | File-based parquet cache at `{cache_dir}/sequences/{season}/{perspective}/{player_id}.parquet` |
 
-**Key decisions to make in detailed plan**:
-- Gamestate delta encoding scheme (absolute vs. relative, granularity of score buckets)
-- Handling missing Statcast fields in early years (2015–2016 sparser tracking)
-- Player sabermetric window computation (15-day / season / career rolling stats)
-- Sequence length limits and padding strategy for variable-length games
+**Key decisions made**:
+- **Gamestate encoding**: Absolute (not deltas). Deltas are trivially computed at tensor-creation time (Phase 2); absolutes are canonical, testable, and decoupled from model architecture.
+- **Missing values**: `None` throughout, no imputation. Tensor layer handles masking in Phase 2.
+- **Cache backend**: File-based parquet (not SQLite). Volume too large for TEXT columns; parquet is typed and compressed.
+- **Sequence grouping**: By `(game_pk, player)`, not half-inning. Half-inning is implicit in `inning`/`is_top` fields.
+- **Player sabermetrics**: Deferred to Phase 2/3. Keeps Phase 1 focused on pitch-level features.
+- **Vocabulary source**: Exhaustive enumeration of 2015–2024 values, forward-compatible via `<UNK>` fallback.
+- **bat_score/fld_score**: Derived from `home_score`/`away_score` + `inning_topbot` (perspective-normalized).
 
 ### Phase 2 — Model Architecture
 
@@ -479,7 +484,7 @@ Pipeline integration touches existing files:
 ### Phase Dependencies
 
 ```
-Phase 1 (Data Pipeline)
+Phase 1 (Data Pipeline) ✅
   └─► Phase 2 (Model Architecture) — needs PitchEvent/GameSequence types for tensor shapes
       └─► Phase 3 (Pre-Training) — needs model + data pipeline
           └─► Phase 4 (Fine-Tuning) — needs pre-trained weights

@@ -95,17 +95,23 @@ def _make_pitching_stats(
 
 def _fake_batting_source(data: dict[int, list[BattingSeasonStats]]) -> Any:
     """Create a fake DataSource[BattingSeasonStats] callable."""
+
     def source(query: Any) -> Ok[list[BattingSeasonStats]]:
         from fantasy_baseball_manager.context import get_context
+
         return Ok(data.get(get_context().year, []))
+
     return source
 
 
 def _fake_pitching_source(data: dict[int, list[PitchingSeasonStats]]) -> Any:
     """Create a fake DataSource[PitchingSeasonStats] callable."""
+
     def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
         from fantasy_baseball_manager.context import get_context
+
         return Ok(data.get(get_context().year, []))
+
     return source
 
 
@@ -152,12 +158,14 @@ class TestActualsAsProjections:
         assert len(pitching) == 1
 
     def test_min_pa_filter(self) -> None:
-        batting_src = _fake_batting_source({
-            2024: [
-                _make_batting_stats(player_id="b1", pa=100),
-                _make_batting_stats(player_id="b2", pa=500),
-            ]
-        })
+        batting_src = _fake_batting_source(
+            {
+                2024: [
+                    _make_batting_stats(player_id="b1", pa=100),
+                    _make_batting_stats(player_id="b2", pa=500),
+                ]
+            }
+        )
         pitching_src = _fake_pitching_source({2024: []})
         batting, _ = actuals_as_projections(batting_src, pitching_src, 2024, min_pa=200)
         assert len(batting) == 1
@@ -165,12 +173,14 @@ class TestActualsAsProjections:
 
     def test_min_ip_filter(self) -> None:
         batting_src = _fake_batting_source({2024: []})
-        pitching_src = _fake_pitching_source({
-            2024: [
-                _make_pitching_stats(player_id="p1", ip=30.0),
-                _make_pitching_stats(player_id="p2", ip=100.0),
-            ]
-        })
+        pitching_src = _fake_pitching_source(
+            {
+                2024: [
+                    _make_pitching_stats(player_id="p1", ip=30.0),
+                    _make_pitching_stats(player_id="p2", ip=100.0),
+                ]
+            }
+        )
         _, pitching = actuals_as_projections(batting_src, pitching_src, 2024, min_ip=50.0)
         assert len(pitching) == 1
         assert pitching[0].player_id == "p2"

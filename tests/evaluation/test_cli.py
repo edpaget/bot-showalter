@@ -203,19 +203,23 @@ def reset_container() -> Generator[None]:
 
 def _wrap_source(method: Any) -> Any:
     """Wrap a FakeDataSource method as a DataSource[T] callable."""
+
     def source(query: Any) -> Ok:
         return Ok(method(get_context().year))
+
     return source
 
 
 def _install_fake() -> None:
     ds = _build_fake_data_source()
-    set_container(ServiceContainer(
-        batting_source=_wrap_source(ds.batting_stats),
-        team_batting_source=_wrap_source(ds.team_batting),
-        pitching_source=_wrap_source(ds.pitching_stats),
-        team_pitching_source=_wrap_source(ds.team_pitching),
-    ))
+    set_container(
+        ServiceContainer(
+            batting_source=_wrap_source(ds.batting_stats),
+            team_batting_source=_wrap_source(ds.team_batting),
+            pitching_source=_wrap_source(ds.pitching_stats),
+            team_pitching_source=_wrap_source(ds.team_pitching),
+        )
+    )
 
 
 class TestEvaluateCommand:

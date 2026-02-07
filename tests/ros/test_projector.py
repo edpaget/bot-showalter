@@ -142,15 +142,19 @@ class FakePipeline:
 
 def _fake_batting_source(data: list[BattingSeasonStats]) -> Any:
     """Create a fake DataSource[BattingSeasonStats] callable."""
+
     def source(query: Any) -> Ok[list[BattingSeasonStats]]:
         return Ok(list(data))
+
     return source
 
 
 def _fake_pitching_source(data: list[PitchingSeasonStats]) -> Any:
     """Create a fake DataSource[PitchingSeasonStats] callable."""
+
     def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
         return Ok(list(data))
+
     return source
 
 
@@ -295,10 +299,12 @@ class TestROSProjectorBatting:
                 _make_batting_projection(player_id="b2", name="B"),
             ]
         )
-        batting_src = _fake_batting_source([
-            _make_batting_actuals(player_id="b1", name="A"),
-            _make_batting_actuals(player_id="b2", name="B"),
-        ])
+        batting_src = _fake_batting_source(
+            [
+                _make_batting_actuals(player_id="b1", name="A"),
+                _make_batting_actuals(player_id="b2", name="B"),
+            ]
+        )
         pitching_src = _fake_pitching_source([])
         team_batting_src = _fake_batting_source([])
         team_pitching_src = _fake_pitching_source([])

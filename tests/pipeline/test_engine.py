@@ -148,17 +148,23 @@ def _make_league_pitching(year: int = 2024) -> PitchingSeasonStats:
 
 def _fake_batting_source(data: dict[int, list[BattingSeasonStats]]) -> Any:
     """Create a fake DataSource[BattingSeasonStats] callable."""
+
     def source(query: Any) -> Ok[list[BattingSeasonStats]]:
         from fantasy_baseball_manager.context import get_context
+
         return Ok(data.get(get_context().year, []))
+
     return source
 
 
 def _fake_pitching_source(data: dict[int, list[PitchingSeasonStats]]) -> Any:
     """Create a fake DataSource[PitchingSeasonStats] callable."""
+
     def source(query: Any) -> Ok[list[PitchingSeasonStats]]:
         from fantasy_baseball_manager.context import get_context
+
         return Ok(data.get(get_context().year, []))
+
     return source
 
 
@@ -166,11 +172,13 @@ class TestMarcelBattingPipeline:
     def test_single_player_three_years(self, test_context: Context) -> None:
         """Pipeline returns a BattingProjection with correct metadata."""
         league = _make_league()
-        batting_src = _fake_batting_source({
-            2024: [_make_player(year=2024, age=28, pa=600, hr=25)],
-            2023: [_make_player(year=2023, age=27, pa=550, hr=20)],
-            2022: [_make_player(year=2022, age=26, pa=500, hr=18)],
-        })
+        batting_src = _fake_batting_source(
+            {
+                2024: [_make_player(year=2024, age=28, pa=600, hr=25)],
+                2023: [_make_player(year=2023, age=27, pa=550, hr=20)],
+                2022: [_make_player(year=2022, age=26, pa=500, hr=18)],
+            }
+        )
         team_batting_src = _fake_batting_source({2024: [league], 2023: [league], 2022: [league]})
 
         result = marcel_pipeline().project_batters(batting_src, team_batting_src, 2025)
@@ -184,11 +192,13 @@ class TestMarcelBattingPipeline:
     def test_projected_pa_three_years(self, test_context: Context) -> None:
         """Projected PA = 0.5 * PA_y1 + 0.1 * PA_y2 + 200."""
         league = _make_league()
-        batting_src = _fake_batting_source({
-            2024: [_make_player(year=2024, age=28, pa=600, hr=25)],
-            2023: [_make_player(year=2023, age=27, pa=550, hr=20)],
-            2022: [_make_player(year=2022, age=26, pa=500, hr=18)],
-        })
+        batting_src = _fake_batting_source(
+            {
+                2024: [_make_player(year=2024, age=28, pa=600, hr=25)],
+                2023: [_make_player(year=2023, age=27, pa=550, hr=20)],
+                2022: [_make_player(year=2022, age=26, pa=500, hr=18)],
+            }
+        )
         team_batting_src = _fake_batting_source({2024: [league], 2023: [league], 2022: [league]})
 
         proj = marcel_pipeline().project_batters(batting_src, team_batting_src, 2025)[0]
@@ -217,11 +227,13 @@ class TestMarcelBattingPipeline:
         HR = 0.037765 * 555 = 20.96
         """
         league = _make_league()
-        batting_src = _fake_batting_source({
-            2024: [_make_player(year=2024, age=28, pa=600, hr=25)],
-            2023: [_make_player(year=2023, age=27, pa=550, hr=20)],
-            2022: [_make_player(year=2022, age=26, pa=500, hr=18)],
-        })
+        batting_src = _fake_batting_source(
+            {
+                2024: [_make_player(year=2024, age=28, pa=600, hr=25)],
+                2023: [_make_player(year=2023, age=27, pa=550, hr=20)],
+                2022: [_make_player(year=2022, age=26, pa=500, hr=18)],
+            }
+        )
         team_batting_src = _fake_batting_source({2024: [league], 2023: [league], 2022: [league]})
 
         proj = marcel_pipeline().project_batters(batting_src, team_batting_src, 2025)[0]
@@ -272,11 +284,13 @@ class TestMarcelPitchingPipeline:
     def test_single_starter_three_years(self, test_context: Context) -> None:
         """Pipeline returns a PitchingProjection with correct metadata."""
         league = _make_league_pitching()
-        pitching_src = _fake_pitching_source({
-            2024: [_make_pitcher(year=2024, age=28, ip=180.0)],
-            2023: [_make_pitcher(year=2023, age=27, ip=170.0)],
-            2022: [_make_pitcher(year=2022, age=26, ip=160.0)],
-        })
+        pitching_src = _fake_pitching_source(
+            {
+                2024: [_make_pitcher(year=2024, age=28, ip=180.0)],
+                2023: [_make_pitcher(year=2023, age=27, ip=170.0)],
+                2022: [_make_pitcher(year=2022, age=26, ip=160.0)],
+            }
+        )
         team_pitching_src = _fake_pitching_source({2024: [league], 2023: [league], 2022: [league]})
 
         result = marcel_pipeline().project_pitchers(pitching_src, team_pitching_src, 2025)
@@ -289,10 +303,12 @@ class TestMarcelPitchingPipeline:
     def test_starter_projected_ip(self, test_context: Context) -> None:
         """Starter: 0.5*IP_y1 + 0.1*IP_y2 + 60."""
         league = _make_league_pitching()
-        pitching_src = _fake_pitching_source({
-            2024: [_make_pitcher(year=2024, age=28, ip=180.0, gs=32, g=32)],
-            2023: [_make_pitcher(year=2023, age=27, ip=170.0, gs=30, g=30)],
-        })
+        pitching_src = _fake_pitching_source(
+            {
+                2024: [_make_pitcher(year=2024, age=28, ip=180.0, gs=32, g=32)],
+                2023: [_make_pitcher(year=2023, age=27, ip=170.0, gs=30, g=30)],
+            }
+        )
         team_pitching_src = _fake_pitching_source({2024: [league], 2023: [league]})
 
         proj = marcel_pipeline().project_pitchers(pitching_src, team_pitching_src, 2025)[0]
@@ -302,10 +318,12 @@ class TestMarcelPitchingPipeline:
     def test_reliever_projected_ip(self, test_context: Context) -> None:
         """Reliever: 0.5*IP_y1 + 0.1*IP_y2 + 25."""
         league = _make_league_pitching()
-        pitching_src = _fake_pitching_source({
-            2024: [_make_pitcher(player_id="rp1", year=2024, age=28, ip=70.0, g=65, gs=0)],
-            2023: [_make_pitcher(player_id="rp1", year=2023, age=27, ip=65.0, g=60, gs=0)],
-        })
+        pitching_src = _fake_pitching_source(
+            {
+                2024: [_make_pitcher(player_id="rp1", year=2024, age=28, ip=70.0, g=65, gs=0)],
+                2023: [_make_pitcher(player_id="rp1", year=2023, age=27, ip=65.0, g=60, gs=0)],
+            }
+        )
         team_pitching_src = _fake_pitching_source({2024: [league], 2023: [league]})
 
         proj = marcel_pipeline().project_pitchers(pitching_src, team_pitching_src, 2025)[0]

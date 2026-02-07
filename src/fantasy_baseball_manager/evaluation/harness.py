@@ -280,7 +280,9 @@ def evaluate_source(
 ) -> SourceEvaluation:
     proj_batting = source.batting_projections()
     proj_pitching = source.pitching_projections()
-    actual_batting, actual_pitching = actuals_as_projections(batting_source, pitching_source, config.year, config.min_pa, config.min_ip)
+    actual_batting, actual_pitching = actuals_as_projections(
+        batting_source, pitching_source, config.year, config.min_pa, config.min_ip
+    )
 
     # Inner join batting by player_id
     actual_batting_map = {b.player_id: b for b in actual_batting}
@@ -410,7 +412,9 @@ def evaluate(
     pitching_source: DataSource[PitchingSeasonStats],
     config: EvaluationConfig,
 ) -> EvaluationResult:
-    evaluations = tuple(evaluate_source(source, name, batting_source, pitching_source, config) for name, source in sources)
+    evaluations = tuple(
+        evaluate_source(source, name, batting_source, pitching_source, config) for name, source in sources
+    )
     return EvaluationResult(evaluations=evaluations)
 
 
