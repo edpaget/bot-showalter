@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
     from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
     from fantasy_baseball_manager.minors.types import MiLBStatcastStats
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +173,7 @@ class MLETrainingDataCollector:
     max_prior_mlb_pa: int = 200
     feature_extractor: MLEBatterFeatureExtractor | None = None
     statcast_lookup: dict[tuple[str, int], MiLBStatcastStats] | None = None
-    id_mapper: PlayerIdMapper | None = None
+    id_mapper: SfbbMapper | None = None
 
     # Cache for feature extractor (created lazily if not provided)
     _cached_extractor: MLEBatterFeatureExtractor | None = field(default=None, init=False, repr=False)

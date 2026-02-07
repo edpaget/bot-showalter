@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.cache.protocol import CacheStore
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,7 @@ class CompositeSkillDataSource:
         self,
         fangraphs_source: SkillDataSource,
         sprint_source: SprintSpeedSource,
-        id_mapper: PlayerIdMapper,
+        id_mapper: SfbbMapper,
     ) -> None:
         self._fangraphs = fangraphs_source
         self._sprint = sprint_source

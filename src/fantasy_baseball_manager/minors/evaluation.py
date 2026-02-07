@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
     from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel
     from fantasy_baseball_manager.minors.types import MinorLeagueBatterSeasonStats
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ class MLEEvaluator:
     min_milb_pa: int = 200
     min_mlb_pa: int = 100
     max_prior_mlb_pa: int = 200
-    id_mapper: PlayerIdMapper | None = None
+    id_mapper: SfbbMapper | None = None
 
     # Cached collector and test data
     _collector: MLETrainingDataCollector | None = field(default=None, init=False, repr=False)

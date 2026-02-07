@@ -11,6 +11,7 @@ from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import
     StatSpecificRegressionRateComputer,
 )
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats
+from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 
 class FakeStatcastSource:
@@ -19,20 +20,6 @@ class FakeStatcastSource:
 
     def pitcher_expected_stats(self, year: int) -> list:
         return []
-
-
-class FakeIdMapper:
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return None
 
 
 class TestPipelineBuilderDefaults:
@@ -73,18 +60,18 @@ class TestPipelineBuilderWithPitcherNorm:
         assert "PitcherNormalizationAdjuster" in adjuster_types
 
 
+def _fake_mapper() -> SfbbMapper:
+    return SfbbMapper({}, {})
+
+
 class TestPipelineBuilderWithStatcast:
     def test_adds_statcast_adjuster(self) -> None:
-        pipeline = (
-            PipelineBuilder().with_statcast(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper()).build()
-        )
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_statcast(statcast_source=FakeStatcastSource()).build()
         adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
         assert "StatcastRateAdjuster" in adjuster_types
 
     def test_statcast_before_rebaseline(self) -> None:
-        pipeline = (
-            PipelineBuilder().with_statcast(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper()).build()
-        )
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_statcast(statcast_source=FakeStatcastSource()).build()
         adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
         sc_idx = adjuster_types.index("StatcastRateAdjuster")
         rb_idx = adjuster_types.index("RebaselineAdjuster")
@@ -94,7 +81,7 @@ class TestPipelineBuilderWithStatcast:
 class TestPipelineBuilderWithBatterBabip:
     def test_adds_batter_babip_adjuster(self) -> None:
         pipeline = (
-            PipelineBuilder().with_batter_babip(statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper()).build()
+            PipelineBuilder(id_mapper=_fake_mapper()).with_batter_babip(statcast_source=FakeStatcastSource()).build()
         )
         adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
         assert "BatterBabipAdjuster" in adjuster_types
@@ -103,8 +90,8 @@ class TestPipelineBuilderWithBatterBabip:
 class TestPipelineBuilderWithPitcherStatcast:
     def test_adds_pitcher_statcast_adjuster(self) -> None:
         pipeline = (
-            PipelineBuilder()
-            .with_pitcher_statcast(pitcher_statcast_source=FakeStatcastSource(), id_mapper=FakeIdMapper())
+            PipelineBuilder(id_mapper=_fake_mapper())
+            .with_pitcher_statcast(pitcher_statcast_source=FakeStatcastSource())
             .build()
         )
         adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
@@ -114,18 +101,18 @@ class TestPipelineBuilderWithPitcherStatcast:
 class TestPipelineBuilderOrdering:
     def test_full_ordering(self) -> None:
         fake_source = FakeStatcastSource()
-        fake_mapper = FakeIdMapper()
         pipeline = (
-            PipelineBuilder()
+            PipelineBuilder(id_mapper=_fake_mapper())
             .with_park_factors()
             .with_pitcher_normalization()
-            .with_pitcher_statcast(pitcher_statcast_source=fake_source, id_mapper=fake_mapper)
-            .with_statcast(statcast_source=fake_source, id_mapper=fake_mapper)
-            .with_batter_babip(statcast_source=fake_source, id_mapper=fake_mapper)
+            .with_pitcher_statcast(pitcher_statcast_source=fake_source)
+            .with_statcast(statcast_source=fake_source)
+            .with_batter_babip(statcast_source=fake_source)
             .build()
         )
         adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
         expected_order = [
+            "PlayerIdentityEnricher",
             "ParkFactorAdjuster",
             "PitcherNormalizationAdjuster",
             "PitcherStatcastAdjuster",

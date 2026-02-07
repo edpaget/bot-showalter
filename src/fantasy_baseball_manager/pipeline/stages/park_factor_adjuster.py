@@ -58,6 +58,7 @@ class ParkFactorAdjuster:
                     rates=new_rates,
                     opportunities=p.opportunities,
                     metadata=p.metadata,
+                    player=p.player,
                 )
             )
         return result

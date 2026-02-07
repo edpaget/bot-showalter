@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel
     from fantasy_baseball_manager.minors.types import MinorLeagueBatterSeasonStats
     from fantasy_baseball_manager.pipeline.protocols import RateComputer
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +297,7 @@ class MLEAugmentedRateComputer:
 
     delegate: RateComputer
     milb_source: DataSource[MinorLeagueBatterSeasonStats]
-    id_mapper: PlayerIdMapper  # Maps FanGraphs IDs to MLBAM IDs
+    id_mapper: SfbbMapper  # Maps FanGraphs IDs to MLBAM IDs
     config: MLERateComputerConfig = field(default_factory=MLERateComputerConfig)
     model_store: MLEModelStore = field(default_factory=MLEModelStore)
 

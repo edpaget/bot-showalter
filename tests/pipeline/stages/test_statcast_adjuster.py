@@ -6,24 +6,7 @@ from fantasy_baseball_manager.pipeline.stages.statcast_adjuster import (
 )
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
-
-
-class FakeIdMapper:
-    def __init__(self, fg_to_mlbam: dict[str, str] | None = None) -> None:
-        self._fg_to_mlbam = fg_to_mlbam or {}
-        self._mlbam_to_fg = {v: k for k, v in self._fg_to_mlbam.items()}
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return self._fg_to_mlbam.get(fangraphs_id)
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return self._mlbam_to_fg.get(mlbam_id)
+from fantasy_baseball_manager.player.identity import Player
 
 
 class FakeStatcastSource:
@@ -39,6 +22,7 @@ def _make_batter(
     name: str = "Test Batter",
     rates: dict[str, float] | None = None,
     metadata: PlayerMetadata | None = None,
+    mlbam_id: str | None = "mlb1",
 ) -> PlayerRates:
     default_rates = {
         "hr": 0.040,
@@ -67,6 +51,7 @@ def _make_batter(
         rates=default_rates,
         opportunities=600.0,
         metadata=default_metadata,
+        player=Player(yahoo_id="", fangraphs_id=player_id, mlbam_id=mlbam_id, name=name),
     )
 
 
@@ -79,6 +64,7 @@ def _make_pitcher(player_id: str = "fgp1") -> PlayerRates:
         rates={"er": 0.040, "so": 0.250, "bb": 0.070},
         opportunities=200.0,
         metadata={"is_starter": True},
+        player=Player(yahoo_id="", fangraphs_id=player_id, mlbam_id="mlb1", name="Test Pitcher"),
     )
 
 
@@ -101,8 +87,7 @@ class TestBatterBlending:
     def test_weight_zero_returns_marcel(self) -> None:
         config = StatcastBlendConfig(blend_weight=0.0)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["hr"] == pytest.approx(batter.rates["hr"])
@@ -113,8 +98,7 @@ class TestBatterBlending:
     def test_weight_one_returns_statcast_derived(self) -> None:
         config = StatcastBlendConfig(blend_weight=1.0)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         # With weight=1.0 the blended rates should differ from marcel
@@ -123,8 +107,7 @@ class TestBatterBlending:
     def test_partial_blend_interpolates(self) -> None:
         config = StatcastBlendConfig(blend_weight=0.5)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         # HR should be between marcel and statcast-derived values
@@ -136,8 +119,7 @@ class TestBatterBlending:
     def test_non_blended_rates_unchanged(self) -> None:
         config = StatcastBlendConfig(blend_weight=0.5)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["bb"] == batter.rates["bb"]
@@ -152,8 +134,7 @@ class TestNonBatterPassthrough:
 
     def test_pitcher_unchanged(self) -> None:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper)
+        adjuster = StatcastRateAdjuster(source)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
@@ -164,8 +145,7 @@ class TestNoStatcastData:
 
     def test_missing_statcast_record_passes_through(self) -> None:
         source = FakeStatcastSource({2024: []})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper)
+        adjuster = StatcastRateAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
@@ -183,17 +163,15 @@ class TestNoStatcastData:
             xslg=0.480,
         )
         source = FakeStatcastSource({2024: [low_pa]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper)
+        adjuster = StatcastRateAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
 
     def test_unmapped_id_passes_through(self) -> None:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({})  # no mapping
-        adjuster = StatcastRateAdjuster(source, mapper)
-        batter = _make_batter()
+        adjuster = StatcastRateAdjuster(source)
+        batter = _make_batter(mlbam_id=None)
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
 
@@ -207,8 +185,7 @@ class TestHrDerivation:
             league_hr_per_barrel=0.245,
         )
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         # bip_rate = 1 - (bb + so + hbp + sf + sh) = 1 - (0.08 + 0.20 + 0.01 + 0.005 + 0.0) = 0.705
@@ -223,8 +200,7 @@ class TestHitDecomposition:
     def test_preserves_existing_2b_3b_ratio(self) -> None:
         config = StatcastBlendConfig(blend_weight=1.0)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter(rates={"doubles": 0.040, "triples": 0.010})
         result = adjuster.adjust([batter])
         # doubles should be 4x triples (80/20 ratio)
@@ -247,8 +223,7 @@ class TestHitDecomposition:
         )
         config = StatcastBlendConfig(blend_weight=1.0)
         source = FakeStatcastSource({2024: [low_power]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["doubles"] >= 0
@@ -257,8 +232,7 @@ class TestHitDecomposition:
     def test_default_doubles_share_when_no_xbh_history(self) -> None:
         config = StatcastBlendConfig(blend_weight=1.0, default_doubles_share=0.85)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter(rates={"doubles": 0.0, "triples": 0.0})
         result = adjuster.adjust([batter])
         # With 85/15 default split
@@ -273,16 +247,14 @@ class TestMetadata:
 
     def test_blended_flag_set(self) -> None:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper)
+        adjuster = StatcastRateAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].metadata["statcast_blended"] is True
 
     def test_xwoba_stored(self) -> None:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper)
+        adjuster = StatcastRateAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].metadata["statcast_xwoba"] == 0.360
@@ -290,16 +262,14 @@ class TestMetadata:
     def test_blend_weight_stored(self) -> None:
         config = StatcastBlendConfig(blend_weight=0.40)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].metadata["blend_weight_used"] == 0.40
 
     def test_no_metadata_when_not_blended(self) -> None:
         source = FakeStatcastSource({2024: []})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper)
+        adjuster = StatcastRateAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert "statcast_blended" not in result[0].metadata
@@ -308,16 +278,14 @@ class TestMetadata:
 class TestEdgeCases:
     def test_empty_list(self) -> None:
         source = FakeStatcastSource({})
-        mapper = FakeIdMapper({})
-        adjuster = StatcastRateAdjuster(source, mapper)
+        adjuster = StatcastRateAdjuster(source)
         result = adjuster.adjust([])
         assert result == []
 
     def test_all_zero_rates(self) -> None:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
         config = StatcastBlendConfig(blend_weight=0.5)
-        adjuster = StatcastRateAdjuster(source, mapper, config)
+        adjuster = StatcastRateAdjuster(source, config)
         batter = _make_batter(
             rates={
                 "hr": 0.0,
@@ -349,8 +317,7 @@ class TestEdgeCases:
             xslg=0.600,
         )
         source = FakeStatcastSource({2024: [extreme]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = StatcastRateAdjuster(source, mapper)
+        adjuster = StatcastRateAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["hr"] > 0

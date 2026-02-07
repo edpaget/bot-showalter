@@ -47,6 +47,7 @@ class EnhancedPlayingTimeProjector:
                     rates=p.rates,
                     opportunities=opps,
                     metadata=merged_metadata,
+                    player=p.player,
                 )
             )
         return result

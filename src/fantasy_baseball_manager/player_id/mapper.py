@@ -4,7 +4,7 @@ import csv
 import io
 import logging
 import urllib.request
-from typing import TYPE_CHECKING, Protocol, overload
+from typing import TYPE_CHECKING, overload
 
 from fantasy_baseball_manager.result import Err, Ok
 
@@ -43,18 +43,6 @@ class PlayerMapperError(Exception):
         return self.message
 
 
-class PlayerIdMapper(Protocol):
-    """Legacy protocol for player ID mapping.
-
-    Deprecated: Use the callable interface on SfbbMapper instead.
-    """
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None: ...
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None: ...
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None: ...
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None: ...
-
-
 class SfbbMapper:
     """Maps player IDs between Yahoo, FanGraphs, and MLBAM using the SFBB ID map."""
 
@@ -73,9 +61,6 @@ class SfbbMapper:
     def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
         return self._yahoo_to_fg.get(yahoo_id)
 
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return self._fg_to_yahoo.get(fangraphs_id)
-
     def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
         return self._fg_to_mlbam.get(fangraphs_id)
 
@@ -85,10 +70,6 @@ class SfbbMapper:
     @property
     def yahoo_to_fg_map(self) -> dict[str, str]:
         return dict(self._yahoo_to_fg)
-
-    @property
-    def fg_to_yahoo_map(self) -> dict[str, str]:
-        return dict(self._fg_to_yahoo)
 
     # DataSource-style callable interface
 

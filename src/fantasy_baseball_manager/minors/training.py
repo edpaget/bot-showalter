@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
     from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
     from fantasy_baseball_manager.minors.types import MiLBStatcastStats, MinorLeagueBatterSeasonStats
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class MLEModelTrainer:
     config: MLETrainingConfig = field(default_factory=MLETrainingConfig)
     feature_extractor: MLEBatterFeatureExtractor | None = None
     statcast_lookup: dict[tuple[str, int], MiLBStatcastStats] | None = None
-    id_mapper: PlayerIdMapper | None = None
+    id_mapper: SfbbMapper | None = None
 
     def train_batter_models(
         self,

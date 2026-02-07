@@ -29,7 +29,7 @@ from fantasy_baseball_manager.services import cli_context, get_container, set_co
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
     from fantasy_baseball_manager.valuation.projection_source import ProjectionSource
 
 console = Console()
@@ -110,7 +110,7 @@ def _build_source(
     pitching_source: DataSource[PitchingSeasonStats],
     team_pitching_source: DataSource[PitchingSeasonStats],
     year: int,
-    id_mapper: PlayerIdMapper | None = None,
+    id_mapper: SfbbMapper | None = None,
 ) -> tuple[str, ProjectionSource]:
     """Build a projection source for evaluation.
 

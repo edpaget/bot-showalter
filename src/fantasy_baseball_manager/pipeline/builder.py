@@ -38,6 +38,9 @@ from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualAdjuster,
     GBResidualConfig,
 )
+from fantasy_baseball_manager.pipeline.stages.identity_enricher import (
+    PlayerIdentityEnricher,
+)
 from fantasy_baseball_manager.pipeline.stages.mtl_blender import MTLBlender
 from fantasy_baseball_manager.pipeline.stages.mtl_rate_computer import MTLRateComputer
 from fantasy_baseball_manager.pipeline.stages.park_factor_adjuster import (
@@ -81,7 +84,7 @@ from fantasy_baseball_manager.pipeline.statcast_data import (
     StatcastDataSource,
 )
 from fantasy_baseball_manager.player_id.mapper import (
-    PlayerIdMapper,
+    SfbbMapper,
     build_cached_sfbb_mapper,
 )
 
@@ -110,6 +113,7 @@ class PipelineBuilder:
         name: str = "custom",
         config: RegressionConfig | None = None,
         cache_store: CacheStore | None = None,
+        id_mapper: SfbbMapper | None = None,
     ) -> None:
         self._name = name
         self._config = config or RegressionConfig()
@@ -122,7 +126,7 @@ class PipelineBuilder:
         self._pitcher_statcast: bool = False
         self._statcast_source: StatcastDataSource | None = None
         self._pitcher_statcast_source: PitcherStatcastDataSource | None = None
-        self._id_mapper: PlayerIdMapper | None = None
+        self._id_mapper: SfbbMapper | None = id_mapper
         self._pitcher_babip_skill: bool = False
         self._pitcher_babip_source: PitcherBattedBallDataSource | None = None
         self._split_source: SplitStatsDataSource | None = None
@@ -170,37 +174,28 @@ class PipelineBuilder:
     def with_statcast(
         self,
         statcast_source: StatcastDataSource | None = None,
-        id_mapper: PlayerIdMapper | None = None,
     ) -> PipelineBuilder:
         self._statcast = True
         if statcast_source is not None:
             self._statcast_source = statcast_source
-        if id_mapper is not None:
-            self._id_mapper = id_mapper
         return self
 
     def with_batter_babip(
         self,
         statcast_source: StatcastDataSource | None = None,
-        id_mapper: PlayerIdMapper | None = None,
     ) -> PipelineBuilder:
         self._batter_babip = True
         if statcast_source is not None:
             self._statcast_source = statcast_source
-        if id_mapper is not None:
-            self._id_mapper = id_mapper
         return self
 
     def with_pitcher_statcast(
         self,
         pitcher_statcast_source: PitcherStatcastDataSource | None = None,
-        id_mapper: PlayerIdMapper | None = None,
     ) -> PipelineBuilder:
         self._pitcher_statcast = True
         if pitcher_statcast_source is not None:
             self._pitcher_statcast_source = pitcher_statcast_source
-        if id_mapper is not None:
-            self._id_mapper = id_mapper
         return self
 
     def with_pitcher_babip_skill(
@@ -411,6 +406,13 @@ class PipelineBuilder:
     def _build_adjusters(self) -> list[RateAdjuster]:
         adjusters: list[RateAdjuster] = []
 
+        # Insert identity enricher first if any downstream stage needs MLBAM IDs
+        needs_enricher = (
+            self._statcast or self._batter_babip or self._pitcher_statcast or self._gb_residual or self._mtl_blender
+        )
+        if needs_enricher:
+            adjusters.append(PlayerIdentityEnricher(mapper=self._resolve_id_mapper()))
+
         if self._park_factors:
             adjusters.append(
                 ParkFactorAdjuster(
@@ -426,11 +428,9 @@ class PipelineBuilder:
 
         if self._pitcher_statcast:
             source = self._resolve_pitcher_statcast_source()
-            mapper = self._resolve_id_mapper()
             adjusters.append(
                 PitcherStatcastAdjuster(
                     statcast_source=source,
-                    id_mapper=mapper,
                     config=self._config.pitcher_statcast,
                 )
             )
@@ -446,25 +446,21 @@ class PipelineBuilder:
 
         if self._statcast:
             source = self._resolve_statcast_source()
-            mapper = self._resolve_id_mapper()
-            adjusters.append(StatcastRateAdjuster(statcast_source=source, id_mapper=mapper))
+            adjusters.append(StatcastRateAdjuster(statcast_source=source))
 
         if self._batter_babip:
             source = self._resolve_statcast_source()
-            mapper = self._resolve_id_mapper()
-            adjusters.append(BatterBabipAdjuster(statcast_source=source, id_mapper=mapper))
+            adjusters.append(BatterBabipAdjuster(statcast_source=source))
 
         if self._gb_residual:
             full_source = self._resolve_full_statcast_source()
             bb_source = self._resolve_pitcher_babip_source()
             skill_source = self._resolve_skill_data_source()
-            mapper = self._resolve_id_mapper()
             adjusters.append(
                 GBResidualAdjuster(
                     statcast_source=full_source,
                     batted_ball_source=bb_source,
                     skill_data_source=skill_source,
-                    id_mapper=mapper,
                     config=self._gb_residual_config or GBResidualConfig(),
                 )
             )
@@ -485,13 +481,11 @@ class PipelineBuilder:
             full_source = self._resolve_full_statcast_source()
             bb_source = self._resolve_pitcher_babip_source()
             skill_source = self._resolve_skill_data_source()
-            mapper = self._resolve_id_mapper()
             adjusters.append(
                 MTLBlender(
                     statcast_source=full_source,
                     batted_ball_source=bb_source,
                     skill_data_source=skill_source,
-                    id_mapper=mapper,
                     config=self._mtl_blender_config or MTLBlenderConfig(),
                 )
             )
@@ -529,7 +523,7 @@ class PipelineBuilder:
         self._pitcher_babip_source = source
         return source
 
-    def _resolve_id_mapper(self) -> PlayerIdMapper:
+    def _resolve_id_mapper(self) -> SfbbMapper:
         if self._id_mapper is not None:
             return self._id_mapper
         mapper = build_cached_sfbb_mapper(

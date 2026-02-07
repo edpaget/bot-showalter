@@ -16,7 +16,6 @@ class TestMTLBlender:
             statcast_source=MagicMock(),
             batted_ball_source=MagicMock(),
             skill_data_source=MagicMock(),
-            id_mapper=MagicMock(),
         )
 
         assert blender.config.model_name == "default"
@@ -30,7 +29,6 @@ class TestMTLBlender:
             statcast_source=MagicMock(),
             batted_ball_source=MagicMock(),
             skill_data_source=MagicMock(),
-            id_mapper=MagicMock(),
             config=config,
         )
 
@@ -47,7 +45,6 @@ class TestMTLBlender:
             statcast_source=MagicMock(),
             batted_ball_source=MagicMock(),
             skill_data_source=MagicMock(),
-            id_mapper=MagicMock(),
             model_store=mock_store,
         )
 
@@ -63,7 +60,6 @@ class TestMTLBlender:
             statcast_source=MagicMock(),
             batted_ball_source=MagicMock(),
             skill_data_source=MagicMock(),
-            id_mapper=MagicMock(),
             model_store=mock_store,
         )
 

@@ -380,126 +380,43 @@ internal `_adapt_batting`/`_adapt_pitching` adapter functions wrapping `StatsDat
 
 #### 7c. `PlayerIdMapper` → `Player` Identity Through the Pipeline (~40 refs)
 
-**Current state:** `SfbbMapper` implements both the legacy `PlayerIdMapper` protocol and a new
-callable interface (`Player → Player` enrichment). Consumer usage breaks down as:
+**Status:** Done
 
-| Method | Calls | Where | Pattern |
-|--------|-------|-------|---------|
-| `fangraphs_to_mlbam` | 9+ | Pipeline stages, ML training, skill data | `PlayerRates.player_id` (FG) → MLBAM for Statcast lookup |
-| `mlbam_to_fangraphs` | 5 | projections/adapter, minors/training_data | External data (MLBAM) → FG for internal lookups |
-| `yahoo_to_fangraphs` | 2 | draft/cli, draft/positions | Yahoo API → FG for internal lookups |
-| `fangraphs_to_yahoo` | 0 | — | Unused, delete |
+**Resolution:** Added `player: Player | None` field to `PlayerRates` and created a
+`PlayerIdentityEnricher` adjuster that runs first in the pipeline chain. The enricher
+stamps `Player` objects (with MLBAM IDs) onto `PlayerRates`, so downstream stages read
+`player.player.mlbam_id` directly instead of calling `id_mapper.fangraphs_to_mlbam()`.
 
-**Root cause:** Pipeline data structures (`PlayerRates`, `BattingProjection`, etc.) carry only
-a single `player_id: str` with no ID system annotation. `PlayerRates.player_id` is a FanGraphs
-ID; `StatcastBatterStats.player_id` is an MLBAM ID. Stages must call the mapper to bridge
-between them. The `Player` dataclass already has `fangraphs_id`, `mlbam_id`, and `yahoo_id`
-fields — the fix is to carry `Player` identity through the pipeline so stages can read IDs
-directly.
+**Completed:**
 
-**Approach — embed `Player` in `PlayerRates`, enrich at boundaries:**
-
-##### Step 1: Add `player: Player` to `PlayerRates`
-
-`PlayerRates` (pipeline/types.py) currently has `player_id: str` and `name: str`. Add a
-`player: Player` field that carries full identity. Keep `player_id` as a derived property
-for backward compatibility during migration.
-
-```python
-@dataclass
-class PlayerRates:
-    player: Player           # carries fangraphs_id, mlbam_id, yahoo_id
-    year: int
-    age: int
-    rates: dict[str, float]
-    opportunities: float
-    metadata: PlayerMetadata
-
-    @property
-    def player_id(self) -> str:
-        return self.player.fangraphs_id or ""
-
-    @property
-    def name(self) -> str:
-        return self.player.name
-```
-
-##### Step 2: Enrich at rate computation boundary
-
-Rate computers produce `PlayerRates` from `BattingSeasonStats` (which have FanGraphs IDs).
-After rates are computed, enrich the `Player` objects with MLBAM IDs using `SfbbMapper`:
-
-```python
-# In PipelineBuilder or a pipeline stage wrapper
-mapper = SfbbMapper(...)
-for pr in player_rates:
-    enriched = mapper(Player(yahoo_id="", fangraphs_id=pr.player_id, name=pr.name))
-    pr.player = enriched.unwrap()
-```
-
-This is a single enrichment pass — all downstream stages get both IDs for free.
-
-##### Step 3: Remove `id_mapper` from pipeline stages (~9 calls)
-
-All `fangraphs_to_mlbam` calls follow the same pattern:
-```python
-# Before — stage needs id_mapper injected
-mlbam_id = self.id_mapper.fangraphs_to_mlbam(player.player_id)
-statcast = statcast_lookup.get(mlbam_id) if mlbam_id else None
-
-# After — identity already on PlayerRates
-statcast = statcast_lookup.get(player.player.mlbam_id) if player.player.mlbam_id else None
-```
-
-Files to update (all pipeline stages):
-- [ ] `pipeline/stages/statcast_adjuster.py` — remove `id_mapper` field
-- [ ] `pipeline/stages/pitcher_statcast_adjuster.py` — remove `id_mapper` field
-- [ ] `pipeline/stages/batter_babip_adjuster.py` — remove `id_mapper` field
-- [ ] `pipeline/stages/gb_residual_adjuster.py` — remove `id_mapper` field (2 calls)
-- [ ] `pipeline/stages/mtl_rate_computer.py` — remove `id_mapper` field (2 calls)
-- [ ] `pipeline/stages/mtl_blender.py` — remove `id_mapper` field (2 calls)
-- [ ] `pipeline/skill_data.py` — `CompositeSkillDataSource` (1 call)
-- [ ] `agent/tools.py` — `get_player_info()` (1 call)
-
-Also update ML training consumers that follow the same pattern:
-- [ ] `ml/training.py` — `ResidualModelTrainer` (4 calls)
-- [ ] `ml/mtl/dataset.py` — `BatterTrainingDataCollector`, `PitcherTrainingDataCollector` (2 calls)
-
-##### Step 4: Enrich external data at source boundaries (~5 `mlbam_to_fangraphs` calls)
-
-Data entering the system with MLBAM IDs (MiLB stats, external projections) should be
-enriched with FanGraphs IDs at the data source boundary, not inside consumers.
-
-**projections/adapter.py** (`_resolve_player_id`, 1 call):
-- `ExternalProjectionAdapter` receives projections with `mlbam_id` and optional
-  `fangraphs_id`. Enrich with `SfbbMapper` at construction/load time so
-  `_resolve_player_id` can read `player.fangraphs_id` directly.
-
-**minors/training_data.py** (`_translate_mlbam_to_fangraphs`, 2 calls):
-- MiLB stats arrive keyed by MLBAM ID. Build a `Player` for each MiLB player and
-  enrich via `SfbbMapper` once after loading. Downstream code reads
-  `player.fangraphs_id` instead of calling the mapper per-player.
-
-##### Step 5: Enrich Yahoo data at source boundaries (~2 `yahoo_to_fangraphs` calls)
-
-These already align with the `SfbbMapper` callable interface (`yahoo_id → enriched Player`):
-
-**draft/cli.py** (1 call):
-- Create `Player(yahoo_id=pick.player_id, name=pick.player_name)` for each draft pick.
-- Enrich via `SfbbMapper.__call__()`. Read `player.fangraphs_id`.
-
-**draft/positions.py** (`YahooPositionSource`, 1 call):
-- Create `Player(yahoo_id=yahoo_id)` for each Yahoo API player.
-- Enrich via `SfbbMapper.__call__()`. Key positions dict by `player.fangraphs_id`.
-
-##### Step 6: Remove `PlayerIdMapper` protocol
-
-Once all call sites are migrated:
-- [ ] Delete `PlayerIdMapper` protocol from `player_id/mapper.py`
-- [ ] Delete `fangraphs_to_yahoo` (unused) and the 3 remaining legacy methods from `SfbbMapper`
-- [ ] Remove `id_mapper: PlayerIdMapper` type annotations from all constructor signatures
-- [ ] Update `PipelineBuilder` to pass `SfbbMapper` only where needed for enrichment (Steps 2/4/5),
-  not to every pipeline stage
+1. Added `player: Player | None = None` to `PlayerRates` (pipeline/types.py)
+2. Created `PlayerIdentityEnricher` adjuster (pipeline/stages/identity_enricher.py)
+3. Propagated `player=` field through all adjuster construction sites (~15 files)
+4. Removed `id_mapper` from pipeline adjuster stages:
+   - [x] `pipeline/stages/statcast_adjuster.py`
+   - [x] `pipeline/stages/pitcher_statcast_adjuster.py`
+   - [x] `pipeline/stages/batter_babip_adjuster.py`
+   - [x] `pipeline/stages/gb_residual_adjuster.py`
+   - [x] `pipeline/stages/mtl_blender.py`
+5. Changed remaining `PlayerIdMapper` type annotations to `SfbbMapper`:
+   - [x] `pipeline/stages/mtl_rate_computer.py`
+   - [x] `minors/rate_computer.py`
+   - [x] `pipeline/skill_data.py`
+   - [x] `ml/training.py`
+   - [x] `ml/mtl/dataset.py`
+   - [x] `projections/adapter.py`
+   - [x] `minors/training_data.py`
+   - [x] `draft/positions.py`
+   - [x] `evaluation/cli.py`
+   - [x] `pipeline/presets.py`
+   - [x] `minors/evaluation.py`
+   - [x] `minors/training.py`
+   - [x] `ml/cli.py`
+6. Updated `PipelineBuilder` to insert `PlayerIdentityEnricher` as first adjuster
+   and removed `id_mapper` from adjuster construction calls
+7. Deleted `PlayerIdMapper` protocol, `fangraphs_to_yahoo()`, and `fg_to_yahoo_map`
+   from `SfbbMapper`
+8. Updated all tests to use `Player` objects on `PlayerRates` instead of `FakeIdMapper`
 
 #### 7d. `ADPSource` / `ProjectionSource` — Remove Legacy Side of Dual Registries
 
@@ -560,13 +477,11 @@ Phase 7b (MinorLeagueDataSource)
           └─► pipeline/builder.py (wiring)
               └─► Remove MinorLeagueDataSource, CachedMinorLeagueDataSource
 
-Phase 7c (PlayerIdMapper)
-  └─► Step 1: Add player: Player to PlayerRates
-      └─► Step 2: Enrich PlayerRates at rate computation boundary (SfbbMapper)
-          └─► Step 3: Remove id_mapper from pipeline stages (~9 calls)
-              └─► Step 4: Enrich external data at source boundaries (~5 mlbam_to_fangraphs)
-                  └─► Step 5: Enrich Yahoo data at source boundaries (~2 yahoo_to_fangraphs)
-                      └─► Step 6: Remove PlayerIdMapper protocol + legacy SfbbMapper methods
+Phase 7c (PlayerIdMapper) ✅
+  └─► PlayerRates.player field + PlayerIdentityEnricher adjuster
+      └─► Remove id_mapper from adjuster stages
+          └─► Change PlayerIdMapper refs to SfbbMapper
+              └─► Delete PlayerIdMapper protocol + unused SfbbMapper methods
 
 Phase 7d (ADPSource / ProjectionSource)
   └─► Remove legacy registry functions

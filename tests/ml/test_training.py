@@ -104,9 +104,6 @@ class FakeIdMapper:
     def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
         return None
 
-    def fangraphs_to_yahoo(self, fg_id: str) -> str | None:
-        return None
-
 
 class FakePipeline:
     """Fake pipeline that returns predefined projections."""

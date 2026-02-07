@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.player.identity import Player
 
 
 class PlayerMetadata(TypedDict, total=False):
@@ -92,3 +97,4 @@ class PlayerRates:
     rates: dict[str, float] = field(default_factory=dict)
     opportunities: float = 0.0
     metadata: PlayerMetadata = field(default_factory=dict)
+    player: Player | None = field(default=None, repr=False)

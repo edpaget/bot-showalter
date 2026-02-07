@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
 from fantasy_baseball_manager.cache.wrapper import cached
@@ -290,7 +290,7 @@ def build_pipeline(
     raise ValueError(f"Unknown pipeline: {name}")
 
 
-def get_pipeline(name: str, year: int | None = None, id_mapper: PlayerIdMapper | None = None) -> Any:
+def get_pipeline(name: str, year: int | None = None, id_mapper: SfbbMapper | None = None) -> Any:
     """Get a pipeline by name, with optional CSV override for backtesting.
 
     When a year is provided, checks for local CSV files first (e.g.,

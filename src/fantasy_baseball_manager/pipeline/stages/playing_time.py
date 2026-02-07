@@ -36,6 +36,7 @@ class MarcelPlayingTime:
                     rates=p.rates,
                     opportunities=opps,
                     metadata=p.metadata,
+                    player=p.player,
                 )
             )
         return result

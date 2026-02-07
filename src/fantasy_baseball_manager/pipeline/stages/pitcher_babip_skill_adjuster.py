@@ -137,4 +137,5 @@ class PitcherBabipSkillAdjuster:
             rates=rates,
             opportunities=player.opportunities,
             metadata=metadata,
+            player=player.player,
         )

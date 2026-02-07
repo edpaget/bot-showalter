@@ -11,6 +11,7 @@ from fantasy_baseball_manager.pipeline.skill_data import (
     PitcherSkillStats,
     SkillDeltaComputer,
 )
+from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 
 class FakeCacheStore:
@@ -52,23 +53,9 @@ class FakeSkillDataSource:
         return self._pitcher_data.get(year, [])
 
 
-class FakePlayerIdMapper:
-    """Test double for PlayerIdMapper."""
-
-    def __init__(self, fg_to_mlbam: dict[str, str] | None = None) -> None:
-        self._fg_to_mlbam = fg_to_mlbam or {}
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return self._fg_to_mlbam.get(fangraphs_id)
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return None
+def _fake_mapper(fg_to_mlbam: dict[str, str] | None = None) -> SfbbMapper:
+    """Create an SfbbMapper with optional fg->mlbam mappings."""
+    return SfbbMapper({}, {}, fg_to_mlbam=fg_to_mlbam)
 
 
 class FakeFanGraphsSkillDataSource:
@@ -211,7 +198,7 @@ class TestCompositeSkillDataSource:
             pitchers=[],
         )
         sprint = FakeSprintSpeedSource({2024: {"545361": 29.5}})  # MLBAM ID
-        mapper = FakePlayerIdMapper(fg_to_mlbam={"19755": "545361"})
+        mapper = _fake_mapper(fg_to_mlbam={"19755": "545361"})
 
         source = CompositeSkillDataSource(fangraphs, sprint, mapper)
         result = source.batter_skill_stats(2024)
@@ -226,7 +213,7 @@ class TestCompositeSkillDataSource:
             pitchers=[],
         )
         sprint = FakeSprintSpeedSource({2024: {}})  # No sprint data
-        mapper = FakePlayerIdMapper(fg_to_mlbam={"19755": "545361"})
+        mapper = _fake_mapper(fg_to_mlbam={"19755": "545361"})
 
         source = CompositeSkillDataSource(fangraphs, sprint, mapper)
         result = source.batter_skill_stats(2024)
@@ -240,7 +227,7 @@ class TestCompositeSkillDataSource:
             pitchers=[],
         )
         sprint = FakeSprintSpeedSource({2024: {"545361": 29.5}})
-        mapper = FakePlayerIdMapper(fg_to_mlbam={})  # No mapping
+        mapper = _fake_mapper(fg_to_mlbam={})  # No mapping
 
         source = CompositeSkillDataSource(fangraphs, sprint, mapper)
         result = source.batter_skill_stats(2024)
@@ -254,7 +241,7 @@ class TestCompositeSkillDataSource:
             pitchers=[SAMPLE_PITCHER],
         )
         sprint = FakeSprintSpeedSource({})
-        mapper = FakePlayerIdMapper()
+        mapper = _fake_mapper()
 
         source = CompositeSkillDataSource(fangraphs, sprint, mapper)
         result = source.pitcher_skill_stats(2024)

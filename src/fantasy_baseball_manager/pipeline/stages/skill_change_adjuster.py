@@ -190,6 +190,7 @@ class SkillChangeAdjuster:
             rates=rates,
             opportunities=player.opportunities,
             metadata=metadata,
+            player=player.player,
         )
 
     def _adjust_pitcher(self, player: PlayerRates) -> PlayerRates:
@@ -252,6 +253,7 @@ class SkillChangeAdjuster:
             rates=rates,
             opportunities=player.opportunities,
             metadata=metadata,
+            player=player.player,
         )
 
 

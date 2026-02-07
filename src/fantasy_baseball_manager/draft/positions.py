@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     import yahoo_fantasy_api
 
     from fantasy_baseball_manager.marcel.models import PitchingProjection
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 _POSITION_NORMALIZATIONS: dict[str, str] = {
     "LF": "OF",
@@ -90,7 +90,7 @@ class CsvPositionSource:
 
 
 class YahooPositionSource:
-    def __init__(self, league: yahoo_fantasy_api.League, id_mapper: PlayerIdMapper) -> None:
+    def __init__(self, league: yahoo_fantasy_api.League, id_mapper: SfbbMapper) -> None:
         self._league = league
         self._id_mapper = id_mapper
 

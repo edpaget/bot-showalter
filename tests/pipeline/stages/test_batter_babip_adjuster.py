@@ -6,24 +6,7 @@ from fantasy_baseball_manager.pipeline.stages.batter_babip_adjuster import (
 )
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
-
-
-class FakeIdMapper:
-    def __init__(self, fg_to_mlbam: dict[str, str] | None = None) -> None:
-        self._fg_to_mlbam = fg_to_mlbam or {}
-        self._mlbam_to_fg = {v: k for k, v in self._fg_to_mlbam.items()}
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return self._fg_to_mlbam.get(fangraphs_id)
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return self._mlbam_to_fg.get(mlbam_id)
+from fantasy_baseball_manager.player.identity import Player
 
 
 class FakeStatcastSource:
@@ -39,6 +22,7 @@ def _make_batter(
     name: str = "Test Batter",
     rates: dict[str, float] | None = None,
     metadata: PlayerMetadata | None = None,
+    mlbam_id: str | None = "mlb1",
 ) -> PlayerRates:
     default_rates = {
         "hr": 0.040,
@@ -67,6 +51,7 @@ def _make_batter(
         rates=default_rates,
         opportunities=600.0,
         metadata=default_metadata,
+        player=Player(yahoo_id="", fangraphs_id=player_id, mlbam_id=mlbam_id, name=name),
     )
 
 
@@ -79,6 +64,7 @@ def _make_pitcher(player_id: str = "fgp1") -> PlayerRates:
         rates={"er": 0.040, "so": 0.250, "bb": 0.070},
         opportunities=200.0,
         metadata={"is_starter": True},
+        player=Player(yahoo_id="", fangraphs_id=player_id, mlbam_id="mlb1", name="Test Pitcher"),
     )
 
 
@@ -102,8 +88,7 @@ class TestXBabipDerivation:
         """x_babip = (xba * ab_per_pa - xHR_rate) / bip_rate."""
         config = BatterBabipConfig(adjustment_weight=1.0)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper, config)
+        adjuster = BatterBabipAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
 
@@ -134,14 +119,13 @@ class TestXBabipDerivation:
             xslg=0.550,
         )
         source = FakeStatcastSource({2024: [high_barrel]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper)
+        adjuster = BatterBabipAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
 
         # Compare with normal barrel rate
         source2 = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster2 = BatterBabipAdjuster(source2, mapper)
+        adjuster2 = BatterBabipAdjuster(source2)
         result2 = adjuster2.adjust([batter])
 
         assert result[0].metadata["x_babip"] < result2[0].metadata["x_babip"]
@@ -162,9 +146,8 @@ class TestSinglesAdjustment:
             xslg=0.430,
         )
         source = FakeStatcastSource({2024: [high_xba]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
         config = BatterBabipConfig(adjustment_weight=0.5)
-        adjuster = BatterBabipAdjuster(source, mapper, config)
+        adjuster = BatterBabipAdjuster(source, config)
         # Batter with low singles rate -> observed BABIP will be low
         batter = _make_batter(rates={"singles": 0.100})
         result = adjuster.adjust([batter])
@@ -183,9 +166,8 @@ class TestSinglesAdjustment:
             xslg=0.380,
         )
         source = FakeStatcastSource({2024: [low_xba]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
         config = BatterBabipConfig(adjustment_weight=0.5)
-        adjuster = BatterBabipAdjuster(source, mapper, config)
+        adjuster = BatterBabipAdjuster(source, config)
         # Batter with high singles rate -> observed BABIP will be high
         batter = _make_batter(rates={"singles": 0.180})
         result = adjuster.adjust([batter])
@@ -194,8 +176,7 @@ class TestSinglesAdjustment:
     def test_weight_zero_no_change(self) -> None:
         config = BatterBabipConfig(adjustment_weight=0.0)
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper, config)
+        adjuster = BatterBabipAdjuster(source, config)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["singles"] == pytest.approx(batter.rates["singles"])
@@ -215,8 +196,7 @@ class TestSinglesAdjustment:
         )
         config = BatterBabipConfig(adjustment_weight=1.0)
         source = FakeStatcastSource({2024: [very_low]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper, config)
+        adjuster = BatterBabipAdjuster(source, config)
         batter = _make_batter(rates={"singles": 0.010})
         result = adjuster.adjust([batter])
         assert result[0].rates["singles"] >= 0.0
@@ -225,16 +205,14 @@ class TestSinglesAdjustment:
 class TestPassthrough:
     def test_pitcher_passes_through(self) -> None:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper)
+        adjuster = BatterBabipAdjuster(source)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
 
     def test_no_statcast_data_passes_through(self) -> None:
         source = FakeStatcastSource({2024: []})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper)
+        adjuster = BatterBabipAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
@@ -252,24 +230,21 @@ class TestPassthrough:
             xslg=0.480,
         )
         source = FakeStatcastSource({2024: [low_pa]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper)
+        adjuster = BatterBabipAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
 
     def test_empty_list(self) -> None:
         source = FakeStatcastSource({})
-        mapper = FakeIdMapper({})
-        adjuster = BatterBabipAdjuster(source, mapper)
+        adjuster = BatterBabipAdjuster(source)
         result = adjuster.adjust([])
         assert result == []
 
     def test_zero_bip_rate_passes_through(self) -> None:
         """When all PAs are walks/strikeouts/HBP, BIP rate is zero."""
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper)
+        adjuster = BatterBabipAdjuster(source)
         batter = _make_batter(
             rates={
                 "hr": 0.0,
@@ -290,8 +265,7 @@ class TestPassthrough:
 class TestMetadata:
     def test_diagnostics_stored(self) -> None:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper)
+        adjuster = BatterBabipAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert "x_babip" in result[0].metadata
@@ -300,8 +274,7 @@ class TestMetadata:
 
     def test_existing_metadata_preserved(self) -> None:
         source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = BatterBabipAdjuster(source, mapper)
+        adjuster = BatterBabipAdjuster(source)
         batter = _make_batter(metadata={"statcast_blended": True, "custom_key": 42})  # type: ignore[typeddict-unknown-key]
         result = adjuster.adjust([batter])
         assert result[0].metadata["statcast_blended"] is True

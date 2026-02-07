@@ -23,12 +23,10 @@ class TestSfbbMapper:
     def test_basic_lookup(self) -> None:
         mapper = SfbbMapper({"10155": "19054"}, {"19054": "10155"})
         assert mapper.yahoo_to_fangraphs("10155") == "19054"
-        assert mapper.fangraphs_to_yahoo("19054") == "10155"
 
     def test_unknown_id_returns_none(self) -> None:
         mapper = SfbbMapper({"10155": "19054"}, {"19054": "10155"})
         assert mapper.yahoo_to_fangraphs("99999") is None
-        assert mapper.fangraphs_to_yahoo("99999") is None
 
     def test_bidirectional(self) -> None:
         y2fg = {"y1": "fg1", "y2": "fg2"}
@@ -36,20 +34,16 @@ class TestSfbbMapper:
         mapper = SfbbMapper(y2fg, fg2y)
         assert mapper.yahoo_to_fangraphs("y1") == "fg1"
         assert mapper.yahoo_to_fangraphs("y2") == "fg2"
-        assert mapper.fangraphs_to_yahoo("fg1") == "y1"
-        assert mapper.fangraphs_to_yahoo("fg2") == "y2"
 
     def test_empty_dicts(self) -> None:
         mapper = SfbbMapper({}, {})
         assert mapper.yahoo_to_fangraphs("y1") is None
-        assert mapper.fangraphs_to_yahoo("fg1") is None
 
     def test_map_properties(self) -> None:
         y2fg = {"y1": "fg1", "y2": "fg2"}
         fg2y = {"fg1": "y1", "fg2": "y2"}
         mapper = SfbbMapper(y2fg, fg2y)
         assert mapper.yahoo_to_fg_map == {"y1": "fg1", "y2": "fg2"}
-        assert mapper.fg_to_yahoo_map == {"fg1": "y1", "fg2": "y2"}
 
     def test_map_properties_return_copies(self) -> None:
         mapper = SfbbMapper({"y1": "fg1"}, {"fg1": "y1"})
@@ -75,12 +69,6 @@ class TestParseSfbbCsv:
         mapper = _parse_sfbb_csv(SAMPLE_CSV)
         assert mapper.yahoo_to_fangraphs("10155") == "19054"
         assert mapper.yahoo_to_fangraphs("10835") == "19755"
-        assert mapper.fangraphs_to_yahoo("19054") == "10155"
-        assert mapper.fangraphs_to_yahoo("19755") == "10835"
-
-    def test_skips_rows_missing_yahoo_id(self) -> None:
-        mapper = _parse_sfbb_csv(SAMPLE_CSV)
-        assert mapper.fangraphs_to_yahoo("99999") is None
 
     def test_skips_rows_missing_fangraphs_id(self) -> None:
         mapper = _parse_sfbb_csv(SAMPLE_CSV)

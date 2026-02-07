@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class BatterTrainingDataCollector:
     batting_source: DataSource[BattingSeasonStats]
     statcast_source: FullStatcastDataSource
     skill_data_source: SkillDataSource
-    id_mapper: PlayerIdMapper
+    id_mapper: SfbbMapper
     min_pa: int = 100
 
     def collect(
@@ -205,7 +205,7 @@ class PitcherTrainingDataCollector:
     pitching_source: DataSource[PitchingSeasonStats]
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
-    id_mapper: PlayerIdMapper
+    id_mapper: SfbbMapper
     min_pa: int = 100
 
     def collect(

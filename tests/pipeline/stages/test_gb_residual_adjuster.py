@@ -15,6 +15,7 @@ from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
 )
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats, StatcastPitcherStats
 from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.player.identity import Player
 
 
 class FakeStatcastSource:
@@ -45,25 +46,6 @@ class FakeBattedBallSource:
         return self._stats.get(year, [])
 
 
-class FakeIdMapper:
-    """Fake ID mapper for testing."""
-
-    def __init__(self, fg_to_mlbam: dict[str, str]) -> None:
-        self._fg_to_mlbam = fg_to_mlbam
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return self._fg_to_mlbam.get(fangraphs_id)
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return None
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-
 class FakeSkillDataSource:
     """Fake skill data source for testing."""
 
@@ -85,6 +67,7 @@ class FakeSkillDataSource:
 def _make_batter(
     player_id: str = "fg123",
     year: int = 2024,
+    mlbam_id: str | None = "mlbam123",
 ) -> PlayerRates:
     return PlayerRates(
         player_id=player_id,
@@ -102,12 +85,14 @@ def _make_batter(
         },
         opportunities=500.0,
         metadata={"pa_per_year": [500.0]},
+        player=Player(yahoo_id="", fangraphs_id=player_id, mlbam_id=mlbam_id, name="Test Batter"),
     )
 
 
 def _make_pitcher(
     player_id: str = "fg456",
     year: int = 2024,
+    mlbam_id: str | None = "mlbam456",
 ) -> PlayerRates:
     return PlayerRates(
         player_id=player_id,
@@ -123,6 +108,7 @@ def _make_pitcher(
         },
         opportunities=600.0,
         metadata={"is_starter": True},
+        player=Player(yahoo_id="", fangraphs_id=player_id, mlbam_id=mlbam_id, name="Test Pitcher"),
     )
 
 
@@ -188,7 +174,6 @@ class TestGBResidualAdjuster:
             statcast_source=FakeStatcastSource({}, {}),
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper({}),
             config=GBResidualConfig(model_name="nonexistent"),
             model_store=ModelStore(model_dir=tmp_path / "empty_models"),
         )
@@ -208,7 +193,6 @@ class TestGBResidualAdjuster:
             statcast_source=FakeStatcastSource({}, {}),  # No Statcast data
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),
             model_store=trained_batter_models,
         )
 
@@ -239,11 +223,10 @@ class TestGBResidualAdjuster:
             statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper({}),  # No mapping
             model_store=trained_batter_models,
         )
 
-        batter = _make_batter()
+        batter = _make_batter(mlbam_id=None)  # No MLBAM mapping
         result = adjuster.adjust([batter])
 
         assert len(result) == 1
@@ -270,7 +253,6 @@ class TestGBResidualAdjuster:
             statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),
             model_store=trained_batter_models,
         )
 
@@ -304,7 +286,6 @@ class TestGBResidualAdjuster:
             statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper({"fg123": "mlbam123"}),
             model_store=trained_batter_models,
         )
 
@@ -347,7 +328,6 @@ class TestGBResidualAdjuster:
                 statcast_source=source,
                 batted_ball_source=FakeBattedBallSource({}),
                 skill_data_source=FakeSkillDataSource(),
-                id_mapper=FakeIdMapper({"fg123": "mlbam123"}),
                 model_store=trained_batter_models,
             )
 
@@ -369,7 +349,6 @@ class TestGBResidualAdjuster:
             statcast_source=FakeStatcastSource({}, {}),
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
-            id_mapper=FakeIdMapper({}),
         )
 
         result = adjuster.adjust([])

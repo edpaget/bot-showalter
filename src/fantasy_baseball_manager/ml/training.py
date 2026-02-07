@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class ResidualModelTrainer:
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
     skill_data_source: SkillDataSource
-    id_mapper: PlayerIdMapper
+    id_mapper: SfbbMapper
     config: TrainingConfig = field(default_factory=TrainingConfig)
 
     def train_batter_models(self, target_years: tuple[int, ...]) -> ResidualModelSet:

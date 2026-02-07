@@ -72,10 +72,10 @@ class TestMarcelFullPreset:
         assert pipeline.name == "marcel_full"
         assert pipeline.years_back == 3
 
-    def test_has_seven_adjusters(self) -> None:
-        # park, pitcher_norm, pitcher_statcast, statcast, batter_babip, rebaseline, aging
+    def test_has_eight_adjusters(self) -> None:
+        # identity, park, pitcher_norm, pitcher_statcast, statcast, batter_babip, rebaseline, aging
         pipeline = marcel_full_pipeline()
-        assert len(pipeline.adjusters) == 7
+        assert len(pipeline.adjusters) == 8
 
     def test_ordering_park_pitcher_statcast_rebaseline(self) -> None:
         pipeline = marcel_full_pipeline()
@@ -100,10 +100,10 @@ class TestMarcelGBPreset:
         assert pipeline.name == "marcel_gb"
         assert pipeline.years_back == 3
 
-    def test_has_eight_adjusters(self) -> None:
-        # park, pitcher_norm, pitcher_statcast, statcast, batter_babip, gb_residual, rebaseline, aging
+    def test_has_nine_adjusters(self) -> None:
+        # identity, park, pitcher_norm, pitcher_statcast, statcast, batter_babip, gb_residual, rebaseline, aging
         pipeline = marcel_gb_pipeline()
-        assert len(pipeline.adjusters) == 8
+        assert len(pipeline.adjusters) == 9
 
     def test_includes_gb_residual_adjuster(self) -> None:
         pipeline = marcel_gb_pipeline()

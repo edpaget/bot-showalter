@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class MTLRateComputer:
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
     skill_data_source: SkillDataSource
-    id_mapper: PlayerIdMapper
+    id_mapper: SfbbMapper
     config: MTLRateComputerConfig = field(default_factory=MTLRateComputerConfig)
     model_store: MTLModelStore = field(default_factory=MTLModelStore)
 

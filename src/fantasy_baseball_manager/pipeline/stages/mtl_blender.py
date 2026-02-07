@@ -27,7 +27,6 @@ if TYPE_CHECKING:
         StatcastBatterStats,
         StatcastPitcherStats,
     )
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,6 @@ class MTLBlender:
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
     skill_data_source: SkillDataSource
-    id_mapper: PlayerIdMapper
     config: MTLBlenderConfig = field(default_factory=MTLBlenderConfig)
     model_store: MTLModelStore = field(default_factory=MTLModelStore)
 
@@ -160,8 +158,8 @@ class MTLBlender:
         if self._batter_statcast is None:
             return player
 
-        # Map FanGraphs ID to MLBAM for Statcast lookup
-        mlbam_id = self.id_mapper.fangraphs_to_mlbam(player.player_id)
+        # Get MLBAM ID from enriched Player identity
+        mlbam_id = player.player.mlbam_id if player.player else None
         if mlbam_id is None:
             return player
 
@@ -213,6 +211,7 @@ class MTLBlender:
             rates=rates,
             opportunities=player.opportunities,
             metadata=metadata,
+            player=player.player,
         )
 
     def _blend_pitcher(self, player: PlayerRates) -> PlayerRates:
@@ -222,8 +221,8 @@ class MTLBlender:
         if self._pitcher_statcast is None:
             return player
 
-        # Map FanGraphs ID to MLBAM for Statcast lookup
-        mlbam_id = self.id_mapper.fangraphs_to_mlbam(player.player_id)
+        # Get MLBAM ID from enriched Player identity
+        mlbam_id = player.player.mlbam_id if player.player else None
         if mlbam_id is None:
             return player
 
@@ -275,4 +274,5 @@ class MTLBlender:
             rates=rates,
             opportunities=player.opportunities,
             metadata=metadata,
+            player=player.player,
         )

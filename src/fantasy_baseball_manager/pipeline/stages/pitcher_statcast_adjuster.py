@@ -11,7 +11,6 @@ if TYPE_CHECKING:
         PitcherStatcastDataSource,
         StatcastPitcherStats,
     )
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +30,9 @@ class PitcherStatcastAdjuster:
     def __init__(
         self,
         statcast_source: PitcherStatcastDataSource,
-        id_mapper: PlayerIdMapper,
         config: PitcherStatcastConfig | None = None,
     ) -> None:
         self._statcast_source = statcast_source
-        self._id_mapper = id_mapper
         self._config = config or PitcherStatcastConfig()
         self._statcast_lookup: dict[str, StatcastPitcherStats] | None = None
 
@@ -67,7 +64,7 @@ class PitcherStatcastAdjuster:
                 result.append(p)
                 continue
 
-            statcast = self._find_statcast(p.player_id, lookup)
+            statcast = self._find_statcast(p, lookup)
             if statcast is None or statcast.pa < self._config.min_pa_for_blend:
                 result.append(p)
                 continue
@@ -82,8 +79,10 @@ class PitcherStatcastAdjuster:
     def _has_required_rates(self, player: PlayerRates) -> bool:
         return all(stat in player.rates for stat in REQUIRED_RATES)
 
-    def _find_statcast(self, fg_id: str, lookup: dict[str, StatcastPitcherStats]) -> StatcastPitcherStats | None:
-        mlbam_id = self._id_mapper.fangraphs_to_mlbam(fg_id)
+    def _find_statcast(
+        self, player: PlayerRates, lookup: dict[str, StatcastPitcherStats]
+    ) -> StatcastPitcherStats | None:
+        mlbam_id = player.player.mlbam_id if player.player else None
         if mlbam_id is None:
             return None
         return lookup.get(mlbam_id)
@@ -118,6 +117,7 @@ class PitcherStatcastAdjuster:
             rates=rates,
             opportunities=player.opportunities,
             metadata=metadata,
+            player=player.player,
         )
 
     def _derive_statcast_rates(self, player: PlayerRates, statcast: StatcastPitcherStats) -> dict[str, float]:

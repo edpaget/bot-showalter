@@ -6,24 +6,7 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
 )
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastPitcherStats
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
-
-
-class FakeIdMapper:
-    def __init__(self, fg_to_mlbam: dict[str, str] | None = None) -> None:
-        self._fg_to_mlbam = fg_to_mlbam or {}
-        self._mlbam_to_fg = {v: k for k, v in self._fg_to_mlbam.items()}
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return self._fg_to_mlbam.get(fangraphs_id)
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return self._mlbam_to_fg.get(mlbam_id)
+from fantasy_baseball_manager.player.identity import Player
 
 
 class FakePitcherStatcastSource:
@@ -39,6 +22,7 @@ def _make_pitcher(
     name: str = "Test Pitcher",
     rates: dict[str, float] | None = None,
     metadata: PlayerMetadata | None = None,
+    mlbam_id: str | None = "mlb1",
 ) -> PlayerRates:
     default_rates: dict[str, float] = {
         "h": 0.240,
@@ -61,6 +45,7 @@ def _make_pitcher(
         rates=default_rates,
         opportunities=200.0,
         metadata=default_metadata,
+        player=Player(yahoo_id="", fangraphs_id=player_id, mlbam_id=mlbam_id, name=name),
     )
 
 
@@ -73,6 +58,7 @@ def _make_batter(player_id: str = "fg1") -> PlayerRates:
         rates={"hr": 0.040, "singles": 0.140, "bb": 0.080, "so": 0.200},
         opportunities=600.0,
         metadata={"pa_per_year": [600.0]},
+        player=Player(yahoo_id="", fangraphs_id=player_id, mlbam_id="mlb1", name="Test Batter"),
     )
 
 
@@ -94,8 +80,7 @@ class TestHitRateBlending:
     def test_weight_zero_returns_original(self) -> None:
         config = PitcherStatcastConfig(h_blend_weight=0.0, er_blend_weight=0.0)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        adjuster = PitcherStatcastAdjuster(source, config)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates["h"] == pytest.approx(pitcher.rates["h"])
@@ -104,8 +89,7 @@ class TestHitRateBlending:
     def test_weight_one_returns_statcast_derived(self) -> None:
         config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=1.0)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        adjuster = PitcherStatcastAdjuster(source, config)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # With weight=1.0, h and er should differ from original
@@ -115,8 +99,7 @@ class TestHitRateBlending:
     def test_partial_blend_interpolates(self) -> None:
         config = PitcherStatcastConfig(h_blend_weight=0.5, er_blend_weight=0.5)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        adjuster = PitcherStatcastAdjuster(source, config)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # Blended should be between original and statcast-derived
@@ -130,8 +113,7 @@ class TestIndependentWeights:
         """h_blend_weight=0 keeps h at marcel; er_blend_weight=1 uses statcast er."""
         config = PitcherStatcastConfig(h_blend_weight=0.0, er_blend_weight=1.0)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        adjuster = PitcherStatcastAdjuster(source, config)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # h unchanged (weight=0)
@@ -144,8 +126,7 @@ class TestIndependentWeights:
         """h_blend_weight=1 uses statcast h; er_blend_weight=0 keeps er at marcel."""
         config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=0.0)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        adjuster = PitcherStatcastAdjuster(source, config)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # h fully statcast-derived (weight=1)
@@ -172,8 +153,7 @@ class TestErDerivation:
             hard_hit_rate=0.32,
         )
         source = FakePitcherStatcastSource({2024: [statcast]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        adjuster = PitcherStatcastAdjuster(source, config)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # xERA=2.70 => x_er = 2.70/27 = 0.10
@@ -185,8 +165,7 @@ class TestHitDerivation:
         """x_h = xba * ab_per_bf where ab_per_bf = 1 - bb - hbp."""
         config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=1.0)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        adjuster = PitcherStatcastAdjuster(source, config)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # ab_per_bf = 1 - bb(0.080) - hbp(0.008) = 0.912
@@ -198,16 +177,14 @@ class TestHitDerivation:
 class TestPassthrough:
     def test_batter_passes_through(self) -> None:
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fg1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper)
+        adjuster = PitcherStatcastAdjuster(source)
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
 
     def test_no_statcast_data_passes_through(self) -> None:
         source = FakePitcherStatcastSource({2024: []})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper)
+        adjuster = PitcherStatcastAdjuster(source)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
@@ -226,23 +203,20 @@ class TestPassthrough:
             hard_hit_rate=0.32,
         )
         source = FakePitcherStatcastSource({2024: [low_pa]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper)
+        adjuster = PitcherStatcastAdjuster(source)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
 
     def test_empty_list(self) -> None:
         source = FakePitcherStatcastSource({})
-        mapper = FakeIdMapper({})
-        adjuster = PitcherStatcastAdjuster(source, mapper)
+        adjuster = PitcherStatcastAdjuster(source)
         result = adjuster.adjust([])
         assert result == []
 
     def test_missing_required_rates_passes_through(self) -> None:
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper)
+        adjuster = PitcherStatcastAdjuster(source)
         # Pitcher with no h or er rates
         pitcher = _make_pitcher(rates={"so": 0.220, "bb": 0.080})
         # Remove h and er explicitly
@@ -256,8 +230,7 @@ class TestNonBlendedRatesUnchanged:
     def test_bb_so_hbp_unchanged(self) -> None:
         config = PitcherStatcastConfig(h_blend_weight=0.5, er_blend_weight=0.5)
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper, config)
+        adjuster = PitcherStatcastAdjuster(source, config)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates["bb"] == pitcher.rates["bb"]
@@ -269,8 +242,7 @@ class TestNonBlendedRatesUnchanged:
 class TestMetadata:
     def test_diagnostics_stored(self) -> None:
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper)
+        adjuster = PitcherStatcastAdjuster(source)
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].metadata["pitcher_xera"] == 3.24
@@ -281,8 +253,7 @@ class TestMetadata:
 
     def test_existing_metadata_preserved(self) -> None:
         source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        mapper = FakeIdMapper({"fgp1": "mlb1"})
-        adjuster = PitcherStatcastAdjuster(source, mapper)
+        adjuster = PitcherStatcastAdjuster(source)
         pitcher = _make_pitcher(metadata={"custom_key": "custom_value"})  # type: ignore[typeddict-unknown-key]
         result = adjuster.adjust([pitcher])
         assert result[0].metadata["custom_key"] == "custom_value"  # type: ignore[typeddict-item]

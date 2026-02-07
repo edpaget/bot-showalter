@@ -17,7 +17,7 @@ from fantasy_baseball_manager.marcel.models import (
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
-    from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+    from fantasy_baseball_manager.player_id.mapper import SfbbMapper
     from fantasy_baseball_manager.projections.models import BattingProjection, PitchingProjection
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class ExternalProjectionAdapter:
         *,
         name: str = "external",
         projection_year: int | None = None,
-        id_mapper: PlayerIdMapper | None = None,
+        id_mapper: SfbbMapper | None = None,
     ) -> None:
         """Initialize the adapter.
 
@@ -64,7 +64,7 @@ class ExternalProjectionAdapter:
         source: ...,  # ProjectionSource (avoids import for rarely-used path)
         *,
         projection_year: int | None = None,
-        id_mapper: PlayerIdMapper | None = None,
+        id_mapper: SfbbMapper | None = None,
     ) -> ExternalProjectionAdapter:
         """Create from a legacy ProjectionSource.
 

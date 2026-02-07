@@ -7,6 +7,7 @@ from fantasy_baseball_manager.draft.positions import (
     normalize_position,
 )
 from fantasy_baseball_manager.marcel.models import PitchingProjection
+from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 
 def _make_pitching_projection(
@@ -107,21 +108,9 @@ class TestLoadPositionsFile:
         assert len(result) == 2
 
 
-class FakeIdMapper:
-    def __init__(self, mapping: dict[str, str]) -> None:
-        self._yahoo_to_fg = mapping
-
-    def yahoo_to_fangraphs(self, yahoo_id: str) -> str | None:
-        return self._yahoo_to_fg.get(yahoo_id)
-
-    def fangraphs_to_yahoo(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def fangraphs_to_mlbam(self, fangraphs_id: str) -> str | None:
-        return None
-
-    def mlbam_to_fangraphs(self, mlbam_id: str) -> str | None:
-        return None
+def _fake_mapper(yahoo_to_fg: dict[str, str]) -> SfbbMapper:
+    fg_to_yahoo = {v: k for k, v in yahoo_to_fg.items()}
+    return SfbbMapper(yahoo_to_fg, fg_to_yahoo)
 
 
 def _make_yahoo_player(
@@ -153,7 +142,7 @@ class TestYahooPositionSource:
             "P": [_make_yahoo_player(201, "Gerrit Cole", ["SP"], position_type="P")],
         }[pos_type]
 
-        mapper = FakeIdMapper({"101": "fg1", "102": "fg2", "201": "fg3"})
+        mapper = _fake_mapper({"101": "fg1", "102": "fg2", "201": "fg3"})
         source = YahooPositionSource(league, mapper)
         result = source.fetch_positions()
 
@@ -173,7 +162,7 @@ class TestYahooPositionSource:
         ]
         league.free_agents.return_value = []
 
-        mapper = FakeIdMapper({"101": "fg1"})  # 999 not mapped
+        mapper = _fake_mapper({"101": "fg1"})  # 999 not mapped
         source = YahooPositionSource(league, mapper)
         result = source.fetch_positions()
 
@@ -195,7 +184,7 @@ class TestYahooPositionSource:
             "P": [],
         }[pos_type]
 
-        mapper = FakeIdMapper({"101": "fg1"})
+        mapper = _fake_mapper({"101": "fg1"})
         source = YahooPositionSource(league, mapper)
         result = source.fetch_positions()
 
@@ -213,7 +202,7 @@ class TestYahooPositionSource:
         ]
         league.free_agents.return_value = []
 
-        mapper = FakeIdMapper({"101": "fg1"})
+        mapper = _fake_mapper({"101": "fg1"})
         source = YahooPositionSource(league, mapper)
         result = source.fetch_positions()
 

@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
+from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 from fantasy_baseball_manager.projections.adapter import ExternalProjectionAdapter
 
 
@@ -35,7 +35,7 @@ class TestResolvePlayerId:
         assert result == "12345"
 
     def test_mapper_resolves_fangraphs_from_mlbam(self, dummy_sources: tuple[Mock, Mock]) -> None:
-        mapper = Mock(spec=PlayerIdMapper)
+        mapper = Mock(spec=SfbbMapper)
         mapper.mlbam_to_fangraphs.return_value = "fg999"
         adapter = ExternalProjectionAdapter(*dummy_sources, id_mapper=mapper)
         result = adapter._resolve_player_id("12345", "")
@@ -43,7 +43,7 @@ class TestResolvePlayerId:
         mapper.mlbam_to_fangraphs.assert_called_once_with("12345")
 
     def test_mapper_miss_falls_back_to_mlbam(self, dummy_sources: tuple[Mock, Mock]) -> None:
-        mapper = Mock(spec=PlayerIdMapper)
+        mapper = Mock(spec=SfbbMapper)
         mapper.mlbam_to_fangraphs.return_value = None
         adapter = ExternalProjectionAdapter(*dummy_sources, id_mapper=mapper)
         result = adapter._resolve_player_id("12345", "")

@@ -136,4 +136,5 @@ class PitcherNormalizationAdjuster:
             rates=new_rates,
             opportunities=p.opportunities,
             metadata=new_metadata,
+            player=p.player,
         )
