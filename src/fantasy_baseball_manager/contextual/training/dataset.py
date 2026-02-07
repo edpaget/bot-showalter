@@ -1,4 +1,4 @@
-"""MGM dataset with BERT-style masking for pre-training."""
+"""MGM dataset with BERT-style masking for pre-training, and fine-tune dataset."""
 
 from __future__ import annotations
 
@@ -11,13 +11,14 @@ from torch.utils.data import Dataset
 from fantasy_baseball_manager.contextual.model.tensorizer import (
     NUMERIC_FIELDS,
     TensorizedBatch,
+    TensorizedSingle,
 )
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
-    from fantasy_baseball_manager.contextual.data.models import PlayerContext
-    from fantasy_baseball_manager.contextual.model.tensorizer import TensorizedSingle
-    from fantasy_baseball_manager.contextual.training.config import PreTrainingConfig
+    from fantasy_baseball_manager.contextual.data.models import GameSequence, PlayerContext
+    from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
+    from fantasy_baseball_manager.contextual.training.config import FineTuneConfig, PreTrainingConfig
 
 
 @dataclass
@@ -278,3 +279,170 @@ def build_player_contexts(
         contexts.append(ctx)
 
     return contexts
+
+
+# ---------------------------------------------------------------------------
+# Fine-tune stat extraction
+# ---------------------------------------------------------------------------
+
+# Mapping from target stat name to the set of pa_event values that count for it.
+_STAT_EVENT_MAP: dict[str, set[str]] = {
+    "hr": {"home_run"},
+    "so": {"strikeout", "strikeout_double_play"},
+    "bb": {"walk", "intentional_walk"},
+    "h": {"single", "double", "triple", "home_run"},
+    "2b": {"double"},
+    "3b": {"triple"},
+}
+
+
+def extract_game_stats(
+    game: GameSequence,
+    target_stats: tuple[str, ...],
+) -> torch.Tensor:
+    """Extract counting stats from a game's pitches.
+
+    Iterates over pitches and counts pa_event occurrences for each target stat.
+
+    Returns:
+        (n_targets,) float tensor of per-game counting stats.
+    """
+    counts = [0.0] * len(target_stats)
+    for pitch in game.pitches:
+        if pitch.pa_event is None:
+            continue
+        for i, stat in enumerate(target_stats):
+            events = _STAT_EVENT_MAP.get(stat)
+            if events is not None and pitch.pa_event in events:
+                counts[i] += 1.0
+    return torch.tensor(counts, dtype=torch.float32)
+
+
+# ---------------------------------------------------------------------------
+# Fine-tune dataset classes
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FineTuneSample:
+    """A single fine-tuning training example."""
+
+    context: TensorizedSingle
+    targets: torch.Tensor  # (n_targets,) float
+
+
+@dataclass
+class FineTuneBatch:
+    """Collated batch of FineTuneSample instances."""
+
+    context: TensorizedBatch
+    targets: torch.Tensor  # (batch, n_targets) float
+
+
+def build_finetune_windows(
+    player_contexts: list[PlayerContext],
+    tensorizer: Tensorizer,
+    config: FineTuneConfig,
+    target_stats: tuple[str, ...],
+) -> list[tuple[TensorizedSingle, torch.Tensor]]:
+    """Build (context, targets) pairs using a sliding window.
+
+    For each player with G games (where G >= context_window + 1),
+    creates G - context_window examples:
+      context = tensorized games[i:i+N], target = stats from games[i+N]
+    """
+    from fantasy_baseball_manager.contextual.data.models import PlayerContext as PC
+
+    windows: list[tuple[TensorizedSingle, torch.Tensor]] = []
+    n = config.context_window
+
+    for player_ctx in player_contexts:
+        games = player_ctx.games
+        if len(games) < n + 1:
+            continue
+
+        for i in range(len(games) - n):
+            context_games = games[i : i + n]
+            target_game = games[i + n]
+
+            # Build a temporary PlayerContext for the context window
+            ctx = PC(
+                player_id=player_ctx.player_id,
+                player_name=player_ctx.player_name,
+                season=player_ctx.season,
+                perspective=player_ctx.perspective,
+                games=context_games,
+            )
+            tensorized = tensorizer.tensorize_context(ctx)
+            targets = extract_game_stats(target_game, target_stats)
+            windows.append((tensorized, targets))
+
+    return windows
+
+
+class FineTuneDataset(Dataset[FineTuneSample]):
+    """Wraps pre-built sliding window examples for fine-tuning."""
+
+    def __init__(self, windows: list[tuple[TensorizedSingle, torch.Tensor]]) -> None:
+        self._windows = windows
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def __getitem__(self, index: int) -> FineTuneSample:
+        context, targets = self._windows[index]
+        return FineTuneSample(context=context, targets=targets)
+
+
+def collate_finetune_samples(samples: list[FineTuneSample]) -> FineTuneBatch:
+    """Pad context fields and stack targets into a FineTuneBatch."""
+    max_len = max(s.context.seq_length for s in samples)
+    batch_size = len(samples)
+    n_numeric = len(NUMERIC_FIELDS)
+
+    pitch_type_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    pitch_result_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    bb_type_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    stand_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    p_throws_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    pa_event_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    numeric_features = torch.zeros(batch_size, max_len, n_numeric, dtype=torch.float32)
+    numeric_mask = torch.zeros(batch_size, max_len, n_numeric, dtype=torch.bool)
+    padding_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
+    player_token_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
+    game_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    seq_lengths = torch.zeros(batch_size, dtype=torch.long)
+
+    for i, s in enumerate(samples):
+        sl = s.context.seq_length
+        pitch_type_ids[i, :sl] = s.context.pitch_type_ids
+        pitch_result_ids[i, :sl] = s.context.pitch_result_ids
+        bb_type_ids[i, :sl] = s.context.bb_type_ids
+        stand_ids[i, :sl] = s.context.stand_ids
+        p_throws_ids[i, :sl] = s.context.p_throws_ids
+        pa_event_ids[i, :sl] = s.context.pa_event_ids
+        numeric_features[i, :sl] = s.context.numeric_features
+        numeric_mask[i, :sl] = s.context.numeric_mask
+        padding_mask[i, :sl] = s.context.padding_mask
+        player_token_mask[i, :sl] = s.context.player_token_mask
+        game_ids[i, :sl] = s.context.game_ids
+        seq_lengths[i] = sl
+
+    context_batch = TensorizedBatch(
+        pitch_type_ids=pitch_type_ids,
+        pitch_result_ids=pitch_result_ids,
+        bb_type_ids=bb_type_ids,
+        stand_ids=stand_ids,
+        p_throws_ids=p_throws_ids,
+        pa_event_ids=pa_event_ids,
+        numeric_features=numeric_features,
+        numeric_mask=numeric_mask,
+        padding_mask=padding_mask,
+        player_token_mask=player_token_mask,
+        game_ids=game_ids,
+        seq_lengths=seq_lengths,
+    )
+
+    targets = torch.stack([s.targets for s in samples])
+
+    return FineTuneBatch(context=context_batch, targets=targets)

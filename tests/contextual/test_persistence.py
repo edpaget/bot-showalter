@@ -10,7 +10,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from fantasy_baseball_manager.contextual.model.config import ModelConfig
-from fantasy_baseball_manager.contextual.model.heads import MaskedGamestateHead
+from fantasy_baseball_manager.contextual.model.heads import (
+    MaskedGamestateHead,
+    PerformancePredictionHead,
+)
 from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
 from fantasy_baseball_manager.contextual.persistence import (
     ContextualModelMetadata,
@@ -165,3 +168,86 @@ class TestContextualModelStore:
         # Optimizer file should not exist
         opt_path = tmp_path / "no_opt_optimizer.pt"
         assert not opt_path.exists()
+
+    def test_save_and_load_finetune_metadata(self, tmp_path: Path) -> None:
+        config = _small_config()
+        n_targets = 4
+        head = PerformancePredictionHead(config, n_targets)
+        model = ContextualPerformanceModel(config, head)
+        store = ContextualModelStore(model_dir=tmp_path)
+
+        metadata = ContextualModelMetadata(
+            name="finetune_best",
+            epoch=10,
+            train_loss=0.1,
+            val_loss=0.15,
+            perspective="pitcher",
+            target_stats=("so", "h", "bb", "hr"),
+            per_stat_mse={"so": 0.5, "h": 0.3, "bb": 0.2, "hr": 0.1},
+            base_model="pretrain_best",
+        )
+        store.save_checkpoint("finetune_best", model, metadata)
+
+        loaded_meta = store.get_metadata("finetune_best")
+        assert loaded_meta is not None
+        assert loaded_meta.perspective == "pitcher"
+        assert loaded_meta.target_stats == ("so", "h", "bb", "hr")
+        assert loaded_meta.per_stat_mse == {"so": 0.5, "h": 0.3, "bb": 0.2, "hr": 0.1}
+        assert loaded_meta.base_model == "pretrain_best"
+        # Pre-training fields should be None
+        assert loaded_meta.pitch_type_accuracy is None
+        assert loaded_meta.pitch_result_accuracy is None
+
+    def test_load_finetune_model(self, tmp_path: Path) -> None:
+        config = _small_config()
+        n_targets = 6
+        head = PerformancePredictionHead(config, n_targets)
+        model = ContextualPerformanceModel(config, head)
+        store = ContextualModelStore(model_dir=tmp_path)
+
+        metadata = ContextualModelMetadata(
+            name="ft_load_test", epoch=5, train_loss=0.2, val_loss=0.3,
+            perspective="batter", target_stats=("hr", "so", "bb", "h", "2b", "3b"),
+        )
+        store.save_checkpoint("ft_load_test", model, metadata)
+
+        loaded = store.load_finetune_model("ft_load_test", config, n_targets)
+        assert isinstance(loaded.head, PerformancePredictionHead)
+        for key in model.state_dict():
+            assert torch.equal(model.state_dict()[key], loaded.state_dict()[key])
+
+    def test_load_finetune_model_not_found_raises(self, tmp_path: Path) -> None:
+        config = _small_config()
+        store = ContextualModelStore(model_dir=tmp_path)
+        try:
+            store.load_finetune_model("nonexistent", config, 4)
+            raise AssertionError("Should raise FileNotFoundError")
+        except FileNotFoundError:
+            pass
+
+    def test_list_checkpoints_with_finetune_fields(self, tmp_path: Path) -> None:
+        config = _small_config()
+        store = ContextualModelStore(model_dir=tmp_path)
+
+        # Save a pre-training checkpoint
+        model = _make_model(config)
+        meta_pre = ContextualModelMetadata(name="pretrain", epoch=1, train_loss=0.5, val_loss=0.6)
+        store.save_checkpoint("pretrain", model, meta_pre)
+
+        # Save a fine-tune checkpoint
+        ft_head = PerformancePredictionHead(config, 4)
+        ft_model = ContextualPerformanceModel(config, ft_head)
+        meta_ft = ContextualModelMetadata(
+            name="finetune", epoch=10, train_loss=0.1, val_loss=0.15,
+            perspective="pitcher", target_stats=("so", "h", "bb", "hr"),
+        )
+        store.save_checkpoint("finetune", ft_model, meta_ft)
+
+        checkpoints = store.list_checkpoints()
+        assert len(checkpoints) == 2
+        names = {c.name for c in checkpoints}
+        assert names == {"pretrain", "finetune"}
+
+        ft_cp = next(c for c in checkpoints if c.name == "finetune")
+        assert ft_cp.perspective == "pitcher"
+        assert ft_cp.target_stats == ("so", "h", "bb", "hr")

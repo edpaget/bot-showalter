@@ -1,8 +1,11 @@
-"""Configuration for contextual model pre-training."""
+"""Configuration for contextual model pre-training and fine-tuning."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+BATTER_TARGET_STATS: tuple[str, ...] = ("hr", "so", "bb", "h", "2b", "3b")
+PITCHER_TARGET_STATS: tuple[str, ...] = ("so", "h", "bb", "hr")
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,3 +41,39 @@ class PreTrainingConfig:
     checkpoint_interval: int = 5
     log_interval: int = 100
     seed: int = 42
+
+
+@dataclass(frozen=True, slots=True)
+class FineTuneConfig:
+    """Configuration for fine-tuning on per-game stat prediction."""
+
+    # Data
+    train_seasons: tuple[int, ...] = (2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022)
+    val_seasons: tuple[int, ...] = (2023,)
+    perspective: str = "pitcher"
+    context_window: int = 10
+    min_games: int = 15
+
+    # Training
+    epochs: int = 30
+    batch_size: int = 32
+    head_learning_rate: float = 1e-3
+    backbone_learning_rate: float = 1e-5
+    freeze_backbone: bool = False
+    weight_decay: float = 0.01
+    warmup_fraction: float = 0.05
+    min_warmup_steps: int = 100
+    max_grad_norm: float = 1.0
+
+    # Early stopping
+    patience: int = 5
+
+    # Checkpointing
+    checkpoint_interval: int = 5
+    log_interval: int = 100
+    seed: int = 42
+
+    def __post_init__(self) -> None:
+        if self.min_games < self.context_window + 1:
+            msg = f"min_games ({self.min_games}) must be >= context_window + 1 ({self.context_window + 1})"
+            raise ValueError(msg)

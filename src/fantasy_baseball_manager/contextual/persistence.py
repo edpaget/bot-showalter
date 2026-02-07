@@ -30,6 +30,11 @@ class ContextualModelMetadata:
     pitch_type_accuracy: float | None = None
     pitch_result_accuracy: float | None = None
     created_at: str | None = None
+    # Fine-tuning fields (optional)
+    perspective: str | None = None
+    target_stats: tuple[str, ...] | None = None
+    per_stat_mse: dict[str, float] | None = None
+    base_model: str | None = None
 
 
 @dataclass
@@ -65,20 +70,26 @@ class ContextualModelStore:
         logger.info("Saved contextual model to %s", model_path)
 
         created_at = metadata.created_at or datetime.datetime.now(datetime.UTC).isoformat()
+        meta_dict: dict[str, Any] = {
+            "name": metadata.name,
+            "epoch": metadata.epoch,
+            "train_loss": metadata.train_loss,
+            "val_loss": metadata.val_loss,
+            "pitch_type_accuracy": metadata.pitch_type_accuracy,
+            "pitch_result_accuracy": metadata.pitch_result_accuracy,
+            "created_at": created_at,
+        }
+        if metadata.perspective is not None:
+            meta_dict["perspective"] = metadata.perspective
+        if metadata.target_stats is not None:
+            meta_dict["target_stats"] = list(metadata.target_stats)
+        if metadata.per_stat_mse is not None:
+            meta_dict["per_stat_mse"] = metadata.per_stat_mse
+        if metadata.base_model is not None:
+            meta_dict["base_model"] = metadata.base_model
+
         with meta_path.open("w") as f:
-            json.dump(
-                {
-                    "name": metadata.name,
-                    "epoch": metadata.epoch,
-                    "train_loss": metadata.train_loss,
-                    "val_loss": metadata.val_loss,
-                    "pitch_type_accuracy": metadata.pitch_type_accuracy,
-                    "pitch_result_accuracy": metadata.pitch_result_accuracy,
-                    "created_at": created_at,
-                },
-                f,
-                indent=2,
-            )
+            json.dump(meta_dict, f, indent=2)
 
         if optimizer_state is not None:
             opt_path = self._optimizer_path(name)
@@ -141,15 +152,7 @@ class ContextualModelStore:
 
         with meta_path.open() as f:
             data = json.load(f)
-            return ContextualModelMetadata(
-                name=data["name"],
-                epoch=data["epoch"],
-                train_loss=data["train_loss"],
-                val_loss=data["val_loss"],
-                pitch_type_accuracy=data.get("pitch_type_accuracy"),
-                pitch_result_accuracy=data.get("pitch_result_accuracy"),
-                created_at=data.get("created_at"),
-            )
+            return self._metadata_from_dict(data)
 
     def list_checkpoints(self) -> list[ContextualModelMetadata]:
         """List all available checkpoints."""
@@ -157,17 +160,7 @@ class ContextualModelStore:
         for meta_path in self.model_dir.glob("*_meta.json"):
             with meta_path.open() as f:
                 data = json.load(f)
-                checkpoints.append(
-                    ContextualModelMetadata(
-                        name=data["name"],
-                        epoch=data["epoch"],
-                        train_loss=data["train_loss"],
-                        val_loss=data["val_loss"],
-                        pitch_type_accuracy=data.get("pitch_type_accuracy"),
-                        pitch_result_accuracy=data.get("pitch_result_accuracy"),
-                        created_at=data.get("created_at"),
-                    )
-                )
+                checkpoints.append(self._metadata_from_dict(data))
         return checkpoints
 
     def exists(self, name: str) -> bool:
@@ -192,6 +185,49 @@ class ContextualModelStore:
         if deleted:
             logger.info("Deleted contextual checkpoint: %s", name)
         return deleted
+
+    def load_finetune_model(
+        self,
+        name: str,
+        model_config: ModelConfig,
+        n_targets: int,
+    ) -> ContextualPerformanceModel:
+        """Load a fine-tuned model with PerformancePredictionHead.
+
+        Raises:
+            FileNotFoundError: If the checkpoint does not exist.
+        """
+        from fantasy_baseball_manager.contextual.model.heads import PerformancePredictionHead
+        from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
+
+        model_path = self._model_path(name)
+        if not model_path.exists():
+            raise FileNotFoundError(f"Contextual model not found: {model_path}")
+
+        head = PerformancePredictionHead(model_config, n_targets)
+        model = ContextualPerformanceModel(model_config, head)
+        state_dict = torch.load(model_path, weights_only=True)
+        model.load_state_dict(state_dict)
+        logger.info("Loaded fine-tuned contextual model from %s", model_path)
+        return model
+
+    @staticmethod
+    def _metadata_from_dict(data: dict[str, Any]) -> ContextualModelMetadata:
+        target_stats_raw = data.get("target_stats")
+        target_stats = tuple(target_stats_raw) if target_stats_raw is not None else None
+        return ContextualModelMetadata(
+            name=data["name"],
+            epoch=data["epoch"],
+            train_loss=data["train_loss"],
+            val_loss=data["val_loss"],
+            pitch_type_accuracy=data.get("pitch_type_accuracy"),
+            pitch_result_accuracy=data.get("pitch_result_accuracy"),
+            created_at=data.get("created_at"),
+            perspective=data.get("perspective"),
+            target_stats=target_stats,
+            per_stat_mse=data.get("per_stat_mse"),
+            base_model=data.get("base_model"),
+        )
 
     def _model_path(self, name: str) -> Path:
         return self.model_dir / f"{name}.pt"
