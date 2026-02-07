@@ -1,6 +1,5 @@
 """Tests for minors/rate_computer.py - MLE rate computer pipeline stage."""
 
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
@@ -11,7 +10,6 @@ from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel, MLES
 from fantasy_baseball_manager.minors.types import (
     MinorLeagueBatterSeasonStats,
     MinorLeagueLevel,
-    MinorLeaguePitcherSeasonStats,
 )
 from fantasy_baseball_manager.result import Ok
 
@@ -222,26 +220,18 @@ def _make_milb_batter(
     )
 
 
-@dataclass
-class FakeMinorLeagueDataSource:
-    """Fake MiLB data source for testing."""
+def _make_milb_batting_source(
+    data: dict[int, list[MinorLeagueBatterSeasonStats]],
+) -> Any:
+    """Create a fake DataSource[MinorLeagueBatterSeasonStats] that reads year from context."""
 
-    batting_data: dict[int, list[MinorLeagueBatterSeasonStats]] = field(default_factory=dict)
-    pitching_data: dict[int, list[MinorLeaguePitcherSeasonStats]] = field(default_factory=dict)
+    def source(_query: object) -> Ok[list[MinorLeagueBatterSeasonStats]]:
+        from fantasy_baseball_manager.context import get_context
 
-    def batting_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeagueBatterSeasonStats]:
-        all_stats = self.batting_data.get(year, [])
-        return [s for s in all_stats if s.level == level]
+        year = get_context().year
+        return Ok(data.get(year, []))
 
-    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
-        return self.batting_data.get(year, [])
-
-    def pitching_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeaguePitcherSeasonStats]:
-        all_stats = self.pitching_data.get(year, [])
-        return [s for s in all_stats if s.level == level]
-
-    def pitching_stats_all_levels(self, year: int) -> list[MinorLeaguePitcherSeasonStats]:
-        return self.pitching_data.get(year, [])
+    return source
 
 
 def _create_fitted_mle_model(feature_names: list[str]) -> MLEGradientBoostingModel:
@@ -387,7 +377,7 @@ class TestMLERateComputer:
             age=24,
             pa=450,
         )
-        milb_source = FakeMinorLeagueDataSource(batting_data={2024: [milb_player]})
+        milb_source = _make_milb_batting_source({2024: [milb_player]})
 
         mock_store = MagicMock()
         mock_store.exists.return_value = True
@@ -531,7 +521,7 @@ class TestMLERateComputer:
             season=2024,
             pa=400,
         )
-        milb_source = FakeMinorLeagueDataSource(batting_data={2024: [milb_player]})
+        milb_source = _make_milb_batting_source({2024: [milb_player]})
 
         mock_store = MagicMock()
         mock_store.exists.return_value = True

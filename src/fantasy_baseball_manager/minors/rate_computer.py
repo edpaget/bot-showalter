@@ -20,7 +20,6 @@ from fantasy_baseball_manager.pipeline.types import PlayerRates
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
-    from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel
     from fantasy_baseball_manager.minors.types import MinorLeagueBatterSeasonStats
     from fantasy_baseball_manager.pipeline.protocols import RateComputer
@@ -57,7 +56,7 @@ class MLERateComputer:
     Implements the RateComputer protocol.
     """
 
-    milb_source: MinorLeagueDataSource
+    milb_source: DataSource[MinorLeagueBatterSeasonStats]
     config: MLERateComputerConfig = field(default_factory=MLERateComputerConfig)
     model_store: MLEModelStore = field(default_factory=MLEModelStore)
 
@@ -220,7 +219,9 @@ class MLERateComputer:
         if year in self._milb_cache:
             return self._milb_cache[year]
 
-        all_stats = self.milb_source.batting_stats_all_levels(year)
+        with new_context(year=year):
+            result = self.milb_source(ALL_PLAYERS)
+        all_stats = result.unwrap() if result.is_ok() else []
         by_player: dict[str, list[MinorLeagueBatterSeasonStats]] = {}
         for stat in all_stats:
             if stat.player_id not in by_player:
@@ -295,7 +296,7 @@ class MLEAugmentedRateComputer:
     """
 
     delegate: RateComputer
-    milb_source: MinorLeagueDataSource
+    milb_source: DataSource[MinorLeagueBatterSeasonStats]
     id_mapper: PlayerIdMapper  # Maps FanGraphs IDs to MLBAM IDs
     config: MLERateComputerConfig = field(default_factory=MLERateComputerConfig)
     model_store: MLEModelStore = field(default_factory=MLEModelStore)
@@ -453,7 +454,9 @@ class MLEAugmentedRateComputer:
         if year in self._milb_cache:
             return self._milb_cache[year]
 
-        all_stats = self.milb_source.batting_stats_all_levels(year)
+        with new_context(year=year):
+            result = self.milb_source(ALL_PLAYERS)
+        all_stats = result.unwrap() if result.is_ok() else []
         by_player: dict[str, list[MinorLeagueBatterSeasonStats]] = {}
         for stat in all_stats:
             if stat.player_id not in by_player:

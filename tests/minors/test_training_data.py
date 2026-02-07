@@ -174,14 +174,19 @@ class TestAggregatedMiLBStats:
         assert agg.pct_at_aaa == 50 / total
 
 
-class _FakeMinorLeagueDataSource:
-    """Fake MiLB data source for testing."""
+def _fake_milb_batting_source(
+    data: dict[int, list[MinorLeagueBatterSeasonStats]] | None = None,
+) -> object:
+    """Create a fake DataSource[MinorLeagueBatterSeasonStats] callable."""
+    from fantasy_baseball_manager.context import get_context
+    from fantasy_baseball_manager.result import Ok
 
-    def __init__(self, data: dict[int, list[MinorLeagueBatterSeasonStats]] | None = None) -> None:
-        self._data = data or {}
+    store = data or {}
 
-    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
-        return self._data.get(year, [])
+    def source(query: object) -> Ok[list[MinorLeagueBatterSeasonStats]]:
+        return Ok(store.get(get_context().year, []))
+
+    return source
 
 
 def _fake_mlb_batting_source(data: dict[int, list[BattingSeasonStats]] | None = None) -> object:
@@ -208,7 +213,7 @@ class TestMLETrainingDataCollector:
 
     def test_collect_qualifying_sample(self) -> None:
         """Collect a qualifying player with sufficient MiLB and MLB PA."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {
                 2023: [
                     _make_milb_stats(
@@ -248,7 +253,7 @@ class TestMLETrainingDataCollector:
 
     def test_excludes_insufficient_milb_pa(self) -> None:
         """Players with insufficient MiLB PA should be excluded."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {2023: [_make_milb_stats(player_id="123", pa=100, level=MinorLeagueLevel.AAA)]}
         )
         mlb_source = _fake_mlb_batting_source(
@@ -271,7 +276,7 @@ class TestMLETrainingDataCollector:
 
     def test_excludes_insufficient_mlb_pa(self) -> None:
         """Players with insufficient MLB PA should be excluded."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.AAA)]}
         )
         mlb_source = _fake_mlb_batting_source(
@@ -295,7 +300,7 @@ class TestMLETrainingDataCollector:
 
     def test_excludes_lower_level_players(self) -> None:
         """Players whose highest level is below AA should be excluded."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.HIGH_A)]}
         )
         mlb_source = _fake_mlb_batting_source(
@@ -318,7 +323,7 @@ class TestMLETrainingDataCollector:
 
     def test_excludes_veteran_players(self) -> None:
         """Players with prior MLB experience should be excluded."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.AAA)]}
         )
         mlb_source = _fake_mlb_batting_source(
@@ -342,7 +347,7 @@ class TestMLETrainingDataCollector:
 
     def test_uses_year_plus_one_for_late_callups(self) -> None:
         """Late-season call-ups should use year+1 MLB stats if more PA."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.AAA)]}
         )
         mlb_source = _fake_mlb_batting_source(
@@ -366,7 +371,7 @@ class TestMLETrainingDataCollector:
 
     def test_feature_extraction(self) -> None:
         """Features should be extracted correctly from aggregated stats."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {
                 2023: [
                     _make_milb_stats(
@@ -412,7 +417,7 @@ class TestMLETrainingDataCollector:
 
     def test_target_extraction(self) -> None:
         """Targets should be MLB rates."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {2023: [_make_milb_stats(player_id="123", pa=300, level=MinorLeagueLevel.AAA)]}
         )
         mlb_source = _fake_mlb_batting_source(
@@ -446,7 +451,7 @@ class TestMLETrainingDataCollector:
 
     def test_collect_multiple_years(self) -> None:
         """Collecting multiple target years should combine samples."""
-        milb_source = _FakeMinorLeagueDataSource(
+        milb_source = _fake_milb_batting_source(
             {
                 2022: [_make_milb_stats(player_id="100", pa=300, level=MinorLeagueLevel.AAA)],
                 2023: [_make_milb_stats(player_id="200", pa=300, level=MinorLeagueLevel.AAA)],
@@ -472,7 +477,7 @@ class TestMLETrainingDataCollector:
     def test_feature_names_method(self) -> None:
         """feature_names() should return consistent feature names."""
         collector = MLETrainingDataCollector(
-            milb_source=_FakeMinorLeagueDataSource(),  # type: ignore[arg-type]
+            milb_source=_fake_milb_batting_source(),  # type: ignore[arg-type]
             mlb_batting_source=_fake_mlb_batting_source(),  # type: ignore[arg-type]
         )
 

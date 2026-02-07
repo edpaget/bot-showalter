@@ -18,7 +18,6 @@ from fantasy_baseball_manager.minors.types import (
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
-    from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
     from fantasy_baseball_manager.minors.types import MiLBStatcastStats
     from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
@@ -167,7 +166,7 @@ class MLETrainingDataCollector:
     - September call-ups with too few PA
     """
 
-    milb_source: MinorLeagueDataSource
+    milb_source: DataSource[MinorLeagueBatterSeasonStats]
     mlb_batting_source: DataSource[BattingSeasonStats]
     min_milb_pa: int = 200
     min_mlb_pa: int = 100
@@ -263,7 +262,9 @@ class MLETrainingDataCollector:
         milb_year = target_year - 1
 
         # Get all MiLB players from prior year with sufficient PA at upper levels
-        milb_batters = self.milb_source.batting_stats_all_levels(milb_year)
+        with new_context(year=milb_year):
+            milb_result = self.milb_source(ALL_PLAYERS)
+        milb_batters = milb_result.unwrap() if milb_result.is_ok() else []
         milb_by_player = self._group_by_player(milb_batters)
 
         # Get MLB stats for target year and year+1 (for late-season call-ups)

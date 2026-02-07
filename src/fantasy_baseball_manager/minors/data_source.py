@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Protocol, overload
+from typing import TYPE_CHECKING, Any, overload
 
 import requests
 
@@ -20,26 +20,6 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.player.identity import Player
 
 logger = logging.getLogger(__name__)
-
-
-class MinorLeagueDataSource(Protocol):
-    """Protocol for fetching minor league statistics."""
-
-    def batting_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeagueBatterSeasonStats]:
-        """Fetch batting stats for a specific level and year."""
-        ...
-
-    def batting_stats_all_levels(self, year: int) -> list[MinorLeagueBatterSeasonStats]:
-        """Fetch batting stats across all MiLB levels for a year."""
-        ...
-
-    def pitching_stats(self, year: int, level: MinorLeagueLevel) -> list[MinorLeaguePitcherSeasonStats]:
-        """Fetch pitching stats for a specific level and year."""
-        ...
-
-    def pitching_stats_all_levels(self, year: int) -> list[MinorLeaguePitcherSeasonStats]:
-        """Fetch pitching stats across all MiLB levels for a year."""
-        ...
 
 
 class MLBStatsAPIDataSource:
@@ -327,6 +307,36 @@ class MinorLeagueBattingDataSource:
             return Ok(results)
         except Exception as e:
             return Err(DataSourceError(f"Failed to fetch MiLB batting stats for {year}", e))
+
+
+class MiLBBatterStatsSerializer:
+    """Serializer for list[MinorLeagueBatterSeasonStats].
+
+    Handles the MinorLeagueLevel enum field that standard DataclassListSerializer
+    cannot round-trip (dataclasses.asdict converts enums to ints, but the
+    constructor expects MinorLeagueLevel).
+    """
+
+    def serialize(self, value: list[MinorLeagueBatterSeasonStats]) -> str:
+        import json
+        from dataclasses import asdict
+
+        data = []
+        for s in value:
+            d = asdict(s)
+            d["level"] = s.level.value
+            data.append(d)
+        return json.dumps(data)
+
+    def deserialize(self, data: str) -> list[MinorLeagueBatterSeasonStats]:
+        import json
+
+        raw: list[dict[str, object]] = json.loads(data)
+        result: list[MinorLeagueBatterSeasonStats] = []
+        for row in raw:
+            row["level"] = MinorLeagueLevel.from_sport_id(int(row["level"]))
+            result.append(MinorLeagueBatterSeasonStats(**row))
+        return result
 
 
 def create_milb_batting_source() -> DataSource[MinorLeagueBatterSeasonStats]:

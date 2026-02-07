@@ -7,11 +7,8 @@ from unittest.mock import MagicMock, patch
 from fantasy_baseball_manager.cache.wrapper import cached
 from fantasy_baseball_manager.context import Context, new_context
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSourceError
-from fantasy_baseball_manager.minors.cached_data_source import (
-    _deserialize_batting,
-    _serialize_batting,
-)
 from fantasy_baseball_manager.minors.data_source import (
+    MiLBBatterStatsSerializer,
     MinorLeagueBattingDataSource,
     MinorLeaguePitchingDataSource,
     create_milb_batting_source,
@@ -242,14 +239,55 @@ class TestMinorLeaguePitchingDataSource:
             assert "Network error" in str(error)
 
 
-class _MiLBBatterSerializer:
-    """Serializer for MinorLeagueBatterSeasonStats using existing functions."""
+class TestMiLBBatterStatsSerializer:
+    """Tests for MiLBBatterStatsSerializer round-trip."""
 
-    def serialize(self, value: list[MinorLeagueBatterSeasonStats]) -> str:
-        return _serialize_batting(value)
+    def test_round_trip(self) -> None:
+        """Serializing and deserializing should produce identical data."""
+        original = _sample_batting()
+        serializer = MiLBBatterStatsSerializer()
+        deserialized = serializer.deserialize(serializer.serialize(original))
+        assert deserialized == original
 
-    def deserialize(self, data: str) -> list[MinorLeagueBatterSeasonStats]:
-        return _deserialize_batting(data)
+    def test_empty_list_round_trip(self) -> None:
+        serializer = MiLBBatterStatsSerializer()
+        assert serializer.deserialize(serializer.serialize([])) == []
+
+    def test_multiple_levels(self) -> None:
+        """Multiple levels round-trip correctly."""
+        data = [
+            MinorLeagueBatterSeasonStats(
+                player_id=str(i),
+                name=f"Player {i}",
+                season=2024,
+                age=23,
+                level=level,
+                team="Team",
+                league="League",
+                pa=400,
+                ab=360,
+                h=100,
+                singles=70,
+                doubles=20,
+                triples=3,
+                hr=7,
+                rbi=50,
+                r=60,
+                bb=30,
+                so=80,
+                hbp=5,
+                sf=5,
+                sb=10,
+                cs=3,
+                avg=0.278,
+                obp=0.340,
+                slg=0.420,
+            )
+            for i, level in enumerate([MinorLeagueLevel.AAA, MinorLeagueLevel.AA, MinorLeagueLevel.HIGH_A])
+        ]
+        serializer = MiLBBatterStatsSerializer()
+        deserialized = serializer.deserialize(serializer.serialize(data))
+        assert deserialized == data
 
 
 class TestCachedMinorLeagueBattingSource:
@@ -270,7 +308,7 @@ class TestCachedMinorLeagueBattingSource:
                 return Ok(_sample_batting())
 
         mock_source = MockMiLBBattingSource()
-        serializer = _MiLBBatterSerializer()
+        serializer = MiLBBatterStatsSerializer()
         cached_source = cached(
             mock_source,  # type: ignore[arg-type]
             namespace="milb_batting",
@@ -304,7 +342,7 @@ class TestCachedMinorLeagueBattingSource:
                 return Ok([])
 
         mock_source = MockMiLBBattingSource()
-        serializer = _MiLBBatterSerializer()
+        serializer = MiLBBatterStatsSerializer()
         cached_source = cached(
             mock_source,  # type: ignore[arg-type]
             namespace="milb_batting",

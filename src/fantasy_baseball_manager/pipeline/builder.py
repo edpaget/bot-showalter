@@ -86,8 +86,9 @@ from fantasy_baseball_manager.player_id.mapper import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
+    from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.minors.rate_computer import MLERateComputerConfig
+    from fantasy_baseball_manager.minors.types import MinorLeagueBatterSeasonStats
     from fantasy_baseball_manager.ml.mtl.config import MTLBlenderConfig, MTLRateComputerConfig
     from fantasy_baseball_manager.pipeline.protocols import RateAdjuster
     from fantasy_baseball_manager.pipeline.stages.playing_time_config import (
@@ -556,18 +557,19 @@ class PipelineBuilder:
         self._skill_data_source = source
         return source
 
-    def _resolve_milb_source(self) -> MinorLeagueDataSource:
+    def _resolve_milb_source(self) -> DataSource[MinorLeagueBatterSeasonStats]:
         """Resolve or create a minor league data source."""
-        from fantasy_baseball_manager.minors.cached_data_source import (
-            CachedMinorLeagueDataSource,
-        )
+        from fantasy_baseball_manager.cache.wrapper import cached
         from fantasy_baseball_manager.minors.data_source import (
-            MLBStatsAPIDataSource,
+            MiLBBatterStatsSerializer,
+            create_milb_batting_source,
         )
 
-        return CachedMinorLeagueDataSource(
-            delegate=MLBStatsAPIDataSource(),
-            cache=self._get_cache_store(),
+        return cached(
+            create_milb_batting_source(),
+            namespace="milb_batting",
+            ttl_seconds=30 * 86400,
+            serializer=MiLBBatterStatsSerializer(),
         )
 
     def _get_cache_store(self) -> CacheStore:

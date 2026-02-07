@@ -21,9 +21,8 @@ if TYPE_CHECKING:
 
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
-    from fantasy_baseball_manager.minors.data_source import MinorLeagueDataSource
     from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
-    from fantasy_baseball_manager.minors.types import MiLBStatcastStats
+    from fantasy_baseball_manager.minors.types import MiLBStatcastStats, MinorLeagueBatterSeasonStats
     from fantasy_baseball_manager.player_id.mapper import PlayerIdMapper
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ class MLEModelTrainer:
     6. Train model: MiLB features → MLB rates
     """
 
-    milb_source: MinorLeagueDataSource
+    milb_source: DataSource[MinorLeagueBatterSeasonStats]
     mlb_batting_source: DataSource[BattingSeasonStats]
     config: MLETrainingConfig = field(default_factory=MLETrainingConfig)
     feature_extractor: MLEBatterFeatureExtractor | None = None

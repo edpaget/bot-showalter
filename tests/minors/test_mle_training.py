@@ -14,6 +14,7 @@ from fantasy_baseball_manager.minors.training import (
     MLETrainingConfig,
 )
 from fantasy_baseball_manager.minors.training_data import BATTER_TARGET_STATS
+from fantasy_baseball_manager.result import Ok
 
 
 class TestMLETrainingConfig:
@@ -63,9 +64,9 @@ class TestMLEModelTrainer:
         mock_mlb_source: MagicMock,
     ) -> None:
         """Should handle empty training data gracefully."""
-        # Mock the source to return empty data
-        mock_milb_source.batting_stats_all_levels.return_value = []
-        mock_mlb_source.batting_stats.return_value = []
+        # Mock the sources to return empty data when called
+        mock_milb_source.return_value = Ok([])
+        mock_mlb_source.return_value = Ok([])
 
         trainer = MLEModelTrainer(
             milb_source=mock_milb_source,

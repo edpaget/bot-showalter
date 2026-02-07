@@ -358,24 +358,25 @@ internal `_adapt_batting`/`_adapt_pitching` adapter functions wrapping `StatsDat
 
 #### 7b. `MinorLeagueDataSource` → `DataSource[T]` callables (~14 refs)
 
-**Current state:** `MinorLeagueBattingDataSource` and `MinorLeaguePitchingDataSource` exist.
-Every consumer only calls the `*_all_levels` methods — no consumer uses level-specific queries.
-`CachedMinorLeagueDataSource` is the sole consumer of level-specific methods.
+**Status:** Done
 
-**Approach:**
+**Resolution:** All consumers now accept `DataSource[MinorLeagueBatterSeasonStats]` instead of
+`MinorLeagueDataSource`. Call sites use `new_context(year=...)` + `source(ALL_PLAYERS)` pattern.
+`CachedMinorLeagueDataSource` replaced by `cached()` + `MiLBBatterStatsSerializer`.
+`MinorLeagueDataSource` protocol removed.
 
-1. Update consumers to accept `DataSource[MinorLeagueBatterSeasonStats]` instead of
-   `MinorLeagueDataSource`:
-   - [ ] `minors/rate_computer.py` — `MLERateComputer.milb_source` and `MLEAugmentedRateComputer.milb_source`
-   - [ ] `minors/training_data.py` — `MLETrainingDataCollector.milb_source`
-   - [ ] `minors/training.py` — `MLEModelTrainer.milb_source` (passes to collector)
-   - [ ] `minors/evaluation.py` — `MLEEvaluator.milb_source` (passes to collector)
-   - [ ] `pipeline/builder.py` — `_resolve_milb_source()` returns `DataSource[T]`
+**Completed:**
 
-2. Replace `CachedMinorLeagueDataSource` with `cached()` wrapping the new DataSource
-   implementations.
+1. Updated consumers to accept `DataSource[MinorLeagueBatterSeasonStats]`:
+   - [x] `minors/rate_computer.py` — `MLERateComputer.milb_source` and `MLEAugmentedRateComputer.milb_source`
+   - [x] `minors/training_data.py` — `MLETrainingDataCollector.milb_source`
+   - [x] `minors/training.py` — `MLEModelTrainer.milb_source` (passes to collector)
+   - [x] `minors/evaluation.py` — `MLEEvaluator.milb_source` (passes to collector)
+   - [x] `pipeline/builder.py` — `_resolve_milb_source()` returns `DataSource[T]`
 
-3. Remove `MinorLeagueDataSource` protocol and `CachedMinorLeagueDataSource`.
+2. Replaced `CachedMinorLeagueDataSource` with `cached()` + `MiLBBatterStatsSerializer`.
+
+3. Removed `MinorLeagueDataSource` protocol and `CachedMinorLeagueDataSource`.
 
 #### 7c. `PlayerIdMapper` → `Player` Identity Through the Pipeline (~40 refs)
 

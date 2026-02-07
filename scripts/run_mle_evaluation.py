@@ -25,8 +25,10 @@ def main() -> int:
     from fantasy_baseball_manager.cache.wrapper import cached
     from fantasy_baseball_manager.marcel.data_source import create_batting_source
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats
-    from fantasy_baseball_manager.minors.cached_data_source import CachedMinorLeagueDataSource
-    from fantasy_baseball_manager.minors.data_source import MLBStatsAPIDataSource
+    from fantasy_baseball_manager.minors.data_source import (
+        MiLBBatterStatsSerializer,
+        create_milb_batting_source,
+    )
     from fantasy_baseball_manager.minors.evaluation import (
         MLEEvaluator,
         print_evaluation_report,
@@ -43,9 +45,11 @@ def main() -> int:
     logger.info("Building player ID mapper...")
     id_mapper = build_cached_sfbb_mapper(cache, cache_key="sfbb_2024", ttl=60 * 60 * 24 * 7)
 
-    milb_source = CachedMinorLeagueDataSource(
-        delegate=MLBStatsAPIDataSource(),
-        cache=cache,
+    milb_source = cached(
+        create_milb_batting_source(),
+        namespace="milb_batting",
+        ttl_seconds=30 * 86400,
+        serializer=MiLBBatterStatsSerializer(),
     )
     mlb_batting_source = cached(
         create_batting_source(),
