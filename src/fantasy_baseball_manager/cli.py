@@ -3,6 +3,7 @@ import logging
 import typer
 
 from fantasy_baseball_manager.agent.cli import chat_app
+from fantasy_baseball_manager.contextual.cli import contextual_app
 from fantasy_baseball_manager.evaluation.cli import evaluate_cmd
 from fantasy_baseball_manager.keeper.cli import keeper_app
 from fantasy_baseball_manager.ml.cli import ml_app
@@ -17,6 +18,7 @@ app.add_typer(keeper_app, name="keeper")
 app.add_typer(chat_app, name="chat")
 app.add_typer(ml_app, name="ml")
 app.add_typer(statcast_app, name="statcast")
+app.add_typer(contextual_app, name="contextual")
 app.command(name="evaluate")(evaluate_cmd)
 
 
