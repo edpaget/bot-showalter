@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, overload
 
-from fantasy_baseball_manager.adp.models import ADPData, ADPEntry
+from fantasy_baseball_manager.adp.models import ADPEntry
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSource, DataSourceError
 from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.adp.protocol import ADPSource
     from fantasy_baseball_manager.player.identity import Player
 
 
@@ -31,81 +29,6 @@ def _normalize_name(name: str) -> str:
     normalized = normalized.lower()
     normalized = re.sub(r"\.", "", normalized)
     return normalized
-
-
-class CompositeADPSource:
-    """Aggregates ADP from multiple sources and computes averages.
-
-    This class implements the ADPSource protocol by fetching data from
-    multiple underlying sources, matching players by normalized name,
-    and computing average ADP values.
-    """
-
-    def __init__(self, sources: list[ADPSource]) -> None:
-        """Initialize with a list of ADP sources.
-
-        Args:
-            sources: List of ADPSource instances to aggregate from.
-        """
-        self._sources = sources
-
-    def fetch_adp(self) -> ADPData:
-        """Fetch and aggregate ADP data from all sources.
-
-        Returns:
-            ADPData containing averaged ADP entries from all sources.
-        """
-        # Collect all entries by normalized name
-        # Each entry: (original_name, adp_values, positions, percent_drafted_values)
-        aggregated: dict[str, tuple[str, list[float], set[str], list[float]]] = {}
-
-        for source in self._sources:
-            data = source.fetch_adp()
-            for entry in data.entries:
-                norm_name = _normalize_name(entry.name)
-
-                if norm_name not in aggregated:
-                    aggregated[norm_name] = (
-                        entry.name,  # Preserve first seen name
-                        [],
-                        set(),
-                        [],
-                    )
-
-                original_name, adp_values, positions, pct_drafted_values = aggregated[norm_name]
-                adp_values.append(entry.adp)
-                positions.update(entry.positions)
-                if entry.percent_drafted is not None:
-                    pct_drafted_values.append(entry.percent_drafted)
-
-        # Build averaged entries
-        entries: list[ADPEntry] = []
-        for _norm_name, (original_name, adp_values, positions, pct_drafted_values) in aggregated.items():
-            avg_adp = sum(adp_values) / len(adp_values)
-            avg_pct = sum(pct_drafted_values) / len(pct_drafted_values) if pct_drafted_values else None
-
-            entries.append(
-                ADPEntry(
-                    name=original_name,
-                    adp=avg_adp,
-                    positions=tuple(sorted(positions)),
-                    percent_drafted=avg_pct,
-                )
-            )
-
-        # Sort by ADP
-        entries.sort(key=lambda e: e.adp)
-
-        return ADPData(
-            entries=tuple(entries),
-            fetched_at=datetime.now(UTC),
-            source="composite",
-        )
-
-
-# ---------------------------------------------------------------------------
-# New-style DataSource class
-# ---------------------------------------------------------------------------
 
 
 class CompositeADPDataSource:

@@ -13,7 +13,6 @@ from fantasy_baseball_manager.projections.models import (
     ProjectionData,
     ProjectionSystem,
 )
-from fantasy_baseball_manager.projections.protocol import ProjectionSource
 
 __all__ = [
     "BattingProjection",
@@ -22,7 +21,6 @@ __all__ = [
     "PitchingProjection",
     "PitchingProjectionDataSource",
     "ProjectionData",
-    "ProjectionSource",
     "ProjectionSystem",
     "create_batting_projection_source",
     "create_pitching_projection_source",

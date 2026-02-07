@@ -298,7 +298,7 @@ Evaluated — these protocols do not fit the `DataSource[T]` pattern and should 
 - [x] Remove remaining old cached wrapper classes (`CachedPositionSource`, `CachedRosterSource`, `CachedDraftResultsSource`)
 - [x] Remove remaining old serializer functions
 - [x] Update `ServiceContainer` to build new-style sources
-- [ ] Archive old protocols (mark deprecated) — see Phase 7
+- [x] Archive old protocols (mark deprecated) — see Phase 7
 
 ### Phase 7: Migrate Consumers Off Old Protocols
 
@@ -420,16 +420,23 @@ stamps `Player` objects (with MLBAM IDs) onto `PlayerRates`, so downstream stage
 
 #### 7d. `ADPSource` / `ProjectionSource` — Remove Legacy Side of Dual Registries
 
-These protocols are already bridged — new `DataSource[T]` wrappers exist alongside legacy
-classes. Migration is about removing the legacy side:
+**Status:** Done
 
-- [ ] **ADP registry:** Remove `get_source()` / `ADPSourceFactory` from `adp/registry.py`,
-  keep only `get_datasource()` / `ADPDataSourceFactory`. Update any remaining `ADPSource`
-  imports.
-- [ ] **ADP composite:** Remove `CompositeADPSource`, keep `CompositeADPDataSource`.
-- [ ] **Projection wrappers:** Remove `FanGraphsProjectionSource` / `CSVProjectionSource` if
-  all consumers use the `DataSource[T]` factories. Or keep as inner implementation detail
-  wrapped by `BattingProjectionDataSource` / `PitchingProjectionDataSource`.
+**Resolution:** Removed all legacy ADP and projection protocol infrastructure. Concrete
+implementations (`FanGraphsProjectionSource`, `CSVProjectionSource`, `YahooADPScraper`,
+`ESPNADPScraper`) kept as inner implementation details wrapped by their DataSource counterparts.
+
+**Completed:**
+
+1. Removed `ADPSource` protocol (`adp/protocol.py` deleted)
+2. Removed legacy ADP registry: `get_source()`, `register_source()`, `list_sources()`,
+   `ADPSourceFactory`, `_registry` from `adp/registry.py`
+3. Removed `CompositeADPSource` from `adp/composite.py`, kept `CompositeADPDataSource`
+4. Removed `ProjectionSource` protocol (`projections/protocol.py` deleted); moved protocol
+   inline into `projections/data_source.py` for `BattingProjectionDataSource`/`PitchingProjectionDataSource`
+5. Updated `adp/__init__.py` and `projections/__init__.py` to remove legacy exports
+6. Removed legacy tests: `tests/adp/test_protocol.py`, `tests/adp/test_registry.py`,
+   `tests/adp/test_composite.py` (all covered by `tests/adp/test_datasource.py`)
 
 #### 7e. `valuation/ProjectionSource` — Separate Concern
 
@@ -483,7 +490,7 @@ Phase 7c (PlayerIdMapper) ✅
           └─► Change PlayerIdMapper refs to SfbbMapper
               └─► Delete PlayerIdMapper protocol + unused SfbbMapper methods
 
-Phase 7d (ADPSource / ProjectionSource)
+Phase 7d (ADPSource / ProjectionSource) ✅
   └─► Remove legacy registry functions
       └─► Remove legacy composite/scraper classes
           └─► Remove ADPSource, ProjectionSource protocols

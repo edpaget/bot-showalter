@@ -17,20 +17,29 @@ Usage:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, Protocol, overload
 
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSource, DataSourceError
 from fantasy_baseball_manager.projections.fangraphs import FanGraphsProjectionSource
 from fantasy_baseball_manager.projections.models import (
     BattingProjection,
     PitchingProjection,
+    ProjectionData,
     ProjectionSystem,
 )
 from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.player.identity import Player
-    from fantasy_baseball_manager.projections.protocol import ProjectionSource
+
+
+class ProjectionSource(Protocol):
+    """Protocol for objects that can fetch projection data.
+
+    Implemented by FanGraphsProjectionSource and CSVProjectionSource.
+    """
+
+    def fetch_projections(self) -> ProjectionData: ...
 
 
 class BattingProjectionDataSource:
