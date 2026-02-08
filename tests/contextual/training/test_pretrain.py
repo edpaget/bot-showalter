@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.contextual.data.vocab import (
@@ -154,6 +155,24 @@ class TestMGMTrainer:
         trainer2 = MGMTrainer(model2, small_config, resume_config, store)
         result = trainer2.train(train_ds, val_ds, resume_from="pretrain_latest")
         assert "val_loss" in result
+
+    def test_amp_enabled_on_cpu(self, small_config: ModelConfig, tmp_path: Path) -> None:
+        """AMP code paths execute without error on CPU (autocast + GradScaler are no-ops)."""
+        train_config = PreTrainingConfig(
+            epochs=2, batch_size=2, learning_rate=1e-3, seed=42,
+            min_warmup_steps=1, warmup_fraction=0.1,
+            amp_enabled=True,
+        )
+        model = ContextualPerformanceModel(small_config, MaskedGamestateHead(small_config))
+        store = ContextualModelStore(model_dir=tmp_path)
+        trainer = MGMTrainer(model, small_config, train_config, store)
+
+        train_ds = _make_dataset(small_config, train_config, n_samples=4)
+        val_ds = _make_dataset(small_config, train_config, n_samples=2)
+
+        result = trainer.train(train_ds, val_ds)
+        assert result["val_loss"] > 0
+        assert math.isfinite(result["val_loss"])
 
     def test_convergence_beats_random(self, small_config: ModelConfig, tmp_path: Path) -> None:
         """After training, accuracy should exceed random baseline."""

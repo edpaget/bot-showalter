@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import torch.nn.functional as F
+from torch.amp import GradScaler
 from torch.utils.data import DataLoader
 
 from fantasy_baseball_manager.contextual.persistence import ContextualModelMetadata
@@ -77,6 +78,7 @@ class MGMTrainer:
             lr=config.learning_rate,
             weight_decay=config.weight_decay,
         )
+        self._scaler = GradScaler(enabled=config.amp_enabled)
 
         total_steps = config.epochs * math.ceil(len(train_dataset) / config.batch_size)
         warmup_steps = max(config.min_warmup_steps, int(total_steps * config.warmup_fraction))
@@ -107,6 +109,9 @@ class MGMTrainer:
                 start_epoch = sched_state.get("epoch", 0)
                 best_val_loss = sched_state.get("best_val_loss", float("inf"))
                 global_step = sched_state.get("global_step", 0)
+                scaler_state = sched_state.get("scaler")
+                if scaler_state is not None:
+                    self._scaler.load_state_dict(scaler_state)
             logger.info("Resumed from checkpoint '%s' at epoch %d", resume_from, start_epoch)
 
         train_loader = DataLoader(
@@ -194,25 +199,28 @@ class MGMTrainer:
             batch = self._batch_to_device(batch)
             tb = masked_batch_to_tensorized_batch(batch)
 
-            output = self._model(tb)
-            pt_logits = output["pitch_type_logits"]  # (B, S, vocab)
-            pr_logits = output["pitch_result_logits"]  # (B, S, vocab)
+            with torch.amp.autocast(self._device.type, enabled=self._config.amp_enabled):
+                output = self._model(tb)
+                pt_logits = output["pitch_type_logits"]  # (B, S, vocab)
+                pr_logits = output["pitch_result_logits"]  # (B, S, vocab)
 
-            pt_loss, pr_loss = self._compute_loss(
-                pt_logits, pr_logits,
-                batch.target_pitch_type_ids,
-                batch.target_pitch_result_ids,
-            )
+                pt_loss, pr_loss = self._compute_loss(
+                    pt_logits, pr_logits,
+                    batch.target_pitch_type_ids,
+                    batch.target_pitch_result_ids,
+                )
 
-            loss = (
-                self._config.pitch_type_loss_weight * pt_loss
-                + self._config.pitch_result_loss_weight * pr_loss
-            )
+                loss = (
+                    self._config.pitch_type_loss_weight * pt_loss
+                    + self._config.pitch_result_loss_weight * pr_loss
+                )
 
             optimizer.zero_grad()
-            loss.backward()
+            self._scaler.scale(loss).backward()
+            self._scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(self._model.parameters(), self._config.max_grad_norm)
-            optimizer.step()
+            self._scaler.step(optimizer)
+            self._scaler.update()
             scheduler.step()
 
             n_masked = int(batch.mask_positions.sum().item())
@@ -264,20 +272,21 @@ class MGMTrainer:
             batch = self._batch_to_device(batch)
             tb = masked_batch_to_tensorized_batch(batch)
 
-            output = self._model(tb)
-            pt_logits = output["pitch_type_logits"]
-            pr_logits = output["pitch_result_logits"]
+            with torch.amp.autocast(self._device.type, enabled=self._config.amp_enabled):
+                output = self._model(tb)
+                pt_logits = output["pitch_type_logits"]
+                pr_logits = output["pitch_result_logits"]
 
-            pt_loss, pr_loss = self._compute_loss(
-                pt_logits, pr_logits,
-                batch.target_pitch_type_ids,
-                batch.target_pitch_result_ids,
-            )
+                pt_loss, pr_loss = self._compute_loss(
+                    pt_logits, pr_logits,
+                    batch.target_pitch_type_ids,
+                    batch.target_pitch_result_ids,
+                )
 
-            loss = (
-                self._config.pitch_type_loss_weight * pt_loss
-                + self._config.pitch_result_loss_weight * pr_loss
-            )
+                loss = (
+                    self._config.pitch_type_loss_weight * pt_loss
+                    + self._config.pitch_result_loss_weight * pr_loss
+                )
 
             n_masked = int(batch.mask_positions.sum().item())
             total_loss += loss.item() * n_masked
@@ -350,6 +359,7 @@ class MGMTrainer:
             "epoch": epoch + 1,
             "best_val_loss": best_val_loss,
             "global_step": global_step,
+            "scaler": self._scaler.state_dict(),
         }
         self._store.save_checkpoint(
             name, self._model, metadata,

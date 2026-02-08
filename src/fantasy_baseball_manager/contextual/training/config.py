@@ -33,6 +33,9 @@ class PreTrainingConfig:
     min_warmup_steps: int = 500
     max_grad_norm: float = 1.0
 
+    # Automatic Mixed Precision
+    amp_enabled: bool = False
+
     # Loss
     pitch_type_loss_weight: float = 1.0
     pitch_result_loss_weight: float = 1.0

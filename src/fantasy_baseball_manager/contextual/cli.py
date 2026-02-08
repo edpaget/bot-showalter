@@ -85,6 +85,13 @@ def pretrain_cmd(
             help="Maximum sequence length (caps attention memory usage)",
         ),
     ] = 512,
+    amp: Annotated[
+        bool,
+        typer.Option(
+            "--amp/--no-amp",
+            help="Enable Automatic Mixed Precision (default: auto-detect CUDA)",
+        ),
+    ] = True,
 ) -> None:
     """Pre-train the contextual model using Masked Gamestate Modeling.
 
@@ -120,6 +127,17 @@ def pretrain_cmd(
     val_season_list = tuple(int(s.strip()) for s in val_seasons.split(","))
     perspective_list = tuple(p.strip() for p in perspectives.split(","))
 
+    # Device selection (needed to resolve AMP)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+
+    # Resolve AMP: only enable on CUDA even if --amp was passed
+    amp_enabled = amp and device.type == "cuda"
+
     config = PreTrainingConfig(
         train_seasons=train_seasons,
         val_seasons=val_season_list,
@@ -127,6 +145,7 @@ def pretrain_cmd(
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        amp_enabled=amp_enabled,
     )
 
     console.print("[bold]Contextual Pre-Training (MGM)[/bold]")
@@ -137,6 +156,7 @@ def pretrain_cmd(
     console.print(f"  Batch size:    {batch_size}")
     console.print(f"  Learning rate: {learning_rate}")
     console.print(f"  Max seq len:   {max_seq_len}")
+    console.print(f"  AMP:           {amp_enabled}")
 
     # Build data
     store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
@@ -185,12 +205,6 @@ def pretrain_cmd(
     console.print(f"  {len(train_dataset)} train samples, {len(val_dataset)} val samples")
 
     # Build model
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
     console.print(f"  Device: {device}")
 
     head = MaskedGamestateHead(model_config)
