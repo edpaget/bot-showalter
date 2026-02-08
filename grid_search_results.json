@@ -1,0 +1,1322 @@
+[
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50451,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40824,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.9347,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26719
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50445,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40813,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93769,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26788
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50444,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.4081,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93915,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26937
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50439,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.408,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93124,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26183
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50361,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40644,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93933,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26936
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50352,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40625,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93739,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26717
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50341,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40603,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93449,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26693
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50335,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40591,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93138,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26107
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50254,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40429,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93478,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26446
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.5024,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40401,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93302,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26222
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50227,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40377,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.92926,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26165
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50223,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40368,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.92546,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.25491
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.5014,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40202,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.92578,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.25863
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50139,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.402,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93283,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26253
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50137,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40196,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93155,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26051
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50121,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40163,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.92186,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.25225
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50044,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.40009,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.92667,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.25973
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50039,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.39999,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.93349,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.2637
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50029,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.3998,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.92339,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.25437
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.50024,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.3997,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.9323,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.26168
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48788,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37498,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96096,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29608
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48788,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37498,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96096,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29608
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48761,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37444,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95395,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29232
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48761,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37444,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95395,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29232
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48756,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37433,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96302,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29814
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48756,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37433,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96302,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29814
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48754,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37431,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95752,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29546
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48754,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37431,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95752,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29546
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.4873,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37381,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96285,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30078
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.4873,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37381,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.9548,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29339
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.4873,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37381,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96285,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30078
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.4873,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37381,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.9548,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29339
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48729,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.3738,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96768,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30309
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48729,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.3738,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96768,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30309
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48722,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37365,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96158,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29722
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48722,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37365,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96158,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29722
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48719,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.3736,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95976,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29417
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48719,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.3736,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95976,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29417
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48714,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.3735,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.94996,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.28592
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.15,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48714,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.3735,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.94996,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.28592
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48701,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37324,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96585,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30106
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48701,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37324,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96585,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30106
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48697,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37315,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96045,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29527
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48697,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37315,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96045,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29527
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48692,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37305,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96759,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30314
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48692,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37305,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95365,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.2887
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.3,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48692,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37305,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96759,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30314
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48692,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37305,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95365,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.2887
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48688,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37298,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96315,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30109
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48688,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37298,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96135,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29602
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.35,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48688,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37298,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96315,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30109
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.1,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48688,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37298,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96135,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29602
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48685,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37292,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95146,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.28801
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.2,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48685,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37292,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95146,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.28801
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48668,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37257,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96622,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30178
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.25,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48668,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37257,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.96622,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.30178
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48657,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37235,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95966,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.2949
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.05,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48657,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37235,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.95966,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.2949
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48628,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37177,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.9596,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29573
+    }
+  },
+  {
+    "params": {
+      "babip_regression_weight": 1.0,
+      "lob_regression_weight": 1.0,
+      "batting_hr_pa": 400,
+      "batting_singles_pa": 1400,
+      "pitching_h_outs": 150,
+      "pitching_er_outs": 150,
+      "h_blend_weight": 0.0,
+      "er_blend_weight": 0.4,
+      "pitcher_gb_stats": "so_bb_h_er_hr"
+    },
+    "metrics": {
+      "avg_spearman_rho": 0.48628,
+      "avg_batting_rho": 0.60078,
+      "avg_pitching_rho": 0.37177,
+      "avg_batting_rmse": 11.39102,
+      "avg_pitching_rmse": 9.9596,
+      "avg_batting_mae": 8.67585,
+      "avg_pitching_mae": 7.29573
+    }
+  }
+]

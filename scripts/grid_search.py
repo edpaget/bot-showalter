@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from fantasy_baseball_manager.config import load_league_settings
+from fantasy_baseball_manager.context import init_context
 from fantasy_baseball_manager.evaluation.harness import (
     EvaluationConfig,
     evaluate_source,
@@ -34,6 +35,7 @@ from fantasy_baseball_manager.marcel.data_source import (
 )
 from fantasy_baseball_manager.pipeline.presets import build_pipeline
 from fantasy_baseball_manager.pipeline.source import PipelineProjectionSource
+from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import GBResidualConfig
 from fantasy_baseball_manager.pipeline.stages.pitcher_babip_skill_adjuster import (
     PitcherBabipSkillConfig,
 )
@@ -92,6 +94,18 @@ PITCHER_BABIP_SEARCH_SPACE: dict[str, list[float]] = {
     "pitcher_babip_skill_weight": [0.0, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80],
 }
 
+PITCHER_GB_STATS_OPTIONS: list[str] = [
+    "so_bb",
+    "so_bb_h_er",
+    "so_bb_h_er_hr",
+]
+
+PITCHER_GB_STATS_MAP: dict[str, tuple[str, ...]] = {
+    "so_bb": ("so", "bb"),
+    "so_bb_h_er": ("so", "bb", "h", "er"),
+    "so_bb_h_er_hr": ("so", "bb", "h", "er", "hr"),
+}
+
 
 @dataclass(frozen=True)
 class SearchPoint:
@@ -104,6 +118,7 @@ class SearchPoint:
     h_blend_weight: float | None = None
     er_blend_weight: float | None = None
     pitcher_babip_skill_weight: float | None = None
+    pitcher_gb_stats: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -111,11 +126,37 @@ class SearchPoint:
 # ---------------------------------------------------------------------------
 
 
-def generate_grid(space: dict[str, list[float]]) -> list[SearchPoint]:
+def generate_grid(space: dict[str, list[Any]]) -> list[SearchPoint]:
     """Generate all combinations from the search space."""
     keys = list(space.keys())
     values = [space[k] for k in keys]
     return [SearchPoint(**dict(zip(keys, combo, strict=True))) for combo in itertools.product(*values)]
+
+
+def generate_pitcher_gb_grid() -> list[SearchPoint]:
+    """Generate the 60-point grid for pitcher GB config tuning.
+
+    Sweeps: 3 pitcher_allowed_stats x 5 h_blend_weight x 4 er_blend_weight.
+    Regression constants are fixed at current best values.
+    """
+    points: list[SearchPoint] = []
+    for gb_stats in PITCHER_GB_STATS_OPTIONS:
+        for h_w in [0.0, 0.05, 0.10, 0.15, 0.20]:
+            for er_w in [0.25, 0.30, 0.35, 0.40]:
+                points.append(
+                    SearchPoint(
+                        babip_regression_weight=1.0,
+                        lob_regression_weight=1.0,
+                        batting_hr_pa=400,
+                        batting_singles_pa=1400,
+                        pitching_h_outs=150,
+                        pitching_er_outs=150,
+                        h_blend_weight=h_w,
+                        er_blend_weight=er_w,
+                        pitcher_gb_stats=gb_stats,
+                    )
+                )
+    return points
 
 
 def search_point_to_config(point: SearchPoint) -> RegressionConfig:
@@ -135,7 +176,7 @@ def search_point_to_config(point: SearchPoint) -> RegressionConfig:
 
     pitcher_statcast = PitcherStatcastConfig(
         h_blend_weight=point.h_blend_weight if point.h_blend_weight is not None else 0.0,
-        er_blend_weight=point.er_blend_weight if point.er_blend_weight is not None else 0.25,
+        er_blend_weight=point.er_blend_weight if point.er_blend_weight is not None else 0.35,
     )
 
     pitcher_babip_skill = PitcherBabipSkillConfig(
@@ -164,8 +205,16 @@ def evaluate_point(
 
     Each call creates its own data source so workers don't share state.
     """
+    init_context(year=eval_years[0])
     config = search_point_to_config(point)
-    pipeline = build_pipeline(pipeline_name, config=config)
+    gb_config: GBResidualConfig | None = None
+    if point.pitcher_gb_stats is not None:
+        pitcher_stats = PITCHER_GB_STATS_MAP[point.pitcher_gb_stats]
+        gb_config = GBResidualConfig(
+            batter_allowed_stats=("hr", "sb"),
+            pitcher_allowed_stats=pitcher_stats,
+        )
+    pipeline = build_pipeline(pipeline_name, config=config, gb_config=gb_config)
     batting_source = create_batting_source()
     team_batting_source = create_team_batting_source()
     pitching_source = create_pitching_source()
@@ -223,6 +272,8 @@ def evaluate_point(
         params["er_blend_weight"] = point.er_blend_weight
     if point.pitcher_babip_skill_weight is not None:
         params["pitcher_babip_skill_weight"] = point.pitcher_babip_skill_weight
+    if point.pitcher_gb_stats is not None:
+        params["pitcher_gb_stats"] = point.pitcher_gb_stats
 
     return {
         "params": params,
@@ -282,6 +333,11 @@ def main() -> None:
         help="Search pitcher BABIP skill blend weight (fixes regression constants at best values).",
     )
     parser.add_argument(
+        "--pitcher-gb",
+        action="store_true",
+        help="Search pitcher GB residual stats + Statcast blend weights (60 combos).",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default="grid_search_results.json",
@@ -289,15 +345,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.pitcher_babip:
-        space = PITCHER_BABIP_SEARCH_SPACE
+    if args.pitcher_gb:
+        grid = generate_pitcher_gb_grid()
+    elif args.pitcher_babip:
+        grid = generate_grid(PITCHER_BABIP_SEARCH_SPACE)
     elif args.pitcher_statcast:
-        space = PITCHER_STATCAST_SEARCH_SPACE
+        grid = generate_grid(PITCHER_STATCAST_SEARCH_SPACE)
     elif args.coarse:
-        space = COARSE_SEARCH_SPACE
+        grid = generate_grid(COARSE_SEARCH_SPACE)
     else:
-        space = FULL_SEARCH_SPACE
-    grid = generate_grid(space)
+        grid = generate_grid(FULL_SEARCH_SPACE)
     eval_years = [int(y.strip()) for y in args.years.split(",")]
 
     # Create a shared SQLite cache for all workers

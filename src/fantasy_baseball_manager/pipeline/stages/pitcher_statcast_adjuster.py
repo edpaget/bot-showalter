@@ -21,7 +21,7 @@ REQUIRED_RATES = ("h", "er")
 @dataclass(frozen=True)
 class PitcherStatcastConfig:
     h_blend_weight: float = 0.0
-    er_blend_weight: float = 0.25
+    er_blend_weight: float = 0.35
     min_pa_for_blend: int = 200
     league_hr_per_barrel: float = 0.55
 

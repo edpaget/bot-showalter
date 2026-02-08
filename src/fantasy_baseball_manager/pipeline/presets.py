@@ -30,6 +30,7 @@ from fantasy_baseball_manager.pipeline.stages.adjusters import (
 )
 from fantasy_baseball_manager.pipeline.stages.component_aging import ComponentAgingAdjuster
 from fantasy_baseball_manager.pipeline.stages.finalizers import StandardFinalizer
+from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import GBResidualConfig
 from fantasy_baseball_manager.pipeline.stages.playing_time import MarcelPlayingTime
 from fantasy_baseball_manager.pipeline.stages.rate_computers import MarcelRateComputer
 from fantasy_baseball_manager.pipeline.stages.regression_config import RegressionConfig
@@ -97,6 +98,7 @@ def marcel_full_pipeline(
 
 def marcel_gb_pipeline(
     config: RegressionConfig | None = None,
+    gb_config: GBResidualConfig | None = None,
 ) -> ProjectionPipeline:
     """Best accuracy pipeline with gradient boosting residual corrections.
 
@@ -109,10 +111,8 @@ def marcel_gb_pipeline(
     - OBP correlation: +3.7% (0.516 → 0.535)
     - Rank accuracy: +4.5% (0.577 → 0.603)
     """
-    from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import GBResidualConfig
-
     cfg = config or RegressionConfig()
-    gb_config = GBResidualConfig(
+    gb_cfg = gb_config or GBResidualConfig(
         batter_allowed_stats=("hr", "sb"),  # Conservative: only power stats
         pitcher_allowed_stats=("so", "bb"),  # Only K/BB for pitchers
     )
@@ -123,13 +123,14 @@ def marcel_gb_pipeline(
         .with_pitcher_statcast()
         .with_statcast()
         .with_batter_babip()
-        .with_gb_residual(gb_config)
+        .with_gb_residual(gb_cfg)
         .build()
     )
 
 
 def marcel_gb_mle_pipeline(
     config: RegressionConfig | None = None,
+    gb_config: GBResidualConfig | None = None,
 ) -> ProjectionPipeline:
     """Best accuracy pipeline with MLE augmentation for rookies.
 
@@ -142,10 +143,8 @@ def marcel_gb_mle_pipeline(
 
     Requires a trained MLE model (run scripts/run_mle_evaluation.py).
     """
-    from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import GBResidualConfig
-
     cfg = config or RegressionConfig()
-    gb_config = GBResidualConfig(
+    gb_cfg = gb_config or GBResidualConfig(
         batter_allowed_stats=("hr", "sb"),
         pitcher_allowed_stats=("so", "bb"),
     )
@@ -156,7 +155,7 @@ def marcel_gb_mle_pipeline(
         .with_pitcher_statcast()
         .with_statcast()
         .with_batter_babip()
-        .with_gb_residual(gb_config)
+        .with_gb_residual(gb_cfg)
         .with_mle_for_rookies()
         .build()
     )
@@ -325,11 +324,22 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
 }
 
 
+_GB_CONFIGURABLE_FACTORIES: dict[
+    str, Callable[[RegressionConfig | None, GBResidualConfig | None], ProjectionPipeline]
+] = {
+    "marcel_gb": marcel_gb_pipeline,
+    "marcel_gb_mle": marcel_gb_mle_pipeline,
+}
+
+
 def build_pipeline(
     name: str,
     config: RegressionConfig | None = None,
+    gb_config: GBResidualConfig | None = None,
 ) -> ProjectionPipeline:
     """Build a pipeline by name, optionally passing a RegressionConfig."""
+    if name in _GB_CONFIGURABLE_FACTORIES:
+        return _GB_CONFIGURABLE_FACTORIES[name](config, gb_config)
     if name in _CONFIGURABLE_FACTORIES:
         return _CONFIGURABLE_FACTORIES[name](config)
     if name in PIPELINES:

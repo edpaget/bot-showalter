@@ -234,11 +234,24 @@ def masked_batch_to_tensorized_batch(batch: MaskedBatch) -> TensorizedBatch:
     )
 
 
+def _build_season_pair(
+    builder: GameSequenceBuilder,
+    season: int,
+    perspective: str,
+) -> list[GameSequence]:
+    """Build game sequences for a single (season, perspective) pair.
+
+    Top-level function so it's picklable for multiprocessing.
+    """
+    return builder.build_season(season, perspective)
+
+
 def build_player_contexts(
     builder: GameSequenceBuilder,
     seasons: tuple[int, ...],
     perspectives: tuple[str, ...],
     min_pitch_count: int,
+    max_workers: int | None = None,
 ) -> list[PlayerContext]:
     """Build PlayerContext objects from Statcast data.
 
@@ -246,14 +259,22 @@ def build_player_contexts(
     groups by (player_id, season, perspective), creates PlayerContext objects,
     and filters by minimum pitch count.
     """
+    from concurrent.futures import ProcessPoolExecutor
+
     from fantasy_baseball_manager.contextual.data.models import PlayerContext as PC
 
     # Collect all game sequences
-    all_sequences = []
-    for season in seasons:
-        for perspective in perspectives:
-            sequences = builder.build_season(season, perspective)
-            all_sequences.extend(sequences)
+    pairs = [(season, perspective) for season in seasons for perspective in perspectives]
+    all_sequences: list[GameSequence] = []
+
+    if len(pairs) > 1 and max_workers != 1:
+        with ProcessPoolExecutor(max_workers=max_workers) as pool:
+            futures = [pool.submit(_build_season_pair, builder, s, p) for s, p in pairs]
+            for future in futures:
+                all_sequences.extend(future.result())
+    else:
+        for season, perspective in pairs:
+            all_sequences.extend(builder.build_season(season, perspective))
 
     # Group by (player_id, season, perspective)
     grouped: dict[tuple[int, int, str], list] = {}
@@ -279,6 +300,38 @@ def build_player_contexts(
         contexts.append(ctx)
 
     return contexts
+
+
+def _tensorize_single_context(
+    ctx: PlayerContext,
+    tensorizer: Tensorizer,
+) -> TensorizedSingle:
+    """Tensorize a single player context.
+
+    Top-level function so it's picklable for multiprocessing.
+    """
+    return tensorizer.tensorize_context(ctx)
+
+
+def tensorize_contexts(
+    tensorizer: Tensorizer,
+    contexts: list[PlayerContext],
+    max_workers: int | None = None,
+) -> list[TensorizedSingle]:
+    """Tensorize player contexts, optionally in parallel.
+
+    Uses ProcessPoolExecutor to parallelize tensorize_context calls
+    when there are multiple contexts and max_workers != 1.
+    """
+    from concurrent.futures import ProcessPoolExecutor
+    from functools import partial
+
+    if len(contexts) > 1 and max_workers != 1:
+        fn = partial(_tensorize_single_context, tensorizer=tensorizer)
+        with ProcessPoolExecutor(max_workers=max_workers) as pool:
+            return list(pool.map(fn, contexts, chunksize=16))
+    else:
+        return [tensorizer.tensorize_context(ctx) for ctx in contexts]
 
 
 # ---------------------------------------------------------------------------
@@ -339,11 +392,46 @@ class FineTuneBatch:
     targets: torch.Tensor  # (batch, n_targets) float
 
 
+def _build_player_windows(
+    player_ctx: PlayerContext,
+    tensorizer: Tensorizer,
+    context_window: int,
+    target_stats: tuple[str, ...],
+) -> list[tuple[TensorizedSingle, torch.Tensor]]:
+    """Build sliding windows for a single player.
+
+    Top-level function so it's picklable for multiprocessing.
+    """
+    from fantasy_baseball_manager.contextual.data.models import PlayerContext as PC
+
+    windows: list[tuple[TensorizedSingle, torch.Tensor]] = []
+    games = player_ctx.games
+    n = context_window
+
+    for i in range(len(games) - n):
+        context_games = games[i : i + n]
+        target_game = games[i + n]
+
+        ctx = PC(
+            player_id=player_ctx.player_id,
+            player_name=player_ctx.player_name,
+            season=player_ctx.season,
+            perspective=player_ctx.perspective,
+            games=context_games,
+        )
+        tensorized = tensorizer.tensorize_context(ctx)
+        targets = extract_game_stats(target_game, target_stats)
+        windows.append((tensorized, targets))
+
+    return windows
+
+
 def build_finetune_windows(
     player_contexts: list[PlayerContext],
     tensorizer: Tensorizer,
     config: FineTuneConfig,
     target_stats: tuple[str, ...],
+    max_workers: int | None = None,
 ) -> list[tuple[TensorizedSingle, torch.Tensor]]:
     """Build (context, targets) pairs using a sliding window.
 
@@ -351,31 +439,28 @@ def build_finetune_windows(
     creates G - context_window examples:
       context = tensorized games[i:i+N], target = stats from games[i+N]
     """
-    from fantasy_baseball_manager.contextual.data.models import PlayerContext as PC
+    from concurrent.futures import ProcessPoolExecutor
+    from functools import partial
+
+    n = config.context_window
+    eligible = [p for p in player_contexts if len(p.games) >= n + 1]
+
+    fn = partial(
+        _build_player_windows,
+        tensorizer=tensorizer,
+        context_window=n,
+        target_stats=target_stats,
+    )
 
     windows: list[tuple[TensorizedSingle, torch.Tensor]] = []
-    n = config.context_window
 
-    for player_ctx in player_contexts:
-        games = player_ctx.games
-        if len(games) < n + 1:
-            continue
-
-        for i in range(len(games) - n):
-            context_games = games[i : i + n]
-            target_game = games[i + n]
-
-            # Build a temporary PlayerContext for the context window
-            ctx = PC(
-                player_id=player_ctx.player_id,
-                player_name=player_ctx.player_name,
-                season=player_ctx.season,
-                perspective=player_ctx.perspective,
-                games=context_games,
-            )
-            tensorized = tensorizer.tensorize_context(ctx)
-            targets = extract_game_stats(target_game, target_stats)
-            windows.append((tensorized, targets))
+    if len(eligible) > 1 and max_workers != 1:
+        with ProcessPoolExecutor(max_workers=max_workers) as pool:
+            for player_windows in pool.map(fn, eligible, chunksize=8):
+                windows.extend(player_windows)
+    else:
+        for ctx in eligible:
+            windows.extend(fn(ctx))
 
     return windows
 

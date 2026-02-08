@@ -49,6 +49,22 @@ def _build_finetune_meta(
     }
 
 
+def _log_meta_mismatch(
+    stored: dict[str, object] | None,
+    expected: dict[str, object],
+) -> None:
+    """Print which metadata keys differ between stored and expected."""
+    if stored is None:
+        console.print("  [yellow]No metadata file found[/yellow]")
+        return
+    all_keys = sorted(set(stored) | set(expected))
+    for key in all_keys:
+        s_val = stored.get(key)
+        e_val = expected.get(key)
+        if s_val != e_val:
+            console.print(f"  [yellow]  {key}: stored={s_val!r}  expected={e_val!r}[/yellow]")
+
+
 @contextual_app.command(name="prepare-data")
 def prepare_data_cmd(
     mode: Annotated[
@@ -110,6 +126,14 @@ def prepare_data_cmd(
             help="Minimum pitch count to include a player context (pretrain)",
         ),
     ] = 10,
+    workers: Annotated[
+        int | None,
+        typer.Option(
+            "--workers",
+            "-w",
+            help="Max parallel workers for data building (default: CPU count)",
+        ),
+    ] = None,
 ) -> None:
     """Pre-build tensorized sequences and save to disk.
 
@@ -140,6 +164,7 @@ def prepare_data_cmd(
     from fantasy_baseball_manager.contextual.training.dataset import (
         build_finetune_windows,
         build_player_contexts,
+        tensorize_contexts,
     )
     from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
     from fantasy_baseball_manager.statcast.store import StatcastStore
@@ -174,19 +199,21 @@ def prepare_data_cmd(
         console.print("  Building training contexts...")
         train_contexts = build_player_contexts(
             builder, train_seasons, perspective_list, min_pitch_count,
+            max_workers=workers,
         )
         console.print(f"  {len(train_contexts)} training player contexts")
 
         console.print("  Building validation contexts...")
         val_contexts = build_player_contexts(
             builder, val_season_list, perspective_list, min_pitch_count,
+            max_workers=workers,
         )
         console.print(f"  {len(val_contexts)} validation player contexts")
 
         console.print("  Tensorizing training sequences...")
-        train_sequences = [tensorizer.tensorize_context(ctx) for ctx in train_contexts]
+        train_sequences = tensorize_contexts(tensorizer, train_contexts, max_workers=workers)
         console.print("  Tensorizing validation sequences...")
-        val_sequences = [tensorizer.tensorize_context(ctx) for ctx in val_contexts]
+        val_sequences = tensorize_contexts(tensorizer, val_contexts, max_workers=workers)
 
         meta = _build_pretrain_meta(
             train_seasons, val_season_list, perspective_list, max_seq_len, min_pitch_count,
@@ -213,18 +240,24 @@ def prepare_data_cmd(
         console.print("  Building training contexts...")
         train_contexts = build_player_contexts(
             builder, train_seasons, (perspective,), min_pitch_count=10,
+            max_workers=workers,
         )
         console.print(f"  {len(train_contexts)} training player contexts")
 
         console.print("  Building validation contexts...")
         val_contexts = build_player_contexts(
             builder, val_season_list, (perspective,), min_pitch_count=10,
+            max_workers=workers,
         )
         console.print(f"  {len(val_contexts)} validation player contexts")
 
         console.print("  Building sliding windows...")
-        train_windows = build_finetune_windows(train_contexts, tensorizer, ft_config, target_stats)
-        val_windows = build_finetune_windows(val_contexts, tensorizer, ft_config, target_stats)
+        train_windows = build_finetune_windows(
+            train_contexts, tensorizer, ft_config, target_stats, max_workers=workers,
+        )
+        val_windows = build_finetune_windows(
+            val_contexts, tensorizer, ft_config, target_stats, max_workers=workers,
+        )
 
         ft_meta = _build_finetune_meta(
             train_seasons, val_season_list, perspective, context_window,
@@ -406,6 +439,7 @@ def pretrain_cmd(
                 )
             else:
                 console.print("\nPrepared data exists but parameters don't match, building from scratch...")
+                _log_meta_mismatch(stored_meta, expected_meta)
 
     if train_sequences is None or val_sequences is None:
         from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
@@ -677,6 +711,7 @@ def finetune_cmd(
                 )
             else:
                 console.print("\nPrepared data exists but parameters don't match, building from scratch...")
+                _log_meta_mismatch(stored_meta, expected_meta)
 
     if train_windows is None or val_windows is None:
         from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
