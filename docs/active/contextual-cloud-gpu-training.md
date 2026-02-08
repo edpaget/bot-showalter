@@ -195,7 +195,19 @@ modal run scripts/modal_train.py --command check
 
 ### Prepare Data (CPU-Only)
 
-Preparing data on CPU first saves GPU-seconds by skipping parquet I/O, game-sequence building, and tensorization during training. The `prepare` command runs without a GPU.
+Preparing data on CPU first saves GPU-seconds by skipping parquet I/O, game-sequence building, and tensorization during training. This saves ~2-5 minutes per training run.
+
+**Option A: Prepare locally and upload** (recommended — avoids paying for cloud CPU time):
+
+```bash
+# Prepare on your local machine
+uv run fantasy-baseball-manager contextual prepare-data --mode all
+
+# Upload prepared data to the Modal volume
+modal volume put fantasy-baseball-data ~/.fantasy_baseball/prepared_data/ prepared_data/
+```
+
+**Option B: Prepare on Modal** (CPU-only, no GPU):
 
 ```bash
 # Prepare all data (pretrain + finetune)
