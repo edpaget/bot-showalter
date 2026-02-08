@@ -18,11 +18,7 @@ from fantasy_baseball_manager.pipeline.stages.rate_computers import (
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
-    from fantasy_baseball_manager.contextual.data.models import GameSequence
-    from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
-    from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
-    from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
+    from fantasy_baseball_manager.contextual.predictor import ContextualPredictor
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
@@ -41,84 +37,11 @@ class ContextualEmbeddingRateComputer:
     Implements the RateComputer protocol.
     """
 
-    sequence_builder: GameSequenceBuilder
+    predictor: ContextualPredictor
     id_mapper: SfbbMapper
     config: ContextualRateComputerConfig = field(default_factory=ContextualRateComputerConfig)
-    model_store: ContextualModelStore | None = None
 
     _marcel_computer: MarcelRateComputer = field(default_factory=MarcelRateComputer, repr=False)
-    _batter_model: ContextualPerformanceModel | None = field(default=None, init=False, repr=False)
-    _pitcher_model: ContextualPerformanceModel | None = field(default=None, init=False, repr=False)
-    _tensorizer: Tensorizer | None = field(default=None, init=False, repr=False)
-    _models_loaded: bool = field(default=False, init=False, repr=False)
-
-    def _ensure_models_loaded(self) -> None:
-        """Lazy-load fine-tuned models on first use."""
-        if self._models_loaded:
-            return
-
-        from fantasy_baseball_manager.contextual.model.config import ModelConfig
-
-        model_config = ModelConfig()
-        store = self._resolve_model_store()
-
-        if store.exists(self.config.batter_model_name):
-            self._batter_model = store.load_finetune_model(
-                self.config.batter_model_name, model_config, len(BATTER_TARGET_STATS),
-            )
-            self._batter_model.eval()
-            logger.debug("Loaded contextual batter model: %s", self.config.batter_model_name)
-        else:
-            logger.warning(
-                "Contextual batter model %s not found, using Marcel fallback",
-                self.config.batter_model_name,
-            )
-
-        if store.exists(self.config.pitcher_model_name):
-            self._pitcher_model = store.load_finetune_model(
-                self.config.pitcher_model_name, model_config, len(PITCHER_TARGET_STATS),
-            )
-            self._pitcher_model.eval()
-            logger.debug("Loaded contextual pitcher model: %s", self.config.pitcher_model_name)
-        else:
-            logger.warning(
-                "Contextual pitcher model %s not found, using Marcel fallback",
-                self.config.pitcher_model_name,
-            )
-
-        self._models_loaded = True
-
-    def _resolve_model_store(self) -> ContextualModelStore:
-        if self.model_store is not None:
-            return self.model_store
-        from fantasy_baseball_manager.contextual.persistence import ContextualModelStore as Store
-
-        self.model_store = Store()
-        return self.model_store
-
-    def _ensure_tensorizer(self) -> Tensorizer:
-        if self._tensorizer is not None:
-            return self._tensorizer
-
-        from fantasy_baseball_manager.contextual.data.vocab import (
-            BB_TYPE_VOCAB,
-            HANDEDNESS_VOCAB,
-            PA_EVENT_VOCAB,
-            PITCH_RESULT_VOCAB,
-            PITCH_TYPE_VOCAB,
-        )
-        from fantasy_baseball_manager.contextual.model.config import ModelConfig
-        from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
-
-        self._tensorizer = Tensorizer(
-            config=ModelConfig(),
-            pitch_type_vocab=PITCH_TYPE_VOCAB,
-            pitch_result_vocab=PITCH_RESULT_VOCAB,
-            bb_type_vocab=BB_TYPE_VOCAB,
-            handedness_vocab=HANDEDNESS_VOCAB,
-            pa_event_vocab=PA_EVENT_VOCAB,
-        )
-        return self._tensorizer
 
     def compute_batting_rates(
         self,
@@ -128,13 +51,16 @@ class ContextualEmbeddingRateComputer:
         years_back: int,
     ) -> list[PlayerRates]:
         """Compute batting rates using contextual transformer model."""
-        self._ensure_models_loaded()
+        self.predictor.ensure_models_loaded(
+            self.config.batter_model_name,
+            self.config.pitcher_model_name,
+        )
 
         marcel_rates = self._marcel_computer.compute_batting_rates(
             batting_source, team_batting_source, year, years_back,
         )
 
-        if self._batter_model is None:
+        if not self.predictor.has_batter_model():
             logger.debug("No contextual batter model available, using Marcel rates")
             return marcel_rates
 
@@ -146,8 +72,7 @@ class ContextualEmbeddingRateComputer:
 
         for marcel_player in marcel_rates:
             contextual_player = self._try_contextual_prediction(
-                marcel_player, self._batter_model, adapter,
-                BATTER_TARGET_STATS, "batter", data_year,
+                marcel_player, adapter, BATTER_TARGET_STATS, "batter", data_year,
             )
             if contextual_player is not None:
                 result.append(contextual_player)
@@ -169,13 +94,16 @@ class ContextualEmbeddingRateComputer:
         years_back: int,
     ) -> list[PlayerRates]:
         """Compute pitching rates using contextual transformer model."""
-        self._ensure_models_loaded()
+        self.predictor.ensure_models_loaded(
+            self.config.batter_model_name,
+            self.config.pitcher_model_name,
+        )
 
         marcel_rates = self._marcel_computer.compute_pitching_rates(
             pitching_source, team_pitching_source, year, years_back,
         )
 
-        if self._pitcher_model is None:
+        if not self.predictor.has_pitcher_model():
             logger.debug("No contextual pitcher model available, using Marcel rates")
             return marcel_rates
 
@@ -187,8 +115,7 @@ class ContextualEmbeddingRateComputer:
 
         for marcel_player in marcel_rates:
             contextual_player = self._try_contextual_prediction(
-                marcel_player, self._pitcher_model, adapter,
-                PITCHER_TARGET_STATS, "pitcher", data_year,
+                marcel_player, adapter, PITCHER_TARGET_STATS, "pitcher", data_year,
             )
             if contextual_player is not None:
                 result.append(contextual_player)
@@ -205,7 +132,6 @@ class ContextualEmbeddingRateComputer:
     def _try_contextual_prediction(
         self,
         marcel_player: PlayerRates,
-        model: ContextualPerformanceModel,
         adapter: PerGameToSeasonAdapter,
         target_stats: tuple[str, ...],
         perspective: str,
@@ -219,16 +145,23 @@ class ContextualEmbeddingRateComputer:
         if mlbam_id is None:
             return None
 
-        games = self.sequence_builder.build_player_season(
-            data_year, int(mlbam_id), perspective=perspective,
-        )
-
-        if len(games) < self.config.min_games:
+        model = self.predictor._batter_model if perspective == "batter" else self.predictor._pitcher_model
+        if model is None:
             return None
 
-        context_games = games[-self.config.context_window :]
+        prediction = self.predictor.predict_player(
+            mlbam_id=int(mlbam_id),
+            data_year=data_year,
+            perspective=perspective,
+            model=model,
+            target_stats=target_stats,
+            min_games=self.config.min_games,
+            context_window=self.config.context_window,
+        )
+        if prediction is None:
+            return None
 
-        avg_predictions = self._predict_player(model, context_games, target_stats)
+        avg_predictions, context_games = prediction
         avg_denominator = sum(adapter.game_denominator(g) for g in context_games) / len(context_games)
 
         rates = adapter.predictions_to_rates(avg_predictions, avg_denominator, marcel_player.rates)
@@ -248,39 +181,3 @@ class ContextualEmbeddingRateComputer:
                 "marcel_rates": marcel_player.rates,
             },
         )
-
-    def _predict_player(
-        self,
-        model: ContextualPerformanceModel,
-        games: list[GameSequence],
-        target_stats: tuple[str, ...],
-    ) -> dict[str, float]:
-        """Run model inference on a player's game context."""
-        import torch
-
-        from fantasy_baseball_manager.contextual.data.models import PlayerContext
-
-        tensorizer = self._ensure_tensorizer()
-
-        context = PlayerContext(
-            player_id=games[0].player_id,
-            player_name="",
-            season=games[0].season,
-            perspective=games[0].perspective,
-            games=tuple(games),
-        )
-
-        tensorized = tensorizer.tensorize_context(context)
-        batch = tensorizer.collate([tensorized])
-
-        with torch.no_grad():
-            output = model(batch)
-
-        # performance_preds: (batch=1, n_player_tokens, n_targets)
-        preds = output["performance_preds"]
-        # Pool over player tokens: (1, n_targets)
-        pooled = preds.mean(dim=1)
-        # Convert to dict
-        pred_values = pooled.squeeze(0).tolist()
-
-        return dict(zip(target_stats, pred_values, strict=True))

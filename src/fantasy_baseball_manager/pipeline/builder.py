@@ -89,7 +89,10 @@ from fantasy_baseball_manager.player_id.mapper import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.contextual.training.config import ContextualRateComputerConfig
+    from fantasy_baseball_manager.contextual.training.config import (
+        ContextualBlenderConfig,
+        ContextualRateComputerConfig,
+    )
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.minors.rate_computer import MLERateComputerConfig
     from fantasy_baseball_manager.minors.types import MinorLeagueBatterSeasonStats
@@ -148,6 +151,8 @@ class PipelineBuilder:
         self._mle_for_rookies_config: MLERateComputerConfig | None = None
         self._contextual: bool = False
         self._contextual_config: ContextualRateComputerConfig | None = None
+        self._contextual_blender: bool = False
+        self._contextual_blender_config: ContextualBlenderConfig | None = None
 
     def with_cache_store(self, cache_store: CacheStore) -> PipelineBuilder:
         """Set the cache store to use for all cached data sources.
@@ -335,6 +340,20 @@ class PipelineBuilder:
             self._contextual_config = config
         return self
 
+    def with_contextual_blender(
+        self,
+        config: ContextualBlenderConfig | None = None,
+    ) -> PipelineBuilder:
+        """Blend Marcel rates with contextual transformer predictions.
+
+        Ensemble mode: blended = (1 - weight) * marcel + weight * contextual
+        Default weight is 0.3 (30% contextual, 70% Marcel).
+        """
+        self._contextual_blender = True
+        if config is not None:
+            self._contextual_blender_config = config
+        return self
+
     def build(self) -> ProjectionPipeline:
         rate_computer = self._build_rate_computer()
         adjusters = self._build_adjusters()
@@ -358,24 +377,17 @@ class PipelineBuilder:
 
         # Contextual transformer rate computer
         if self._contextual:
-            from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
-            from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
             from fantasy_baseball_manager.contextual.training.config import (
                 ContextualRateComputerConfig,
             )
             from fantasy_baseball_manager.pipeline.stages.contextual_rate_computer import (
                 ContextualEmbeddingRateComputer,
             )
-            from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
-            from fantasy_baseball_manager.statcast.store import StatcastStore
 
-            store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
-            builder = GameSequenceBuilder(store)
             return ContextualEmbeddingRateComputer(
-                sequence_builder=builder,
+                predictor=self._resolve_contextual_predictor(),
                 id_mapper=self._resolve_id_mapper(),
                 config=self._contextual_config or ContextualRateComputerConfig(),
-                model_store=ContextualModelStore(),
             )
 
         # MTL rate computer (replaces Marcel entirely)
@@ -450,6 +462,7 @@ class PipelineBuilder:
         needs_enricher = (
             self._statcast or self._batter_babip or self._pitcher_statcast
             or self._gb_residual or self._mtl_blender or self._contextual
+            or self._contextual_blender
         )
         if needs_enricher:
             adjusters.append(PlayerIdentityEnricher(mapper=self._resolve_id_mapper()))
@@ -531,6 +544,22 @@ class PipelineBuilder:
                 )
             )
 
+        if self._contextual_blender:
+            from fantasy_baseball_manager.contextual.training.config import (
+                ContextualBlenderConfig as _ContextualBlenderConfig,
+            )
+            from fantasy_baseball_manager.pipeline.stages.contextual_blender import (
+                ContextualBlender,
+            )
+
+            adjusters.append(
+                ContextualBlender(
+                    predictor=self._resolve_contextual_predictor(),
+                    id_mapper=self._resolve_id_mapper(),
+                    config=self._contextual_blender_config or _ContextualBlenderConfig(),
+                )
+            )
+
         # Always last: rebaseline then aging
         adjusters.append(RebaselineAdjuster())
         adjusters.append(ComponentAgingAdjuster())
@@ -591,6 +620,20 @@ class PipelineBuilder:
         source = CachedSkillDataSource(composite, self._get_cache_store())
         self._skill_data_source = source
         return source
+
+    def _resolve_contextual_predictor(self) -> Any:
+        from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
+        from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
+        from fantasy_baseball_manager.contextual.predictor import ContextualPredictor
+        from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
+        from fantasy_baseball_manager.statcast.store import StatcastStore
+
+        store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
+        builder = GameSequenceBuilder(store)
+        return ContextualPredictor(
+            sequence_builder=builder,
+            model_store=ContextualModelStore(),
+        )
 
     def _resolve_milb_source(self) -> DataSource[MinorLeagueBatterSeasonStats]:
         """Resolve or create a minor league data source."""

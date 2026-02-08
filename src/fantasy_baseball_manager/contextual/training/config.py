@@ -90,3 +90,14 @@ class ContextualRateComputerConfig:
     pitcher_model_name: str = "finetune_pitcher_best"
     min_games: int = 10
     context_window: int = 10
+
+
+@dataclass(frozen=True, slots=True)
+class ContextualBlenderConfig:
+    """Configuration for contextual transformer blender in the pipeline."""
+
+    batter_model_name: str = "finetune_batter_best"
+    pitcher_model_name: str = "finetune_pitcher_best"
+    min_games: int = 10
+    context_window: int = 10
+    contextual_weight: float = 0.3

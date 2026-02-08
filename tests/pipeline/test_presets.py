@@ -15,6 +15,7 @@ from fantasy_baseball_manager.pipeline.presets import (
     build_pipeline,
     contextual_pipeline,
     marcel_classic_pipeline,
+    marcel_contextual_pipeline,
     marcel_full_pipeline,
     marcel_gb_pipeline,
     marcel_pipeline,
@@ -168,6 +169,35 @@ class TestContextualPreset:
         assert "BatterBabipAdjuster" not in adjuster_types
 
 
+class TestMarcelContextualPreset:
+    def test_returns_pipeline(self) -> None:
+        pipeline = marcel_contextual_pipeline()
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "marcel_contextual"
+        assert pipeline.years_back == 3
+
+    def test_has_ten_adjusters(self) -> None:
+        # identity, park, pitcher_norm, pitcher_statcast, statcast,
+        # batter_babip, contextual_blender, rebaseline, aging
+        pipeline = marcel_contextual_pipeline()
+        assert len(pipeline.adjusters) == 9
+
+    def test_includes_contextual_blender(self) -> None:
+        pipeline = marcel_contextual_pipeline()
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "ContextualBlender" in adjuster_types
+
+    def test_blender_before_rebaseline(self) -> None:
+        pipeline = marcel_contextual_pipeline()
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        cb_idx = adjuster_types.index("ContextualBlender")
+        rb_idx = adjuster_types.index("RebaselineAdjuster")
+        assert cb_idx < rb_idx
+
+    def test_in_registry(self) -> None:
+        assert "marcel_contextual" in PIPELINES
+
+
 ALL_PRESET_NAMES = [
     "marcel_classic",
     "marcel",
@@ -178,6 +208,7 @@ ALL_PRESET_NAMES = [
     "marcel_mtl",
     "mle",
     "contextual",
+    "marcel_contextual",
 ]
 
 
@@ -199,7 +230,7 @@ class TestAllPresetsInRegistry:
         assert len(aging_adjusters) == 1
 
     def test_registry_has_expected_entries(self) -> None:
-        assert len(PIPELINES) == 11  # 9 internal + steamer + zips
+        assert len(PIPELINES) == 12  # 10 internal + steamer + zips
 
 
 class TestConfigThreading:

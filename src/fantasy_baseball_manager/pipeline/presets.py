@@ -232,6 +232,28 @@ def contextual_pipeline(
     )
 
 
+def marcel_contextual_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Marcel + contextual blending pipeline.
+
+    Uses Marcel for base rates, then blends with contextual transformer
+    predictions. Default blend: 70% Marcel, 30% contextual.
+    Includes all marcel_full adjusters.
+    """
+    cfg = config or RegressionConfig()
+    return (
+        PipelineBuilder("marcel_contextual", config=cfg)
+        .with_park_factors()
+        .with_pitcher_normalization()
+        .with_pitcher_statcast()
+        .with_statcast()
+        .with_batter_babip()
+        .with_contextual_blender()
+        .build()
+    )
+
+
 def _external_pipeline(system: ProjectionSystem) -> ExternalProjectionAdapter:
     """Build an ExternalProjectionAdapter with cached DataSources for a given system."""
     from fantasy_baseball_manager.projections.data_source import (
@@ -285,6 +307,7 @@ PIPELINES: dict[str, Callable[[], Any]] = {
     "marcel_mtl": marcel_mtl_pipeline,
     "mle": mle_pipeline,
     "contextual": contextual_pipeline,
+    "marcel_contextual": marcel_contextual_pipeline,
     "steamer": steamer_pipeline,
     "zips": zips_pipeline,
 }
@@ -298,6 +321,7 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
     "marcel_mtl": marcel_mtl_pipeline,
     "mle": mle_pipeline,
     "contextual": contextual_pipeline,
+    "marcel_contextual": marcel_contextual_pipeline,
 }
 
 

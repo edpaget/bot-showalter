@@ -91,6 +91,11 @@ class PlayerMetadata(TypedDict, total=False):
     contextual_predicted: bool
     contextual_games_used: int
 
+    # Contextual blender metadata
+    contextual_blended: bool
+    contextual_blend_weight: float
+    contextual_rates: dict[str, float]
+
 
 @dataclass
 class PlayerRates:

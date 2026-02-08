@@ -8,6 +8,7 @@ from fantasy_baseball_manager.contextual.data.models import (
     GameSequence,
     PitchEvent,
 )
+from fantasy_baseball_manager.contextual.predictor import ContextualPredictor
 from fantasy_baseball_manager.contextual.training.config import (
     ContextualRateComputerConfig,
 )
@@ -122,11 +123,14 @@ def _build_computer(
     id_mapper: MagicMock | None = None,
     config: ContextualRateComputerConfig | None = None,
 ) -> ContextualEmbeddingRateComputer:
-    return ContextualEmbeddingRateComputer(
+    predictor = ContextualPredictor(
         sequence_builder=sequence_builder or MagicMock(),
+        model_store=model_store or MagicMock(),
+    )
+    return ContextualEmbeddingRateComputer(
+        predictor=predictor,
         id_mapper=id_mapper or MagicMock(),
         config=config or ContextualRateComputerConfig(),
-        model_store=model_store or MagicMock(),
     )
 
 
@@ -170,12 +174,11 @@ class TestContextualFallbackBehavior:
         """Player with no MLBAM mapping falls back to Marcel."""
         mock_store = MagicMock()
         mock_store.exists.return_value = True
-        # Return a mock model
         mock_model = MagicMock()
         mock_store.load_finetune_model.return_value = mock_model
 
         mock_mapper = MagicMock()
-        mock_mapper.fangraphs_to_mlbam.return_value = None  # No MLBAM ID
+        mock_mapper.fangraphs_to_mlbam.return_value = None
 
         computer = _build_computer(model_store=mock_store, id_mapper=mock_mapper)
         marcel_player = _make_marcel_player()
@@ -187,7 +190,6 @@ class TestContextualFallbackBehavior:
         )
 
         assert len(result) == 1
-        # Should be marcel fallback (no contextual metadata)
         assert result[0].metadata.get("contextual_predicted") is not True
 
     def test_falls_back_for_insufficient_games(self) -> None:
@@ -201,7 +203,6 @@ class TestContextualFallbackBehavior:
         mock_mapper.fangraphs_to_mlbam.return_value = 123456
 
         mock_builder = MagicMock()
-        # Only 5 games, but min_games is 10
         mock_builder.build_player_season.return_value = [_make_game(i) for i in range(5)]
 
         config = ContextualRateComputerConfig(min_games=10)
@@ -231,10 +232,7 @@ class TestContextualPredictions:
         mock_store = MagicMock()
         mock_store.exists.return_value = True
 
-        # Create mock model that returns predictions
         mock_model = MagicMock()
-        # performance_preds shape: (batch=1, n_player_tokens, n_targets)
-        # For batter: 6 targets (hr, so, bb, h, 2b, 3b)
         preds_tensor = torch.tensor([[[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]]])
         mock_model.return_value = {"performance_preds": preds_tensor}
         mock_model.eval = MagicMock(return_value=mock_model)
@@ -259,13 +257,13 @@ class TestContextualPredictions:
         computer._marcel_computer = MagicMock()
         computer._marcel_computer.compute_batting_rates.return_value = [marcel_player]
 
-        # Mock the tensorizer (lazy-loaded)
+        # Mock the tensorizer on the predictor
         mock_tensorizer = MagicMock()
         mock_tensorized = MagicMock()
         mock_tensorizer.tensorize_context.return_value = mock_tensorized
         mock_batch = MagicMock()
         mock_tensorizer.collate.return_value = mock_batch
-        computer._tensorizer = mock_tensorizer
+        computer.predictor._tensorizer = mock_tensorizer
 
         result = computer.compute_batting_rates(
             MagicMock(), MagicMock(), 2025, 3,
@@ -277,7 +275,6 @@ class TestContextualPredictions:
         assert player.metadata.get("contextual_games_used") == 10
         assert "marcel_rates" in player.metadata
 
-        # Should have contextual rates for covered stats
         assert "hr" in player.rates
         assert "so" in player.rates
         assert "bb" in player.rates
@@ -285,7 +282,6 @@ class TestContextualPredictions:
         assert "doubles" in player.rates
         assert "triples" in player.rates
 
-        # Should have Marcel rates for uncovered stats
         assert player.rates["hbp"] == marcel_player.rates["hbp"]
         assert player.rates["sf"] == marcel_player.rates["sf"]
         assert player.rates["sb"] == marcel_player.rates["sb"]
@@ -321,14 +317,13 @@ class TestContextualPredictions:
         mock_tensorizer = MagicMock()
         mock_tensorizer.tensorize_context.return_value = MagicMock()
         mock_tensorizer.collate.return_value = MagicMock()
-        computer._tensorizer = mock_tensorizer
+        computer.predictor._tensorizer = mock_tensorizer
 
         result = computer.compute_batting_rates(
             MagicMock(), MagicMock(), 2025, 3,
         )
 
         player = result[0]
-        # Marcel metadata should be preserved
         assert player.metadata.get("pa_per_year") == [500.0, 450.0, 480.0]
         assert player.metadata.get("avg_league_rates") == {"hr": 0.03}
         assert player.metadata.get("target_rates") == {"hr": 0.04}

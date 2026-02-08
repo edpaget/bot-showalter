@@ -233,3 +233,59 @@ class TestPipelineBuilderWithContextual:
         assert "PitcherNormalizationAdjuster" in adjuster_types
         assert "RebaselineAdjuster" in adjuster_types
         assert "ComponentAgingAdjuster" in adjuster_types
+
+
+class TestPipelineBuilderWithContextualBlender:
+    def test_with_contextual_blender_adds_blender(self) -> None:
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual_blender().build()
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "ContextualBlender" in adjuster_types
+
+    def test_blender_before_rebaseline(self) -> None:
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual_blender().build()
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        cb_idx = adjuster_types.index("ContextualBlender")
+        rb_idx = adjuster_types.index("RebaselineAdjuster")
+        assert cb_idx < rb_idx
+
+    def test_identity_enricher_included(self) -> None:
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual_blender().build()
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "PlayerIdentityEnricher" in adjuster_types
+
+    def test_custom_config_threads_through(self) -> None:
+        from fantasy_baseball_manager.contextual.training.config import (
+            ContextualBlenderConfig,
+        )
+        from fantasy_baseball_manager.pipeline.stages.contextual_blender import (
+            ContextualBlender,
+        )
+
+        config = ContextualBlenderConfig(contextual_weight=0.5, min_games=20)
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual_blender(config=config).build()
+        blenders = [a for a in pipeline.adjusters if isinstance(a, ContextualBlender)]
+        assert len(blenders) == 1
+        assert blenders[0].config.contextual_weight == 0.5
+        assert blenders[0].config.min_games == 20
+
+    def test_with_all_marcel_full_adjusters(self) -> None:
+        """Contextual blender with all marcel_full adjusters."""
+        fake_source = FakeStatcastSource()
+        pipeline = (
+            PipelineBuilder(id_mapper=_fake_mapper())
+            .with_park_factors()
+            .with_pitcher_normalization()
+            .with_pitcher_statcast(pitcher_statcast_source=fake_source)
+            .with_statcast(statcast_source=fake_source)
+            .with_batter_babip(statcast_source=fake_source)
+            .with_contextual_blender()
+            .build()
+        )
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "ContextualBlender" in adjuster_types
+        assert "BatterBabipAdjuster" in adjuster_types
+        # Blender should be after batter_babip but before rebaseline
+        cb_idx = adjuster_types.index("ContextualBlender")
+        bb_idx = adjuster_types.index("BatterBabipAdjuster")
+        rb_idx = adjuster_types.index("RebaselineAdjuster")
+        assert bb_idx < cb_idx < rb_idx
