@@ -199,9 +199,6 @@ modal run scripts/modal_train.py --command check
 # Default: T4 GPU, 30 epochs, batch size 64
 modal run scripts/modal_train.py --command pretrain
 
-# Override GPU and epochs
-modal run scripts/modal_train.py --command pretrain --gpu A10G --epochs 50
-
 # Resume after interruption
 modal run scripts/modal_train.py --command pretrain --resume-from pretrain_latest
 ```
@@ -222,20 +219,21 @@ modal run scripts/modal_train.py --command finetune --perspective batter --freez
 modal volume get fantasy-baseball-data models/contextual/ ~/.fantasy_baseball/models/contextual/
 ```
 
-### A100 80GB-Optimized Runs
+### Selecting a GPU
 
-The A100 80GB has enough VRAM to run much larger batch sizes, which reduces wall-clock time substantially. Use `--batch-size 256` (or higher) to saturate the GPU:
+Set the `MODAL_GPU` environment variable before `modal run`. It's read at module scope and passed to `@app.function(gpu=...)`:
 
 ```bash
-# Pre-train: A100 80GB, large batch, higher learning rate to match
-modal run scripts/modal_train.py \
-    --command pretrain --gpu A100-80GB \
-    --batch-size 256 --learning-rate 3e-4 --epochs 30
+# Pre-train on A100 80GB with large batch to saturate VRAM
+MODAL_GPU=A100-80GB modal run scripts/modal_train.py \
+    --command pretrain --batch-size 256 --learning-rate 3e-4 --epochs 30
 
-# Fine-tune: A100 80GB
-modal run scripts/modal_train.py \
-    --command finetune --gpu A100-80GB \
-    --perspective pitcher --batch-size 128
+# Fine-tune on A100 80GB
+MODAL_GPU=A100-80GB modal run scripts/modal_train.py \
+    --command finetune --perspective pitcher --batch-size 128
+
+# A10G mid-tier option
+MODAL_GPU=A10G modal run scripts/modal_train.py --command pretrain --epochs 30
 ```
 
 ### Budget Guidance
