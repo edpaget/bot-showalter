@@ -193,14 +193,33 @@ modal volume put fantasy-baseball-data ~/.fantasy_baseball/statcast/ statcast/
 modal run scripts/modal_train.py --command check
 ```
 
+### Prepare Data (CPU-Only)
+
+Preparing data on CPU first saves GPU-seconds by skipping parquet I/O, game-sequence building, and tensorization during training. The `prepare` command runs without a GPU.
+
+```bash
+# Prepare all data (pretrain + finetune)
+modal run scripts/modal_train.py --command prepare
+
+# Prepare only pretrain data
+modal run scripts/modal_train.py --command prepare --mode pretrain
+
+# Prepare only finetune data for a specific perspective
+modal run scripts/modal_train.py --command prepare --mode finetune --perspective pitcher
+```
+
 ### Pre-Training
 
 ```bash
 # Default: T4 GPU, 30 epochs, batch size 64
+# Automatically loads prepared data if available
 modal run scripts/modal_train.py --command pretrain
 
 # Resume after interruption
 modal run scripts/modal_train.py --command pretrain --resume-from pretrain_latest
+
+# Skip prepared data and build from scratch
+modal run scripts/modal_train.py --command pretrain --no-prepared-data
 ```
 
 ### Fine-Tuning

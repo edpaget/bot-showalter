@@ -77,7 +77,7 @@ def _setup_symlinks() -> None:
     fantasy_dir = os.path.join(HOME_DIR, ".fantasy_baseball")
     os.makedirs(fantasy_dir, exist_ok=True)
 
-    for name in ("statcast", "models"):
+    for name in ("statcast", "models", "prepared_data"):
         src = os.path.join(DATA_DIR, name)
         dst = os.path.join(fantasy_dir, name)
         os.makedirs(src, exist_ok=True)
@@ -173,6 +173,41 @@ def finetune(
 
 @app.function(
     image=image,
+    timeout=TIMEOUT,
+    volumes={DATA_DIR: vol},
+)
+def prepare_data(
+    mode: str = "all",
+    seasons: str = "2015,2016,2017,2018,2019,2020,2021,2022",
+    val_seasons: str = "2023",
+    perspectives: str = "batter,pitcher",
+    perspective: str = "pitcher",
+    context_window: int = 10,
+    max_seq_len: int = 512,
+) -> None:
+    """Build tensorized training data on CPU (no GPU needed)."""
+    import subprocess
+
+    _setup_symlinks()
+
+    cmd = [
+        "uv", "run", "fantasy-baseball-manager",
+        "contextual", "prepare-data",
+        "--mode", mode,
+        "--seasons", seasons,
+        "--val-seasons", val_seasons,
+        "--perspectives", perspectives,
+        "--perspective", perspective,
+        "--context-window", str(context_window),
+        "--max-seq-len", str(max_seq_len),
+    ]
+
+    subprocess.run(cmd, cwd=APP_DIR, check=True)
+    vol.commit()
+
+
+@app.function(
+    image=image,
     volumes={DATA_DIR: vol},
 )
 def check_data() -> None:
@@ -198,19 +233,24 @@ def main(
     learning_rate: float = 1e-4,
     resume_from: str | None = None,
     max_seq_len: int = 512,
-    # finetune only
+    # finetune / prepare
     perspective: str = "pitcher",
     base_model: str = "pretrain_best",
     head_lr: float = 1e-3,
     backbone_lr: float = 1e-5,
     freeze_backbone: bool = False,
+    # prepare only
+    mode: str = "all",
+    perspectives: str = "batter,pitcher",
+    context_window: int = 10,
 ) -> None:
-    """Local entrypoint — dispatches to pretrain, finetune, or check.
+    """Local entrypoint — dispatches to pretrain, finetune, prepare, or check.
 
     Set GPU via env var: ``MODAL_GPU=A100-80GB modal run scripts/modal_train.py ...``
 
     Examples::
 
+        modal run scripts/modal_train.py --command prepare --mode all
         modal run scripts/modal_train.py --command pretrain --epochs 30
         MODAL_GPU=A100-80GB modal run scripts/modal_train.py --command pretrain --max-seq-len 2048 --batch-size 64
         modal run scripts/modal_train.py --command finetune --perspective pitcher
@@ -220,7 +260,17 @@ def main(
         check_data.remote()
         return
 
-    if command == "pretrain":
+    if command == "prepare":
+        prepare_data.remote(
+            mode=mode,
+            seasons=seasons,
+            val_seasons=val_seasons,
+            perspectives=perspectives,
+            perspective=perspective,
+            context_window=context_window,
+            max_seq_len=max_seq_len,
+        )
+    elif command == "pretrain":
         pretrain.remote(
             seasons=seasons,
             val_seasons=val_seasons,
@@ -245,4 +295,4 @@ def main(
             max_seq_len=max_seq_len,
         )
     else:
-        raise ValueError(f"Unknown command: {command!r}. Use 'pretrain', 'finetune', or 'check'.")
+        raise ValueError(f"Unknown command: {command!r}. Use 'prepare', 'pretrain', 'finetune', or 'check'.")

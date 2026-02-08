@@ -15,6 +15,227 @@ console = Console()
 contextual_app = typer.Typer(help="Contextual event embedding model commands.")
 
 
+def _build_pretrain_meta(
+    seasons: tuple[int, ...],
+    val_seasons: tuple[int, ...],
+    perspectives: tuple[str, ...],
+    max_seq_len: int,
+    min_pitch_count: int,
+) -> dict[str, object]:
+    return {
+        "seasons": sorted(seasons),
+        "val_seasons": sorted(val_seasons),
+        "perspectives": sorted(perspectives),
+        "max_seq_len": max_seq_len,
+        "min_pitch_count": min_pitch_count,
+    }
+
+
+def _build_finetune_meta(
+    seasons: tuple[int, ...],
+    val_seasons: tuple[int, ...],
+    perspective: str,
+    context_window: int,
+    max_seq_len: int,
+    min_games: int,
+) -> dict[str, object]:
+    return {
+        "seasons": sorted(seasons),
+        "val_seasons": sorted(val_seasons),
+        "perspective": perspective,
+        "context_window": context_window,
+        "max_seq_len": max_seq_len,
+        "min_games": min_games,
+    }
+
+
+@contextual_app.command(name="prepare-data")
+def prepare_data_cmd(
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            "-m",
+            help="What to prepare: 'pretrain', 'finetune', or 'all'",
+        ),
+    ] = "all",
+    seasons: Annotated[
+        str,
+        typer.Option(
+            "--seasons",
+            "-s",
+            help="Comma-separated training seasons",
+        ),
+    ] = "2015,2016,2017,2018,2019,2020,2021,2022",
+    val_seasons: Annotated[
+        str,
+        typer.Option(
+            "--val-seasons",
+            help="Comma-separated validation seasons",
+        ),
+    ] = "2023",
+    perspectives: Annotated[
+        str,
+        typer.Option(
+            "--perspectives",
+            help="Comma-separated perspectives for pretrain (batter,pitcher)",
+        ),
+    ] = "batter,pitcher",
+    perspective: Annotated[
+        str,
+        typer.Option(
+            "--perspective",
+            "-p",
+            help="Player perspective for finetune: 'batter' or 'pitcher'",
+        ),
+    ] = "pitcher",
+    context_window: Annotated[
+        int,
+        typer.Option(
+            "--context-window",
+            help="Number of prior games as context (finetune)",
+        ),
+    ] = 10,
+    max_seq_len: Annotated[
+        int,
+        typer.Option(
+            "--max-seq-len",
+            help="Maximum sequence length",
+        ),
+    ] = 512,
+    min_pitch_count: Annotated[
+        int,
+        typer.Option(
+            "--min-pitch-count",
+            help="Minimum pitch count to include a player context (pretrain)",
+        ),
+    ] = 10,
+) -> None:
+    """Pre-build tensorized sequences and save to disk.
+
+    Saves prepared data so that pretrain/finetune can skip expensive data
+    building steps (parquet I/O, game sequence building, tensorization).
+
+    Example:
+        uv run python -m fantasy_baseball_manager contextual prepare-data --mode all
+    """
+    from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
+    from fantasy_baseball_manager.contextual.data.vocab import (
+        BB_TYPE_VOCAB,
+        HANDEDNESS_VOCAB,
+        PA_EVENT_VOCAB,
+        PITCH_RESULT_VOCAB,
+        PITCH_TYPE_VOCAB,
+    )
+    from fantasy_baseball_manager.contextual.data_store import PreparedDataStore
+    from fantasy_baseball_manager.contextual.model.config import ModelConfig
+    from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
+    from fantasy_baseball_manager.contextual.training.config import (
+        BATTER_TARGET_STATS,
+        PITCHER_TARGET_STATS,
+        FineTuneConfig,
+    )
+    from fantasy_baseball_manager.contextual.training.dataset import (
+        build_finetune_windows,
+        build_player_contexts,
+    )
+    from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
+    from fantasy_baseball_manager.statcast.store import StatcastStore
+
+    train_seasons = tuple(int(s.strip()) for s in seasons.split(","))
+    val_season_list = tuple(int(s.strip()) for s in val_seasons.split(","))
+    perspective_list = tuple(p.strip() for p in perspectives.split(","))
+
+    model_config = ModelConfig(max_seq_len=max_seq_len)
+    tensorizer = Tensorizer(
+        config=model_config,
+        pitch_type_vocab=PITCH_TYPE_VOCAB,
+        pitch_result_vocab=PITCH_RESULT_VOCAB,
+        bb_type_vocab=BB_TYPE_VOCAB,
+        handedness_vocab=HANDEDNESS_VOCAB,
+        pa_event_vocab=PA_EVENT_VOCAB,
+    )
+
+    store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
+    builder = GameSequenceBuilder(store)
+    data_store = PreparedDataStore()
+
+    do_pretrain = mode in ("pretrain", "all")
+    do_finetune = mode in ("finetune", "all")
+
+    if do_pretrain:
+        console.print("[bold]Preparing pre-training data...[/bold]")
+
+        console.print("  Building training contexts...")
+        train_contexts = build_player_contexts(
+            builder, train_seasons, perspective_list, min_pitch_count,
+        )
+        console.print(f"  {len(train_contexts)} training player contexts")
+
+        console.print("  Building validation contexts...")
+        val_contexts = build_player_contexts(
+            builder, val_season_list, perspective_list, min_pitch_count,
+        )
+        console.print(f"  {len(val_contexts)} validation player contexts")
+
+        console.print("  Tensorizing training sequences...")
+        train_sequences = [tensorizer.tensorize_context(ctx) for ctx in train_contexts]
+        console.print("  Tensorizing validation sequences...")
+        val_sequences = [tensorizer.tensorize_context(ctx) for ctx in val_contexts]
+
+        meta = _build_pretrain_meta(
+            train_seasons, val_season_list, perspective_list, max_seq_len, min_pitch_count,
+        )
+        data_store.save_pretrain_data("pretrain_train", train_sequences, meta)
+        data_store.save_pretrain_data("pretrain_val", val_sequences, meta)
+
+        console.print(
+            f"  Saved {len(train_sequences)} train + {len(val_sequences)} val sequences"
+        )
+
+    if do_finetune:
+        console.print(f"[bold]Preparing fine-tune data ({perspective})...[/bold]")
+
+        target_stats = BATTER_TARGET_STATS if perspective == "batter" else PITCHER_TARGET_STATS
+        ft_config = FineTuneConfig(
+            train_seasons=train_seasons,
+            val_seasons=val_season_list,
+            perspective=perspective,
+            context_window=context_window,
+        )
+
+        console.print("  Building training contexts...")
+        train_contexts = build_player_contexts(
+            builder, train_seasons, (perspective,), min_pitch_count=10,
+        )
+        console.print(f"  {len(train_contexts)} training player contexts")
+
+        console.print("  Building validation contexts...")
+        val_contexts = build_player_contexts(
+            builder, val_season_list, (perspective,), min_pitch_count=10,
+        )
+        console.print(f"  {len(val_contexts)} validation player contexts")
+
+        console.print("  Building sliding windows...")
+        train_windows = build_finetune_windows(train_contexts, tensorizer, ft_config, target_stats)
+        val_windows = build_finetune_windows(val_contexts, tensorizer, ft_config, target_stats)
+
+        ft_meta = _build_finetune_meta(
+            train_seasons, val_season_list, perspective, context_window,
+            max_seq_len, ft_config.min_games,
+        )
+        train_name = f"finetune_{perspective}_train"
+        val_name = f"finetune_{perspective}_val"
+        data_store.save_finetune_data(train_name, train_windows, ft_meta)
+        data_store.save_finetune_data(val_name, val_windows, ft_meta)
+
+        console.print(
+            f"  Saved {len(train_windows)} train + {len(val_windows)} val windows"
+        )
+
+    console.print("[bold green]Done![/bold green]")
+
+
 @contextual_app.command(name="pretrain")
 def pretrain_cmd(
     seasons: Annotated[
@@ -92,6 +313,13 @@ def pretrain_cmd(
             help="Enable Automatic Mixed Precision (default: auto-detect CUDA)",
         ),
     ] = True,
+    prepared_data: Annotated[
+        bool,
+        typer.Option(
+            "--prepared-data/--no-prepared-data",
+            help="Load pre-built tensorized data if available",
+        ),
+    ] = True,
 ) -> None:
     """Pre-train the contextual model using Masked Gamestate Modeling.
 
@@ -100,27 +328,17 @@ def pretrain_cmd(
     """
     import torch
 
-    from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
     from fantasy_baseball_manager.contextual.data.vocab import (
-        BB_TYPE_VOCAB,
-        HANDEDNESS_VOCAB,
-        PA_EVENT_VOCAB,
         PITCH_RESULT_VOCAB,
         PITCH_TYPE_VOCAB,
     )
     from fantasy_baseball_manager.contextual.model.config import ModelConfig
     from fantasy_baseball_manager.contextual.model.heads import MaskedGamestateHead
     from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
-    from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
     from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
     from fantasy_baseball_manager.contextual.training.config import PreTrainingConfig
-    from fantasy_baseball_manager.contextual.training.dataset import (
-        MGMDataset,
-        build_player_contexts,
-    )
+    from fantasy_baseball_manager.contextual.training.dataset import MGMDataset
     from fantasy_baseball_manager.contextual.training.pretrain import MGMTrainer
-    from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
-    from fantasy_baseball_manager.statcast.store import StatcastStore
 
     # Parse arguments
     train_seasons = tuple(int(s.strip()) for s in seasons.split(","))
@@ -158,36 +376,73 @@ def pretrain_cmd(
     console.print(f"  Max seq len:   {max_seq_len}")
     console.print(f"  AMP:           {amp_enabled}")
 
-    # Build data
-    store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
-    builder = GameSequenceBuilder(store)
+    # Try loading prepared data
+    train_sequences = None
+    val_sequences = None
 
-    console.print("\nBuilding training data...")
-    train_contexts = build_player_contexts(
-        builder, config.train_seasons, config.perspectives, config.min_pitch_count,
-    )
-    console.print(f"  {len(train_contexts)} training player contexts")
+    if prepared_data:
+        from fantasy_baseball_manager.contextual.data_store import PreparedDataStore
 
-    console.print("Building validation data...")
-    val_contexts = build_player_contexts(
-        builder, config.val_seasons, config.perspectives, config.min_pitch_count,
-    )
-    console.print(f"  {len(val_contexts)} validation player contexts")
+        data_store = PreparedDataStore()
+        if data_store.exists("pretrain_train") and data_store.exists("pretrain_val"):
+            expected_meta = _build_pretrain_meta(
+                train_seasons, val_season_list, perspective_list,
+                max_seq_len, config.min_pitch_count,
+            )
+            stored_meta = data_store.load_meta("pretrain_train")
+            if stored_meta == expected_meta:
+                console.print("\nLoading prepared data...")
+                train_sequences = data_store.load_pretrain_data("pretrain_train")
+                val_sequences = data_store.load_pretrain_data("pretrain_val")
+                console.print(
+                    f"  Loaded prepared data ({len(train_sequences)} train, "
+                    f"{len(val_sequences)} val sequences)"
+                )
+            else:
+                console.print("\nPrepared data exists but parameters don't match, building from scratch...")
 
-    # Tensorize
+    if train_sequences is None or val_sequences is None:
+        from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
+        from fantasy_baseball_manager.contextual.data.vocab import (
+            BB_TYPE_VOCAB,
+            HANDEDNESS_VOCAB,
+            PA_EVENT_VOCAB,
+        )
+        from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
+        from fantasy_baseball_manager.contextual.training.dataset import build_player_contexts
+        from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
+        from fantasy_baseball_manager.statcast.store import StatcastStore
+
+        model_config_for_tensorizer = ModelConfig(max_seq_len=max_seq_len)
+        tensorizer = Tensorizer(
+            config=model_config_for_tensorizer,
+            pitch_type_vocab=PITCH_TYPE_VOCAB,
+            pitch_result_vocab=PITCH_RESULT_VOCAB,
+            bb_type_vocab=BB_TYPE_VOCAB,
+            handedness_vocab=HANDEDNESS_VOCAB,
+            pa_event_vocab=PA_EVENT_VOCAB,
+        )
+
+        store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
+        builder = GameSequenceBuilder(store)
+
+        console.print("\nBuilding training data...")
+        train_contexts = build_player_contexts(
+            builder, config.train_seasons, config.perspectives, config.min_pitch_count,
+        )
+        console.print(f"  {len(train_contexts)} training player contexts")
+
+        console.print("Building validation data...")
+        val_contexts = build_player_contexts(
+            builder, config.val_seasons, config.perspectives, config.min_pitch_count,
+        )
+        console.print(f"  {len(val_contexts)} validation player contexts")
+
+        console.print("Tensorizing sequences...")
+        train_sequences = [tensorizer.tensorize_context(ctx) for ctx in train_contexts]
+        val_sequences = [tensorizer.tensorize_context(ctx) for ctx in val_contexts]
+
     model_config = ModelConfig(max_seq_len=max_seq_len)
-    tensorizer = Tensorizer(
-        config=model_config,
-        pitch_type_vocab=PITCH_TYPE_VOCAB,
-        pitch_result_vocab=PITCH_RESULT_VOCAB,
-        bb_type_vocab=BB_TYPE_VOCAB,
-        handedness_vocab=HANDEDNESS_VOCAB,
-        pa_event_vocab=PA_EVENT_VOCAB,
-    )
-
-    console.print("Tensorizing sequences...")
-    train_sequences = [tensorizer.tensorize_context(ctx) for ctx in train_contexts]
-    val_sequences = [tensorizer.tensorize_context(ctx) for ctx in val_contexts]
 
     train_dataset = MGMDataset(
         sequences=train_sequences,
@@ -312,6 +567,13 @@ def finetune_cmd(
             help="Maximum sequence length",
         ),
     ] = 512,
+    prepared_data: Annotated[
+        bool,
+        typer.Option(
+            "--prepared-data/--no-prepared-data",
+            help="Load pre-built tensorized data if available",
+        ),
+    ] = True,
 ) -> None:
     """Fine-tune a pre-trained contextual model for per-game stat prediction.
 
@@ -320,31 +582,16 @@ def finetune_cmd(
     """
     import torch
 
-    from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
-    from fantasy_baseball_manager.contextual.data.vocab import (
-        BB_TYPE_VOCAB,
-        HANDEDNESS_VOCAB,
-        PA_EVENT_VOCAB,
-        PITCH_RESULT_VOCAB,
-        PITCH_TYPE_VOCAB,
-    )
     from fantasy_baseball_manager.contextual.model.config import ModelConfig
     from fantasy_baseball_manager.contextual.model.heads import PerformancePredictionHead
-    from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
     from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
     from fantasy_baseball_manager.contextual.training.config import (
         BATTER_TARGET_STATS,
         PITCHER_TARGET_STATS,
         FineTuneConfig,
     )
-    from fantasy_baseball_manager.contextual.training.dataset import (
-        FineTuneDataset,
-        build_finetune_windows,
-        build_player_contexts,
-    )
+    from fantasy_baseball_manager.contextual.training.dataset import FineTuneDataset
     from fantasy_baseball_manager.contextual.training.finetune import FineTuneTrainer
-    from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
-    from fantasy_baseball_manager.statcast.store import StatcastStore
 
     # Parse arguments
     train_seasons = tuple(int(s.strip()) for s in seasons.split(","))
@@ -391,34 +638,78 @@ def finetune_cmd(
     model.swap_head(head)
     console.print(f"  Swapped head to PerformancePredictionHead (n_targets={n_targets})")
 
-    # Build data
-    store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
-    builder = GameSequenceBuilder(store)
+    # Try loading prepared data
+    train_windows = None
+    val_windows = None
 
-    tensorizer = Tensorizer(
-        config=model_config,
-        pitch_type_vocab=PITCH_TYPE_VOCAB,
-        pitch_result_vocab=PITCH_RESULT_VOCAB,
-        bb_type_vocab=BB_TYPE_VOCAB,
-        handedness_vocab=HANDEDNESS_VOCAB,
-        pa_event_vocab=PA_EVENT_VOCAB,
-    )
+    if prepared_data:
+        from fantasy_baseball_manager.contextual.data_store import PreparedDataStore
 
-    console.print("\nBuilding training data...")
-    train_contexts = build_player_contexts(
-        builder, config.train_seasons, (perspective,), min_pitch_count=10,
-    )
-    console.print(f"  {len(train_contexts)} training player contexts")
+        data_store = PreparedDataStore()
+        train_name = f"finetune_{perspective}_train"
+        val_name = f"finetune_{perspective}_val"
 
-    console.print("Building validation data...")
-    val_contexts = build_player_contexts(
-        builder, config.val_seasons, (perspective,), min_pitch_count=10,
-    )
-    console.print(f"  {len(val_contexts)} validation player contexts")
+        if data_store.exists(train_name) and data_store.exists(val_name):
+            expected_meta = _build_finetune_meta(
+                train_seasons, val_season_list, perspective, context_window,
+                max_seq_len, config.min_games,
+            )
+            stored_meta = data_store.load_meta(train_name)
+            if stored_meta == expected_meta:
+                console.print("\nLoading prepared data...")
+                train_windows = data_store.load_finetune_data(train_name)
+                val_windows = data_store.load_finetune_data(val_name)
+                console.print(
+                    f"  Loaded prepared data ({len(train_windows)} train, "
+                    f"{len(val_windows)} val windows)"
+                )
+            else:
+                console.print("\nPrepared data exists but parameters don't match, building from scratch...")
 
-    console.print("Building sliding windows...")
-    train_windows = build_finetune_windows(train_contexts, tensorizer, config, target_stats)
-    val_windows = build_finetune_windows(val_contexts, tensorizer, config, target_stats)
+    if train_windows is None or val_windows is None:
+        from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
+        from fantasy_baseball_manager.contextual.data.vocab import (
+            BB_TYPE_VOCAB,
+            HANDEDNESS_VOCAB,
+            PA_EVENT_VOCAB,
+            PITCH_RESULT_VOCAB,
+            PITCH_TYPE_VOCAB,
+        )
+        from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
+        from fantasy_baseball_manager.contextual.training.dataset import (
+            build_finetune_windows,
+            build_player_contexts,
+        )
+        from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
+        from fantasy_baseball_manager.statcast.store import StatcastStore
+
+        store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
+        builder = GameSequenceBuilder(store)
+
+        tensorizer = Tensorizer(
+            config=model_config,
+            pitch_type_vocab=PITCH_TYPE_VOCAB,
+            pitch_result_vocab=PITCH_RESULT_VOCAB,
+            bb_type_vocab=BB_TYPE_VOCAB,
+            handedness_vocab=HANDEDNESS_VOCAB,
+            pa_event_vocab=PA_EVENT_VOCAB,
+        )
+
+        console.print("\nBuilding training data...")
+        train_contexts = build_player_contexts(
+            builder, config.train_seasons, (perspective,), min_pitch_count=10,
+        )
+        console.print(f"  {len(train_contexts)} training player contexts")
+
+        console.print("Building validation data...")
+        val_contexts = build_player_contexts(
+            builder, config.val_seasons, (perspective,), min_pitch_count=10,
+        )
+        console.print(f"  {len(val_contexts)} validation player contexts")
+
+        console.print("Building sliding windows...")
+        train_windows = build_finetune_windows(train_contexts, tensorizer, config, target_stats)
+        val_windows = build_finetune_windows(val_contexts, tensorizer, config, target_stats)
 
     train_dataset = FineTuneDataset(train_windows)
     val_dataset = FineTuneDataset(val_windows)
