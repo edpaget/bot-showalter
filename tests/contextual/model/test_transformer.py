@@ -61,20 +61,51 @@ class TestGamestateTransformer:
         assert embeddings.grad.abs().sum() > 0
 
     def test_padding_mask_applied(self, small_config: ModelConfig) -> None:
+        """Padding encoded in 3D attention mask affects real-token output."""
         transformer = GamestateTransformer(small_config)
         transformer.eval()
         batch, seq_len = 1, 6
         embeddings = torch.randn(batch, seq_len, small_config.d_model)
+        padding_mask = torch.ones(batch, seq_len, dtype=torch.bool)
 
-        # All real
-        attn_mask = torch.zeros(batch, seq_len, seq_len, dtype=torch.bool)
-        all_real = torch.ones(batch, seq_len, dtype=torch.bool)
-        out_all = transformer(embeddings, attn_mask, all_real)
+        # All real — no masking
+        no_mask = torch.zeros(batch, seq_len, seq_len, dtype=torch.bool)
+        out_all = transformer(embeddings, no_mask, padding_mask)
 
-        # Last 2 positions padded
-        partial = torch.ones(batch, seq_len, dtype=torch.bool)
-        partial[0, 4:] = False
-        out_partial = transformer(embeddings, attn_mask, partial)
+        # Last 2 positions padded — block padding columns in 3D mask
+        with_padding = torch.zeros(batch, seq_len, seq_len, dtype=torch.bool)
+        with_padding[0, :, 4:] = True  # no one attends to padding
+        with_padding[0, 4:, :4] = True  # padding doesn't attend to real
+        out_partial = transformer(embeddings, with_padding, padding_mask)
 
         # Real positions should differ when padding changes
         assert not torch.allclose(out_all[0, 0], out_partial[0, 0], atol=1e-5)
+
+    def test_padding_positions_no_nan(self, small_config: ModelConfig) -> None:
+        """Padding positions must produce finite output, not NaN.
+
+        Without diagonal self-attention, padding rows get all -inf in the
+        attention mask, causing softmax to output NaN in the math SDPA backend.
+        """
+        transformer = GamestateTransformer(small_config)
+        transformer.eval()
+        batch, seq_len = 2, 8
+
+        embeddings = torch.randn(batch, seq_len, small_config.d_model)
+
+        # Mask: padding positions (last 3) can't attend to anything except self
+        padding_mask = torch.ones(batch, seq_len, dtype=torch.bool)
+        padding_mask[:, 5:] = False
+
+        # Build a mask where padding columns are blocked for all queries
+        attn_mask = torch.zeros(batch, seq_len, seq_len, dtype=torch.bool)
+        # Block padding columns (no one attends to padding)
+        attn_mask[:, :, 5:] = True
+        # Block padding rows from attending to real tokens
+        attn_mask[:, 5:, :5] = True
+
+        out = transformer(embeddings, attn_mask, padding_mask)
+
+        # No NaN anywhere in output
+        assert not torch.isnan(out).any(), "Transformer output contains NaN values"
+        assert torch.isfinite(out).all(), "Transformer output contains non-finite values"

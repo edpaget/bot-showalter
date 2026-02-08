@@ -56,9 +56,4 @@ def build_player_attention_mask(
     player_can_attend = player_rows & same_game & non_player_real_cols
     mask[player_can_attend] = False
 
-    # Player also attends to itself (diagonal)
-    diag = torch.eye(seq_len, dtype=torch.bool, device=padding_mask.device).unsqueeze(0)
-    player_self = player_rows & diag.expand(batch, seq_len, seq_len)
-    mask[player_self] = False
-
     return mask

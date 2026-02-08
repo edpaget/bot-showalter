@@ -226,51 +226,60 @@ def prepare_data_cmd(
         )
 
     if do_finetune:
-        console.print(f"[bold]Preparing fine-tune data ({perspective})...[/bold]")
+        # When mode is "all", prepare both perspectives; otherwise just the one requested
+        ft_perspectives = ("batter", "pitcher") if mode == "all" else (perspective,)
 
-        target_stats = BATTER_TARGET_STATS if perspective == "batter" else PITCHER_TARGET_STATS
-        ft_config = FineTuneConfig(
-            train_seasons=train_seasons,
-            val_seasons=val_season_list,
-            perspective=perspective,
-            context_window=context_window,
-            min_games=context_window + 5,
-        )
+        for ft_perspective in ft_perspectives:
+            ft_context_window = (
+                DEFAULT_BATTER_CONTEXT_WINDOW if ft_perspective == "batter"
+                else DEFAULT_PITCHER_CONTEXT_WINDOW
+            ) if mode == "all" else context_window
 
-        console.print("  Building training contexts...")
-        train_contexts = build_player_contexts(
-            builder, train_seasons, (perspective,), min_pitch_count=10,
-            max_workers=workers,
-        )
-        console.print(f"  {len(train_contexts)} training player contexts")
+            console.print(f"[bold]Preparing fine-tune data ({ft_perspective})...[/bold]")
 
-        console.print("  Building validation contexts...")
-        val_contexts = build_player_contexts(
-            builder, val_season_list, (perspective,), min_pitch_count=10,
-            max_workers=workers,
-        )
-        console.print(f"  {len(val_contexts)} validation player contexts")
+            target_stats = BATTER_TARGET_STATS if ft_perspective == "batter" else PITCHER_TARGET_STATS
+            ft_config = FineTuneConfig(
+                train_seasons=train_seasons,
+                val_seasons=val_season_list,
+                perspective=ft_perspective,
+                context_window=ft_context_window,
+                min_games=ft_context_window + 5,
+            )
 
-        console.print("  Building sliding windows...")
-        train_windows = build_finetune_windows(
-            train_contexts, tensorizer, ft_config, target_stats, max_workers=workers,
-        )
-        val_windows = build_finetune_windows(
-            val_contexts, tensorizer, ft_config, target_stats, max_workers=workers,
-        )
+            console.print("  Building training contexts...")
+            train_contexts = build_player_contexts(
+                builder, train_seasons, (ft_perspective,), min_pitch_count=10,
+                max_workers=workers,
+            )
+            console.print(f"  {len(train_contexts)} training player contexts")
 
-        ft_meta = _build_finetune_meta(
-            train_seasons, val_season_list, perspective, context_window,
-            max_seq_len, ft_config.min_games,
-        )
-        train_name = f"finetune_{perspective}_train"
-        val_name = f"finetune_{perspective}_val"
-        data_store.save_finetune_data(train_name, train_windows, ft_meta)
-        data_store.save_finetune_data(val_name, val_windows, ft_meta)
+            console.print("  Building validation contexts...")
+            val_contexts = build_player_contexts(
+                builder, val_season_list, (ft_perspective,), min_pitch_count=10,
+                max_workers=workers,
+            )
+            console.print(f"  {len(val_contexts)} validation player contexts")
 
-        console.print(
-            f"  Saved {len(train_windows)} train + {len(val_windows)} val windows"
-        )
+            console.print("  Building sliding windows...")
+            train_windows = build_finetune_windows(
+                train_contexts, tensorizer, ft_config, target_stats, max_workers=workers,
+            )
+            val_windows = build_finetune_windows(
+                val_contexts, tensorizer, ft_config, target_stats, max_workers=workers,
+            )
+
+            ft_meta = _build_finetune_meta(
+                train_seasons, val_season_list, ft_perspective, ft_context_window,
+                max_seq_len, ft_config.min_games,
+            )
+            train_name = f"finetune_{ft_perspective}_train"
+            val_name = f"finetune_{ft_perspective}_val"
+            data_store.save_finetune_data(train_name, train_windows, ft_meta)
+            data_store.save_finetune_data(val_name, val_windows, ft_meta)
+
+            console.print(
+                f"  Saved {len(train_windows)} train + {len(val_windows)} val windows"
+            )
 
     console.print("[bold green]Done![/bold green]")
 
@@ -438,8 +447,11 @@ def pretrain_cmd(
                     f"{len(val_sequences)} val sequences)"
                 )
             else:
-                console.print("\nPrepared data exists but parameters don't match, building from scratch...")
+                console.print("[red]Prepared data exists but parameters don't match:[/red]")
                 _log_meta_mismatch(stored_meta, expected_meta)
+                raise SystemExit(
+                    "Re-run 'prepare-data' with matching parameters, or use --no-prepared-data to skip."
+                )
 
     if train_sequences is None or val_sequences is None:
         from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
@@ -601,12 +613,12 @@ def finetune_cmd(
         ),
     ] = None,
     max_seq_len: Annotated[
-        int,
+        int | None,
         typer.Option(
             "--max-seq-len",
-            help="Maximum sequence length",
+            help="Maximum sequence length (auto-detected from pretrained model if omitted)",
         ),
-    ] = 512,
+    ] = None,
     prepared_data: Annotated[
         bool,
         typer.Option(
@@ -645,6 +657,20 @@ def finetune_cmd(
     target_stats = BATTER_TARGET_STATS if perspective == "batter" else PITCHER_TARGET_STATS
     n_targets = len(target_stats)
 
+    # Auto-detect max_seq_len from pretrained model
+    model_store = ContextualModelStore()
+    pretrain_state = torch.load(model_store._model_path(base_model), weights_only=True)
+    pretrain_seq_len: int = pretrain_state["positional_encoding.pe"].shape[1]
+    if max_seq_len is None:
+        max_seq_len = pretrain_seq_len
+        console.print(f"  Auto-detected max_seq_len={max_seq_len} from pretrained model")
+    elif max_seq_len != pretrain_seq_len:
+        raise SystemExit(
+            f"--max-seq-len {max_seq_len} does not match pretrained model "
+            f"positional encoding size {pretrain_seq_len}. "
+            f"Either omit --max-seq-len to auto-detect or retrain with the desired length."
+        )
+
     config = FineTuneConfig(
         train_seasons=train_seasons,
         val_seasons=val_season_list,
@@ -674,7 +700,6 @@ def finetune_cmd(
 
     # Build model config and load pre-trained model
     model_config = ModelConfig(max_seq_len=max_seq_len)
-    model_store = ContextualModelStore()
 
     console.print(f"\nLoading pre-trained model '{base_model}'...")
     model = model_store.load_model(base_model, model_config)
@@ -710,8 +735,11 @@ def finetune_cmd(
                     f"{len(val_windows)} val windows)"
                 )
             else:
-                console.print("\nPrepared data exists but parameters don't match, building from scratch...")
+                console.print("[red]Prepared data exists but parameters don't match:[/red]")
                 _log_meta_mismatch(stored_meta, expected_meta)
+                raise SystemExit(
+                    "Re-run 'prepare-data' with matching parameters, or use --no-prepared-data to skip."
+                )
 
     if train_windows is None or val_windows is None:
         from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder

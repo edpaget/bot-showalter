@@ -150,7 +150,7 @@ def finetune(
     backbone_lr: float = 1e-5,
     freeze_backbone: bool = False,
     resume_from: str | None = None,
-    max_seq_len: int = 512,
+    max_seq_len: int | None = None,
 ) -> None:
     """Run fine-tuning on a cloud GPU."""
     import subprocess
@@ -168,8 +168,9 @@ def finetune(
         "--batch-size", str(batch_size),
         "--head-lr", str(head_lr),
         "--backbone-lr", str(backbone_lr),
-        "--max-seq-len", str(max_seq_len),
     ]
+    if max_seq_len is not None:
+        cmd.extend(["--max-seq-len", str(max_seq_len)])
     if freeze_backbone:
         cmd.append("--freeze-backbone")
     if resume_from is not None:
@@ -240,7 +241,7 @@ def main(
     batch_size: int = 64,
     learning_rate: float = 1e-4,
     resume_from: str | None = None,
-    max_seq_len: int = 512,
+    max_seq_len: int | None = None,
     # finetune / prepare
     perspective: str = "pitcher",
     base_model: str = "pretrain_best",
@@ -276,7 +277,7 @@ def main(
             perspectives=perspectives,
             perspective=perspective,
             context_window=context_window,
-            max_seq_len=max_seq_len,
+            max_seq_len=max_seq_len if max_seq_len is not None else 512,
         )
     elif command == "pretrain":
         pretrain.remote(
@@ -286,7 +287,7 @@ def main(
             batch_size=batch_size,
             learning_rate=learning_rate,
             resume_from=resume_from,
-            max_seq_len=max_seq_len,
+            max_seq_len=max_seq_len if max_seq_len is not None else 512,
         )
     elif command == "finetune":
         finetune.remote(

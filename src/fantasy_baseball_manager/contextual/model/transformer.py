@@ -54,7 +54,6 @@ class GamestateTransformer(nn.Module):
         """
         # PyTorch TransformerEncoder expects:
         #   mask: (batch*n_heads, seq_len, seq_len) float with -inf for masked
-        #   src_key_padding_mask: (batch, seq_len) bool, True=IGNORE
         n_heads = self._config.n_heads
         batch, seq_len, _ = embeddings.shape
 
@@ -69,13 +68,10 @@ class GamestateTransformer(nn.Module):
         float_mask = torch.zeros_like(expanded_mask, dtype=embeddings.dtype)
         float_mask.masked_fill_(expanded_mask, float("-inf"))
 
-        # Flip padding_mask: our True=real → PyTorch True=ignore
-        # Use float mask to match the attention mask dtype and avoid deprecation warning
-        key_padding_mask = torch.zeros_like(padding_mask, dtype=embeddings.dtype)
-        key_padding_mask.masked_fill_(~padding_mask, float("-inf"))
+        # Ensure every position can attend to itself (prevents all-masked rows
+        # for padding positions, which cause NaN from softmax(all -inf) in the
+        # math SDPA backend used during float32 fine-tuning).
+        diag = torch.arange(seq_len, device=float_mask.device)
+        float_mask[:, diag, diag] = 0.0
 
-        return self.encoder(
-            embeddings,
-            mask=float_mask,
-            src_key_padding_mask=key_padding_mask,
-        )
+        return self.encoder(embeddings, mask=float_mask)
