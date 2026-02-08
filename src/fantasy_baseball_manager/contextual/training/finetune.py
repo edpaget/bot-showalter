@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 import torch.nn.functional as F
@@ -126,18 +126,24 @@ class FineTuneTrainer:
                 global_step = sched_state.get("global_step", 0)
             logger.info("Resumed from checkpoint '%s' at epoch %d", resume_from, start_epoch)
 
+        loader_kwargs: dict[str, Any] = {}
+        if self._device.type == "cuda":
+            loader_kwargs.update(num_workers=4, pin_memory=True, persistent_workers=True)
+
         train_loader = DataLoader(
             train_dataset,
             batch_size=config.batch_size,
             shuffle=True,
             collate_fn=collate_finetune_samples,
             generator=torch.Generator().manual_seed(config.seed),
+            **loader_kwargs,
         )
         val_loader = DataLoader(
             val_dataset,
             batch_size=config.batch_size,
             shuffle=False,
             collate_fn=collate_finetune_samples,
+            **loader_kwargs,
         )
 
         best_state_dict = None

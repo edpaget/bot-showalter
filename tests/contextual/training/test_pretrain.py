@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from unittest.mock import patch
 
 from fantasy_baseball_manager.contextual.data.vocab import (
     BB_TYPE_VOCAB,
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from fantasy_baseball_manager.contextual.model.config import ModelConfig
+from torch.utils.data import DataLoader
+
 from fantasy_baseball_manager.contextual.model.heads import MaskedGamestateHead
 from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
 from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
@@ -196,3 +199,32 @@ class TestMGMTrainer:
         # With synthetic data (all same pitch type/result), model should learn quickly
         assert result["val_pitch_type_accuracy"] > 0.048
         assert result["val_pitch_result_accuracy"] > 0.059
+
+    def test_cpu_dataloader_no_extra_workers(self, small_config: ModelConfig, tmp_path: Path) -> None:
+        """On CPU, DataLoader should not set num_workers/pin_memory (defaults only)."""
+        train_config = PreTrainingConfig(
+            epochs=1, batch_size=2, learning_rate=1e-3, seed=42,
+            min_warmup_steps=1, warmup_fraction=0.1,
+        )
+        model = ContextualPerformanceModel(small_config, MaskedGamestateHead(small_config))
+        store = ContextualModelStore(model_dir=tmp_path)
+        trainer = MGMTrainer(model, small_config, train_config, store)
+
+        train_ds = _make_dataset(small_config, train_config, n_samples=4)
+        val_ds = _make_dataset(small_config, train_config, n_samples=2)
+
+        captured_kwargs: list[dict[str, object]] = []
+        original_init = DataLoader.__init__
+
+        def spy_init(self_loader: Any, *args: Any, **kwargs: Any) -> None:
+            captured_kwargs.append(kwargs)
+            original_init(self_loader, *args, **kwargs)
+
+        with patch.object(DataLoader, "__init__", spy_init):
+            trainer.train(train_ds, val_ds)
+
+        # Both train and val loaders should NOT have num_workers or pin_memory set
+        for kwargs in captured_kwargs:
+            assert "num_workers" not in kwargs
+            assert "pin_memory" not in kwargs
+            assert "persistent_workers" not in kwargs
