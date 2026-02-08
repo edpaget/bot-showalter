@@ -80,3 +80,13 @@ class FineTuneConfig:
         if self.min_games < self.context_window + 1:
             msg = f"min_games ({self.min_games}) must be >= context_window + 1 ({self.context_window + 1})"
             raise ValueError(msg)
+
+
+@dataclass(frozen=True, slots=True)
+class ContextualRateComputerConfig:
+    """Configuration for contextual transformer rate computer in the pipeline."""
+
+    batter_model_name: str = "finetune_batter_best"
+    pitcher_model_name: str = "finetune_pitcher_best"
+    min_games: int = 10
+    context_window: int = 10

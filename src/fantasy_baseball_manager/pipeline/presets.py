@@ -211,6 +211,27 @@ def mle_pipeline(
     return PipelineBuilder("mle", config=cfg).with_mle_rate_computer().build()
 
 
+def contextual_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Contextual transformer pipeline with park factors + pitcher normalization.
+
+    Uses fine-tuned contextual transformer models to predict per-game stats
+    from pitch sequence data. Omits Statcast blending (redundant: the model
+    consumes pitch-level Statcast features directly).
+
+    Falls back to Marcel rates for players without sufficient pitch data.
+    """
+    cfg = config or RegressionConfig()
+    return (
+        PipelineBuilder("contextual", config=cfg)
+        .with_contextual()
+        .with_park_factors()
+        .with_pitcher_normalization()
+        .build()
+    )
+
+
 def _external_pipeline(system: ProjectionSystem) -> ExternalProjectionAdapter:
     """Build an ExternalProjectionAdapter with cached DataSources for a given system."""
     from fantasy_baseball_manager.projections.data_source import (
@@ -263,6 +284,7 @@ PIPELINES: dict[str, Callable[[], Any]] = {
     "mtl": mtl_pipeline,
     "marcel_mtl": marcel_mtl_pipeline,
     "mle": mle_pipeline,
+    "contextual": contextual_pipeline,
     "steamer": steamer_pipeline,
     "zips": zips_pipeline,
 }
@@ -275,6 +297,7 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
     "mtl": mtl_pipeline,
     "marcel_mtl": marcel_mtl_pipeline,
     "mle": mle_pipeline,
+    "contextual": contextual_pipeline,
 }
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from fantasy_baseball_manager.contextual.training.config import (
+    ContextualRateComputerConfig,
     FineTuneConfig,
     PreTrainingConfig,
 )
@@ -125,3 +126,29 @@ class TestFineTuneConfig:
     def test_min_games_less_than_context_window_raises(self) -> None:
         with pytest.raises(ValueError, match="min_games"):
             FineTuneConfig(context_window=10, min_games=5)
+
+
+class TestContextualRateComputerConfig:
+    def test_default_values(self) -> None:
+        config = ContextualRateComputerConfig()
+        assert config.batter_model_name == "finetune_batter_best"
+        assert config.pitcher_model_name == "finetune_pitcher_best"
+        assert config.min_games == 10
+        assert config.context_window == 10
+
+    def test_frozen(self) -> None:
+        config = ContextualRateComputerConfig()
+        with pytest.raises(AttributeError):
+            config.min_games = 5  # type: ignore[misc]
+
+    def test_custom_values(self) -> None:
+        config = ContextualRateComputerConfig(
+            batter_model_name="custom_batter",
+            pitcher_model_name="custom_pitcher",
+            min_games=20,
+            context_window=15,
+        )
+        assert config.batter_model_name == "custom_batter"
+        assert config.pitcher_model_name == "custom_pitcher"
+        assert config.min_games == 20
+        assert config.context_window == 15

@@ -189,3 +189,47 @@ class TestPipelineBuilderCacheStore:
         fake_cache = FakeCacheStore()
         pipeline = PipelineBuilder().with_cache_store(fake_cache).with_park_factors().build()
         assert "ParkFactorAdjuster" in [type(a).__name__ for a in pipeline.adjusters]
+
+
+class TestPipelineBuilderWithContextual:
+    def test_with_contextual_uses_contextual_rate_computer(self) -> None:
+        from fantasy_baseball_manager.pipeline.stages.contextual_rate_computer import (
+            ContextualEmbeddingRateComputer,
+        )
+
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual().build()
+        assert isinstance(pipeline.rate_computer, ContextualEmbeddingRateComputer)
+
+    def test_with_contextual_custom_config(self) -> None:
+        from fantasy_baseball_manager.contextual.training.config import (
+            ContextualRateComputerConfig,
+        )
+        from fantasy_baseball_manager.pipeline.stages.contextual_rate_computer import (
+            ContextualEmbeddingRateComputer,
+        )
+
+        config = ContextualRateComputerConfig(min_games=20, context_window=15)
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual(config=config).build()
+        assert isinstance(pipeline.rate_computer, ContextualEmbeddingRateComputer)
+        assert pipeline.rate_computer.config.min_games == 20
+        assert pipeline.rate_computer.config.context_window == 15
+
+    def test_with_contextual_adds_identity_enricher(self) -> None:
+        pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual().build()
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "PlayerIdentityEnricher" in adjuster_types
+
+    def test_with_contextual_and_park_factors(self) -> None:
+        pipeline = (
+            PipelineBuilder(id_mapper=_fake_mapper())
+            .with_contextual()
+            .with_park_factors()
+            .with_pitcher_normalization()
+            .build()
+        )
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "PlayerIdentityEnricher" in adjuster_types
+        assert "ParkFactorAdjuster" in adjuster_types
+        assert "PitcherNormalizationAdjuster" in adjuster_types
+        assert "RebaselineAdjuster" in adjuster_types
+        assert "ComponentAgingAdjuster" in adjuster_types

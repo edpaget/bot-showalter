@@ -89,6 +89,7 @@ from fantasy_baseball_manager.player_id.mapper import (
 )
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.contextual.training.config import ContextualRateComputerConfig
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.minors.rate_computer import MLERateComputerConfig
     from fantasy_baseball_manager.minors.types import MinorLeagueBatterSeasonStats
@@ -145,6 +146,8 @@ class PipelineBuilder:
         self._mle_rate_computer_config: MLERateComputerConfig | None = None
         self._mle_for_rookies: bool = False
         self._mle_for_rookies_config: MLERateComputerConfig | None = None
+        self._contextual: bool = False
+        self._contextual_config: ContextualRateComputerConfig | None = None
 
     def with_cache_store(self, cache_store: CacheStore) -> PipelineBuilder:
         """Set the cache store to use for all cached data sources.
@@ -317,6 +320,21 @@ class PipelineBuilder:
             self._mle_for_rookies_config = config
         return self
 
+    def with_contextual(
+        self,
+        config: ContextualRateComputerConfig | None = None,
+    ) -> PipelineBuilder:
+        """Use contextual transformer for rate computation.
+
+        The contextual model predicts per-game stats from pitch sequence data
+        and converts them to rates. Falls back to Marcel for players without
+        sufficient pitch data.
+        """
+        self._contextual = True
+        if config is not None:
+            self._contextual_config = config
+        return self
+
     def build(self) -> ProjectionPipeline:
         rate_computer = self._build_rate_computer()
         adjusters = self._build_adjusters()
@@ -337,6 +355,28 @@ class PipelineBuilder:
 
     def _build_rate_computer(self) -> Any:  # TODO: restore -> RateComputer after all implementations migrated
         cfg = self._config
+
+        # Contextual transformer rate computer
+        if self._contextual:
+            from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
+            from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
+            from fantasy_baseball_manager.contextual.training.config import (
+                ContextualRateComputerConfig,
+            )
+            from fantasy_baseball_manager.pipeline.stages.contextual_rate_computer import (
+                ContextualEmbeddingRateComputer,
+            )
+            from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
+            from fantasy_baseball_manager.statcast.store import StatcastStore
+
+            store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
+            builder = GameSequenceBuilder(store)
+            return ContextualEmbeddingRateComputer(
+                sequence_builder=builder,
+                id_mapper=self._resolve_id_mapper(),
+                config=self._contextual_config or ContextualRateComputerConfig(),
+                model_store=ContextualModelStore(),
+            )
 
         # MTL rate computer (replaces Marcel entirely)
         if self._mtl_rate_computer:
@@ -408,7 +448,8 @@ class PipelineBuilder:
 
         # Insert identity enricher first if any downstream stage needs MLBAM IDs
         needs_enricher = (
-            self._statcast or self._batter_babip or self._pitcher_statcast or self._gb_residual or self._mtl_blender
+            self._statcast or self._batter_babip or self._pitcher_statcast
+            or self._gb_residual or self._mtl_blender or self._contextual
         )
         if needs_enricher:
             adjusters.append(PlayerIdentityEnricher(mapper=self._resolve_id_mapper()))

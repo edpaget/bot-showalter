@@ -13,6 +13,7 @@ from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
 from fantasy_baseball_manager.pipeline.presets import (
     PIPELINES,
     build_pipeline,
+    contextual_pipeline,
     marcel_classic_pipeline,
     marcel_full_pipeline,
     marcel_gb_pipeline,
@@ -136,6 +137,37 @@ class TestMLEPreset:
         assert "mle" in PIPELINES
 
 
+class TestContextualPreset:
+    def test_returns_pipeline(self) -> None:
+        pipeline = contextual_pipeline()
+        assert isinstance(pipeline, ProjectionPipeline)
+        assert pipeline.name == "contextual"
+        assert pipeline.years_back == 3
+
+    def test_has_five_adjusters(self) -> None:
+        # identity, park, pitcher_norm, rebaseline, aging
+        pipeline = contextual_pipeline()
+        assert len(pipeline.adjusters) == 5
+
+    def test_uses_contextual_rate_computer(self) -> None:
+        from fantasy_baseball_manager.pipeline.stages.contextual_rate_computer import (
+            ContextualEmbeddingRateComputer,
+        )
+
+        pipeline = contextual_pipeline()
+        assert isinstance(pipeline.rate_computer, ContextualEmbeddingRateComputer)
+
+    def test_in_registry(self) -> None:
+        assert "contextual" in PIPELINES
+
+    def test_no_statcast_adjuster(self) -> None:
+        """Contextual preset omits Statcast blending (redundant with model)."""
+        pipeline = contextual_pipeline()
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "StatcastRateAdjuster" not in adjuster_types
+        assert "BatterBabipAdjuster" not in adjuster_types
+
+
 ALL_PRESET_NAMES = [
     "marcel_classic",
     "marcel",
@@ -145,6 +177,7 @@ ALL_PRESET_NAMES = [
     "mtl",
     "marcel_mtl",
     "mle",
+    "contextual",
 ]
 
 
@@ -166,7 +199,7 @@ class TestAllPresetsInRegistry:
         assert len(aging_adjusters) == 1
 
     def test_registry_has_expected_entries(self) -> None:
-        assert len(PIPELINES) == 10  # 8 internal + steamer + zips
+        assert len(PIPELINES) == 11  # 9 internal + steamer + zips
 
 
 class TestConfigThreading:

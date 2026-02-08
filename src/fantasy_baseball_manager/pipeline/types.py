@@ -87,6 +87,10 @@ class PlayerMetadata(TypedDict, total=False):
     mle_augmented: bool
     delegate_rates: dict[str, float]
 
+    # Contextual rate computer metadata
+    contextual_predicted: bool
+    contextual_games_used: int
+
 
 @dataclass
 class PlayerRates:
