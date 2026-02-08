@@ -15,13 +15,13 @@ Usage::
     # Pre-train on T4 (default, $0.59/hr)
     modal run scripts/modal_train.py --command pretrain --epochs 30
 
-    # Pre-train on A100 80GB with large batch size
-    MODAL_GPU=A100-80GB modal run scripts/modal_train.py --command pretrain --batch-size 256 --learning-rate 3e-4
+    # Pre-train on A100 80GB — full-season context with smaller batch
+    MODAL_GPU=A100-80GB modal run scripts/modal_train.py --command pretrain --max-seq-len 2048 --batch-size 64
 
     # Fine-tune
     modal run scripts/modal_train.py --command finetune --perspective pitcher
 
-    # Fine-tune on A100 80GB
+    # Fine-tune on A100 80GB (context window is small, so bump batch instead)
     MODAL_GPU=A100-80GB modal run scripts/modal_train.py --command finetune --perspective pitcher --batch-size 128
 
     # Check data/checkpoints on volume
@@ -212,7 +212,7 @@ def main(
     Examples::
 
         modal run scripts/modal_train.py --command pretrain --epochs 30
-        MODAL_GPU=A100-80GB modal run scripts/modal_train.py --command pretrain --batch-size 256
+        MODAL_GPU=A100-80GB modal run scripts/modal_train.py --command pretrain --max-seq-len 2048 --batch-size 64
         modal run scripts/modal_train.py --command finetune --perspective pitcher
         modal run scripts/modal_train.py --command check
     """

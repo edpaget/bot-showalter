@@ -224,17 +224,20 @@ modal volume get fantasy-baseball-data models/contextual/ ~/.fantasy_baseball/mo
 Set the `MODAL_GPU` environment variable before `modal run`. It's read at module scope and passed to `@app.function(gpu=...)`:
 
 ```bash
-# Pre-train on A100 80GB with large batch to saturate VRAM
-MODAL_GPU=A100-80GB modal run scripts/modal_train.py \
-    --command pretrain --batch-size 256 --learning-rate 3e-4 --epochs 30
-
-# Fine-tune on A100 80GB
-MODAL_GPU=A100-80GB modal run scripts/modal_train.py \
-    --command finetune --perspective pitcher --batch-size 128
-
 # A10G mid-tier option
 MODAL_GPU=A10G modal run scripts/modal_train.py --command pretrain --epochs 30
+
+# A100 80GB — use max_seq_len=2048 to see near-full seasons (~128 games)
+# and drop batch size to 64 to fit in VRAM (attention is O(n²))
+MODAL_GPU=A100-80GB modal run scripts/modal_train.py \
+    --command pretrain --max-seq-len 2048 --batch-size 64 --learning-rate 1e-4 --epochs 30
+
+# Fine-tune on A100 80GB (context_window=10 games, so 512 is fine — bump batch)
+MODAL_GPU=A100-80GB modal run scripts/modal_train.py \
+    --command finetune --perspective pitcher --batch-size 128
 ```
+
+**Sequence length vs. batch size tradeoff.** The T4 default (seq 512, batch 64) only sees ~32 recent games per player. On an A100 80GB, `--max-seq-len 2048` captures a near-full season (~128 games) but requires a smaller batch size. Fine-tuning uses a 10-game context window, so 512 is sufficient regardless of GPU.
 
 ### Budget Guidance
 
@@ -242,8 +245,8 @@ MODAL_GPU=A10G modal run scripts/modal_train.py --command pretrain --epochs 30
 |-----|---------|---------------------|----------|
 | T4 (default) | $0.59 | ~50 hrs | Budget pre-training/fine-tuning |
 | A10G | $1.10 | ~27 hrs | Good throughput, reasonable cost |
-| A100 40GB | $2.10 | ~14 hrs | Large batch sizes |
-| A100 80GB | $2.50 | ~12 hrs | Max batch size, fastest per-epoch |
+| A100 40GB | $2.10 | ~14 hrs | Longer sequences (max_seq_len=1024) |
+| A100 80GB | $2.50 | ~12 hrs | Full season context (max_seq_len=2048) |
 | H100 | $3.95 | ~7.5 hrs | Overkill for this model size |
 
 ---
