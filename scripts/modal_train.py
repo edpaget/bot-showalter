@@ -46,7 +46,7 @@ image = (
     .apt_install("curl")
     .run_commands("curl -LsSf https://astral.sh/uv/install.sh | sh")
     .env({"PATH": "/root/.local/bin:$PATH"})
-    .copy_local_dir(".", APP_DIR)
+    .add_local_dir(".", APP_DIR, copy=True)
     .run_commands(
         f"cd {APP_DIR} && /root/.local/bin/uv sync --no-dev --frozen",
         gpu="T4",
