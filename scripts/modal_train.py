@@ -83,87 +83,87 @@ def _setup_symlinks() -> None:
         os.symlink(src, dst)
 
 
-@app.function(
+@app.cls(
     image=image,
     gpu="T4",
     timeout=21600,
     volumes={DATA_DIR: vol},
 )
-def pretrain(
-    seasons: str = "2015,2016,2017,2018,2019,2020,2021,2022",
-    val_seasons: str = "2023",
-    epochs: int = 30,
-    batch_size: int = 64,
-    learning_rate: float = 1e-4,
-    resume_from: str | None = None,
-    max_seq_len: int = 512,
-) -> None:
-    """Run MGM pre-training on a cloud GPU."""
-    import subprocess
+class Trainer:
+    """Modal Cls wrapper — use ``with_options(gpu=..., timeout=...)`` to override."""
 
-    _setup_symlinks()
+    @modal.method()
+    def pretrain(
+        self,
+        seasons: str = "2015,2016,2017,2018,2019,2020,2021,2022",
+        val_seasons: str = "2023",
+        epochs: int = 30,
+        batch_size: int = 64,
+        learning_rate: float = 1e-4,
+        resume_from: str | None = None,
+        max_seq_len: int = 512,
+    ) -> None:
+        """Run MGM pre-training on a cloud GPU."""
+        import subprocess
 
-    cmd = [
-        "uv", "run", "fantasy-baseball-manager",
-        "contextual", "pretrain",
-        "--seasons", seasons,
-        "--val-seasons", val_seasons,
-        "--epochs", str(epochs),
-        "--batch-size", str(batch_size),
-        "--learning-rate", str(learning_rate),
-        "--max-seq-len", str(max_seq_len),
-    ]
-    if resume_from is not None:
-        cmd.extend(["--resume-from", resume_from])
+        _setup_symlinks()
 
-    subprocess.run(cmd, cwd=APP_DIR, check=True)
-    vol.commit()
+        cmd = [
+            "uv", "run", "fantasy-baseball-manager",
+            "contextual", "pretrain",
+            "--seasons", seasons,
+            "--val-seasons", val_seasons,
+            "--epochs", str(epochs),
+            "--batch-size", str(batch_size),
+            "--learning-rate", str(learning_rate),
+            "--max-seq-len", str(max_seq_len),
+        ]
+        if resume_from is not None:
+            cmd.extend(["--resume-from", resume_from])
 
+        subprocess.run(cmd, cwd=APP_DIR, check=True)
+        vol.commit()
 
-@app.function(
-    image=image,
-    gpu="T4",
-    timeout=21600,
-    volumes={DATA_DIR: vol},
-)
-def finetune(
-    perspective: str = "pitcher",
-    base_model: str = "pretrain_best",
-    seasons: str = "2015,2016,2017,2018,2019,2020,2021,2022",
-    val_seasons: str = "2023",
-    epochs: int = 30,
-    batch_size: int = 32,
-    head_lr: float = 1e-3,
-    backbone_lr: float = 1e-5,
-    freeze_backbone: bool = False,
-    resume_from: str | None = None,
-    max_seq_len: int = 512,
-) -> None:
-    """Run fine-tuning on a cloud GPU."""
-    import subprocess
+    @modal.method()
+    def finetune(
+        self,
+        perspective: str = "pitcher",
+        base_model: str = "pretrain_best",
+        seasons: str = "2015,2016,2017,2018,2019,2020,2021,2022",
+        val_seasons: str = "2023",
+        epochs: int = 30,
+        batch_size: int = 32,
+        head_lr: float = 1e-3,
+        backbone_lr: float = 1e-5,
+        freeze_backbone: bool = False,
+        resume_from: str | None = None,
+        max_seq_len: int = 512,
+    ) -> None:
+        """Run fine-tuning on a cloud GPU."""
+        import subprocess
 
-    _setup_symlinks()
+        _setup_symlinks()
 
-    cmd = [
-        "uv", "run", "fantasy-baseball-manager",
-        "contextual", "finetune",
-        "--perspective", perspective,
-        "--base-model", base_model,
-        "--seasons", seasons,
-        "--val-seasons", val_seasons,
-        "--epochs", str(epochs),
-        "--batch-size", str(batch_size),
-        "--head-lr", str(head_lr),
-        "--backbone-lr", str(backbone_lr),
-        "--max-seq-len", str(max_seq_len),
-    ]
-    if freeze_backbone:
-        cmd.append("--freeze-backbone")
-    if resume_from is not None:
-        cmd.extend(["--resume-from", resume_from])
+        cmd = [
+            "uv", "run", "fantasy-baseball-manager",
+            "contextual", "finetune",
+            "--perspective", perspective,
+            "--base-model", base_model,
+            "--seasons", seasons,
+            "--val-seasons", val_seasons,
+            "--epochs", str(epochs),
+            "--batch-size", str(batch_size),
+            "--head-lr", str(head_lr),
+            "--backbone-lr", str(backbone_lr),
+            "--max-seq-len", str(max_seq_len),
+        ]
+        if freeze_backbone:
+            cmd.append("--freeze-backbone")
+        if resume_from is not None:
+            cmd.extend(["--resume-from", resume_from])
 
-    subprocess.run(cmd, cwd=APP_DIR, check=True)
-    vol.commit()
+        subprocess.run(cmd, cwd=APP_DIR, check=True)
+        vol.commit()
 
 
 @app.function(
@@ -209,6 +209,7 @@ def main(
     Examples::
 
         modal run scripts/modal_train.py --command pretrain --gpu T4 --epochs 30
+        modal run scripts/modal_train.py --command pretrain --gpu A100-80GB --batch-size 256
         modal run scripts/modal_train.py --command finetune --perspective pitcher
         modal run scripts/modal_train.py --command check
     """
@@ -216,8 +217,10 @@ def main(
         check_data.remote()
         return
 
+    trainer = Trainer.with_options(gpu=gpu, timeout=timeout)()
+
     if command == "pretrain":
-        pretrain.with_options(gpu=gpu, timeout=timeout).remote(
+        trainer.pretrain.remote(
             seasons=seasons,
             val_seasons=val_seasons,
             epochs=epochs,
@@ -227,7 +230,7 @@ def main(
             max_seq_len=max_seq_len,
         )
     elif command == "finetune":
-        finetune.with_options(gpu=gpu, timeout=timeout).remote(
+        trainer.finetune.remote(
             perspective=perspective,
             base_model=base_model,
             seasons=seasons,
