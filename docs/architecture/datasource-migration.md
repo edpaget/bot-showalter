@@ -307,53 +307,36 @@ protocols in type annotations and method calls. This phase migrates those consum
 
 #### 7a. `StatsDataSource` → `DataSource[T]` callables (~37 refs)
 
-**Current state:** Rate computers already accept `DataSource[T]`. `pipeline/engine.py` has
-internal `_adapt_batting`/`_adapt_pitching` adapter functions wrapping `StatsDataSource` into
-`DataSource[T]`. All other consumers call methods directly: `data_source.batting_stats(year)`.
+**Status:** Done
 
-**Approach — bottom-up, guided by `ProjectionPipeline`:**
+**Resolution:** All consumers now accept `DataSource[BattingSeasonStats]` and
+`DataSource[PitchingSeasonStats]` instead of `StatsDataSource`. Call sites use
+`new_context(year=...)` + `source(ALL_PLAYERS)` pattern. `StatsDataSource` protocol,
+`PybaseballDataSource` class, and `CachedStatsDataSource` wrapper removed.
 
-1. Change `ProjectionPipeline.project_batters` / `project_pitchers` signatures to accept
-   `DataSource[T]` pairs directly instead of `StatsDataSource`:
-   ```python
-   # Before
-   def project_batters(self, data_source: StatsDataSource, year: int) -> ...
-   # After
-   def project_batters(
-       self,
-       batting_source: DataSource[BattingSeasonStats],
-       team_batting_source: DataSource[BattingSeasonStats],
-       year: int,
-   ) -> ...
-   ```
-   Remove the `_adapt_*` helper functions (no longer needed).
+**Completed:**
 
-2. Update `ProjectionPipelineProtocol` (pipeline/protocols.py) to match.
+1. Changed `ProjectionPipeline.project_batters` / `project_pitchers` signatures to accept
+   `DataSource[T]` pairs directly. Removed `_adapt_batting`/`_adapt_pitching` helper functions.
 
-3. Migrate direct `data_source.method(year)` consumers. Common call-site pattern:
-   ```python
-   # Before
-   actuals = data_source.batting_stats(year)
-   # After
-   with new_context(year=year):
-       actuals = batting_source(ALL_PLAYERS).unwrap()
-   ```
-   Key files (in dependency order):
-   - [ ] `evaluation/actuals.py` — `actuals_as_projections()` takes 2 DataSource params
-   - [ ] `evaluation/harness.py` — `evaluate_source()` takes 2 DataSource params
-   - [ ] `evaluation/cli.py` — thread sources through CLI entry points
-   - [ ] `ros/projector.py` — `ROSProjector.__init__` takes batting/pitching sources
-   - [ ] `ml/training.py` — `ResidualModelTrainer` fields become DataSource params
-   - [ ] `ml/mtl/dataset.py` — replace `StatsDataSource` field
-   - [ ] `ml/mtl/trainer.py` — replace `StatsDataSource` field
-   - [ ] `ml/cli.py` — thread sources through CLI entry points
-   - [ ] `pipeline/engine.py` — update `ProjectionPipeline` signatures
-   - [ ] `pipeline/protocols.py` — update `ProjectionPipelineProtocol`
-   - [ ] `pipeline/source.py` — `PipelineProjectionSource` adapts pipeline
-   - [ ] `services/container.py` — build DataSource instances instead of `PybaseballDataSource`
-   - [ ] `minors/training.py`, `minors/evaluation.py`, `minors/training_data.py` — update MLE consumers
+2. Updated `ProjectionPipelineProtocol` (pipeline/protocols.py) to match.
 
-4. Remove `StatsDataSource` protocol, `PybaseballDataSource` class, and
+3. Migrated all direct `data_source.method(year)` consumers:
+   - [x] `evaluation/actuals.py` — `actuals_as_projections()` takes 2 DataSource params
+   - [x] `evaluation/harness.py` — `evaluate_source()` takes 2 DataSource params
+   - [x] `evaluation/cli.py` — thread sources through CLI entry points
+   - [x] `ros/projector.py` — `ROSProjector.__init__` takes batting/pitching sources
+   - [x] `ml/training.py` — `ResidualModelTrainer` fields become DataSource params
+   - [x] `ml/mtl/dataset.py` — replace `StatsDataSource` field
+   - [x] `ml/mtl/trainer.py` — replace `StatsDataSource` field
+   - [x] `ml/cli.py` — thread sources through CLI entry points
+   - [x] `pipeline/engine.py` — update `ProjectionPipeline` signatures
+   - [x] `pipeline/protocols.py` — update `ProjectionPipelineProtocol`
+   - [x] `pipeline/source.py` — `PipelineProjectionSource` adapts pipeline
+   - [x] `services/container.py` — build DataSource instances instead of `PybaseballDataSource`
+   - [x] `minors/training.py`, `minors/evaluation.py`, `minors/training_data.py` — update MLE consumers
+
+4. Removed `StatsDataSource` protocol, `PybaseballDataSource` class, and
    `CachedStatsDataSource` wrapper.
 
 #### 7b. `MinorLeagueDataSource` → `DataSource[T]` callables (~14 refs)
@@ -453,6 +436,29 @@ migration — it models "a source of projection results" for evaluation, not raw
 Keep as-is; optionally rename to `ProjectionProvider` to avoid confusion with
 `projections/ProjectionSource`.
 
+#### 7f. `SplitStatsDataSource` — Keep As-Is
+
+`SplitStatsDataSource` (pipeline/stages/split_data_source.py) provides platoon split batting
+stats (vs-LHP and vs-RHP). Unlike `StatsDataSource`, this protocol takes a `year` parameter
+*and* a split dimension, making it a poor fit for `DataSource[T]` which models
+`(context) -> list[T]` with a single year dimension.
+
+```python
+class SplitStatsDataSource(Protocol):
+    def batting_stats_vs_lhp(self, year: int) -> list[BattingSeasonStats]: ...
+    def batting_stats_vs_rhp(self, year: int) -> list[BattingSeasonStats]: ...
+```
+
+**Implementation:** `PybaseballSplitDataSource` (fetches from FanGraphs API)
+**Caching:** `CachedSplitDataSource` (manual `CacheStore`-backed wrapper)
+
+**Consumer:** `PlatoonRateComputer` (pipeline/stages/platoon_rate_computer.py)
+
+**Status:** Keep as-is. The two-method protocol is a natural fit for the split dimension.
+Migrating would require either two separate `DataSource[BattingSeasonStats]` instances
+(losing the semantic grouping) or encoding the split in the context (adding complexity
+for a single consumer). The existing pattern works well and is self-contained.
+
 ---
 
 ## Resolved Questions
@@ -466,19 +472,22 @@ Keep as-is; optionally rename to `ProjectionProvider` to avoid confusion with
    DataSources would add complexity with no benefit for a single-consumer protocol.
 4. **Backward compatibility**: Remove old protocols once all consumers are migrated within
    each phase (7a–7d). No deprecation period needed — this is internal code.
+5. **SplitStatsDataSource**: Keep as-is. The two-method protocol (vs-LHP/vs-RHP) encodes a
+   split dimension that doesn't map cleanly to `DataSource[T]`. Single consumer
+   (`PlatoonRateComputer`), self-contained implementation. See Phase 7f.
 
 ---
 
 ## Dependencies
 
 ```
-Phase 7a (StatsDataSource)
+Phase 7a (StatsDataSource) ✅
   └─► pipeline/engine.py, pipeline/protocols.py (signature change)
       └─► evaluation/*, ros/*, ml/* (consumer updates)
           └─► services/container.py (wiring)
               └─► Remove StatsDataSource, PybaseballDataSource, CachedStatsDataSource
 
-Phase 7b (MinorLeagueDataSource)
+Phase 7b (MinorLeagueDataSource) ✅
   └─► minors/rate_computer.py (field type change)
       └─► minors/training_data.py, training.py, evaluation.py (field type change)
           └─► pipeline/builder.py (wiring)
