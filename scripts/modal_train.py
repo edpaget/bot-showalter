@@ -13,8 +13,14 @@ Usage::
     # Pre-train on T4 (default, $0.59/hr)
     modal run scripts/modal_train.py --command pretrain --epochs 30
 
+    # Pre-train on A100 80GB with large batch size
+    modal run scripts/modal_train.py --command pretrain --gpu A100-80GB --batch-size 256 --learning-rate 3e-4
+
     # Fine-tune
     modal run scripts/modal_train.py --command finetune --perspective pitcher
+
+    # Fine-tune on A100 80GB
+    modal run scripts/modal_train.py --command finetune --gpu A100-80GB --perspective pitcher --batch-size 128
 
     # Check data/checkpoints on volume
     modal run scripts/modal_train.py --command check

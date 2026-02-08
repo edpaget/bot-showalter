@@ -222,13 +222,31 @@ modal run scripts/modal_train.py --command finetune --perspective batter --freez
 modal volume get fantasy-baseball-data models/contextual/ ~/.fantasy_baseball/models/contextual/
 ```
 
+### A100 80GB-Optimized Runs
+
+The A100 80GB has enough VRAM to run much larger batch sizes, which reduces wall-clock time substantially. Use `--batch-size 256` (or higher) to saturate the GPU:
+
+```bash
+# Pre-train: A100 80GB, large batch, higher learning rate to match
+modal run scripts/modal_train.py \
+    --command pretrain --gpu A100-80GB \
+    --batch-size 256 --learning-rate 3e-4 --epochs 30
+
+# Fine-tune: A100 80GB
+modal run scripts/modal_train.py \
+    --command finetune --gpu A100-80GB \
+    --perspective pitcher --batch-size 128
+```
+
 ### Budget Guidance
 
-| GPU | Cost/hr | Use Case |
-|-----|---------|----------|
-| T4 (default) | $0.59 | Pre-training/fine-tuning with free credits |
-| A10G | $1.10 | Faster training when free credits run out |
-| A100 | $2.78 | Full dataset, large batch sizes |
+| GPU | Cost/hr | Free hours/mo ($30) | Use Case |
+|-----|---------|---------------------|----------|
+| T4 (default) | $0.59 | ~50 hrs | Budget pre-training/fine-tuning |
+| A10G | $1.10 | ~27 hrs | Good throughput, reasonable cost |
+| A100 40GB | $2.10 | ~14 hrs | Large batch sizes |
+| A100 80GB | $2.50 | ~12 hrs | Max batch size, fastest per-epoch |
+| H100 | $3.95 | ~7.5 hrs | Overkill for this model size |
 
 ---
 
