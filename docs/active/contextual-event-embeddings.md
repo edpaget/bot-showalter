@@ -227,6 +227,11 @@ Blend with Marcel:
 
 - **In-Season Proposals** (`in-season/`): This model is particularly well-suited for in-season use (matchup analysis, start/sit) since it operates on recent game sequences. A pitcher's last 10 starts capture form, velocity trends, and pitch mix changes that season-level rates miss.
 
+## Related Documents
+
+- [Alternative Training Strategies](contextual-training-strategies.md) — other pre-training objectives (ELECTRA, contrastive, autoregressive), fine-tuning approaches, and batter-specific improvements
+- [Cloud GPU Training Guide](contextual-cloud-gpu-training.md) — provider options, setup, and code changes for training on cloud infrastructure
+
 ## Key References
 
 - Heaton & Mitra, "Learning Contextual Event Embeddings to Predict Player Performance in the MLB"
