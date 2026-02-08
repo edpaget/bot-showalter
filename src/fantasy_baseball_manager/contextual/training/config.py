@@ -7,6 +7,9 @@ from dataclasses import dataclass
 BATTER_TARGET_STATS: tuple[str, ...] = ("hr", "so", "bb", "h", "2b", "3b")
 PITCHER_TARGET_STATS: tuple[str, ...] = ("so", "h", "bb", "hr")
 
+DEFAULT_BATTER_CONTEXT_WINDOW: int = 30
+DEFAULT_PITCHER_CONTEXT_WINDOW: int = 10
+
 
 @dataclass(frozen=True, slots=True)
 class PreTrainingConfig:
@@ -88,8 +91,18 @@ class ContextualRateComputerConfig:
 
     batter_model_name: str = "finetune_batter_best"
     pitcher_model_name: str = "finetune_pitcher_best"
-    min_games: int = 10
-    context_window: int = 10
+    batter_context_window: int = DEFAULT_BATTER_CONTEXT_WINDOW
+    pitcher_context_window: int = DEFAULT_PITCHER_CONTEXT_WINDOW
+    batter_min_games: int = DEFAULT_BATTER_CONTEXT_WINDOW
+    pitcher_min_games: int = DEFAULT_PITCHER_CONTEXT_WINDOW
+
+    def context_window_for(self, perspective: str) -> int:
+        """Return context window size for the given perspective."""
+        return self.batter_context_window if perspective == "batter" else self.pitcher_context_window
+
+    def min_games_for(self, perspective: str) -> int:
+        """Return minimum games required for the given perspective."""
+        return self.batter_min_games if perspective == "batter" else self.pitcher_min_games
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +111,16 @@ class ContextualBlenderConfig:
 
     batter_model_name: str = "finetune_batter_best"
     pitcher_model_name: str = "finetune_pitcher_best"
-    min_games: int = 10
-    context_window: int = 10
+    batter_context_window: int = DEFAULT_BATTER_CONTEXT_WINDOW
+    pitcher_context_window: int = DEFAULT_PITCHER_CONTEXT_WINDOW
+    batter_min_games: int = DEFAULT_BATTER_CONTEXT_WINDOW
+    pitcher_min_games: int = DEFAULT_PITCHER_CONTEXT_WINDOW
     contextual_weight: float = 0.3
+
+    def context_window_for(self, perspective: str) -> int:
+        """Return context window size for the given perspective."""
+        return self.batter_context_window if perspective == "batter" else self.pitcher_context_window
+
+    def min_games_for(self, perspective: str) -> int:
+        """Return minimum games required for the given perspective."""
+        return self.batter_min_games if perspective == "batter" else self.pitcher_min_games

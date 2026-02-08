@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 
 from fantasy_baseball_manager.contextual.training.config import (
+    DEFAULT_BATTER_CONTEXT_WINDOW,
+    DEFAULT_PITCHER_CONTEXT_WINDOW,
     ContextualBlenderConfig,
     ContextualRateComputerConfig,
     FineTuneConfig,
@@ -134,25 +136,47 @@ class TestContextualRateComputerConfig:
         config = ContextualRateComputerConfig()
         assert config.batter_model_name == "finetune_batter_best"
         assert config.pitcher_model_name == "finetune_pitcher_best"
-        assert config.min_games == 10
-        assert config.context_window == 10
+        assert config.batter_context_window == 30
+        assert config.pitcher_context_window == 10
+        assert config.batter_min_games == 30
+        assert config.pitcher_min_games == 10
 
     def test_frozen(self) -> None:
         config = ContextualRateComputerConfig()
         with pytest.raises(AttributeError):
-            config.min_games = 5  # type: ignore[misc]
+            config.batter_min_games = 5  # type: ignore[misc]
 
     def test_custom_values(self) -> None:
         config = ContextualRateComputerConfig(
             batter_model_name="custom_batter",
             pitcher_model_name="custom_pitcher",
-            min_games=20,
-            context_window=15,
+            batter_context_window=20,
+            pitcher_context_window=8,
+            batter_min_games=25,
+            pitcher_min_games=12,
         )
         assert config.batter_model_name == "custom_batter"
         assert config.pitcher_model_name == "custom_pitcher"
-        assert config.min_games == 20
-        assert config.context_window == 15
+        assert config.batter_context_window == 20
+        assert config.pitcher_context_window == 8
+        assert config.batter_min_games == 25
+        assert config.pitcher_min_games == 12
+
+    def test_context_window_for_batter(self) -> None:
+        config = ContextualRateComputerConfig()
+        assert config.context_window_for("batter") == 30
+
+    def test_context_window_for_pitcher(self) -> None:
+        config = ContextualRateComputerConfig()
+        assert config.context_window_for("pitcher") == 10
+
+    def test_min_games_for_batter(self) -> None:
+        config = ContextualRateComputerConfig()
+        assert config.min_games_for("batter") == 30
+
+    def test_min_games_for_pitcher(self) -> None:
+        config = ContextualRateComputerConfig()
+        assert config.min_games_for("pitcher") == 10
 
 
 class TestContextualBlenderConfig:
@@ -160,8 +184,10 @@ class TestContextualBlenderConfig:
         config = ContextualBlenderConfig()
         assert config.batter_model_name == "finetune_batter_best"
         assert config.pitcher_model_name == "finetune_pitcher_best"
-        assert config.min_games == 10
-        assert config.context_window == 10
+        assert config.batter_context_window == 30
+        assert config.pitcher_context_window == 10
+        assert config.batter_min_games == 30
+        assert config.pitcher_min_games == 10
         assert config.contextual_weight == 0.3
 
     def test_frozen(self) -> None:
@@ -173,12 +199,40 @@ class TestContextualBlenderConfig:
         config = ContextualBlenderConfig(
             batter_model_name="custom_batter",
             pitcher_model_name="custom_pitcher",
-            min_games=20,
-            context_window=15,
+            batter_context_window=20,
+            pitcher_context_window=8,
+            batter_min_games=25,
+            pitcher_min_games=12,
             contextual_weight=0.5,
         )
         assert config.batter_model_name == "custom_batter"
         assert config.pitcher_model_name == "custom_pitcher"
-        assert config.min_games == 20
-        assert config.context_window == 15
+        assert config.batter_context_window == 20
+        assert config.pitcher_context_window == 8
+        assert config.batter_min_games == 25
+        assert config.pitcher_min_games == 12
         assert config.contextual_weight == 0.5
+
+    def test_context_window_for_batter(self) -> None:
+        config = ContextualBlenderConfig()
+        assert config.context_window_for("batter") == 30
+
+    def test_context_window_for_pitcher(self) -> None:
+        config = ContextualBlenderConfig()
+        assert config.context_window_for("pitcher") == 10
+
+    def test_min_games_for_batter(self) -> None:
+        config = ContextualBlenderConfig()
+        assert config.min_games_for("batter") == 30
+
+    def test_min_games_for_pitcher(self) -> None:
+        config = ContextualBlenderConfig()
+        assert config.min_games_for("pitcher") == 10
+
+
+class TestContextConstants:
+    def test_default_batter_context_window(self) -> None:
+        assert DEFAULT_BATTER_CONTEXT_WINDOW == 30
+
+    def test_default_pitcher_context_window(self) -> None:
+        assert DEFAULT_PITCHER_CONTEXT_WINDOW == 10

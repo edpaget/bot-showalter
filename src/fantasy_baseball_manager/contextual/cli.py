@@ -90,12 +90,12 @@ def prepare_data_cmd(
         ),
     ] = "pitcher",
     context_window: Annotated[
-        int,
+        int | None,
         typer.Option(
             "--context-window",
-            help="Number of prior games as context (finetune)",
+            help="Number of prior games as context (finetune). Defaults to 30 for batter, 10 for pitcher.",
         ),
-    ] = 10,
+    ] = None,
     max_seq_len: Annotated[
         int,
         typer.Option(
@@ -132,6 +132,8 @@ def prepare_data_cmd(
     from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
     from fantasy_baseball_manager.contextual.training.config import (
         BATTER_TARGET_STATS,
+        DEFAULT_BATTER_CONTEXT_WINDOW,
+        DEFAULT_PITCHER_CONTEXT_WINDOW,
         PITCHER_TARGET_STATS,
         FineTuneConfig,
     )
@@ -145,6 +147,9 @@ def prepare_data_cmd(
     train_seasons = tuple(int(s.strip()) for s in seasons.split(","))
     val_season_list = tuple(int(s.strip()) for s in val_seasons.split(","))
     perspective_list = tuple(p.strip() for p in perspectives.split(","))
+
+    if context_window is None:
+        context_window = DEFAULT_BATTER_CONTEXT_WINDOW if perspective == "batter" else DEFAULT_PITCHER_CONTEXT_WINDOW
 
     model_config = ModelConfig(max_seq_len=max_seq_len)
     tensorizer = Tensorizer(
@@ -202,6 +207,7 @@ def prepare_data_cmd(
             val_seasons=val_season_list,
             perspective=perspective,
             context_window=context_window,
+            min_games=context_window + 5,
         )
 
         console.print("  Building training contexts...")
@@ -495,12 +501,12 @@ def finetune_cmd(
         ),
     ] = "pitcher",
     context_window: Annotated[
-        int,
+        int | None,
         typer.Option(
             "--context-window",
-            help="Number of prior games as context",
+            help="Number of prior games as context. Defaults to 30 for batter, 10 for pitcher.",
         ),
-    ] = 10,
+    ] = None,
     seasons: Annotated[
         str,
         typer.Option(
@@ -587,6 +593,8 @@ def finetune_cmd(
     from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
     from fantasy_baseball_manager.contextual.training.config import (
         BATTER_TARGET_STATS,
+        DEFAULT_BATTER_CONTEXT_WINDOW,
+        DEFAULT_PITCHER_CONTEXT_WINDOW,
         PITCHER_TARGET_STATS,
         FineTuneConfig,
     )
@@ -597,6 +605,9 @@ def finetune_cmd(
     train_seasons = tuple(int(s.strip()) for s in seasons.split(","))
     val_season_list = tuple(int(s.strip()) for s in val_seasons.split(","))
 
+    if context_window is None:
+        context_window = DEFAULT_BATTER_CONTEXT_WINDOW if perspective == "batter" else DEFAULT_PITCHER_CONTEXT_WINDOW
+
     target_stats = BATTER_TARGET_STATS if perspective == "batter" else PITCHER_TARGET_STATS
     n_targets = len(target_stats)
 
@@ -605,6 +616,7 @@ def finetune_cmd(
         val_seasons=val_season_list,
         perspective=perspective,
         context_window=context_window,
+        min_games=context_window + 5,
         epochs=epochs,
         batch_size=batch_size,
         head_learning_rate=head_lr,

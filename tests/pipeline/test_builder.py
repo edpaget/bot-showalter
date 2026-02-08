@@ -208,11 +208,11 @@ class TestPipelineBuilderWithContextual:
             ContextualEmbeddingRateComputer,
         )
 
-        config = ContextualRateComputerConfig(min_games=20, context_window=15)
+        config = ContextualRateComputerConfig(batter_min_games=20, batter_context_window=15)
         pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual(config=config).build()
         assert isinstance(pipeline.rate_computer, ContextualEmbeddingRateComputer)
-        assert pipeline.rate_computer.config.min_games == 20
-        assert pipeline.rate_computer.config.context_window == 15
+        assert pipeline.rate_computer.config.batter_min_games == 20
+        assert pipeline.rate_computer.config.batter_context_window == 15
 
     def test_with_contextual_adds_identity_enricher(self) -> None:
         pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual().build()
@@ -261,12 +261,12 @@ class TestPipelineBuilderWithContextualBlender:
             ContextualBlender,
         )
 
-        config = ContextualBlenderConfig(contextual_weight=0.5, min_games=20)
+        config = ContextualBlenderConfig(contextual_weight=0.5, pitcher_min_games=20)
         pipeline = PipelineBuilder(id_mapper=_fake_mapper()).with_contextual_blender(config=config).build()
         blenders = [a for a in pipeline.adjusters if isinstance(a, ContextualBlender)]
         assert len(blenders) == 1
         assert blenders[0].config.contextual_weight == 0.5
-        assert blenders[0].config.min_games == 20
+        assert blenders[0].config.pitcher_min_games == 20
 
     def test_with_all_marcel_full_adjusters(self) -> None:
         """Contextual blender with all marcel_full adjusters."""

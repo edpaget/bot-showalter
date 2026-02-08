@@ -139,17 +139,19 @@ class TestContextualRateComputerInit:
         computer = _build_computer()
         assert computer.config.batter_model_name == "finetune_batter_best"
         assert computer.config.pitcher_model_name == "finetune_pitcher_best"
-        assert computer.config.min_games == 10
-        assert computer.config.context_window == 10
+        assert computer.config.batter_min_games == 30
+        assert computer.config.pitcher_min_games == 10
+        assert computer.config.batter_context_window == 30
+        assert computer.config.pitcher_context_window == 10
 
     def test_custom_config(self) -> None:
         config = ContextualRateComputerConfig(
             batter_model_name="custom_batter",
-            min_games=20,
+            batter_min_games=20,
         )
         computer = _build_computer(config=config)
         assert computer.config.batter_model_name == "custom_batter"
-        assert computer.config.min_games == 20
+        assert computer.config.batter_min_games == 20
 
 
 class TestContextualFallbackBehavior:
@@ -205,7 +207,7 @@ class TestContextualFallbackBehavior:
         mock_builder = MagicMock()
         mock_builder.build_player_season.return_value = [_make_game(i) for i in range(5)]
 
-        config = ContextualRateComputerConfig(min_games=10)
+        config = ContextualRateComputerConfig(batter_min_games=10, pitcher_min_games=10)
         computer = _build_computer(
             model_store=mock_store,
             id_mapper=mock_mapper,
@@ -245,7 +247,7 @@ class TestContextualPredictions:
         games = [_make_game(i) for i in range(12)]
         mock_builder.build_player_season.return_value = games
 
-        config = ContextualRateComputerConfig(min_games=10, context_window=10)
+        config = ContextualRateComputerConfig(batter_min_games=10, batter_context_window=10)
         computer = _build_computer(
             model_store=mock_store,
             id_mapper=mock_mapper,

@@ -155,8 +155,8 @@ class ContextualEmbeddingRateComputer:
             perspective=perspective,
             model=model,
             target_stats=target_stats,
-            min_games=self.config.min_games,
-            context_window=self.config.context_window,
+            min_games=self.config.min_games_for(perspective),
+            context_window=self.config.context_window_for(perspective),
         )
         if prediction is None:
             return None

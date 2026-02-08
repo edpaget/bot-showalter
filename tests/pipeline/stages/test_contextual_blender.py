@@ -155,14 +155,16 @@ class TestContextualBlenderInit:
     def test_init(self) -> None:
         blender = _build_blender()
         assert blender.config.contextual_weight == 0.3
-        assert blender.config.min_games == 10
-        assert blender.config.context_window == 10
+        assert blender.config.batter_min_games == 30
+        assert blender.config.pitcher_min_games == 10
+        assert blender.config.batter_context_window == 30
+        assert blender.config.pitcher_context_window == 10
 
     def test_custom_config(self) -> None:
-        config = ContextualBlenderConfig(contextual_weight=0.5, min_games=20)
+        config = ContextualBlenderConfig(contextual_weight=0.5, pitcher_min_games=20)
         blender = _build_blender(config=config)
         assert blender.config.contextual_weight == 0.5
-        assert blender.config.min_games == 20
+        assert blender.config.pitcher_min_games == 20
 
 
 class TestContextualBlenderAdjust:
