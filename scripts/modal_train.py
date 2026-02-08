@@ -53,6 +53,14 @@ image = (
     .apt_install("curl")
     .run_commands("curl -LsSf https://astral.sh/uv/install.sh | sh")
     .env({"PATH": "/root/.local/bin:$PATH"})
+    # Copy dependency files first so `uv sync` layer is cached across code changes
+    .add_local_file("pyproject.toml", f"{APP_DIR}/pyproject.toml", copy=True)
+    .add_local_file("uv.lock", f"{APP_DIR}/uv.lock", copy=True)
+    .run_commands(
+        f"cd {APP_DIR} && /root/.local/bin/uv sync --no-dev --frozen --no-install-project",
+        gpu="T4",
+    )
+    # Now copy the full source tree and install the project itself
     .add_local_dir(
         ".", APP_DIR, copy=True,
         ignore=[
