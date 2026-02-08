@@ -72,6 +72,8 @@ fantasy-baseball-manager chat
 
 ## Architecture
 
+For a comprehensive walkthrough of the codebase — module map, data flow diagrams, modeling approaches, and architecture improvement opportunities — see **[IMPLEMENTATION.md](./IMPLEMENTATION.md)**.
+
 ### Composable Projection Pipeline
 
 Projections flow through a pipeline of independent, swappable stages. Each stage transforms a list of `PlayerRates` (per-PA or per-out rates with metadata):
