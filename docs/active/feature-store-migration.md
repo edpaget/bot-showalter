@@ -90,25 +90,11 @@ Multi-year caching is already handled — `FeatureStore` caches each year indepe
 
 ---
 
-### Step 4: Wire FeatureStore into Training CLI
+### Step 4: Wire FeatureStore into Training CLI — Complete
 
 **File:** `src/fantasy_baseball_manager/ml/cli.py`
 
-Create a `FeatureStore` in the CLI training commands and pass it to both trainer and dataset builder. This is where the caching payoff is largest — training iterates over multiple years and the same data gets loaded repeatedly.
-
-```python
-store = FeatureStore(
-    statcast_source=statcast_source,
-    batted_ball_source=batted_ball_source,
-    skill_data_source=skill_data_source,
-)
-trainer = GBResidualTrainer(..., feature_store=store)
-```
-
-**Acceptance criteria:**
-- `ml train` and `ml train-mtl` create a shared `FeatureStore`
-- Training commands run successfully with store wired in
-- No change to model output (same predictions)
+All three ML CLI commands (`train`, `validate`, `train-mtl`) now construct a `FeatureStore` from the existing data sources and pass it to the trainer, so that statcast/batted-ball/skill lookups are cached across multi-year training iterations instead of re-fetched per year.
 
 ---
 
@@ -155,7 +141,7 @@ Once all callers use `FeatureStore`, the `else` branches in each stage become de
 | 1. Add `pitcher_skill` lookup | Small | Low | Skipped — no consumers |
 | 2. Adopt in `ml/training.py` | Medium | Low | Complete |
 | 3. Adopt in `ml/mtl/dataset.py` | Medium | Low | Complete |
-| 4. Wire into training CLI | Small | Low | Steps 2-3 |
+| 4. Wire into training CLI | Small | Low | Complete |
 | 5. Evaluate `SkillDeltaComputer` | Small | None (decision only) | None |
 | 6. Remove fallback paths | Large | Medium (breaks test patterns) | Steps 1-4 |
 

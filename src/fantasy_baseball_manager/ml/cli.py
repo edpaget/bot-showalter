@@ -115,6 +115,7 @@ def train_cmd(
         CachedBattedBallDataSource,
         PybaseballBattedBallDataSource,
     )
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.pipeline.presets import build_pipeline
     from fantasy_baseball_manager.pipeline.skill_data import (
         CachedSkillDataSource,
@@ -185,7 +186,12 @@ def train_cmd(
         cache,
     )
 
-    # Create trainer
+    # Create feature store and trainer
+    feature_store = FeatureStore(
+        statcast_source=statcast_source,
+        batted_ball_source=batted_ball_source,
+        skill_data_source=skill_source,
+    )
     trainer = ResidualModelTrainer(
         pipeline=proj_pipeline,
         batting_source=batting_source,
@@ -196,6 +202,7 @@ def train_cmd(
         batted_ball_source=batted_ball_source,
         skill_data_source=skill_source,
         id_mapper=id_mapper,
+        feature_store=feature_store,
     )
 
     # Train models
@@ -236,21 +243,29 @@ def train_cmd(
 
 
 @ml_app.command(name="list")
-def list_cmd() -> None:
+def list_cmd(
+    model_type: Annotated[
+        str | None,
+        typer.Option(
+            "--type",
+            "-t",
+            help="Filter by model type: gb_residual, mtl, mle, or contextual",
+        ),
+    ] = None,
+) -> None:
     """List all trained models."""
-    from fantasy_baseball_manager.ml.persistence import ModelStore
-
     registry = _get_registry()
-    store = ModelStore(model_dir=registry.gb_store.model_dir)
-    models = store.list_models()
+    models = registry.list_all(model_type=model_type)
 
     if not models:
         console.print("No trained models found.")
         return
 
     table = Table(title="Trained Models")
-    table.add_column("Name")
-    table.add_column("Type")
+    table.add_column("Name", no_wrap=True)
+    table.add_column("Model Type", no_wrap=True)
+    table.add_column("Player Type", no_wrap=True)
+    table.add_column("Version", justify="right")
     table.add_column("Training Years")
     table.add_column("Stats")
     table.add_column("Created")
@@ -260,7 +275,9 @@ def list_cmd() -> None:
         stats_str = ", ".join(meta.stats)
         table.add_row(
             meta.name,
+            meta.model_type,
             meta.player_type,
+            str(meta.version),
             years_str,
             stats_str,
             meta.created_at,
@@ -430,6 +447,7 @@ def validate_cmd(
         CachedBattedBallDataSource,
         PybaseballBattedBallDataSource,
     )
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.pipeline.presets import build_pipeline
     from fantasy_baseball_manager.pipeline.skill_data import (
         CachedSkillDataSource,
@@ -515,7 +533,12 @@ def validate_cmd(
         cache,
     )
 
-    # Create trainer
+    # Create feature store and trainer
+    feature_store = FeatureStore(
+        statcast_source=statcast_source,
+        batted_ball_source=batted_ball_source,
+        skill_data_source=skill_source,
+    )
     trainer = ResidualModelTrainer(
         pipeline=proj_pipeline,
         batting_source=batting_source,
@@ -526,6 +549,7 @@ def validate_cmd(
         batted_ball_source=batted_ball_source,
         skill_data_source=skill_source,
         id_mapper=id_mapper,
+        feature_store=feature_store,
     )
 
     # Run validation
@@ -605,6 +629,7 @@ def train_mtl_cmd(
         CachedBattedBallDataSource,
         PybaseballBattedBallDataSource,
     )
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.pipeline.skill_data import (
         CachedSkillDataSource,
         CompositeSkillDataSource,
@@ -658,7 +683,12 @@ def train_mtl_cmd(
         cache,
     )
 
-    # Create trainer
+    # Create feature store and trainer
+    feature_store = FeatureStore(
+        statcast_source=statcast_source,
+        batted_ball_source=batted_ball_source,
+        skill_data_source=skill_source,
+    )
     trainer = MTLTrainer(
         batting_source=batting_source,
         pitching_source=pitching_source,
@@ -666,6 +696,7 @@ def train_mtl_cmd(
         batted_ball_source=batted_ball_source,
         skill_data_source=skill_source,
         id_mapper=id_mapper,
+        feature_store=feature_store,
     )
 
     registry = _get_registry()
