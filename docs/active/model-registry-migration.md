@@ -39,24 +39,9 @@ Completed as part of Step 1 — `train_mtl_cmd` sources `MTLModelStore(model_dir
 
 ---
 
-### Step 3: Wire CLI `contextual pretrain` and `finetune` to the Registry
+### ~~Step 3: Wire CLI `contextual pretrain` and `finetune` to the Registry~~ (Complete)
 
-**File:** `src/fantasy_baseball_manager/contextual/cli.py` (lines ~519, ~800)
-
-Contextual stays as a specialized store but should be obtained from the registry for consistent directory resolution:
-
-```python
-# Before
-model_store = ContextualModelStore()
-
-# After
-registry = create_model_registry()
-model_store = registry.contextual_store
-```
-
-**Acceptance criteria:**
-- `contextual pretrain` and `contextual finetune` save through the registry
-- Tests in `tests/contextual/` continue to pass
+Both `pretrain_cmd` and `finetune_cmd` now obtain `ContextualModelStore` from `create_model_registry()` via a shared `_get_registry()` helper in `contextual/cli.py`, matching the pattern used in `ml/cli.py`.
 
 ---
 
@@ -175,7 +160,7 @@ Once all callers use the registry or base stores directly, the legacy wrapper cl
 |------|--------|------|------------|
 | ~~1. Wire `ml train`~~ | ~~Small~~ | ~~Low~~ | **Done** |
 | ~~2. Wire `ml train-mtl`~~ | ~~Small~~ | ~~Low~~ | **Done** |
-| 3. Wire contextual CLI | Small | Low | None |
+| ~~3. Wire contextual CLI~~ | ~~Small~~ | ~~Low~~ | **Done** |
 | 4. Add `--version` flag | Medium | Low | Steps 1-2 |
 | 5. Update `ml list` | Medium | Low | None |
 | 6. Add `ml compare` | Medium | None (new feature) | None |

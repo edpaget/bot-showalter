@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.registry.registry import ModelRegistry
 
 import typer
 from rich.console import Console
@@ -13,6 +16,13 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 contextual_app = typer.Typer(help="Contextual event embedding model commands.")
+
+
+def _get_registry() -> ModelRegistry:
+    """Create the model registry for CLI commands."""
+    from fantasy_baseball_manager.registry.factory import create_model_registry
+
+    return create_model_registry()
 
 
 def _build_pretrain_meta(
@@ -383,7 +393,6 @@ def pretrain_cmd(
     from fantasy_baseball_manager.contextual.model.config import ModelConfig
     from fantasy_baseball_manager.contextual.model.heads import MaskedGamestateHead
     from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
-    from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
     from fantasy_baseball_manager.contextual.training.config import PreTrainingConfig
     from fantasy_baseball_manager.contextual.training.dataset import MGMDataset
     from fantasy_baseball_manager.contextual.training.pretrain import MGMTrainer
@@ -516,7 +525,8 @@ def pretrain_cmd(
 
     head = MaskedGamestateHead(model_config)
     model = ContextualPerformanceModel(model_config, head)
-    model_store = ContextualModelStore()
+    registry = _get_registry()
+    model_store = registry.contextual_store
 
     trainer = MGMTrainer(model, model_config, config, model_store, device)
 
@@ -636,7 +646,6 @@ def finetune_cmd(
 
     from fantasy_baseball_manager.contextual.model.config import ModelConfig
     from fantasy_baseball_manager.contextual.model.heads import PerformancePredictionHead
-    from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
     from fantasy_baseball_manager.contextual.training.config import (
         BATTER_TARGET_STATS,
         DEFAULT_BATTER_CONTEXT_WINDOW,
@@ -658,7 +667,8 @@ def finetune_cmd(
     n_targets = len(target_stats)
 
     # Auto-detect max_seq_len from pretrained model
-    model_store = ContextualModelStore()
+    registry = _get_registry()
+    model_store = registry.contextual_store
     pretrain_state = torch.load(model_store._model_path(base_model), weights_only=True)
     pretrain_seq_len: int = pretrain_state["positional_encoding.pe"].shape[1]
     if max_seq_len is None:
