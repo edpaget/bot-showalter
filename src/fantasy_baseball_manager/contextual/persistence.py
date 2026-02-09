@@ -115,7 +115,7 @@ class ContextualModelStore:
             raise FileNotFoundError(f"Contextual model not found: {model_path}")
 
         model = ContextualPerformanceModel(model_config, MaskedGamestateHead(model_config))
-        state_dict = torch.load(model_path, weights_only=True)
+        state_dict = torch.load(model_path, weights_only=True, map_location="cpu")
         model.load_state_dict(state_dict)
         logger.info("Loaded contextual model from %s", model_path)
         return model
@@ -132,13 +132,13 @@ class ContextualModelStore:
         if not model_path.exists():
             raise FileNotFoundError(f"Contextual model not found: {model_path}")
 
-        state_dict = torch.load(model_path, weights_only=True)
+        state_dict = torch.load(model_path, weights_only=True, map_location="cpu")
 
         opt_path = self._optimizer_path(name)
         optimizer_state = None
         scheduler_state = None
         if opt_path.exists():
-            opt_data = torch.load(opt_path, weights_only=False)
+            opt_data = torch.load(opt_path, weights_only=False, map_location="cpu")
             optimizer_state = opt_data["optimizer"]
             scheduler_state = opt_data.get("scheduler")
 
@@ -206,7 +206,7 @@ class ContextualModelStore:
 
         head = PerformancePredictionHead(model_config, n_targets)
         model = ContextualPerformanceModel(model_config, head)
-        state_dict = torch.load(model_path, weights_only=True)
+        state_dict = torch.load(model_path, weights_only=True, map_location="cpu")
         model.load_state_dict(state_dict)
         logger.info("Loaded fine-tuned contextual model from %s", model_path)
         return model
