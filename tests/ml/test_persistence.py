@@ -153,6 +153,18 @@ class TestModelStore:
         result = store.delete("nonexistent", "batter")
         assert result is False
 
+    def test_save_with_version_threads_to_metadata(
+        self,
+        temp_model_dir: Path,
+        trained_batter_model_set: ResidualModelSet,
+    ) -> None:
+        store = ModelStore(model_dir=temp_model_dir)
+        store.save(trained_batter_model_set, "default_v3", version=3)
+
+        meta = store.get_metadata("default_v3", "batter")
+        assert meta is not None
+        assert meta.name == "default_v3"
+
     def test_predictions_preserved_after_load(
         self,
         temp_model_dir: Path,

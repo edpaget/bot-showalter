@@ -42,6 +42,8 @@ class MTLBaseModelStore(BaseModelStore):
         model: MultiTaskBatterModel | MultiTaskPitcherModel,
         name: str,
         player_type: str,
+        *,
+        version: int = 1,
     ) -> Any:
         """Save an MTL model, extracting metadata from the model."""
         return self.save_params(
@@ -52,4 +54,5 @@ class MTLBaseModelStore(BaseModelStore):
             stats=list(model.STATS),
             feature_names=model.feature_names,
             metrics={"validation_metrics": model.validation_metrics} if model.validation_metrics else {},
+            version=version,
         )

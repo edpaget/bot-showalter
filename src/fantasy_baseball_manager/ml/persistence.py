@@ -75,6 +75,8 @@ class ModelStore:
         model_set: ResidualModelSet,
         name: str,
         validation_report: ValidationReport | None = None,
+        *,
+        version: int = 1,
     ) -> Path:
         """Save a model set to disk.
 
@@ -82,6 +84,7 @@ class ModelStore:
             model_set: The trained model set to save
             name: Name for the model (e.g., "default", "2024")
             validation_report: Optional validation report to save with metadata
+            version: Version number for this model.
 
         Returns:
             Path to the saved model file
@@ -95,6 +98,7 @@ class ModelStore:
             stats=model_set.get_stats(),
             feature_names=model_set.feature_names,
             metrics={"validation": validation_dict} if validation_dict else {},
+            version=version,
         )
 
     def load(self, name: str, player_type: str) -> ResidualModelSet:

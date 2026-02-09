@@ -26,6 +26,31 @@ def _get_registry() -> ModelRegistry:
     return create_model_registry()
 
 
+def resolve_version(
+    registry: ModelRegistry,
+    base_name: str,
+    model_type: str,
+    version: int | None,
+) -> tuple[int, str]:
+    """Resolve the version number and versioned name for a training run.
+
+    When *version* is ``None``, auto-increments by computing the max of
+    ``next_version`` across batter and pitcher so that both player types
+    share a consistent version number.
+
+    Returns:
+        ``(version, versioned_name)`` - e.g. ``(1, "default")`` or
+        ``(2, "default_v2")``.
+    """
+    if version is None:
+        batter_next = registry.next_version(base_name, model_type, "batter")
+        pitcher_next = registry.next_version(base_name, model_type, "pitcher")
+        version = max(batter_next, pitcher_next)
+    if version == 1:
+        return version, base_name
+    return version, f"{base_name}_v{version}"
+
+
 @ml_app.command(name="train")
 def train_cmd(
     years: Annotated[
@@ -59,6 +84,13 @@ def train_cmd(
             help="Run time-series holdout validation and save results with model",
         ),
     ] = False,
+    version: Annotated[
+        int | None,
+        typer.Option(
+            "--version",
+            help="Model version number. Auto-increments if omitted.",
+        ),
+    ] = None,
 ) -> None:
     """Train gradient boosting residual models on historical data.
 
@@ -168,6 +200,7 @@ def train_cmd(
 
     # Train models
     registry = _get_registry()
+    resolved_version, versioned_name = resolve_version(registry, name, "gb_residual", version)
     model_store = ModelStore(model_dir=registry.gb_store.model_dir)
 
     # Run validation if requested
@@ -191,15 +224,15 @@ def train_cmd(
 
     typer.echo("\nTraining batter models...")
     batter_models = trainer.train_batter_models(target_years)
-    model_store.save(batter_models, name, batter_validation)
+    model_store.save(batter_models, versioned_name, batter_validation, version=resolved_version)
     typer.echo(f"  Trained stats: {batter_models.get_stats()}")
 
     typer.echo("Training pitcher models...")
     pitcher_models = trainer.train_pitcher_models(target_years)
-    model_store.save(pitcher_models, name, pitcher_validation)
+    model_store.save(pitcher_models, versioned_name, pitcher_validation, version=resolved_version)
     typer.echo(f"  Trained stats: {pitcher_models.get_stats()}")
 
-    typer.echo(f"\nModels saved as '{name}'")
+    typer.echo(f"\nModels saved as '{versioned_name}'")
 
 
 @ml_app.command(name="list")
@@ -532,6 +565,13 @@ def train_mtl_cmd(
             help="Print validation metrics after training",
         ),
     ] = False,
+    version: Annotated[
+        int | None,
+        typer.Option(
+            "--version",
+            help="Model version number. Auto-increments if omitted.",
+        ),
+    ] = None,
 ) -> None:
     """Train multi-task learning neural network models on historical data.
 
@@ -629,6 +669,7 @@ def train_mtl_cmd(
     )
 
     registry = _get_registry()
+    resolved_version, versioned_name = resolve_version(registry, name, "mtl", version)
     model_store = MTLModelStore(model_dir=registry.mtl_store.model_dir)
 
     # Train batter model
@@ -636,7 +677,7 @@ def train_mtl_cmd(
     batter_model, batter_metrics = trainer.train_batter_model(target_years)
 
     if batter_model.is_fitted:
-        model_store.save_batter_model(batter_model, name)
+        model_store.save_batter_model(batter_model, versioned_name, version=resolved_version)
         typer.echo(f"  Trained batter model with {len(batter_model.feature_names)} features")
 
         if validate and batter_metrics:
@@ -649,7 +690,7 @@ def train_mtl_cmd(
     pitcher_model, pitcher_metrics = trainer.train_pitcher_model(target_years)
 
     if pitcher_model.is_fitted:
-        model_store.save_pitcher_model(pitcher_model, name)
+        model_store.save_pitcher_model(pitcher_model, versioned_name, version=resolved_version)
         typer.echo(f"  Trained pitcher model with {len(pitcher_model.feature_names)} features")
 
         if validate and pitcher_metrics:
@@ -657,7 +698,7 @@ def train_mtl_cmd(
     else:
         typer.echo("  [yellow]Warning:[/yellow] Insufficient data for pitcher model")
 
-    typer.echo(f"\nMTL models saved as '{name}'")
+    typer.echo(f"\nMTL models saved as '{versioned_name}'")
 
 
 def _print_mtl_validation_metrics(player_type: str, metrics: dict[str, float]) -> None:

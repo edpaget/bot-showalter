@@ -45,30 +45,9 @@ Both `pretrain_cmd` and `finetune_cmd` now obtain `ContextualModelStore` from `c
 
 ---
 
-### Step 4: Add `--version` Flag to Training Commands
+### ~~Step 4: Add `--version` Flag to Training Commands~~ (Complete)
 
-Add an optional `--version` flag to `ml train` and `ml train-mtl` that auto-increments using `registry.next_version()`:
-
-```python
-@app.command()
-def train(
-    name: str = "default",
-    version: int | None = None,  # New flag
-    ...
-):
-    registry = create_model_registry()
-    if version is None:
-        version = registry.next_version(name, "gb_residual", player_type)
-    versioned_name = f"{name}_v{version}" if version > 1 else name
-    ...
-```
-
-This enables saving multiple versions of a model (e.g., `default`, `default_v2`, `default_v3`) without overwriting previous ones.
-
-**Acceptance criteria:**
-- `ml train --name default` saves as `default` (version 1, backward compat)
-- `ml train --name default --version 2` saves as `default_v2`
-- Running `ml train --name default` when `default` already exists auto-increments to `default_v2`
+Both `ml train` and `ml train-mtl` now accept an optional `--version` flag. When omitted, `resolve_version()` auto-increments by computing `max(next_version(batter), next_version(pitcher))` so both player types share a consistent version number. Version 1 uses the bare name (`"default"`), version 2+ uses `"{name}_v{version}"` (`"default_v2"`).
 
 ---
 
@@ -161,7 +140,7 @@ Once all callers use the registry or base stores directly, the legacy wrapper cl
 | ~~1. Wire `ml train`~~ | ~~Small~~ | ~~Low~~ | **Done** |
 | ~~2. Wire `ml train-mtl`~~ | ~~Small~~ | ~~Low~~ | **Done** |
 | ~~3. Wire contextual CLI~~ | ~~Small~~ | ~~Low~~ | **Done** |
-| 4. Add `--version` flag | Medium | Low | Steps 1-2 |
+| ~~4. Add `--version` flag~~ | ~~Medium~~ | ~~Low~~ | **Done** |
 | 5. Update `ml list` | Medium | Low | None |
 | 6. Add `ml compare` | Medium | None (new feature) | None |
 | 7. Direct store injection | Medium | Medium (touches pipeline stages) | Steps 1-3 |

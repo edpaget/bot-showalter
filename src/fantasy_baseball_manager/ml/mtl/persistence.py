@@ -76,33 +76,39 @@ class MTLModelStore:
         self,
         model: MultiTaskBatterModel,
         name: str,
+        *,
+        version: int = 1,
     ) -> Path:
         """Save a batter model to disk.
 
         Args:
             model: The trained batter model to save.
             name: Name for the model (e.g., "default", "2024").
+            version: Version number for this model.
 
         Returns:
             Path to the saved model file.
         """
-        return self._store.save_model(model, name, "batter")
+        return self._store.save_model(model, name, "batter", version=version)
 
     def save_pitcher_model(
         self,
         model: MultiTaskPitcherModel,
         name: str,
+        *,
+        version: int = 1,
     ) -> Path:
         """Save a pitcher model to disk.
 
         Args:
             model: The trained pitcher model to save.
             name: Name for the model (e.g., "default", "2024").
+            version: Version number for this model.
 
         Returns:
             Path to the saved model file.
         """
-        return self._store.save_model(model, name, "pitcher")
+        return self._store.save_model(model, name, "pitcher", version=version)
 
     def load_batter_model(self, name: str) -> MultiTaskBatterModel:
         """Load a batter model from disk.
