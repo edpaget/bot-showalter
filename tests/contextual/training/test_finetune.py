@@ -181,7 +181,7 @@ class TestFineTuneTrainer:
         # Should stop before all 100 epochs due to early stopping
         assert "val_loss" in result
         # Verify the model actually trained (non-zero best epoch)
-        assert store.exists("finetune_best")
+        assert store.exists("finetune_pitcher_best")
 
     def test_checkpointing(self, small_config: ModelConfig, tmp_path: Path) -> None:
         target_stats = BATTER_TARGET_STATS
@@ -199,11 +199,11 @@ class TestFineTuneTrainer:
 
         trainer.train(train_ds, val_ds)
 
-        assert store.exists("finetune_best")
-        assert store.exists("finetune_latest")
+        assert store.exists("finetune_pitcher_best")
+        assert store.exists("finetune_pitcher_latest")
 
         # Verify fine-tune metadata is present
-        meta = store.get_metadata("finetune_best")
+        meta = store.get_metadata("finetune_pitcher_best")
         assert meta is not None
         assert meta.target_stats == target_stats
 
@@ -222,7 +222,7 @@ class TestFineTuneTrainer:
         train_ds, val_ds = _make_datasets(small_config, ft_config, target_stats)
 
         trainer.train(train_ds, val_ds)
-        assert store.exists("finetune_latest")
+        assert store.exists("finetune_pitcher_latest")
 
         # Resume for more epochs
         resume_config = FineTuneConfig(
@@ -233,7 +233,7 @@ class TestFineTuneTrainer:
         )
         model2 = _make_finetune_model(small_config, len(target_stats))
         trainer2 = FineTuneTrainer(model2, small_config, resume_config, store, target_stats)
-        result = trainer2.train(train_ds, val_ds, resume_from="finetune_latest")
+        result = trainer2.train(train_ds, val_ds, resume_from="finetune_pitcher_latest")
         assert "val_loss" in result
 
     def test_freeze_backbone(self, small_config: ModelConfig, tmp_path: Path) -> None:

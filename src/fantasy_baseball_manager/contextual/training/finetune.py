@@ -167,7 +167,7 @@ class FineTuneTrainer:
                 patience_counter = 0
                 best_state_dict = {k: v.clone() for k, v in self._model.state_dict().items()}
                 self._save_checkpoint(
-                    "finetune_best", epoch, train_metrics, val_metrics,
+                    f"finetune_{self._config.perspective}_best", epoch, train_metrics, val_metrics,
                     optimizer, global_step, best_val_loss,
                 )
             else:
@@ -176,7 +176,7 @@ class FineTuneTrainer:
             # Periodic checkpoint
             if (epoch + 1) % config.checkpoint_interval == 0:
                 self._save_checkpoint(
-                    f"finetune_epoch_{epoch + 1}", epoch, train_metrics, val_metrics,
+                    f"finetune_{self._config.perspective}_epoch_{epoch + 1}", epoch, train_metrics, val_metrics,
                     optimizer, global_step, best_val_loss,
                 )
 
@@ -188,7 +188,7 @@ class FineTuneTrainer:
         # Save latest
         val_metrics = self._validate(val_loader)
         self._save_checkpoint(
-            "finetune_latest", epoch, train_metrics, val_metrics,
+            f"finetune_{self._config.perspective}_latest", epoch, train_metrics, val_metrics,
             optimizer, global_step, best_val_loss,
         )
 
