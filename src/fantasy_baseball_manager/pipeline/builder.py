@@ -101,6 +101,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.stages.playing_time_config import (
         PlayingTimeConfig,
     )
+    from fantasy_baseball_manager.registry.registry import ModelRegistry
 
 
 class PipelineBuilder:
@@ -118,10 +119,12 @@ class PipelineBuilder:
         config: RegressionConfig | None = None,
         cache_store: CacheStore | None = None,
         id_mapper: SfbbMapper | None = None,
+        model_registry: ModelRegistry | None = None,
     ) -> None:
         self._name = name
         self._config = config or RegressionConfig()
         self._cache_store = cache_store
+        self._model_registry: ModelRegistry | None = model_registry
         self._rate_computer_type: str = "stat_specific"
         self._park_factors: bool = False
         self._pitcher_normalization: bool = False
@@ -510,14 +513,18 @@ class PipelineBuilder:
             full_source = self._resolve_full_statcast_source()
             bb_source = self._resolve_pitcher_babip_source()
             skill_source = self._resolve_skill_data_source()
-            adjusters.append(
-                GBResidualAdjuster(
-                    statcast_source=full_source,
-                    batted_ball_source=bb_source,
-                    skill_data_source=skill_source,
-                    config=self._gb_residual_config or GBResidualConfig(),
-                )
-            )
+            gb_kwargs: dict[str, Any] = {
+                "statcast_source": full_source,
+                "batted_ball_source": bb_source,
+                "skill_data_source": skill_source,
+                "config": self._gb_residual_config or GBResidualConfig(),
+            }
+            registry = self._resolve_model_registry()
+            if registry is not None:
+                from fantasy_baseball_manager.ml.persistence import ModelStore
+
+                gb_kwargs["model_store"] = ModelStore(model_dir=registry.gb_store.model_dir)
+            adjusters.append(GBResidualAdjuster(**gb_kwargs))
 
         if self._skill_change:
             skill_source = self._resolve_skill_data_source()
@@ -535,14 +542,18 @@ class PipelineBuilder:
             full_source = self._resolve_full_statcast_source()
             bb_source = self._resolve_pitcher_babip_source()
             skill_source = self._resolve_skill_data_source()
-            adjusters.append(
-                MTLBlender(
-                    statcast_source=full_source,
-                    batted_ball_source=bb_source,
-                    skill_data_source=skill_source,
-                    config=self._mtl_blender_config or MTLBlenderConfig(),
-                )
-            )
+            mtl_kwargs: dict[str, Any] = {
+                "statcast_source": full_source,
+                "batted_ball_source": bb_source,
+                "skill_data_source": skill_source,
+                "config": self._mtl_blender_config or MTLBlenderConfig(),
+            }
+            registry = self._resolve_model_registry()
+            if registry is not None:
+                from fantasy_baseball_manager.ml.mtl.persistence import MTLModelStore
+
+                mtl_kwargs["model_store"] = MTLModelStore(model_dir=registry.mtl_store.model_dir)
+            adjusters.append(MTLBlender(**mtl_kwargs))
 
         if self._contextual_blender:
             from fantasy_baseball_manager.contextual.training.config import (
@@ -649,6 +660,10 @@ class PipelineBuilder:
             ttl_seconds=30 * 86400,
             serializer=MiLBBatterStatsSerializer(),
         )
+
+    def _resolve_model_registry(self) -> ModelRegistry | None:
+        """Return the injected model registry, or None if not set."""
+        return self._model_registry
 
     def _get_cache_store(self) -> CacheStore:
         """Get the cache store, creating one if not injected."""

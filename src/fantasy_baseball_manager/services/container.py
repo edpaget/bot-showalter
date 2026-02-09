@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
+    from fantasy_baseball_manager.registry.registry import ModelRegistry
     from fantasy_baseball_manager.ros.protocol import ProjectionBlender
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class ServiceContainer:
         blender: ProjectionBlender | None = None,
         yahoo_league: object | None = None,
         skill_data_source: SkillDataSource | None = None,
+        model_registry: ModelRegistry | None = None,
     ) -> None:
         self._config = config or ServiceConfig()
         self._batting_source = batting_source
@@ -70,6 +72,7 @@ class ServiceContainer:
         self._blender = blender
         self._yahoo_league = yahoo_league
         self._skill_data_source = skill_data_source
+        self._model_registry = model_registry
 
     @property
     def config(self) -> ServiceConfig:
@@ -261,6 +264,15 @@ class ServiceContainer:
         from fantasy_baseball_manager.ros.blender import BayesianBlender
 
         return BayesianBlender()
+
+    @cached_property
+    def model_registry(self) -> ModelRegistry:
+        """Unified model registry for all ML models."""
+        if self._model_registry is not None:
+            return self._model_registry
+        from fantasy_baseball_manager.registry.factory import create_model_registry
+
+        return create_model_registry()
 
     @cached_property
     def skill_data_source(self) -> SkillDataSource:

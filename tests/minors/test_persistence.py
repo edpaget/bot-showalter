@@ -79,7 +79,7 @@ class TestMLEModelStore:
         """Should raise FileNotFoundError for nonexistent model."""
         store = MLEModelStore(model_dir=temp_model_dir)
 
-        with pytest.raises(FileNotFoundError, match="MLE model not found"):
+        with pytest.raises(FileNotFoundError, match="Model not found"):
             store.load("nonexistent")
 
     def test_exists(

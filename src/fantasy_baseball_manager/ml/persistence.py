@@ -1,12 +1,19 @@
-"""Model persistence using joblib for trained ML models."""
+"""Model persistence using joblib for trained ML models.
+
+Delegates to the unified BaseModelStore from the registry package.
+Preserves the original public API for backward compatibility.
+"""
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from fantasy_baseball_manager.registry.base_store import BaseModelStore
+from fantasy_baseball_manager.registry.base_store import ModelMetadata as _RegistryMetadata
+from fantasy_baseball_manager.registry.serializers import JoblibSerializer
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.ml.residual_model import ResidualModelSet
@@ -30,6 +37,19 @@ class ModelMetadata:
     validation: dict | None = None
 
 
+def _to_legacy_metadata(registry_meta: _RegistryMetadata) -> ModelMetadata:
+    """Convert registry metadata to the legacy format."""
+    return ModelMetadata(
+        name=registry_meta.name,
+        player_type=registry_meta.player_type,
+        training_years=registry_meta.training_years,
+        stats=registry_meta.stats,
+        feature_names=registry_meta.feature_names,
+        created_at=registry_meta.created_at,
+        validation=registry_meta.metrics.get("validation"),
+    )
+
+
 @dataclass
 class ModelStore:
     """Stores and retrieves trained ML models using joblib.
@@ -41,9 +61,14 @@ class ModelStore:
     """
 
     model_dir: Path = DEFAULT_MODEL_DIR
+    _store: BaseModelStore = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self.model_dir.mkdir(parents=True, exist_ok=True)
+        self._store = BaseModelStore(
+            model_dir=self.model_dir,
+            serializer=JoblibSerializer(),
+            model_type_name="gb_residual",
+        )
 
     def save(
         self,
@@ -61,47 +86,16 @@ class ModelStore:
         Returns:
             Path to the saved model file
         """
-        import datetime
-
-        import joblib
-
-        player_type = model_set.player_type
-        model_path = self._model_path(name, player_type)
-        meta_path = self._meta_path(name, player_type)
-
-        # Save the model
-        params = model_set.get_params()
-        joblib.dump(params, model_path)
-        logger.info("Saved %s model to %s", player_type, model_path)
-
-        # Save metadata
         validation_dict = validation_report.to_dict() if validation_report else None
-        metadata = ModelMetadata(
-            name=name,
-            player_type=player_type,
+        return self._store.save_params(
+            model_set.get_params(),
+            name,
+            model_set.player_type,
             training_years=model_set.training_years,
             stats=model_set.get_stats(),
             feature_names=model_set.feature_names,
-            created_at=datetime.datetime.now(datetime.UTC).isoformat(),
-            validation=validation_dict,
+            metrics={"validation": validation_dict} if validation_dict else {},
         )
-        with meta_path.open("w") as f:
-            json.dump(
-                {
-                    "name": metadata.name,
-                    "player_type": metadata.player_type,
-                    "training_years": list(metadata.training_years),
-                    "stats": metadata.stats,
-                    "feature_names": metadata.feature_names,
-                    "created_at": metadata.created_at,
-                    "validation": metadata.validation,
-                },
-                f,
-                indent=2,
-            )
-        logger.debug("Saved metadata to %s", meta_path)
-
-        return model_path
 
     def load(self, name: str, player_type: str) -> ResidualModelSet:
         """Load a model set from disk.
@@ -116,18 +110,10 @@ class ModelStore:
         Raises:
             FileNotFoundError: If the model does not exist
         """
-        import joblib
-
         from fantasy_baseball_manager.ml.residual_model import ResidualModelSet
 
-        model_path = self._model_path(name, player_type)
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model not found: {model_path}")
-
-        params = joblib.load(model_path)
-        model_set = ResidualModelSet.from_params(params)
-        logger.info("Loaded %s model from %s", player_type, model_path)
-        return model_set
+        params = self._store.load_params(name, player_type)
+        return ResidualModelSet.from_params(params)
 
     def exists(self, name: str, player_type: str) -> bool:
         """Check if a model exists.
@@ -139,7 +125,7 @@ class ModelStore:
         Returns:
             True if the model file exists
         """
-        return self._model_path(name, player_type).exists()
+        return self._store.exists(name, player_type)
 
     def get_metadata(self, name: str, player_type: str) -> ModelMetadata | None:
         """Load metadata for a model without loading the full model.
@@ -151,21 +137,10 @@ class ModelStore:
         Returns:
             ModelMetadata if found, None otherwise
         """
-        meta_path = self._meta_path(name, player_type)
-        if not meta_path.exists():
+        registry_meta = self._store.get_metadata(name, player_type)
+        if registry_meta is None:
             return None
-
-        with meta_path.open() as f:
-            data = json.load(f)
-            return ModelMetadata(
-                name=data["name"],
-                player_type=data["player_type"],
-                training_years=tuple(data["training_years"]),
-                stats=data["stats"],
-                feature_names=data["feature_names"],
-                created_at=data["created_at"],
-                validation=data.get("validation"),
-            )
+        return _to_legacy_metadata(registry_meta)
 
     def list_models(self) -> list[ModelMetadata]:
         """List all available models.
@@ -173,22 +148,7 @@ class ModelStore:
         Returns:
             List of ModelMetadata for all saved models
         """
-        models: list[ModelMetadata] = []
-        for meta_path in self.model_dir.glob("*_meta.json"):
-            with meta_path.open() as f:
-                data = json.load(f)
-                models.append(
-                    ModelMetadata(
-                        name=data["name"],
-                        player_type=data["player_type"],
-                        training_years=tuple(data["training_years"]),
-                        stats=data["stats"],
-                        feature_names=data["feature_names"],
-                        created_at=data["created_at"],
-                        validation=data.get("validation"),
-                    )
-                )
-        return models
+        return [_to_legacy_metadata(m) for m in self._store.list_models()]
 
     def delete(self, name: str, player_type: str) -> bool:
         """Delete a model.
@@ -200,22 +160,4 @@ class ModelStore:
         Returns:
             True if model was deleted, False if it didn't exist
         """
-        model_path = self._model_path(name, player_type)
-        meta_path = self._meta_path(name, player_type)
-
-        deleted = False
-        if model_path.exists():
-            model_path.unlink()
-            deleted = True
-        if meta_path.exists():
-            meta_path.unlink()
-
-        if deleted:
-            logger.info("Deleted %s model: %s", player_type, name)
-        return deleted
-
-    def _model_path(self, name: str, player_type: str) -> Path:
-        return self.model_dir / f"{name}_{player_type}.joblib"
-
-    def _meta_path(self, name: str, player_type: str) -> Path:
-        return self.model_dir / f"{name}_{player_type}_meta.json"
+        return self._store.delete(name, player_type)
