@@ -11,6 +11,7 @@ if TYPE_CHECKING:
         PitcherBattedBallDataSource,
         PitcherBattedBallStats,
     )
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +38,16 @@ class PitcherBabipSkillAdjuster:
         self,
         source: PitcherBattedBallDataSource,
         config: PitcherBabipSkillConfig | None = None,
+        feature_store: FeatureStore | None = None,
     ) -> None:
         self._source = source
         self._config = config or PitcherBabipSkillConfig()
+        self._feature_store = feature_store
         self._bb_lookup: dict[str, PitcherBattedBallStats] | None = None
 
     def _ensure_data(self, year: int) -> dict[str, PitcherBattedBallStats]:
+        if self._feature_store is not None:
+            return self._feature_store.pitcher_batted_ball(year - 1)
         if self._bb_lookup is None:
             stats = self._source.pitcher_batted_ball_stats(year - 1)
             self._bb_lookup = {s.player_id: s for s in stats}

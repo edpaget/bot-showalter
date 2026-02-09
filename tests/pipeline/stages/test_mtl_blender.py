@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from fantasy_baseball_manager.ml.mtl.config import MTLBlenderConfig
+from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.stages.mtl_blender import MTLBlender
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 
@@ -134,3 +135,38 @@ class TestMTLBlenderMath:
 
         result = (1 - weight) * marcel_rate + weight * mtl_rate
         assert result == mtl_rate
+
+
+class TestMTLBlenderFeatureStore:
+    def test_uses_feature_store(self) -> None:
+        """When feature_store is provided, data is loaded from store, not direct sources."""
+        mock_store = MagicMock()
+        mock_store.exists.return_value = False
+
+        store = FeatureStore(
+            statcast_source=MagicMock(),
+            batted_ball_source=MagicMock(),
+            skill_data_source=MagicMock(),
+        )
+
+        blender = MTLBlender(
+            statcast_source=MagicMock(),
+            batted_ball_source=MagicMock(),
+            skill_data_source=MagicMock(),
+            model_store=mock_store,
+            feature_store=store,
+        )
+
+        player = PlayerRates(
+            player_id="123",
+            name="Test Player",
+            year=2024,
+            age=28,
+            rates={"hr": 0.035, "so": 0.22, "bb": 0.09},
+            metadata={"pa_per_year": [500.0]},
+        )
+
+        # No model loaded → passes through unchanged, but should not crash
+        result = blender.adjust([player])
+        assert len(result) == 1
+        assert result[0].rates["hr"] == 0.035

@@ -8,6 +8,7 @@ import pytest
 from fantasy_baseball_manager.ml.persistence import ModelStore
 from fantasy_baseball_manager.ml.residual_model import ResidualModelSet, StatResidualModel
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
+from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, PitcherSkillStats
 from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualAdjuster,
@@ -377,3 +378,45 @@ class TestGBResidualConfig:
         assert config.pitcher_min_pa == 150
         assert config.min_rate_denominator_pa == 400
         assert config.min_rate_denominator_ip == 120
+
+
+class TestGBResidualFeatureStore:
+    def test_uses_feature_store(self, trained_batter_models: ModelStore) -> None:
+        """When feature_store is provided, data is loaded from store, not direct sources."""
+        statcast = StatcastBatterStats(
+            player_id="mlbam123",
+            name="Test",
+            year=2023,
+            pa=450,
+            barrel_rate=0.08,
+            hard_hit_rate=0.40,
+            xwoba=0.350,
+            xba=0.280,
+            xslg=0.450,
+        )
+        # Direct sources are empty — would produce no data
+        empty_statcast = FakeStatcastSource({}, {})
+        empty_bb = FakeBattedBallSource({})
+        empty_skill = FakeSkillDataSource()
+
+        # FeatureStore has the data
+        store = FeatureStore(
+            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=FakeSkillDataSource(),
+        )
+
+        adjuster = GBResidualAdjuster(
+            statcast_source=empty_statcast,
+            batted_ball_source=empty_bb,
+            skill_data_source=empty_skill,
+            model_store=trained_batter_models,
+            feature_store=store,
+        )
+
+        batter = _make_batter()
+        result = adjuster.adjust([batter])
+        assert len(result) == 1
+        # With FeatureStore providing statcast data, adjustment should occur
+        assert result[0].rates != batter.rates
+        assert "gb_residual_adjustments" in result[0].metadata

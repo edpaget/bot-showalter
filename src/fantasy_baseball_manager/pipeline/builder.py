@@ -12,6 +12,7 @@ from fantasy_baseball_manager.pipeline.batted_ball_data import (
     PybaseballBattedBallDataSource,
 )
 from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
+from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.park_factors import (
     CachedParkFactorProvider,
     FanGraphsParkFactorProvider,
@@ -156,6 +157,7 @@ class PipelineBuilder:
         self._contextual_config: ContextualRateComputerConfig | None = None
         self._contextual_blender: bool = False
         self._contextual_blender_config: ContextualBlenderConfig | None = None
+        self._feature_store: FeatureStore | None = None
 
     def with_cache_store(self, cache_store: CacheStore) -> PipelineBuilder:
         """Set the cache store to use for all cached data sources.
@@ -403,6 +405,7 @@ class PipelineBuilder:
                 skill_data_source=self._resolve_skill_data_source(),
                 id_mapper=self._resolve_id_mapper(),
                 config=self._mtl_rate_computer_config or MTLRateComputerConfig(),
+                feature_store=self._resolve_feature_store(),
             )
 
         # MLE rate computer (ML-based Minor League Equivalencies)
@@ -470,6 +473,13 @@ class PipelineBuilder:
         if needs_enricher:
             adjusters.append(PlayerIdentityEnricher(mapper=self._resolve_id_mapper()))
 
+        # Resolve shared feature store if any consuming stage is enabled
+        needs_feature_store = (
+            self._statcast or self._batter_babip or self._pitcher_statcast
+            or self._pitcher_babip_skill or self._gb_residual or self._mtl_blender
+        )
+        feature_store = self._resolve_feature_store() if needs_feature_store else None
+
         if self._park_factors:
             adjusters.append(
                 ParkFactorAdjuster(
@@ -489,6 +499,7 @@ class PipelineBuilder:
                 PitcherStatcastAdjuster(
                     statcast_source=source,
                     config=self._config.pitcher_statcast,
+                    feature_store=feature_store,
                 )
             )
 
@@ -498,16 +509,21 @@ class PipelineBuilder:
                 PitcherBabipSkillAdjuster(
                     source=bb_source,
                     config=self._config.pitcher_babip_skill,
+                    feature_store=feature_store,
                 )
             )
 
         if self._statcast:
             source = self._resolve_statcast_source()
-            adjusters.append(StatcastRateAdjuster(statcast_source=source))
+            adjusters.append(
+                StatcastRateAdjuster(statcast_source=source, feature_store=feature_store)
+            )
 
         if self._batter_babip:
             source = self._resolve_statcast_source()
-            adjusters.append(BatterBabipAdjuster(statcast_source=source))
+            adjusters.append(
+                BatterBabipAdjuster(statcast_source=source, feature_store=feature_store)
+            )
 
         if self._gb_residual:
             full_source = self._resolve_full_statcast_source()
@@ -518,6 +534,7 @@ class PipelineBuilder:
                 "batted_ball_source": bb_source,
                 "skill_data_source": skill_source,
                 "config": self._gb_residual_config or GBResidualConfig(),
+                "feature_store": feature_store,
             }
             registry = self._resolve_model_registry()
             if registry is not None:
@@ -547,6 +564,7 @@ class PipelineBuilder:
                 "batted_ball_source": bb_source,
                 "skill_data_source": skill_source,
                 "config": self._mtl_blender_config or MTLBlenderConfig(),
+                "feature_store": feature_store,
             }
             registry = self._resolve_model_registry()
             if registry is not None:
@@ -660,6 +678,16 @@ class PipelineBuilder:
             ttl_seconds=30 * 86400,
             serializer=MiLBBatterStatsSerializer(),
         )
+
+    def _resolve_feature_store(self) -> FeatureStore:
+        """Resolve or create a shared FeatureStore for all consuming stages."""
+        if self._feature_store is None:
+            self._feature_store = FeatureStore(
+                statcast_source=self._resolve_full_statcast_source(),
+                batted_ball_source=self._resolve_pitcher_babip_source(),
+                skill_data_source=self._resolve_skill_data_source(),
+            )
+        return self._feature_store
 
     def _resolve_model_registry(self) -> ModelRegistry | None:
         """Return the injected model registry, or None if not set."""

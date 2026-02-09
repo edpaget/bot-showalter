@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         MultiTaskPitcherModel,
     )
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
@@ -46,6 +47,7 @@ class MTLRateComputer:
     id_mapper: SfbbMapper
     config: MTLRateComputerConfig = field(default_factory=MTLRateComputerConfig)
     model_store: MTLModelStore = field(default_factory=MTLModelStore)
+    feature_store: FeatureStore | None = field(default=None)
 
     # Fallback to Marcel for players without Statcast data
     _marcel_computer: MarcelRateComputer = field(default_factory=MarcelRateComputer, repr=False)
@@ -105,11 +107,15 @@ class MTLRateComputer:
 
         # Get Statcast and skill data from prior year
         statcast_year = year - 1
-        statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
-        statcast_lookup = {s.player_id: s for s in statcast_data}
+        if self.feature_store is not None:
+            statcast_lookup = self.feature_store.batter_statcast(statcast_year)
+            skill_lookup = self.feature_store.batter_skill(statcast_year)
+        else:
+            statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
+            statcast_lookup = {s.player_id: s for s in statcast_data}
 
-        skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
-        skill_lookup = {s.player_id: s for s in skill_data}
+            skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
+            skill_lookup = {s.player_id: s for s in skill_data}
 
         extractor = BatterFeatureExtractor(min_pa=self.config.min_pa)
 
@@ -194,11 +200,15 @@ class MTLRateComputer:
 
         # Get Statcast and batted ball data from prior year
         statcast_year = year - 1
-        statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
-        statcast_lookup = {s.player_id: s for s in statcast_data}
+        if self.feature_store is not None:
+            statcast_lookup = self.feature_store.pitcher_statcast(statcast_year)
+            bb_lookup = self.feature_store.pitcher_batted_ball(statcast_year)
+        else:
+            statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
+            statcast_lookup = {s.player_id: s for s in statcast_data}
 
-        bb_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
-        bb_lookup = {b.player_id: b for b in bb_data}
+            bb_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
+            bb_lookup = {b.player_id: b for b in bb_data}
 
         extractor = PitcherFeatureExtractor(min_pa=self.config.min_pa)
 

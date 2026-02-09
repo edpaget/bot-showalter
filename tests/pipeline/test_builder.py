@@ -10,6 +10,9 @@ from fantasy_baseball_manager.pipeline.stages.regression_config import Regressio
 from fantasy_baseball_manager.pipeline.stages.stat_specific_rate_computer import (
     StatSpecificRegressionRateComputer,
 )
+from fantasy_baseball_manager.pipeline.stages.statcast_adjuster import (
+    StatcastRateAdjuster,
+)
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats
 from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
@@ -289,3 +292,51 @@ class TestPipelineBuilderWithContextualBlender:
         bb_idx = adjuster_types.index("BatterBabipAdjuster")
         rb_idx = adjuster_types.index("RebaselineAdjuster")
         assert bb_idx < cb_idx < rb_idx
+
+
+class FakeBattedBallSource:
+    def pitcher_batted_ball_stats(self, year: int) -> list:
+        return []
+
+
+class FakeSkillDataSource:
+    def batter_skill_stats(self, year: int) -> list:
+        return []
+
+    def pitcher_skill_stats(self, year: int) -> list:
+        return []
+
+
+class TestPipelineBuilderFeatureStore:
+    def test_feature_store_shared_across_stages(self) -> None:
+        """When multiple consuming stages are enabled, they share one FeatureStore."""
+        fake_source = FakeStatcastSource()
+        pipeline = (
+            PipelineBuilder(id_mapper=_fake_mapper())
+            .with_statcast(statcast_source=fake_source)
+            .with_batter_babip(statcast_source=fake_source)
+            .build()
+        )
+        # Find the two consuming adjusters
+        statcast_adjusters = [
+            a for a in pipeline.adjusters if isinstance(a, StatcastRateAdjuster)
+        ]
+        from fantasy_baseball_manager.pipeline.stages.batter_babip_adjuster import (
+            BatterBabipAdjuster,
+        )
+
+        babip_adjusters = [
+            a for a in pipeline.adjusters if isinstance(a, BatterBabipAdjuster)
+        ]
+        assert len(statcast_adjusters) == 1
+        assert len(babip_adjusters) == 1
+        # Both should share the same FeatureStore instance
+        assert statcast_adjusters[0]._feature_store is babip_adjusters[0]._feature_store
+        assert statcast_adjusters[0]._feature_store is not None
+
+    def test_no_feature_store_when_unnecessary(self) -> None:
+        """Default pipeline (no Statcast/ML stages) doesn't create a FeatureStore."""
+        pipeline = PipelineBuilder().build()
+        # Only RebaselineAdjuster and ComponentAgingAdjuster — no feature store
+        for adjuster in pipeline.adjusters:
+            assert not hasattr(adjuster, "_feature_store") or getattr(adjuster, "_feature_store", None) is None

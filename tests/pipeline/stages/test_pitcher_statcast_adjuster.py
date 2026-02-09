@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
     PitcherStatcastAdjuster,
     PitcherStatcastConfig,
@@ -258,3 +259,44 @@ class TestMetadata:
         result = adjuster.adjust([pitcher])
         assert result[0].metadata["custom_key"] == "custom_value"  # type: ignore[typeddict-item]
         assert result[0].metadata["pitcher_statcast_blended"] is True
+
+
+class FakeFullStatcastSource:
+    def __init__(self, pitcher_data: dict[int, list[StatcastPitcherStats]]) -> None:
+        self._pitcher = pitcher_data
+
+    def batter_expected_stats(self, year: int) -> list:
+        return []
+
+    def pitcher_expected_stats(self, year: int) -> list[StatcastPitcherStats]:
+        return self._pitcher.get(year, [])
+
+
+class FakeSkillDataSource:
+    def batter_skill_stats(self, year: int) -> list:
+        return []
+
+    def pitcher_skill_stats(self, year: int) -> list:
+        return []
+
+
+class FakeBattedBallSource:
+    def pitcher_batted_ball_stats(self, year: int) -> list:
+        return []
+
+
+class TestFeatureStoreIntegration:
+    def test_uses_feature_store(self) -> None:
+        """When feature_store is provided, the adjuster uses it instead of direct source."""
+        empty_source = FakePitcherStatcastSource({})
+        store = FeatureStore(
+            statcast_source=FakeFullStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            batted_ball_source=FakeBattedBallSource(),
+            skill_data_source=FakeSkillDataSource(),
+        )
+        adjuster = PitcherStatcastAdjuster(
+            statcast_source=empty_source, feature_store=store
+        )
+        pitcher = _make_pitcher()
+        result = adjuster.adjust([pitcher])
+        assert result[0].metadata.get("pitcher_statcast_blended") is True

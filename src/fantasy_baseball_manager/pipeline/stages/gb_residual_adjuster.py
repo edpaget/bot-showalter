@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         PitcherBattedBallDataSource,
         PitcherBattedBallStats,
     )
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import (
         FullStatcastDataSource,
@@ -59,6 +60,7 @@ class GBResidualAdjuster:
     skill_data_source: SkillDataSource
     config: GBResidualConfig = field(default_factory=GBResidualConfig)
     model_store: ModelStore = field(default_factory=ModelStore)
+    feature_store: FeatureStore | None = field(default=None)
 
     _batter_models: ResidualModelSet | None = field(default=None, init=False, repr=False)
     _pitcher_models: ResidualModelSet | None = field(default=None, init=False, repr=False)
@@ -100,25 +102,31 @@ class GBResidualAdjuster:
         # Load data from prior year (most recent available)
         data_year = year - 1
 
-        # Batter Statcast
-        batter_data = self.statcast_source.batter_expected_stats(data_year)
-        self._batter_statcast = {s.player_id: s for s in batter_data}
-        logger.debug("Loaded %d batter Statcast records for year %d", len(self._batter_statcast), data_year)
+        if self.feature_store is not None:
+            self._batter_statcast = self.feature_store.batter_statcast(data_year)
+            self._pitcher_statcast = self.feature_store.pitcher_statcast(data_year)
+            self._pitcher_batted_ball = self.feature_store.pitcher_batted_ball(data_year)
+            self._batter_skill_data = self.feature_store.batter_skill(data_year)
+        else:
+            # Batter Statcast
+            batter_data = self.statcast_source.batter_expected_stats(data_year)
+            self._batter_statcast = {s.player_id: s for s in batter_data}
+            logger.debug("Loaded %d batter Statcast records for year %d", len(self._batter_statcast), data_year)
 
-        # Pitcher Statcast
-        pitcher_data = self.statcast_source.pitcher_expected_stats(data_year)
-        self._pitcher_statcast = {s.player_id: s for s in pitcher_data}
-        logger.debug("Loaded %d pitcher Statcast records for year %d", len(self._pitcher_statcast), data_year)
+            # Pitcher Statcast
+            pitcher_data = self.statcast_source.pitcher_expected_stats(data_year)
+            self._pitcher_statcast = {s.player_id: s for s in pitcher_data}
+            logger.debug("Loaded %d pitcher Statcast records for year %d", len(self._pitcher_statcast), data_year)
 
-        # Batted ball
-        bb_data = self.batted_ball_source.pitcher_batted_ball_stats(data_year)
-        self._pitcher_batted_ball = {s.player_id: s for s in bb_data}
-        logger.debug("Loaded %d batted ball records for year %d", len(self._pitcher_batted_ball), data_year)
+            # Batted ball
+            bb_data = self.batted_ball_source.pitcher_batted_ball_stats(data_year)
+            self._pitcher_batted_ball = {s.player_id: s for s in bb_data}
+            logger.debug("Loaded %d batted ball records for year %d", len(self._pitcher_batted_ball), data_year)
 
-        # Batter skill data (uses FanGraphs ID)
-        skill_data = self.skill_data_source.batter_skill_stats(data_year)
-        self._batter_skill_data = {s.player_id: s for s in skill_data}
-        logger.debug("Loaded %d batter skill records for year %d", len(self._batter_skill_data), data_year)
+            # Batter skill data (uses FanGraphs ID)
+            skill_data = self.skill_data_source.batter_skill_stats(data_year)
+            self._batter_skill_data = {s.player_id: s for s in skill_data}
+            logger.debug("Loaded %d batter skill records for year %d", len(self._batter_skill_data), data_year)
 
         self._cached_year = year
 

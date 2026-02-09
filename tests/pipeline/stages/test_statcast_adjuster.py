@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.stages.statcast_adjuster import (
     StatcastBlendConfig,
     StatcastRateAdjuster,
@@ -322,3 +323,56 @@ class TestEdgeCases:
         result = adjuster.adjust([batter])
         assert result[0].rates["hr"] > 0
         assert result[0].rates["singles"] >= 0
+
+
+class FakeEmptyStatcastSource:
+    """Source that returns no data — used to verify FeatureStore delegation."""
+
+    def batter_expected_stats(self, year: int) -> list[StatcastBatterStats]:
+        return []
+
+
+class FakeFullStatcastSource:
+    """Satisfies FullStatcastDataSource for FeatureStore construction."""
+
+    def __init__(self, data: dict[int, list[StatcastBatterStats]]) -> None:
+        self._data = data
+
+    def batter_expected_stats(self, year: int) -> list[StatcastBatterStats]:
+        return self._data.get(year, [])
+
+    def pitcher_expected_stats(self, year: int) -> list:
+        return []
+
+
+class FakeSkillDataSource:
+    def batter_skill_stats(self, year: int) -> list:
+        return []
+
+    def pitcher_skill_stats(self, year: int) -> list:
+        return []
+
+
+class FakeBattedBallSource:
+    def pitcher_batted_ball_stats(self, year: int) -> list:
+        return []
+
+
+class TestFeatureStoreIntegration:
+    def test_uses_feature_store(self) -> None:
+        """When feature_store is provided, the adjuster uses it instead of direct source."""
+        # Direct source returns nothing — if it were used, blend wouldn't happen
+        empty_source = FakeEmptyStatcastSource()
+        # FeatureStore has actual data
+        store = FeatureStore(
+            statcast_source=FakeFullStatcastSource({2024: [SAMPLE_STATCAST]}),
+            batted_ball_source=FakeBattedBallSource(),
+            skill_data_source=FakeSkillDataSource(),
+        )
+        adjuster = StatcastRateAdjuster(
+            statcast_source=empty_source, feature_store=store
+        )
+        batter = _make_batter()
+        result = adjuster.adjust([batter])
+        # Since FeatureStore has data, blending should occur
+        assert result[0].metadata.get("statcast_blended") is True
