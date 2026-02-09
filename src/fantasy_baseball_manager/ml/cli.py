@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.registry.registry import ModelRegistry
 
 import typer
 from rich.console import Console
@@ -14,6 +17,13 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 ml_app = typer.Typer(help="Machine learning model commands.")
+
+
+def _get_registry() -> ModelRegistry:
+    """Create the model registry for CLI commands."""
+    from fantasy_baseball_manager.registry.factory import create_model_registry
+
+    return create_model_registry()
 
 
 @ml_app.command(name="train")
@@ -157,7 +167,8 @@ def train_cmd(
     )
 
     # Train models
-    model_store = ModelStore()
+    registry = _get_registry()
+    model_store = ModelStore(model_dir=registry.gb_store.model_dir)
 
     # Run validation if requested
     batter_validation: ValidationReport | None = None
@@ -196,7 +207,8 @@ def list_cmd() -> None:
     """List all trained models."""
     from fantasy_baseball_manager.ml.persistence import ModelStore
 
-    store = ModelStore()
+    registry = _get_registry()
+    store = ModelStore(model_dir=registry.gb_store.model_dir)
     models = store.list_models()
 
     if not models:
@@ -242,7 +254,8 @@ def delete_cmd(
     """Delete trained models."""
     from fantasy_baseball_manager.ml.persistence import ModelStore
 
-    store = ModelStore()
+    registry = _get_registry()
+    store = ModelStore(model_dir=registry.gb_store.model_dir)
 
     if player_type == "all":
         deleted_batter = store.delete(name, "batter")
@@ -276,7 +289,8 @@ def info_cmd(
     """Show detailed information about a trained model."""
     from fantasy_baseball_manager.ml.persistence import ModelStore
 
-    store = ModelStore()
+    registry = _get_registry()
+    store = ModelStore(model_dir=registry.gb_store.model_dir)
     meta = store.get_metadata(name, player_type)
 
     if meta is None:
@@ -614,7 +628,8 @@ def train_mtl_cmd(
         id_mapper=id_mapper,
     )
 
-    model_store = MTLModelStore()
+    registry = _get_registry()
+    model_store = MTLModelStore(model_dir=registry.mtl_store.model_dir)
 
     # Train batter model
     typer.echo("\nTraining MTL batter model...")

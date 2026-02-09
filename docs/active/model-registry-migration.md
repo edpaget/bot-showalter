@@ -18,60 +18,24 @@ Unify the four separate model persistence modules (`ModelStore`, `MTLModelStore`
 | Legacy store delegation | Complete | `ModelStore`, `MTLModelStore`, `MLEModelStore` delegate to `BaseModelStore` internally |
 | `ServiceContainer` | Complete | Exposes `model_registry` as a `@cached_property` |
 | `PipelineBuilder` | Partial | Accepts `model_registry`, passes `model_dir` to legacy store constructors |
+| CLI `ml train` wired to registry | Complete | `train_cmd` sources `ModelStore` from `create_model_registry()` |
+| CLI `ml list/delete/info` wired | Complete | All 3 commands source `ModelStore` from registry |
+| CLI `ml train-mtl` wired to registry | Complete | `train_mtl_cmd` sources `MTLModelStore` from registry |
 | Test coverage | Complete | 55+ tests across serializers, base store, registry, backward compat |
 
 ---
 
 ## Remaining Steps
 
-### Step 1: Wire CLI `ml train` to the Registry
+### ~~Step 1: Wire CLI `ml train` to the Registry~~ (Complete)
 
-**File:** `src/fantasy_baseball_manager/ml/cli.py` (line ~160)
-
-Currently `ml train` creates `ModelStore()` directly. Update it to obtain the store from `ServiceContainer.model_registry`:
-
-```python
-# Before
-model_store = ModelStore()
-
-# After
-from fantasy_baseball_manager.registry.factory import create_model_registry
-registry = create_model_registry()
-model_store = ModelStore(model_dir=registry.gb_store.model_dir)
-```
-
-Or, for full registry adoption:
-
-```python
-registry = create_model_registry()
-registry.gb_store.save_params(model.get_params(), name, player_type, ...)
-```
-
-**Acceptance criteria:**
-- `ml train --name default` saves through the registry path
-- Existing saved models are still loadable (backward compat)
-- Tests in `tests/ml/` continue to pass
+All 5 ML CLI commands (`train`, `list`, `delete`, `info`, `train-mtl`) now obtain their model stores from `create_model_registry()` via a shared `_get_registry()` helper in `cli.py`.
 
 ---
 
-### Step 2: Wire CLI `ml train-mtl` to the Registry
+### ~~Step 2: Wire CLI `ml train-mtl` to the Registry~~ (Complete)
 
-**File:** `src/fantasy_baseball_manager/ml/cli.py` (line ~617)
-
-Same pattern as Step 1 but for `MTLModelStore`:
-
-```python
-# Before
-model_store = MTLModelStore()
-
-# After
-registry = create_model_registry()
-model_store = MTLModelStore(model_dir=registry.mtl_store.model_dir)
-```
-
-**Acceptance criteria:**
-- `ml train-mtl` saves through the registry path
-- Tests in `tests/ml/mtl/` continue to pass
+Completed as part of Step 1 — `train_mtl_cmd` sources `MTLModelStore(model_dir=registry.mtl_store.model_dir)`.
 
 ---
 
@@ -209,8 +173,8 @@ Once all callers use the registry or base stores directly, the legacy wrapper cl
 
 | Step | Effort | Risk | Dependency |
 |------|--------|------|------------|
-| 1. Wire `ml train` | Small | Low | None |
-| 2. Wire `ml train-mtl` | Small | Low | None |
+| ~~1. Wire `ml train`~~ | ~~Small~~ | ~~Low~~ | **Done** |
+| ~~2. Wire `ml train-mtl`~~ | ~~Small~~ | ~~Low~~ | **Done** |
 | 3. Wire contextual CLI | Small | Low | None |
 | 4. Add `--version` flag | Medium | Low | Steps 1-2 |
 | 5. Update `ml list` | Medium | Low | None |
