@@ -58,7 +58,7 @@ class PreparedDataStore:
     def save_finetune_data(
         self,
         name: str,
-        windows: list[tuple[TensorizedSingle, torch.Tensor]],
+        windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]],
         meta: dict[str, Any],
     ) -> None:
         """Save fine-tune windows as {name}.pt and metadata as {name}_meta.json."""
@@ -69,12 +69,12 @@ class PreparedDataStore:
 
     def load_finetune_data(
         self, name: str
-    ) -> list[tuple[TensorizedSingle, torch.Tensor]]:
-        """Load list[tuple[TensorizedSingle, Tensor]] from {name}.pt."""
+    ) -> list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]]:
+        """Load list[tuple[TensorizedSingle, Tensor, Tensor]] from {name}.pt."""
         pt_path = self._pt_path(name)
         if not pt_path.exists():
             raise FileNotFoundError(f"Prepared data not found: {pt_path}")
-        data: list[tuple[TensorizedSingle, torch.Tensor]] = torch.load(
+        data: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]] = torch.load(
             pt_path, weights_only=False
         )
         logger.info("Loaded %d finetune windows from %s", len(data), pt_path)

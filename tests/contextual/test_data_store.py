@@ -50,18 +50,22 @@ class TestPreparedDataStore:
         ts2 = _make_tensorized_single(8)
         targets1 = torch.tensor([1.0, 0.0, 2.0])
         targets2 = torch.tensor([0.0, 1.0, 0.0])
-        windows = [(ts1, targets1), (ts2, targets2)]
+        cm1 = torch.tensor([0.5, 0.1, 1.0])
+        cm2 = torch.tensor([0.2, 0.3, 0.0])
+        windows = [(ts1, targets1, cm1), (ts2, targets2, cm2)]
         meta = {"perspective": "pitcher", "context_window": 10}
 
         store.save_finetune_data("finetune_pitcher_train", windows, meta)
         loaded = store.load_finetune_data("finetune_pitcher_train")
 
         assert len(loaded) == 2
-        loaded_ts, loaded_targets = loaded[0]
+        loaded_ts, loaded_targets, loaded_cm = loaded[0]
         assert isinstance(loaded_ts, TensorizedSingle)
         assert loaded_ts.seq_length == 5
         assert torch.equal(loaded_targets, targets1)
+        assert torch.equal(loaded_cm, cm1)
         assert torch.equal(loaded[1][1], targets2)
+        assert torch.equal(loaded[1][2], cm2)
 
     def test_exists_false_when_missing(self, tmp_path: Path) -> None:
         store = PreparedDataStore(data_dir=tmp_path)

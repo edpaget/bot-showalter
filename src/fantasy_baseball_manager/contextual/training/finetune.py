@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -36,6 +36,8 @@ class FineTuneMetrics:
     per_stat_mse: dict[str, float]
     per_stat_mae: dict[str, float]
     n_samples: int
+    baseline_per_stat_mse: dict[str, float] = field(default_factory=dict)
+    baseline_per_stat_mae: dict[str, float] = field(default_factory=dict)
 
 
 class FineTuneTrainer:
@@ -198,6 +200,8 @@ class FineTuneTrainer:
             "val_loss": val_metrics.loss,
             **{f"val_{stat}_mse": v for stat, v in val_metrics.per_stat_mse.items()},
             **{f"val_{stat}_mae": v for stat, v in val_metrics.per_stat_mae.items()},
+            **{f"baseline_{stat}_mse": v for stat, v in val_metrics.baseline_per_stat_mse.items()},
+            **{f"baseline_{stat}_mae": v for stat, v in val_metrics.baseline_per_stat_mae.items()},
         }
 
     def _train_epoch(
@@ -270,6 +274,8 @@ class FineTuneTrainer:
         total_samples = 0
         per_stat_se = torch.zeros(len(self._target_stats))
         per_stat_ae = torch.zeros(len(self._target_stats))
+        baseline_se = torch.zeros(len(self._target_stats))
+        baseline_ae = torch.zeros(len(self._target_stats))
 
         for batch in loader:
             batch = self._batch_to_device(batch)
@@ -288,6 +294,10 @@ class FineTuneTrainer:
             per_stat_se += (diff ** 2).sum(dim=0)
             per_stat_ae += diff.abs().sum(dim=0)
 
+            baseline_diff = batch.context_mean.cpu() - batch.targets.cpu()
+            baseline_se += (baseline_diff ** 2).sum(dim=0)
+            baseline_ae += baseline_diff.abs().sum(dim=0)
+
         if total_samples == 0:
             return FineTuneMetrics(0.0, {}, {}, 0)
 
@@ -302,6 +312,14 @@ class FineTuneTrainer:
                 for i, stat in enumerate(self._target_stats)
             },
             n_samples=total_samples,
+            baseline_per_stat_mse={
+                stat: (baseline_se[i] / total_samples).item()
+                for i, stat in enumerate(self._target_stats)
+            },
+            baseline_per_stat_mae={
+                stat: (baseline_ae[i] / total_samples).item()
+                for i, stat in enumerate(self._target_stats)
+            },
         )
 
     def _save_checkpoint(
@@ -356,4 +374,5 @@ class FineTuneTrainer:
                 seq_lengths=ctx.seq_lengths.to(self._device),
             ),
             targets=batch.targets.to(self._device),
+            context_mean=batch.context_mean.to(self._device),
         )

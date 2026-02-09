@@ -382,6 +382,7 @@ class FineTuneSample:
 
     context: TensorizedSingle
     targets: torch.Tensor  # (n_targets,) float
+    context_mean: torch.Tensor  # (n_targets,) float — mean of context game stats
 
 
 @dataclass
@@ -390,6 +391,7 @@ class FineTuneBatch:
 
     context: TensorizedBatch
     targets: torch.Tensor  # (batch, n_targets) float
+    context_mean: torch.Tensor  # (batch, n_targets) float
 
 
 def _build_player_windows(
@@ -397,14 +399,17 @@ def _build_player_windows(
     tensorizer: Tensorizer,
     context_window: int,
     target_stats: tuple[str, ...],
-) -> list[tuple[TensorizedSingle, torch.Tensor]]:
+) -> list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]]:
     """Build sliding windows for a single player.
 
     Top-level function so it's picklable for multiprocessing.
+
+    Returns:
+        List of (tensorized_context, targets, context_mean) tuples.
     """
     from fantasy_baseball_manager.contextual.data.models import PlayerContext as PC
 
-    windows: list[tuple[TensorizedSingle, torch.Tensor]] = []
+    windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]] = []
     games = player_ctx.games
     n = context_window
 
@@ -421,7 +426,10 @@ def _build_player_windows(
         )
         tensorized = tensorizer.tensorize_context(ctx)
         targets = extract_game_stats(target_game, target_stats)
-        windows.append((tensorized, targets))
+        context_mean = torch.stack(
+            [extract_game_stats(g, target_stats) for g in context_games]
+        ).mean(dim=0)
+        windows.append((tensorized, targets, context_mean))
 
     return windows
 
@@ -432,12 +440,13 @@ def build_finetune_windows(
     config: FineTuneConfig,
     target_stats: tuple[str, ...],
     max_workers: int | None = None,
-) -> list[tuple[TensorizedSingle, torch.Tensor]]:
-    """Build (context, targets) pairs using a sliding window.
+) -> list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]]:
+    """Build (context, targets, context_mean) triples using a sliding window.
 
     For each player with G games (where G >= context_window + 1),
     creates G - context_window examples:
-      context = tensorized games[i:i+N], target = stats from games[i+N]
+      context = tensorized games[i:i+N], target = stats from games[i+N],
+      context_mean = mean of stats over the N context games.
     """
     from concurrent.futures import ProcessPoolExecutor
     from functools import partial
@@ -452,7 +461,7 @@ def build_finetune_windows(
         target_stats=target_stats,
     )
 
-    windows: list[tuple[TensorizedSingle, torch.Tensor]] = []
+    windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]] = []
 
     if len(eligible) > 1 and max_workers != 1:
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
@@ -468,15 +477,15 @@ def build_finetune_windows(
 class FineTuneDataset(Dataset[FineTuneSample]):
     """Wraps pre-built sliding window examples for fine-tuning."""
 
-    def __init__(self, windows: list[tuple[TensorizedSingle, torch.Tensor]]) -> None:
+    def __init__(self, windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]]) -> None:
         self._windows = windows
 
     def __len__(self) -> int:
         return len(self._windows)
 
     def __getitem__(self, index: int) -> FineTuneSample:
-        context, targets = self._windows[index]
-        return FineTuneSample(context=context, targets=targets)
+        context, targets, context_mean = self._windows[index]
+        return FineTuneSample(context=context, targets=targets, context_mean=context_mean)
 
 
 def collate_finetune_samples(samples: list[FineTuneSample]) -> FineTuneBatch:
@@ -529,5 +538,6 @@ def collate_finetune_samples(samples: list[FineTuneSample]) -> FineTuneBatch:
     )
 
     targets = torch.stack([s.targets for s in samples])
+    context_mean = torch.stack([s.context_mean for s in samples])
 
-    return FineTuneBatch(context=context_batch, targets=targets)
+    return FineTuneBatch(context=context_batch, targets=targets, context_mean=context_mean)

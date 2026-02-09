@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
 import torch
 
 from fantasy_baseball_manager.contextual.data.vocab import (
@@ -197,9 +198,59 @@ class TestBuildFineTuneWindows:
         windows = build_finetune_windows(
             [ctx], tensorizer, ft_config, BATTER_TARGET_STATS,
         )
-        for ts, targets in windows:
+        for ts, targets, context_mean in windows:
             assert targets.shape == (len(BATTER_TARGET_STATS),)
+            assert context_mean.shape == (len(BATTER_TARGET_STATS),)
             assert ts.seq_length > 0
+
+    def test_context_mean_values(self, small_config: ModelConfig) -> None:
+        """Verify context_mean is the average of context game stats."""
+        from fantasy_baseball_manager.contextual.data.models import (
+            GameSequence,
+            PlayerContext,
+        )
+
+        # Game 0: 0 HR, Game 1: 1 HR, Game 2: 2 HR (but max 3 pitches), Game 3: 0 HR
+        games = []
+        for i, n_hr in enumerate([0, 1, 2, 0]):
+            pa_events: list[str | None] = ["home_run"] * n_hr + [None] * (3 - n_hr)
+            pitches = tuple(
+                make_pitch(pitch_number=j + 1, pa_event=pa_events[j])
+                for j in range(3)
+            )
+            games.append(GameSequence(
+                game_pk=717465 + i,
+                game_date=f"2024-03-{28 + i:02d}",
+                season=2024,
+                home_team="LAD",
+                away_team="SD",
+                perspective="batter",
+                player_id=660271,
+                pitches=pitches,
+            ))
+
+        ctx = PlayerContext(
+            player_id=660271,
+            player_name="Test",
+            season=2024,
+            perspective="batter",
+            games=tuple(games),
+        )
+
+        ft_config = FineTuneConfig(context_window=2, min_games=3)
+        tensorizer = _build_tensorizer(small_config)
+
+        windows = build_finetune_windows(
+            [ctx], tensorizer, ft_config, BATTER_TARGET_STATS,
+        )
+        # Window 0: context = games[0,1], target = game[2]
+        # context_mean hr = (0+1)/2 = 0.5
+        _, _, cm0 = windows[0]
+        assert cm0[0].item() == pytest.approx(0.5)  # hr index
+        # Window 1: context = games[1,2], target = game[3]
+        # context_mean hr = (1+2)/2 = 1.5
+        _, _, cm1 = windows[1]
+        assert cm1[0].item() == pytest.approx(1.5)  # hr index
 
     def test_window_targets_match_known_events(self, small_config: ModelConfig) -> None:
         """Verify that targets from sliding windows match the actual game stats."""
@@ -244,9 +295,10 @@ class TestBuildFineTuneWindows:
         # 5 - 2 = 3 windows, target game indices = 2, 3, 4
         assert len(windows) == 3
         # Each target corresponds to games[2], games[3], games[4]
-        for _, targets in windows:
+        for _, targets, context_mean in windows:
             # At least verify shape
             assert targets.shape == (len(BATTER_TARGET_STATS),)
+            assert context_mean.shape == (len(BATTER_TARGET_STATS),)
 
 
 class TestFineTuneDataset:
@@ -274,6 +326,7 @@ class TestFineTuneDataset:
         assert isinstance(sample, FineTuneSample)
         assert sample.context.seq_length > 0
         assert sample.targets.shape == (len(BATTER_TARGET_STATS),)
+        assert sample.context_mean.shape == (len(BATTER_TARGET_STATS),)
 
 
 class TestCollateFineTuneSamples:
@@ -297,6 +350,7 @@ class TestCollateFineTuneSamples:
         assert isinstance(batch, FineTuneBatch)
         b = len(samples)
         assert batch.targets.shape == (b, len(BATTER_TARGET_STATS))
+        assert batch.context_mean.shape == (b, len(BATTER_TARGET_STATS))
         assert batch.context.padding_mask.shape[0] == b
         assert batch.context.pitch_type_ids.shape[0] == b
 

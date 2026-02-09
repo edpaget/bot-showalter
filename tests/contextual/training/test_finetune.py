@@ -96,6 +96,21 @@ class TestFineTuneMetrics:
         assert metrics.n_samples == 100
         assert metrics.per_stat_mse["hr"] == 0.1
         assert metrics.per_stat_mae["so"] == 0.4
+        # defaults for baseline fields
+        assert metrics.baseline_per_stat_mse == {}
+        assert metrics.baseline_per_stat_mae == {}
+
+    def test_baseline_fields(self) -> None:
+        metrics = FineTuneMetrics(
+            loss=0.5,
+            per_stat_mse={"hr": 0.1},
+            per_stat_mae={"hr": 0.3},
+            n_samples=100,
+            baseline_per_stat_mse={"hr": 0.29},
+            baseline_per_stat_mae={"hr": 0.35},
+        )
+        assert metrics.baseline_per_stat_mse["hr"] == 0.29
+        assert metrics.baseline_per_stat_mae["hr"] == 0.35
 
 
 class TestFineTuneTrainer:
@@ -115,6 +130,12 @@ class TestFineTuneTrainer:
         result = trainer.train(train_ds, val_ds)
         assert "val_loss" in result
         assert result["val_loss"] > 0
+        # Baseline keys should be present
+        for stat in target_stats:
+            assert f"baseline_{stat}_mse" in result
+            assert f"baseline_{stat}_mae" in result
+            assert result[f"baseline_{stat}_mse"] >= 0
+            assert result[f"baseline_{stat}_mae"] >= 0
 
     def test_training_reduces_loss(self, small_config: ModelConfig, tmp_path: Path) -> None:
         target_stats = PITCHER_TARGET_STATS

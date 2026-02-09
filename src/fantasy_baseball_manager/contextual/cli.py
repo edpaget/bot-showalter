@@ -810,5 +810,10 @@ def finetune_cmd(
     for stat in target_stats:
         mse_key = f"val_{stat}_mse"
         mae_key = f"val_{stat}_mae"
+        bl_mse_key = f"baseline_{stat}_mse"
+        bl_mae_key = f"baseline_{stat}_mae"
         if mse_key in result:
-            console.print(f"  {stat}: MSE={result[mse_key]:.4f}  MAE={result[mae_key]:.4f}")
+            parts = f"  {stat}: MSE={result[mse_key]:.4f}  MAE={result[mae_key]:.4f}"
+            if bl_mse_key in result:
+                parts += f"  (baseline MSE={result[bl_mse_key]:.4f}  MAE={result[bl_mae_key]:.4f})"
+            console.print(parts)
