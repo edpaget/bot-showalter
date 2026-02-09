@@ -240,7 +240,7 @@ class TestContextualPredictions:
         mock_store.exists.return_value = True
 
         mock_model = MagicMock()
-        preds_tensor = torch.tensor([[[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]]])
+        preds_tensor = torch.tensor([[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]])
         mock_model.return_value = {"performance_preds": preds_tensor}
         mock_model.eval = MagicMock(return_value=mock_model)
         mock_store.load_finetune_model.return_value = mock_model
@@ -300,7 +300,7 @@ class TestContextualPredictions:
         mock_store = MagicMock()
         mock_store.exists.return_value = True
         mock_model = MagicMock()
-        preds_tensor = torch.tensor([[[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]]])
+        preds_tensor = torch.tensor([[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]])
         mock_model.return_value = {"performance_preds": preds_tensor}
         mock_model.eval = MagicMock(return_value=mock_model)
         mock_store.load_finetune_model.return_value = mock_model

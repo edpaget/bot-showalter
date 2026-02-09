@@ -222,10 +222,9 @@ class FineTuneTrainer:
             batch = self._batch_to_device(batch)
 
             output = self._model(batch.context)
-            preds = output["performance_preds"]  # (batch, n_player_tokens, n_targets)
-            pooled_preds = preds.mean(dim=1)  # (batch, n_targets)
+            preds = output["performance_preds"]  # (batch, n_targets)
 
-            loss = F.mse_loss(pooled_preds, batch.targets)
+            loss = F.mse_loss(preds, batch.targets)
 
             optimizer.zero_grad()
             loss.backward()
@@ -238,7 +237,7 @@ class FineTuneTrainer:
             total_samples += n
 
             with torch.no_grad():
-                diff = pooled_preds.cpu() - batch.targets.cpu()
+                diff = preds.cpu() - batch.targets.cpu()
                 per_stat_se += (diff ** 2).sum(dim=0)
                 per_stat_ae += diff.abs().sum(dim=0)
 
@@ -281,16 +280,15 @@ class FineTuneTrainer:
             batch = self._batch_to_device(batch)
 
             output = self._model(batch.context)
-            preds = output["performance_preds"]  # (batch, n_player_tokens, n_targets)
-            pooled_preds = preds.mean(dim=1)  # (batch, n_targets)
+            preds = output["performance_preds"]  # (batch, n_targets)
 
-            loss = F.mse_loss(pooled_preds, batch.targets)
+            loss = F.mse_loss(preds, batch.targets)
 
             n = batch.targets.shape[0]
             total_loss += loss.item() * n
             total_samples += n
 
-            diff = pooled_preds.cpu() - batch.targets.cpu()
+            diff = preds.cpu() - batch.targets.cpu()
             per_stat_se += (diff ** 2).sum(dim=0)
             per_stat_ae += diff.abs().sum(dim=0)
 

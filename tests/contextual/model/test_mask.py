@@ -130,6 +130,29 @@ class TestBuildPlayerAttentionMask:
         assert mask[1, 0, 3].item() is False
         assert mask[1, 1, 3].item() is False
 
+    def test_cls_attends_to_all_non_padding(self) -> None:
+        """CLS token (game_id=-1, not a player token) attends to all non-padding."""
+        # [CLS] [P0] p0 p1 [P1] p2 p3 <PAD>
+        padding_mask = torch.tensor([[True, True, True, True, True, True, True, False]])
+        player_token_mask = torch.tensor([[False, True, False, False, True, False, False, False]])
+        game_ids = torch.tensor([[-1, 0, 0, 0, 1, 1, 1, 0]])
+
+        mask = build_player_attention_mask(padding_mask, player_token_mask, game_ids)
+
+        # CLS (pos 0) can attend to all non-padding positions
+        assert mask[0, 0, 0].item() is False  # self (CLS is not a player token)
+        assert mask[0, 0, 1].item() is False  # P0
+        assert mask[0, 0, 2].item() is False  # pitch game 0
+        assert mask[0, 0, 3].item() is False  # pitch game 0
+        assert mask[0, 0, 4].item() is False  # P1
+        assert mask[0, 0, 5].item() is False  # pitch game 1
+        assert mask[0, 0, 6].item() is False  # pitch game 1
+        assert mask[0, 0, 7].item() is True   # padding — blocked
+
+        # Player tokens still isolated to their own game
+        assert mask[0, 1, 2].item() is False  # P0 → game 0 pitch
+        assert mask[0, 1, 5].item() is True   # P0 → game 1 pitch (blocked)
+
     def test_output_shape(self) -> None:
         batch, seq_len = 3, 10
         padding_mask = torch.ones(batch, seq_len, dtype=torch.bool)

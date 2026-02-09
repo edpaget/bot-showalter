@@ -171,7 +171,7 @@ class TestContextualPredictorPredict:
         mock_builder.build_player_season.return_value = games
 
         mock_model = MagicMock()
-        preds_tensor = torch.tensor([[[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]]])
+        preds_tensor = torch.tensor([[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]])
         mock_model.return_value = {"performance_preds": preds_tensor}
 
         mock_tensorizer = MagicMock()
@@ -206,7 +206,7 @@ class TestContextualPredictorPredict:
         mock_builder.build_player_season.return_value = games
 
         mock_model = MagicMock()
-        preds_tensor = torch.tensor([[[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]]])
+        preds_tensor = torch.tensor([[0.5, 2.0, 1.0, 3.0, 0.5, 0.1]])
         mock_model.return_value = {"performance_preds": preds_tensor}
 
         mock_tensorizer = MagicMock()

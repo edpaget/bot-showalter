@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import torch
 from torch import Tensor, nn
 
 from fantasy_baseball_manager.contextual.model.embedder import EventEmbedder
@@ -98,10 +97,10 @@ class ContextualPerformanceModel(nn.Module):
                 "transformer_output": hidden,
             }
         else:
-            player_emb = self._extract_player_embeddings(hidden, batch.player_token_mask)
-            preds = self.head(player_emb)
+            cls_emb = self._extract_cls_embedding(hidden)
+            preds = self.head(cls_emb)
             return {
-                "performance_preds": preds,
+                "performance_preds": preds,  # (batch, n_targets)
                 "transformer_output": hidden,
             }
 
@@ -109,21 +108,13 @@ class ContextualPerformanceModel(nn.Module):
         """Replace the current head while preserving embedder + transformer."""
         self.head = new_head
 
-    def _extract_player_embeddings(self, hidden: Tensor, player_token_mask: Tensor) -> Tensor:
-        """Gather hidden states at [PLAYER] token positions.
+    def _extract_cls_embedding(self, hidden: Tensor) -> Tensor:
+        """Extract the [CLS] token hidden state at position 0.
 
         Args:
             hidden: (batch, seq_len, d_model)
-            player_token_mask: (batch, seq_len) bool
 
         Returns:
-            (batch, n_player_tokens, d_model)
+            (batch, d_model)
         """
-        batch, _, d_model = hidden.shape
-        n_players = int(player_token_mask[0].sum().item())
-
-        result = torch.zeros(batch, n_players, d_model, dtype=hidden.dtype, device=hidden.device)
-        for b in range(batch):
-            indices = player_token_mask[b].nonzero(as_tuple=True)[0]
-            result[b, : len(indices)] = hidden[b, indices]
-        return result
+        return hidden[:, 0, :]

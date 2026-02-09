@@ -137,9 +137,8 @@ class ContextualPredictor:
         with torch.no_grad():
             output = model(batch)
 
-        preds = output["performance_preds"]
-        pooled = preds.mean(dim=1)
-        pred_values = pooled.squeeze(0).tolist()
+        preds = output["performance_preds"]  # (1, n_targets)
+        pred_values = preds.squeeze(0).tolist()
 
         return dict(zip(target_stats, pred_values, strict=True))
 

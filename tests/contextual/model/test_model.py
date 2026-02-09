@@ -66,10 +66,10 @@ class TestContextualPerformanceModelMGM:
         batch = tensorizer.collate([single])
 
         output = model(batch)
-        # batch=1, seq_len=4 (1 player + 3 pitches)
-        assert output["pitch_type_logits"].shape == (1, 4, small_config.pitch_type_vocab_size)
-        assert output["pitch_result_logits"].shape == (1, 4, small_config.pitch_result_vocab_size)
-        assert output["transformer_output"].shape == (1, 4, small_config.d_model)
+        # batch=1, seq_len=5 (1 CLS + 1 player + 3 pitches)
+        assert output["pitch_type_logits"].shape == (1, 5, small_config.pitch_type_vocab_size)
+        assert output["pitch_result_logits"].shape == (1, 5, small_config.pitch_result_vocab_size)
+        assert output["transformer_output"].shape == (1, 5, small_config.d_model)
 
     def test_gradient_flow_end_to_end(self, small_config: ModelConfig) -> None:
         head = MaskedGamestateHead(small_config)
@@ -117,42 +117,26 @@ class TestContextualPerformanceModelPerf:
         batch = tensorizer.collate([single])
 
         output = model(batch)
-        # 2 games → 2 player tokens
-        assert output["performance_preds"].shape == (1, 2, small_config.n_batter_targets)
-        assert output["transformer_output"].shape == (1, 8, small_config.d_model)
+        # CLS embedding → (batch, n_targets), no player token dim
+        assert output["performance_preds"].shape == (1, small_config.n_batter_targets)
+        # 1 CLS + 2 games x (1 player + 3 pitches) = 9
+        assert output["transformer_output"].shape == (1, 9, small_config.d_model)
 
 
-class TestExtractPlayerEmbeddings:
-    """Tests for _extract_player_embeddings."""
+class TestExtractClsEmbedding:
+    """Tests for _extract_cls_embedding."""
 
-    def test_known_positions(self, small_config: ModelConfig) -> None:
+    def test_returns_position_zero(self, small_config: ModelConfig) -> None:
         head = MaskedGamestateHead(small_config)
         model = ContextualPerformanceModel(small_config, head)
 
-        batch, seq_len = 1, 6
+        batch, seq_len = 2, 6
         hidden = torch.randn(batch, seq_len, small_config.d_model)
-        player_mask = torch.tensor([[True, False, False, True, False, False]])
 
-        result = model._extract_player_embeddings(hidden, player_mask)
-        # 2 player tokens
-        assert result.shape == (1, 2, small_config.d_model)
-        assert torch.allclose(result[0, 0], hidden[0, 0])
-        assert torch.allclose(result[0, 1], hidden[0, 3])
-
-    def test_single_player_token(self, small_config: ModelConfig) -> None:
-        head = MaskedGamestateHead(small_config)
-        model = ContextualPerformanceModel(small_config, head)
-
-        hidden = torch.randn(2, 4, small_config.d_model)
-        player_mask = torch.tensor(
-            [
-                [True, False, False, False],
-                [True, False, False, False],
-            ]
-        )
-
-        result = model._extract_player_embeddings(hidden, player_mask)
-        assert result.shape == (2, 1, small_config.d_model)
+        result = model._extract_cls_embedding(hidden)
+        assert result.shape == (2, small_config.d_model)
+        assert torch.allclose(result[0], hidden[0, 0])
+        assert torch.allclose(result[1], hidden[1, 0])
 
 
 class TestSwapHead:

@@ -80,9 +80,12 @@ class TensorizedBatch:
 class Tensorizer:
     """Converts PlayerContext dataclasses into tensor representations.
 
-    Inserts a [PLAYER] token at the start of each game's pitch sequence.
-    Categorical fields are encoded via the provided vocabularies.
-    Numeric fields are extracted in a fixed order (see NUMERIC_FIELDS).
+    Prepends a [CLS] aggregation token at position 0, then inserts a
+    [PLAYER] token at the start of each game's pitch sequence.  CLS
+    attends to all tokens across all games and is used for prediction
+    during fine-tuning.  Categorical fields are encoded via the provided
+    vocabularies.  Numeric fields are extracted in a fixed order (see
+    NUMERIC_FIELDS).
     """
 
     def __init__(
@@ -117,14 +120,28 @@ class Tensorizer:
         n_numeric = len(NUMERIC_FIELDS)
 
         # Determine which games fit within max_seq_len (keep newest, drop oldest)
+        # Account for the CLS token at position 0
+        CLS_GAME_ID = -1
         games = list(context.games)
         game_lengths = [1 + len(g.pitches) for g in games]  # 1 for player token
 
-        total = sum(game_lengths)
+        total = 1 + sum(game_lengths)  # +1 for CLS
         while total > self._config.max_seq_len and games:
             total -= game_lengths[0]
             games.pop(0)
             game_lengths.pop(0)
+
+        # Insert [CLS] token at position 0 — attends to all tokens across all games
+        pitch_type_ids.append(0)
+        pitch_result_ids.append(0)
+        bb_type_ids.append(0)
+        stand_ids.append(0)
+        p_throws_ids.append(0)
+        pa_event_ids.append(0)
+        numeric_features.append([0.0] * n_numeric)
+        numeric_mask.append([False] * n_numeric)
+        player_token_mask.append(False)  # NOT a player token — gets pitch-like attention
+        game_id_list.append(CLS_GAME_ID)
 
         for game_idx, game in enumerate(games):
             # Insert [PLAYER] token
