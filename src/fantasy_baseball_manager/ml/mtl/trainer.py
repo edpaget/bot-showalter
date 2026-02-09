@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
@@ -54,6 +55,7 @@ class MTLTrainer:
     id_mapper: SfbbMapper
     training_config: MTLTrainingConfig = field(default_factory=MTLTrainingConfig)
     architecture_config: MTLArchitectureConfig = field(default_factory=MTLArchitectureConfig)
+    feature_store: FeatureStore | None = field(default=None)
 
     def train_batter_model(
         self,
@@ -73,6 +75,7 @@ class MTLTrainer:
             statcast_source=self.statcast_source,
             skill_data_source=self.skill_data_source,
             id_mapper=self.id_mapper,
+            feature_store=self.feature_store,
             min_pa=self.training_config.batter_min_pa,
         )
 
@@ -153,6 +156,7 @@ class MTLTrainer:
             statcast_source=self.statcast_source,
             batted_ball_source=self.batted_ball_source,
             id_mapper=self.id_mapper,
+            feature_store=self.feature_store,
             min_pa=self.training_config.pitcher_min_pa,
         )
 

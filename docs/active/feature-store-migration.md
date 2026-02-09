@@ -21,6 +21,9 @@ Eliminate duplicate per-year `{player_id: stats}` dict constructions by routing 
 | `PipelineBuilder` wiring | Complete | Creates one `FeatureStore`, shares across all consuming stages |
 | Test coverage | Complete | 11 unit tests + 7 stage integration tests + 2 builder tests |
 | `ResidualModelTrainer` | Complete | Delegates batter/pitcher statcast, batted ball, skill lookups to store |
+| `BatterTrainingDataCollector` | Complete | Delegates batter statcast + skill lookups to store |
+| `PitcherTrainingDataCollector` | Complete | Delegates pitcher statcast + batted ball lookups to store |
+| `MTLTrainer` | Complete | Passes feature_store through to collectors |
 
 ---
 
@@ -59,7 +62,7 @@ else:
 
 ---
 
-### Step 3: Adopt FeatureStore in `ml/mtl/dataset.py`
+### Step 3: Adopt FeatureStore in `ml/mtl/dataset.py` — Complete
 
 **File:** `src/fantasy_baseball_manager/ml/mtl/dataset.py` (lines ~60-120)
 
@@ -151,7 +154,7 @@ Once all callers use `FeatureStore`, the `else` branches in each stage become de
 |------|--------|------|------------|
 | 1. Add `pitcher_skill` lookup | Small | Low | Skipped — no consumers |
 | 2. Adopt in `ml/training.py` | Medium | Low | Complete |
-| 3. Adopt in `ml/mtl/dataset.py` | Medium | Low | None |
+| 3. Adopt in `ml/mtl/dataset.py` | Medium | Low | Complete |
 | 4. Wire into training CLI | Small | Low | Steps 2-3 |
 | 5. Evaluate `SkillDeltaComputer` | Small | None (decision only) | None |
 | 6. Remove fallback paths | Large | Medium (breaks test patterns) | Steps 1-4 |

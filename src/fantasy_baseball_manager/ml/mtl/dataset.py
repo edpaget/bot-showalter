@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
@@ -77,6 +78,7 @@ class BatterTrainingDataCollector:
     statcast_source: FullStatcastDataSource
     skill_data_source: SkillDataSource
     id_mapper: SfbbMapper
+    feature_store: FeatureStore | None = None
     min_pa: int = 100
 
     def collect(
@@ -118,12 +120,14 @@ class BatterTrainingDataCollector:
 
             # Get Statcast data from prior year (for Statcast features)
             statcast_year = target_year - 1
-            statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
-            statcast_lookup = {s.player_id: s for s in statcast_data}
-
-            # Get skill data from prior year
-            skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
-            skill_lookup = {s.player_id: s for s in skill_data}
+            if self.feature_store is not None:
+                statcast_lookup = self.feature_store.batter_statcast(statcast_year)
+                skill_lookup = self.feature_store.batter_skill(statcast_year)
+            else:
+                statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
+                statcast_lookup = {s.player_id: s for s in statcast_data}
+                skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
+                skill_lookup = {s.player_id: s for s in skill_data}
 
             # Get PRIOR year actuals to compute "marcel-like" rates for features
             # This prevents data leakage - features use Y-1 data, targets use Y data
@@ -206,6 +210,7 @@ class PitcherTrainingDataCollector:
     statcast_source: FullStatcastDataSource
     batted_ball_source: PitcherBattedBallDataSource
     id_mapper: SfbbMapper
+    feature_store: FeatureStore | None = None
     min_pa: int = 100
 
     def collect(
@@ -247,12 +252,14 @@ class PitcherTrainingDataCollector:
 
             # Get Statcast data from prior year (for Statcast features)
             statcast_year = target_year - 1
-            statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
-            statcast_lookup = {s.player_id: s for s in statcast_data}
-
-            # Get batted ball data from prior year
-            batted_ball_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
-            bb_lookup = {b.player_id: b for b in batted_ball_data}
+            if self.feature_store is not None:
+                statcast_lookup = self.feature_store.pitcher_statcast(statcast_year)
+                bb_lookup = self.feature_store.pitcher_batted_ball(statcast_year)
+            else:
+                statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
+                statcast_lookup = {s.player_id: s for s in statcast_data}
+                batted_ball_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
+                bb_lookup = {b.player_id: b for b in batted_ball_data}
 
             # Get PRIOR year actuals to compute "marcel-like" rates for features
             # This prevents data leakage - features use Y-1 data, targets use Y data
