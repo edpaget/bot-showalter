@@ -296,6 +296,67 @@ class TestResidualModelTrainer:
         assert len(model_set.get_stats()) > 0
 
 
+class TestResidualModelTrainerFeatureStore:
+    """Tests that ResidualModelTrainer delegates to FeatureStore when provided."""
+
+    def setup_method(self) -> None:
+        init_context(year=2024)
+
+    def teardown_method(self) -> None:
+        reset_context()
+
+    def test_feature_store_used_when_provided(self) -> None:
+        """Train batter models via FeatureStore path and verify same result."""
+        from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
+
+        players = [f"fg{i}" for i in range(60)]
+        fg_to_mlbam = {f"fg{i}": f"mlbam{i}" for i in range(60)}
+
+        batting_projections: dict[int, list[BattingProjection]] = {}
+        batting_actuals: dict[int, list[BattingSeasonStats]] = {}
+        statcast_batter: dict[int, list[StatcastBatterStats]] = {}
+
+        for year in [2021, 2022]:
+            batting_projections[year] = [_make_batter_projection(p, year) for p in players]
+            batting_actuals[year] = [_make_batter_actuals(p, year) for p in players]
+            statcast_batter[year - 1] = [_make_statcast_batter(f"mlbam{i}", year - 1) for i in range(60)]
+
+        statcast_source = FakeStatcastSource(statcast_batter, {})
+        batted_ball_source = FakeBattedBallSource({})
+        skill_source = FakeSkillDataSource()
+
+        store = FeatureStore(
+            statcast_source=statcast_source,
+            batted_ball_source=batted_ball_source,
+            skill_data_source=skill_source,
+        )
+
+        pipeline = cast("Any", FakePipeline(batting_projections, {}))
+        id_mapper = cast("Any", FakeIdMapper(fg_to_mlbam))
+        trainer = ResidualModelTrainer(
+            pipeline=pipeline,
+            batting_source=_fake_batting_source(batting_actuals),
+            team_batting_source=_fake_batting_source({}),
+            pitching_source=_fake_pitching_source({}),
+            team_pitching_source=_fake_pitching_source({}),
+            statcast_source=statcast_source,
+            batted_ball_source=batted_ball_source,
+            skill_data_source=skill_source,
+            id_mapper=id_mapper,
+            config=TrainingConfig(min_samples=50, batter_min_pa=100),
+            feature_store=store,
+        )
+
+        model_set = trainer.train_batter_models((2021, 2022))
+
+        assert model_set.player_type == "batter"
+        assert model_set.training_years == (2021, 2022)
+        stats = model_set.get_stats()
+        assert len(stats) > 0
+        for stat in stats:
+            assert stat in BATTER_STATS
+
+
 class TestTrainingConfig:
     def test_default_values(self) -> None:
         config = TrainingConfig()

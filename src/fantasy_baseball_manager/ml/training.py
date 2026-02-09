@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
     from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
     from fantasy_baseball_manager.pipeline.engine import ProjectionPipeline
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
@@ -73,6 +74,7 @@ class ResidualModelTrainer:
     skill_data_source: SkillDataSource
     id_mapper: SfbbMapper
     config: TrainingConfig = field(default_factory=TrainingConfig)
+    feature_store: FeatureStore | None = field(default=None)
 
     def train_batter_models(self, target_years: tuple[int, ...]) -> ResidualModelSet:
         """Train batter residual models using data from target years.
@@ -104,16 +106,16 @@ class ResidualModelTrainer:
             actuals = list(actuals_result.unwrap()) if actuals_result.is_ok() else []
             actual_lookup = {a.player_id: a for a in actuals}
 
-            # Get Statcast data from prior year (most recent available when making projection)
+            # Get Statcast and skill data from prior year (most recent available when making projection)
             statcast_year = target_year - 1
-            statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
-
-            # Build MLBAM -> Statcast lookup
-            statcast_lookup = {s.player_id: s for s in statcast_data}
-
-            # Get skill data from prior year (uses FanGraphs ID)
-            skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
-            skill_lookup = {s.player_id: s for s in skill_data}
+            if self.feature_store is not None:
+                statcast_lookup = self.feature_store.batter_statcast(statcast_year)
+                skill_lookup = self.feature_store.batter_skill(statcast_year)
+            else:
+                statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
+                statcast_lookup = {s.player_id: s for s in statcast_data}
+                skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
+                skill_lookup = {s.player_id: s for s in skill_data}
 
             # Process each player with available data
             for fg_id, proj in proj_lookup.items():
@@ -224,12 +226,14 @@ class ResidualModelTrainer:
 
             # Get Statcast and batted ball data from prior year
             statcast_year = target_year - 1
-            statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
-            batted_ball_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
-
-            # Build lookups
-            statcast_lookup = {s.player_id: s for s in statcast_data}
-            bb_lookup = {b.player_id: b for b in batted_ball_data}
+            if self.feature_store is not None:
+                statcast_lookup = self.feature_store.pitcher_statcast(statcast_year)
+                bb_lookup = self.feature_store.pitcher_batted_ball(statcast_year)
+            else:
+                statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
+                batted_ball_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
+                statcast_lookup = {s.player_id: s for s in statcast_data}
+                bb_lookup = {b.player_id: b for b in batted_ball_data}
 
             # Process each player with available data
             for fg_id, proj in proj_lookup.items():
@@ -553,14 +557,16 @@ class ResidualModelTrainer:
             actuals = list(actuals_result.unwrap()) if actuals_result.is_ok() else []
             actual_lookup = {a.player_id: a for a in actuals}
 
-            # Get Statcast data from prior year
+            # Get Statcast and skill data from prior year
             statcast_year = target_year - 1
-            statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
-            statcast_lookup = {s.player_id: s for s in statcast_data}
-
-            # Get skill data from prior year
-            skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
-            skill_lookup = {s.player_id: s for s in skill_data}
+            if self.feature_store is not None:
+                statcast_lookup = self.feature_store.batter_statcast(statcast_year)
+                skill_lookup = self.feature_store.batter_skill(statcast_year)
+            else:
+                statcast_data = self.statcast_source.batter_expected_stats(statcast_year)
+                statcast_lookup = {s.player_id: s for s in statcast_data}
+                skill_data = self.skill_data_source.batter_skill_stats(statcast_year)
+                skill_lookup = {s.player_id: s for s in skill_data}
 
             for fg_id, proj in proj_lookup.items():
                 actual = actual_lookup.get(fg_id)
@@ -641,11 +647,14 @@ class ResidualModelTrainer:
 
             # Get Statcast and batted ball data from prior year
             statcast_year = target_year - 1
-            statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
-            batted_ball_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
-
-            statcast_lookup = {s.player_id: s for s in statcast_data}
-            bb_lookup = {b.player_id: b for b in batted_ball_data}
+            if self.feature_store is not None:
+                statcast_lookup = self.feature_store.pitcher_statcast(statcast_year)
+                bb_lookup = self.feature_store.pitcher_batted_ball(statcast_year)
+            else:
+                statcast_data = self.statcast_source.pitcher_expected_stats(statcast_year)
+                batted_ball_data = self.batted_ball_source.pitcher_batted_ball_stats(statcast_year)
+                statcast_lookup = {s.player_id: s for s in statcast_data}
+                bb_lookup = {b.player_id: b for b in batted_ball_data}
 
             for fg_id, proj in proj_lookup.items():
                 actual = actual_lookup.get(fg_id)

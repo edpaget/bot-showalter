@@ -20,33 +20,19 @@ Eliminate duplicate per-year `{player_id: stats}` dict constructions by routing 
 | `MTLRateComputer` | Complete | Delegates batter/pitcher statcast + skill lookups |
 | `PipelineBuilder` wiring | Complete | Creates one `FeatureStore`, shares across all consuming stages |
 | Test coverage | Complete | 11 unit tests + 7 stage integration tests + 2 builder tests |
+| `ResidualModelTrainer` | Complete | Delegates batter/pitcher statcast, batted ball, skill lookups to store |
 
 ---
 
 ## Remaining Steps
 
-### Step 1: Add `pitcher_skill` Lookup to FeatureStore
+### Step 1: Add `pitcher_skill` Lookup to FeatureStore — Skipped
 
-**File:** `src/fantasy_baseball_manager/pipeline/feature_store.py`
-
-The store currently provides 4 lookup types. `GBResidualAdjuster` and `MTLBlender` also load pitcher skill data (`skill_data_source.pitcher_skill_stats(year)`), but this goes through `batter_skill` or direct source calls. Add a dedicated `pitcher_skill(year)` method:
-
-```python
-def pitcher_skill(self, year: int) -> dict[str, PitcherSkillStats]:
-    if year not in self._pitcher_skill:
-        data = self.skill_data_source.pitcher_skill_stats(year)
-        self._pitcher_skill[year] = {s.player_id: s for s in data}
-    return self._pitcher_skill[year]
-```
-
-**Acceptance criteria:**
-- `GBResidualAdjuster` and `MTLBlender` delegate pitcher skill lookups to the store
-- New unit test in `test_feature_store.py` verifies caching
-- All existing tests pass
+**Status:** Skipped — no consumers in the codebase. Neither `GBResidualAdjuster` nor `MTLBlender` loads pitcher skill data via the feature store path.
 
 ---
 
-### Step 2: Adopt FeatureStore in `ml/training.py`
+### Step 2: Adopt FeatureStore in `ml/training.py` — Complete
 
 **File:** `src/fantasy_baseball_manager/ml/training.py` (lines ~80-130)
 
@@ -163,9 +149,9 @@ Once all callers use `FeatureStore`, the `else` branches in each stage become de
 
 | Step | Effort | Risk | Dependency |
 |------|--------|------|------------|
-| 1. Add `pitcher_skill` lookup | Small | Low | None |
-| 2. Adopt in `ml/training.py` | Medium | Low | Step 1 |
-| 3. Adopt in `ml/mtl/dataset.py` | Medium | Low | Step 1 |
+| 1. Add `pitcher_skill` lookup | Small | Low | Skipped — no consumers |
+| 2. Adopt in `ml/training.py` | Medium | Low | Complete |
+| 3. Adopt in `ml/mtl/dataset.py` | Medium | Low | None |
 | 4. Wire into training CLI | Small | Low | Steps 2-3 |
 | 5. Evaluate `SkillDeltaComputer` | Small | None (decision only) | None |
 | 6. Remove fallback paths | Large | Medium (breaks test patterns) | Steps 1-4 |
