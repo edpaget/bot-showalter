@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from fantasy_baseball_manager.contextual.data.models import (
@@ -16,6 +18,9 @@ from fantasy_baseball_manager.pipeline.stages.contextual_rate_computer import (
     ContextualEmbeddingRateComputer,
 )
 from fantasy_baseball_manager.pipeline.types import PlayerRates
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def _make_pitch(pa_event: str | None = None) -> PitchEvent:
@@ -347,3 +352,95 @@ class TestContextualPitching:
 
         assert len(result) == 1
         assert result[0] is marcel_pitcher
+
+
+class TestPredictionVarianceLogging:
+    """Tests for _log_prediction_variance diagnostic logging."""
+
+    def _make_contextual_player(
+        self,
+        player_id: str,
+        rates: dict[str, float],
+    ) -> PlayerRates:
+        return PlayerRates(
+            player_id=player_id,
+            name=f"Player {player_id}",
+            year=2025,
+            age=28,
+            rates=rates,
+            metadata={
+                "contextual_predicted": True,
+                "contextual_games_used": 30,
+                "marcel_rates": {"hr": 0.03},
+            },
+        )
+
+    def test_logs_variance_stats_for_batters(self, caplog: pytest.LogCaptureFixture) -> None:
+        """When multiple contextual players exist, logs per-stat distribution."""
+        computer = _build_computer()
+        players = [
+            self._make_contextual_player("fg1", {"hr": 0.02, "so": 0.15}),
+            self._make_contextual_player("fg2", {"hr": 0.06, "so": 0.25}),
+            self._make_contextual_player("fg3", {"hr": 0.04, "so": 0.20}),
+            self._make_contextual_player("fg4", {"hr": 0.08, "so": 0.30}),
+        ]
+
+        with caplog.at_level(logging.INFO):
+            computer._log_prediction_variance(players, "batter")
+
+        log_text = caplog.text
+        assert "hr" in log_text
+        assert "so" in log_text
+        assert "min=" in log_text
+        assert "max=" in log_text
+        assert "std=" in log_text
+        assert "median=" in log_text
+
+    def test_logs_nothing_with_fewer_than_two_contextual_players(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """With fewer than 2 contextual players, logs a skip message."""
+        computer = _build_computer()
+        marcel_only = _make_marcel_player()
+        players = [marcel_only]
+
+        with caplog.at_level(logging.INFO):
+            computer._log_prediction_variance(players, "batter")
+
+        assert any("fewer than 2" in r.message.lower() or "skip" in r.message.lower()
+                    for r in caplog.records) or len(caplog.records) == 0
+        # Should NOT contain per-stat distribution lines
+        assert "min=" not in caplog.text
+
+    def test_logs_variance_for_pitchers(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Pitching path also triggers variance logging."""
+        computer = _build_computer()
+        players = [
+            self._make_contextual_player("fg10", {"so": 0.20, "h": 0.25}),
+            self._make_contextual_player("fg11", {"so": 0.30, "h": 0.20}),
+            self._make_contextual_player("fg12", {"so": 0.25, "h": 0.22}),
+        ]
+
+        with caplog.at_level(logging.INFO):
+            computer._log_prediction_variance(players, "pitcher")
+
+        log_text = caplog.text
+        assert "so" in log_text
+        assert "h" in log_text
+        assert "min=" in log_text
+        assert "max=" in log_text
+
+    def test_includes_percentiles(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Log output includes p25 and p75 percentiles."""
+        computer = _build_computer()
+        players = [
+            self._make_contextual_player(f"fg{i}", {"hr": 0.01 * (i + 1), "so": 0.10 + 0.02 * i})
+            for i in range(10)
+        ]
+
+        with caplog.at_level(logging.INFO):
+            computer._log_prediction_variance(players, "batter")
+
+        log_text = caplog.text
+        assert "p25=" in log_text
+        assert "p75=" in log_text

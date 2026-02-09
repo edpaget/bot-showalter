@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import statistics
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -84,6 +85,7 @@ class ContextualEmbeddingRateComputer:
             "Contextual rate computer: %d/%d batters used contextual predictions",
             contextual_count, len(result),
         )
+        self._log_prediction_variance(result, "batter")
         return result
 
     def compute_pitching_rates(
@@ -127,6 +129,7 @@ class ContextualEmbeddingRateComputer:
             "Contextual rate computer: %d/%d pitchers used contextual predictions",
             contextual_count, len(result),
         )
+        self._log_prediction_variance(result, "pitcher")
         return result
 
     def _try_contextual_prediction(
@@ -181,3 +184,46 @@ class ContextualEmbeddingRateComputer:
                 "marcel_rates": marcel_player.rates,
             },
         )
+
+    def _log_prediction_variance(
+        self,
+        players: list[PlayerRates],
+        perspective: str,
+    ) -> None:
+        """Log distribution of predicted rates across contextual players.
+
+        Helps diagnose mean-collapse: if std is near zero the model is
+        predicting nearly identical rates for every player.
+        """
+        contextual = [
+            p for p in players if p.metadata.get("contextual_predicted") is True
+        ]
+        if len(contextual) < 2:
+            logger.info(
+                "Prediction variance (%s): fewer than 2 contextual players, skipping",
+                perspective,
+            )
+            return
+
+        stat_names: set[str] = set()
+        for p in contextual:
+            stat_names.update(p.rates.keys())
+
+        for stat in sorted(stat_names):
+            values = [p.rates[stat] for p in contextual if stat in p.rates]
+            if len(values) < 2:
+                continue
+            q1, q3 = statistics.quantiles(values, n=4)[0], statistics.quantiles(values, n=4)[2]
+            logger.info(
+                "Prediction variance (%s) %s: min=%.4f max=%.4f std=%.4f "
+                "median=%.4f p25=%.4f p75=%.4f  (n=%d)",
+                perspective,
+                stat,
+                min(values),
+                max(values),
+                statistics.stdev(values),
+                statistics.median(values),
+                q1,
+                q3,
+                len(values),
+            )
