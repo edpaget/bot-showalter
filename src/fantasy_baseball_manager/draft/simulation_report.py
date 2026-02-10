@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.table import Table
+
+from fantasy_baseball_manager.adp.name_utils import normalize_name
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -139,23 +140,6 @@ def print_standings(result: SimulationResult) -> None:
 _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP", "P"})
 
 
-def _normalize_name(name: str) -> str:
-    """Normalize a player name for matching.
-
-    - Removes accents/diacritics
-    - Converts to lowercase
-    - Removes periods (for Jr./Sr.)
-    - Strips Yahoo-specific suffixes like (Batter)/(Pitcher)
-    """
-    # Strip Yahoo-specific suffixes for two-way players
-    name = re.sub(r"\s*\((Batter|Pitcher)\)\s*$", "", name)
-    normalized = unicodedata.normalize("NFD", name)
-    normalized = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
-    normalized = normalized.lower()
-    normalized = re.sub(r"\.", "", normalized)
-    return normalized
-
-
 def _parse_player_name(name: str, positions: tuple[str, ...]) -> tuple[str, str | None]:
     """Parse player name and determine position type.
 
@@ -175,19 +159,13 @@ def _parse_player_name(name: str, positions: tuple[str, ...]) -> tuple[str, str 
     match = re.search(r"\s*\((Batter|Pitcher)\)\s*$", name)
     if match:
         suffix = match.group(1)
-        position_type = "B" if suffix == "Batter" else "P"
-        base_name = name[: match.start()]
+        position_type: str | None = "B" if suffix == "Batter" else "P"
     else:
         # For sources without suffixes (like ESPN), there's only one entry
         # for two-way players. Store them as untyped so they match any lookup.
         position_type = None
-        base_name = name
 
-    normalized = unicodedata.normalize("NFD", base_name)
-    normalized = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
-    normalized = normalized.lower()
-    normalized = re.sub(r"\.", "", normalized)
-    return normalized, position_type
+    return normalize_name(name), position_type
 
 
 class _ADPLookup:
@@ -222,7 +200,7 @@ class _ADPLookup:
         Returns:
             ADP value or None if not found.
         """
-        normalized = _normalize_name(name)
+        normalized = normalize_name(name)
         position_type = "P" if is_pitcher else "B"
 
         # First try position-specific lookup (for two-way players)

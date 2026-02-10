@@ -18,3 +18,6 @@ sfbb.csv
 
 # Historical projection CSV files (user-supplied)
 data/projections/*.csv
+
+# Historical ADP CSV files (user-supplied, subscription-gated)
+data/adp/*.csv

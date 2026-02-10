@@ -2,33 +2,15 @@
 
 from __future__ import annotations
 
-import re
-import unicodedata
 from typing import TYPE_CHECKING, overload
 
 from fantasy_baseball_manager.adp.models import ADPEntry
+from fantasy_baseball_manager.adp.name_utils import normalize_name
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS, DataSource, DataSourceError
 from fantasy_baseball_manager.result import Err, Ok
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.player.identity import Player
-
-
-def _normalize_name(name: str) -> str:
-    """Normalize a player name for cross-provider matching.
-
-    - Removes accents/diacritics
-    - Converts to lowercase
-    - Removes periods (for Jr./Sr.)
-    - Strips provider-specific suffixes like (Batter)/(Pitcher)
-    """
-    # Strip provider-specific suffixes
-    name = re.sub(r"\s*\((Batter|Pitcher)\)\s*$", "", name)
-    normalized = unicodedata.normalize("NFD", name)
-    normalized = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
-    normalized = normalized.lower()
-    normalized = re.sub(r"\.", "", normalized)
-    return normalized
 
 
 class CompositeADPDataSource:
@@ -80,7 +62,7 @@ class CompositeADPDataSource:
 
             entries = result.unwrap()
             for entry in entries:
-                norm_name = _normalize_name(entry.name)
+                norm_name = normalize_name(entry.name)
 
                 if norm_name not in aggregated:
                     aggregated[norm_name] = (

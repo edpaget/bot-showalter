@@ -873,3 +873,155 @@ def _print_validation_report(report: object) -> None:
         )
 
     console.print(table)
+
+
+@ml_app.command(name="build-dataset")
+def build_dataset_cmd(
+    years: Annotated[
+        str,
+        typer.Option(
+            "--years",
+            "-y",
+            help="Comma-separated years for dataset building (e.g., 2022,2023,2024,2025)",
+        ),
+    ],
+    system: Annotated[
+        str,
+        typer.Option(
+            "--system",
+            "-s",
+            help="Projection system to use (steamer, zips, zipsdc)",
+        ),
+    ] = "steamer",
+    output: Annotated[
+        str | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output CSV path for concatenated dataset",
+        ),
+    ] = None,
+    min_pa: Annotated[
+        int,
+        typer.Option(
+            "--min-pa",
+            help="Minimum plate appearances for batters",
+        ),
+    ] = 50,
+    min_ip: Annotated[
+        float,
+        typer.Option(
+            "--min-ip",
+            help="Minimum innings pitched for pitchers",
+        ),
+    ] = 20.0,
+) -> None:
+    """Build training dataset by joining projections with FantasyPros ADP.
+
+    For each year, resolves projection CSVs and FantasyPros ADP CSVs,
+    joins them by player name, and reports match/unmatch statistics.
+
+    Example:
+        uv run fantasy-baseball-manager ml build-dataset --years 2022,2023,2024,2025 --system steamer
+        uv run fantasy-baseball-manager ml build-dataset --years 2024,2025 --output data/adp/training.csv
+    """
+    import csv
+    import dataclasses
+    from pathlib import Path
+
+    from fantasy_baseball_manager.adp.csv_resolver import ADPCSVResolver
+    from fantasy_baseball_manager.adp.training_dataset import build_multi_year_dataset
+    from fantasy_baseball_manager.projections.csv_resolver import CSVProjectionResolver
+    from fantasy_baseball_manager.projections.models import ProjectionSystem
+
+    # Parse years
+    target_years = [int(y.strip()) for y in years.split(",")]
+
+    # Resolve projection system
+    system_map: dict[str, ProjectionSystem] = {
+        "steamer": ProjectionSystem.STEAMER,
+        "zips": ProjectionSystem.ZIPS,
+        "zipsdc": ProjectionSystem.ZIPS_DC,
+    }
+    proj_system = system_map.get(system.lower())
+    if proj_system is None:
+        typer.echo(f"Unknown projection system: {system}. Use steamer, zips, or zipsdc.")
+        raise typer.Exit(1)
+
+    typer.echo(f"Building training dataset for years: {target_years}")
+    typer.echo(f"Projection system: {proj_system.value}")
+    typer.echo(f"Filters: min_pa={min_pa}, min_ip={min_ip}")
+
+    proj_resolver = CSVProjectionResolver()
+    adp_resolver = ADPCSVResolver()
+
+    all_batters, all_pitchers, per_year = build_multi_year_dataset(
+        target_years,
+        proj_resolver,
+        adp_resolver,
+        proj_system,
+        min_pa=min_pa,
+        min_ip=min_ip,
+    )
+
+    # Print per-year summary
+    summary_table = Table(title="Per-Year Join Summary")
+    summary_table.add_column("Year", justify="right")
+    summary_table.add_column("Batters", justify="right")
+    summary_table.add_column("Pitchers", justify="right")
+    summary_table.add_column("Unmatched ADP", justify="right")
+    summary_table.add_column("Unmatched Batting", justify="right")
+    summary_table.add_column("Unmatched Pitching", justify="right")
+
+    for year_val in sorted(per_year.keys()):
+        result = per_year[year_val]
+        summary_table.add_row(
+            str(year_val),
+            str(len(result.batter_rows)),
+            str(len(result.pitcher_rows)),
+            str(len(result.unmatched_adp)),
+            str(len(result.unmatched_batting)),
+            str(len(result.unmatched_pitching)),
+        )
+
+    console.print(summary_table)
+
+    skipped = set(target_years) - set(per_year.keys())
+    if skipped:
+        typer.echo(f"\nWarning: Skipped years (missing files): {sorted(skipped)}")
+
+    typer.echo(f"\nTotal: {len(all_batters)} batter rows, {len(all_pitchers)} pitcher rows")
+
+    # Write output CSV if requested
+    if output:
+        output_path = Path(output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_path, "w", newline="") as f:
+            if all_batters:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=[field.name for field in dataclasses.fields(all_batters[0])],
+                )
+                writer.writeheader()
+                for row in all_batters:
+                    writer.writerow(dataclasses.asdict(row))
+
+            if all_pitchers:
+                if not all_batters:
+                    writer = csv.DictWriter(
+                        f,
+                        fieldnames=[field.name for field in dataclasses.fields(all_pitchers[0])],
+                    )
+                    writer.writeheader()
+                else:
+                    f.write("\n")
+                    writer = csv.DictWriter(
+                        f,
+                        fieldnames=[field.name for field in dataclasses.fields(all_pitchers[0])],
+                    )
+                    writer.writeheader()
+                for row in all_pitchers:
+                    writer.writerow(dataclasses.asdict(row))
+
+        typer.echo(f"Dataset written to {output_path}")
