@@ -59,6 +59,8 @@ class FineTuneConfig:
     perspective: str = "pitcher"
     context_window: int = 10
     min_games: int = 15
+    target_mode: str = "rates"  # "counts" (legacy) | "rates"
+    target_window: int = 5  # number of games to average for target rate
 
     # Training
     epochs: int = 30
@@ -80,9 +82,24 @@ class FineTuneConfig:
     seed: int = 42
 
     def __post_init__(self) -> None:
-        if self.min_games < self.context_window + 1:
-            msg = f"min_games ({self.min_games}) must be >= context_window + 1 ({self.context_window + 1})"
+        if self.target_mode not in ("counts", "rates"):
+            msg = f"target_mode must be 'counts' or 'rates', got '{self.target_mode}'"
             raise ValueError(msg)
+        if self.target_mode == "rates":
+            required = self.context_window + self.target_window
+            if self.min_games < required:
+                msg = (
+                    f"min_games ({self.min_games}) must be >= "
+                    f"context_window + target_window ({required}) in rates mode"
+                )
+                raise ValueError(msg)
+        else:
+            if self.min_games < self.context_window + 1:
+                msg = (
+                    f"min_games ({self.min_games}) must be >= "
+                    f"context_window + 1 ({self.context_window + 1})"
+                )
+                raise ValueError(msg)
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +112,7 @@ class ContextualRateComputerConfig:
     pitcher_context_window: int = DEFAULT_PITCHER_CONTEXT_WINDOW
     batter_min_games: int = DEFAULT_BATTER_CONTEXT_WINDOW
     pitcher_min_games: int = DEFAULT_PITCHER_CONTEXT_WINDOW
+    rate_mode: bool = False
 
     def context_window_for(self, perspective: str) -> int:
         """Return context window size for the given perspective."""

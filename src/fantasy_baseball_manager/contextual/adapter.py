@@ -119,3 +119,62 @@ class PerGameToSeasonAdapter:
         for stat in _PITCHER_UNCOVERED_STATS:
             if stat in marcel_rates:
                 rates[stat] = marcel_rates[stat]
+
+    def predicted_rates_to_pipeline_rates(
+        self,
+        predicted_rates: dict[str, float],
+        marcel_rates: dict[str, float],
+    ) -> dict[str, float]:
+        """Map model output rate stat names to pipeline rate stat names.
+
+        Unlike predictions_to_rates(), no division by denominator is needed —
+        the model output is already a rate.
+        """
+        rates: dict[str, float] = {}
+
+        if self._perspective == "batter":
+            self._map_batter_rates(predicted_rates, marcel_rates, rates)
+        else:
+            self._map_pitcher_rates(predicted_rates, marcel_rates, rates)
+
+        return rates
+
+    def _map_batter_rates(
+        self,
+        preds: dict[str, float],
+        marcel_rates: dict[str, float],
+        rates: dict[str, float],
+    ) -> None:
+        # Derive singles rate from h - 2b - 3b - hr, clamped to 0
+        singles_rate = max(
+            0.0,
+            preds.get("h", 0.0) - preds.get("2b", 0.0) - preds.get("3b", 0.0) - preds.get("hr", 0.0),
+        )
+
+        rates["hr"] = preds.get("hr", 0.0)
+        rates["so"] = preds.get("so", 0.0)
+        rates["bb"] = preds.get("bb", 0.0)
+        rates["singles"] = singles_rate
+        rates["doubles"] = preds.get("2b", 0.0)
+        rates["triples"] = preds.get("3b", 0.0)
+
+        # Uncovered stats from Marcel
+        for stat in _BATTER_UNCOVERED_STATS:
+            if stat in marcel_rates:
+                rates[stat] = marcel_rates[stat]
+
+    def _map_pitcher_rates(
+        self,
+        preds: dict[str, float],
+        marcel_rates: dict[str, float],
+        rates: dict[str, float],
+    ) -> None:
+        rates["so"] = preds.get("so", 0.0)
+        rates["h"] = preds.get("h", 0.0)
+        rates["bb"] = preds.get("bb", 0.0)
+        rates["hr"] = preds.get("hr", 0.0)
+
+        # Uncovered stats from Marcel
+        for stat in _PITCHER_UNCOVERED_STATS:
+            if stat in marcel_rates:
+                rates[stat] = marcel_rates[stat]

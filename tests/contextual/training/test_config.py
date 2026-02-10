@@ -77,6 +77,8 @@ class TestFineTuneConfig:
         assert config.perspective == "pitcher"
         assert config.context_window == 10
         assert config.min_games == 15
+        assert config.target_mode == "rates"
+        assert config.target_window == 5
         assert config.epochs == 30
         assert config.batch_size == 32
         assert config.head_learning_rate == 1e-3
@@ -118,17 +120,41 @@ class TestFineTuneConfig:
         assert config.backbone_learning_rate == 1e-6
         assert config.freeze_backbone is True
 
-    def test_min_games_must_exceed_context_window(self) -> None:
-        config = FineTuneConfig()
+    def test_min_games_must_exceed_context_window_counts_mode(self) -> None:
+        config = FineTuneConfig(target_mode="counts")
         assert config.min_games >= config.context_window + 1
 
-    def test_min_games_equals_context_window_raises(self) -> None:
+    def test_min_games_equals_context_window_raises_counts_mode(self) -> None:
         with pytest.raises(ValueError, match="min_games"):
-            FineTuneConfig(context_window=10, min_games=10)
+            FineTuneConfig(target_mode="counts", context_window=10, min_games=10)
 
-    def test_min_games_less_than_context_window_raises(self) -> None:
+    def test_min_games_less_than_context_window_raises_counts_mode(self) -> None:
         with pytest.raises(ValueError, match="min_games"):
-            FineTuneConfig(context_window=10, min_games=5)
+            FineTuneConfig(target_mode="counts", context_window=10, min_games=5)
+
+    def test_rates_mode_min_games_validation(self) -> None:
+        # context_window=10, target_window=5 → need min_games >= 15
+        config = FineTuneConfig(
+            target_mode="rates", context_window=10, target_window=5, min_games=15,
+        )
+        assert config.min_games == 15
+
+    def test_rates_mode_min_games_too_low_raises(self) -> None:
+        with pytest.raises(ValueError, match="min_games"):
+            FineTuneConfig(
+                target_mode="rates", context_window=10, target_window=5, min_games=14,
+            )
+
+    def test_invalid_target_mode_raises(self) -> None:
+        with pytest.raises(ValueError, match="target_mode"):
+            FineTuneConfig(target_mode="invalid")
+
+    def test_counts_mode_backward_compat(self) -> None:
+        config = FineTuneConfig(
+            target_mode="counts", context_window=10, min_games=11,
+        )
+        assert config.target_mode == "counts"
+        assert config.min_games == 11
 
 
 class TestContextualRateComputerConfig:

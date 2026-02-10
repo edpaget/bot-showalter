@@ -225,6 +225,46 @@ class TestContextualModelStore:
         except FileNotFoundError:
             pass
 
+    def test_save_and_load_target_mode_metadata(self, tmp_path: Path) -> None:
+        config = _small_config()
+        n_targets = 4
+        head = PerformancePredictionHead(config, n_targets)
+        model = ContextualPerformanceModel(config, head)
+        store = ContextualModelStore(model_dir=tmp_path)
+
+        metadata = ContextualModelMetadata(
+            name="rates_test",
+            epoch=5,
+            train_loss=0.1,
+            val_loss=0.15,
+            perspective="pitcher",
+            target_stats=("so", "h", "bb", "hr"),
+            target_mode="rates",
+            target_window=5,
+        )
+        store.save_checkpoint("rates_test", model, metadata)
+
+        loaded_meta = store.get_metadata("rates_test")
+        assert loaded_meta is not None
+        assert loaded_meta.target_mode == "rates"
+        assert loaded_meta.target_window == 5
+
+    def test_backward_compat_no_target_mode(self, tmp_path: Path) -> None:
+        """Old checkpoints without target_mode load with None values."""
+        config = _small_config()
+        model = _make_model(config)
+        store = ContextualModelStore(model_dir=tmp_path)
+
+        metadata = ContextualModelMetadata(
+            name="old_ckpt", epoch=1, train_loss=0.5, val_loss=0.6,
+        )
+        store.save_checkpoint("old_ckpt", model, metadata)
+
+        loaded_meta = store.get_metadata("old_ckpt")
+        assert loaded_meta is not None
+        assert loaded_meta.target_mode is None
+        assert loaded_meta.target_window is None
+
     def test_list_checkpoints_with_finetune_fields(self, tmp_path: Path) -> None:
         config = _small_config()
         store = ContextualModelStore(model_dir=tmp_path)

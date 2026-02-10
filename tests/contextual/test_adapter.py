@@ -244,3 +244,62 @@ class TestPredictionsToRates:
         assert result is not None
         # singles = max(0, 1.5 - 0.5 - 0.2 - 1.0) / 4.0 = max(0, -0.2) / 4.0 = 0.0
         assert result["singles"] == pytest.approx(0.0)
+
+
+class TestPredictedRatesToPipelineRates:
+    def test_batter_rate_mapping(self) -> None:
+        adapter = PerGameToSeasonAdapter("batter")
+        predicted_rates = {"hr": 0.04, "so": 0.20, "bb": 0.10, "h": 0.30, "2b": 0.05, "3b": 0.01}
+        marcel_rates = {
+            "hbp": 0.01, "sf": 0.005, "sh": 0.002, "sb": 0.02, "cs": 0.005,
+            "r": 0.12, "rbi": 0.14,
+        }
+        result = adapter.predicted_rates_to_pipeline_rates(predicted_rates, marcel_rates)
+
+        # Direct mapping — no division
+        assert result["hr"] == pytest.approx(0.04)
+        assert result["so"] == pytest.approx(0.20)
+        assert result["bb"] == pytest.approx(0.10)
+        assert result["doubles"] == pytest.approx(0.05)
+        assert result["triples"] == pytest.approx(0.01)
+        # singles = h - 2b - 3b - hr = 0.30 - 0.05 - 0.01 - 0.04 = 0.20
+        assert result["singles"] == pytest.approx(0.20)
+
+    def test_batter_singles_clamped_to_zero(self) -> None:
+        adapter = PerGameToSeasonAdapter("batter")
+        # Component hits exceed total hits
+        predicted_rates = {"hr": 0.10, "so": 0.20, "bb": 0.10, "h": 0.15, "2b": 0.05, "3b": 0.02}
+        marcel_rates: dict[str, float] = {}
+        result = adapter.predicted_rates_to_pipeline_rates(predicted_rates, marcel_rates)
+        # singles = max(0, 0.15 - 0.05 - 0.02 - 0.10) = max(0, -0.02) = 0.0
+        assert result["singles"] == pytest.approx(0.0)
+
+    def test_pitcher_rate_mapping(self) -> None:
+        adapter = PerGameToSeasonAdapter("pitcher")
+        predicted_rates = {"so": 0.25, "h": 0.30, "bb": 0.08, "hr": 0.03}
+        marcel_rates = {
+            "hbp": 0.01, "er": 0.10, "w": 0.15, "sv": 0.0, "hld": 0.0, "bs": 0.0,
+        }
+        result = adapter.predicted_rates_to_pipeline_rates(predicted_rates, marcel_rates)
+
+        assert result["so"] == pytest.approx(0.25)
+        assert result["h"] == pytest.approx(0.30)
+        assert result["bb"] == pytest.approx(0.08)
+        assert result["hr"] == pytest.approx(0.03)
+
+    def test_uncovered_stats_from_marcel(self) -> None:
+        adapter = PerGameToSeasonAdapter("batter")
+        predicted_rates = {"hr": 0.04, "so": 0.20, "bb": 0.10, "h": 0.30, "2b": 0.05, "3b": 0.01}
+        marcel_rates = {
+            "hbp": 0.01, "sf": 0.005, "sh": 0.002, "sb": 0.02, "cs": 0.005,
+            "r": 0.12, "rbi": 0.14,
+        }
+        result = adapter.predicted_rates_to_pipeline_rates(predicted_rates, marcel_rates)
+
+        assert result["hbp"] == 0.01
+        assert result["sf"] == 0.005
+        assert result["sh"] == 0.002
+        assert result["sb"] == 0.02
+        assert result["cs"] == 0.005
+        assert result["r"] == 0.12
+        assert result["rbi"] == 0.14

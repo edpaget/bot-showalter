@@ -165,11 +165,16 @@ class ContextualEmbeddingRateComputer:
             return None
 
         avg_predictions, context_games = prediction
-        avg_denominator = sum(adapter.game_denominator(g) for g in context_games) / len(context_games)
 
-        rates = adapter.predictions_to_rates(avg_predictions, avg_denominator, marcel_player.rates)
-        if rates is None:
-            return None
+        if self.config.rate_mode:
+            rates = adapter.predicted_rates_to_pipeline_rates(
+                avg_predictions, marcel_player.rates,
+            )
+        else:
+            avg_denominator = sum(adapter.game_denominator(g) for g in context_games) / len(context_games)
+            rates = adapter.predictions_to_rates(avg_predictions, avg_denominator, marcel_player.rates)
+            if rates is None:
+                return None
 
         return PlayerRates(
             player_id=marcel_player.player_id,

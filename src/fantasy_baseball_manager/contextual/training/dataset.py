@@ -416,11 +416,69 @@ class FineTuneBatch:
     context_mean: torch.Tensor  # (batch, n_targets) float
 
 
+def _game_denominator(game: GameSequence, perspective: str) -> float:
+    """Return PA for batters, outs for pitchers.
+
+    Reuses counting logic from PerGameToSeasonAdapter without importing it,
+    to keep this module self-contained for multiprocessing pickling.
+    """
+    if perspective == "batter":
+        return float(sum(1 for p in game.pitches if p.pa_event is not None))
+    # Pitcher: count outs
+    from fantasy_baseball_manager.contextual.adapter import _OUT_EVENTS
+
+    total = 0
+    for p in game.pitches:
+        if p.pa_event is not None:
+            total += _OUT_EVENTS.get(p.pa_event, 0)
+    return float(total)
+
+
+def compute_rate_targets(
+    context_games: tuple[GameSequence, ...],
+    target_games: tuple[GameSequence, ...],
+    target_stats: tuple[str, ...],
+    perspective: str,
+) -> tuple[torch.Tensor, torch.Tensor] | None:
+    """Compute rate targets and context rates.
+
+    Returns (target_rate, context_rate) each (n_targets,), or None if
+    either denominator sum is 0.
+
+    target_rate = sum(counts over K target games) / sum(denoms over K target games)
+    context_rate = sum(counts over N context games) / sum(denoms over N context games)
+    """
+    # Target window
+    target_counts = torch.stack(
+        [extract_game_stats(g, target_stats) for g in target_games]
+    ).sum(dim=0)
+    target_denom = sum(_game_denominator(g, perspective) for g in target_games)
+
+    if target_denom == 0.0:
+        return None
+
+    # Context window
+    context_counts = torch.stack(
+        [extract_game_stats(g, target_stats) for g in context_games]
+    ).sum(dim=0)
+    context_denom = sum(_game_denominator(g, perspective) for g in context_games)
+
+    if context_denom == 0.0:
+        return None
+
+    target_rate = target_counts / target_denom
+    context_rate = context_counts / context_denom
+
+    return target_rate, context_rate
+
+
 def _build_player_windows(
     player_ctx: PlayerContext,
     tensorizer: Tensorizer,
     context_window: int,
     target_stats: tuple[str, ...],
+    target_mode: str = "counts",
+    target_window: int = 1,
 ) -> list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]]:
     """Build sliding windows for a single player.
 
@@ -435,23 +493,47 @@ def _build_player_windows(
     games = player_ctx.games
     n = context_window
 
-    for i in range(len(games) - n):
-        context_games = games[i : i + n]
-        target_game = games[i + n]
+    if target_mode == "rates":
+        k = target_window
+        for i in range(len(games) - n - k + 1):
+            context_games = games[i : i + n]
+            target_games = games[i + n : i + n + k]
 
-        ctx = PC(
-            player_id=player_ctx.player_id,
-            player_name=player_ctx.player_name,
-            season=player_ctx.season,
-            perspective=player_ctx.perspective,
-            games=context_games,
-        )
-        tensorized = tensorizer.tensorize_context(ctx)
-        targets = extract_game_stats(target_game, target_stats)
-        context_mean = torch.stack(
-            [extract_game_stats(g, target_stats) for g in context_games]
-        ).mean(dim=0)
-        windows.append((tensorized, targets, context_mean))
+            result = compute_rate_targets(
+                context_games, target_games, target_stats, player_ctx.perspective,
+            )
+            if result is None:
+                continue
+
+            target_rate, context_rate = result
+
+            ctx = PC(
+                player_id=player_ctx.player_id,
+                player_name=player_ctx.player_name,
+                season=player_ctx.season,
+                perspective=player_ctx.perspective,
+                games=context_games,
+            )
+            tensorized = tensorizer.tensorize_context(ctx)
+            windows.append((tensorized, target_rate, context_rate))
+    else:
+        for i in range(len(games) - n):
+            context_games = games[i : i + n]
+            target_game = games[i + n]
+
+            ctx = PC(
+                player_id=player_ctx.player_id,
+                player_name=player_ctx.player_name,
+                season=player_ctx.season,
+                perspective=player_ctx.perspective,
+                games=context_games,
+            )
+            tensorized = tensorizer.tensorize_context(ctx)
+            targets = extract_game_stats(target_game, target_stats)
+            context_mean = torch.stack(
+                [extract_game_stats(g, target_stats) for g in context_games]
+            ).mean(dim=0)
+            windows.append((tensorized, targets, context_mean))
 
     return windows
 
@@ -465,22 +547,31 @@ def build_finetune_windows(
 ) -> list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]]:
     """Build (context, targets, context_mean) triples using a sliding window.
 
-    For each player with G games (where G >= context_window + 1),
-    creates G - context_window examples:
-      context = tensorized games[i:i+N], target = stats from games[i+N],
-      context_mean = mean of stats over the N context games.
+    In counts mode (legacy): For each player with G games (where G >= context_window + 1),
+    creates G - context_window examples.
+
+    In rates mode: For each player with G games (where G >= context_window + target_window),
+    creates G - context_window - target_window + 1 examples. Targets and context_mean
+    are rates (sum of counts / sum of denominators).
     """
     from concurrent.futures import ProcessPoolExecutor
     from functools import partial
 
     n = config.context_window
-    eligible = [p for p in player_contexts if len(p.games) >= n + 1]
+    target_mode = config.target_mode
+    target_window = config.target_window
+
+    min_required = n + target_window if target_mode == "rates" else n + 1
+
+    eligible = [p for p in player_contexts if len(p.games) >= min_required]
 
     fn = partial(
         _build_player_windows,
         tensorizer=tensorizer,
         context_window=n,
         target_stats=target_stats,
+        target_mode=target_mode,
+        target_window=target_window,
     )
 
     windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]] = []

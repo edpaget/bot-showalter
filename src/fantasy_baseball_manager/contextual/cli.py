@@ -48,6 +48,8 @@ def _build_finetune_meta(
     context_window: int,
     max_seq_len: int,
     min_games: int,
+    target_mode: str = "rates",
+    target_window: int = 5,
 ) -> dict[str, object]:
     return {
         "seasons": sorted(seasons),
@@ -56,6 +58,8 @@ def _build_finetune_meta(
         "context_window": context_window,
         "max_seq_len": max_seq_len,
         "min_games": min_games,
+        "target_mode": target_mode,
+        "target_window": target_window,
     }
 
 
@@ -136,6 +140,20 @@ def prepare_data_cmd(
             help="Minimum pitch count to include a player context (pretrain)",
         ),
     ] = 10,
+    target_mode: Annotated[
+        str,
+        typer.Option(
+            "--target-mode",
+            help="Target mode for finetune: 'rates' (default) or 'counts' (legacy)",
+        ),
+    ] = "rates",
+    target_window: Annotated[
+        int,
+        typer.Option(
+            "--target-window",
+            help="Number of games to average for target rate (rates mode only)",
+        ),
+    ] = 5,
     workers: Annotated[
         int | None,
         typer.Option(
@@ -248,12 +266,15 @@ def prepare_data_cmd(
             console.print(f"[bold]Preparing fine-tune data ({ft_perspective})...[/bold]")
 
             target_stats = BATTER_TARGET_STATS if ft_perspective == "batter" else PITCHER_TARGET_STATS
+            ft_min_games = ft_context_window + target_window if target_mode == "rates" else ft_context_window + 5
             ft_config = FineTuneConfig(
                 train_seasons=train_seasons,
                 val_seasons=val_season_list,
                 perspective=ft_perspective,
                 context_window=ft_context_window,
-                min_games=ft_context_window + 5,
+                min_games=ft_min_games,
+                target_mode=target_mode,
+                target_window=target_window,
             )
 
             console.print("  Building training contexts...")
@@ -281,6 +302,7 @@ def prepare_data_cmd(
             ft_meta = _build_finetune_meta(
                 train_seasons, val_season_list, ft_perspective, ft_context_window,
                 max_seq_len, ft_config.min_games,
+                target_mode=target_mode, target_window=target_window,
             )
             train_name = f"finetune_{ft_perspective}_train"
             val_name = f"finetune_{ft_perspective}_val"
@@ -670,6 +692,20 @@ def finetune_cmd(
             help="Maximum sequence length (auto-detected from pretrained model if omitted)",
         ),
     ] = None,
+    target_mode: Annotated[
+        str,
+        typer.Option(
+            "--target-mode",
+            help="Target mode: 'rates' (default) or 'counts' (legacy)",
+        ),
+    ] = "rates",
+    target_window: Annotated[
+        int,
+        typer.Option(
+            "--target-window",
+            help="Number of games to average for target rate (rates mode only)",
+        ),
+    ] = 5,
     prepared_data: Annotated[
         bool,
         typer.Option(
@@ -753,12 +789,15 @@ def finetune_cmd(
             f"Either omit --max-seq-len to auto-detect or retrain with the desired length."
         )
 
+    ft_min_games = context_window + target_window if target_mode == "rates" else context_window + 5
     config = FineTuneConfig(
         train_seasons=train_seasons,
         val_seasons=val_season_list,
         perspective=perspective,
         context_window=context_window,
-        min_games=context_window + 5,
+        min_games=ft_min_games,
+        target_mode=target_mode,
+        target_window=target_window,
         epochs=epochs,
         batch_size=batch_size,
         head_learning_rate=head_lr,
@@ -770,6 +809,8 @@ def finetune_cmd(
     console.print(f"  Base model:    {base_model}")
     console.print(f"  Perspective:   {perspective}")
     console.print(f"  Target stats:  {target_stats}")
+    console.print(f"  Target mode:   {target_mode}")
+    console.print(f"  Target window: {target_window}")
     console.print(f"  Context window: {context_window}")
     console.print(f"  Train seasons: {train_seasons}")
     console.print(f"  Val seasons:   {val_season_list}")
@@ -813,6 +854,7 @@ def finetune_cmd(
             expected_meta = _build_finetune_meta(
                 train_seasons, val_season_list, perspective, context_window,
                 max_seq_len, config.min_games,
+                target_mode=target_mode, target_window=target_window,
             )
             stored_meta = data_store.load_meta(train_name)
             if stored_meta == expected_meta:

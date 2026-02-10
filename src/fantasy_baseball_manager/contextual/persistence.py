@@ -35,6 +35,8 @@ class ContextualModelMetadata:
     target_stats: tuple[str, ...] | None = None
     per_stat_mse: dict[str, float] | None = None
     base_model: str | None = None
+    target_mode: str | None = None
+    target_window: int | None = None
 
 
 @dataclass
@@ -87,6 +89,10 @@ class ContextualModelStore:
             meta_dict["per_stat_mse"] = metadata.per_stat_mse
         if metadata.base_model is not None:
             meta_dict["base_model"] = metadata.base_model
+        if metadata.target_mode is not None:
+            meta_dict["target_mode"] = metadata.target_mode
+        if metadata.target_window is not None:
+            meta_dict["target_window"] = metadata.target_window
 
         with meta_path.open("w") as f:
             json.dump(meta_dict, f, indent=2)
@@ -227,6 +233,8 @@ class ContextualModelStore:
             target_stats=target_stats,
             per_stat_mse=data.get("per_stat_mse"),
             base_model=data.get("base_model"),
+            target_mode=data.get("target_mode"),
+            target_window=data.get("target_window"),
         )
 
     def _model_path(self, name: str) -> Path:

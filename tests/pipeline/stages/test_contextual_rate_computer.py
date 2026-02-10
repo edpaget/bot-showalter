@@ -354,6 +354,68 @@ class TestContextualPitching:
         assert result[0] is marcel_pitcher
 
 
+class TestRateModeInference:
+    def test_rate_mode_bypasses_denominator(self) -> None:
+        """When rate_mode=True, model predictions are treated as rates directly."""
+        import torch
+
+        mock_store = MagicMock()
+        mock_store.exists.return_value = True
+
+        mock_model = MagicMock()
+        # Model predicts rates directly (not counts)
+        preds_tensor = torch.tensor([[0.04, 0.20, 0.10, 0.30, 0.05, 0.01]])
+        mock_model.return_value = {"performance_preds": preds_tensor}
+        mock_model.eval = MagicMock(return_value=mock_model)
+        mock_store.load_finetune_model.return_value = mock_model
+
+        mock_mapper = MagicMock()
+        mock_mapper.fangraphs_to_mlbam.return_value = 123456
+
+        mock_builder = MagicMock()
+        games = [_make_game(i) for i in range(12)]
+        mock_builder.build_player_season.return_value = games
+
+        config = ContextualRateComputerConfig(
+            batter_min_games=10, batter_context_window=10, rate_mode=True,
+        )
+        computer = _build_computer(
+            model_store=mock_store,
+            id_mapper=mock_mapper,
+            sequence_builder=mock_builder,
+            config=config,
+        )
+
+        marcel_player = _make_marcel_player()
+        computer._marcel_computer = MagicMock()
+        computer._marcel_computer.compute_batting_rates.return_value = [marcel_player]
+
+        mock_tensorizer = MagicMock()
+        mock_tensorizer.tensorize_context.return_value = MagicMock()
+        mock_tensorizer.collate.return_value = MagicMock()
+        computer.predictor._tensorizer = mock_tensorizer
+
+        result = computer.compute_batting_rates(
+            MagicMock(), MagicMock(), 2025, 3,
+        )
+
+        assert len(result) == 1
+        player = result[0]
+        assert player.metadata.get("contextual_predicted") is True
+        # Rates should be used directly — hr=0.04
+        import pytest
+        assert player.rates["hr"] == pytest.approx(0.04)
+        # singles = h - 2b - 3b - hr = 0.30 - 0.05 - 0.01 - 0.04 = 0.20
+        assert player.rates["singles"] == pytest.approx(0.20)
+        # Uncovered stats from Marcel
+        assert player.rates["hbp"] == marcel_player.rates["hbp"]
+
+    def test_legacy_mode_still_works(self) -> None:
+        """When rate_mode=False (default), existing count-based path is used."""
+        config = ContextualRateComputerConfig()
+        assert config.rate_mode is False
+
+
 class TestPredictionVarianceLogging:
     """Tests for _log_prediction_variance diagnostic logging."""
 

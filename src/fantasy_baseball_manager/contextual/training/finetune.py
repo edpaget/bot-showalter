@@ -350,6 +350,8 @@ class FineTuneTrainer:
             perspective=self._config.perspective,
             target_stats=self._target_stats,
             per_stat_mse=val_metrics.per_stat_mse,
+            target_mode=self._config.target_mode,
+            target_window=self._config.target_window,
         )
         scheduler_state = {
             "epoch": epoch + 1,

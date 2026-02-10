@@ -117,7 +117,7 @@ class TestFineTuneTrainer:
     def test_loss_computation(self, small_config: ModelConfig, tmp_path: Path) -> None:
         target_stats = BATTER_TARGET_STATS
         ft_config = FineTuneConfig(
-            epochs=1, batch_size=2, context_window=2, min_games=3,
+            epochs=1, batch_size=2, target_mode="counts", context_window=2, min_games=3,
             head_learning_rate=1e-3, backbone_learning_rate=1e-5,
             min_warmup_steps=1, warmup_fraction=0.1, patience=100,
         )
@@ -140,7 +140,7 @@ class TestFineTuneTrainer:
     def test_training_reduces_loss(self, small_config: ModelConfig, tmp_path: Path) -> None:
         target_stats = PITCHER_TARGET_STATS
         ft_config = FineTuneConfig(
-            epochs=15, batch_size=4, context_window=2, min_games=3,
+            epochs=15, batch_size=4, target_mode="counts", context_window=2, min_games=3,
             head_learning_rate=1e-3, backbone_learning_rate=1e-4,
             min_warmup_steps=1, warmup_fraction=0.01, patience=100,
             checkpoint_interval=100, log_interval=1000,
@@ -162,7 +162,7 @@ class TestFineTuneTrainer:
         target_stats = PITCHER_TARGET_STATS
         ft_config = FineTuneConfig(
             epochs=100,  # High max epochs
-            batch_size=4, context_window=2, min_games=3,
+            batch_size=4, target_mode="counts", context_window=2, min_games=3,
             head_learning_rate=1e-3, backbone_learning_rate=1e-4,
             min_warmup_steps=1, warmup_fraction=0.01,
             patience=3,  # Stop after 3 epochs without improvement
@@ -186,7 +186,7 @@ class TestFineTuneTrainer:
     def test_checkpointing(self, small_config: ModelConfig, tmp_path: Path) -> None:
         target_stats = BATTER_TARGET_STATS
         ft_config = FineTuneConfig(
-            epochs=3, batch_size=2, context_window=2, min_games=3,
+            epochs=3, batch_size=2, target_mode="counts", context_window=2, min_games=3,
             head_learning_rate=1e-3, backbone_learning_rate=1e-5,
             min_warmup_steps=1, warmup_fraction=0.1,
             checkpoint_interval=1, patience=100,
@@ -210,7 +210,7 @@ class TestFineTuneTrainer:
     def test_resume_training(self, small_config: ModelConfig, tmp_path: Path) -> None:
         target_stats = PITCHER_TARGET_STATS
         ft_config = FineTuneConfig(
-            epochs=2, batch_size=2, context_window=2, min_games=3,
+            epochs=2, batch_size=2, target_mode="counts", context_window=2, min_games=3,
             head_learning_rate=1e-3, backbone_learning_rate=1e-5,
             min_warmup_steps=1, warmup_fraction=0.1,
             checkpoint_interval=1, patience=100,
@@ -226,7 +226,7 @@ class TestFineTuneTrainer:
 
         # Resume for more epochs
         resume_config = FineTuneConfig(
-            epochs=4, batch_size=2, context_window=2, min_games=3,
+            epochs=4, batch_size=2, target_mode="counts", context_window=2, min_games=3,
             head_learning_rate=1e-3, backbone_learning_rate=1e-5,
             min_warmup_steps=1, warmup_fraction=0.1,
             checkpoint_interval=1, patience=100,
@@ -239,7 +239,7 @@ class TestFineTuneTrainer:
     def test_freeze_backbone(self, small_config: ModelConfig, tmp_path: Path) -> None:
         target_stats = BATTER_TARGET_STATS
         ft_config = FineTuneConfig(
-            epochs=2, batch_size=2, context_window=2, min_games=3,
+            epochs=2, batch_size=2, target_mode="counts", context_window=2, min_games=3,
             head_learning_rate=1e-3, backbone_learning_rate=1e-5,
             freeze_backbone=True,
             min_warmup_steps=1, warmup_fraction=0.1, patience=100,
@@ -269,7 +269,7 @@ class TestFineTuneTrainer:
         head_lr = 1e-2
         backbone_lr = 1e-6
         ft_config = FineTuneConfig(
-            epochs=1, batch_size=2, context_window=2, min_games=3,
+            epochs=1, batch_size=2, target_mode="counts", context_window=2, min_games=3,
             head_learning_rate=head_lr,
             backbone_learning_rate=backbone_lr,
             min_warmup_steps=1, warmup_fraction=0.1, patience=100,
