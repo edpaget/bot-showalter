@@ -217,6 +217,25 @@ class TestMGMDataset:
         assert torch.equal(s1.mask_positions, s2.mask_positions)
         assert torch.equal(s1.pitch_type_ids, s2.pitch_type_ids)
 
+    def test_masking_varies_across_epochs(self, small_config: ModelConfig) -> None:
+        """set_epoch() should produce different masking patterns."""
+        sequences = _make_sequences(small_config, n_games=3, pitches_per_game=20)
+        config = PreTrainingConfig(mask_ratio=0.3, seed=42)
+        dataset = MGMDataset(
+            sequences=sequences, config=config,
+            pitch_type_vocab_size=PITCH_TYPE_VOCAB.size,
+            pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
+        )
+
+        dataset.set_epoch(0)
+        s0 = dataset[0]
+
+        dataset.set_epoch(1)
+        s1 = dataset[0]
+
+        # Masks should differ between epochs
+        assert not torch.equal(s0.mask_positions, s1.mask_positions)
+
 
 class TestCollation:
     def test_collate_shapes(self, small_config: ModelConfig) -> None:

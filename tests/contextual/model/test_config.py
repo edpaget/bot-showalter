@@ -42,8 +42,8 @@ class TestModelConfig:
 
     def test_target_counts(self) -> None:
         config = ModelConfig()
-        assert config.n_batter_targets == 7
-        assert config.n_pitcher_targets == 5
+        assert config.n_batter_targets == 6
+        assert config.n_pitcher_targets == 4
 
     def test_frozen_immutability(self) -> None:
         config = ModelConfig()

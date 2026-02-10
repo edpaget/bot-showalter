@@ -136,7 +136,22 @@ class MGMTrainer:
 
         best_state_dict = None
 
+        # Guard: if resuming past the final epoch, just validate and return
+        if start_epoch >= config.epochs:
+            logger.info("Training already complete (start_epoch=%d >= epochs=%d)", start_epoch, config.epochs)
+            val_metrics = self._validate(val_loader)
+            return {
+                "val_loss": val_metrics.loss,
+                "val_pitch_type_loss": val_metrics.pitch_type_loss,
+                "val_pitch_result_loss": val_metrics.pitch_result_loss,
+                "val_pitch_type_accuracy": val_metrics.pitch_type_accuracy,
+                "val_pitch_result_accuracy": val_metrics.pitch_result_accuracy,
+            }
+
         for epoch in range(start_epoch, config.epochs):
+            # Vary masking patterns each epoch
+            train_dataset.set_epoch(epoch)
+
             # Training
             train_metrics = self._train_epoch(train_loader, optimizer, scheduler, global_step)
             global_step += len(train_loader)

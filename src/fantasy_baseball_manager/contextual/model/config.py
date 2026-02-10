@@ -39,6 +39,6 @@ class ModelConfig:
     handedness_vocab_size: int = 4
     pa_event_vocab_size: int = 27
 
-    # Performance head targets
-    n_batter_targets: int = 7  # HR, SO, BB, H, 2B, 3B, SB
-    n_pitcher_targets: int = 5  # H, ER, SO, BB, HR
+    # Performance head targets (must match BATTER/PITCHER_TARGET_STATS in training.config)
+    n_batter_targets: int = 6  # HR, SO, BB, H, 2B, 3B
+    n_pitcher_targets: int = 4  # SO, H, BB, HR

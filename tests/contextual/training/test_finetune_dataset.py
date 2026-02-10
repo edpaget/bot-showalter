@@ -46,12 +46,16 @@ def _build_tensorizer(config: ModelConfig) -> Tensorizer:
 
 
 def _game_with_events(*pa_events: str | None, perspective: str = "batter") -> object:
-    """Create a GameSequence where certain pitches have pa_event set."""
+    """Create a GameSequence where each element is a separate one-pitch PA.
+
+    Each pitch gets pitch_number=1 since it's the sole pitch in its PA,
+    matching how real Statcast data represents single-pitch plate appearances.
+    """
     from fantasy_baseball_manager.contextual.data.models import GameSequence
 
     pitches = tuple(
-        make_pitch(pitch_number=i + 1, pa_event=event)
-        for i, event in enumerate(pa_events)
+        make_pitch(pitch_number=1, pa_event=event)
+        for event in pa_events
     )
     return GameSequence(
         game_pk=717465,
@@ -136,6 +140,54 @@ class TestExtractGameStats:
         assert stats[2].item() == 1.0  # bb
         assert stats[3].item() == 1.0  # hr
 
+    def test_duplicate_pa_event_counted_once(self) -> None:
+        """If pa_event is set on every pitch in a PA, it should only count once."""
+        from fantasy_baseball_manager.contextual.data.models import GameSequence
+
+        # Simulate a 3-pitch strikeout where pa_event is on all pitches
+        pitches = tuple(
+            make_pitch(pitch_number=i + 1, pa_event="strikeout")
+            for i in range(3)
+        )
+        game = GameSequence(
+            game_pk=717465,
+            game_date="2024-03-28",
+            season=2024,
+            home_team="LAD",
+            away_team="SD",
+            perspective="batter",
+            player_id=660271,
+            pitches=pitches,
+        )
+        stats = extract_game_stats(game, BATTER_TARGET_STATS)
+        assert stats[1].item() == 1.0  # so should be 1, not 3
+
+    def test_multi_pa_duplicate_events(self) -> None:
+        """Multiple PAs each with pa_event on all pitches should count correctly."""
+        from fantasy_baseball_manager.contextual.data.models import GameSequence
+
+        # PA1: 2-pitch walk (pa_event on both), PA2: 3-pitch strikeout (pa_event on all)
+        pitches = (
+            make_pitch(pitch_number=1, pa_event="walk"),
+            make_pitch(pitch_number=2, pa_event="walk"),
+            make_pitch(pitch_number=1, pa_event="strikeout"),
+            make_pitch(pitch_number=2, pa_event="strikeout"),
+            make_pitch(pitch_number=3, pa_event="strikeout"),
+        )
+        game = GameSequence(
+            game_pk=717465,
+            game_date="2024-03-28",
+            season=2024,
+            home_team="LAD",
+            away_team="SD",
+            perspective="batter",
+            player_id=660271,
+            pitches=tuple(pitches),
+        )
+        stats = extract_game_stats(game, BATTER_TARGET_STATS)
+        assert stats[1].item() == 1.0  # so = 1
+        assert stats[2].item() == 1.0  # bb = 1
+
     def test_unrelated_pa_event_counts_nothing(self) -> None:
         game = _game_with_events("field_out", "grounded_into_double_play")
         stats = extract_game_stats(game, BATTER_TARGET_STATS)  # type: ignore[arg-type]
@@ -211,11 +263,12 @@ class TestBuildFineTuneWindows:
         )
 
         # Game 0: 0 HR, Game 1: 1 HR, Game 2: 2 HR (but max 3 pitches), Game 3: 0 HR
+        # Each pitch is a separate one-pitch PA (pitch_number=1)
         games = []
         for i, n_hr in enumerate([0, 1, 2, 0]):
             pa_events: list[str | None] = ["home_run"] * n_hr + [None] * (3 - n_hr)
             pitches = tuple(
-                make_pitch(pitch_number=j + 1, pa_event=pa_events[j])
+                make_pitch(pitch_number=1, pa_event=pa_events[j])
                 for j in range(3)
             )
             games.append(GameSequence(
@@ -259,12 +312,13 @@ class TestBuildFineTuneWindows:
             PlayerContext,
         )
 
-        # Build games where game i has i home runs
+        # Build games where game i has min(i, 3) home runs
+        # Each pitch is a separate one-pitch PA (pitch_number=1)
         games = []
         for i in range(5):
             pa_events: list[str | None] = ["home_run"] * i + [None] * (3 - i) if i < 3 else ["home_run"] * 3
             pitches = tuple(
-                make_pitch(pitch_number=j + 1, pa_event=pa_events[j] if j < len(pa_events) else None)
+                make_pitch(pitch_number=1, pa_event=pa_events[j] if j < len(pa_events) else None)
                 for j in range(3)
             )
             games.append(GameSequence(

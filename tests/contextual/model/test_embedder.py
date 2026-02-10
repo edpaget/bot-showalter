@@ -77,6 +77,36 @@ class TestEventEmbedder:
         )
         assert torch.allclose(out_masked, out_zeros)
 
+    def test_partial_numeric_mask_normalizes_correctly(self, small_config: ModelConfig) -> None:
+        """Masked LayerNorm should compute stats only over present features.
+
+        With a partial mask, two inputs that differ only in masked-out positions
+        should produce identical output.
+        """
+        embedder = EventEmbedder(small_config)
+        embedder.eval()
+        batch, seq_len = 1, 2
+        n_num = small_config.n_numeric_features
+
+        # Only the first 5 features are present
+        mask = torch.zeros(batch, seq_len, n_num, dtype=torch.bool)
+        mask[:, :, :5] = True
+
+        numerics_a = torch.randn(batch, seq_len, n_num)
+        numerics_b = numerics_a.clone()
+        # Change masked-out positions — should not affect output
+        numerics_b[:, :, 5:] = torch.randn(batch, seq_len, n_num - 5) * 100
+
+        zeros = torch.zeros(batch, seq_len, dtype=torch.long)
+        kwargs = dict(
+            pitch_type_ids=zeros, pitch_result_ids=zeros, bb_type_ids=zeros,
+            stand_ids=zeros, p_throws_ids=zeros, pa_event_ids=zeros,
+        )
+        out_a = embedder(**kwargs, numeric_features=numerics_a, numeric_mask=mask)
+        out_b = embedder(**kwargs, numeric_features=numerics_b, numeric_mask=mask)
+
+        assert torch.allclose(out_a, out_b, atol=1e-5)
+
     def test_gradient_flow(self, small_config: ModelConfig) -> None:
         embedder = EventEmbedder(small_config)
         batch, seq_len = 1, 3

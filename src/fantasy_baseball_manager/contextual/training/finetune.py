@@ -150,6 +150,18 @@ class FineTuneTrainer:
 
         best_state_dict = None
 
+        # Guard: if resuming past the final epoch, just validate and return
+        if start_epoch >= config.epochs:
+            logger.info("Training already complete (start_epoch=%d >= epochs=%d)", start_epoch, config.epochs)
+            val_metrics = self._validate(val_loader)
+            return {
+                "val_loss": val_metrics.loss,
+                **{f"val_{stat}_mse": v for stat, v in val_metrics.per_stat_mse.items()},
+                **{f"val_{stat}_mae": v for stat, v in val_metrics.per_stat_mae.items()},
+                **{f"baseline_{stat}_mse": v for stat, v in val_metrics.baseline_per_stat_mse.items()},
+                **{f"baseline_{stat}_mae": v for stat, v in val_metrics.baseline_per_stat_mae.items()},
+            }
+
         for epoch in range(start_epoch, config.epochs):
             train_metrics = self._train_epoch(train_loader, optimizer, scheduler, global_step)
             global_step += len(train_loader)

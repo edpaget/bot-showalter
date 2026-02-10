@@ -64,7 +64,10 @@ class MaskedBatch:
 
 
 class MGMDataset(Dataset[MaskedSample]):
-    """Dataset that applies BERT-style masking to tensorized pitch sequences."""
+    """Dataset that applies BERT-style masking to tensorized pitch sequences.
+
+    Call set_epoch() before each epoch to ensure different masking patterns.
+    """
 
     def __init__(
         self,
@@ -77,6 +80,11 @@ class MGMDataset(Dataset[MaskedSample]):
         self._config = config
         self._pitch_type_vocab_size = pitch_type_vocab_size
         self._pitch_result_vocab_size = pitch_result_vocab_size
+        self._epoch = 0
+
+    def set_epoch(self, epoch: int) -> None:
+        """Set the current epoch so masking patterns vary across epochs."""
+        self._epoch = epoch
 
     def __len__(self) -> int:
         return len(self._sequences)
@@ -94,9 +102,10 @@ class MGMDataset(Dataset[MaskedSample]):
         cls_mask = original.game_ids == -1
         maskable = original.padding_mask & ~original.player_token_mask & ~cls_mask
 
-        # Deterministic RNG per (seed, idx) for reproducibility
+        # Deterministic RNG per (seed, epoch, idx) for reproducibility
+        # with different masks each epoch
         rng = torch.Generator()
-        rng.manual_seed(self._config.seed + index)
+        rng.manual_seed(self._config.seed + self._epoch * len(self._sequences) + index)
 
         # Select ~mask_ratio fraction of maskable positions
         rand = torch.rand(seq_len, generator=rng)
@@ -357,14 +366,25 @@ def extract_game_stats(
 ) -> torch.Tensor:
     """Extract counting stats from a game's pitches.
 
-    Iterates over pitches and counts pa_event occurrences for each target stat.
+    Only counts pa_event on the last pitch of each plate appearance
+    (where the next pitch has pitch_number == 1, or it's the final pitch)
+    to avoid double-counting if pa_event is populated on every pitch in a PA.
 
     Returns:
         (n_targets,) float tensor of per-game counting stats.
     """
     counts = [0.0] * len(target_stats)
-    for pitch in game.pitches:
+    pitches = game.pitches
+    n_pitches = len(pitches)
+    for idx, pitch in enumerate(pitches):
         if pitch.pa_event is None:
+            continue
+        # Only count on the last pitch of the PA
+        is_last_in_pa = (
+            idx == n_pitches - 1
+            or pitches[idx + 1].pitch_number == 1
+        )
+        if not is_last_in_pa:
             continue
         for i, stat in enumerate(target_stats):
             events = _STAT_EVENT_MAP.get(stat)

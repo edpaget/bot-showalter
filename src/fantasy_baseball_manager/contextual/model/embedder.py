@@ -87,10 +87,17 @@ class EventEmbedder(nn.Module):
         pt_ = self.p_throws_emb(p_throws_ids)
         pa = self.pa_event_emb(pa_event_ids)
 
-        # Numeric branch: mask → norm → re-mask → linear
-        masked_numeric = numeric_features * numeric_mask.float()
-        normed = self.numeric_norm(masked_numeric)
-        normed = normed * numeric_mask.float()  # Re-mask after norm
+        # Numeric branch: masked LayerNorm → re-mask → linear
+        # Compute mean/variance only over present features to avoid
+        # distortion from zeroed-out missing values.
+        mask_float = numeric_mask.float()
+        n_present = mask_float.sum(dim=-1, keepdim=True).clamp(min=1)
+        masked_numeric = numeric_features * mask_float
+        mean = masked_numeric.sum(dim=-1, keepdim=True) / n_present
+        var = ((numeric_features - mean).pow(2) * mask_float).sum(dim=-1, keepdim=True) / n_present
+        normed = (numeric_features - mean) / (var + self.numeric_norm.eps).sqrt()
+        normed = normed * self.numeric_norm.weight + self.numeric_norm.bias
+        normed = normed * mask_float
         numeric_out = self.numeric_proj(normed)
 
         # Concatenate and project

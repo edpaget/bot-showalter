@@ -54,6 +54,7 @@ class GamestateTransformer(nn.Module):
         """
         # PyTorch TransformerEncoder expects:
         #   mask: (batch*n_heads, seq_len, seq_len) float with -inf for masked
+        #   src_key_padding_mask: (batch, seq_len) bool, True=IGNORE
         n_heads = self._config.n_heads
         batch, seq_len, _ = embeddings.shape
 
@@ -74,4 +75,11 @@ class GamestateTransformer(nn.Module):
         diag = torch.arange(seq_len, device=float_mask.device)
         float_mask[:, diag, diag] = 0.0
 
-        return self.encoder(embeddings, mask=float_mask)
+        # Invert padding_mask: our convention is True=real, PyTorch expects True=ignore.
+        # Convert to float to match mask dtype and avoid PyTorch deprecation warning.
+        key_padding_mask = torch.zeros_like(padding_mask, dtype=embeddings.dtype)
+        key_padding_mask.masked_fill_(~padding_mask, float("-inf"))
+
+        return self.encoder(
+            embeddings, mask=float_mask, src_key_padding_mask=key_padding_mask,
+        )
