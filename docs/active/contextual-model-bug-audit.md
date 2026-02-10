@@ -129,7 +129,7 @@ This patch was added for padding positions but has the side effect of enabling s
 
 ### M3. CLS token initial embedding is identical to PAD
 
-- [ ] **Fixed**
+- [x] **Fixed**
 
 **File:** `src/fantasy_baseball_manager/contextual/model/tensorizer.py:124-138`
 
@@ -143,7 +143,7 @@ This is a weak signal. Standard BERT implementations use a dedicated learned [CL
 
 ### M4. Fine-tune MSE loss has no per-stat weighting
 
-- [ ] **Fixed**
+- [x] **Fixed**
 
 **File:** `src/fantasy_baseball_manager/contextual/training/finetune.py:239`
 

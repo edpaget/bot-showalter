@@ -27,6 +27,7 @@ from fantasy_baseball_manager.contextual.training.dataset import (
     build_finetune_windows,
     collate_finetune_samples,
     compute_rate_targets,
+    compute_target_statistics,
     extract_game_stats,
 )
 from tests.contextual.model.conftest import make_pitch, make_player_context
@@ -673,3 +674,69 @@ class TestBuildFineTuneWindowsRatesMode:
             # SO is index 1 in BATTER_TARGET_STATS
             assert context_mean[1].item() == pytest.approx(1 / 3)
             assert targets[1].item() == pytest.approx(1 / 3)
+
+
+class TestComputeTargetStatistics:
+    def test_known_values(self) -> None:
+        """Mean and std match hand-computed values."""
+        from fantasy_baseball_manager.contextual.model.tensorizer import TensorizedSingle
+
+        dummy_ts = TensorizedSingle(
+            pitch_type_ids=torch.zeros(1, dtype=torch.long),
+            pitch_result_ids=torch.zeros(1, dtype=torch.long),
+            bb_type_ids=torch.zeros(1, dtype=torch.long),
+            stand_ids=torch.zeros(1, dtype=torch.long),
+            p_throws_ids=torch.zeros(1, dtype=torch.long),
+            pa_event_ids=torch.zeros(1, dtype=torch.long),
+            numeric_features=torch.zeros(1, 1),
+            numeric_mask=torch.zeros(1, 1, dtype=torch.bool),
+            padding_mask=torch.ones(1, dtype=torch.bool),
+            player_token_mask=torch.zeros(1, dtype=torch.bool),
+            game_ids=torch.zeros(1, dtype=torch.long),
+            seq_length=1,
+        )
+
+        # 3 windows with 2 target stats each
+        windows = [
+            (dummy_ts, torch.tensor([1.0, 10.0]), torch.zeros(2)),
+            (dummy_ts, torch.tensor([2.0, 20.0]), torch.zeros(2)),
+            (dummy_ts, torch.tensor([3.0, 30.0]), torch.zeros(2)),
+        ]
+
+        mean, std = compute_target_statistics(windows)
+        assert mean.shape == (2,)
+        assert std.shape == (2,)
+        # mean = [2.0, 20.0]
+        assert mean[0].item() == pytest.approx(2.0)
+        assert mean[1].item() == pytest.approx(20.0)
+        # std of [1,2,3] = 1.0 (with Bessel correction)
+        expected_std = torch.tensor([1.0, 2.0, 3.0]).std().item()
+        assert std[0].item() == pytest.approx(expected_std)
+
+    def test_std_clamped(self) -> None:
+        """Std is clamped to minimum 1e-6 for constant targets."""
+        from fantasy_baseball_manager.contextual.model.tensorizer import TensorizedSingle
+
+        dummy_ts = TensorizedSingle(
+            pitch_type_ids=torch.zeros(1, dtype=torch.long),
+            pitch_result_ids=torch.zeros(1, dtype=torch.long),
+            bb_type_ids=torch.zeros(1, dtype=torch.long),
+            stand_ids=torch.zeros(1, dtype=torch.long),
+            p_throws_ids=torch.zeros(1, dtype=torch.long),
+            pa_event_ids=torch.zeros(1, dtype=torch.long),
+            numeric_features=torch.zeros(1, 1),
+            numeric_mask=torch.zeros(1, 1, dtype=torch.bool),
+            padding_mask=torch.ones(1, dtype=torch.bool),
+            player_token_mask=torch.zeros(1, dtype=torch.bool),
+            game_ids=torch.zeros(1, dtype=torch.long),
+            seq_length=1,
+        )
+
+        # All identical targets → std = 0 before clamping
+        windows = [
+            (dummy_ts, torch.tensor([5.0]), torch.zeros(1)),
+            (dummy_ts, torch.tensor([5.0]), torch.zeros(1)),
+        ]
+
+        _, std = compute_target_statistics(windows)
+        assert std[0].item() > 0

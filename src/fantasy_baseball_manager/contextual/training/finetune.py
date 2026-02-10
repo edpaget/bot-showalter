@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from fantasy_baseball_manager.contextual.persistence import ContextualModelMetadata
@@ -16,6 +15,7 @@ from fantasy_baseball_manager.contextual.training.dataset import (
     FineTuneBatch,
     FineTuneSample,
     collate_finetune_samples,
+    compute_target_statistics,
 )
 
 if TYPE_CHECKING:
@@ -58,6 +58,7 @@ class FineTuneTrainer:
         self._store = model_store
         self._target_stats = target_stats
         self._device = device or torch.device("cpu")
+        self._loss_weights: torch.Tensor | None = None
         self._model.to(self._device)
 
         if config.freeze_backbone:
@@ -148,6 +149,12 @@ class FineTuneTrainer:
             **loader_kwargs,
         )
 
+        # Compute per-stat loss weights (inverse variance, normalized)
+        target_std = compute_target_statistics(train_dataset._windows)[1]
+        weights = 1.0 / (target_std ** 2)
+        weights = weights / weights.sum() * len(weights)  # normalize to sum=n_stats
+        self._loss_weights = weights.to(self._device)
+
         best_state_dict = None
 
         # Guard: if resuming past the final epoch, just validate and return
@@ -236,7 +243,7 @@ class FineTuneTrainer:
             output = self._model(batch.context)
             preds = output["performance_preds"]  # (batch, n_targets)
 
-            loss = F.mse_loss(preds, batch.targets)
+            loss = self._compute_weighted_loss(preds, batch.targets)
 
             optimizer.zero_grad()
             loss.backward()
@@ -294,7 +301,7 @@ class FineTuneTrainer:
             output = self._model(batch.context)
             preds = output["performance_preds"]  # (batch, n_targets)
 
-            loss = F.mse_loss(preds, batch.targets)
+            loss = self._compute_weighted_loss(preds, batch.targets)
 
             n = batch.targets.shape[0]
             total_loss += loss.item() * n
@@ -331,6 +338,12 @@ class FineTuneTrainer:
                 for i, stat in enumerate(self._target_stats)
             },
         )
+
+    def _compute_weighted_loss(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Per-stat inverse-variance weighted MSE loss."""
+        per_stat_mse = (preds - targets).pow(2).mean(dim=0)  # (n_stats,)
+        assert self._loss_weights is not None
+        return (per_stat_mse * self._loss_weights).mean()
 
     def _save_checkpoint(
         self,

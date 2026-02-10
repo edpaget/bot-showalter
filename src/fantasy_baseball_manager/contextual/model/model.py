@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import torch
 from torch import Tensor, nn
 
 from fantasy_baseball_manager.contextual.model.embedder import EventEmbedder
@@ -51,6 +52,7 @@ class ContextualPerformanceModel(nn.Module):
         )
         self.transformer = GamestateTransformer(config)
         self.head = head
+        self.cls_embedding = nn.Parameter(torch.randn(config.d_model) * 0.02)
 
     def forward(self, batch: TensorizedBatch) -> dict[str, Tensor]:
         """Run the full model pipeline.
@@ -74,6 +76,10 @@ class ContextualPerformanceModel(nn.Module):
             numeric_features=batch.numeric_features,
             numeric_mask=batch.numeric_mask,
         )
+
+        # 1b. Replace CLS positions with learned embedding
+        cls_positions = batch.game_ids == -1  # (batch, seq_len)
+        embeddings[cls_positions] = self.cls_embedding.to(embeddings.dtype)
 
         # 2. Add positional encoding
         embeddings = self.positional_encoding(embeddings)

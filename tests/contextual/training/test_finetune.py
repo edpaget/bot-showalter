@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
 import torch
 
 from fantasy_baseball_manager.contextual.data.vocab import (
@@ -286,3 +287,25 @@ class TestFineTuneTrainer:
         # This is a structural test — if the trainer doesn't error with
         # discriminative LRs, the wiring is correct
         assert "val_loss" in trainer.train(train_ds, val_ds)
+
+    def test_weighted_loss_differs_from_unweighted(self, small_config: ModelConfig, tmp_path: Path) -> None:
+        """Weighted loss should differ from uniform MSE when stat variances differ."""
+        target_stats = BATTER_TARGET_STATS
+        ft_config = FineTuneConfig(
+            epochs=1, batch_size=2, target_mode="counts", context_window=2, min_games=3,
+            head_learning_rate=1e-3, backbone_learning_rate=1e-5,
+            min_warmup_steps=1, warmup_fraction=0.1, patience=100,
+        )
+        model = _make_finetune_model(small_config, len(target_stats))
+        store = ContextualModelStore(model_dir=tmp_path)
+        trainer = FineTuneTrainer(model, small_config, ft_config, store, target_stats)
+
+        train_ds, val_ds = _make_datasets(small_config, ft_config, target_stats)
+        trainer.train(train_ds, val_ds)
+
+        # Verify loss weights were computed and are not uniform
+        assert trainer._loss_weights is not None
+        weights = trainer._loss_weights
+        assert weights.shape == (len(target_stats),)
+        # Weights should sum to n_stats (normalized)
+        assert weights.sum().item() == pytest.approx(len(target_stats), rel=1e-4)

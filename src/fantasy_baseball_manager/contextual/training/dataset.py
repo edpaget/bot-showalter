@@ -643,6 +643,20 @@ class FineTuneDataset(Dataset[FineTuneSample]):
         return FineTuneSample(context=context, targets=targets, context_mean=context_mean)
 
 
+def compute_target_statistics(
+    windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]],
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute per-stat mean and std from fine-tune training windows.
+
+    Returns:
+        (mean, std) each of shape (n_targets,).
+    """
+    targets = torch.stack([w[1] for w in windows])  # (n_windows, n_targets)
+    mean = targets.mean(dim=0)
+    std = targets.std(dim=0).clamp(min=1e-6)
+    return mean, std
+
+
 def collate_finetune_samples(samples: list[FineTuneSample]) -> FineTuneBatch:
     """Pad context fields and stack targets into a FineTuneBatch."""
     max_len = max(s.context.seq_length for s in samples)

@@ -139,6 +139,67 @@ class TestExtractClsEmbedding:
         assert torch.allclose(result[1], hidden[1, 0])
 
 
+class TestClsEmbedding:
+    """Tests for learned CLS embedding (M3 fix)."""
+
+    def test_cls_embedding_differs_from_pad(self, small_config: ModelConfig) -> None:
+        """CLS and PAD positions should produce different hidden states."""
+        head = MaskedGamestateHead(small_config)
+        model = ContextualPerformanceModel(small_config, head)
+        tensorizer = _make_tensorizer(small_config)
+
+        ctx = make_player_context(n_games=1, pitches_per_game=3)
+        single = tensorizer.tensorize_context(ctx)
+        # Pad to seq_len > actual so there's at least one PAD position
+        batch = tensorizer.collate([single, single])
+
+        output = model(batch)
+        hidden = output["transformer_output"]  # (2, seq_len, d_model)
+
+        # Position 0 is CLS (game_id == -1)
+        cls_hidden = hidden[0, 0, :]
+        # Find a PAD position (padding_mask == False)
+        pad_positions = ~batch.padding_mask[0]
+        if pad_positions.any():
+            pad_idx = pad_positions.nonzero(as_tuple=True)[0][0].item()
+            pad_hidden = hidden[0, pad_idx, :]
+            assert not torch.allclose(cls_hidden, pad_hidden, atol=1e-6), (
+                "CLS and PAD hidden states should differ"
+            )
+
+    def test_cls_embedding_is_learnable(self, small_config: ModelConfig) -> None:
+        """cls_embedding should have requires_grad=True and receive gradients."""
+        head = PerformancePredictionHead(small_config, n_targets=small_config.n_batter_targets)
+        model = ContextualPerformanceModel(small_config, head)
+        tensorizer = _make_tensorizer(small_config)
+
+        ctx = make_player_context(n_games=2, pitches_per_game=3)
+        single = tensorizer.tensorize_context(ctx)
+        batch = tensorizer.collate([single])
+
+        assert model.cls_embedding.requires_grad is True
+
+        output = model(batch)
+        loss = output["performance_preds"].pow(2).sum()
+        loss.backward()
+
+        assert model.cls_embedding.grad is not None
+        assert model.cls_embedding.grad.abs().sum() > 0
+
+    def test_cls_embedding_survives_state_dict(self, small_config: ModelConfig) -> None:
+        """cls_embedding should be saved and restored via state_dict."""
+        head = MaskedGamestateHead(small_config)
+        model1 = ContextualPerformanceModel(small_config, head)
+        original_cls = model1.cls_embedding.data.clone()
+
+        state = model1.state_dict()
+        assert "cls_embedding" in state
+
+        model2 = ContextualPerformanceModel(small_config, MaskedGamestateHead(small_config))
+        model2.load_state_dict(state)
+        assert torch.equal(model2.cls_embedding.data, original_cls)
+
+
 class TestSwapHead:
     """Tests for head swapping."""
 
