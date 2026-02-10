@@ -231,6 +231,36 @@ def contextual_pipeline(
     )
 
 
+def marcel_ensemble_pipeline(
+    config: RegressionConfig | None = None,
+) -> ProjectionPipeline:
+    """Marcel + formal ensemble pipeline.
+
+    Combines MTL (25%), contextual (25%), and Marcel (50%) via weighted
+    blending, with GB residual corrections applied additively on top.
+
+    This is the recommended pipeline for best accuracy across all stat
+    categories. Uses the formal ensemble framework with per-stat weight
+    tuning support.
+    """
+    from fantasy_baseball_manager.pipeline.stages.ensemble import EnsembleConfig
+
+    cfg = config or RegressionConfig()
+    ensemble_config = EnsembleConfig(
+        default_weights={"marcel": 0.50, "mtl": 0.25, "contextual": 0.25},
+    )
+    return (
+        PipelineBuilder("marcel_ensemble", config=cfg)
+        .with_park_factors()
+        .with_pitcher_normalization()
+        .with_pitcher_statcast()
+        .with_statcast()
+        .with_batter_babip()
+        .with_ensemble(config=ensemble_config)
+        .build()
+    )
+
+
 def marcel_contextual_pipeline(
     config: RegressionConfig | None = None,
 ) -> ProjectionPipeline:
@@ -307,6 +337,7 @@ PIPELINES: dict[str, Callable[[], Any]] = {
     "mle": mle_pipeline,
     "contextual": contextual_pipeline,
     "marcel_contextual": marcel_contextual_pipeline,
+    "marcel_ensemble": marcel_ensemble_pipeline,
     "steamer": steamer_pipeline,
     "zips": zips_pipeline,
 }
@@ -321,6 +352,7 @@ _CONFIGURABLE_FACTORIES: dict[str, Callable[[RegressionConfig | None], Projectio
     "mle": mle_pipeline,
     "contextual": contextual_pipeline,
     "marcel_contextual": marcel_contextual_pipeline,
+    "marcel_ensemble": marcel_ensemble_pipeline,
 }
 
 

@@ -327,3 +327,99 @@ class TestPipelineBuilderFeatureStore:
         # Only RebaselineAdjuster and ComponentAgingAdjuster — no feature store
         for adjuster in pipeline.adjusters:
             assert not hasattr(adjuster, "_feature_store") or getattr(adjuster, "_feature_store", None) is None
+
+
+class TestPipelineBuilderWithEnsemble:
+    def test_with_ensemble_adds_ensemble_adjuster(self) -> None:
+        from fantasy_baseball_manager.pipeline.stages.ensemble import (
+            EnsembleConfig,
+        )
+        from fantasy_baseball_manager.pipeline.stages.prediction_source import (
+            PredictionMode,
+        )
+
+        class FakeSource:
+            @property
+            def name(self) -> str:
+                return "fake"
+
+            @property
+            def prediction_mode(self) -> PredictionMode:
+                return PredictionMode.RATE
+
+            def predict(self, player: object) -> None:
+                return None
+
+            def ensure_ready(self, year: int) -> None:
+                pass
+
+        config = EnsembleConfig(default_weights={"marcel": 0.7, "fake": 0.3})
+        pipeline = (
+            PipelineBuilder(id_mapper=_fake_mapper())
+            .with_ensemble(sources=[FakeSource()], config=config)
+            .build()
+        )
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "EnsembleAdjuster" in adjuster_types
+
+    def test_ensemble_before_rebaseline(self) -> None:
+        from fantasy_baseball_manager.pipeline.stages.ensemble import (
+            EnsembleConfig,
+        )
+        from fantasy_baseball_manager.pipeline.stages.prediction_source import (
+            PredictionMode,
+        )
+
+        class FakeSource:
+            @property
+            def name(self) -> str:
+                return "fake"
+
+            @property
+            def prediction_mode(self) -> PredictionMode:
+                return PredictionMode.RATE
+
+            def predict(self, player: object) -> None:
+                return None
+
+            def ensure_ready(self, year: int) -> None:
+                pass
+
+        config = EnsembleConfig(default_weights={"marcel": 0.7, "fake": 0.3})
+        pipeline = (
+            PipelineBuilder(id_mapper=_fake_mapper())
+            .with_ensemble(sources=[FakeSource()], config=config)
+            .build()
+        )
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        ens_idx = adjuster_types.index("EnsembleAdjuster")
+        rb_idx = adjuster_types.index("RebaselineAdjuster")
+        assert ens_idx < rb_idx
+
+    def test_ensemble_adds_identity_enricher(self) -> None:
+        from fantasy_baseball_manager.pipeline.stages.prediction_source import (
+            PredictionMode,
+        )
+
+        class FakeSource:
+            @property
+            def name(self) -> str:
+                return "fake"
+
+            @property
+            def prediction_mode(self) -> PredictionMode:
+                return PredictionMode.RATE
+
+            def predict(self, player: object) -> None:
+                return None
+
+            def ensure_ready(self, year: int) -> None:
+                pass
+
+        pipeline = (
+            PipelineBuilder(id_mapper=_fake_mapper())
+            .with_ensemble(sources=[FakeSource()])
+            .build()
+        )
+        adjuster_types = [type(a).__name__ for a in pipeline.adjusters]
+        assert "PlayerIdentityEnricher" in adjuster_types

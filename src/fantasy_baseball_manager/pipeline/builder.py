@@ -157,6 +157,9 @@ class PipelineBuilder:
         self._contextual_config: ContextualRateComputerConfig | None = None
         self._contextual_blender: bool = False
         self._contextual_blender_config: ContextualBlenderConfig | None = None
+        self._ensemble: bool = False
+        self._ensemble_sources: list[Any] | None = None
+        self._ensemble_config: Any | None = None
         self._feature_store: FeatureStore | None = None
 
     def with_cache_store(self, cache_store: CacheStore) -> PipelineBuilder:
@@ -359,6 +362,29 @@ class PipelineBuilder:
             self._contextual_blender_config = config
         return self
 
+    def with_ensemble(
+        self,
+        sources: list[Any] | None = None,
+        config: Any | None = None,
+    ) -> PipelineBuilder:
+        """Enable the formal ensemble framework with multiple prediction sources.
+
+        Combines RATE sources (MTL, contextual) via weighted blending and
+        RESIDUAL sources (GB) via additive correction.
+
+        Args:
+            sources: List of PredictionSource instances. If None, uses
+                default sources (MTL + contextual + GB) built from the
+                shared FeatureStore and ModelRegistry.
+            config: EnsembleConfig with per-stat weights and strategy.
+        """
+        self._ensemble = True
+        if sources is not None:
+            self._ensemble_sources = sources
+        if config is not None:
+            self._ensemble_config = config
+        return self
+
     def build(self) -> ProjectionPipeline:
         rate_computer = self._build_rate_computer()
         adjusters = self._build_adjusters()
@@ -465,7 +491,7 @@ class PipelineBuilder:
         needs_enricher = (
             self._statcast or self._batter_babip or self._pitcher_statcast
             or self._gb_residual or self._mtl_blender or self._contextual
-            or self._contextual_blender
+            or self._contextual_blender or self._ensemble
         )
         if needs_enricher:
             adjusters.append(PlayerIdentityEnricher(mapper=self._resolve_id_mapper()))
@@ -555,6 +581,16 @@ class PipelineBuilder:
                     config=self._contextual_blender_config or _ContextualBlenderConfig(),
                 )
             )
+
+        if self._ensemble:
+            from fantasy_baseball_manager.pipeline.stages.ensemble import (
+                EnsembleAdjuster,
+                EnsembleConfig,
+            )
+
+            sources = self._ensemble_sources or self._build_default_ensemble_sources()
+            config = self._ensemble_config or EnsembleConfig()
+            adjusters.append(EnsembleAdjuster(sources=sources, config=config))
 
         # Always last: rebaseline then aging
         adjusters.append(RebaselineAdjuster())
@@ -659,6 +695,38 @@ class PipelineBuilder:
     def _resolve_model_registry(self) -> ModelRegistry | None:
         """Return the injected model registry, or None if not set."""
         return self._model_registry
+
+    def _build_default_ensemble_sources(self) -> list[Any]:
+        """Build default ensemble sources: MTL + contextual + GB residual."""
+        from fantasy_baseball_manager.pipeline.stages.prediction_source import (
+            ContextualPredictionSource,
+            GBResidualPredictionSource,
+            MTLPredictionSource,
+        )
+
+        sources: list[Any] = []
+        feature_store = self._resolve_feature_store()
+        registry = self._resolve_model_registry()
+
+        # MTL source
+        mtl_kwargs: dict[str, Any] = {"feature_store": feature_store}
+        if registry is not None:
+            mtl_kwargs["model_store"] = registry.mtl_store
+        sources.append(MTLPredictionSource(**mtl_kwargs))
+
+        # Contextual source
+        sources.append(ContextualPredictionSource(
+            predictor=self._resolve_contextual_predictor(),
+            id_mapper=self._resolve_id_mapper(),
+        ))
+
+        # GB residual source
+        gb_kwargs: dict[str, Any] = {"feature_store": feature_store}
+        if registry is not None:
+            gb_kwargs["model_store"] = registry.gb_store
+        sources.append(GBResidualPredictionSource(**gb_kwargs))
+
+        return sources
 
     def _get_cache_store(self) -> CacheStore:
         """Get the cache store, creating one if not injected."""

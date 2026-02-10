@@ -96,6 +96,11 @@ class PlayerMetadata(TypedDict, total=False):
     contextual_blend_weight: float
     contextual_rates: dict[str, float]
 
+    # Ensemble adjuster metadata
+    ensemble_blended: bool
+    ensemble_sources: dict[str, dict[str, float]]
+    ensemble_residual_sources: dict[str, dict[str, float]]
+
 
 @dataclass
 class PlayerRates:

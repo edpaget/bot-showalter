@@ -230,7 +230,7 @@ class TestAllPresetsInRegistry:
         assert len(aging_adjusters) == 1
 
     def test_registry_has_expected_entries(self) -> None:
-        assert len(PIPELINES) == 12  # 10 internal + steamer + zips
+        assert len(PIPELINES) == 13  # 11 internal + steamer + zips
 
 
 class TestConfigThreading:
