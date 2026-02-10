@@ -229,8 +229,8 @@ Blend with Marcel:
 
 ## Related Documents
 
-- [Alternative Training Strategies](contextual-training-strategies.md) — other pre-training objectives (ELECTRA, contrastive, autoregressive), fine-tuning approaches, and batter-specific improvements
-- [Cloud GPU Training Guide](contextual-cloud-gpu-training.md) — provider options, setup, and code changes for training on cloud infrastructure
+- [Alternative Training Strategies](../guides/contextual-training-strategies.md) — other pre-training objectives (ELECTRA, contrastive, autoregressive), fine-tuning approaches, and batter-specific improvements
+- [Cloud GPU Training Guide](../guides/contextual-cloud-gpu-training.md) — provider options, setup, and code changes for training on cloud infrastructure
 
 ## Key References
 
