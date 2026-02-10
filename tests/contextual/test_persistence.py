@@ -265,6 +265,74 @@ class TestContextualModelStore:
         assert loaded_meta.target_mode is None
         assert loaded_meta.target_window is None
 
+    def test_save_and_load_model_config(self, tmp_path: Path) -> None:
+        """ModelConfig dict round-trips through checkpoint metadata."""
+        import dataclasses
+
+        config = _small_config()
+        model = _make_model(config)
+        store = ContextualModelStore(model_dir=tmp_path)
+
+        config_dict = dataclasses.asdict(config)
+        metadata = ContextualModelMetadata(
+            name="config_test",
+            epoch=5,
+            train_loss=0.5,
+            val_loss=0.6,
+            model_config=config_dict,
+        )
+        store.save_checkpoint("config_test", model, metadata)
+
+        loaded_meta = store.get_metadata("config_test")
+        assert loaded_meta is not None
+        assert loaded_meta.model_config == config_dict
+
+    def test_load_model_config_reconstructs_config(self, tmp_path: Path) -> None:
+        """load_model_config() returns a ModelConfig matching the original."""
+        import dataclasses
+
+        config = _small_config()
+        model = _make_model(config)
+        store = ContextualModelStore(model_dir=tmp_path)
+
+        metadata = ContextualModelMetadata(
+            name="recon_test",
+            epoch=1,
+            train_loss=0.5,
+            val_loss=0.6,
+            model_config=dataclasses.asdict(config),
+        )
+        store.save_checkpoint("recon_test", model, metadata)
+
+        loaded_config = store.load_model_config("recon_test")
+        assert loaded_config == config
+
+    def test_load_model_config_missing_raises(self, tmp_path: Path) -> None:
+        """load_model_config() raises when model_config is absent."""
+        config = _small_config()
+        model = _make_model(config)
+        store = ContextualModelStore(model_dir=tmp_path)
+
+        metadata = ContextualModelMetadata(
+            name="no_config", epoch=1, train_loss=0.5, val_loss=0.6,
+        )
+        store.save_checkpoint("no_config", model, metadata)
+
+        try:
+            store.load_model_config("no_config")
+            raise AssertionError("Should raise ValueError")
+        except ValueError:
+            pass
+
+    def test_load_model_config_not_found_raises(self, tmp_path: Path) -> None:
+        """load_model_config() raises when checkpoint doesn't exist."""
+        store = ContextualModelStore(model_dir=tmp_path)
+        try:
+            store.load_model_config("nonexistent")
+            raise AssertionError("Should raise FileNotFoundError")
+        except FileNotFoundError:
+            pass
+
     def test_list_checkpoints_with_finetune_fields(self, tmp_path: Path) -> None:
         config = _small_config()
         store = ContextualModelStore(model_dir=tmp_path)

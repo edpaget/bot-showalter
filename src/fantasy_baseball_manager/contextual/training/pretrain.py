@@ -368,6 +368,8 @@ class MGMTrainer:
         global_step: int,
         best_val_loss: float,
     ) -> None:
+        import dataclasses
+
         metadata = ContextualModelMetadata(
             name=name,
             epoch=epoch + 1,
@@ -375,6 +377,7 @@ class MGMTrainer:
             val_loss=val_metrics.loss,
             pitch_type_accuracy=val_metrics.pitch_type_accuracy,
             pitch_result_accuracy=val_metrics.pitch_result_accuracy,
+            model_config=dataclasses.asdict(self._model_config),
         )
         scheduler_state = {
             "epoch": epoch + 1,

@@ -34,8 +34,12 @@ class EventEmbedder(nn.Module):
         self.p_throws_emb = nn.Embedding(config.handedness_vocab_size, config.p_throws_embed_dim, padding_idx=0)
         self.pa_event_emb = nn.Embedding(config.pa_event_vocab_size, config.pa_event_embed_dim, padding_idx=0)
 
-        # Numeric branch
+        # Numeric branch: per-feature standardization + LayerNorm
         n_num = config.n_numeric_features
+        self.feature_mean: Tensor
+        self.feature_std: Tensor
+        self.register_buffer("feature_mean", torch.zeros(n_num))
+        self.register_buffer("feature_std", torch.ones(n_num))
         self.numeric_norm = nn.LayerNorm(n_num)
         self.numeric_proj = nn.Linear(n_num, n_num)
 
@@ -52,6 +56,11 @@ class EventEmbedder(nn.Module):
         self.projection = nn.Linear(cat_dim, config.d_model)
         self.layer_norm = nn.LayerNorm(config.d_model)
         self.dropout = nn.Dropout(config.dropout)
+
+    def set_feature_statistics(self, mean: Tensor, std: Tensor) -> None:
+        """Load precomputed per-feature mean and std into buffers."""
+        self.feature_mean.copy_(mean)
+        self.feature_std.copy_(std)
 
     def forward(
         self,
@@ -87,16 +96,11 @@ class EventEmbedder(nn.Module):
         pt_ = self.p_throws_emb(p_throws_ids)
         pa = self.pa_event_emb(pa_event_ids)
 
-        # Numeric branch: masked LayerNorm → re-mask → linear
-        # Compute mean/variance only over present features to avoid
-        # distortion from zeroed-out missing values.
+        # Numeric branch: per-feature standardization → LayerNorm → re-mask → linear
         mask_float = numeric_mask.float()
-        n_present = mask_float.sum(dim=-1, keepdim=True).clamp(min=1)
-        masked_numeric = numeric_features * mask_float
-        mean = masked_numeric.sum(dim=-1, keepdim=True) / n_present
-        var = ((numeric_features - mean).pow(2) * mask_float).sum(dim=-1, keepdim=True) / n_present
-        normed = (numeric_features - mean) / (var + self.numeric_norm.eps).sqrt()
-        normed = normed * self.numeric_norm.weight + self.numeric_norm.bias
+        normed = (numeric_features - self.feature_mean) / (self.feature_std + 1e-8)
+        normed = normed * mask_float
+        normed = self.numeric_norm(normed)
         normed = normed * mask_float
         numeric_out = self.numeric_proj(normed)
 

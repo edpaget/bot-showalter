@@ -95,8 +95,11 @@ class TestContextualPredictorInit:
 
 class TestContextualPredictorModelLoading:
     def test_ensure_models_loaded_loads_both(self) -> None:
+        from fantasy_baseball_manager.contextual.model.config import ModelConfig
+
         mock_store = MagicMock()
         mock_store.exists.return_value = True
+        mock_store.load_model_config.return_value = ModelConfig()
         mock_model = MagicMock()
         mock_store.load_finetune_model.return_value = mock_model
 
@@ -114,8 +117,11 @@ class TestContextualPredictorModelLoading:
         assert predictor._models_loaded is True
 
     def test_ensure_models_loaded_skips_if_already_loaded(self) -> None:
+        from fantasy_baseball_manager.contextual.model.config import ModelConfig
+
         mock_store = MagicMock()
         mock_store.exists.return_value = True
+        mock_store.load_model_config.return_value = ModelConfig()
         mock_store.load_finetune_model.return_value = MagicMock()
 
         predictor = ContextualPredictor(
@@ -141,6 +147,29 @@ class TestContextualPredictorModelLoading:
         assert predictor.has_batter_model() is False
         assert predictor.has_pitcher_model() is False
         assert predictor._models_loaded is True
+
+    def test_loads_config_from_metadata(self) -> None:
+        """Predictor uses model_config from checkpoint metadata, not defaults."""
+        from fantasy_baseball_manager.contextual.model.config import ModelConfig
+
+        custom_config = ModelConfig(d_model=64, n_layers=2, n_heads=2, ff_dim=128)
+        mock_store = MagicMock()
+        mock_store.exists.return_value = True
+        mock_store.load_model_config.return_value = custom_config
+        mock_store.load_finetune_model.return_value = MagicMock()
+
+        predictor = ContextualPredictor(
+            sequence_builder=MagicMock(),
+            model_store=mock_store,
+        )
+        predictor.ensure_models_loaded("batter_best", "pitcher_best")
+
+        # Verify load_model_config was called for each model
+        assert mock_store.load_model_config.call_count == 2
+        # Verify the config was passed to load_finetune_model
+        calls = mock_store.load_finetune_model.call_args_list
+        for call in calls:
+            assert call[0][1] == custom_config  # second positional arg is config
 
 
 class TestContextualPredictorPredict:

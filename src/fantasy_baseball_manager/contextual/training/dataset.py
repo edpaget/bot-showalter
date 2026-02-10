@@ -63,6 +63,41 @@ class MaskedBatch:
     seq_lengths: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
 
 
+def compute_feature_statistics(
+    sequences: list[TensorizedSingle],
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute per-feature mean and std from training sequences.
+
+    Accumulates running sum and sum-of-squares only for non-masked
+    (present) values across all sequences.
+
+    Returns:
+        (mean, std) each of shape (n_numeric_features,).
+    """
+    n_features = len(NUMERIC_FIELDS)
+    running_sum = torch.zeros(n_features, dtype=torch.float64)
+    running_sq_sum = torch.zeros(n_features, dtype=torch.float64)
+    count = torch.zeros(n_features, dtype=torch.float64)
+
+    for seq in sequences:
+        mask = seq.numeric_mask  # (seq_len, n_features) bool
+        values = seq.numeric_features.double()  # (seq_len, n_features)
+        masked_values = values * mask.double()
+        running_sum += masked_values.sum(dim=0)
+        running_sq_sum += (masked_values**2).sum(dim=0)
+        count += mask.double().sum(dim=0)
+
+    # Avoid division by zero for features that are never present
+    count = count.clamp(min=1)
+    mean = running_sum / count
+    var = (running_sq_sum / count) - mean**2
+    std = var.clamp(min=0).sqrt()
+    # Replace zero std with 1 to avoid division by zero during normalization
+    std = std.clamp(min=1e-6)
+
+    return mean.float(), std.float()
+
+
 class MGMDataset(Dataset[MaskedSample]):
     """Dataset that applies BERT-style masking to tensorized pitch sequences.
 
@@ -75,11 +110,13 @@ class MGMDataset(Dataset[MaskedSample]):
         config: PreTrainingConfig,
         pitch_type_vocab_size: int,
         pitch_result_vocab_size: int,
+        pa_event_vocab_size: int = 27,
     ) -> None:
         self._sequences = sequences
         self._config = config
         self._pitch_type_vocab_size = pitch_type_vocab_size
         self._pitch_result_vocab_size = pitch_result_vocab_size
+        self._pa_event_vocab_size = pa_event_vocab_size
         self._epoch = 0
 
     def set_epoch(self, epoch: int) -> None:
@@ -96,6 +133,7 @@ class MGMDataset(Dataset[MaskedSample]):
         # Clone all tensors to avoid mutating originals
         pitch_type_ids = original.pitch_type_ids.clone()
         pitch_result_ids = original.pitch_result_ids.clone()
+        pa_event_ids = original.pa_event_ids.clone()
 
         # Identify maskable positions: real pitch tokens only.
         # Exclude player tokens and the [CLS] token (game_id == -1).
@@ -136,6 +174,7 @@ class MGMDataset(Dataset[MaskedSample]):
             zero_indices = masked_indices[zero_mask]
             pitch_type_ids[zero_indices] = 0
             pitch_result_ids[zero_indices] = 0
+            pa_event_ids[zero_indices] = 0
 
             # Apply random replacement
             random_indices = masked_indices[random_mask]
@@ -148,6 +187,9 @@ class MGMDataset(Dataset[MaskedSample]):
                 pitch_result_ids[random_indices] = torch.randint(
                     2, self._pitch_result_vocab_size, (n_random,), generator=rng
                 )
+                pa_event_ids[random_indices] = torch.randint(
+                    2, self._pa_event_vocab_size, (n_random,), generator=rng
+                )
 
         return MaskedSample(
             pitch_type_ids=pitch_type_ids,
@@ -155,7 +197,7 @@ class MGMDataset(Dataset[MaskedSample]):
             bb_type_ids=original.bb_type_ids.clone(),
             stand_ids=original.stand_ids.clone(),
             p_throws_ids=original.p_throws_ids.clone(),
-            pa_event_ids=original.pa_event_ids.clone(),
+            pa_event_ids=pa_event_ids,
             numeric_features=original.numeric_features.clone(),
             numeric_mask=original.numeric_mask.clone(),
             padding_mask=original.padding_mask.clone(),

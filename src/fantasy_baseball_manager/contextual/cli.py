@@ -440,6 +440,7 @@ def pretrain_cmd(
     import torch
 
     from fantasy_baseball_manager.contextual.data.vocab import (
+        PA_EVENT_VOCAB,
         PITCH_RESULT_VOCAB,
         PITCH_TYPE_VOCAB,
     )
@@ -447,7 +448,10 @@ def pretrain_cmd(
     from fantasy_baseball_manager.contextual.model.heads import MaskedGamestateHead
     from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
     from fantasy_baseball_manager.contextual.training.config import PreTrainingConfig
-    from fantasy_baseball_manager.contextual.training.dataset import MGMDataset
+    from fantasy_baseball_manager.contextual.training.dataset import (
+        MGMDataset,
+        compute_feature_statistics,
+    )
     from fantasy_baseball_manager.contextual.training.pretrain import MGMTrainer
 
     # Parse arguments
@@ -573,21 +577,28 @@ def pretrain_cmd(
         config=config,
         pitch_type_vocab_size=PITCH_TYPE_VOCAB.size,
         pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
+        pa_event_vocab_size=PA_EVENT_VOCAB.size,
     )
     val_dataset = MGMDataset(
         sequences=val_sequences,
         config=config,
         pitch_type_vocab_size=PITCH_TYPE_VOCAB.size,
         pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
+        pa_event_vocab_size=PA_EVENT_VOCAB.size,
     )
 
     console.print(f"  {len(train_dataset)} train samples, {len(val_dataset)} val samples")
+
+    # Compute per-feature normalization statistics from training data
+    console.print("  Computing feature statistics...")
+    feature_mean, feature_std = compute_feature_statistics(train_sequences)
 
     # Build model
     console.print(f"  Device: {device}")
 
     head = MaskedGamestateHead(model_config)
     model = ContextualPerformanceModel(model_config, head)
+    model.embedder.set_feature_statistics(feature_mean, feature_std)
     registry = _get_registry()
     model_store = registry.contextual_store
 

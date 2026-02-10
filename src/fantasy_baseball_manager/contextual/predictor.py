@@ -14,6 +14,7 @@ from fantasy_baseball_manager.contextual.training.config import (
 if TYPE_CHECKING:
     from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
     from fantasy_baseball_manager.contextual.data.models import GameSequence
+    from fantasy_baseball_manager.contextual.model.config import ModelConfig
     from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
     from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
     from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
@@ -35,6 +36,7 @@ class ContextualPredictor:
 
     _batter_model: ContextualPerformanceModel | None = field(default=None, init=False, repr=False)
     _pitcher_model: ContextualPerformanceModel | None = field(default=None, init=False, repr=False)
+    _model_config: ModelConfig | None = field(default=None, init=False, repr=False)
     _tensorizer: Tensorizer | None = field(default=None, init=False, repr=False)
     _models_loaded: bool = field(default=False, init=False, repr=False)
 
@@ -47,14 +49,13 @@ class ContextualPredictor:
         if self._models_loaded:
             return
 
-        from fantasy_baseball_manager.contextual.model.config import ModelConfig
-
-        model_config = ModelConfig()
         store = self._resolve_model_store()
 
         if store.exists(batter_model_name):
+            batter_config = store.load_model_config(batter_model_name)
+            self._model_config = batter_config
             self._batter_model = store.load_finetune_model(
-                batter_model_name, model_config, len(BATTER_TARGET_STATS),
+                batter_model_name, batter_config, len(BATTER_TARGET_STATS),
             )
             self._batter_model.eval()
             logger.debug("Loaded contextual batter model: %s", batter_model_name)
@@ -65,8 +66,11 @@ class ContextualPredictor:
             )
 
         if store.exists(pitcher_model_name):
+            pitcher_config = store.load_model_config(pitcher_model_name)
+            if self._model_config is None:
+                self._model_config = pitcher_config
             self._pitcher_model = store.load_finetune_model(
-                pitcher_model_name, model_config, len(PITCHER_TARGET_STATS),
+                pitcher_model_name, pitcher_config, len(PITCHER_TARGET_STATS),
             )
             self._pitcher_model.eval()
             logger.debug("Loaded contextual pitcher model: %s", pitcher_model_name)
@@ -161,11 +165,12 @@ class ContextualPredictor:
             PITCH_RESULT_VOCAB,
             PITCH_TYPE_VOCAB,
         )
-        from fantasy_baseball_manager.contextual.model.config import ModelConfig
+        from fantasy_baseball_manager.contextual.model.config import ModelConfig as MC
         from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
 
+        config = self._model_config if self._model_config is not None else MC()
         self._tensorizer = Tensorizer(
-            config=ModelConfig(),
+            config=config,
             pitch_type_vocab=PITCH_TYPE_VOCAB,
             pitch_result_vocab=PITCH_RESULT_VOCAB,
             bb_type_vocab=BB_TYPE_VOCAB,

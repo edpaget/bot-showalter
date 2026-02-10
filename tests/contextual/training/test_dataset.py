@@ -23,6 +23,7 @@ from fantasy_baseball_manager.contextual.training.dataset import (
     MaskedSample,
     MGMDataset,
     collate_masked_samples,
+    compute_feature_statistics,
     masked_batch_to_tensorized_batch,
 )
 from tests.contextual.model.conftest import make_player_context
@@ -187,6 +188,65 @@ class TestMGMDataset:
         ratio = zeroed / n_masked if n_masked > 0 else 0
         assert 0.6 < ratio < 1.0
 
+    def test_pa_event_zeroed_at_masked_positions(self, small_config: ModelConfig) -> None:
+        """pa_event_ids should be zeroed where pitch_type_ids is zeroed."""
+        sequences = _make_sequences(small_config, n_games=5, pitches_per_game=30)
+        config = PreTrainingConfig(
+            mask_ratio=0.5, mask_replace_ratio=1.0, mask_random_ratio=0.0, seed=42,
+        )
+        dataset = MGMDataset(
+            sequences=sequences,
+            config=config,
+            pitch_type_vocab_size=PITCH_TYPE_VOCAB.size,
+            pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
+            pa_event_vocab_size=PA_EVENT_VOCAB.size,
+        )
+        sample = dataset[0]
+        masked = sample.mask_positions
+        # With 100% replace ratio, all masked positions should have pa_event_ids == 0
+        assert (sample.pa_event_ids[masked] == 0).all()
+
+    def test_pa_event_randomized_at_random_positions(self, small_config: ModelConfig) -> None:
+        """pa_event_ids should be randomized where pitch_type_ids is randomized."""
+        sequences = _make_sequences(small_config, n_games=5, pitches_per_game=30)
+        config = PreTrainingConfig(
+            mask_ratio=0.5, mask_replace_ratio=0.0, mask_random_ratio=1.0, seed=42,
+        )
+        dataset = MGMDataset(
+            sequences=sequences,
+            config=config,
+            pitch_type_vocab_size=PITCH_TYPE_VOCAB.size,
+            pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
+            pa_event_vocab_size=PA_EVENT_VOCAB.size,
+        )
+        sample = dataset[0]
+        original = sequences[0]
+        masked = sample.mask_positions
+        n_masked = int(masked.sum().item())
+        if n_masked > 0:
+            # With 100% random ratio, pa_event_ids at masked positions should differ
+            # from originals (statistically — at least some should differ)
+            changed = (sample.pa_event_ids[masked] != original.pa_event_ids[masked]).sum().item()
+            assert changed > 0, "pa_event_ids should be randomized at random-replace positions"
+
+    def test_pa_event_unchanged_at_keep_positions(self, small_config: ModelConfig) -> None:
+        """pa_event_ids should be unchanged at keep (10%) and unmasked positions."""
+        sequences = _make_sequences(small_config, n_games=5, pitches_per_game=30)
+        config = PreTrainingConfig(
+            mask_ratio=0.5, mask_replace_ratio=0.0, mask_random_ratio=0.0, seed=42,
+        )
+        dataset = MGMDataset(
+            sequences=sequences,
+            config=config,
+            pitch_type_vocab_size=PITCH_TYPE_VOCAB.size,
+            pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
+            pa_event_vocab_size=PA_EVENT_VOCAB.size,
+        )
+        sample = dataset[0]
+        original = sequences[0]
+        # With 0% replace and 0% random → 100% keep, all masked positions keep originals
+        assert torch.equal(sample.pa_event_ids, original.pa_event_ids)
+
     def test_does_not_mutate_original(self, small_config: ModelConfig) -> None:
         sequences = _make_sequences(small_config)
         original_pt = sequences[0].pitch_type_ids.clone()
@@ -272,3 +332,82 @@ class TestCollation:
         assert tb.pitch_type_ids.shape == batch.pitch_type_ids.shape
         assert tb.padding_mask.shape == batch.padding_mask.shape
         assert torch.equal(tb.pitch_type_ids, batch.pitch_type_ids)
+
+
+class TestComputeFeatureStatistics:
+    def test_known_values(self) -> None:
+        """Mean and std match hand-computed values for known inputs."""
+        from fantasy_baseball_manager.contextual.model.tensorizer import (
+            NUMERIC_FIELDS,
+            TensorizedSingle,
+        )
+
+        n_features = len(NUMERIC_FIELDS)
+        seq_len = 4
+
+        # All features present, values [1, 2, 3, 4] for feature 0, all zeros elsewhere
+        numeric = torch.zeros(seq_len, n_features)
+        numeric[:, 0] = torch.tensor([1.0, 2.0, 3.0, 4.0])
+        mask = torch.zeros(seq_len, n_features, dtype=torch.bool)
+        mask[:, 0] = True
+
+        seq = TensorizedSingle(
+            pitch_type_ids=torch.zeros(seq_len, dtype=torch.long),
+            pitch_result_ids=torch.zeros(seq_len, dtype=torch.long),
+            bb_type_ids=torch.zeros(seq_len, dtype=torch.long),
+            stand_ids=torch.zeros(seq_len, dtype=torch.long),
+            p_throws_ids=torch.zeros(seq_len, dtype=torch.long),
+            pa_event_ids=torch.zeros(seq_len, dtype=torch.long),
+            numeric_features=numeric,
+            numeric_mask=mask,
+            padding_mask=torch.ones(seq_len, dtype=torch.bool),
+            player_token_mask=torch.zeros(seq_len, dtype=torch.bool),
+            game_ids=torch.zeros(seq_len, dtype=torch.long),
+            seq_length=seq_len,
+        )
+
+        mean, std = compute_feature_statistics([seq])
+        assert mean.shape == (n_features,)
+        assert std.shape == (n_features,)
+        # Feature 0: mean=2.5, std=sqrt(1.25)≈1.118
+        assert abs(mean[0].item() - 2.5) < 1e-5
+        expected_std = (torch.tensor([1.0, 2.0, 3.0, 4.0]).var(correction=0)).sqrt()
+        assert abs(std[0].item() - expected_std.item()) < 1e-4
+        # Unmasked features should have std clamped to >= 1e-6 (not zero)
+        assert (std >= 1e-6).all()
+
+    def test_multiple_sequences(self) -> None:
+        """Statistics accumulate correctly across multiple sequences."""
+        from fantasy_baseball_manager.contextual.model.tensorizer import (
+            NUMERIC_FIELDS,
+            TensorizedSingle,
+        )
+
+        n_features = len(NUMERIC_FIELDS)
+
+        def _make_seq(values: list[float]) -> TensorizedSingle:
+            seq_len = len(values)
+            numeric = torch.zeros(seq_len, n_features)
+            numeric[:, 0] = torch.tensor(values)
+            mask = torch.zeros(seq_len, n_features, dtype=torch.bool)
+            mask[:, 0] = True
+            return TensorizedSingle(
+                pitch_type_ids=torch.zeros(seq_len, dtype=torch.long),
+                pitch_result_ids=torch.zeros(seq_len, dtype=torch.long),
+                bb_type_ids=torch.zeros(seq_len, dtype=torch.long),
+                stand_ids=torch.zeros(seq_len, dtype=torch.long),
+                p_throws_ids=torch.zeros(seq_len, dtype=torch.long),
+                pa_event_ids=torch.zeros(seq_len, dtype=torch.long),
+                numeric_features=numeric,
+                numeric_mask=mask,
+                padding_mask=torch.ones(seq_len, dtype=torch.bool),
+                player_token_mask=torch.zeros(seq_len, dtype=torch.bool),
+                game_ids=torch.zeros(seq_len, dtype=torch.long),
+                seq_length=seq_len,
+            )
+
+        seq1 = _make_seq([10.0, 20.0])
+        seq2 = _make_seq([30.0, 40.0])
+        mean, _std = compute_feature_statistics([seq1, seq2])
+        # Combined: [10, 20, 30, 40] → mean=25
+        assert abs(mean[0].item() - 25.0) < 1e-4

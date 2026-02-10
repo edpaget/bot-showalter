@@ -342,11 +342,14 @@ class FineTuneTrainer:
         global_step: int,
         best_val_loss: float,
     ) -> None:
+        import dataclasses
+
         metadata = ContextualModelMetadata(
             name=name,
             epoch=epoch + 1,
             train_loss=train_metrics.loss,
             val_loss=val_metrics.loss,
+            model_config=dataclasses.asdict(self._model_config),
             perspective=self._config.perspective,
             target_stats=self._target_stats,
             per_stat_mse=val_metrics.per_stat_mse,

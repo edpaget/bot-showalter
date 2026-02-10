@@ -30,6 +30,7 @@ class ContextualModelMetadata:
     pitch_type_accuracy: float | None = None
     pitch_result_accuracy: float | None = None
     created_at: str | None = None
+    model_config: dict[str, Any] | None = None
     # Fine-tuning fields (optional)
     perspective: str | None = None
     target_stats: tuple[str, ...] | None = None
@@ -81,6 +82,8 @@ class ContextualModelStore:
             "pitch_result_accuracy": metadata.pitch_result_accuracy,
             "created_at": created_at,
         }
+        if metadata.model_config is not None:
+            meta_dict["model_config"] = metadata.model_config
         if metadata.perspective is not None:
             meta_dict["perspective"] = metadata.perspective
         if metadata.target_stats is not None:
@@ -192,6 +195,25 @@ class ContextualModelStore:
             logger.info("Deleted contextual checkpoint: %s", name)
         return deleted
 
+    def load_model_config(self, name: str) -> ModelConfig:
+        """Load ModelConfig from checkpoint metadata.
+
+        Raises:
+            FileNotFoundError: If metadata does not exist.
+            ValueError: If model_config is missing from metadata.
+        """
+        from fantasy_baseball_manager.contextual.model.config import ModelConfig as MC
+
+        meta = self.get_metadata(name)
+        if meta is None:
+            raise FileNotFoundError(f"Metadata not found for checkpoint: {name}")
+        if meta.model_config is None:
+            raise ValueError(
+                f"Checkpoint '{name}' has no model_config in metadata. "
+                "Retrain the model to persist config."
+            )
+        return MC(**meta.model_config)
+
     def load_finetune_model(
         self,
         name: str,
@@ -229,6 +251,7 @@ class ContextualModelStore:
             pitch_type_accuracy=data.get("pitch_type_accuracy"),
             pitch_result_accuracy=data.get("pitch_result_accuracy"),
             created_at=data.get("created_at"),
+            model_config=data.get("model_config"),
             perspective=data.get("perspective"),
             target_stats=target_stats,
             per_stat_mse=data.get("per_stat_mse"),

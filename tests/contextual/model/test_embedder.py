@@ -127,3 +127,48 @@ class TestEventEmbedder:
         loss.backward()
         assert numerics.grad is not None
         assert numerics.grad.abs().sum() > 0
+
+    def test_per_feature_standardization_changes_output(self, small_config: ModelConfig) -> None:
+        """Setting different feature statistics should change the forward output."""
+        embedder = EventEmbedder(small_config)
+        embedder.eval()
+        batch, seq_len = 1, 3
+        n_num = small_config.n_numeric_features
+
+        numerics = torch.randn(batch, seq_len, n_num)
+        mask = torch.ones(batch, seq_len, n_num, dtype=torch.bool)
+        zeros = torch.zeros(batch, seq_len, dtype=torch.long)
+        kwargs = dict(
+            pitch_type_ids=zeros, pitch_result_ids=zeros, bb_type_ids=zeros,
+            stand_ids=zeros, p_throws_ids=zeros, pa_event_ids=zeros,
+            numeric_features=numerics, numeric_mask=mask,
+        )
+
+        # Default stats: mean=0, std=1
+        out_default = embedder(**kwargs).clone()
+
+        # Set non-trivial stats
+        embedder.set_feature_statistics(
+            mean=torch.full((n_num,), 50.0),
+            std=torch.full((n_num,), 10.0),
+        )
+        out_shifted = embedder(**kwargs)
+
+        assert not torch.allclose(out_default, out_shifted, atol=1e-4)
+
+    def test_feature_statistics_survive_state_dict_round_trip(self, small_config: ModelConfig) -> None:
+        """Feature mean/std buffers persist through save/load."""
+        embedder = EventEmbedder(small_config)
+        n_num = small_config.n_numeric_features
+
+        mean = torch.randn(n_num)
+        std = torch.rand(n_num) + 0.5
+        embedder.set_feature_statistics(mean, std)
+
+        # Save and load state dict
+        state = embedder.state_dict()
+        embedder2 = EventEmbedder(small_config)
+        embedder2.load_state_dict(state)
+
+        assert torch.equal(embedder2.feature_mean, mean)
+        assert torch.equal(embedder2.feature_std, std)
