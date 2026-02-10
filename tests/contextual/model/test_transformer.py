@@ -109,3 +109,35 @@ class TestGamestateTransformer:
         # No NaN anywhere in output
         assert not torch.isnan(out).any(), "Transformer output contains NaN values"
         assert torch.isfinite(out).all(), "Transformer output contains non-finite values"
+
+    def test_padding_no_nan_multi_layer(self) -> None:
+        """NaN from padding must not propagate through multiple transformer layers.
+
+        With n_layers=1 padding NaN stays isolated, but with n_layers>=2 NaN
+        hidden states at padding positions produce NaN K/V in layer 2, which
+        corrupts real positions when Q_real @ K_NaN = NaN in the attention logits.
+        """
+        from fantasy_baseball_manager.contextual.model.config import ModelConfig
+
+        config = ModelConfig(d_model=32, n_layers=3, n_heads=2, ff_dim=64, dropout=0.0)
+        transformer = GamestateTransformer(config)
+        transformer.eval()
+        batch, seq_len = 2, 10
+
+        embeddings = torch.randn(batch, seq_len, config.d_model)
+
+        # Padding: last 4 positions are padding
+        padding_mask = torch.ones(batch, seq_len, dtype=torch.bool)
+        padding_mask[:, 6:] = False
+
+        attn_mask = torch.zeros(batch, seq_len, seq_len, dtype=torch.bool)
+        attn_mask[:, :, 6:] = True   # no one attends to padding
+        attn_mask[:, 6:, :6] = True   # padding doesn't attend to real
+
+        out = transformer(embeddings, attn_mask, padding_mask)
+
+        # Real positions must be NaN-free
+        assert not torch.isnan(out[:, :6]).any(), (
+            "Real positions contain NaN — padding NaN propagated through layers"
+        )
+        assert torch.isfinite(out).all(), "Output contains non-finite values"

@@ -52,9 +52,7 @@ class GamestateTransformer(nn.Module):
         Returns:
             (batch, seq_len, d_model) hidden states
         """
-        # PyTorch TransformerEncoder expects:
-        #   mask: (batch*n_heads, seq_len, seq_len) float with -inf for masked
-        #   src_key_padding_mask: (batch, seq_len) bool, True=IGNORE
+        del padding_mask  # Padding info is already encoded in attention_mask
         n_heads = self._config.n_heads
         batch, seq_len, _ = embeddings.shape
 
@@ -75,11 +73,10 @@ class GamestateTransformer(nn.Module):
         diag = torch.arange(seq_len, device=float_mask.device)
         float_mask[:, diag, diag] = 0.0
 
-        # Invert padding_mask: our convention is True=real, PyTorch expects True=ignore.
-        # Convert to float to match mask dtype and avoid PyTorch deprecation warning.
-        key_padding_mask = torch.zeros_like(padding_mask, dtype=embeddings.dtype)
-        key_padding_mask.masked_fill_(~padding_mask, float("-inf"))
-
-        return self.encoder(
-            embeddings, mask=float_mask, src_key_padding_mask=key_padding_mask,
-        )
+        # NOTE: We intentionally omit src_key_padding_mask.  The float_mask
+        # already encodes padding information (build_player_attention_mask uses
+        # padding_mask to prevent real tokens from attending to padding).
+        # Passing key_padding_mask would add -inf to padding positions' own
+        # keys, defeating the diagonal self-attention fix above and causing
+        # NaN from softmax(all -inf) that propagates through subsequent layers.
+        return self.encoder(embeddings, mask=float_mask)
