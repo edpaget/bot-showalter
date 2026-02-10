@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from fantasy_baseball_manager.contextual.data_store import PreparedDataStore
 from fantasy_baseball_manager.contextual.model.tensorizer import TensorizedSingle
@@ -98,7 +101,7 @@ class TestPreparedDataStore:
         store = PreparedDataStore(data_dir=tmp_path)
         try:
             store.load_pretrain_data("nonexistent")
-            raise AssertionError("Expected FileNotFoundError")  # noqa: TRY301
+            raise AssertionError("Expected FileNotFoundError")
         except FileNotFoundError:
             pass
 
@@ -106,6 +109,6 @@ class TestPreparedDataStore:
         store = PreparedDataStore(data_dir=tmp_path)
         try:
             store.load_finetune_data("nonexistent")
-            raise AssertionError("Expected FileNotFoundError")  # noqa: TRY301
+            raise AssertionError("Expected FileNotFoundError")
         except FileNotFoundError:
             pass
