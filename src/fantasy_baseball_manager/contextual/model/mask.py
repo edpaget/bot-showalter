@@ -59,6 +59,12 @@ def build_player_attention_mask(
 
     # Player attends to same-game non-player real tokens
     player_can_attend = player_rows & same_game & non_player_real_cols
+
+    # Explicitly include self-attention for player tokens
+    player_diag = player_token_mask.unsqueeze(2) & player_token_mask.unsqueeze(1)
+    diag = torch.eye(seq_len, dtype=torch.bool, device=mask.device).unsqueeze(0)
+    player_can_attend = player_can_attend | (player_diag & diag)
+
     mask[player_can_attend] = False
 
     return mask

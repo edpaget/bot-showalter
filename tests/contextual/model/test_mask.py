@@ -11,7 +11,7 @@ class TestBuildPlayerAttentionMask:
     """Tests for the player attention mask builder."""
 
     def test_one_game_player_attends_to_pitches(self) -> None:
-        """Player token attends to 3 pitches in its game (self-attention handled by transformer)."""
+        """Player token attends to 3 pitches in its game + self."""
         # [P0] p0 p1 p2
         padding_mask = torch.tensor([[True, True, True, True]])
         player_token_mask = torch.tensor([[True, False, False, False]])
@@ -20,9 +20,8 @@ class TestBuildPlayerAttentionMask:
         mask = build_player_attention_mask(padding_mask, player_token_mask, game_ids)
         # mask[b, i, j] = True means position i CANNOT attend to position j
 
-        # Player (pos 0) can attend to 3 pitches in same game
-        # Self-attention (diagonal) is handled universally by the transformer
-        assert mask[0, 0, 0].item() is True  # self masked here (transformer adds diagonal)
+        # Player (pos 0) can attend to 3 pitches in same game + self
+        assert mask[0, 0, 0].item() is False  # self-attention included
         assert mask[0, 0, 1].item() is False  # pitch 0
         assert mask[0, 0, 2].item() is False  # pitch 1
         assert mask[0, 0, 3].item() is False  # pitch 2
@@ -50,20 +49,19 @@ class TestBuildPlayerAttentionMask:
 
         mask = build_player_attention_mask(padding_mask, player_token_mask, game_ids)
 
-        # P0 (pos 0): attends to game 0 pitches (pos 1, 2), NOT to game 1
-        # Self-attention (diagonal) is handled universally by the transformer
-        assert mask[0, 0, 0].item() is True  # self masked (transformer adds diagonal)
+        # P0 (pos 0): attends to game 0 pitches (pos 1, 2) + self, NOT to game 1
+        assert mask[0, 0, 0].item() is False  # self-attention included
         assert mask[0, 0, 1].item() is False  # game 0 pitch
         assert mask[0, 0, 2].item() is False  # game 0 pitch
         assert mask[0, 0, 3].item() is True  # P1 (other player token)
         assert mask[0, 0, 4].item() is True  # game 1 pitch
         assert mask[0, 0, 5].item() is True  # game 1 pitch
 
-        # P1 (pos 3): attends to game 1 pitches (pos 4, 5), NOT to game 0
+        # P1 (pos 3): attends to game 1 pitches (pos 4, 5) + self, NOT to game 0
         assert mask[0, 3, 0].item() is True  # P0
         assert mask[0, 3, 1].item() is True  # game 0 pitch
         assert mask[0, 3, 2].item() is True  # game 0 pitch
-        assert mask[0, 3, 3].item() is True  # self masked (transformer adds diagonal)
+        assert mask[0, 3, 3].item() is False  # self-attention included
         assert mask[0, 3, 4].item() is False  # game 1 pitch
         assert mask[0, 3, 5].item() is False  # game 1 pitch
 

@@ -85,7 +85,7 @@ This shortcut undermines pre-training. The model learns to read `pa_event` rathe
 
 ### M1. `ignore_index=0` in pre-training loss couples PAD semantics with loss sentinel
 
-- [ ] **Fixed**
+- [x] **Fixed**
 
 **File:** `src/fantasy_baseball_manager/contextual/training/pretrain.py:349-358`
 
@@ -105,7 +105,7 @@ Non-masked positions use 0 as a "skip this" sentinel in the target tensor. PAD i
 
 ### M2. Player token self-attention works by accident
 
-- [ ] **Fixed**
+- [x] **Fixed**
 
 **Files:** `src/fantasy_baseball_manager/contextual/model/mask.py:52-57`, `src/fantasy_baseball_manager/contextual/model/transformer.py:76`
 

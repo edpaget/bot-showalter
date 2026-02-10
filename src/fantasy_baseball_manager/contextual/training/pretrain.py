@@ -343,18 +343,18 @@ class MGMTrainer:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute cross-entropy loss for pitch type and result at masked positions.
 
-        Targets are 0 at non-masked positions, so ignore_index=0 skips them.
+        Targets are -100 at non-masked positions, so ignore_index=-100 skips them.
         """
         # Reshape to (N, vocab_size) and (N,)
         pt_loss = F.cross_entropy(
             pt_logits.view(-1, pt_logits.size(-1)),
             target_pt.view(-1),
-            ignore_index=0,
+            ignore_index=-100,
         )
         pr_loss = F.cross_entropy(
             pr_logits.view(-1, pr_logits.size(-1)),
             target_pr.view(-1),
-            ignore_index=0,
+            ignore_index=-100,
         )
         return pt_loss, pr_loss
 

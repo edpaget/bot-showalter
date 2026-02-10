@@ -36,8 +36,8 @@ class MaskedSample:
     padding_mask: torch.Tensor  # (seq_len,) bool — True=real
     player_token_mask: torch.Tensor  # (seq_len,) bool — True=player slot
     game_ids: torch.Tensor  # (seq_len,) long
-    target_pitch_type_ids: torch.Tensor  # (seq_len,) long — originals at masked pos, 0 elsewhere
-    target_pitch_result_ids: torch.Tensor  # (seq_len,) long — originals at masked pos, 0 elsewhere
+    target_pitch_type_ids: torch.Tensor  # (seq_len,) long — originals at masked pos, -100 elsewhere
+    target_pitch_result_ids: torch.Tensor  # (seq_len,) long — originals at masked pos, -100 elsewhere
     mask_positions: torch.Tensor  # (seq_len,) bool — True where masked
     seq_length: int = field(default=0)
 
@@ -149,9 +149,9 @@ class MGMDataset(Dataset[MaskedSample]):
         rand = torch.rand(seq_len, generator=rng)
         mask_positions = maskable & (rand < self._config.mask_ratio)
 
-        # Build targets: original values at masked positions, 0 elsewhere
-        target_pitch_type_ids = torch.zeros(seq_len, dtype=torch.long)
-        target_pitch_result_ids = torch.zeros(seq_len, dtype=torch.long)
+        # Build targets: original values at masked positions, -100 elsewhere
+        target_pitch_type_ids = torch.full((seq_len,), -100, dtype=torch.long)
+        target_pitch_result_ids = torch.full((seq_len,), -100, dtype=torch.long)
         target_pitch_type_ids[mask_positions] = original.pitch_type_ids[mask_positions]
         target_pitch_result_ids[mask_positions] = original.pitch_result_ids[mask_positions]
 
@@ -227,8 +227,8 @@ def collate_masked_samples(samples: list[MaskedSample]) -> MaskedBatch:
     padding_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
     player_token_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
     game_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
-    target_pitch_type_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
-    target_pitch_result_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    target_pitch_type_ids = torch.full((batch_size, max_len), -100, dtype=torch.long)
+    target_pitch_result_ids = torch.full((batch_size, max_len), -100, dtype=torch.long)
     mask_positions = torch.zeros(batch_size, max_len, dtype=torch.bool)
     seq_lengths = torch.zeros(batch_size, dtype=torch.long)
 

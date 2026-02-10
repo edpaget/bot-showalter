@@ -153,7 +153,8 @@ class TestMGMDataset:
             original.pitch_result_ids[masked],
         )
 
-    def test_targets_zero_at_unmasked_positions(self, small_config: ModelConfig) -> None:
+    def test_targets_sentinel_at_unmasked_positions(self, small_config: ModelConfig) -> None:
+        """Non-masked positions use -100 sentinel (PyTorch ignore_index convention)."""
         sequences = _make_sequences(small_config, n_games=2, pitches_per_game=10)
         dataset = MGMDataset(
             sequences=sequences,
@@ -163,8 +164,31 @@ class TestMGMDataset:
         )
         sample = dataset[0]
         unmasked = ~sample.mask_positions
-        assert (sample.target_pitch_type_ids[unmasked] == 0).all()
-        assert (sample.target_pitch_result_ids[unmasked] == 0).all()
+        assert (sample.target_pitch_type_ids[unmasked] == -100).all()
+        assert (sample.target_pitch_result_ids[unmasked] == -100).all()
+
+    def test_masked_pad_index_zero_not_ignored(self, small_config: ModelConfig) -> None:
+        """If a masked position has true label 0 (PAD index), it appears in the target."""
+        sequences = _make_sequences(small_config, n_games=2, pitches_per_game=10)
+        original = sequences[0]
+        # Force a maskable pitch position to have pitch_type_id=0 (PAD index)
+        cls_mask = original.game_ids == -1
+        maskable = original.padding_mask & ~original.player_token_mask & ~cls_mask
+        maskable_indices = maskable.nonzero(as_tuple=True)[0]
+        assert len(maskable_indices) > 0
+        forced_idx = maskable_indices[0].item()
+        original.pitch_type_ids[forced_idx] = 0
+
+        dataset = MGMDataset(
+            sequences=sequences,
+            config=PreTrainingConfig(mask_ratio=1.0, seed=42),
+            pitch_type_vocab_size=PITCH_TYPE_VOCAB.size,
+            pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
+        )
+        sample = dataset[0]
+        # The forced position should be masked and its target should be 0 (not -100)
+        assert sample.mask_positions[forced_idx].item() is True
+        assert sample.target_pitch_type_ids[forced_idx].item() == 0
 
     def test_bert_masking_80_percent_zeroed(self, small_config: ModelConfig) -> None:
         """80% of masked tokens should have categorical ids zeroed out."""
