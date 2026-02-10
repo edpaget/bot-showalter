@@ -35,6 +35,7 @@ class PreTrainingConfig:
     warmup_fraction: float = 0.05
     min_warmup_steps: int = 500
     max_grad_norm: float = 1.0
+    accumulation_steps: int = 1
 
     # Automatic Mixed Precision
     amp_enabled: bool = False
@@ -72,6 +73,7 @@ class FineTuneConfig:
     warmup_fraction: float = 0.05
     min_warmup_steps: int = 100
     max_grad_norm: float = 1.0
+    accumulation_steps: int = 1
 
     # Early stopping
     patience: int = 5

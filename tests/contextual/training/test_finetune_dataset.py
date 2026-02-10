@@ -195,6 +195,57 @@ class TestExtractGameStats:
         stats = extract_game_stats(game, BATTER_TARGET_STATS)  # type: ignore[arg-type]
         assert torch.all(stats == 0.0)
 
+    def test_extract_game_stats_with_at_bat_number(self) -> None:
+        """When at_bat_number is present, PA boundaries use it even with cumulative pitch_number."""
+        from fantasy_baseball_manager.contextual.data.models import GameSequence
+
+        # Simulate cumulative pitch numbering (pitch_number does NOT reset to 1)
+        # PA1: 2 pitches (walk), PA2: 3 pitches (strikeout)
+        pitches = (
+            make_pitch(pitch_number=1, at_bat_number=1, pa_event="walk"),
+            make_pitch(pitch_number=2, at_bat_number=1, pa_event="walk"),
+            make_pitch(pitch_number=3, at_bat_number=2, pa_event="strikeout"),
+            make_pitch(pitch_number=4, at_bat_number=2, pa_event="strikeout"),
+            make_pitch(pitch_number=5, at_bat_number=2, pa_event="strikeout"),
+        )
+        game = GameSequence(
+            game_pk=717465,
+            game_date="2024-03-28",
+            season=2024,
+            home_team="LAD",
+            away_team="SD",
+            perspective="batter",
+            player_id=660271,
+            pitches=pitches,
+        )
+        stats = extract_game_stats(game, BATTER_TARGET_STATS)
+        assert stats[1].item() == 1.0  # so = 1
+        assert stats[2].item() == 1.0  # bb = 1
+
+    def test_extract_game_stats_without_at_bat_number_fallback(self) -> None:
+        """Without at_bat_number, falls back to pitch_number == 1 heuristic."""
+        from fantasy_baseball_manager.contextual.data.models import GameSequence
+
+        # PA1: 2 pitches (walk, pitch_number resets), PA2: 1 pitch (strikeout)
+        pitches = (
+            make_pitch(pitch_number=1, pa_event="walk"),
+            make_pitch(pitch_number=2, pa_event="walk"),
+            make_pitch(pitch_number=1, pa_event="strikeout"),
+        )
+        game = GameSequence(
+            game_pk=717465,
+            game_date="2024-03-28",
+            season=2024,
+            home_team="LAD",
+            away_team="SD",
+            perspective="batter",
+            player_id=660271,
+            pitches=pitches,
+        )
+        stats = extract_game_stats(game, BATTER_TARGET_STATS)
+        assert stats[1].item() == 1.0  # so = 1
+        assert stats[2].item() == 1.0  # bb = 1
+
 
 class TestBuildFineTuneWindows:
     def test_correct_number_of_windows(self, small_config: ModelConfig) -> None:

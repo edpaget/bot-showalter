@@ -98,6 +98,7 @@ class SequenceCache:
                     "pitch_number": pitch.pitch_number,
                     "pa_event": pitch.pa_event,
                     "delta_run_exp": pitch.delta_run_exp,
+                    "at_bat_number": pitch.at_bat_number,
                 }
                 rows.append(row)
 
@@ -167,6 +168,7 @@ class SequenceCache:
                     pitch_number=int(row.pitch_number),
                     pa_event=_opt_str(row.pa_event),
                     delta_run_exp=_opt_float(row.delta_run_exp),
+                    at_bat_number=_opt_int(row.at_bat_number) if hasattr(row, "at_bat_number") else None,
                 )
                 pitches.append(pitch)
 

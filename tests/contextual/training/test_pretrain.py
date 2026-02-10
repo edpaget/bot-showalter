@@ -200,6 +200,24 @@ class TestMGMTrainer:
         assert result["val_pitch_type_accuracy"] > 0.048
         assert result["val_pitch_result_accuracy"] > 0.059
 
+    def test_gradient_accumulation(self, small_config: ModelConfig, tmp_path: Path) -> None:
+        """Training with gradient accumulation completes and produces valid loss."""
+        train_config = PreTrainingConfig(
+            epochs=2, batch_size=2, learning_rate=1e-3, seed=42,
+            min_warmup_steps=1, warmup_fraction=0.1,
+            accumulation_steps=2,
+        )
+        model = ContextualPerformanceModel(small_config, MaskedGamestateHead(small_config))
+        store = ContextualModelStore(model_dir=tmp_path)
+        trainer = MGMTrainer(model, small_config, train_config, store)
+
+        train_ds = _make_dataset(small_config, train_config, n_samples=4)
+        val_ds = _make_dataset(small_config, train_config, n_samples=2)
+
+        result = trainer.train(train_ds, val_ds)
+        assert "val_loss" in result
+        assert result["val_loss"] > 0
+
     def test_cpu_dataloader_no_extra_workers(self, small_config: ModelConfig, tmp_path: Path) -> None:
         """On CPU, DataLoader should not set num_workers/pin_memory (defaults only)."""
         train_config = PreTrainingConfig(

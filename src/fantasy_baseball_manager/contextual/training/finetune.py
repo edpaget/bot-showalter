@@ -97,7 +97,8 @@ class FineTuneTrainer:
 
         optimizer = torch.optim.AdamW(param_groups, weight_decay=config.weight_decay)
 
-        total_steps = config.epochs * math.ceil(len(train_dataset) / config.batch_size)
+        n_batches_per_epoch = math.ceil(len(train_dataset) / config.batch_size)
+        total_steps = config.epochs * math.ceil(n_batches_per_epoch / config.accumulation_steps)
         warmup_steps = max(config.min_warmup_steps, int(total_steps * config.warmup_fraction))
         scheduler = torch.optim.lr_scheduler.SequentialLR(
             optimizer,
@@ -237,6 +238,8 @@ class FineTuneTrainer:
         per_stat_ae = torch.zeros(len(self._target_stats))
 
         n_batches = len(loader)
+        accum = self._config.accumulation_steps
+        optimizer.zero_grad()
         for batch_idx, batch in enumerate(loader):
             batch = self._batch_to_device(batch)
 
@@ -244,12 +247,14 @@ class FineTuneTrainer:
             preds = output["performance_preds"]  # (batch, n_targets)
 
             loss = self._compute_weighted_loss(preds, batch.targets)
+            scaled_loss = loss / accum
+            scaled_loss.backward()
 
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self._model.parameters(), self._config.max_grad_norm)
-            optimizer.step()
-            scheduler.step()
+            if (batch_idx + 1) % accum == 0 or batch_idx == n_batches - 1:
+                torch.nn.utils.clip_grad_norm_(self._model.parameters(), self._config.max_grad_norm)
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
 
             n = batch.targets.shape[0]
             total_loss += loss.item() * n

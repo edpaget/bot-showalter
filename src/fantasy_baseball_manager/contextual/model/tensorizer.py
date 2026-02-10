@@ -14,6 +14,9 @@ if TYPE_CHECKING:
 
 # Ordered list of numeric fields extracted from PitchEvent.
 # Index position here determines column position in the numeric tensor.
+CLS_GAME_ID: int = -1
+PAD_GAME_ID: int = -2
+
 NUMERIC_FIELDS: tuple[str, ...] = (
     "release_speed",  # 0  nullable
     "release_spin_rate",  # 1  nullable
@@ -121,7 +124,6 @@ class Tensorizer:
 
         # Determine which games fit within max_seq_len (keep newest, drop oldest)
         # Account for the CLS token at position 0
-        CLS_GAME_ID = -1
         games = list(context.games)
         game_lengths = [1 + len(g.pitches) for g in games]  # 1 for player token
 
@@ -204,7 +206,7 @@ class Tensorizer:
         numeric_mask = torch.zeros(batch_size, max_len, n_numeric, dtype=torch.bool)
         padding_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
         player_token_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
-        game_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+        game_ids = torch.full((batch_size, max_len), PAD_GAME_ID, dtype=torch.long)
         seq_lengths = torch.zeros(batch_size, dtype=torch.long)
 
         for i, item in enumerate(items):

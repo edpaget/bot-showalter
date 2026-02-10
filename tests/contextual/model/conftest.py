@@ -47,6 +47,7 @@ def make_pitch(**overrides: object) -> PitchEvent:
         "pitch_number": 1,
         "pa_event": None,
         "delta_run_exp": -0.04,
+        "at_bat_number": None,
     }
     defaults.update(overrides)
     return PitchEvent(**defaults)  # type: ignore[arg-type]

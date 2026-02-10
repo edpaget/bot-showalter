@@ -163,7 +163,7 @@ For count-mode targets the imbalance is even worse: SO counts (~6/game for pitch
 
 ### m1. No gradient accumulation support
 
-- [ ] **Fixed**
+- [x] **Fixed**
 
 **Files:** `src/fantasy_baseball_manager/contextual/training/pretrain.py`, `finetune.py`
 
@@ -173,7 +173,7 @@ Both trainers call `optimizer.zero_grad()` and `optimizer.step()` on every batch
 
 ### m2. `extract_game_stats` PA boundary heuristic is data-format dependent
 
-- [ ] **Fixed**
+- [x] **Fixed**
 
 **File:** `src/fantasy_baseball_manager/contextual/training/dataset.py:379-392`
 
@@ -190,7 +190,7 @@ Assumes `pitch_number` resets to 1 at the start of each plate appearance. Some S
 
 ### m3. `game_id=0` for padding overlaps with first game's ID
 
-- [ ] **Fixed**
+- [x] **Fixed**
 
 **File:** `src/fantasy_baseball_manager/contextual/model/tensorizer.py` (collate function)
 

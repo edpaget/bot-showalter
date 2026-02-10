@@ -144,6 +144,7 @@ class GameSequenceBuilder:
                     pitch_number=int(row.pitch_number),
                     pa_event=_opt_str(row.events),
                     delta_run_exp=_opt_float(row.delta_run_exp),
+                    at_bat_number=int(row.at_bat_number),
                 )
                 pitches.append(pitch)
 

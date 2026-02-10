@@ -80,7 +80,8 @@ class MGMTrainer:
         )
         self._scaler = GradScaler(enabled=config.amp_enabled)
 
-        total_steps = config.epochs * math.ceil(len(train_dataset) / config.batch_size)
+        n_batches_per_epoch = math.ceil(len(train_dataset) / config.batch_size)
+        total_steps = config.epochs * math.ceil(n_batches_per_epoch / config.accumulation_steps)
         warmup_steps = max(config.min_warmup_steps, int(total_steps * config.warmup_fraction))
         scheduler = torch.optim.lr_scheduler.SequentialLR(
             optimizer,
@@ -216,6 +217,8 @@ class MGMTrainer:
         total_masked = 0
 
         n_batches = len(loader)
+        accum = self._config.accumulation_steps
+        optimizer.zero_grad()
         for batch_idx, batch in enumerate(loader):
             batch = self._batch_to_device(batch)
             tb = masked_batch_to_tensorized_batch(batch)
@@ -236,13 +239,16 @@ class MGMTrainer:
                     + self._config.pitch_result_loss_weight * pr_loss
                 )
 
-            optimizer.zero_grad()
-            self._scaler.scale(loss).backward()
-            self._scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(self._model.parameters(), self._config.max_grad_norm)
-            self._scaler.step(optimizer)
-            self._scaler.update()
-            scheduler.step()
+            scaled_loss = loss / accum
+            self._scaler.scale(scaled_loss).backward()
+
+            if (batch_idx + 1) % accum == 0 or batch_idx == n_batches - 1:
+                self._scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(self._model.parameters(), self._config.max_grad_norm)
+                self._scaler.step(optimizer)
+                self._scaler.update()
+                scheduler.step()
+                optimizer.zero_grad()
 
             n_masked = int(batch.mask_positions.sum().item())
             total_loss += loss.item() * n_masked

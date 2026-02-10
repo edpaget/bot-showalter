@@ -69,6 +69,9 @@ class PitchEvent:
     # Run expectancy
     delta_run_exp: float | None
 
+    # Plate appearance identifier (optional, from Statcast at_bat_number column)
+    at_bat_number: int | None = None
+
 
 @dataclass(frozen=True, slots=True)
 class GameSequence:

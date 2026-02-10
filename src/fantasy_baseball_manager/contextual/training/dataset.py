@@ -10,6 +10,7 @@ from torch.utils.data import Dataset
 
 from fantasy_baseball_manager.contextual.model.tensorizer import (
     NUMERIC_FIELDS,
+    PAD_GAME_ID,
     TensorizedBatch,
     TensorizedSingle,
 )
@@ -226,7 +227,7 @@ def collate_masked_samples(samples: list[MaskedSample]) -> MaskedBatch:
     numeric_mask = torch.zeros(batch_size, max_len, n_numeric, dtype=torch.bool)
     padding_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
     player_token_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
-    game_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    game_ids = torch.full((batch_size, max_len), PAD_GAME_ID, dtype=torch.long)
     target_pitch_type_ids = torch.full((batch_size, max_len), -100, dtype=torch.long)
     target_pitch_result_ids = torch.full((batch_size, max_len), -100, dtype=torch.long)
     mask_positions = torch.zeros(batch_size, max_len, dtype=torch.bool)
@@ -422,10 +423,14 @@ def extract_game_stats(
         if pitch.pa_event is None:
             continue
         # Only count on the last pitch of the PA
-        is_last_in_pa = (
-            idx == n_pitches - 1
-            or pitches[idx + 1].pitch_number == 1
-        )
+        if pitch.at_bat_number is not None and idx < n_pitches - 1:
+            next_pitch = pitches[idx + 1]
+            is_last_in_pa = next_pitch.at_bat_number != pitch.at_bat_number
+        else:
+            is_last_in_pa = (
+                idx == n_pitches - 1
+                or pitches[idx + 1].pitch_number == 1
+            )
         if not is_last_in_pa:
             continue
         for i, stat in enumerate(target_stats):
@@ -673,7 +678,7 @@ def collate_finetune_samples(samples: list[FineTuneSample]) -> FineTuneBatch:
     numeric_mask = torch.zeros(batch_size, max_len, n_numeric, dtype=torch.bool)
     padding_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
     player_token_mask = torch.zeros(batch_size, max_len, dtype=torch.bool)
-    game_ids = torch.zeros(batch_size, max_len, dtype=torch.long)
+    game_ids = torch.full((batch_size, max_len), PAD_GAME_ID, dtype=torch.long)
     seq_lengths = torch.zeros(batch_size, dtype=torch.long)
 
     for i, s in enumerate(samples):

@@ -345,3 +345,29 @@ class TestCollate:
         ]
         batch = tensorizer.collate(items)
         assert not batch.player_token_mask[0, 3:].any()
+
+    def test_padding_game_ids_not_zero(self) -> None:
+        """Padding positions should have game_id == -2, not 0."""
+        from fantasy_baseball_manager.contextual.model.tensorizer import PAD_GAME_ID
+
+        tensorizer = _make_tensorizer()
+        ctx1 = make_player_context(n_games=1, pitches_per_game=1)  # 3 total
+        ctx2 = make_player_context(n_games=1, pitches_per_game=3)  # 5 total
+        items = [
+            tensorizer.tensorize_context(ctx1),
+            tensorizer.tensorize_context(ctx2),
+        ]
+        batch = tensorizer.collate(items)
+        # First item (shorter): positions 3, 4 are padding
+        assert (batch.game_ids[0, 3:] == PAD_GAME_ID).all()
+        assert batch.game_ids[0, 3].item() == -2
+
+    def test_padding_game_ids_distinct_from_real(self) -> None:
+        """No real token should have game_id == -2."""
+        from fantasy_baseball_manager.contextual.model.tensorizer import PAD_GAME_ID
+
+        tensorizer = _make_tensorizer()
+        ctx = make_player_context(n_games=2, pitches_per_game=3)
+        result = tensorizer.tensorize_context(ctx)
+        # All tokens are real (no padding in a single TensorizedSingle)
+        assert (result.game_ids != PAD_GAME_ID).all()
