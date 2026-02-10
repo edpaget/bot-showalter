@@ -15,9 +15,9 @@ Unify the four separate model persistence modules (`ModelStore`, `MTLModelStore`
 | `registry/mtl_store.py` | Complete | `MTLBaseModelStore` with batter/pitcher class dispatch |
 | `registry/registry.py` | Complete | `ModelRegistry` facade: `list_all`, `next_version`, `versions_of`, `compare` |
 | `registry/factory.py` | Complete | `create_gb_store`, `create_mtl_store`, `create_mle_store`, `create_model_registry` |
-| Legacy store delegation | Complete | `ModelStore`, `MTLModelStore`, `MLEModelStore` delegate to `BaseModelStore` internally |
+| Legacy wrappers removed | Complete | `ModelStore`, `MTLModelStore`, `MLEModelStore` classes deleted; only `DEFAULT_*_DIR` constants remain |
 | `ServiceContainer` | Complete | Exposes `model_registry` as a `@cached_property` |
-| `PipelineBuilder` | Partial | Accepts `model_registry`, passes `model_dir` to legacy store constructors |
+| `PipelineBuilder` | Complete | Accepts `model_registry`, passes stores directly to pipeline stages |
 | CLI `ml train` wired to registry | Complete | `train_cmd` sources `ModelStore` from `create_model_registry()` |
 | CLI `ml list/delete/info` wired | Complete | All 3 commands source `ModelStore` from registry |
 | CLI `ml train-mtl` wired to registry | Complete | `train_mtl_cmd` sources `MTLModelStore` from registry |
@@ -69,19 +69,9 @@ Pipeline stages (`GBResidualAdjuster`, `MTLBlender`, `MTLRateComputer`) now acce
 
 ---
 
-### Step 8: Drop Legacy Wrapper Classes
+### ~~Step 8: Drop Legacy Wrapper Classes~~ (Complete)
 
-Once all callers use the registry or base stores directly, the legacy wrapper classes become unnecessary. This is the final cleanup step and should only be done after all other steps are verified.
-
-**Files to simplify:**
-- `src/fantasy_baseball_manager/ml/persistence.py` — `ModelStore` can be replaced by `BaseModelStore` with `JoblibSerializer`
-- `src/fantasy_baseball_manager/ml/mtl/persistence.py` — `MTLModelStore` can be replaced by `MTLBaseModelStore`
-- `src/fantasy_baseball_manager/minors/persistence.py` — `MLEModelStore` can be replaced by `BaseModelStore` with `JoblibSerializer`
-
-**Acceptance criteria:**
-- No remaining imports of legacy store classes outside of tests
-- All existing tests updated to use registry types
-- Full test suite passes
+Removed `ModelStore`, `MTLModelStore`, and `MLEModelStore` wrapper classes. Each legacy persistence module now contains only its `DEFAULT_*_DIR` constant. All callers (`ml/cli.py`, `minors/rate_computer.py`, `scripts/run_mle_evaluation.py`) now use `BaseModelStore`/`MTLBaseModelStore` directly via the registry or factory functions. Tests rewritten to use registry types. `tests/registry/test_backward_compat.py` deleted.
 
 ---
 
@@ -96,7 +86,7 @@ Once all callers use the registry or base stores directly, the legacy wrapper cl
 | ~~5. Update `ml list`~~ | ~~Medium~~ | ~~Low~~ | **Done** |
 | ~~6. Add `ml compare`~~ | ~~Medium~~ | ~~None (new feature)~~ | **Done** |
 | ~~7. Direct store injection~~ | ~~Medium~~ | ~~Medium (touches pipeline stages)~~ | **Done** |
-| 8. Drop legacy wrappers | Large | Medium (breaking internal API) | Steps 1-7 |
+| ~~8. Drop legacy wrappers~~ | ~~Large~~ | ~~Medium (breaking internal API)~~ | **Done** |
 
 Steps 1-3 can be done in parallel. Steps 4-6 can be done in parallel after 1-2. Step 7 is independent but benefits from 1-3. Step 8 is the final cleanup and should be done last.
 

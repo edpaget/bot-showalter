@@ -4,7 +4,6 @@ from fantasy_baseball_manager.ml.features import (
     BatterFeatureExtractor,
     PitcherFeatureExtractor,
 )
-from fantasy_baseball_manager.ml.persistence import ModelStore
 from fantasy_baseball_manager.ml.residual_model import ResidualModelSet, StatResidualModel
 from fantasy_baseball_manager.ml.training import ResidualModelTrainer
 from fantasy_baseball_manager.ml.validation import (
@@ -21,7 +20,6 @@ __all__ = [
     "BatterFeatureExtractor",
     "EarlyStoppingConfig",
     "LeaveOneYearOut",
-    "ModelStore",
     "PitcherFeatureExtractor",
     "ResidualModelSet",
     "ResidualModelTrainer",

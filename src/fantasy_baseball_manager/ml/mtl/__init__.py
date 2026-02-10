@@ -13,7 +13,6 @@ from fantasy_baseball_manager.ml.mtl.model import (
     MultiTaskNet,
     MultiTaskPitcherModel,
 )
-from fantasy_baseball_manager.ml.mtl.persistence import MTLModelMetadata, MTLModelStore
 from fantasy_baseball_manager.ml.mtl.trainer import MTLTrainer
 
 __all__ = [
@@ -21,8 +20,6 @@ __all__ = [
     "PITCHER_STATS",
     "MTLArchitectureConfig",
     "MTLBlenderConfig",
-    "MTLModelMetadata",
-    "MTLModelStore",
     "MTLRateComputerConfig",
     "MTLTrainer",
     "MTLTrainingConfig",

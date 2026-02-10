@@ -33,9 +33,10 @@ def main() -> int:
         MLEEvaluator,
         print_evaluation_report,
     )
-    from fantasy_baseball_manager.minors.persistence import MLEModelStore
+    from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel
     from fantasy_baseball_manager.minors.training import MLEModelTrainer, MLETrainingConfig
     from fantasy_baseball_manager.player_id.mapper import build_cached_sfbb_mapper
+    from fantasy_baseball_manager.registry.factory import create_mle_store
 
     # Set up data sources with caching
     logger.info("Setting up data sources...")
@@ -59,12 +60,13 @@ def main() -> int:
     )
 
     # Check if model already exists
-    model_store = MLEModelStore()
+    model_store = create_mle_store()
     model_name = "default"
 
     if model_store.exists(model_name, "batter"):
         logger.info("Loading existing MLE model...")
-        model = model_store.load(model_name, "batter")
+        params = model_store.load_params(model_name, "batter")
+        model = MLEGradientBoostingModel.from_params(params)
         logger.info(
             "Loaded model trained on years %s with stats %s",
             model.training_years,
@@ -91,7 +93,14 @@ def main() -> int:
 
         # Save the model
         logger.info("Saving trained model...")
-        model_store.save(model, model_name)
+        model_store.save_params(
+            model.get_params(),
+            model_name,
+            model.player_type,
+            training_years=model.training_years,
+            stats=model.get_stats(),
+            feature_names=model.feature_names,
+        )
         logger.info("Model saved to %s", model_store.model_dir)
 
     # Run evaluation on 2024 holdout

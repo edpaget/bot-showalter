@@ -108,7 +108,6 @@ def train_cmd(
         create_team_pitching_source,
     )
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
-    from fantasy_baseball_manager.ml.persistence import ModelStore
     from fantasy_baseball_manager.ml.training import ResidualModelTrainer
     from fantasy_baseball_manager.ml.validation import TimeSeriesHoldout, ValidationReport
     from fantasy_baseball_manager.pipeline.batted_ball_data import (
@@ -208,7 +207,7 @@ def train_cmd(
     # Train models
     registry = _get_registry()
     resolved_version, versioned_name = resolve_version(registry, name, "gb_residual", version)
-    model_store = ModelStore(model_dir=registry.gb_store.model_dir)
+    gb_store = registry.gb_store
 
     # Run validation if requested
     batter_validation: ValidationReport | None = None
@@ -231,12 +230,32 @@ def train_cmd(
 
     typer.echo("\nTraining batter models...")
     batter_models = trainer.train_batter_models(target_years)
-    model_store.save(batter_models, versioned_name, batter_validation, version=resolved_version)
+    batter_validation_dict = batter_validation.to_dict() if batter_validation else None
+    gb_store.save_params(
+        batter_models.get_params(),
+        versioned_name,
+        batter_models.player_type,
+        training_years=batter_models.training_years,
+        stats=batter_models.get_stats(),
+        feature_names=batter_models.feature_names,
+        metrics={"validation": batter_validation_dict} if batter_validation_dict else {},
+        version=resolved_version,
+    )
     typer.echo(f"  Trained stats: {batter_models.get_stats()}")
 
     typer.echo("Training pitcher models...")
     pitcher_models = trainer.train_pitcher_models(target_years)
-    model_store.save(pitcher_models, versioned_name, pitcher_validation, version=resolved_version)
+    pitcher_validation_dict = pitcher_validation.to_dict() if pitcher_validation else None
+    gb_store.save_params(
+        pitcher_models.get_params(),
+        versioned_name,
+        pitcher_models.player_type,
+        training_years=pitcher_models.training_years,
+        stats=pitcher_models.get_stats(),
+        feature_names=pitcher_models.feature_names,
+        metrics={"validation": pitcher_validation_dict} if pitcher_validation_dict else {},
+        version=resolved_version,
+    )
     typer.echo(f"  Trained stats: {pitcher_models.get_stats()}")
 
     typer.echo(f"\nModels saved as '{versioned_name}'")
@@ -302,10 +321,8 @@ def delete_cmd(
     ] = "all",
 ) -> None:
     """Delete trained models."""
-    from fantasy_baseball_manager.ml.persistence import ModelStore
-
     registry = _get_registry()
-    store = ModelStore(model_dir=registry.gb_store.model_dir)
+    store = registry.gb_store
 
     if player_type == "all":
         deleted_batter = store.delete(name, "batter")
@@ -337,10 +354,10 @@ def info_cmd(
     ] = "batter",
 ) -> None:
     """Show detailed information about a trained model."""
-    from fantasy_baseball_manager.ml.persistence import ModelStore
+    from fantasy_baseball_manager.ml.residual_model import ResidualModelSet
 
     registry = _get_registry()
-    store = ModelStore(model_dir=registry.gb_store.model_dir)
+    store = registry.gb_store
     meta = store.get_metadata(name, player_type)
 
     if meta is None:
@@ -349,12 +366,12 @@ def info_cmd(
 
     console.print(f"[bold]Model:[/bold] {meta.name} ({meta.player_type})")
     console.print(f"[bold]Training years:[/bold] {', '.join(str(y) for y in meta.training_years)}")
-    console.print(f"[bold]Stats:[/bold] {', '.join(meta.stats)}")
-    console.print(f"[bold]Features:[/bold] {', '.join(meta.feature_names)}")
+    console.print(f"[bold]Stats:[/bold] {meta.stats}")
+    console.print(f"[bold]Features:[/bold] {meta.feature_names}")
     console.print(f"[bold]Created:[/bold] {meta.created_at}")
 
     # Load model to show feature importances
-    model_set = store.load(name, player_type)
+    model_set = ResidualModelSet.from_params(store.load_params(name, player_type))
     console.print()
 
     for stat in model_set.get_stats():
@@ -702,7 +719,6 @@ def train_mtl_cmd(
         uv run python -m fantasy_baseball_manager ml train-mtl --years 2020,2021,2022,2023 --validate
     """
     try:
-        from fantasy_baseball_manager.ml.mtl.persistence import MTLModelStore
         from fantasy_baseball_manager.ml.mtl.trainer import MTLTrainer
     except ImportError as e:
         console.print("[red]Error:[/red] PyTorch is required for MTL models.")
@@ -793,14 +809,14 @@ def train_mtl_cmd(
 
     registry = _get_registry()
     resolved_version, versioned_name = resolve_version(registry, name, "mtl", version)
-    model_store = MTLModelStore(model_dir=registry.mtl_store.model_dir)
+    mtl_store = registry.mtl_store
 
     # Train batter model
     typer.echo("\nTraining MTL batter model...")
     batter_model, batter_metrics = trainer.train_batter_model(target_years)
 
     if batter_model.is_fitted:
-        model_store.save_batter_model(batter_model, versioned_name, version=resolved_version)
+        mtl_store.save_model(batter_model, versioned_name, "batter", version=resolved_version)
         typer.echo(f"  Trained batter model with {len(batter_model.feature_names)} features")
 
         if validate and batter_metrics:
@@ -813,7 +829,7 @@ def train_mtl_cmd(
     pitcher_model, pitcher_metrics = trainer.train_pitcher_model(target_years)
 
     if pitcher_model.is_fitted:
-        model_store.save_pitcher_model(pitcher_model, versioned_name, version=resolved_version)
+        mtl_store.save_model(pitcher_model, versioned_name, "pitcher", version=resolved_version)
         typer.echo(f"  Trained pitcher model with {len(pitcher_model.feature_names)} features")
 
         if validate and pitcher_metrics:

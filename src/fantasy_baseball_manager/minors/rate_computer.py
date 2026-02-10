@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.context import new_context
 from fantasy_baseball_manager.data.protocol import ALL_PLAYERS
 from fantasy_baseball_manager.minors.features import MLEBatterFeatureExtractor
-from fantasy_baseball_manager.minors.persistence import MLEModelStore
 from fantasy_baseball_manager.minors.training_data import (
     AggregatedMiLBStats,
 )
@@ -24,8 +23,21 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.minors.types import MinorLeagueBatterSeasonStats
     from fantasy_baseball_manager.pipeline.protocols import RateComputer
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
+    from fantasy_baseball_manager.registry.base_store import BaseModelStore
 
 logger = logging.getLogger(__name__)
+
+
+def _default_mle_store() -> BaseModelStore:
+    from fantasy_baseball_manager.minors.persistence import DEFAULT_MLE_MODEL_DIR
+    from fantasy_baseball_manager.registry.base_store import BaseModelStore
+    from fantasy_baseball_manager.registry.serializers import JoblibSerializer
+
+    return BaseModelStore(
+        model_dir=DEFAULT_MLE_MODEL_DIR,
+        serializer=JoblibSerializer(),
+        model_type_name="mle",
+    )
 
 
 @dataclass(frozen=True)
@@ -58,7 +70,7 @@ class MLERateComputer:
 
     milb_source: DataSource[MinorLeagueBatterSeasonStats]
     config: MLERateComputerConfig = field(default_factory=MLERateComputerConfig)
-    model_store: MLEModelStore = field(default_factory=MLEModelStore)
+    model_store: BaseModelStore = field(default_factory=_default_mle_store)
 
     # Fallback to Marcel for established MLB players or when MLE unavailable
     _marcel_computer: MarcelRateComputer = field(default_factory=MarcelRateComputer, repr=False)
@@ -78,7 +90,10 @@ class MLERateComputer:
             return
 
         if self.model_store.exists(self.config.model_name, "batter"):
-            self._batter_model = self.model_store.load(self.config.model_name, "batter")
+            from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel
+
+            params = self.model_store.load_params(self.config.model_name, "batter")
+            self._batter_model = MLEGradientBoostingModel.from_params(params)
             logger.debug("Loaded MLE batter model: %s", self.config.model_name)
         else:
             logger.warning(
@@ -299,7 +314,7 @@ class MLEAugmentedRateComputer:
     milb_source: DataSource[MinorLeagueBatterSeasonStats]
     id_mapper: SfbbMapper  # Maps FanGraphs IDs to MLBAM IDs
     config: MLERateComputerConfig = field(default_factory=MLERateComputerConfig)
-    model_store: MLEModelStore = field(default_factory=MLEModelStore)
+    model_store: BaseModelStore = field(default_factory=_default_mle_store)
 
     # Lazy-loaded model
     _batter_model: MLEGradientBoostingModel | None = field(default=None, init=False, repr=False)
@@ -316,7 +331,10 @@ class MLEAugmentedRateComputer:
             return
 
         if self.model_store.exists(self.config.model_name, "batter"):
-            self._batter_model = self.model_store.load(self.config.model_name, "batter")
+            from fantasy_baseball_manager.minors.model import MLEGradientBoostingModel
+
+            params = self.model_store.load_params(self.config.model_name, "batter")
+            self._batter_model = MLEGradientBoostingModel.from_params(params)
             logger.debug("Loaded MLE batter model: %s", self.config.model_name)
         else:
             logger.warning(
