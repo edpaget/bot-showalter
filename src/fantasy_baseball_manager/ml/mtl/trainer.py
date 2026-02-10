@@ -27,10 +27,7 @@ from fantasy_baseball_manager.ml.mtl.model import (
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
     from fantasy_baseball_manager.marcel.models import BattingSeasonStats, PitchingSeasonStats
-    from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallDataSource
     from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
-    from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
-    from fantasy_baseball_manager.pipeline.statcast_data import FullStatcastDataSource
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
@@ -49,13 +46,10 @@ class MTLTrainer:
 
     batting_source: DataSource[BattingSeasonStats]
     pitching_source: DataSource[PitchingSeasonStats]
-    statcast_source: FullStatcastDataSource
-    batted_ball_source: PitcherBattedBallDataSource
-    skill_data_source: SkillDataSource
+    feature_store: FeatureStore
     id_mapper: SfbbMapper
     training_config: MTLTrainingConfig = field(default_factory=MTLTrainingConfig)
     architecture_config: MTLArchitectureConfig = field(default_factory=MTLArchitectureConfig)
-    feature_store: FeatureStore | None = field(default=None)
 
     def train_batter_model(
         self,
@@ -72,10 +66,8 @@ class MTLTrainer:
         # Collect training data
         collector = BatterTrainingDataCollector(
             batting_source=self.batting_source,
-            statcast_source=self.statcast_source,
-            skill_data_source=self.skill_data_source,
-            id_mapper=self.id_mapper,
             feature_store=self.feature_store,
+            id_mapper=self.id_mapper,
             min_pa=self.training_config.batter_min_pa,
         )
 
@@ -153,10 +145,8 @@ class MTLTrainer:
         # Collect training data
         collector = PitcherTrainingDataCollector(
             pitching_source=self.pitching_source,
-            statcast_source=self.statcast_source,
-            batted_ball_source=self.batted_ball_source,
-            id_mapper=self.id_mapper,
             feature_store=self.feature_store,
+            id_mapper=self.id_mapper,
             min_pa=self.training_config.pitcher_min_pa,
         )
 

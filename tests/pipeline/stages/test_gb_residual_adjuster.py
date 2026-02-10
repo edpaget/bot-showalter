@@ -7,7 +7,6 @@ import pytest
 
 from fantasy_baseball_manager.ml.residual_model import ResidualModelSet, StatResidualModel
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
-from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, PitcherSkillStats
 from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
     GBResidualAdjuster,
@@ -18,6 +17,7 @@ from fantasy_baseball_manager.pipeline.types import PlayerRates
 from fantasy_baseball_manager.player.identity import Player
 from fantasy_baseball_manager.registry.base_store import BaseModelStore
 from fantasy_baseball_manager.registry.serializers import JoblibSerializer
+from tests.conftest import make_test_feature_store
 
 
 class FakeStatcastSource:
@@ -184,9 +184,7 @@ class TestGBResidualAdjuster:
     def test_passes_through_when_no_models(self, tmp_path: Path) -> None:
         """Test that players pass through unchanged when models don't exist."""
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({}, {}),
-            batted_ball_source=FakeBattedBallSource({}),
-            skill_data_source=FakeSkillDataSource(),
+            feature_store=make_test_feature_store(),
             config=GBResidualConfig(model_name="nonexistent"),
             model_store=BaseModelStore(
                 model_dir=tmp_path / "empty_models",
@@ -207,9 +205,7 @@ class TestGBResidualAdjuster:
     ) -> None:
         """Test that batters without Statcast data pass through unchanged."""
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({}, {}),  # No Statcast data
-            batted_ball_source=FakeBattedBallSource({}),
-            skill_data_source=FakeSkillDataSource(),
+            feature_store=make_test_feature_store(),  # No Statcast data
             model_store=trained_batter_models,
         )
 
@@ -237,9 +233,9 @@ class TestGBResidualAdjuster:
         )
 
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
-            batted_ball_source=FakeBattedBallSource({}),
-            skill_data_source=FakeSkillDataSource(),
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
+            ),
             model_store=trained_batter_models,
         )
 
@@ -267,9 +263,9 @@ class TestGBResidualAdjuster:
         )
 
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
-            batted_ball_source=FakeBattedBallSource({}),
-            skill_data_source=FakeSkillDataSource(),
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
+            ),
             model_store=trained_batter_models,
         )
 
@@ -300,9 +296,9 @@ class TestGBResidualAdjuster:
         )
 
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
-            batted_ball_source=FakeBattedBallSource({}),
-            skill_data_source=FakeSkillDataSource(),
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
+            ),
             model_store=trained_batter_models,
         )
 
@@ -342,9 +338,7 @@ class TestGBResidualAdjuster:
         try:
             source = FakeStatcastSource({2023: [statcast]}, {})
             adjuster = GBResidualAdjuster(
-                statcast_source=source,
-                batted_ball_source=FakeBattedBallSource({}),
-                skill_data_source=FakeSkillDataSource(),
+                feature_store=make_test_feature_store(statcast_source=source),
                 model_store=trained_batter_models,
             )
 
@@ -363,9 +357,7 @@ class TestGBResidualAdjuster:
 
     def test_empty_list_returns_empty(self) -> None:
         adjuster = GBResidualAdjuster(
-            statcast_source=FakeStatcastSource({}, {}),
-            batted_ball_source=FakeBattedBallSource({}),
-            skill_data_source=FakeSkillDataSource(),
+            feature_store=make_test_feature_store(),
         )
 
         result = adjuster.adjust([])
@@ -394,45 +386,3 @@ class TestGBResidualConfig:
         assert config.pitcher_min_pa == 150
         assert config.min_rate_denominator_pa == 400
         assert config.min_rate_denominator_ip == 120
-
-
-class TestGBResidualFeatureStore:
-    def test_uses_feature_store(self, trained_batter_models: BaseModelStore) -> None:
-        """When feature_store is provided, data is loaded from store, not direct sources."""
-        statcast = StatcastBatterStats(
-            player_id="mlbam123",
-            name="Test",
-            year=2023,
-            pa=450,
-            barrel_rate=0.08,
-            hard_hit_rate=0.40,
-            xwoba=0.350,
-            xba=0.280,
-            xslg=0.450,
-        )
-        # Direct sources are empty — would produce no data
-        empty_statcast = FakeStatcastSource({}, {})
-        empty_bb = FakeBattedBallSource({})
-        empty_skill = FakeSkillDataSource()
-
-        # FeatureStore has the data
-        store = FeatureStore(
-            statcast_source=FakeStatcastSource({2023: [statcast]}, {}),
-            batted_ball_source=FakeBattedBallSource({}),
-            skill_data_source=FakeSkillDataSource(),
-        )
-
-        adjuster = GBResidualAdjuster(
-            statcast_source=empty_statcast,
-            batted_ball_source=empty_bb,
-            skill_data_source=empty_skill,
-            model_store=trained_batter_models,
-            feature_store=store,
-        )
-
-        batter = _make_batter()
-        result = adjuster.adjust([batter])
-        assert len(result) == 1
-        # With FeatureStore providing statcast data, adjustment should occur
-        assert result[0].rates != batter.rates
-        assert "gb_residual_adjustments" in result[0].metadata

@@ -7,10 +7,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.pipeline.batted_ball_data import (
-        PitcherBattedBallDataSource,
-        PitcherBattedBallStats,
-    )
+    from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
     from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 
 logger = logging.getLogger(__name__)
@@ -36,27 +33,14 @@ class PitcherBabipSkillConfig:
 class PitcherBabipSkillAdjuster:
     def __init__(
         self,
-        source: PitcherBattedBallDataSource,
+        feature_store: FeatureStore,
         config: PitcherBabipSkillConfig | None = None,
-        feature_store: FeatureStore | None = None,
     ) -> None:
-        self._source = source
-        self._config = config or PitcherBabipSkillConfig()
         self._feature_store = feature_store
-        self._bb_lookup: dict[str, PitcherBattedBallStats] | None = None
+        self._config = config or PitcherBabipSkillConfig()
 
     def _ensure_data(self, year: int) -> dict[str, PitcherBattedBallStats]:
-        if self._feature_store is not None:
-            return self._feature_store.pitcher_batted_ball(year - 1)
-        if self._bb_lookup is None:
-            stats = self._source.pitcher_batted_ball_stats(year - 1)
-            self._bb_lookup = {s.player_id: s for s in stats}
-            logger.debug(
-                "PitcherBabipSkillAdjuster loaded %d records for year %d",
-                len(self._bb_lookup),
-                year - 1,
-            )
-        return self._bb_lookup
+        return self._feature_store.pitcher_batted_ball(year - 1)
 
     def adjust(self, players: list[PlayerRates]) -> list[PlayerRates]:
         if not players:

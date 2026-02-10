@@ -15,7 +15,7 @@ from fantasy_baseball_manager.pipeline.skill_data import (
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.pipeline.skill_data import SkillDataSource
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 
 logger = logging.getLogger(__name__)
 
@@ -258,11 +258,11 @@ class SkillChangeAdjuster:
 
 
 def build_skill_change_adjuster(
-    skill_source: SkillDataSource,
+    feature_store: FeatureStore,
     config: SkillChangeConfig | None = None,
 ) -> SkillChangeAdjuster:
     """Factory function to build a SkillChangeAdjuster."""
-    delta_computer = SkillDeltaComputer(skill_source)
+    delta_computer = SkillDeltaComputer(feature_store)
     return SkillChangeAdjuster(
         delta_computer=delta_computer,
         config=config or SkillChangeConfig(),

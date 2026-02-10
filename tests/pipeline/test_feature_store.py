@@ -2,7 +2,7 @@
 
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
 from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
-from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats
+from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, PitcherSkillStats
 from fantasy_baseball_manager.pipeline.statcast_data import (
     StatcastBatterStats,
     StatcastPitcherStats,
@@ -43,16 +43,20 @@ class FakeSkillDataSource:
     def __init__(
         self,
         batter_stats: dict[int, list[BatterSkillStats]] | None = None,
+        pitcher_stats: dict[int, list[PitcherSkillStats]] | None = None,
     ) -> None:
         self._batter = batter_stats or {}
+        self._pitcher = pitcher_stats or {}
         self.batter_call_count = 0
+        self.pitcher_call_count = 0
 
     def batter_skill_stats(self, year: int) -> list[BatterSkillStats]:
         self.batter_call_count += 1
         return self._batter.get(year, [])
 
-    def pitcher_skill_stats(self, year: int) -> list:
-        return []
+    def pitcher_skill_stats(self, year: int) -> list[PitcherSkillStats]:
+        self.pitcher_call_count += 1
+        return self._pitcher.get(year, [])
 
 
 BATTER_STATCAST_2023 = StatcastBatterStats(
@@ -103,6 +107,17 @@ BATTER_SKILL_2023 = BatterSkillStats(
     chase_rate=0.28,
     whiff_rate=0.24,
     sprint_speed=27.5,
+)
+
+PITCHER_SKILL_2023 = PitcherSkillStats(
+    player_id="fg3",
+    name="Pitcher One",
+    year=2023,
+    pa_against=700,
+    fastball_velo=95.0,
+    whiff_rate=0.12,
+    gb_rate=0.44,
+    barrel_rate_against=0.06,
 )
 
 
@@ -219,6 +234,40 @@ class TestBatterSkillCache:
             skill_data_source=skill_source,
         )
         result = store.batter_skill(2023)
+        assert result == {}
+
+
+class TestPitcherSkillCache:
+    def test_loads_once_per_year(self) -> None:
+        skill_source = FakeSkillDataSource(pitcher_stats={2023: [PITCHER_SKILL_2023]})
+        store = FeatureStore(
+            statcast_source=FakeStatcastSource({}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=skill_source,
+        )
+        store.pitcher_skill(2023)
+        store.pitcher_skill(2023)
+        assert skill_source.pitcher_call_count == 1
+
+    def test_keyed_by_player_id(self) -> None:
+        skill_source = FakeSkillDataSource(pitcher_stats={2023: [PITCHER_SKILL_2023]})
+        store = FeatureStore(
+            statcast_source=FakeStatcastSource({}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=skill_source,
+        )
+        result = store.pitcher_skill(2023)
+        assert "fg3" in result
+        assert result["fg3"] is PITCHER_SKILL_2023
+
+    def test_empty_source_returns_empty_dict(self) -> None:
+        skill_source = FakeSkillDataSource()
+        store = FeatureStore(
+            statcast_source=FakeStatcastSource({}, {}),
+            batted_ball_source=FakeBattedBallSource({}),
+            skill_data_source=skill_source,
+        )
+        result = store.pitcher_skill(2023)
         assert result == {}
 
 

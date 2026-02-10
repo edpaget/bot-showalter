@@ -1,6 +1,5 @@
 import pytest
 
-from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.stages.batter_babip_adjuster import (
     BatterBabipAdjuster,
     BatterBabipConfig,
@@ -8,6 +7,7 @@ from fantasy_baseball_manager.pipeline.stages.batter_babip_adjuster import (
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 from fantasy_baseball_manager.player.identity import Player
+from tests.conftest import make_test_feature_store
 
 
 class FakeStatcastSource:
@@ -88,8 +88,12 @@ class TestXBabipDerivation:
     def test_x_babip_basic_computation(self) -> None:
         """x_babip = (xba * ab_per_pa - xHR_rate) / bip_rate."""
         config = BatterBabipConfig(adjustment_weight=1.0)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = BatterBabipAdjuster(source, config)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
 
@@ -119,14 +123,20 @@ class TestXBabipDerivation:
             xba=0.270,
             xslg=0.550,
         )
-        source = FakeStatcastSource({2024: [high_barrel]})
-        adjuster = BatterBabipAdjuster(source)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [high_barrel]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
 
         # Compare with normal barrel rate
-        source2 = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster2 = BatterBabipAdjuster(source2)
+        adjuster2 = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         result2 = adjuster2.adjust([batter])
 
         assert result[0].metadata["x_babip"] < result2[0].metadata["x_babip"]
@@ -146,9 +156,13 @@ class TestSinglesAdjustment:
             xba=0.310,  # high xBA
             xslg=0.430,
         )
-        source = FakeStatcastSource({2024: [high_xba]})
         config = BatterBabipConfig(adjustment_weight=0.5)
-        adjuster = BatterBabipAdjuster(source, config)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [high_xba]}),
+            ),
+            config=config,
+        )
         # Batter with low singles rate -> observed BABIP will be low
         batter = _make_batter(rates={"singles": 0.100})
         result = adjuster.adjust([batter])
@@ -166,9 +180,13 @@ class TestSinglesAdjustment:
             xba=0.200,  # low xBA
             xslg=0.380,
         )
-        source = FakeStatcastSource({2024: [low_xba]})
         config = BatterBabipConfig(adjustment_weight=0.5)
-        adjuster = BatterBabipAdjuster(source, config)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [low_xba]}),
+            ),
+            config=config,
+        )
         # Batter with high singles rate -> observed BABIP will be high
         batter = _make_batter(rates={"singles": 0.180})
         result = adjuster.adjust([batter])
@@ -176,8 +194,12 @@ class TestSinglesAdjustment:
 
     def test_weight_zero_no_change(self) -> None:
         config = BatterBabipConfig(adjustment_weight=0.0)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = BatterBabipAdjuster(source, config)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["singles"] == pytest.approx(batter.rates["singles"])
@@ -196,8 +218,12 @@ class TestSinglesAdjustment:
             xslg=0.200,
         )
         config = BatterBabipConfig(adjustment_weight=1.0)
-        source = FakeStatcastSource({2024: [very_low]})
-        adjuster = BatterBabipAdjuster(source, config)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [very_low]}),
+            ),
+            config=config,
+        )
         batter = _make_batter(rates={"singles": 0.010})
         result = adjuster.adjust([batter])
         assert result[0].rates["singles"] >= 0.0
@@ -205,15 +231,21 @@ class TestSinglesAdjustment:
 
 class TestPassthrough:
     def test_pitcher_passes_through(self) -> None:
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = BatterBabipAdjuster(source)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
 
     def test_no_statcast_data_passes_through(self) -> None:
-        source = FakeStatcastSource({2024: []})
-        adjuster = BatterBabipAdjuster(source)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: []}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
@@ -230,22 +262,31 @@ class TestPassthrough:
             xba=0.270,
             xslg=0.480,
         )
-        source = FakeStatcastSource({2024: [low_pa]})
-        adjuster = BatterBabipAdjuster(source)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [low_pa]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
 
     def test_empty_list(self) -> None:
-        source = FakeStatcastSource({})
-        adjuster = BatterBabipAdjuster(source)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({}),
+            ),
+        )
         result = adjuster.adjust([])
         assert result == []
 
     def test_zero_bip_rate_passes_through(self) -> None:
         """When all PAs are walks/strikeouts/HBP, BIP rate is zero."""
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = BatterBabipAdjuster(source)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         batter = _make_batter(
             rates={
                 "hr": 0.0,
@@ -265,8 +306,11 @@ class TestPassthrough:
 
 class TestMetadata:
     def test_diagnostics_stored(self) -> None:
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = BatterBabipAdjuster(source)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert "x_babip" in result[0].metadata
@@ -274,51 +318,13 @@ class TestMetadata:
         assert "babip_singles_adjustment" in result[0].metadata
 
     def test_existing_metadata_preserved(self) -> None:
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = BatterBabipAdjuster(source)
+        adjuster = BatterBabipAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         batter = _make_batter(metadata={"statcast_blended": True, "custom_key": 42})  # type: ignore[typeddict-unknown-key]
         result = adjuster.adjust([batter])
         assert result[0].metadata["statcast_blended"] is True
         assert result[0].metadata["custom_key"] == 42  # type: ignore[typeddict-item]
-        assert "x_babip" in result[0].metadata
-
-
-class FakeFullStatcastSource:
-    def __init__(self, data: dict[int, list[StatcastBatterStats]]) -> None:
-        self._data = data
-
-    def batter_expected_stats(self, year: int) -> list[StatcastBatterStats]:
-        return self._data.get(year, [])
-
-    def pitcher_expected_stats(self, year: int) -> list:
-        return []
-
-
-class FakeSkillDataSource:
-    def batter_skill_stats(self, year: int) -> list:
-        return []
-
-    def pitcher_skill_stats(self, year: int) -> list:
-        return []
-
-
-class FakeBattedBallSource:
-    def pitcher_batted_ball_stats(self, year: int) -> list:
-        return []
-
-
-class TestFeatureStoreIntegration:
-    def test_uses_feature_store(self) -> None:
-        """When feature_store is provided, the adjuster uses it instead of direct source."""
-        empty_source = FakeStatcastSource({})
-        store = FeatureStore(
-            statcast_source=FakeFullStatcastSource({2024: [SAMPLE_STATCAST]}),
-            batted_ball_source=FakeBattedBallSource(),
-            skill_data_source=FakeSkillDataSource(),
-        )
-        adjuster = BatterBabipAdjuster(
-            statcast_source=empty_source, feature_store=store
-        )
-        batter = _make_batter()
-        result = adjuster.adjust([batter])
         assert "x_babip" in result[0].metadata

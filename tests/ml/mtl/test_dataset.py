@@ -16,6 +16,7 @@ from fantasy_baseball_manager.ml.mtl.model import BATTER_STATS, PITCHER_STATS
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats, StatcastPitcherStats
 from fantasy_baseball_manager.result import Ok
+from tests.conftest import make_test_feature_store
 
 
 def _fake_batting_source(data: dict[int, list[BattingSeasonStats]]) -> Any:
@@ -62,22 +63,6 @@ class FakeBattedBallSource:
 
     def pitcher_batted_ball_stats(self, year: int) -> list[PitcherBattedBallStats]:
         return self._stats.get(year, [])
-
-
-class FakeSkillDataSource:
-    def __init__(
-        self,
-        batter_stats: dict[int, list[Any]] | None = None,
-        pitcher_stats: dict[int, list[Any]] | None = None,
-    ) -> None:
-        self._batter = batter_stats or {}
-        self._pitcher = pitcher_stats or {}
-
-    def batter_skill_stats(self, year: int) -> list[Any]:
-        return self._batter.get(year, [])
-
-    def pitcher_skill_stats(self, year: int) -> list[Any]:
-        return self._pitcher.get(year, [])
 
 
 class FakeIdMapper:
@@ -244,8 +229,8 @@ class TestMTLDataset:
         assert batch_rates["hr"].shape == (4, 1)
 
 
-class TestBatterTrainingDataCollectorFeatureStore:
-    """Tests that BatterTrainingDataCollector delegates to FeatureStore when provided."""
+class TestBatterTrainingDataCollector:
+    """Tests that BatterTrainingDataCollector collects training data correctly."""
 
     def setup_method(self) -> None:
         init_context(year=2024)
@@ -253,10 +238,8 @@ class TestBatterTrainingDataCollectorFeatureStore:
     def teardown_method(self) -> None:
         reset_context()
 
-    def test_feature_store_used_when_provided(self) -> None:
-        """Collect batter training data via FeatureStore path and verify results."""
-        from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
-
+    def test_collects_batter_training_data(self) -> None:
+        """Collect batter training data via FeatureStore and verify results."""
         n_players = 40
         players = [f"fg{i}" for i in range(n_players)]
         fg_to_mlbam = {f"fg{i}": f"mlbam{i}" for i in range(n_players)}
@@ -273,20 +256,11 @@ class TestBatterTrainingDataCollectorFeatureStore:
             ]
 
         statcast_source = FakeStatcastSource(statcast_batter, {})
-        skill_source = FakeSkillDataSource()
-
-        store = FeatureStore(
-            statcast_source=statcast_source,
-            batted_ball_source=cast("Any", FakeBattedBallSource({})),
-            skill_data_source=skill_source,
-        )
 
         collector = BatterTrainingDataCollector(
             batting_source=_fake_batting_source(batting_actuals),
-            statcast_source=statcast_source,
-            skill_data_source=skill_source,
+            feature_store=make_test_feature_store(statcast_source=statcast_source),
             id_mapper=cast("Any", FakeIdMapper(fg_to_mlbam)),
-            feature_store=store,
         )
 
         features, rates, feature_names = collector.collect((2022, 2023))
@@ -299,8 +273,8 @@ class TestBatterTrainingDataCollectorFeatureStore:
         assert len(feature_names) > 0
 
 
-class TestPitcherTrainingDataCollectorFeatureStore:
-    """Tests that PitcherTrainingDataCollector delegates to FeatureStore when provided."""
+class TestPitcherTrainingDataCollector:
+    """Tests that PitcherTrainingDataCollector collects training data correctly."""
 
     def setup_method(self) -> None:
         init_context(year=2024)
@@ -308,10 +282,8 @@ class TestPitcherTrainingDataCollectorFeatureStore:
     def teardown_method(self) -> None:
         reset_context()
 
-    def test_feature_store_used_when_provided(self) -> None:
-        """Collect pitcher training data via FeatureStore path and verify results."""
-        from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
-
+    def test_collects_pitcher_training_data(self) -> None:
+        """Collect pitcher training data via FeatureStore and verify results."""
         n_players = 40
         players = [f"fg{i}" for i in range(n_players)]
         fg_to_mlbam = {f"fg{i}": f"mlbam{i}" for i in range(n_players)}
@@ -331,20 +303,14 @@ class TestPitcherTrainingDataCollectorFeatureStore:
 
         statcast_source = FakeStatcastSource({}, statcast_pitcher)
         batted_ball_source = FakeBattedBallSource(batted_ball)
-        skill_source = FakeSkillDataSource()
-
-        store = FeatureStore(
-            statcast_source=statcast_source,
-            batted_ball_source=batted_ball_source,
-            skill_data_source=skill_source,
-        )
 
         collector = PitcherTrainingDataCollector(
             pitching_source=_fake_pitching_source(pitching_actuals),
-            statcast_source=statcast_source,
-            batted_ball_source=batted_ball_source,
+            feature_store=make_test_feature_store(
+                statcast_source=statcast_source,
+                batted_ball_source=batted_ball_source,
+            ),
             id_mapper=cast("Any", FakeIdMapper(fg_to_mlbam)),
-            feature_store=store,
         )
 
         features, rates, feature_names = collector.collect((2022, 2023))

@@ -1,6 +1,5 @@
 import pytest
 
-from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
     PitcherStatcastAdjuster,
     PitcherStatcastConfig,
@@ -8,6 +7,7 @@ from fantasy_baseball_manager.pipeline.stages.pitcher_statcast_adjuster import (
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastPitcherStats
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 from fantasy_baseball_manager.player.identity import Player
+from tests.conftest import make_test_feature_store
 
 
 class FakePitcherStatcastSource:
@@ -80,8 +80,12 @@ SAMPLE_PITCHER_STATCAST = StatcastPitcherStats(
 class TestHitRateBlending:
     def test_weight_zero_returns_original(self) -> None:
         config = PitcherStatcastConfig(h_blend_weight=0.0, er_blend_weight=0.0)
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source, config)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates["h"] == pytest.approx(pitcher.rates["h"])
@@ -89,8 +93,12 @@ class TestHitRateBlending:
 
     def test_weight_one_returns_statcast_derived(self) -> None:
         config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=1.0)
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source, config)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # With weight=1.0, h and er should differ from original
@@ -99,8 +107,12 @@ class TestHitRateBlending:
 
     def test_partial_blend_interpolates(self) -> None:
         config = PitcherStatcastConfig(h_blend_weight=0.5, er_blend_weight=0.5)
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source, config)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # Blended should be between original and statcast-derived
@@ -113,8 +125,12 @@ class TestIndependentWeights:
     def test_h_zero_er_full_leaves_h_unchanged(self) -> None:
         """h_blend_weight=0 keeps h at marcel; er_blend_weight=1 uses statcast er."""
         config = PitcherStatcastConfig(h_blend_weight=0.0, er_blend_weight=1.0)
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source, config)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # h unchanged (weight=0)
@@ -126,8 +142,12 @@ class TestIndependentWeights:
     def test_h_full_er_zero_leaves_er_unchanged(self) -> None:
         """h_blend_weight=1 uses statcast h; er_blend_weight=0 keeps er at marcel."""
         config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=0.0)
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source, config)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # h fully statcast-derived (weight=1)
@@ -153,8 +173,12 @@ class TestErDerivation:
             barrel_rate=0.07,
             hard_hit_rate=0.32,
         )
-        source = FakePitcherStatcastSource({2024: [statcast]})
-        adjuster = PitcherStatcastAdjuster(source, config)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [statcast]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # xERA=2.70 => x_er = 2.70/27 = 0.10
@@ -165,8 +189,12 @@ class TestHitDerivation:
     def test_h_derived_from_xba_against(self) -> None:
         """x_h = xba * ab_per_bf where ab_per_bf = 1 - bb - hbp."""
         config = PitcherStatcastConfig(h_blend_weight=1.0, er_blend_weight=1.0)
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source, config)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # ab_per_bf = 1 - bb(0.080) - hbp(0.008) = 0.912
@@ -177,15 +205,21 @@ class TestHitDerivation:
 
 class TestPassthrough:
     def test_batter_passes_through(self) -> None:
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
 
     def test_no_statcast_data_passes_through(self) -> None:
-        source = FakePitcherStatcastSource({2024: []})
-        adjuster = PitcherStatcastAdjuster(source)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: []}),
+            ),
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
@@ -203,21 +237,30 @@ class TestPassthrough:
             barrel_rate=0.07,
             hard_hit_rate=0.32,
         )
-        source = FakePitcherStatcastSource({2024: [low_pa]})
-        adjuster = PitcherStatcastAdjuster(source)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [low_pa]}),
+            ),
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
 
     def test_empty_list(self) -> None:
-        source = FakePitcherStatcastSource({})
-        adjuster = PitcherStatcastAdjuster(source)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({}),
+            ),
+        )
         result = adjuster.adjust([])
         assert result == []
 
     def test_missing_required_rates_passes_through(self) -> None:
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+        )
         # Pitcher with no h or er rates
         pitcher = _make_pitcher(rates={"so": 0.220, "bb": 0.080})
         # Remove h and er explicitly
@@ -230,8 +273,12 @@ class TestPassthrough:
 class TestNonBlendedRatesUnchanged:
     def test_bb_so_hbp_unchanged(self) -> None:
         config = PitcherStatcastConfig(h_blend_weight=0.5, er_blend_weight=0.5)
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source, config)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates["bb"] == pitcher.rates["bb"]
@@ -242,8 +289,11 @@ class TestNonBlendedRatesUnchanged:
 
 class TestMetadata:
     def test_diagnostics_stored(self) -> None:
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].metadata["pitcher_xera"] == 3.24
@@ -253,50 +303,12 @@ class TestMetadata:
         assert "pitcher_er_blend_weight" in result[0].metadata
 
     def test_existing_metadata_preserved(self) -> None:
-        source = FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]})
-        adjuster = PitcherStatcastAdjuster(source)
+        adjuster = PitcherStatcastAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakePitcherStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
+            ),
+        )
         pitcher = _make_pitcher(metadata={"custom_key": "custom_value"})  # type: ignore[typeddict-unknown-key]
         result = adjuster.adjust([pitcher])
         assert result[0].metadata["custom_key"] == "custom_value"  # type: ignore[typeddict-item]
         assert result[0].metadata["pitcher_statcast_blended"] is True
-
-
-class FakeFullStatcastSource:
-    def __init__(self, pitcher_data: dict[int, list[StatcastPitcherStats]]) -> None:
-        self._pitcher = pitcher_data
-
-    def batter_expected_stats(self, year: int) -> list:
-        return []
-
-    def pitcher_expected_stats(self, year: int) -> list[StatcastPitcherStats]:
-        return self._pitcher.get(year, [])
-
-
-class FakeSkillDataSource:
-    def batter_skill_stats(self, year: int) -> list:
-        return []
-
-    def pitcher_skill_stats(self, year: int) -> list:
-        return []
-
-
-class FakeBattedBallSource:
-    def pitcher_batted_ball_stats(self, year: int) -> list:
-        return []
-
-
-class TestFeatureStoreIntegration:
-    def test_uses_feature_store(self) -> None:
-        """When feature_store is provided, the adjuster uses it instead of direct source."""
-        empty_source = FakePitcherStatcastSource({})
-        store = FeatureStore(
-            statcast_source=FakeFullStatcastSource({2024: [SAMPLE_PITCHER_STATCAST]}),
-            batted_ball_source=FakeBattedBallSource(),
-            skill_data_source=FakeSkillDataSource(),
-        )
-        adjuster = PitcherStatcastAdjuster(
-            statcast_source=empty_source, feature_store=store
-        )
-        pitcher = _make_pitcher()
-        result = adjuster.adjust([pitcher])
-        assert result[0].metadata.get("pitcher_statcast_blended") is True

@@ -400,12 +400,9 @@ class PipelineBuilder:
             from fantasy_baseball_manager.ml.mtl.config import MTLRateComputerConfig
 
             return MTLRateComputer(
-                statcast_source=self._resolve_full_statcast_source(),
-                batted_ball_source=self._resolve_pitcher_babip_source(),
-                skill_data_source=self._resolve_skill_data_source(),
+                feature_store=self._resolve_feature_store(),
                 id_mapper=self._resolve_id_mapper(),
                 config=self._mtl_rate_computer_config or MTLRateComputerConfig(),
-                feature_store=self._resolve_feature_store(),
             )
 
         # MLE rate computer (ML-based Minor League Equivalencies)
@@ -473,13 +470,6 @@ class PipelineBuilder:
         if needs_enricher:
             adjusters.append(PlayerIdentityEnricher(mapper=self._resolve_id_mapper()))
 
-        # Resolve shared feature store if any consuming stage is enabled
-        needs_feature_store = (
-            self._statcast or self._batter_babip or self._pitcher_statcast
-            or self._pitcher_babip_skill or self._gb_residual or self._mtl_blender
-        )
-        feature_store = self._resolve_feature_store() if needs_feature_store else None
-
         if self._park_factors:
             adjusters.append(
                 ParkFactorAdjuster(
@@ -494,47 +484,35 @@ class PipelineBuilder:
             adjusters.append(PitcherNormalizationAdjuster(self._config.pitcher_normalization))
 
         if self._pitcher_statcast:
-            source = self._resolve_pitcher_statcast_source()
             adjusters.append(
                 PitcherStatcastAdjuster(
-                    statcast_source=source,
+                    feature_store=self._resolve_feature_store(),
                     config=self._config.pitcher_statcast,
-                    feature_store=feature_store,
                 )
             )
 
         if self._pitcher_babip_skill:
-            bb_source = self._resolve_pitcher_babip_source()
             adjusters.append(
                 PitcherBabipSkillAdjuster(
-                    source=bb_source,
+                    feature_store=self._resolve_feature_store(),
                     config=self._config.pitcher_babip_skill,
-                    feature_store=feature_store,
                 )
             )
 
         if self._statcast:
-            source = self._resolve_statcast_source()
             adjusters.append(
-                StatcastRateAdjuster(statcast_source=source, feature_store=feature_store)
+                StatcastRateAdjuster(feature_store=self._resolve_feature_store())
             )
 
         if self._batter_babip:
-            source = self._resolve_statcast_source()
             adjusters.append(
-                BatterBabipAdjuster(statcast_source=source, feature_store=feature_store)
+                BatterBabipAdjuster(feature_store=self._resolve_feature_store())
             )
 
         if self._gb_residual:
-            full_source = self._resolve_full_statcast_source()
-            bb_source = self._resolve_pitcher_babip_source()
-            skill_source = self._resolve_skill_data_source()
             gb_kwargs: dict[str, Any] = {
-                "statcast_source": full_source,
-                "batted_ball_source": bb_source,
-                "skill_data_source": skill_source,
+                "feature_store": self._resolve_feature_store(),
                 "config": self._gb_residual_config or GBResidualConfig(),
-                "feature_store": feature_store,
             }
             registry = self._resolve_model_registry()
             if registry is not None:
@@ -542,8 +520,7 @@ class PipelineBuilder:
             adjusters.append(GBResidualAdjuster(**gb_kwargs))
 
         if self._skill_change:
-            skill_source = self._resolve_skill_data_source()
-            delta_computer = SkillDeltaComputer(skill_source)
+            delta_computer = SkillDeltaComputer(feature_store=self._resolve_feature_store())
             adjusters.append(
                 SkillChangeAdjuster(
                     delta_computer=delta_computer,
@@ -554,15 +531,9 @@ class PipelineBuilder:
         if self._mtl_blender:
             from fantasy_baseball_manager.ml.mtl.config import MTLBlenderConfig
 
-            full_source = self._resolve_full_statcast_source()
-            bb_source = self._resolve_pitcher_babip_source()
-            skill_source = self._resolve_skill_data_source()
             mtl_kwargs: dict[str, Any] = {
-                "statcast_source": full_source,
-                "batted_ball_source": bb_source,
-                "skill_data_source": skill_source,
+                "feature_store": self._resolve_feature_store(),
                 "config": self._mtl_blender_config or MTLBlenderConfig(),
-                "feature_store": feature_store,
             }
             registry = self._resolve_model_registry()
             if registry is not None:

@@ -1,6 +1,5 @@
 import pytest
 
-from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.stages.statcast_adjuster import (
     StatcastBlendConfig,
     StatcastRateAdjuster,
@@ -8,6 +7,7 @@ from fantasy_baseball_manager.pipeline.stages.statcast_adjuster import (
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 from fantasy_baseball_manager.player.identity import Player
+from tests.conftest import make_test_feature_store
 
 
 class FakeStatcastSource:
@@ -87,8 +87,12 @@ class TestBatterBlending:
 
     def test_weight_zero_returns_marcel(self) -> None:
         config = StatcastBlendConfig(blend_weight=0.0)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["hr"] == pytest.approx(batter.rates["hr"])
@@ -98,8 +102,12 @@ class TestBatterBlending:
 
     def test_weight_one_returns_statcast_derived(self) -> None:
         config = StatcastBlendConfig(blend_weight=1.0)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         # With weight=1.0 the blended rates should differ from marcel
@@ -107,8 +115,12 @@ class TestBatterBlending:
 
     def test_partial_blend_interpolates(self) -> None:
         config = StatcastBlendConfig(blend_weight=0.5)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         # HR should be between marcel and statcast-derived values
@@ -119,8 +131,12 @@ class TestBatterBlending:
 
     def test_non_blended_rates_unchanged(self) -> None:
         config = StatcastBlendConfig(blend_weight=0.5)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["bb"] == batter.rates["bb"]
@@ -134,8 +150,11 @@ class TestNonBatterPassthrough:
     """Pitchers should pass through unchanged."""
 
     def test_pitcher_unchanged(self) -> None:
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
@@ -145,8 +164,11 @@ class TestNoStatcastData:
     """Players without Statcast data pass through."""
 
     def test_missing_statcast_record_passes_through(self) -> None:
-        source = FakeStatcastSource({2024: []})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: []}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
@@ -163,15 +185,21 @@ class TestNoStatcastData:
             xba=0.270,
             xslg=0.480,
         )
-        source = FakeStatcastSource({2024: [low_pa]})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [low_pa]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
 
     def test_unmapped_id_passes_through(self) -> None:
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         batter = _make_batter(mlbam_id=None)
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
@@ -185,8 +213,12 @@ class TestHrDerivation:
             blend_weight=1.0,
             league_hr_per_barrel=0.245,
         )
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         # bip_rate = 1 - (bb + so + hbp + sf + sh) = 1 - (0.08 + 0.20 + 0.01 + 0.005 + 0.0) = 0.705
@@ -200,8 +232,12 @@ class TestHitDecomposition:
 
     def test_preserves_existing_2b_3b_ratio(self) -> None:
         config = StatcastBlendConfig(blend_weight=1.0)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter(rates={"doubles": 0.040, "triples": 0.010})
         result = adjuster.adjust([batter])
         # doubles should be 4x triples (80/20 ratio)
@@ -223,8 +259,12 @@ class TestHitDecomposition:
             xslg=0.290,
         )
         config = StatcastBlendConfig(blend_weight=1.0)
-        source = FakeStatcastSource({2024: [low_power]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [low_power]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["doubles"] >= 0
@@ -232,8 +272,12 @@ class TestHitDecomposition:
 
     def test_default_doubles_share_when_no_xbh_history(self) -> None:
         config = StatcastBlendConfig(blend_weight=1.0, default_doubles_share=0.85)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter(rates={"doubles": 0.0, "triples": 0.0})
         result = adjuster.adjust([batter])
         # With 85/15 default split
@@ -247,30 +291,43 @@ class TestMetadata:
     """Diagnostics stored in metadata."""
 
     def test_blended_flag_set(self) -> None:
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].metadata["statcast_blended"] is True
 
     def test_xwoba_stored(self) -> None:
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].metadata["statcast_xwoba"] == 0.360
 
     def test_blend_weight_stored(self) -> None:
         config = StatcastBlendConfig(blend_weight=0.40)
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].metadata["blend_weight_used"] == 0.40
 
     def test_no_metadata_when_not_blended(self) -> None:
-        source = FakeStatcastSource({2024: []})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: []}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert "statcast_blended" not in result[0].metadata
@@ -278,15 +335,22 @@ class TestMetadata:
 
 class TestEdgeCases:
     def test_empty_list(self) -> None:
-        source = FakeStatcastSource({})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({}),
+            ),
+        )
         result = adjuster.adjust([])
         assert result == []
 
     def test_all_zero_rates(self) -> None:
-        source = FakeStatcastSource({2024: [SAMPLE_STATCAST]})
         config = StatcastBlendConfig(blend_weight=0.5)
-        adjuster = StatcastRateAdjuster(source, config)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [SAMPLE_STATCAST]}),
+            ),
+            config=config,
+        )
         batter = _make_batter(
             rates={
                 "hr": 0.0,
@@ -317,62 +381,12 @@ class TestEdgeCases:
             xba=0.300,
             xslg=0.600,
         )
-        source = FakeStatcastSource({2024: [extreme]})
-        adjuster = StatcastRateAdjuster(source)
+        adjuster = StatcastRateAdjuster(
+            feature_store=make_test_feature_store(
+                statcast_source=FakeStatcastSource({2024: [extreme]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates["hr"] > 0
         assert result[0].rates["singles"] >= 0
-
-
-class FakeEmptyStatcastSource:
-    """Source that returns no data — used to verify FeatureStore delegation."""
-
-    def batter_expected_stats(self, year: int) -> list[StatcastBatterStats]:
-        return []
-
-
-class FakeFullStatcastSource:
-    """Satisfies FullStatcastDataSource for FeatureStore construction."""
-
-    def __init__(self, data: dict[int, list[StatcastBatterStats]]) -> None:
-        self._data = data
-
-    def batter_expected_stats(self, year: int) -> list[StatcastBatterStats]:
-        return self._data.get(year, [])
-
-    def pitcher_expected_stats(self, year: int) -> list:
-        return []
-
-
-class FakeSkillDataSource:
-    def batter_skill_stats(self, year: int) -> list:
-        return []
-
-    def pitcher_skill_stats(self, year: int) -> list:
-        return []
-
-
-class FakeBattedBallSource:
-    def pitcher_batted_ball_stats(self, year: int) -> list:
-        return []
-
-
-class TestFeatureStoreIntegration:
-    def test_uses_feature_store(self) -> None:
-        """When feature_store is provided, the adjuster uses it instead of direct source."""
-        # Direct source returns nothing — if it were used, blend wouldn't happen
-        empty_source = FakeEmptyStatcastSource()
-        # FeatureStore has actual data
-        store = FeatureStore(
-            statcast_source=FakeFullStatcastSource({2024: [SAMPLE_STATCAST]}),
-            batted_ball_source=FakeBattedBallSource(),
-            skill_data_source=FakeSkillDataSource(),
-        )
-        adjuster = StatcastRateAdjuster(
-            statcast_source=empty_source, feature_store=store
-        )
-        batter = _make_batter()
-        result = adjuster.adjust([batter])
-        # Since FeatureStore has data, blending should occur
-        assert result[0].metadata.get("statcast_blended") is True

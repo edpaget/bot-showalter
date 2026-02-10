@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.cache.protocol import CacheStore
+    from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
 
 logger = logging.getLogger(__name__)
@@ -268,10 +269,10 @@ class SkillDeltaComputer:
 
     def __init__(
         self,
-        skill_source: SkillDataSource,
+        feature_store: FeatureStore,
         min_pa: int = 200,
     ) -> None:
-        self._skill_source = skill_source
+        self._feature_store = feature_store
         self._min_pa = min_pa
 
     def compute_batter_deltas(self, year: int) -> dict[str, BatterSkillDelta]:
@@ -286,12 +287,8 @@ class SkillDeltaComputer:
         prior_year = year - 2
         current_year = year - 1
 
-        prior_stats = self._skill_source.batter_skill_stats(prior_year)
-        current_stats = self._skill_source.batter_skill_stats(current_year)
-
-        # Index by player_id for fast lookup
-        prior_by_id = {s.player_id: s for s in prior_stats}
-        current_by_id = {s.player_id: s for s in current_stats}
+        prior_by_id = self._feature_store.batter_skill(prior_year)
+        current_by_id = self._feature_store.batter_skill(current_year)
 
         # Find players with data in both years
         common_ids = set(prior_by_id.keys()) & set(current_by_id.keys())
@@ -342,12 +339,8 @@ class SkillDeltaComputer:
         prior_year = year - 2
         current_year = year - 1
 
-        prior_stats = self._skill_source.pitcher_skill_stats(prior_year)
-        current_stats = self._skill_source.pitcher_skill_stats(current_year)
-
-        # Index by player_id for fast lookup
-        prior_by_id = {s.player_id: s for s in prior_stats}
-        current_by_id = {s.player_id: s for s in current_stats}
+        prior_by_id = self._feature_store.pitcher_skill(prior_year)
+        current_by_id = self._feature_store.pitcher_skill(current_year)
 
         # Find players with data in both years
         common_ids = set(prior_by_id.keys()) & set(current_by_id.keys())

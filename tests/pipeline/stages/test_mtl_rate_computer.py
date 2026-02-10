@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 from fantasy_baseball_manager.ml.mtl.config import MTLRateComputerConfig
-from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.stages.mtl_rate_computer import MTLRateComputer
 from fantasy_baseball_manager.pipeline.types import PlayerRates
+from tests.conftest import make_test_feature_store
 
 
 @dataclass
@@ -34,15 +34,10 @@ class MockBatterSkillStats:
 class TestMTLRateComputer:
     def test_init(self) -> None:
         """Test that MTLRateComputer can be initialized."""
-        statcast = MagicMock()
-        bb_source = MagicMock()
-        skill_source = MagicMock()
         mapper = MagicMock()
 
         computer = MTLRateComputer(
-            statcast_source=statcast,
-            batted_ball_source=bb_source,
-            skill_data_source=skill_source,
+            feature_store=make_test_feature_store(),
             id_mapper=mapper,
         )
 
@@ -53,9 +48,7 @@ class TestMTLRateComputer:
         """Test with custom configuration."""
         config = MTLRateComputerConfig(model_name="custom", min_pa=200)
         computer = MTLRateComputer(
-            statcast_source=MagicMock(),
-            batted_ball_source=MagicMock(),
-            skill_data_source=MagicMock(),
+            feature_store=make_test_feature_store(),
             id_mapper=MagicMock(),
             config=config,
         )
@@ -70,9 +63,7 @@ class TestMTLRateComputer:
         mock_store.exists.return_value = False
 
         computer = MTLRateComputer(
-            statcast_source=MagicMock(),
-            batted_ball_source=MagicMock(),
-            skill_data_source=MagicMock(),
+            feature_store=make_test_feature_store(),
             id_mapper=MagicMock(),
             model_store=mock_store,
         )
@@ -108,37 +99,3 @@ class TestMTLRateComputer:
         # Batters have pa_per_year in metadata
         assert "pa_per_year" in batter.metadata
         assert "pa_per_year" not in pitcher.metadata
-
-
-class TestMTLRateComputerIntegration:
-    """Integration tests for MTL rate computer."""
-
-    def test_compute_batting_rates_with_model(self) -> None:
-        """Test computing batting rates with a trained model."""
-        # This test verifies the integration works but requires
-        # a more complex setup with trained models
-        pass  # Placeholder for full integration test
-
-
-class TestMTLRateComputerFeatureStore:
-    def test_accepts_feature_store(self) -> None:
-        """MTLRateComputer should accept an optional feature_store parameter."""
-        mock_store = MagicMock()
-        mock_store.exists.return_value = False
-
-        store = FeatureStore(
-            statcast_source=MagicMock(),
-            batted_ball_source=MagicMock(),
-            skill_data_source=MagicMock(),
-        )
-
-        computer = MTLRateComputer(
-            statcast_source=MagicMock(),
-            batted_ball_source=MagicMock(),
-            skill_data_source=MagicMock(),
-            id_mapper=MagicMock(),
-            model_store=mock_store,
-            feature_store=store,
-        )
-
-        assert computer.feature_store is store

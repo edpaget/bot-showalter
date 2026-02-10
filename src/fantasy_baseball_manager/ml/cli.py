@@ -197,11 +197,8 @@ def train_cmd(
         team_batting_source=team_batting_source,
         pitching_source=pitching_source,
         team_pitching_source=team_pitching_source,
-        statcast_source=statcast_source,
-        batted_ball_source=batted_ball_source,
-        skill_data_source=skill_source,
-        id_mapper=id_mapper,
         feature_store=feature_store,
+        id_mapper=id_mapper,
     )
 
     # Train models
@@ -654,11 +651,8 @@ def validate_cmd(
         team_batting_source=team_batting_source,
         pitching_source=pitching_source,
         team_pitching_source=team_pitching_source,
-        statcast_source=statcast_source,
-        batted_ball_source=batted_ball_source,
-        skill_data_source=skill_source,
-        id_mapper=id_mapper,
         feature_store=feature_store,
+        id_mapper=id_mapper,
     )
 
     # Run validation
@@ -800,11 +794,8 @@ def train_mtl_cmd(
     trainer = MTLTrainer(
         batting_source=batting_source,
         pitching_source=pitching_source,
-        statcast_source=statcast_source,
-        batted_ball_source=batted_ball_source,
-        skill_data_source=skill_source,
-        id_mapper=id_mapper,
         feature_store=feature_store,
+        id_mapper=id_mapper,
     )
 
     registry = _get_registry()

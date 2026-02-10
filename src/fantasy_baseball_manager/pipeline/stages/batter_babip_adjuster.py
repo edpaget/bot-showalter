@@ -8,10 +8,7 @@ from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
-    from fantasy_baseball_manager.pipeline.statcast_data import (
-        StatcastBatterStats,
-        StatcastDataSource,
-    )
+    from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats
 
 logger = logging.getLogger(__name__)
 
@@ -26,27 +23,14 @@ class BatterBabipConfig:
 class BatterBabipAdjuster:
     def __init__(
         self,
-        statcast_source: StatcastDataSource,
+        feature_store: FeatureStore,
         config: BatterBabipConfig | None = None,
-        feature_store: FeatureStore | None = None,
     ) -> None:
-        self._statcast_source = statcast_source
-        self._config = config or BatterBabipConfig()
         self._feature_store = feature_store
-        self._statcast_lookup: dict[str, StatcastBatterStats] | None = None
+        self._config = config or BatterBabipConfig()
 
     def _ensure_statcast_data(self, year: int) -> dict[str, StatcastBatterStats]:
-        if self._feature_store is not None:
-            return self._feature_store.batter_statcast(year - 1)
-        if self._statcast_lookup is None:
-            stats = self._statcast_source.batter_expected_stats(year - 1)
-            self._statcast_lookup = {s.player_id: s for s in stats}
-            logger.debug(
-                "BatterBabipAdjuster loaded %d Statcast records for year %d",
-                len(self._statcast_lookup),
-                year - 1,
-            )
-        return self._statcast_lookup
+        return self._feature_store.batter_statcast(year - 1)
 
     def adjust(self, players: list[PlayerRates]) -> list[PlayerRates]:
         if not players:

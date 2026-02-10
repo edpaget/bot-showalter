@@ -294,19 +294,6 @@ class TestPipelineBuilderWithContextualBlender:
         assert bb_idx < cb_idx < rb_idx
 
 
-class FakeBattedBallSource:
-    def pitcher_batted_ball_stats(self, year: int) -> list:
-        return []
-
-
-class FakeSkillDataSource:
-    def batter_skill_stats(self, year: int) -> list:
-        return []
-
-    def pitcher_skill_stats(self, year: int) -> list:
-        return []
-
-
 class TestPipelineBuilderFeatureStore:
     def test_feature_store_shared_across_stages(self) -> None:
         """When multiple consuming stages are enabled, they share one FeatureStore."""

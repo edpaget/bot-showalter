@@ -14,6 +14,7 @@ from fantasy_baseball_manager.pipeline.stages.skill_change_adjuster import (
     SkillDeltaComputer,
 )
 from fantasy_baseball_manager.pipeline.types import PlayerRates
+from tests.conftest import make_test_feature_store
 
 
 class FakeSkillDataSource:
@@ -405,7 +406,7 @@ class TestSkillChangeAdjusterMixed:
                 2024: [BatterSkillStats("123", "Test", 2024, 500, 0.18, 0.45, 93.5, 115.2, 0.25, 0.12, 29.5)],
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
         adjuster = SkillChangeAdjuster(delta_computer=computer)
 
         batter1 = make_batter(player_id="123")

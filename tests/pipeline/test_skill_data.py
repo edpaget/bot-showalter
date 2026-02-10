@@ -12,6 +12,7 @@ from fantasy_baseball_manager.pipeline.skill_data import (
     SkillDeltaComputer,
 )
 from fantasy_baseball_manager.player_id.mapper import SfbbMapper
+from tests.conftest import make_test_feature_store
 
 
 class FakeCacheStore:
@@ -536,7 +537,7 @@ class TestSkillDeltaComputer:
                 2024: [BATTER_2024],
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
 
         # Year 2025 means we compare 2023 (year-2) to 2024 (year-1)
         deltas = computer.compute_batter_deltas(2025)
@@ -565,7 +566,7 @@ class TestSkillDeltaComputer:
                 # 2023 missing
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
 
         deltas = computer.compute_batter_deltas(2025)
 
@@ -578,7 +579,7 @@ class TestSkillDeltaComputer:
                 # 2024 missing
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
 
         deltas = computer.compute_batter_deltas(2025)
 
@@ -617,7 +618,7 @@ class TestSkillDeltaComputer:
                 2024: [batter_b_2024],
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
 
         deltas = computer.compute_batter_deltas(2025)
 
@@ -644,7 +645,7 @@ class TestSkillDeltaComputer:
                 2024: [BATTER_2024],
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
 
         deltas = computer.compute_batter_deltas(2025)
 
@@ -662,7 +663,7 @@ class TestSkillDeltaComputer:
                 2024: [PITCHER_2024],
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
 
         deltas = computer.compute_pitcher_deltas(2025)
 
@@ -707,7 +708,7 @@ class TestSkillDeltaComputer:
                 2024: [pitcher_no_velo_2024],
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
 
         deltas = computer.compute_pitcher_deltas(2025)
 
@@ -724,8 +725,9 @@ class TestSkillDeltaComputer:
                 2024: [PITCHER_2024],
             }
         )
-        computer = SkillDeltaComputer(source)
+        computer = SkillDeltaComputer(feature_store=make_test_feature_store(skill_data_source=source))
 
         deltas = computer.compute_pitcher_deltas(2025)
 
         assert len(deltas) == 0
+

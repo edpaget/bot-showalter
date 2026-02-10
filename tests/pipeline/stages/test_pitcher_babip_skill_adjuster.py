@@ -1,12 +1,12 @@
 import pytest
 
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
-from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.pipeline.stages.pitcher_babip_skill_adjuster import (
     PitcherBabipSkillAdjuster,
     PitcherBabipSkillConfig,
 )
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
+from tests.conftest import make_test_feature_store
 
 
 class FakeBattedBallSource:
@@ -111,22 +111,30 @@ EXTREME_PITCHER = PitcherBattedBallStats(
 
 class TestBabipComputation:
     def test_ground_ball_pitcher_lowers_babip(self) -> None:
-        """GB%=0.60 vs league 0.43 → x_babip < 0.300."""
+        """GB%=0.60 vs league 0.43 -> x_babip < 0.300."""
         config = PitcherBabipSkillConfig(blend_weight=1.0)
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         x_babip = result[0].metadata["pitcher_x_babip"]
         assert isinstance(x_babip, float)
-        # gb_coeff=-0.10 * (0.60-0.43) = -0.017, ld unchanged → x_babip < 0.300
+        # gb_coeff=-0.10 * (0.60-0.43) = -0.017, ld unchanged -> x_babip < 0.300
         assert x_babip < 0.300
 
     def test_fly_ball_high_ld_pitcher_raises_babip(self) -> None:
-        """LD%=0.28 vs league 0.20 → x_babip > 0.300."""
+        """LD%=0.28 vs league 0.20 -> x_babip > 0.300."""
         config = PitcherBabipSkillConfig(blend_weight=1.0)
-        source = FakeBattedBallSource({2024: [FLY_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [FLY_BALL_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         x_babip = result[0].metadata["pitcher_x_babip"]
@@ -135,10 +143,14 @@ class TestBabipComputation:
         assert x_babip > 0.300
 
     def test_league_average_profile_near_base(self) -> None:
-        """League-average profile → x_babip ≈ 0.300."""
+        """League-average profile -> x_babip ~ 0.300."""
         config = PitcherBabipSkillConfig(blend_weight=1.0)
-        source = FakeBattedBallSource({2024: [LEAGUE_AVG_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [LEAGUE_AVG_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         x_babip = result[0].metadata["pitcher_x_babip"]
@@ -148,8 +160,12 @@ class TestBabipComputation:
     def test_extreme_values_clamped(self) -> None:
         """Extreme batted-ball profile gets clamped to [min_babip, max_babip]."""
         config = PitcherBabipSkillConfig(blend_weight=1.0)
-        source = FakeBattedBallSource({2024: [EXTREME_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [EXTREME_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         x_babip = result[0].metadata["pitcher_x_babip"]
@@ -159,10 +175,14 @@ class TestBabipComputation:
 
 class TestHRateAdjustment:
     def test_weight_zero_h_rate_unchanged(self) -> None:
-        """weight=0 → H rate unchanged from normalization output."""
+        """weight=0 -> H rate unchanged from normalization output."""
         config = PitcherBabipSkillConfig(blend_weight=0.0)
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # With weight=0, new_babip = expected_babip, so h stays the same
@@ -174,10 +194,14 @@ class TestHRateAdjustment:
         assert result[0].rates["h"] == pytest.approx(expected_h, abs=1e-6)
 
     def test_weight_one_reflects_skill_babip(self) -> None:
-        """weight=1 → H rate fully reflects skill BABIP."""
+        """weight=1 -> H rate fully reflects skill BABIP."""
         config = PitcherBabipSkillConfig(blend_weight=1.0)
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         x_babip = result[0].metadata["pitcher_x_babip"]
@@ -191,8 +215,12 @@ class TestHRateAdjustment:
     def test_ground_ball_pitcher_lower_h_rate(self) -> None:
         """Ground-ball pitcher gets lower H rate than normalization alone would give."""
         config = PitcherBabipSkillConfig(blend_weight=1.0)
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         # Compute what H rate would be with expected_babip=0.300 (normalization only)
@@ -200,7 +228,7 @@ class TestHRateAdjustment:
         so = pitcher.rates["so"]
         norm_babip = 0.300
         norm_h = (hr + norm_babip * (1.0 - hr - so)) / (1.0 - norm_babip)
-        # Ground-ball pitcher → lower BABIP → lower H rate than normalization
+        # Ground-ball pitcher -> lower BABIP -> lower H rate than normalization
         assert result[0].rates["h"] < norm_h
 
 
@@ -208,8 +236,12 @@ class TestERRecalculation:
     def test_er_recalculated_from_new_h_rate(self) -> None:
         """ER = (h_new - hr + bb + hbp) * (1 - lob) + hr."""
         config = PitcherBabipSkillConfig(blend_weight=1.0)
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
 
@@ -226,8 +258,12 @@ class TestERRecalculation:
     def test_er_uses_lob_from_metadata(self) -> None:
         """ER recalculation uses expected_lob_pct from metadata."""
         config = PitcherBabipSkillConfig(blend_weight=1.0)
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher(metadata={"expected_lob_pct": 0.80})
         result = adjuster.adjust([pitcher])
 
@@ -243,8 +279,11 @@ class TestERRecalculation:
 
 class TestPassthrough:
     def test_batter_passes_through_unchanged(self) -> None:
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+        )
         batter = _make_batter()
         result = adjuster.adjust([batter])
         assert result[0].rates == batter.rates
@@ -260,23 +299,32 @@ class TestPassthrough:
             ld_pct=0.20,
             iffb_pct=0.10,
         )
-        source = FakeBattedBallSource({2024: [low_pa]})
-        adjuster = PitcherBabipSkillAdjuster(source)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [low_pa]}),
+            ),
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
 
     def test_pitcher_not_in_data_passes_through(self) -> None:
-        source = FakeBattedBallSource({2024: []})
-        adjuster = PitcherBabipSkillAdjuster(source)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: []}),
+            ),
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert result[0].rates == pitcher.rates
 
     def test_missing_expected_babip_passes_through(self) -> None:
         """Pitcher without expected_babip metadata (normalization didn't run)."""
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+        )
         pitcher = _make_pitcher(metadata={"expected_babip": None})  # type: ignore[typeddict-item]
         # Remove expected_babip entirely
         meta: PlayerMetadata = dict(pitcher.metadata)  # type: ignore[assignment]
@@ -294,8 +342,11 @@ class TestPassthrough:
         assert result[0].rates == pitcher.rates
 
     def test_empty_list(self) -> None:
-        source = FakeBattedBallSource({})
-        adjuster = PitcherBabipSkillAdjuster(source)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({}),
+            ),
+        )
         result = adjuster.adjust([])
         assert result == []
 
@@ -303,8 +354,12 @@ class TestPassthrough:
 class TestMetadata:
     def test_diagnostics_stored(self) -> None:
         config = PitcherBabipSkillConfig(blend_weight=0.40)
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source, config)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+            config=config,
+        )
         pitcher = _make_pitcher()
         result = adjuster.adjust([pitcher])
         assert "pitcher_x_babip" in result[0].metadata
@@ -312,42 +367,12 @@ class TestMetadata:
         assert "pitcher_babip_skill_blended" in result[0].metadata
 
     def test_existing_metadata_preserved(self) -> None:
-        source = FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]})
-        adjuster = PitcherBabipSkillAdjuster(source)
+        adjuster = PitcherBabipSkillAdjuster(
+            feature_store=make_test_feature_store(
+                batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
+            ),
+        )
         pitcher = _make_pitcher(metadata={"custom_key": "custom_value"})  # type: ignore[typeddict-unknown-key]
         result = adjuster.adjust([pitcher])
         assert result[0].metadata["custom_key"] == "custom_value"  # type: ignore[typeddict-item]
-        assert "pitcher_x_babip" in result[0].metadata
-
-
-class FakeFullStatcastSource:
-    def batter_expected_stats(self, year: int) -> list:
-        return []
-
-    def pitcher_expected_stats(self, year: int) -> list:
-        return []
-
-
-class FakeSkillDataSource:
-    def batter_skill_stats(self, year: int) -> list:
-        return []
-
-    def pitcher_skill_stats(self, year: int) -> list:
-        return []
-
-
-class TestFeatureStoreIntegration:
-    def test_uses_feature_store(self) -> None:
-        """When feature_store is provided, the adjuster uses it instead of direct source."""
-        empty_source = FakeBattedBallSource({})
-        store = FeatureStore(
-            statcast_source=FakeFullStatcastSource(),
-            batted_ball_source=FakeBattedBallSource({2024: [GROUND_BALL_PITCHER]}),
-            skill_data_source=FakeSkillDataSource(),
-        )
-        adjuster = PitcherBabipSkillAdjuster(
-            source=empty_source, feature_store=store
-        )
-        pitcher = _make_pitcher()
-        result = adjuster.adjust([pitcher])
         assert "pitcher_x_babip" in result[0].metadata

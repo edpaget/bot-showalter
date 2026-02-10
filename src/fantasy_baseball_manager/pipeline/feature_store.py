@@ -10,7 +10,7 @@ if TYPE_CHECKING:
         PitcherBattedBallDataSource,
         PitcherBattedBallStats,
     )
-    from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, SkillDataSource
+    from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, PitcherSkillStats, SkillDataSource
     from fantasy_baseball_manager.pipeline.statcast_data import (
         FullStatcastDataSource,
         StatcastBatterStats,
@@ -43,6 +43,9 @@ class FeatureStore:
     _batter_skill: dict[int, dict[str, BatterSkillStats]] = field(
         default_factory=dict, init=False, repr=False
     )
+    _pitcher_skill: dict[int, dict[str, PitcherSkillStats]] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def batter_statcast(self, year: int) -> dict[str, StatcastBatterStats]:
         """Return batter Statcast data keyed by MLBAM ID, loading on first access."""
@@ -71,3 +74,10 @@ class FeatureStore:
             data = self.skill_data_source.batter_skill_stats(year)
             self._batter_skill[year] = {s.player_id: s for s in data}
         return self._batter_skill[year]
+
+    def pitcher_skill(self, year: int) -> dict[str, PitcherSkillStats]:
+        """Return pitcher skill data keyed by FanGraphs ID, loading on first access."""
+        if year not in self._pitcher_skill:
+            data = self.skill_data_source.pitcher_skill_stats(year)
+            self._pitcher_skill[year] = {s.player_id: s for s in data}
+        return self._pitcher_skill[year]

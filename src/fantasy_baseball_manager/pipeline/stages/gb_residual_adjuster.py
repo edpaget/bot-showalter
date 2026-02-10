@@ -13,14 +13,10 @@ from fantasy_baseball_manager.registry.serializers import JoblibSerializer
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.ml.residual_model import ResidualModelSet
-    from fantasy_baseball_manager.pipeline.batted_ball_data import (
-        PitcherBattedBallDataSource,
-        PitcherBattedBallStats,
-    )
+    from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
     from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
-    from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats, SkillDataSource
+    from fantasy_baseball_manager.pipeline.skill_data import BatterSkillStats
     from fantasy_baseball_manager.pipeline.statcast_data import (
-        FullStatcastDataSource,
         StatcastBatterStats,
         StatcastPitcherStats,
     )
@@ -66,19 +62,16 @@ class GBResidualAdjuster:
     5. Applies adjustments to player rates
     """
 
-    statcast_source: FullStatcastDataSource
-    batted_ball_source: PitcherBattedBallDataSource
-    skill_data_source: SkillDataSource
+    feature_store: FeatureStore
     config: GBResidualConfig = field(default_factory=GBResidualConfig)
     model_store: BaseModelStore = field(default_factory=_default_gb_store)
-    feature_store: FeatureStore | None = field(default=None)
 
     _batter_models: ResidualModelSet | None = field(default=None, init=False, repr=False)
     _pitcher_models: ResidualModelSet | None = field(default=None, init=False, repr=False)
-    _batter_statcast: dict[str, StatcastBatterStats] | None = field(default=None, init=False, repr=False)
-    _pitcher_statcast: dict[str, StatcastPitcherStats] | None = field(default=None, init=False, repr=False)
-    _pitcher_batted_ball: dict[str, PitcherBattedBallStats] | None = field(default=None, init=False, repr=False)
-    _batter_skill_data: dict[str, BatterSkillStats] | None = field(default=None, init=False, repr=False)
+    _batter_statcast: dict[str, StatcastBatterStats] = field(default_factory=dict, init=False, repr=False)
+    _pitcher_statcast: dict[str, StatcastPitcherStats] = field(default_factory=dict, init=False, repr=False)
+    _pitcher_batted_ball: dict[str, PitcherBattedBallStats] = field(default_factory=dict, init=False, repr=False)
+    _batter_skill_data: dict[str, BatterSkillStats] = field(default_factory=dict, init=False, repr=False)
     _cached_year: int | None = field(default=None, init=False, repr=False)
 
     def _ensure_models_loaded(self) -> None:
@@ -114,35 +107,11 @@ class GBResidualAdjuster:
         if self._cached_year == year:
             return
 
-        # Load data from prior year (most recent available)
         data_year = year - 1
-
-        if self.feature_store is not None:
-            self._batter_statcast = self.feature_store.batter_statcast(data_year)
-            self._pitcher_statcast = self.feature_store.pitcher_statcast(data_year)
-            self._pitcher_batted_ball = self.feature_store.pitcher_batted_ball(data_year)
-            self._batter_skill_data = self.feature_store.batter_skill(data_year)
-        else:
-            # Batter Statcast
-            batter_data = self.statcast_source.batter_expected_stats(data_year)
-            self._batter_statcast = {s.player_id: s for s in batter_data}
-            logger.debug("Loaded %d batter Statcast records for year %d", len(self._batter_statcast), data_year)
-
-            # Pitcher Statcast
-            pitcher_data = self.statcast_source.pitcher_expected_stats(data_year)
-            self._pitcher_statcast = {s.player_id: s for s in pitcher_data}
-            logger.debug("Loaded %d pitcher Statcast records for year %d", len(self._pitcher_statcast), data_year)
-
-            # Batted ball
-            bb_data = self.batted_ball_source.pitcher_batted_ball_stats(data_year)
-            self._pitcher_batted_ball = {s.player_id: s for s in bb_data}
-            logger.debug("Loaded %d batted ball records for year %d", len(self._pitcher_batted_ball), data_year)
-
-            # Batter skill data (uses FanGraphs ID)
-            skill_data = self.skill_data_source.batter_skill_stats(data_year)
-            self._batter_skill_data = {s.player_id: s for s in skill_data}
-            logger.debug("Loaded %d batter skill records for year %d", len(self._batter_skill_data), data_year)
-
+        self._batter_statcast = self.feature_store.batter_statcast(data_year)
+        self._pitcher_statcast = self.feature_store.pitcher_statcast(data_year)
+        self._pitcher_batted_ball = self.feature_store.pitcher_batted_ball(data_year)
+        self._batter_skill_data = self.feature_store.batter_skill(data_year)
         self._cached_year = year
 
     def adjust(self, players: list[PlayerRates]) -> list[PlayerRates]:
@@ -169,7 +138,7 @@ class GBResidualAdjuster:
 
     def _adjust_batter(self, player: PlayerRates) -> PlayerRates:
         """Apply residual adjustment to a batter."""
-        if self._batter_models is None or self._batter_statcast is None:
+        if self._batter_models is None:
             return player
 
         # Get MLBAM ID from enriched Player identity
@@ -182,9 +151,7 @@ class GBResidualAdjuster:
             return player
 
         # Get skill data (uses FanGraphs ID)
-        skill_data = None
-        if self._batter_skill_data is not None:
-            skill_data = self._batter_skill_data.get(player.player_id)
+        skill_data = self._batter_skill_data.get(player.player_id)
 
         # Extract features
         extractor = BatterFeatureExtractor(min_pa=self.config.batter_min_pa)
@@ -238,7 +205,7 @@ class GBResidualAdjuster:
 
     def _adjust_pitcher(self, player: PlayerRates) -> PlayerRates:
         """Apply residual adjustment to a pitcher."""
-        if self._pitcher_models is None or self._pitcher_statcast is None:
+        if self._pitcher_models is None:
             return player
 
         # Get MLBAM ID from enriched Player identity
@@ -251,9 +218,7 @@ class GBResidualAdjuster:
             return player
 
         # Get batted ball data (uses FanGraphs ID)
-        batted_ball = None
-        if self._pitcher_batted_ball is not None:
-            batted_ball = self._pitcher_batted_ball.get(player.player_id)
+        batted_ball = self._pitcher_batted_ball.get(player.player_id)
 
         # Extract features
         extractor = PitcherFeatureExtractor(min_pa=self.config.pitcher_min_pa)

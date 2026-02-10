@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for test modules."""
+"""Shared pytest fixtures and test helpers for test modules."""
 
 from __future__ import annotations
 
@@ -11,7 +11,52 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from fantasy_baseball_manager.context import Context, init_context
+from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
 from fantasy_baseball_manager.services import ServiceContainer, set_container
+
+# ---------------------------------------------------------------------------
+# Null stub sources for building test FeatureStores
+# ---------------------------------------------------------------------------
+
+
+class NullStatcastSource:
+    """Statcast source that returns empty data for all queries."""
+
+    def batter_expected_stats(self, year: int) -> list:
+        return []
+
+    def pitcher_expected_stats(self, year: int) -> list:
+        return []
+
+
+class NullBattedBallSource:
+    """Batted ball source that returns empty data for all queries."""
+
+    def pitcher_batted_ball_stats(self, year: int) -> list:
+        return []
+
+
+class NullSkillDataSource:
+    """Skill data source that returns empty data for all queries."""
+
+    def batter_skill_stats(self, year: int) -> list:
+        return []
+
+    def pitcher_skill_stats(self, year: int) -> list:
+        return []
+
+
+def make_test_feature_store(
+    statcast_source: object | None = None,
+    batted_ball_source: object | None = None,
+    skill_data_source: object | None = None,
+) -> FeatureStore:
+    """Build a FeatureStore using provided fakes, filling gaps with null stubs."""
+    return FeatureStore(
+        statcast_source=statcast_source or NullStatcastSource(),  # type: ignore[arg-type]
+        batted_ball_source=batted_ball_source or NullBattedBallSource(),  # type: ignore[arg-type]
+        skill_data_source=skill_data_source or NullSkillDataSource(),  # type: ignore[arg-type]
+    )
 
 
 @pytest.fixture
