@@ -538,9 +538,7 @@ class PipelineBuilder:
             }
             registry = self._resolve_model_registry()
             if registry is not None:
-                from fantasy_baseball_manager.ml.persistence import ModelStore
-
-                gb_kwargs["model_store"] = ModelStore(model_dir=registry.gb_store.model_dir)
+                gb_kwargs["model_store"] = registry.gb_store
             adjusters.append(GBResidualAdjuster(**gb_kwargs))
 
         if self._skill_change:
@@ -568,9 +566,7 @@ class PipelineBuilder:
             }
             registry = self._resolve_model_registry()
             if registry is not None:
-                from fantasy_baseball_manager.ml.mtl.persistence import MTLModelStore
-
-                mtl_kwargs["model_store"] = MTLModelStore(model_dir=registry.mtl_store.model_dir)
+                mtl_kwargs["model_store"] = registry.mtl_store
             adjusters.append(MTLBlender(**mtl_kwargs))
 
         if self._contextual_blender:

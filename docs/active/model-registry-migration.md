@@ -51,69 +51,21 @@ Both `ml train` and `ml train-mtl` now accept an optional `--version` flag. When
 
 ---
 
-### Step 5: Update `ml list` to Use Cross-Type Listing
+### ~~Step 5: Update `ml list` to Use Cross-Type Listing~~ (Complete)
 
-**File:** `src/fantasy_baseball_manager/ml/cli.py` (line ~194)
-
-Currently `ml list` only shows GB models. Update to use `registry.list_all()` for a unified view:
-
-```python
-# Before
-store = ModelStore()
-models = store.list_models()
-
-# After
-registry = create_model_registry()
-models = registry.list_all()  # All model types
-# Or filter: registry.list_all(model_type="gb_residual")
-```
-
-Update the display table to include a `Type` column showing `gb_residual`, `mtl`, `mle`, or `contextual`.
-
-**Acceptance criteria:**
-- `ml list` shows models from all stores
-- Output includes model type, version, and training years
-- Optional `--type` filter flag (e.g., `ml list --type mtl`)
+`list_cmd` now uses `registry.list_all(model_type=model_type)` instead of a GB-only `ModelStore`. The table includes Name, Model Type, Player Type, Version, Training Years, Stats, and Created columns. An optional `--type` / `-t` flag filters by model type (e.g., `ml list --type mtl`).
 
 ---
 
-### Step 6: Add `ml compare` Command
+### ~~Step 6: Add `ml compare` Command~~ (Complete)
 
-Add a new CLI command that uses `registry.compare()`:
-
-```
-ml compare default_v1 default_v2 --type gb_residual --player-type batter
-```
-
-This prints a side-by-side comparison of metrics between two model versions, useful for evaluating whether a retrained model is an improvement.
-
-**Acceptance criteria:**
-- Command outputs a table of metrics for both models
-- Shows delta and percentage change for each metric
-- Errors clearly if either model doesn't exist
+Added `ml compare` CLI command that uses `registry.compare()`. The command outputs side-by-side metadata (name, version, training years, created), training years diff, and a metrics table with deltas. Errors clearly if either model doesn't exist. 4 tests in `tests/ml/test_cli_compare.py`.
 
 ---
 
-### Step 7: Have PipelineBuilder Pass Stores Directly
+### ~~Step 7: Have PipelineBuilder Pass Stores Directly~~ (Complete)
 
-**File:** `src/fantasy_baseball_manager/pipeline/builder.py` (lines ~522, ~551)
-
-Currently `PipelineBuilder` extracts `model_dir` from the registry and creates legacy store instances. Update the pipeline stages (`GBResidualAdjuster`, `MTLBlender`) to accept `BaseModelStore` directly, eliminating the roundtrip through legacy wrappers:
-
-```python
-# Before (current)
-gb_kwargs["model_store"] = ModelStore(model_dir=registry.gb_store.model_dir)
-
-# After (direct injection)
-gb_kwargs["model_store"] = registry.gb_store
-```
-
-This requires updating the type annotations in `GBResidualAdjuster` and `MTLBlender` to accept the base store types.
-
-**Acceptance criteria:**
-- Pipeline stages accept `BaseModelStore` / `MTLBaseModelStore`
-- `PipelineBuilder` passes stores from registry directly
-- Full pipeline integration test passes
+Pipeline stages (`GBResidualAdjuster`, `MTLBlender`, `MTLRateComputer`) now accept `BaseModelStore`/`MTLBaseModelStore` directly instead of legacy wrappers. `PipelineBuilder` passes `registry.gb_store` and `registry.mtl_store` directly. Each stage has a `_default_*_store()` factory for standalone use. `GBResidualAdjuster._ensure_models_loaded` now uses `load_params` + `ResidualModelSet.from_params`. MTL stages use `load_batter`/`load_pitcher` instead of `load_batter_model`/`load_pitcher_model`. Tests updated accordingly.
 
 ---
 
@@ -141,9 +93,9 @@ Once all callers use the registry or base stores directly, the legacy wrapper cl
 | ~~2. Wire `ml train-mtl`~~ | ~~Small~~ | ~~Low~~ | **Done** |
 | ~~3. Wire contextual CLI~~ | ~~Small~~ | ~~Low~~ | **Done** |
 | ~~4. Add `--version` flag~~ | ~~Medium~~ | ~~Low~~ | **Done** |
-| 5. Update `ml list` | Medium | Low | None |
-| 6. Add `ml compare` | Medium | None (new feature) | None |
-| 7. Direct store injection | Medium | Medium (touches pipeline stages) | Steps 1-3 |
+| ~~5. Update `ml list`~~ | ~~Medium~~ | ~~Low~~ | **Done** |
+| ~~6. Add `ml compare`~~ | ~~Medium~~ | ~~None (new feature)~~ | **Done** |
+| ~~7. Direct store injection~~ | ~~Medium~~ | ~~Medium (touches pipeline stages)~~ | **Done** |
 | 8. Drop legacy wrappers | Large | Medium (breaking internal API) | Steps 1-7 |
 
 Steps 1-3 can be done in parallel. Steps 4-6 can be done in parallel after 1-2. Step 7 is independent but benefits from 1-3. Step 8 is the final cleanup and should be done last.

@@ -373,6 +373,98 @@ def info_cmd(
         console.print(table)
 
 
+@ml_app.command(name="compare")
+def compare_cmd(
+    name_a: Annotated[
+        str,
+        typer.Argument(help="Name of the first model"),
+    ],
+    name_b: Annotated[
+        str,
+        typer.Argument(help="Name of the second model"),
+    ],
+    model_type: Annotated[
+        str,
+        typer.Option(
+            "--model-type",
+            "-m",
+            help="Model type: gb_residual, mtl, or mle",
+        ),
+    ] = "gb_residual",
+    player_type: Annotated[
+        str,
+        typer.Option(
+            "--player-type",
+            "-p",
+            help="Player type: batter or pitcher",
+        ),
+    ] = "batter",
+) -> None:
+    """Compare two trained models side by side.
+
+    Shows metadata, training years differences, and metric deltas.
+
+    Example:
+        uv run python -m fantasy_baseball_manager ml compare default default_v2 --model-type gb_residual
+    """
+    registry = _get_registry()
+    try:
+        comparison = registry.compare(name_a, name_b, model_type, player_type)
+    except FileNotFoundError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+    meta_a = comparison["a"]
+    meta_b = comparison["b"]
+
+    # Metadata table
+    meta_table = Table(title="Model Comparison")
+    meta_table.add_column("Field", no_wrap=True)
+    meta_table.add_column(name_a, no_wrap=True)
+    meta_table.add_column(name_b, no_wrap=True)
+    meta_table.add_row("Name", meta_a["name"], meta_b["name"])
+    meta_table.add_row("Version", str(meta_a["version"]), str(meta_b["version"]))
+    meta_table.add_row(
+        "Training Years",
+        ", ".join(str(y) for y in meta_a["training_years"]),
+        ", ".join(str(y) for y in meta_b["training_years"]),
+    )
+    meta_table.add_row("Created", meta_a["created_at"], meta_b["created_at"])
+    console.print(meta_table)
+
+    # Training years diff
+    years_diff = comparison["training_years_diff"]
+    a_only = years_diff["a_only"]
+    b_only = years_diff["b_only"]
+    if a_only or b_only:
+        console.print()
+        console.print("[bold]Training Years Diff[/bold]")
+        if a_only:
+            console.print(f"  Only in {name_a}: {', '.join(str(y) for y in a_only)}")
+        if b_only:
+            console.print(f"  Only in {name_b}: {', '.join(str(y) for y in b_only)}")
+
+    # Metrics table
+    metrics_diff = comparison["metrics_diff"]
+    if metrics_diff:
+        console.print()
+        metrics_table = Table(title="Metrics")
+        metrics_table.add_column("Metric", no_wrap=True)
+        metrics_table.add_column(name_a, justify="right")
+        metrics_table.add_column(name_b, justify="right")
+        metrics_table.add_column("Delta", justify="right")
+
+        for key, diff in metrics_diff.items():
+            val_a = diff["a"]
+            val_b = diff["b"]
+            a_str = f"{val_a:+.4f}" if isinstance(val_a, int | float) else str(val_a)
+            b_str = f"{val_b:+.4f}" if isinstance(val_b, int | float) else str(val_b)
+            delta_str = f"{diff['delta']:+.4f}" if "delta" in diff else "-"
+            metrics_table.add_row(key, a_str, b_str, delta_str)
+
+        console.print(metrics_table)
+
+
 @ml_app.command(name="validate")
 def validate_cmd(
     years: Annotated[

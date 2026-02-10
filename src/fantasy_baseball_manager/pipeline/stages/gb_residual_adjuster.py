@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.ml.features import BatterFeatureExtractor, PitcherFeatureExtractor
-from fantasy_baseball_manager.ml.persistence import ModelStore
 from fantasy_baseball_manager.pipeline.types import PlayerMetadata, PlayerRates
+from fantasy_baseball_manager.registry.base_store import BaseModelStore
+from fantasy_baseball_manager.registry.serializers import JoblibSerializer
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.ml.residual_model import ResidualModelSet
@@ -25,6 +26,16 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+
+def _default_gb_store() -> BaseModelStore:
+    from fantasy_baseball_manager.ml.persistence import DEFAULT_MODEL_DIR
+
+    return BaseModelStore(
+        model_dir=DEFAULT_MODEL_DIR,
+        serializer=JoblibSerializer(),
+        model_type_name="gb_residual",
+    )
 
 
 @dataclass(frozen=True)
@@ -59,7 +70,7 @@ class GBResidualAdjuster:
     batted_ball_source: PitcherBattedBallDataSource
     skill_data_source: SkillDataSource
     config: GBResidualConfig = field(default_factory=GBResidualConfig)
-    model_store: ModelStore = field(default_factory=ModelStore)
+    model_store: BaseModelStore = field(default_factory=_default_gb_store)
     feature_store: FeatureStore | None = field(default=None)
 
     _batter_models: ResidualModelSet | None = field(default=None, init=False, repr=False)
@@ -72,9 +83,12 @@ class GBResidualAdjuster:
 
     def _ensure_models_loaded(self) -> None:
         """Lazy-load trained models on first use."""
+        from fantasy_baseball_manager.ml.residual_model import ResidualModelSet
+
         if self._batter_models is None:
             if self.model_store.exists(self.config.model_name, "batter"):
-                self._batter_models = self.model_store.load(self.config.model_name, "batter")
+                params = self.model_store.load_params(self.config.model_name, "batter")
+                self._batter_models = ResidualModelSet.from_params(params)
                 logger.debug(
                     "Loaded batter model %s with stats: %s",
                     self.config.model_name,
@@ -85,7 +99,8 @@ class GBResidualAdjuster:
 
         if self._pitcher_models is None:
             if self.model_store.exists(self.config.model_name, "pitcher"):
-                self._pitcher_models = self.model_store.load(self.config.model_name, "pitcher")
+                params = self.model_store.load_params(self.config.model_name, "pitcher")
+                self._pitcher_models = ResidualModelSet.from_params(params)
                 logger.debug(
                     "Loaded pitcher model %s with stats: %s",
                     self.config.model_name,

@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from fantasy_baseball_manager.ml.persistence import ModelStore
 from fantasy_baseball_manager.ml.residual_model import ResidualModelSet, StatResidualModel
 from fantasy_baseball_manager.pipeline.batted_ball_data import PitcherBattedBallStats
 from fantasy_baseball_manager.pipeline.feature_store import FeatureStore
@@ -17,6 +16,8 @@ from fantasy_baseball_manager.pipeline.stages.gb_residual_adjuster import (
 from fantasy_baseball_manager.pipeline.statcast_data import StatcastBatterStats, StatcastPitcherStats
 from fantasy_baseball_manager.pipeline.types import PlayerRates
 from fantasy_baseball_manager.player.identity import Player
+from fantasy_baseball_manager.registry.base_store import BaseModelStore
+from fantasy_baseball_manager.registry.serializers import JoblibSerializer
 
 
 class FakeStatcastSource:
@@ -114,13 +115,17 @@ def _make_pitcher(
 
 
 @pytest.fixture
-def temp_model_store(tmp_path: Path) -> ModelStore:
+def temp_model_store(tmp_path: Path) -> BaseModelStore:
     """Create a model store in a temp directory."""
-    return ModelStore(model_dir=tmp_path / "models")
+    return BaseModelStore(
+        model_dir=tmp_path / "models",
+        serializer=JoblibSerializer(),
+        model_type_name="gb_residual",
+    )
 
 
 @pytest.fixture
-def trained_batter_models(temp_model_store: ModelStore) -> ModelStore:
+def trained_batter_models(temp_model_store: BaseModelStore) -> BaseModelStore:
     """Create and save trained batter models."""
     np.random.seed(42)
     feature_names = [
@@ -164,7 +169,14 @@ def trained_batter_models(temp_model_store: ModelStore) -> ModelStore:
         model.fit(X, y, feature_names)
         model_set.add_model(model)
 
-    temp_model_store.save(model_set, "default")
+    temp_model_store.save_params(
+        model_set.get_params(),
+        "default",
+        "batter",
+        training_years=(2021, 2022),
+        stats=model_set.get_stats(),
+        feature_names=model_set.feature_names,
+    )
     return temp_model_store
 
 
@@ -176,7 +188,11 @@ class TestGBResidualAdjuster:
             batted_ball_source=FakeBattedBallSource({}),
             skill_data_source=FakeSkillDataSource(),
             config=GBResidualConfig(model_name="nonexistent"),
-            model_store=ModelStore(model_dir=tmp_path / "empty_models"),
+            model_store=BaseModelStore(
+                model_dir=tmp_path / "empty_models",
+                serializer=JoblibSerializer(),
+                model_type_name="gb_residual",
+            ),
         )
 
         batter = _make_batter()
@@ -187,7 +203,7 @@ class TestGBResidualAdjuster:
 
     def test_passes_through_when_no_statcast(
         self,
-        trained_batter_models: ModelStore,
+        trained_batter_models: BaseModelStore,
     ) -> None:
         """Test that batters without Statcast data pass through unchanged."""
         adjuster = GBResidualAdjuster(
@@ -205,7 +221,7 @@ class TestGBResidualAdjuster:
 
     def test_passes_through_when_no_id_mapping(
         self,
-        trained_batter_models: ModelStore,
+        trained_batter_models: BaseModelStore,
     ) -> None:
         """Test that batters without ID mapping pass through unchanged."""
         statcast = StatcastBatterStats(
@@ -235,7 +251,7 @@ class TestGBResidualAdjuster:
 
     def test_adjusts_batter_with_models(
         self,
-        trained_batter_models: ModelStore,
+        trained_batter_models: BaseModelStore,
     ) -> None:
         """Test that batters are adjusted when models exist."""
         statcast = StatcastBatterStats(
@@ -268,7 +284,7 @@ class TestGBResidualAdjuster:
 
     def test_skips_batter_below_min_pa(
         self,
-        trained_batter_models: ModelStore,
+        trained_batter_models: BaseModelStore,
     ) -> None:
         """Test that batters with low PA Statcast data are skipped."""
         statcast = StatcastBatterStats(
@@ -298,7 +314,7 @@ class TestGBResidualAdjuster:
 
     def test_caches_data_for_same_year(
         self,
-        trained_batter_models: ModelStore,
+        trained_batter_models: BaseModelStore,
     ) -> None:
         """Test that Statcast data is cached for multiple players in same year."""
         statcast = StatcastBatterStats(
@@ -381,7 +397,7 @@ class TestGBResidualConfig:
 
 
 class TestGBResidualFeatureStore:
-    def test_uses_feature_store(self, trained_batter_models: ModelStore) -> None:
+    def test_uses_feature_store(self, trained_batter_models: BaseModelStore) -> None:
         """When feature_store is provided, data is loaded from store, not direct sources."""
         statcast = StatcastBatterStats(
             player_id="mlbam123",

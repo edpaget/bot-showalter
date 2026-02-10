@@ -9,11 +9,12 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.ml.features import BatterFeatureExtractor, PitcherFeatureExtractor
 from fantasy_baseball_manager.ml.mtl.config import MTLRateComputerConfig
 from fantasy_baseball_manager.ml.mtl.model import BATTER_STATS, PITCHER_STATS
-from fantasy_baseball_manager.ml.mtl.persistence import MTLModelStore
 from fantasy_baseball_manager.pipeline.stages.rate_computers import (
     MarcelRateComputer,
 )
 from fantasy_baseball_manager.pipeline.types import PlayerRates
+from fantasy_baseball_manager.registry.mtl_store import MTLBaseModelStore
+from fantasy_baseball_manager.registry.serializers import TorchParamsSerializer
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.data.protocol import DataSource
@@ -31,6 +32,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _default_mtl_store() -> MTLBaseModelStore:
+    from fantasy_baseball_manager.ml.mtl.persistence import DEFAULT_MTL_MODEL_DIR
+
+    return MTLBaseModelStore(
+        model_dir=DEFAULT_MTL_MODEL_DIR,
+        serializer=TorchParamsSerializer(),
+        model_type_name="mtl",
+    )
+
+
 @dataclass
 class MTLRateComputer:
     """Computes player rates using trained MTL neural network.
@@ -46,7 +57,7 @@ class MTLRateComputer:
     skill_data_source: SkillDataSource
     id_mapper: SfbbMapper
     config: MTLRateComputerConfig = field(default_factory=MTLRateComputerConfig)
-    model_store: MTLModelStore = field(default_factory=MTLModelStore)
+    model_store: MTLBaseModelStore = field(default_factory=_default_mtl_store)
     feature_store: FeatureStore | None = field(default=None)
 
     # Fallback to Marcel for players without Statcast data
@@ -63,7 +74,7 @@ class MTLRateComputer:
             return
 
         if self.model_store.exists(self.config.model_name, "batter"):
-            self._batter_model = self.model_store.load_batter_model(self.config.model_name)
+            self._batter_model = self.model_store.load_batter(self.config.model_name)
             logger.debug("Loaded MTL batter model: %s", self.config.model_name)
         else:
             logger.warning(
@@ -72,7 +83,7 @@ class MTLRateComputer:
             )
 
         if self.model_store.exists(self.config.model_name, "pitcher"):
-            self._pitcher_model = self.model_store.load_pitcher_model(self.config.model_name)
+            self._pitcher_model = self.model_store.load_pitcher(self.config.model_name)
             logger.debug("Loaded MTL pitcher model: %s", self.config.model_name)
         else:
             logger.warning(
