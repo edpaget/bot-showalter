@@ -378,11 +378,42 @@ def pretrain_cmd(
             help="Load pre-built tensorized data if available",
         ),
     ] = True,
+    d_model: Annotated[
+        int,
+        typer.Option(
+            "--d-model",
+            help="Transformer hidden dimension (default: 256)",
+        ),
+    ] = 256,
+    n_layers: Annotated[
+        int,
+        typer.Option(
+            "--n-layers",
+            help="Number of transformer layers (default: 4)",
+        ),
+    ] = 4,
+    n_heads: Annotated[
+        int,
+        typer.Option(
+            "--n-heads",
+            help="Number of attention heads (default: 8)",
+        ),
+    ] = 8,
+    ff_dim: Annotated[
+        int,
+        typer.Option(
+            "--ff-dim",
+            help="Feed-forward hidden dimension (default: 1024)",
+        ),
+    ] = 1024,
 ) -> None:
     """Pre-train the contextual model using Masked Gamestate Modeling.
 
     Example:
         uv run python -m fantasy_baseball_manager contextual pretrain --seasons 2015,2016,2017,2018,2019,2020,2021,2022 --val-seasons 2023
+
+    For fast local iteration with a small model:
+        uv run python -m fantasy_baseball_manager contextual pretrain --d-model 64 --n-layers 2 --n-heads 2 --ff-dim 256 --max-seq-len 256 --epochs 5
     """
     import torch
 
@@ -431,6 +462,10 @@ def pretrain_cmd(
     console.print(f"  Batch size:    {batch_size}")
     console.print(f"  Learning rate: {learning_rate}")
     console.print(f"  Max seq len:   {max_seq_len}")
+    console.print(f"  d_model:       {d_model}")
+    console.print(f"  n_layers:      {n_layers}")
+    console.print(f"  n_heads:       {n_heads}")
+    console.print(f"  ff_dim:        {ff_dim}")
     console.print(f"  AMP:           {amp_enabled}")
 
     # Try loading prepared data
@@ -474,7 +509,10 @@ def pretrain_cmd(
         from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
         from fantasy_baseball_manager.statcast.store import StatcastStore
 
-        model_config_for_tensorizer = ModelConfig(max_seq_len=max_seq_len)
+        model_config_for_tensorizer = ModelConfig(
+            max_seq_len=max_seq_len, d_model=d_model, n_layers=n_layers,
+            n_heads=n_heads, ff_dim=ff_dim,
+        )
         tensorizer = Tensorizer(
             config=model_config_for_tensorizer,
             pitch_type_vocab=PITCH_TYPE_VOCAB,
@@ -503,7 +541,10 @@ def pretrain_cmd(
         train_sequences = [tensorizer.tensorize_context(ctx) for ctx in train_contexts]
         val_sequences = [tensorizer.tensorize_context(ctx) for ctx in val_contexts]
 
-    model_config = ModelConfig(max_seq_len=max_seq_len)
+    model_config = ModelConfig(
+        max_seq_len=max_seq_len, d_model=d_model, n_layers=n_layers,
+        n_heads=n_heads, ff_dim=ff_dim,
+    )
 
     train_dataset = MGMDataset(
         sequences=train_sequences,
@@ -636,11 +677,42 @@ def finetune_cmd(
             help="Load pre-built tensorized data if available",
         ),
     ] = True,
+    d_model: Annotated[
+        int,
+        typer.Option(
+            "--d-model",
+            help="Transformer hidden dimension (must match pretrained model)",
+        ),
+    ] = 256,
+    n_layers: Annotated[
+        int,
+        typer.Option(
+            "--n-layers",
+            help="Number of transformer layers (must match pretrained model)",
+        ),
+    ] = 4,
+    n_heads: Annotated[
+        int,
+        typer.Option(
+            "--n-heads",
+            help="Number of attention heads (must match pretrained model)",
+        ),
+    ] = 8,
+    ff_dim: Annotated[
+        int,
+        typer.Option(
+            "--ff-dim",
+            help="Feed-forward hidden dimension (must match pretrained model)",
+        ),
+    ] = 1024,
 ) -> None:
     """Fine-tune a pre-trained contextual model for per-game stat prediction.
 
     Example:
         uv run python -m fantasy_baseball_manager contextual finetune --perspective pitcher --base-model pretrain_best
+
+    For fast local iteration with a small model:
+        uv run python -m fantasy_baseball_manager contextual finetune --d-model 64 --n-layers 2 --n-heads 2 --ff-dim 256
     """
     import torch
 
@@ -707,9 +779,16 @@ def finetune_cmd(
     console.print(f"  Backbone LR:   {backbone_lr}")
     console.print(f"  Freeze backbone: {freeze_backbone}")
     console.print(f"  Max seq len:   {max_seq_len}")
+    console.print(f"  d_model:       {d_model}")
+    console.print(f"  n_layers:      {n_layers}")
+    console.print(f"  n_heads:       {n_heads}")
+    console.print(f"  ff_dim:        {ff_dim}")
 
     # Build model config and load pre-trained model
-    model_config = ModelConfig(max_seq_len=max_seq_len)
+    model_config = ModelConfig(
+        max_seq_len=max_seq_len, d_model=d_model, n_layers=n_layers,
+        n_heads=n_heads, ff_dim=ff_dim,
+    )
 
     console.print(f"\nLoading pre-trained model '{base_model}'...")
     model = model_store.load_model(base_model, model_config)
