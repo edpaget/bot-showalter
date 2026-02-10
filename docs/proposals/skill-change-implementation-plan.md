@@ -385,7 +385,7 @@ Use the existing evaluation harness:
 
 ```bash
 # Compare marcel_full vs marcel_skill_change
-uv run python -m fantasy_baseball_manager.evaluation.cli \
+uv run fantasy-baseball-manager.evaluation.cli \
     --pipeline marcel_full \
     --pipeline marcel_skill_change \
     --years 2022 2023 2024

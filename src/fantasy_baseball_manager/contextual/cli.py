@@ -169,7 +169,7 @@ def prepare_data_cmd(
     building steps (parquet I/O, game sequence building, tensorization).
 
     Example:
-        uv run python -m fantasy_baseball_manager contextual prepare-data --mode all
+        uv run fantasy-baseball-manager contextual prepare-data --mode all
     """
     from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
     from fantasy_baseball_manager.contextual.data.vocab import (
@@ -432,10 +432,10 @@ def pretrain_cmd(
     """Pre-train the contextual model using Masked Gamestate Modeling.
 
     Example:
-        uv run python -m fantasy_baseball_manager contextual pretrain --seasons 2015,2016,2017,2018,2019,2020,2021,2022 --val-seasons 2023
+        uv run fantasy-baseball-manager contextual pretrain --seasons 2015,2016,2017,2018,2019,2020,2021,2022 --val-seasons 2023
 
     For fast local iteration with a small model:
-        uv run python -m fantasy_baseball_manager contextual pretrain --d-model 64 --n-layers 2 --n-heads 2 --ff-dim 256 --max-seq-len 256 --epochs 5
+        uv run fantasy-baseball-manager contextual pretrain --d-model 64 --n-layers 2 --n-heads 2 --ff-dim 256 --max-seq-len 256 --epochs 5
     """
     import torch
 
@@ -756,10 +756,10 @@ def finetune_cmd(
     """Fine-tune a pre-trained contextual model for per-game stat prediction.
 
     Example:
-        uv run python -m fantasy_baseball_manager contextual finetune --perspective pitcher --base-model pretrain_best
+        uv run fantasy-baseball-manager contextual finetune --perspective pitcher --base-model pretrain_best
 
     For fast local iteration with a small model:
-        uv run python -m fantasy_baseball_manager contextual finetune --d-model 64 --n-layers 2 --n-heads 2 --ff-dim 256
+        uv run fantasy-baseball-manager contextual finetune --d-model 64 --n-layers 2 --n-heads 2 --ff-dim 256
     """
     import torch
 

@@ -48,8 +48,8 @@ def download_cmd(
     """Download pitch-level Statcast data for the specified seasons.
 
     Example:
-        uv run python -m fantasy_baseball_manager statcast download --seasons 2023,2024
-        uv run python -m fantasy_baseball_manager statcast download --seasons 2024 --force
+        uv run fantasy-baseball-manager statcast download --seasons 2023,2024
+        uv run fantasy-baseball-manager statcast download --seasons 2024 --force
     """
     from fantasy_baseball_manager.statcast.downloader import StatcastDownloader
     from fantasy_baseball_manager.statcast.fetcher import PybaseballFetcher
@@ -124,8 +124,8 @@ def status_cmd(
     """Show the status of downloaded Statcast data.
 
     Example:
-        uv run python -m fantasy_baseball_manager statcast status
-        uv run python -m fantasy_baseball_manager statcast status --season 2024
+        uv run fantasy-baseball-manager statcast status
+        uv run fantasy-baseball-manager statcast status --season 2024
     """
     from fantasy_baseball_manager.statcast.store import StatcastStore
 

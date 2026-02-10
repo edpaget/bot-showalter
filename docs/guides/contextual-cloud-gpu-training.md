@@ -12,7 +12,7 @@ The training code is already cloud-ready:
 
 - **Device auto-detection** (`contextual/cli.py`): Selects CUDA > MPS > CPU automatically.
 - **Checkpoint resume**: `--resume-from` flag restores model, optimizer, and scheduler state. Training can survive preemptions.
-- **CLI entry point**: `uv run python -m fantasy_baseball_manager contextual pretrain --seasons ...` runs the full pipeline.
+- **CLI entry point**: `uv run fantasy-baseball-manager contextual pretrain --seasons ...` runs the full pipeline.
 - **File-based persistence**: Checkpoints go to `~/.fantasy_baseball/models/contextual/`. Data loads from `~/.fantasy_baseball/statcast/`.
 - **AMP**: Automatic mixed precision is enabled by default on CUDA, roughly doubling throughput.
 - **DataLoader workers**: Auto-detected on CUDA (`num_workers=4`, `pin_memory=True`, `persistent_workers=True`).

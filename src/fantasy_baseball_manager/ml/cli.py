@@ -95,8 +95,8 @@ def train_cmd(
     """Train gradient boosting residual models on historical data.
 
     Example:
-        uv run python -m fantasy_baseball_manager ml train --years 2020,2021,2022,2023 --name default
-        uv run python -m fantasy_baseball_manager ml train --years 2020,2021,2022,2023 --validate
+        uv run fantasy-baseball-manager ml train --years 2020,2021,2022,2023 --name default
+        uv run fantasy-baseball-manager ml train --years 2020,2021,2022,2023 --validate
     """
     from fantasy_baseball_manager.cache.factory import create_cache_store
     from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
@@ -419,7 +419,7 @@ def compare_cmd(
     Shows metadata, training years differences, and metric deltas.
 
     Example:
-        uv run python -m fantasy_baseball_manager ml compare default default_v2 --model-type gb_residual
+        uv run fantasy-baseball-manager ml compare default default_v2 --model-type gb_residual
     """
     registry = _get_registry()
     try:
@@ -531,7 +531,7 @@ def validate_cmd(
     """Validate models without saving.
 
     Example:
-        uv run python -m fantasy_baseball_manager ml validate --years 2020,2021,2022,2023 --strategy time_series
+        uv run fantasy-baseball-manager ml validate --years 2020,2021,2022,2023 --strategy time_series
     """
     from fantasy_baseball_manager.cache.factory import create_cache_store
     from fantasy_baseball_manager.cache.serialization import DataclassListSerializer
@@ -709,8 +709,8 @@ def train_mtl_cmd(
     Requires PyTorch: uv sync --extra mtl
 
     Example:
-        uv run python -m fantasy_baseball_manager ml train-mtl --years 2020,2021,2022,2023 --name default
-        uv run python -m fantasy_baseball_manager ml train-mtl --years 2020,2021,2022,2023 --validate
+        uv run fantasy-baseball-manager ml train-mtl --years 2020,2021,2022,2023 --name default
+        uv run fantasy-baseball-manager ml train-mtl --years 2020,2021,2022,2023 --validate
     """
     try:
         from fantasy_baseball_manager.ml.mtl.trainer import MTLTrainer
@@ -919,7 +919,7 @@ def train_valuation_cmd(
     """Train ridge regression valuation model on consensus projections + ADP.
 
     Example:
-        uv run python -m fantasy_baseball_manager ml train-valuation \\
+        uv run fantasy-baseball-manager ml train-valuation \\
             --years 2018,2019,2020,2021,2022,2023,2024 --test-years 2025,2026 --system steamer
     """
     from fantasy_baseball_manager.projections.models import ProjectionSystem
