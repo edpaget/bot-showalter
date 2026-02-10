@@ -45,14 +45,13 @@ from fantasy_baseball_manager.draft.simulation_report import (
 )
 from fantasy_baseball_manager.draft.state import DraftState
 from fantasy_baseball_manager.draft.strategy_presets import STRATEGY_PRESETS
-from fantasy_baseball_manager.engines import DEFAULT_ENGINE, validate_engine
+from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.services import cli_context, get_container, set_container
 from fantasy_baseball_manager.shared.orchestration import (
     build_projections_and_positions,
 )
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
-from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +114,14 @@ def draft_rank(
     batting: Annotated[bool, typer.Option("--batting", help="Show only batters.")] = False,
     pitching: Annotated[bool, typer.Option("--pitching", help="Show only pitchers.")] = False,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
+    method: Annotated[str, typer.Option(help="Valuation method to use.")] = DEFAULT_METHOD,
     league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
-    """Produce a ranked draft board from z-score valuations."""
+    """Produce a ranked draft board from player valuations."""
     with cli_context(league_id=league_id, season=season, no_cache=no_cache):
         validate_engine(engine)
+        validate_method(method)
 
         if year is None:
             year = datetime.now().year
@@ -171,6 +172,7 @@ def draft_rank(
         league_settings = load_league_settings()
         container = get_container()
         pipeline = PIPELINES[engine]()
+        valuator = container.create_valuator(method)
         all_values: list[PlayerValue] = []
         batting_ids: set[str] = set()
         pitching_ids: set[str] = set()
@@ -179,8 +181,8 @@ def draft_rank(
             batting_projections = pipeline.project_batters(
                 container.batting_source, container.team_batting_source, year
             )
-            batting_values = zscore_batting(batting_projections, league_settings.batting_categories)
-            all_values.extend(batting_values)
+            batting_result = valuator.valuate_batting(batting_projections, league_settings.batting_categories)
+            all_values.extend(batting_result.values)
             batting_ids = {p.player_id for p in batting_projections}
             logger.debug("Batting projections: %d players", len(batting_ids))
             if batting_ids:
@@ -195,8 +197,8 @@ def draft_rank(
                 if proj.player_id not in player_positions:
                     role = infer_pitcher_role(proj)
                     player_positions[proj.player_id] = (role,)
-            pitching_values = zscore_pitching(pitching_projections, league_settings.pitching_categories)
-            all_values.extend(pitching_values)
+            pitching_result = valuator.valuate_pitching(pitching_projections, league_settings.pitching_categories)
+            all_values.extend(pitching_result.values)
             pitching_ids = {p.player_id for p in pitching_projections}
             logger.debug("Pitching projections: %d players", len(pitching_ids))
             if pitching_ids:

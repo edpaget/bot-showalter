@@ -4,7 +4,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
-from fantasy_baseball_manager.context import init_context
+from fantasy_baseball_manager.context import ContextNotInitializedError, get_context, init_context
 from fantasy_baseball_manager.services.container import ServiceConfig, ServiceContainer, set_container
 
 
@@ -22,6 +22,7 @@ def cli_context(
 
     If a container is already set (e.g., by tests), uses the existing container
     and doesn't reset it on exit. This allows tests to inject fake dependencies.
+    If no ambient context exists, initializes one with the container's config.
 
     Args:
         league_id: Override the league ID from config file.
@@ -32,7 +33,13 @@ def cli_context(
     from fantasy_baseball_manager.services.container import _container
 
     if _container is not None:
-        # Container already set (test mode) — use it without changes
+        # Container already set (test mode) — ensure ambient context exists
+        try:
+            get_context()
+        except ContextNotInitializedError:
+            resolved_season = int(str(_container.app_config["league.season"]))
+            db_path = Path(str(_container.app_config["cache.db_path"])).expanduser()
+            init_context(year=resolved_season, cache_enabled=True, db_path=db_path)
         yield
         return
 

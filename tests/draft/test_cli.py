@@ -16,6 +16,7 @@ from fantasy_baseball_manager.marcel.models import (
 )
 from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.services import ServiceContainer, set_container
+from fantasy_baseball_manager.valuation.models import PlayerValue, ValuationResult
 
 runner = CliRunner()
 
@@ -571,3 +572,35 @@ class TestDraftRankCommand:
             # cached() wrapper should be invoked
             mock_cached.assert_called_once()
             mock_ds.assert_called_once()
+
+    def test_method_zscore_accepted(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "draft-rank", "2025", "--method", "zscore"])
+        assert result.exit_code == 0
+
+    def test_method_ml_ridge_accepted(self) -> None:
+        _install_fake()
+
+        fake_valuator = MagicMock()
+        fake_valuator.valuate_batting.return_value = ValuationResult(
+            values=[PlayerValue(player_id="b1", name="Slugger Jones", category_values=(), total_value=5.0)],
+            categories=(),
+            label="ml-ridge",
+        )
+        fake_valuator.valuate_pitching.return_value = ValuationResult(
+            values=[PlayerValue(player_id="p1", name="Ace Adams", category_values=(), total_value=3.0)],
+            categories=(),
+            label="ml-ridge",
+        )
+
+        with patch.object(
+            ServiceContainer, "create_valuator", return_value=fake_valuator,
+        ):
+            result = runner.invoke(app, ["players", "draft-rank", "2025", "--method", "ml-ridge"])
+            assert result.exit_code == 0
+            assert "Slugger Jones" in result.output
+
+    def test_method_unknown_rejected(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "draft-rank", "2025", "--method", "bogus"])
+        assert result.exit_code == 1
