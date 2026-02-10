@@ -10,7 +10,7 @@ from rich.table import Table
 from fantasy_baseball_manager.config import load_league_settings
 from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, validate_engine, validate_method
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
-from fantasy_baseball_manager.services import get_container, set_container
+from fantasy_baseball_manager.services import cli_context, get_container, set_container
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
 from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 
@@ -89,6 +89,19 @@ def valuate(
     validate_engine(engine)
     validate_method(method)
 
+    with cli_context():
+        _valuate_inner(year, batting, pitching, top, categories, engine, method)
+
+
+def _valuate_inner(
+    year: int | None,
+    batting: bool,
+    pitching: bool,
+    top: int,
+    categories: str | None,
+    engine: str,
+    method: str,
+) -> None:
     if year is None:
         year = datetime.now().year
 

@@ -16,7 +16,7 @@ def _normalize_headers(reader: csv.DictReader) -> list[dict[str, str]]:
     """Read all rows with case-insensitive header normalization."""
     if reader.fieldnames is None:
         return []
-    lower_map = {name: name.strip().lower() for name in reader.fieldnames}
+    lower_map = {name: name.strip().lower().lstrip("\ufeff") for name in reader.fieldnames}
     rows: list[dict[str, str]] = []
     for row in reader:
         normalized = {lower_map[k]: v for k, v in row.items() if k in lower_map}
