@@ -85,8 +85,9 @@ class TestMGMDataset:
             pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
         )
         sample = dataset[0]
-        # Count maskable positions (real, non-player tokens)
-        maskable = sequences[0].padding_mask & ~sequences[0].player_token_mask
+        # Count maskable positions (real pitch tokens, excluding player tokens and CLS)
+        cls_mask = sequences[0].game_ids == -1
+        maskable = sequences[0].padding_mask & ~sequences[0].player_token_mask & ~cls_mask
         n_maskable = int(maskable.sum().item())
         n_masked = int(sample.mask_positions.sum().item())
         # Allow tolerance
@@ -105,6 +106,18 @@ class TestMGMDataset:
         player_mask = sequences[0].player_token_mask
         # No player tokens should be masked
         assert not (sample.mask_positions & player_mask).any()
+
+    def test_cls_token_never_masked(self, small_config: ModelConfig) -> None:
+        sequences = _make_sequences(small_config, n_games=2, pitches_per_game=15)
+        dataset = MGMDataset(
+            sequences=sequences,
+            config=PreTrainingConfig(mask_ratio=0.5, seed=42),
+            pitch_type_vocab_size=PITCH_TYPE_VOCAB.size,
+            pitch_result_vocab_size=PITCH_RESULT_VOCAB.size,
+        )
+        sample = dataset[0]
+        cls_mask = sequences[0].game_ids == -1
+        assert not (sample.mask_positions & cls_mask).any()
 
     def test_padding_tokens_never_masked(self, small_config: ModelConfig) -> None:
         sequences = _make_sequences(small_config, n_games=1, pitches_per_game=5)

@@ -89,8 +89,10 @@ class MGMDataset(Dataset[MaskedSample]):
         pitch_type_ids = original.pitch_type_ids.clone()
         pitch_result_ids = original.pitch_result_ids.clone()
 
-        # Identify maskable positions: real tokens that are not player tokens
-        maskable = original.padding_mask & ~original.player_token_mask
+        # Identify maskable positions: real pitch tokens only.
+        # Exclude player tokens and the [CLS] token (game_id == -1).
+        cls_mask = original.game_ids == -1
+        maskable = original.padding_mask & ~original.player_token_mask & ~cls_mask
 
         # Deterministic RNG per (seed, idx) for reproducibility
         rng = torch.Generator()

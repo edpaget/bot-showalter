@@ -178,6 +178,14 @@ Insert a single `[CLS]` token at position 0 that can attend to all non-padding p
 - `model.py`: Extract CLS hidden state for prediction instead of averaging player tokens
 - `finetune.py`: Use CLS output directly (no mean pooling)
 
+#### 2a-follow-up. Re-pretrain with CLS token
+
+The CLS token was added at fine-tuning time without re-pretraining, so it enters with only a sinusoidal positional encoding while all other tokens have learned representations. Re-pretraining with CLS present would let the backbone learn to route cross-game information through it from the start.
+
+**Required change:** Exclude CLS (position 0) from masking candidates during MGM pretraining — it has no pitch type or result to predict. All other pretraining logic is unchanged since CLS already has `player_token_mask=False` and gets pitch-like full attention.
+
+**Expected impact:** Larger gains on the stats where CLS already helps (h, hr), and potentially closing the gap on bb MAE where the model currently slightly loses to the context-mean baseline.
+
 #### 2b. Two-stage aggregation
 
 More ambitious: encode each game independently via the existing per-game player tokens, then pass the sequence of per-game embeddings through a lightweight second-stage transformer (2 layers) that aggregates temporal patterns across games. The second stage sees the ordered game summaries and can learn trends.
