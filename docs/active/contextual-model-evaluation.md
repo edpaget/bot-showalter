@@ -1,6 +1,6 @@
 # Contextual Model Evaluation & Improvement Plan
 
-Parent doc: [contextual-event-embeddings.md](contextual-event-embeddings.md)
+Parent doc: [contextual-event-embeddings.md](../archive/contextual-event-embeddings.md)
 
 ## Status
 

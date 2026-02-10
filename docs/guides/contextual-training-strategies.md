@@ -1,6 +1,6 @@
 # Alternative Training Strategies for Contextual Event Embeddings
 
-Parent doc: [contextual-event-embeddings.md](../active/contextual-event-embeddings.md)
+Parent doc: [contextual-event-embeddings.md](../archive/contextual-event-embeddings.md)
 
 The main design commits to BERT-style masked gamestate modeling (MGM) pre-training followed by linear fine-tuning. This doc catalogs alternative strategies worth evaluating, organized by the problem they address.
 

@@ -1,6 +1,6 @@
 # Cloud GPU Training Guide
 
-Parent doc: [contextual-event-embeddings.md](../active/contextual-event-embeddings.md)
+Parent doc: [contextual-event-embeddings.md](../archive/contextual-event-embeddings.md)
 
 Training the contextual transformer locally on MPS (Apple Silicon) or CPU is impractical for the full dataset (~5.6M training pitches, 30 epochs). This guide covers how to run training on Modal's serverless GPUs.
 

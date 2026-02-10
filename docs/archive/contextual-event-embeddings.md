@@ -291,13 +291,9 @@ Statcast data (Ohtani: 178 games, 3,173 pitches, 17.8 avg pitches/game).
 - **Vocabulary source**: Exhaustive enumeration of 2015–2024 values, forward-compatible via `<UNK>` fallback.
 - **bat_score/fld_score**: Derived from `home_score`/`away_score` + `inning_topbot` (perspective-normalized).
 
-### Phase 2 — Model Architecture
+### Phase 2 — Model Architecture ✅ COMPLETE
 
 **Goal**: Implement the transformer model with player embedding slots and both training heads.
-
-**What exists**: `MultiTaskNet` in `ml/mtl/model.py` provides a pattern for multi-head PyTorch
-models with uncertainty-weighted loss and `predict()` / `from_params()` serialization. Not
-directly reusable (feed-forward, not sequential), but the outer structure is a template.
 
 **Deliverables**:
 
@@ -306,51 +302,42 @@ directly reusable (feed-forward, not sequential), but the outer structure is a t
 | `EventEmbedder` | `contextual/model/embedder.py` | `nn.Module` — maps `PitchEvent` to dense vector: learnable embeddings (pitch type, event type, gamestate delta) concatenated with projected Statcast numerics |
 | `GamestateTransformer` | `contextual/model/transformer.py` | `nn.Module` — transformer encoder with positional encoding and player embedding slots prepended to sequence |
 | `PlayerAttentionMask` | `contextual/model/mask.py` | Builds attention mask ensuring each player embedding only attends to its own events |
-| `MaskedGamestateHead` | `contextual/model/heads.py` | Pre-training head — predicts masked gamestate delta + event type from surrounding context |
+| `MaskedGamestateHead` | `contextual/model/heads.py` | Pre-training head — predicts masked pitch type + pitch result from surrounding context |
 | `PerformancePredictionHead` | `contextual/model/heads.py` | Fine-tuning head — linear projection from player embedding to per-game stat vector |
-| `ContextualPerformanceModel` | `contextual/model/model.py` | Top-level `nn.Module` composing embedder + transformer + swappable head |
+| `ContextualPerformanceModel` | `contextual/model/model.py` | Top-level `nn.Module` composing embedder + transformer + swappable head, with CLS token extraction |
 | `ModelConfig` | `contextual/model/config.py` | Hyperparameters: embed dims, num layers, num heads, dropout, numeric projection size, max sequence length |
+| `Tensorizer` | `contextual/model/tensorizer.py` | Converts `PlayerContext` to tensors with CLS token at position 0 and per-game player tokens |
 
-**Key decisions to make in detailed plan**:
-- Embedding dimensions for each categorical feature (pitch type, event type, gamestate)
-- Transformer depth/width tradeoffs (paper doesn't specify exact architecture)
-- Whether to use rotary or sinusoidal positional encoding (games have natural ordering)
-- Player embedding initialization strategy (random vs. warm-start from season stats)
-- Numeric feature normalization (per-feature z-score vs. learned projection)
+**Key decisions made**:
+- Sinusoidal positional encoding (not rotary)
+- Player tokens initialized with all-zero features; differentiation comes from pitch-level context
+- Numeric features normalized via learned LayerNorm → Linear projection
+- CLS aggregation token inserted at position 0 for cross-game information flow
 
-### Phase 3 — Pre-Training (Masked Gamestate Modeling)
+### Phase 3 — Pre-Training (Masked Gamestate Modeling) ✅ COMPLETE
 
 **Goal**: Train the transformer on the masked gamestate objective to learn contextual
 representations of baseball events.
-
-**What exists**: `MTLTrainer` pattern (data collection → train/val split → training loop with
-early stopping → model persistence). `ModelStore` / `MTLModelStore` for saving/loading trained
-models with metadata.
 
 **Deliverables**:
 
 | Component | Location | Description |
 |-----------|----------|-------------|
-| `MGMDataset` | `contextual/training/dataset.py` | `torch.utils.data.Dataset` — loads `PlayerContext` sequences, applies 15% random masking, yields (input, mask_targets) |
-| `MGMTrainer` | `contextual/training/pretrain.py` | Training loop: masked gamestate modeling with cross-entropy loss on masked positions |
-| `PreTrainingConfig` | `contextual/training/config.py` | Epochs, batch size, learning rate schedule, masking ratio, warmup steps, checkpoint interval |
-| `ContextualModelStore` | `contextual/persistence.py` | Save/load model checkpoints with training metadata (extends existing persistence pattern) |
-| `pretrain` CLI command | `contextual/cli.py` | `uv run python -m fantasy_baseball_manager contextual pretrain --seasons 2015,2016,...` |
+| `MGMDataset` | `contextual/training/dataset.py` | `torch.utils.data.Dataset` — BERT-style 15% masking with 80/10/10 replace strategy, CLS excluded from masking candidates |
+| `MGMTrainer` | `contextual/training/pretrain.py` | Training loop: AdamW + linear warmup + cosine annealing, AMP support, checkpoint resume |
+| `PreTrainingConfig` | `contextual/training/config.py` | train_seasons=2015–2022, val_seasons=2023, mask_ratio=0.15, batch_size=32, epochs=30 |
+| `ContextualModelStore` | `contextual/persistence.py` | Save/load model checkpoints with optimizer/scheduler state for resumption |
+| `pretrain` CLI command | `contextual/cli.py` | Full CLI with `--resume-from`, `--epochs`, `--batch-size`, `--max-seq-len` flags |
+| `prepare-data` CLI command | `contextual/cli.py` | Pre-builds tensorized sequences to save GPU-seconds during training |
 
-**Training plan**:
-- Training data: 2015–2022 (~5.6M pitches), validation: 2023 (~760K pitches), held out: 2024–2025
-- Masked prediction accuracy by event type as validation metric
-- Checkpoint every N epochs; resume from checkpoint on interrupt
-- GPU training expected; estimate ~6–12 hours on single consumer GPU
+**Key decisions made**:
+- Uniform random masking (not structured per-PA masking)
+- Dual loss: pitch_type cross-entropy + pitch_result cross-entropy
+- Linear warmup + cosine annealing LR schedule
+- CLS token excluded from masking candidates
+- `map_location="cpu"` on all `torch.load` calls for cross-device compatibility
 
-**Key decisions to make in detailed plan**:
-- Masking strategy (uniform random vs. structured — e.g., mask entire plate appearances)
-- Loss weighting between gamestate delta prediction and event type prediction
-- Learning rate schedule (linear warmup + cosine decay vs. reduce-on-plateau)
-- Whether to pre-train on team-batting and pitcher sequences jointly or separately
-- Minimum sequence length filtering (discard rain-shortened games?)
-
-### Phase 4 — Fine-Tuning
+### Phase 4 — Fine-Tuning ✅ COMPLETE
 
 **Goal**: Fine-tune the pre-trained model to predict per-game player statistics from the
 learned player embeddings.
@@ -359,92 +346,70 @@ learned player embeddings.
 
 | Component | Location | Description |
 |-----------|----------|-------------|
-| `FineTuneDataset` | `contextual/training/dataset.py` | Yields (N prior games as context, next-game stat targets) per player |
-| `FineTuneTrainer` | `contextual/training/finetune.py` | Freeze or slow-learn transformer weights, train prediction head on per-game stats |
-| `FineTuneConfig` | `contextual/training/config.py` | Context window (N games), target stats, freeze strategy, learning rate |
-| `finetune` CLI command | `contextual/cli.py` | `uv run python -m fantasy_baseball_manager contextual finetune --base-model <path>` |
+| `FineTuneDataset` | `contextual/training/dataset.py` | Sliding window: context games → next-game count targets, with context-mean baseline |
+| `FineTuneTrainer` | `contextual/training/finetune.py` | Discriminative learning rates, optional backbone freezing, early stopping, baseline comparison in validation |
+| `FineTuneConfig` | `contextual/training/config.py` | context_window=10 (pitcher) / 30 (batter), freeze_backbone, patience |
+| `finetune` CLI command | `contextual/cli.py` | Auto-detects max_seq_len from pre-trained model, perspective-aware checkpoint naming |
 
-**Target stats** (aligned with existing pipeline):
-- Pitchers: SO, H, BB, ER, HR (same as `MTLTrainer` pitcher targets)
-- Batters: HR, SO, BB, H, 2B, 3B, SB (same as `MTLTrainer` batter targets)
+**Target stats**:
+- Pitchers: SO, H, BB, HR (per-game counts)
+- Batters: HR, SO, BB, H, 2B, 3B (per-game counts)
 
-**Evaluation**:
-- Per-stat MSE, MAE, R² on held-out 2024 games (same metrics as `ml/validation.py`)
-- Compare to Marcel per-game predictions (baseline: season rate × 1 game of opportunity)
-- Compare to paper's reported R² values as sanity check
+**Key decisions made**:
+- Separate pitcher and batter models (different context windows and target stats)
+- Sliding window construction over full seasons for training data
+- CLS token output used for prediction (not mean-pooled player tokens)
+- Context-mean baseline tracked alongside model metrics during validation
+- Checkpoint names include perspective to avoid batter/pitcher overwriting
 
-**Key decisions to make in detailed plan**:
-- Context window size (paper uses N=10 games — is that optimal for our use case?)
-- Freeze strategy (full freeze of transformer vs. discriminative learning rates)
-- Pitcher vs. batter model separation (paper trains separate models — follow or unify?)
-- How to handle batters' low event frequency (paper's primary weakness: R²=0.02–0.06)
-- Sliding window vs. fixed-window training data construction
-
-### Phase 5 — Pipeline Integration
+### Phase 5 — Pipeline Integration ✅ COMPLETE
 
 **Goal**: Wire the trained model into the projection pipeline as a first-class `RateComputer`
 so it produces `list[PlayerRates]` compatible with all downstream stages.
 
-**What exists**: `MTLRateComputer` is the exact template — loads a pre-trained model,
-extracts features, produces rates, falls back to Marcel for insufficient data. `PipelineBuilder`
-has `with_mtl_rate_computer()` as a pattern for registration.
-
 **Deliverables**:
 
 | Component | Location | Description |
 |-----------|----------|-------------|
-| `ContextualEmbeddingRateComputer` | `pipeline/stages/contextual_rate_computer.py` | Implements `RateComputer` — loads fine-tuned model, fetches N recent games via `PitchSequenceDataSource`, runs inference, aggregates per-game predictions to season rates |
-| `PerGameToSeasonAdapter` | `contextual/adapter.py` | Converts per-game stat predictions → per-PA/per-out rates for `PlayerRates`. Handles schedule simulation or opponent-averaged aggregation for pre-season projections |
+| `ContextualEmbeddingRateComputer` | `pipeline/stages/contextual_rate_computer.py` | Implements `RateComputer` — loads fine-tuned model, runs inference, falls back to Marcel, includes prediction variance logging |
+| `PerGameToSeasonAdapter` | `contextual/adapter.py` | Converts per-game count predictions to per-PA/per-out rates, fills uncovered stats from Marcel |
+| `ContextualPredictor` | `contextual/predictor.py` | Model inference wrapper |
+| `PreparedDataStore` | `contextual/data_store.py` | Caching for tensorized data |
 | `PipelineBuilder.with_contextual()` | `pipeline/builder.py` | Builder method to register the contextual rate computer |
 | `contextual` pipeline preset | `pipeline/presets.py` | Standalone pipeline: contextual rate computer + park factors + pitcher normalization |
 
-**Fallback behavior** (following `MTLRateComputer` pattern):
-- Players with < N games of Statcast play-by-play → fall back to Marcel
-- Metadata flag: `contextual_predicted: bool` for downstream introspection
-- Rookies without MLB pitch data → Marcel (or MLE if available)
+**Key decisions made**:
+- Per-game → season aggregation via mean over context window predictions divided by avg outs/game (or PA/game)
+- Falls back to Marcel for players with insufficient play-by-play data
+- Metadata flags: `contextual_predicted: bool`, variance logging per stat
+- Uses `data_year = year - 1` for pre-season projections (last N games of prior season)
 
-**Adjuster compatibility**:
-- Park factors and pitcher normalization still apply (stadium/league effects)
-- Statcast blending adjuster is **redundant** — model already consumes pitch-level Statcast
-- GB residual adjuster may still add value (different signal) — evaluate empirically
-
-**Key decisions to make in detailed plan**:
-- Per-game → season aggregation strategy (mean over N predictions? schedule-weighted?)
-- How many games of context required before trusting the model over Marcel
-- Whether to skip Statcast blending adjuster automatically when contextual is the rate computer
-- In-season vs. pre-season inference paths (recent games available vs. simulated schedule)
-
-### Phase 6 — Ensemble & Evaluation
+### Phase 6 — Ensemble & Evaluation ✅ COMPLETE
 
 **Goal**: Blend contextual predictions with Marcel for production use and evaluate against
 the `marcel_gb` baseline across the full backtest suite.
 
-**What exists**: `MTLBlender` (`pipeline/stages/mtl_blender.py`) implements per-stat weighted
-blending of two rate sources with configurable weights and minimum PA thresholds. Evaluation
-harness runs 2021–2024 backtests with correlation, RMSE, and rank metrics.
-
 **Deliverables**:
 
 | Component | Location | Description |
 |-----------|----------|-------------|
-| `ContextualBlender` | `pipeline/stages/contextual_blender.py` | `RateAdjuster` — blends contextual rates with Marcel rates per stat (follows `MTLBlender` pattern) |
-| `BlenderConfig` | `contextual/config.py` | Per-stat blend weights, minimum games threshold for contextual inclusion |
+| `ContextualBlender` | `pipeline/stages/contextual_blender.py` | `RateAdjuster` — blends contextual rates with Marcel rates per stat (default 30% contextual) |
+| `ContextualBlenderConfig` | `contextual/training/config.py` | Per-stat blend weights, minimum games threshold for contextual inclusion |
 | `marcel_contextual` pipeline preset | `pipeline/presets.py` | Marcel base + contextual blender + existing adjusters |
-| Backtest results | `docs/projection-engines/contextual-event-embeddings.md` | Performance table in projection-engines index format |
 | `PipelineBuilder.with_contextual_blender()` | `pipeline/builder.py` | Builder method for the ensemble configuration |
 
-**Evaluation plan**:
-- Run existing evaluation harness against `contextual` (standalone) and `marcel_contextual` (ensemble)
-- Primary comparison: `marcel_gb` (current best — HR=0.678, SB=0.736, rank ρ=0.603)
-- Per-stat breakdown to identify where contextual signal helps vs. hurts
-- Pitcher vs. batter analysis (paper suggests pitchers benefit more)
-- Learned blend weights (optimize on 2021–2023 validation, evaluate on 2024)
+**2024 Evaluation Results**:
 
-**Success criteria**:
-- Ensemble matches or exceeds `marcel_gb` on at least 3 of 5 headline metrics
-- Pitcher strikeout correlation improvement ≥ 3% (model's strongest signal per paper)
-- No regression > 2% on any individual metric vs. `marcel_gb`
-- Batter projections at least match Marcel (low bar given paper's weak batter R²)
+The model underperforms Marcel GB across the board. Stats that fall back to Marcel match exactly; stats where the contextual model replaces Marcel are uniformly worse. The model exhibits mean-collapse — predictions cluster near the population average, destroying inter-player variance. See [Contextual Model Evaluation](../active/contextual-model-evaluation.md) for root cause analysis and improvement plan.
+
+| Stat | Contextual | Marcel GB | Steamer |
+|------|-----------|-----------|---------|
+| HR Corr | 0.526 | 0.692 | 0.692 |
+| OBP Corr | 0.167 | 0.505 | 0.550 |
+| K Corr | 0.606 | 0.696 | 0.726 |
+| ERA Corr | 0.141 | 0.206 | 0.368 |
+
+**Success criteria NOT MET** — the model does not yet beat Marcel GB. Active improvement work is tracked in [contextual-model-evaluation.md](../active/contextual-model-evaluation.md).
 
 ### Module Structure
 
@@ -453,49 +418,51 @@ All new code lives under `src/fantasy_baseball_manager/contextual/`:
 ```
 contextual/
 ├── __init__.py
-├── cli.py                    # pretrain / finetune / evaluate commands
-├── config.py                 # all configuration dataclasses
-├── persistence.py            # model checkpoint save/load
+├── cli.py                    # pretrain / finetune / prepare-data commands
+├── persistence.py            # model checkpoint save/load (ContextualModelStore)
 ├── adapter.py                # per-game predictions → season rates
+├── predictor.py              # model inference wrapper
 ├── data/
 │   ├── __init__.py
 │   ├── models.py             # PitchEvent, GameSequence, PlayerContext
 │   ├── vocab.py              # pitch type / event type / gamestate vocabularies
 │   ├── builder.py            # GameSequenceBuilder (raw parquet → sequences)
 │   ├── source.py             # DataSource[PlayerContext]
-│   └── cache.py              # processed sequence disk cache
+│   ├── cache.py              # processed sequence disk cache
+│   └── data_store.py         # PreparedDataStore for tensorized data caching
 ├── model/
 │   ├── __init__.py
 │   ├── config.py             # ModelConfig (architecture hyperparameters)
 │   ├── embedder.py           # EventEmbedder
 │   ├── transformer.py        # GamestateTransformer
+│   ├── positional.py         # sinusoidal positional encoding
 │   ├── mask.py               # PlayerAttentionMask
 │   ├── heads.py              # MaskedGamestateHead, PerformancePredictionHead
-│   └── model.py              # ContextualPerformanceModel (top-level)
+│   ├── model.py              # ContextualPerformanceModel (top-level, with CLS extraction)
+│   └── tensorizer.py         # PlayerContext → tensor conversion (CLS + player tokens)
 └── training/
     ├── __init__.py
-    ├── config.py             # PreTrainingConfig, FineTuneConfig
+    ├── config.py             # PreTrainingConfig, FineTuneConfig, ContextualRateComputerConfig, ContextualBlenderConfig
     ├── dataset.py            # MGMDataset, FineTuneDataset
     ├── pretrain.py           # MGMTrainer
     └── finetune.py           # FineTuneTrainer
 ```
 
-Pipeline integration touches existing files:
-- `pipeline/stages/contextual_rate_computer.py` (new)
-- `pipeline/stages/contextual_blender.py` (new)
-- `pipeline/builder.py` (add `with_contextual()`, `with_contextual_blender()`)
-- `pipeline/presets.py` (add `contextual`, `marcel_contextual` presets)
+Pipeline integration:
+- `pipeline/stages/contextual_rate_computer.py` — `ContextualEmbeddingRateComputer`
+- `pipeline/stages/contextual_blender.py` — `ContextualBlender`
+- `pipeline/builder.py` — `with_contextual()`, `with_contextual_blender()`
+- `pipeline/presets.py` — `contextual`, `marcel_contextual` presets
 
 ### Phase Dependencies
 
 ```
 Phase 1 (Data Pipeline) ✅
-  └─► Phase 2 (Model Architecture) — needs PitchEvent/GameSequence types for tensor shapes
-      └─► Phase 3 (Pre-Training) — needs model + data pipeline
-          └─► Phase 4 (Fine-Tuning) — needs pre-trained weights
-              └─► Phase 5 (Pipeline Integration) — needs fine-tuned model
-                  └─► Phase 6 (Ensemble & Evaluation) — needs working standalone engine
+  └─► Phase 2 (Model Architecture) ✅
+      └─► Phase 3 (Pre-Training) ✅
+          └─► Phase 4 (Fine-Tuning) ✅
+              └─► Phase 5 (Pipeline Integration) ✅
+                  └─► Phase 6 (Ensemble & Evaluation) ✅
 ```
 
-Phases are strictly sequential — each depends on the previous. No parallelism between
-phases, though within each phase we follow TDD (tests first, then implementation).
+All phases complete. Model underperforms — see [contextual-model-evaluation.md](../active/contextual-model-evaluation.md) for improvement plan.
