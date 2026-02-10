@@ -12,7 +12,6 @@ from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, val
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.services import cli_context, get_container, set_container
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
-from fantasy_baseball_manager.valuation.zscore import zscore_batting, zscore_pitching
 
 console = Console()
 
@@ -110,6 +109,7 @@ def _valuate_inner(
 
     container = get_container()
     pipeline = PIPELINES[engine]()
+    valuator = container.create_valuator(method)
 
     league_settings = load_league_settings()
 
@@ -117,27 +117,15 @@ def _valuate_inner(
         batting_projections: list[BattingProjection] = pipeline.project_batters(
             container.batting_source, container.team_batting_source, year
         )
-
-        if method == "ml-ridge":
-            from fantasy_baseball_manager.valuation.ml_valuate import ml_valuate_batting
-            from fantasy_baseball_manager.valuation.ridge_model import load_model
-
-            batter_model = load_model("default", "batter")
-            batting_values: list[PlayerValue] = ml_valuate_batting(batting_projections, batter_model)
-            batting_values.sort(key=lambda pv: pv.total_value, reverse=True)
-            title = f"ML Ridge batting values for {year}"
-            _print_value_table(title, (), batting_values, top)
-        else:
-            batting_cats = (
-                _parse_categories(categories, _SUPPORTED_BATTING)
-                if categories
-                else league_settings.batting_categories
-            )
-            batting_values = zscore_batting(batting_projections, batting_cats)
-            batting_values.sort(key=lambda pv: pv.total_value, reverse=True)
-            cat_label = ", ".join(c.value for c in batting_cats)
-            title = f"Z-score batting values for {year} ({cat_label})"
-            _print_value_table(title, batting_cats, batting_values, top)
+        batting_cats = (
+            _parse_categories(categories, _SUPPORTED_BATTING)
+            if categories
+            else league_settings.batting_categories
+        )
+        result = valuator.valuate_batting(batting_projections, batting_cats)
+        result.values.sort(key=lambda pv: pv.total_value, reverse=True)
+        cat_label = f" ({', '.join(c.value for c in result.categories)})" if result.categories else ""
+        _print_value_table(f"{result.label} batting values for {year}{cat_label}", result.categories, result.values, top)
 
     if show_batting and show_pitching:
         console.print()
@@ -146,24 +134,12 @@ def _valuate_inner(
         pitching_projections: list[PitchingProjection] = pipeline.project_pitchers(
             container.pitching_source, container.team_pitching_source, year
         )
-
-        if method == "ml-ridge":
-            from fantasy_baseball_manager.valuation.ml_valuate import ml_valuate_pitching
-            from fantasy_baseball_manager.valuation.ridge_model import load_model as load_model_p
-
-            pitcher_model = load_model_p("default", "pitcher")
-            pitching_values: list[PlayerValue] = ml_valuate_pitching(pitching_projections, pitcher_model)
-            pitching_values.sort(key=lambda pv: pv.total_value, reverse=True)
-            title = f"ML Ridge pitching values for {year}"
-            _print_value_table(title, (), pitching_values, top)
-        else:
-            pitching_cats = (
-                _parse_categories(categories, _SUPPORTED_PITCHING)
-                if categories
-                else league_settings.pitching_categories
-            )
-            pitching_values = zscore_pitching(pitching_projections, pitching_cats)
-            pitching_values.sort(key=lambda pv: pv.total_value, reverse=True)
-            cat_label = ", ".join(c.value for c in pitching_cats)
-            title = f"Z-score pitching values for {year} ({cat_label})"
-            _print_value_table(title, pitching_cats, pitching_values, top)
+        pitching_cats = (
+            _parse_categories(categories, _SUPPORTED_PITCHING)
+            if categories
+            else league_settings.pitching_categories
+        )
+        result = valuator.valuate_pitching(pitching_projections, pitching_cats)
+        result.values.sort(key=lambda pv: pv.total_value, reverse=True)
+        cat_label = f" ({', '.join(c.value for c in result.categories)})" if result.categories else ""
+        _print_value_table(f"{result.label} pitching values for {year}{cat_label}", result.categories, result.values, top)

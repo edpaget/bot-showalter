@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.player_id.mapper import SfbbMapper
     from fantasy_baseball_manager.registry.registry import ModelRegistry
     from fantasy_baseball_manager.ros.protocol import ProjectionBlender
+    from fantasy_baseball_manager.valuation.models import Valuator
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +274,12 @@ class ServiceContainer:
         from fantasy_baseball_manager.registry.factory import create_model_registry
 
         return create_model_registry()
+
+    def create_valuator(self, method: str) -> Valuator:
+        """Create a valuator for the given method name."""
+        from fantasy_baseball_manager.valuation.valuator import VALUATORS
+
+        return VALUATORS[method]()
 
     @cached_property
     def skill_data_source(self) -> SkillDataSource:

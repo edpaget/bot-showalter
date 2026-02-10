@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.marcel.models import BattingProjection, PitchingProjection
 
 
 class StatCategory(Enum):
@@ -49,3 +55,24 @@ class PlayerValue:
 @dataclass(frozen=True)
 class SGPDenominators:
     denominators: dict[StatCategory, float]
+
+
+@dataclass(frozen=True)
+class ValuationResult:
+    values: list[PlayerValue]
+    categories: tuple[StatCategory, ...]
+    label: str
+
+
+class Valuator(Protocol):
+    def valuate_batting(
+        self,
+        projections: list[BattingProjection],
+        categories: tuple[StatCategory, ...],
+    ) -> ValuationResult: ...
+
+    def valuate_pitching(
+        self,
+        projections: list[PitchingProjection],
+        categories: tuple[StatCategory, ...],
+    ) -> ValuationResult: ...

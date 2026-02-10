@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli import app
-from fantasy_baseball_manager.context import get_context
+from fantasy_baseball_manager.context import get_context, init_context, reset_context
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
@@ -243,6 +243,7 @@ def _build_fake_data_source(
 def reset_container() -> Generator[None]:
     yield
     set_container(None)
+    reset_context()
 
 
 def _wrap_source(method: Any) -> Any:
@@ -255,6 +256,7 @@ def _wrap_source(method: Any) -> Any:
 
 
 def _install_fake(batting: bool = True, pitching: bool = True) -> None:
+    init_context(year=2025)
     ds = _build_fake_data_source(
         batting_years=YEARS if batting else None,
         pitching_years=YEARS if pitching else None,
