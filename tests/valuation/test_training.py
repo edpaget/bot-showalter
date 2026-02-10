@@ -57,6 +57,7 @@ def _pitcher_row(
         w=15,
         sv=0,
         hld=0,
+        gs=30,
         so=so,
         bb=50,
         h=160,

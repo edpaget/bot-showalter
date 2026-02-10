@@ -64,6 +64,7 @@ def _pitcher_row(
     w: int = 15,
     sv: int = 0,
     hld: int = 0,
+    gs: int = 30,
     so: int = 200,
     bb: int = 50,
     h: int = 160,
@@ -84,6 +85,7 @@ def _pitcher_row(
         w=w,
         sv=sv,
         hld=hld,
+        gs=gs,
         so=so,
         bb=bb,
         h=h,
@@ -181,19 +183,17 @@ class TestPitcherTrainingRowsToArrays:
         assert y[0] == pytest.approx(math.log(100.0))
 
     def test_features_match_expected(self) -> None:
-        row = _pitcher_row(ip=180.0, w=12, sv=5, hld=3, so=190, bb=45, hr=18, era=3.00, whip=1.10, fip=3.10, war=4.5)
+        row = _pitcher_row(ip=180.0, w=12, sv=5, hld=3, gs=28, so=190, bb=45, hr=18, era=3.00, whip=1.10)
         X, _ = pitcher_training_rows_to_arrays([row])
         assert X[0, 0] == pytest.approx(180.0)  # ip
         assert X[0, 1] == 12  # w
-        assert X[0, 2] == 5  # sv
-        assert X[0, 3] == 3  # hld
+        assert X[0, 2] == 8  # nsvh (sv=5 + hld=3)
+        assert X[0, 3] == 28  # gs
         assert X[0, 4] == 190  # so
         assert X[0, 5] == 45  # bb
         assert X[0, 6] == 18  # hr
         assert X[0, 7] == pytest.approx(3.00)  # era
         assert X[0, 8] == pytest.approx(1.10)  # whip
-        assert X[0, 9] == pytest.approx(3.10)  # fip
-        assert X[0, 10] == pytest.approx(4.5)  # war
 
     def test_empty_rows(self) -> None:
         X, y = pitcher_training_rows_to_arrays([])
@@ -255,6 +255,19 @@ class TestPitchingProjectionToFeatures:
         features = pitching_projection_to_features(proj)
         assert features.shape == (len(PITCHER_FEATURE_NAMES),)
         assert features.dtype == np.float64
+
+    def test_nsvh_and_gs_populated(self) -> None:
+        from fantasy_baseball_manager.marcel.models import PitchingProjection
+
+        proj = PitchingProjection(
+            player_id="p1", name="Closer", year=2026, age=30,
+            ip=65.0, g=60.0, gs=0.0, er=18.0, h=45.0,
+            bb=20.0, so=80.0, hr=5.0, hbp=3.0,
+            era=2.49, whip=1.00, w=4.0, nsvh=40.0,
+        )
+        features = pitching_projection_to_features(proj)
+        assert features[2] == pytest.approx(40.0)  # nsvh
+        assert features[3] == pytest.approx(0.0)  # gs
 
     def test_zero_ip(self) -> None:
         from fantasy_baseball_manager.marcel.models import PitchingProjection

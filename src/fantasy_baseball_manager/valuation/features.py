@@ -38,15 +38,13 @@ BATTER_FEATURE_NAMES: tuple[str, ...] = (
 PITCHER_FEATURE_NAMES: tuple[str, ...] = (
     "ip",
     "w",
-    "sv",
-    "hld",
+    "nsvh",
+    "gs",
     "so",
     "bb",
     "hr",
     "era",
     "whip",
-    "fip",
-    "war",
 )
 
 # Position ordinal encodes scarcity: lower = scarcer.
@@ -113,7 +111,7 @@ def pitcher_training_rows_to_arrays(
     """Convert pitcher training rows to feature and target arrays.
 
     Returns:
-        Tuple of (X, y) where X has shape (n, 11) and y has shape (n,).
+        Tuple of (X, y) where X has shape (n, 9) and y has shape (n,).
         y = log(adp) to compress the non-linear ADP tail.
     """
     n = len(rows)
@@ -124,15 +122,13 @@ def pitcher_training_rows_to_arrays(
         X[i] = [
             row.ip,
             row.w,
-            row.sv,
-            row.hld,
+            row.sv + row.hld,
+            row.gs,
             row.so,
             row.bb,
             row.hr,
             row.era,
             row.whip,
-            row.fip,
-            row.war,
         ]
         y[i] = math.log(row.adp)
 
@@ -186,27 +182,19 @@ def pitching_projection_to_features(proj: PitchingProjection) -> np.ndarray:
     """Extract features from a PitchingProjection for inference.
 
     Returns:
-        1-D array of shape (11,).
+        1-D array of shape (9,).
     """
-    ip = float(proj.ip)
-    era = float(proj.era)
-    whip = float(proj.whip)
-    # FIP not available on marcel PitchingProjection — approximate from ERA
-    fip = era
-
     return np.array(
         [
-            ip,
+            float(proj.ip),
             float(proj.w),
-            0.0,  # sv not on marcel PitchingProjection; nsvh used instead
-            0.0,  # hld not on marcel PitchingProjection
+            float(proj.nsvh),
+            float(proj.gs),
             float(proj.so),
             float(proj.bb),
             float(proj.hr),
-            era,
-            whip,
-            fip,
-            0.0,  # WAR not available on marcel PitchingProjection
+            float(proj.era),
+            float(proj.whip),
         ],
         dtype=np.float64,
     )

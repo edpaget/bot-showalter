@@ -60,6 +60,7 @@ class PitcherTrainingRow:
     w: int
     sv: int
     hld: int
+    gs: int
     so: int
     bb: int
     h: int
@@ -170,6 +171,7 @@ def build_training_dataset(
                 w=pp.w,
                 sv=pp.sv,
                 hld=pp.hld,
+                gs=pp.gs,
                 so=pp.so,
                 bb=pp.bb,
                 h=pp.h,
