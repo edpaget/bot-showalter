@@ -52,13 +52,20 @@ class ContextualPredictor:
         store = self._resolve_model_store()
 
         if store.exists(batter_model_name):
-            batter_config = store.load_model_config(batter_model_name)
-            self._model_config = batter_config
-            self._batter_model = store.load_finetune_model(
-                batter_model_name, batter_config, len(BATTER_TARGET_STATS),
-            )
-            self._batter_model.eval()
-            logger.debug("Loaded contextual batter model: %s", batter_model_name)
+            try:
+                batter_config = store.load_model_config(batter_model_name)
+                self._model_config = batter_config
+                self._batter_model = store.load_finetune_model(
+                    batter_model_name, batter_config, len(BATTER_TARGET_STATS),
+                )
+                self._batter_model.eval()
+                logger.debug("Loaded contextual batter model: %s", batter_model_name)
+            except (ValueError, FileNotFoundError) as exc:
+                logger.warning(
+                    "Contextual batter model %s exists but cannot be loaded: %s",
+                    batter_model_name,
+                    exc,
+                )
         else:
             logger.warning(
                 "Contextual batter model %s not found",
@@ -66,14 +73,21 @@ class ContextualPredictor:
             )
 
         if store.exists(pitcher_model_name):
-            pitcher_config = store.load_model_config(pitcher_model_name)
-            if self._model_config is None:
-                self._model_config = pitcher_config
-            self._pitcher_model = store.load_finetune_model(
-                pitcher_model_name, pitcher_config, len(PITCHER_TARGET_STATS),
-            )
-            self._pitcher_model.eval()
-            logger.debug("Loaded contextual pitcher model: %s", pitcher_model_name)
+            try:
+                pitcher_config = store.load_model_config(pitcher_model_name)
+                if self._model_config is None:
+                    self._model_config = pitcher_config
+                self._pitcher_model = store.load_finetune_model(
+                    pitcher_model_name, pitcher_config, len(PITCHER_TARGET_STATS),
+                )
+                self._pitcher_model.eval()
+                logger.debug("Loaded contextual pitcher model: %s", pitcher_model_name)
+            except (ValueError, FileNotFoundError) as exc:
+                logger.warning(
+                    "Contextual pitcher model %s exists but cannot be loaded: %s",
+                    pitcher_model_name,
+                    exc,
+                )
         else:
             logger.warning(
                 "Contextual pitcher model %s not found",

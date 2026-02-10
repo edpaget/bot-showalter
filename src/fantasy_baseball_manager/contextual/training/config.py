@@ -114,7 +114,7 @@ class ContextualRateComputerConfig:
     pitcher_context_window: int = DEFAULT_PITCHER_CONTEXT_WINDOW
     batter_min_games: int = DEFAULT_BATTER_CONTEXT_WINDOW
     pitcher_min_games: int = DEFAULT_PITCHER_CONTEXT_WINDOW
-    rate_mode: bool = False
+    rate_mode: bool = True
 
     def context_window_for(self, perspective: str) -> int:
         """Return context window size for the given perspective."""
