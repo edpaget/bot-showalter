@@ -5,7 +5,7 @@ from fantasy_baseball_manager.pipeline.presets import PIPELINES
 SUPPORTED_ENGINES: tuple[str, ...] = tuple(PIPELINES.keys())
 DEFAULT_ENGINE: str = "marcel"
 
-SUPPORTED_METHODS: tuple[str, ...] = ("zscore",)
+SUPPORTED_METHODS: tuple[str, ...] = ("zscore", "ml-ridge")
 DEFAULT_METHOD: str = "zscore"
 
 

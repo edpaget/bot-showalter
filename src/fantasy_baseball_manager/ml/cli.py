@@ -875,6 +875,165 @@ def _print_validation_report(report: object) -> None:
     console.print(table)
 
 
+@ml_app.command(name="train-valuation")
+def train_valuation_cmd(
+    years: Annotated[
+        str,
+        typer.Option(
+            "--years",
+            "-y",
+            help="Comma-separated training+test years (e.g., 2018,2019,2020,2021,2022,2023,2024,2025,2026)",
+        ),
+    ],
+    test_years: Annotated[
+        str,
+        typer.Option(
+            "--test-years",
+            help="Comma-separated test years held out for evaluation (e.g., 2025,2026)",
+        ),
+    ] = "2025,2026",
+    system: Annotated[
+        str,
+        typer.Option(
+            "--system",
+            "-s",
+            help="Projection system to use (steamer, zips, zipsdc)",
+        ),
+    ] = "steamer",
+    alpha: Annotated[
+        float,
+        typer.Option(
+            "--alpha",
+            help="Ridge regression regularization strength",
+        ),
+    ] = 1.0,
+    name: Annotated[
+        str,
+        typer.Option(
+            "--name",
+            "-n",
+            help="Name for the saved model",
+        ),
+    ] = "default",
+) -> None:
+    """Train ridge regression valuation model on consensus projections + ADP.
+
+    Example:
+        uv run python -m fantasy_baseball_manager ml train-valuation \\
+            --years 2018,2019,2020,2021,2022,2023,2024 --test-years 2025,2026 --system steamer
+    """
+    from fantasy_baseball_manager.projections.models import ProjectionSystem
+    from fantasy_baseball_manager.valuation.ridge_model import RidgeValuationConfig, save_model
+    from fantasy_baseball_manager.valuation.training import train_multi_year
+
+    # Parse years
+    all_years = [int(y.strip()) for y in years.split(",")]
+    held_out = [int(y.strip()) for y in test_years.split(",")]
+
+    # Resolve projection system
+    system_map: dict[str, ProjectionSystem] = {
+        "steamer": ProjectionSystem.STEAMER,
+        "zips": ProjectionSystem.ZIPS,
+        "zipsdc": ProjectionSystem.ZIPS_DC,
+    }
+    proj_system = system_map.get(system.lower())
+    if proj_system is None:
+        typer.echo(f"Unknown projection system: {system}. Use steamer, zips, or zipsdc.")
+        raise typer.Exit(1)
+
+    config = RidgeValuationConfig(alpha=alpha)
+
+    typer.echo("Training ridge valuation model")
+    typer.echo(f"  All years: {all_years}")
+    typer.echo(f"  Test years: {held_out}")
+    typer.echo(f"  System: {proj_system.value}")
+    typer.echo(f"  Alpha: {alpha}")
+
+    result = train_multi_year(all_years, held_out, proj_system, config)
+
+    # Print evaluation results
+    for label, evaluation in [("Batter", result.batter_eval), ("Pitcher", result.pitcher_eval)]:
+        console.print()
+        eval_table = Table(title=f"{label} Evaluation")
+        eval_table.add_column("Metric")
+        eval_table.add_column("Value", justify="right")
+        eval_table.add_row("Train samples", str(evaluation.n_train))
+        eval_table.add_row("Test samples", str(evaluation.n_test))
+        eval_table.add_row("Spearman rho", f"{evaluation.spearman_rho:.4f}")
+        eval_table.add_row("RMSE (log ADP)", f"{evaluation.rmse:.4f}")
+        eval_table.add_row("MAE (log ADP)", f"{evaluation.mae:.4f}")
+        eval_table.add_row("Top-50 precision", f"{evaluation.top_50_precision:.2%}")
+        console.print(eval_table)
+
+        coeff_table = Table(title=f"{label} Ridge Coefficients (scaled features)")
+        coeff_table.add_column("Feature")
+        coeff_table.add_column("Coefficient", justify="right")
+        sorted_coeffs = sorted(
+            evaluation.coefficient_analysis.items(), key=lambda x: abs(x[1]), reverse=True
+        )
+        for feat, coeff in sorted_coeffs:
+            coeff_table.add_row(feat, f"{coeff:+.4f}")
+        console.print(coeff_table)
+
+    # Save models
+    batter_dir = save_model(result.batter_model, name)
+    pitcher_dir = save_model(result.pitcher_model, name)
+    typer.echo("\nModels saved:")
+    typer.echo(f"  Batter: {batter_dir}")
+    typer.echo(f"  Pitcher: {pitcher_dir}")
+
+
+@ml_app.command(name="valuation-info")
+def valuation_info_cmd(
+    name: Annotated[
+        str,
+        typer.Argument(help="Name of the valuation model"),
+    ] = "default",
+    player_type: Annotated[
+        str,
+        typer.Option(
+            "--type",
+            "-t",
+            help="Player type: 'batter' or 'pitcher'",
+        ),
+    ] = "batter",
+) -> None:
+    """Show coefficients and metadata for a trained ridge valuation model."""
+    from fantasy_baseball_manager.valuation.ridge_model import load_model
+
+    try:
+        model = load_model(name, player_type)
+    except FileNotFoundError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+    console.print(f"[bold]Model:[/bold] {name} ({player_type})")
+    console.print(f"[bold]Training years:[/bold] {', '.join(str(y) for y in model.training_years)}")
+    console.print(f"[bold]Features:[/bold] {', '.join(model.feature_names)}")
+    console.print(f"[bold]Config:[/bold] alpha={model.config.alpha}, transform={model.config.target_transform}")
+
+    if model.validation_metrics:
+        console.print()
+        metrics_table = Table(title="Validation Metrics")
+        metrics_table.add_column("Metric")
+        metrics_table.add_column("Value", justify="right")
+        for key, val in sorted(model.validation_metrics.items()):
+            metrics_table.add_row(key, f"{val:.4f}")
+        console.print(metrics_table)
+
+    if model.is_fitted:
+        console.print()
+        coeff_table = Table(title="Ridge Coefficients (scaled features)")
+        coeff_table.add_column("Feature")
+        coeff_table.add_column("Coefficient", justify="right")
+        sorted_coeffs = sorted(
+            model.coefficients().items(), key=lambda x: abs(x[1]), reverse=True
+        )
+        for feat, coeff in sorted_coeffs:
+            coeff_table.add_row(feat, f"{coeff:+.4f}")
+        console.print(coeff_table)
+
+
 @ml_app.command(name="build-dataset")
 def build_dataset_cmd(
     years: Annotated[

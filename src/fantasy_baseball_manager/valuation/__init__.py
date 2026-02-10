@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.valuation.ml_valuate import ml_valuate_batting, ml_valuate_pitching
 from fantasy_baseball_manager.valuation.models import (
     CategoryValue,
     LeagueSettings,
@@ -21,6 +22,8 @@ __all__ = [
     "compute_sgp_denominators",
     "extract_batting_stat",
     "extract_pitching_stat",
+    "ml_valuate_batting",
+    "ml_valuate_pitching",
     "sgp_batting",
     "sgp_pitching",
     "zscore_batting",
