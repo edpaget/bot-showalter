@@ -84,6 +84,20 @@ class TestGetRankings:
         first = rankings[0]
         assert first.raw_value == sum(cv.value for cv in first.category_values)
 
+    def test_empty_category_values_uses_total_value(self) -> None:
+        """ML valuators produce a composite total_value with no per-category breakdown."""
+        players = [
+            PlayerValue(player_id="b1", name="High", category_values=(), total_value=5.0, position_type="B"),
+            PlayerValue(player_id="b2", name="Low", category_values=(), total_value=2.0, position_type="B"),
+        ]
+        state = _make_state(players=players)
+        rankings = state.get_rankings()
+        assert rankings[0].player_id == "b1"
+        assert rankings[0].raw_value == 5.0
+        assert rankings[0].weighted_value == 5.0
+        assert rankings[0].adjusted_value == 5.0
+        assert rankings[1].raw_value == 2.0
+
 
 class TestCategoryWeighting:
     def test_weight_multiplies_category_value(self) -> None:

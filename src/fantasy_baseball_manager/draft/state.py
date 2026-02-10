@@ -54,16 +54,21 @@ class DraftState:
             weighted_cats: list[CategoryValue] = []
             weighted_value = 0.0
             raw_value = 0.0
-            for cv in pv.category_values:
-                weight = self._category_weights.get(cv.category, 1.0)
-                weighted_cv = CategoryValue(
-                    category=cv.category,
-                    raw_stat=cv.raw_stat,
-                    value=cv.value * weight,
-                )
-                weighted_cats.append(weighted_cv)
-                weighted_value += cv.value * weight
-                raw_value += cv.value
+            if pv.category_values:
+                for cv in pv.category_values:
+                    weight = self._category_weights.get(cv.category, 1.0)
+                    weighted_cv = CategoryValue(
+                        category=cv.category,
+                        raw_stat=cv.raw_stat,
+                        value=cv.value * weight,
+                    )
+                    weighted_cats.append(weighted_cv)
+                    weighted_value += cv.value * weight
+                    raw_value += cv.value
+            else:
+                # ML valuators produce a single composite total_value
+                raw_value = pv.total_value
+                weighted_value = pv.total_value
 
             positions = self._player_positions.get((pv.player_id, pv.position_type), ())
             best_position, multiplier = self._find_best_position(positions)
