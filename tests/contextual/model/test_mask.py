@@ -67,8 +67,8 @@ class TestBuildPlayerAttentionMask:
         assert mask[0, 3, 4].item() is False  # game 1 pitch
         assert mask[0, 3, 5].item() is False  # game 1 pitch
 
-    def test_two_games_pitches_cross_attend(self) -> None:
-        """Pitch tokens attend across all games (full cross-game context)."""
+    def test_two_games_pitches_game_local(self) -> None:
+        """Pitch tokens attend only within their own game, not across games."""
         # [P0] p0 [P1] p1
         padding_mask = torch.tensor([[True, True, True, True]])
         player_token_mask = torch.tensor([[True, False, True, False]])
@@ -76,11 +76,44 @@ class TestBuildPlayerAttentionMask:
 
         mask = build_player_attention_mask(padding_mask, player_token_mask, game_ids)
 
-        # Pitch at pos 1 (game 0) attends to all non-padding
-        assert mask[0, 1, 0].item() is False  # P0
-        assert mask[0, 1, 1].item() is False  # self
-        assert mask[0, 1, 2].item() is False  # P1
-        assert mask[0, 1, 3].item() is False  # pitch in game 1
+        # Pitch at pos 1 (game 0) attends to same-game only
+        assert mask[0, 1, 0].item() is False  # P0 (same game)
+        assert mask[0, 1, 1].item() is False  # self (same game)
+        assert mask[0, 1, 2].item() is True   # P1 (different game — blocked)
+        assert mask[0, 1, 3].item() is True   # pitch in game 1 (blocked)
+
+    def test_pitch_tokens_blocked_cross_game(self) -> None:
+        """Pitch tokens cannot attend to positions in other games."""
+        # [P0] p0 p1 [P1] p2 p3
+        padding_mask = torch.tensor([[True, True, True, True, True, True]])
+        player_token_mask = torch.tensor([[True, False, False, True, False, False]])
+        game_ids = torch.tensor([[0, 0, 0, 1, 1, 1]])
+
+        mask = build_player_attention_mask(padding_mask, player_token_mask, game_ids)
+
+        # Pitch at pos 1 (game 0) blocked from game 1
+        assert mask[0, 1, 3].item() is True  # P1 (game 1)
+        assert mask[0, 1, 4].item() is True  # pitch game 1
+        assert mask[0, 1, 5].item() is True  # pitch game 1
+
+        # Pitch at pos 4 (game 1) blocked from game 0
+        assert mask[0, 4, 0].item() is True  # P0 (game 0)
+        assert mask[0, 4, 1].item() is True  # pitch game 0
+        assert mask[0, 4, 2].item() is True  # pitch game 0
+
+    def test_pitch_attends_to_own_player_token(self) -> None:
+        """Pitch tokens can attend to the player token in their own game."""
+        # [P0] p0 p1 [P1] p2 p3
+        padding_mask = torch.tensor([[True, True, True, True, True, True]])
+        player_token_mask = torch.tensor([[True, False, False, True, False, False]])
+        game_ids = torch.tensor([[0, 0, 0, 1, 1, 1]])
+
+        mask = build_player_attention_mask(padding_mask, player_token_mask, game_ids)
+
+        # Pitch at pos 1 (game 0) can attend to P0 (pos 0, same game)
+        assert mask[0, 1, 0].item() is False
+        # Pitch at pos 4 (game 1) can attend to P1 (pos 3, same game)
+        assert mask[0, 4, 3].item() is False
 
     def test_padding_always_masked(self) -> None:
         """No token attends to padding positions."""

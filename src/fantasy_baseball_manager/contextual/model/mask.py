@@ -17,7 +17,8 @@ def build_player_attention_mask(
       1. No token attends to padding positions.
       2. Player tokens attend only to pitch events in their own game
          (same game_id, not padding, not other player tokens) + themselves.
-      3. Pitch tokens attend to all non-padding positions.
+      3. Pitch tokens attend to same-game non-padding positions only.
+      4. CLS token (game_id=-1) attends to all non-padding positions.
 
     Args:
         padding_mask: (batch, seq_len) bool, True=real token
@@ -32,18 +33,22 @@ def build_player_attention_mask(
     # Start: everything masked
     mask = torch.ones(batch, seq_len, seq_len, dtype=torch.bool, device=padding_mask.device)
 
-    # Rule 1 + 3: Pitch tokens can attend to all non-padding positions
     # Expand padding_mask to (batch, 1, seq_len) for column-wise broadcasting
     can_attend_to = padding_mask.unsqueeze(1).expand(batch, seq_len, seq_len)
 
-    # For pitch tokens (non-player, non-padding): attend to all non-padding
-    pitch_token_mask = ~player_token_mask & padding_mask  # (batch, seq_len)
-    pitch_rows = pitch_token_mask.unsqueeze(2).expand(batch, seq_len, seq_len)
-    mask[pitch_rows & can_attend_to] = False
-
-    # Rule 2: Player tokens attend to same-game non-player non-padding positions + self
     # Same game: game_ids[b, i] == game_ids[b, j]
     same_game = game_ids.unsqueeze(2) == game_ids.unsqueeze(1)  # (batch, seq_len, seq_len)
+
+    # Rule 3a: Pitch tokens attend to same-game non-padding positions only
+    pitch_token_mask = ~player_token_mask & padding_mask  # (batch, seq_len)
+    pitch_rows = pitch_token_mask.unsqueeze(2).expand(batch, seq_len, seq_len)
+    mask[pitch_rows & same_game & can_attend_to] = False
+
+    # Rule 3b: CLS token (game_id=-1) attends to all non-padding positions
+    cls_rows = (game_ids == -1).unsqueeze(2).expand(batch, seq_len, seq_len)
+    mask[cls_rows & can_attend_to] = False
+
+    # Rule 2: Player tokens attend to same-game non-player non-padding positions + self
 
     # Non-player, non-padding columns
     non_player_real = ~player_token_mask & padding_mask  # (batch, seq_len)
