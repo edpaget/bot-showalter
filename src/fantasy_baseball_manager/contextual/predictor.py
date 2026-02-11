@@ -14,7 +14,12 @@ from fantasy_baseball_manager.contextual.training.config import (
 if TYPE_CHECKING:
     from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
     from fantasy_baseball_manager.contextual.data.models import GameSequence
+    from fantasy_baseball_manager.contextual.identity.archetypes import ArchetypeModel
+    from fantasy_baseball_manager.contextual.identity.stat_profile import (
+        PlayerStatProfile,
+    )
     from fantasy_baseball_manager.contextual.model.config import ModelConfig
+    from fantasy_baseball_manager.contextual.model.hierarchical import HierarchicalModel
     from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
     from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
     from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
@@ -159,6 +164,70 @@ class ContextualPredictor:
         pred_values = preds.squeeze(0).tolist()
 
         return dict(zip(target_stats, pred_values, strict=True))
+
+    def predict_player_hierarchical(
+        self,
+        mlbam_id: int,
+        data_year: int,
+        perspective: str,
+        model: HierarchicalModel,
+        target_stats: tuple[str, ...],
+        min_games: int,
+        context_window: int,
+        profile: PlayerStatProfile | None,
+        archetype_model: ArchetypeModel | None,
+    ) -> tuple[dict[str, float], list[GameSequence]] | None:
+        """Run hierarchical model inference for a player.
+
+        Returns (predictions, context_games) or None if insufficient data.
+        Falls back to zero identity when no profile is available.
+        """
+        import torch
+
+        games = self.sequence_builder.build_player_season(
+            data_year, mlbam_id, perspective=perspective,
+        )
+
+        if len(games) < min_games:
+            return None
+
+        context_games = games[-context_window:]
+
+        from fantasy_baseball_manager.contextual.data.models import PlayerContext
+
+        tensorizer = self._ensure_tensorizer()
+
+        context = PlayerContext(
+            player_id=context_games[0].player_id,
+            player_name="",
+            season=context_games[0].season,
+            perspective=context_games[0].perspective,
+            games=tuple(context_games),
+        )
+
+        tensorized = tensorizer.tensorize_context(context)
+        batch = tensorizer.collate([tensorized])
+
+        # Build identity features
+        if profile is not None and archetype_model is not None:
+            feat_vec = profile.to_feature_vector()
+            identity_features = torch.tensor(feat_vec, dtype=torch.float32).unsqueeze(0)
+            archetype_id = int(archetype_model.predict_single(feat_vec))
+            archetype_ids = torch.tensor([archetype_id], dtype=torch.long)
+        else:
+            # Fallback: zero identity
+            stat_names = (
+                BATTER_TARGET_STATS if perspective == "batter" else PITCHER_TARGET_STATS
+            )
+            n_features = len(stat_names) * 3 + 1  # 3 horizons + age
+            identity_features = torch.zeros(1, n_features)
+            archetype_ids = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            output = model(batch, identity_features, archetype_ids)
+
+        preds = output["performance_preds"].squeeze(0).tolist()
+        return dict(zip(target_stats, preds, strict=True)), context_games
 
     def _resolve_model_store(self) -> ContextualModelStore:
         if self.model_store is not None:

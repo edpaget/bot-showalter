@@ -144,3 +144,64 @@ class ContextualBlenderConfig:
     def min_games_for(self, perspective: str) -> int:
         """Return minimum games required for the given perspective."""
         return self.batter_min_games if perspective == "batter" else self.pitcher_min_games
+
+
+@dataclass(frozen=True, slots=True)
+class HierarchicalFineTuneConfig:
+    """Configuration for hierarchical model fine-tuning (Phase 2a).
+
+    Same data/training structure as FineTuneConfig, with separate LR fields
+    for identity, level3, and head parameter groups.
+    """
+
+    # Data
+    train_seasons: tuple[int, ...] = (2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022)
+    val_seasons: tuple[int, ...] = (2023,)
+    perspective: str = "pitcher"
+    context_window: int = 10
+    min_games: int = 15
+    target_mode: str = "rates"
+    target_window: int = 5
+
+    # Training — per-group learning rates
+    epochs: int = 30
+    batch_size: int = 32
+    identity_learning_rate: float = 1e-3
+    level3_learning_rate: float = 5e-4
+    head_learning_rate: float = 1e-3
+    weight_decay: float = 0.01
+    warmup_fraction: float = 0.05
+    min_warmup_steps: int = 100
+    max_grad_norm: float = 1.0
+    accumulation_steps: int = 1
+
+    # Identity conditioning
+    stat_feature_dropout: float = 0.0  # 0 for Phase 2a, 0.2 for Phase 2c
+
+    # Early stopping
+    patience: int = 5
+
+    # Checkpointing
+    checkpoint_interval: int = 5
+    log_interval: int = 100
+    seed: int = 42
+
+    def __post_init__(self) -> None:
+        if self.target_mode not in ("counts", "rates"):
+            msg = f"target_mode must be 'counts' or 'rates', got '{self.target_mode}'"
+            raise ValueError(msg)
+        if self.target_mode == "rates":
+            required = self.context_window + self.target_window
+            if self.min_games < required:
+                msg = (
+                    f"min_games ({self.min_games}) must be >= "
+                    f"context_window + target_window ({required}) in rates mode"
+                )
+                raise ValueError(msg)
+        else:
+            if self.min_games < self.context_window + 1:
+                msg = (
+                    f"min_games ({self.min_games}) must be >= "
+                    f"context_window + 1 ({self.context_window + 1})"
+                )
+                raise ValueError(msg)

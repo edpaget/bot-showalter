@@ -260,6 +260,59 @@ class ContextualModelStore:
             target_window=data.get("target_window"),
         )
 
+    def save_hierarchical_checkpoint(
+        self,
+        name: str,
+        model: object,
+        metadata: ContextualModelMetadata,
+        optimizer_state: dict[str, Any] | None = None,
+        scheduler_state: dict[str, Any] | None = None,
+    ) -> Path:
+        """Save a hierarchical model checkpoint to disk.
+
+        Uses the same format as save_checkpoint but allows any nn.Module.
+        """
+        return self.save_checkpoint(
+            name, model, metadata,  # type: ignore[arg-type]
+            optimizer_state=optimizer_state,
+            scheduler_state=scheduler_state,
+        )
+
+    def load_hierarchical_model(
+        self,
+        name: str,
+        backbone_config: ModelConfig,
+        hier_config: object,
+        n_targets: int,
+        stat_input_dim: int,
+    ) -> object:
+        """Load a hierarchical model from disk.
+
+        Raises:
+            FileNotFoundError: If the checkpoint does not exist.
+        """
+        from fantasy_baseball_manager.contextual.model.heads import PerformancePredictionHead
+        from fantasy_baseball_manager.contextual.model.hierarchical import HierarchicalModel
+        from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
+
+        model_path = self._model_path(name)
+        if not model_path.exists():
+            raise FileNotFoundError(f"Hierarchical model not found: {model_path}")
+
+        backbone = ContextualPerformanceModel(
+            backbone_config, PerformancePredictionHead(backbone_config, n_targets),
+        )
+        model = HierarchicalModel(
+            backbone=backbone,
+            hier_config=hier_config,  # type: ignore[arg-type]
+            n_targets=n_targets,
+            stat_input_dim=stat_input_dim,
+        )
+        state_dict = torch.load(model_path, weights_only=True, map_location="cpu")
+        model.load_state_dict(state_dict)
+        logger.info("Loaded hierarchical model from %s", model_path)
+        return model
+
     def _model_path(self, name: str) -> Path:
         return self.model_dir / f"{name}.pt"
 
