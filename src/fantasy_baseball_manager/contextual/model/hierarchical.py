@@ -259,9 +259,13 @@ class HierarchicalModel(nn.Module):
         Returns:
             {"performance_preds": (batch, n_targets)}
         """
-        # 1. Run frozen backbone to get hidden states
-        backbone_output = self.backbone(batch)
-        hidden = backbone_output["transformer_output"]  # (batch, seq_len, d_model)
+        # 1. Run frozen backbone to get hidden states.
+        # no_grad + detach avoids storing backbone attention activations
+        # (O(batch * heads * seq_len^2) per layer) which are unneeded since
+        # the backbone is frozen.
+        with torch.no_grad():
+            backbone_output = self.backbone(batch)
+        hidden = backbone_output["transformer_output"].detach()  # (batch, seq_len, d_model)
 
         # 2. Identity branch
         identity_repr = self.identity_module(stat_features, archetype_ids)
