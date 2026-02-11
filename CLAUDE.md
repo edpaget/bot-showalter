@@ -2,7 +2,7 @@
 
 ## Project
 
-Fantasy baseball manager. Python 3.13+, uses `uv` for dependency management.
+Fantasy baseball manager. Python 3.13+, uses `uv` for dependency management. Tests use pytest (~2300 tests); the full suite runs in ~30 seconds.
 
 ## Development Commands
 
@@ -17,6 +17,7 @@ Fantasy baseball manager. Python 3.13+, uses `uv` for dependency management.
 - Use Python type annotations everywhere: function signatures, return types, variable declarations where not obvious. Use `typing` module types and modern syntax (e.g., `str | None` over `Optional[str]`).
 - Follow TDD: write failing tests first, then implement the minimum code to pass, then refactor. Tests go in `tests/` mirroring the `src/` structure.
 - Favor cohesive modules with low coupling. Use dependency injection to manage dependencies between components — accept collaborators as constructor/function parameters rather than importing and instantiating them directly.
+- In tests, prefer injecting fakes/stubs via constructors over `monkeypatch` or `mock.patch`. Since dependencies are typed with Protocols, constructor injection lets the type checker verify test doubles match the real interface. Reserve `monkeypatch` for environment variables and similar global state.
 - Lint with ruff using the project's configured rule set.
 
 ## Planning
