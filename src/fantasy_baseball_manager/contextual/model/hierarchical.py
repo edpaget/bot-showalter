@@ -139,6 +139,7 @@ class Level3Attention(nn.Module):
         self.transformer = nn.TransformerEncoder(
             encoder_layer,
             num_layers=config.level3_n_layers,
+            enable_nested_tensor=False,
         )
 
     def forward(

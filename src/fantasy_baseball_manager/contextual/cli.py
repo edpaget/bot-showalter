@@ -845,7 +845,7 @@ def finetune_cmd(
     # Auto-detect max_seq_len from pretrained model
     registry = _get_registry()
     model_store = registry.contextual_store
-    pretrain_state = torch.load(model_store._model_path(base_model), weights_only=True)
+    pretrain_state = torch.load(model_store._model_path(base_model), weights_only=True, map_location="cpu")
     pretrain_seq_len: int = pretrain_state["positional_encoding.pe"].shape[1]
     if max_seq_len is None:
         max_seq_len = pretrain_seq_len
@@ -1016,3 +1016,525 @@ def finetune_cmd(
             if bl_mse_key in result:
                 parts += f"  (baseline MSE={result[bl_mse_key]:.4f}  MAE={result[bl_mae_key]:.4f})"
             console.print(parts)
+
+
+@contextual_app.command(name="build-identity")
+def build_identity_cmd(
+    perspective: Annotated[
+        str,
+        typer.Option(
+            "--perspective",
+            "-p",
+            help="Player perspective: 'batter' or 'pitcher'",
+        ),
+    ] = "pitcher",
+    n_archetypes: Annotated[
+        int,
+        typer.Option(
+            "--n-archetypes",
+            help="Number of player archetypes to fit",
+        ),
+    ] = 8,
+    min_opportunities: Annotated[
+        float,
+        typer.Option(
+            "--min-opportunities",
+            help="Minimum career opportunities for profile inclusion",
+        ),
+    ] = 50.0,
+    profile_year: Annotated[
+        int,
+        typer.Option(
+            "--profile-year",
+            help="'As of' year for profile building",
+        ),
+    ] = 2023,
+    name: Annotated[
+        str | None,
+        typer.Option(
+            "--name",
+            "-n",
+            help="Name for saved archetype model (default: {perspective}_archetypes)",
+        ),
+    ] = None,
+) -> None:
+    """Build player stat profiles and fit an archetype clustering model.
+
+    This creates the identity components needed by hier-finetune:
+    stat profiles from season-level data, then KMeans archetype clustering
+    on the profile feature vectors. The fitted archetype model is saved
+    to disk and can be loaded by hier-finetune via --archetype-model.
+
+    Example:
+        uv run fantasy-baseball-manager contextual build-identity --perspective pitcher --n-archetypes 8
+    """
+    from fantasy_baseball_manager.contextual.identity.archetypes import (
+        fit_archetypes,
+        save_archetype_model,
+    )
+    from fantasy_baseball_manager.contextual.identity.stat_profile import (
+        PlayerStatProfileBuilder,
+    )
+    from fantasy_baseball_manager.marcel.data_source import (
+        create_batting_source,
+        create_pitching_source,
+    )
+
+    model_name = name or f"{perspective}_archetypes"
+
+    # Initialize ambient context (needed by data sources)
+    from fantasy_baseball_manager.context import init_context
+
+    init_context(year=profile_year)
+
+    console.print("[bold]Building Player Identity (Profiles + Archetypes)[/bold]")
+    console.print(f"  Perspective:       {perspective}")
+    console.print(f"  Profile year:      {profile_year}")
+    console.print(f"  N archetypes:      {n_archetypes}")
+    console.print(f"  Min opportunities: {min_opportunities}")
+    console.print(f"  Save as:           {model_name}")
+
+    console.print("\nBuilding stat profiles...")
+    builder = PlayerStatProfileBuilder()
+    all_profiles = builder.build_all_profiles(
+        create_batting_source(), create_pitching_source(),
+        profile_year, min_opportunities=min_opportunities,
+    )
+    profiles = [p for p in all_profiles if p.player_type == perspective]
+    console.print(f"  {len(profiles)} {perspective} profiles built")
+
+    if not profiles:
+        console.print("[red]No profiles found. Check perspective and data availability.[/red]")
+        raise SystemExit(1)
+
+    console.print("\nFitting archetypes...")
+    arch_model, labels = fit_archetypes(profiles, n_archetypes=n_archetypes)
+
+    # Print archetype distribution
+    for arch_id in range(arch_model.n_archetypes):
+        count = int((labels == arch_id).sum())
+        examples = [p.name for p, lbl in zip(profiles, labels, strict=False) if lbl == arch_id][:3]
+        example_str = ", ".join(examples)
+        console.print(f"  Archetype {arch_id}: {count} players ({example_str})")
+
+    save_path = save_archetype_model(arch_model, model_name)
+    console.print(f"\n[bold green]Saved archetype model to {save_path}[/bold green]")
+    console.print(f"  Use with: contextual hier-finetune --archetype-model {model_name}")
+
+
+@contextual_app.command(name="hier-finetune")
+def hier_finetune_cmd(
+    base_model: Annotated[
+        str,
+        typer.Option(
+            "--base-model",
+            help="Pre-trained checkpoint to fine-tune from",
+        ),
+    ] = "pretrain_best",
+    perspective: Annotated[
+        str,
+        typer.Option(
+            "--perspective",
+            "-p",
+            help="Player perspective: 'batter' or 'pitcher'",
+        ),
+    ] = "pitcher",
+    context_window: Annotated[
+        int | None,
+        typer.Option(
+            "--context-window",
+            help="Number of prior games as context. Defaults to 30 for batter, 10 for pitcher.",
+        ),
+    ] = None,
+    seasons: Annotated[
+        str,
+        typer.Option(
+            "--seasons",
+            "-s",
+            help="Comma-separated training seasons",
+        ),
+    ] = "2015,2016,2017,2018,2019,2020,2021,2022",
+    val_seasons: Annotated[
+        str,
+        typer.Option(
+            "--val-seasons",
+            help="Comma-separated validation seasons",
+        ),
+    ] = "2023",
+    epochs: Annotated[
+        int,
+        typer.Option(
+            "--epochs",
+            "-e",
+            help="Number of fine-tuning epochs",
+        ),
+    ] = 30,
+    batch_size: Annotated[
+        int,
+        typer.Option(
+            "--batch-size",
+            "-b",
+            help="Training batch size",
+        ),
+    ] = 32,
+    identity_lr: Annotated[
+        float,
+        typer.Option(
+            "--identity-lr",
+            help="Learning rate for identity module",
+        ),
+    ] = 1e-3,
+    level3_lr: Annotated[
+        float,
+        typer.Option(
+            "--level3-lr",
+            help="Learning rate for Level 3 attention",
+        ),
+    ] = 5e-4,
+    head_lr: Annotated[
+        float,
+        typer.Option(
+            "--head-lr",
+            help="Learning rate for prediction head",
+        ),
+    ] = 1e-3,
+    n_archetypes: Annotated[
+        int,
+        typer.Option(
+            "--n-archetypes",
+            help="Number of player archetypes",
+        ),
+    ] = 8,
+    archetype_model_name: Annotated[
+        str | None,
+        typer.Option(
+            "--archetype-model",
+            help="Name of pre-fitted archetype model to load (fit fresh if omitted)",
+        ),
+    ] = None,
+    min_opportunities: Annotated[
+        float,
+        typer.Option(
+            "--min-opportunities",
+            help="Minimum career opportunities for profile inclusion",
+        ),
+    ] = 50.0,
+    profile_year: Annotated[
+        int | None,
+        typer.Option(
+            "--profile-year",
+            help="'As of' year for profile building (defaults to max val_seasons)",
+        ),
+    ] = None,
+    max_seq_len: Annotated[
+        int | None,
+        typer.Option(
+            "--max-seq-len",
+            help="Maximum sequence length (auto-detected from pretrained model if omitted)",
+        ),
+    ] = None,
+    target_mode: Annotated[
+        str,
+        typer.Option(
+            "--target-mode",
+            help="Target mode: 'rates' (default) or 'counts' (legacy)",
+        ),
+    ] = "rates",
+    target_window: Annotated[
+        int,
+        typer.Option(
+            "--target-window",
+            help="Number of games to average for target rate (rates mode only)",
+        ),
+    ] = 5,
+    d_model: Annotated[
+        int,
+        typer.Option(
+            "--d-model",
+            help="Transformer hidden dimension (must match pretrained model)",
+        ),
+    ] = 256,
+    n_layers: Annotated[
+        int,
+        typer.Option(
+            "--n-layers",
+            help="Number of transformer layers (must match pretrained model)",
+        ),
+    ] = 4,
+    n_heads: Annotated[
+        int,
+        typer.Option(
+            "--n-heads",
+            help="Number of attention heads (must match pretrained model)",
+        ),
+    ] = 8,
+    ff_dim: Annotated[
+        int,
+        typer.Option(
+            "--ff-dim",
+            help="Feed-forward hidden dimension (must match pretrained model)",
+        ),
+    ] = 1024,
+) -> None:
+    """Fine-tune a hierarchical model with identity conditioning.
+
+    Orchestrates three phases: build identity (profiles + archetypes),
+    build hierarchical dataset, and train. The backbone is loaded from
+    a pre-trained checkpoint and frozen during training.
+
+    Example:
+        uv run fantasy-baseball-manager contextual hier-finetune --perspective pitcher --epochs 10
+    """
+    import torch
+
+    from fantasy_baseball_manager.contextual.identity.archetypes import (
+        fit_archetypes,
+        load_archetype_model,
+        save_archetype_model,
+    )
+    from fantasy_baseball_manager.contextual.identity.stat_profile import (
+        PlayerStatProfileBuilder,
+    )
+    from fantasy_baseball_manager.contextual.model.config import ModelConfig
+    from fantasy_baseball_manager.contextual.model.heads import PerformancePredictionHead
+    from fantasy_baseball_manager.contextual.model.hierarchical import HierarchicalModel
+    from fantasy_baseball_manager.contextual.model.hierarchical_config import (
+        HierarchicalModelConfig,
+    )
+    from fantasy_baseball_manager.contextual.training.config import (
+        BATTER_TARGET_STATS,
+        DEFAULT_BATTER_CONTEXT_WINDOW,
+        DEFAULT_PITCHER_CONTEXT_WINDOW,
+        PITCHER_TARGET_STATS,
+        HierarchicalFineTuneConfig,
+    )
+    from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
+        HierarchicalFineTuneDataset,
+        build_hierarchical_windows,
+    )
+    from fantasy_baseball_manager.contextual.training.hierarchical_finetune import (
+        HierarchicalFineTuneTrainer,
+    )
+
+    # Parse arguments
+    train_seasons = tuple(int(s.strip()) for s in seasons.split(","))
+    val_season_list = tuple(int(s.strip()) for s in val_seasons.split(","))
+
+    if context_window is None:
+        context_window = DEFAULT_BATTER_CONTEXT_WINDOW if perspective == "batter" else DEFAULT_PITCHER_CONTEXT_WINDOW
+
+    target_stats = BATTER_TARGET_STATS if perspective == "batter" else PITCHER_TARGET_STATS
+    n_targets = len(target_stats)
+
+    stat_input_dim = 19 if perspective == "batter" else 13  # 6*3+1 or 4*3+1
+
+    if profile_year is None:
+        profile_year = max(val_season_list)
+
+    # Auto-detect max_seq_len from pretrained model
+    registry = _get_registry()
+    model_store = registry.contextual_store
+    pretrain_state = torch.load(model_store._model_path(base_model), weights_only=True, map_location="cpu")
+    pretrain_seq_len: int = pretrain_state["positional_encoding.pe"].shape[1]
+    if max_seq_len is None:
+        max_seq_len = pretrain_seq_len
+        console.print(f"  Auto-detected max_seq_len={max_seq_len} from pretrained model")
+    elif max_seq_len != pretrain_seq_len:
+        raise SystemExit(
+            f"--max-seq-len {max_seq_len} does not match pretrained model "
+            f"positional encoding size {pretrain_seq_len}. "
+            f"Either omit --max-seq-len to auto-detect or retrain with the desired length."
+        )
+
+    # Build configs
+    model_config = ModelConfig(
+        max_seq_len=max_seq_len, d_model=d_model, n_layers=n_layers,
+        n_heads=n_heads, ff_dim=ff_dim,
+    )
+
+    hier_config = HierarchicalModelConfig(
+        n_archetypes=n_archetypes,
+        level3_d_model=d_model,
+        batter_stat_input_dim=19,
+        pitcher_stat_input_dim=13,
+    )
+
+    ft_min_games = context_window + target_window if target_mode == "rates" else context_window + 5
+    ft_config = HierarchicalFineTuneConfig(
+        train_seasons=train_seasons,
+        val_seasons=val_season_list,
+        perspective=perspective,
+        context_window=context_window,
+        min_games=ft_min_games,
+        target_mode=target_mode,
+        target_window=target_window,
+        epochs=epochs,
+        batch_size=batch_size,
+        identity_learning_rate=identity_lr,
+        level3_learning_rate=level3_lr,
+        head_learning_rate=head_lr,
+    )
+
+    # Initialize ambient context (needed by data sources for profile building)
+    from fantasy_baseball_manager.context import init_context
+
+    init_context(year=profile_year)
+
+    console.print("[bold]Hierarchical Fine-Tuning (Phase 2a)[/bold]")
+    console.print(f"  Base model:      {base_model}")
+    console.print(f"  Perspective:     {perspective}")
+    console.print(f"  Target stats:    {target_stats}")
+    console.print(f"  Target mode:     {target_mode}")
+    console.print(f"  Target window:   {target_window}")
+    console.print(f"  Context window:  {context_window}")
+    console.print(f"  Train seasons:   {train_seasons}")
+    console.print(f"  Val seasons:     {val_season_list}")
+    console.print(f"  Epochs:          {epochs}")
+    console.print(f"  Batch size:      {batch_size}")
+    console.print(f"  Identity LR:     {identity_lr}")
+    console.print(f"  Level 3 LR:      {level3_lr}")
+    console.print(f"  Head LR:         {head_lr}")
+    console.print(f"  Max seq len:     {max_seq_len}")
+    console.print(f"  d_model:         {d_model}")
+    console.print(f"  n_layers:        {n_layers}")
+    console.print(f"  n_heads:         {n_heads}")
+    console.print(f"  ff_dim:          {ff_dim}")
+    console.print(f"  N archetypes:    {n_archetypes}")
+    console.print(f"  Profile year:    {profile_year}")
+
+    # Load pre-trained backbone
+    console.print(f"\nLoading pre-trained model '{base_model}'...")
+    backbone = model_store.load_model(base_model, model_config)
+
+    # Swap head to PerformancePredictionHead (needed as backbone for HierarchicalModel)
+    perf_head = PerformancePredictionHead(model_config, n_targets)
+    backbone.swap_head(perf_head)
+    console.print(f"  Swapped head to PerformancePredictionHead (n_targets={n_targets})")
+
+    # Wrap backbone in HierarchicalModel
+    model = HierarchicalModel(
+        backbone=backbone,
+        hier_config=hier_config,
+        n_targets=n_targets,
+        stat_input_dim=stat_input_dim,
+    )
+
+    # Build or load identity
+    if archetype_model_name is not None:
+        console.print(f"\nLoading archetype model '{archetype_model_name}'...")
+        arch_model = load_archetype_model(archetype_model_name)
+        console.print(f"  Loaded ({arch_model.n_archetypes} archetypes)")
+        # Build profiles for the profile lookup
+        console.print("  Building stat profiles for player lookup...")
+        from fantasy_baseball_manager.marcel.data_source import (
+            create_batting_source,
+            create_pitching_source,
+        )
+
+        builder_profiles = PlayerStatProfileBuilder()
+        all_profiles = builder_profiles.build_all_profiles(
+            create_batting_source(), create_pitching_source(),
+            profile_year, min_opportunities=min_opportunities,
+        )
+        profiles = [p for p in all_profiles if p.player_type == perspective]
+        console.print(f"  {len(profiles)} {perspective} profiles built")
+    else:
+        console.print("\nBuilding stat profiles...")
+        from fantasy_baseball_manager.marcel.data_source import (
+            create_batting_source,
+            create_pitching_source,
+        )
+
+        builder_profiles = PlayerStatProfileBuilder()
+        all_profiles = builder_profiles.build_all_profiles(
+            create_batting_source(), create_pitching_source(),
+            profile_year, min_opportunities=min_opportunities,
+        )
+        profiles = [p for p in all_profiles if p.player_type == perspective]
+        console.print(f"  {len(profiles)} {perspective} profiles built")
+
+        console.print("  Fitting archetypes...")
+        arch_model, _labels = fit_archetypes(profiles, n_archetypes=n_archetypes)
+        arch_name = f"{perspective}_archetypes"
+        save_archetype_model(arch_model, arch_name)
+        console.print(f"  Saved archetype model as '{arch_name}' ({arch_model.n_archetypes} archetypes)")
+
+    # Build profile lookup (player_id -> profile) using int key from player_id string
+    profile_lookup = {int(p.player_id): p for p in profiles}
+
+    # Build hierarchical windows
+    console.print("\nBuilding training data...")
+    from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
+    from fantasy_baseball_manager.contextual.data.vocab import (
+        BB_TYPE_VOCAB,
+        HANDEDNESS_VOCAB,
+        PA_EVENT_VOCAB,
+        PITCH_RESULT_VOCAB,
+        PITCH_TYPE_VOCAB,
+    )
+    from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
+    from fantasy_baseball_manager.contextual.training.dataset import build_player_contexts
+    from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
+    from fantasy_baseball_manager.statcast.store import StatcastStore
+
+    store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
+    seq_builder = GameSequenceBuilder(store)
+
+    tensorizer = Tensorizer(
+        config=model_config,
+        pitch_type_vocab=PITCH_TYPE_VOCAB,
+        pitch_result_vocab=PITCH_RESULT_VOCAB,
+        bb_type_vocab=BB_TYPE_VOCAB,
+        handedness_vocab=HANDEDNESS_VOCAB,
+        pa_event_vocab=PA_EVENT_VOCAB,
+    )
+
+    train_contexts = build_player_contexts(
+        seq_builder, train_seasons, (perspective,), min_pitch_count=10,
+    )
+    console.print(f"  {len(train_contexts)} training player contexts")
+
+    console.print("Building validation data...")
+    val_contexts = build_player_contexts(
+        seq_builder, val_season_list, (perspective,), min_pitch_count=10,
+    )
+    console.print(f"  {len(val_contexts)} validation player contexts")
+
+    console.print("Building hierarchical sliding windows...")
+    train_windows = build_hierarchical_windows(
+        train_contexts, tensorizer, ft_config, target_stats,
+        profile_lookup, arch_model, stat_input_dim,
+    )
+    val_windows = build_hierarchical_windows(
+        val_contexts, tensorizer, ft_config, target_stats,
+        profile_lookup, arch_model, stat_input_dim,
+    )
+
+    train_dataset = HierarchicalFineTuneDataset(train_windows)
+    val_dataset = HierarchicalFineTuneDataset(val_windows)
+    console.print(f"  {len(train_dataset)} train samples, {len(val_dataset)} val samples")
+
+    # Device selection
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    console.print(f"  Device: {device}")
+
+    # Train
+    trainer = HierarchicalFineTuneTrainer(
+        model, ft_config, model_store, target_stats, device,
+    )
+
+    console.print("\nStarting hierarchical fine-tuning...")
+    result = trainer.train(train_dataset, val_dataset)
+
+    console.print("\n[bold]Hierarchical fine-tuning complete![/bold]")
+    console.print(f"  Val loss: {result['val_loss']:.4f}")
+    for stat in target_stats:
+        mse_key = f"val_{stat}_mse"
+        mae_key = f"val_{stat}_mae"
+        if mse_key in result:
+            console.print(f"  {stat}: MSE={result[mse_key]:.4f}  MAE={result[mae_key]:.4f}")
