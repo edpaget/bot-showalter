@@ -19,6 +19,8 @@ from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fantasy_baseball_manager.contextual.model.hierarchical import HierarchicalModel
     from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
     from fantasy_baseball_manager.contextual.training.config import (
@@ -53,6 +55,7 @@ class HierarchicalFineTuneTrainer:
         model_store: ContextualModelStore,
         target_stats: tuple[str, ...],
         device: torch.device | None = None,
+        log_fn: Callable[[str], object] | None = None,
     ) -> None:
         self._model = model
         self._config = config
@@ -60,6 +63,7 @@ class HierarchicalFineTuneTrainer:
         self._target_stats = target_stats
         self._device = device or torch.device("cpu")
         self._loss_weights: torch.Tensor | None = None
+        self._log = log_fn or logger.info
         self._model.to(self._device)
 
     def train(
@@ -147,12 +151,10 @@ class HierarchicalFineTuneTrainer:
             sec_per_epoch = total_elapsed / epochs_done
             epochs_remaining = config.epochs - epochs_done
             eta = sec_per_epoch * epochs_remaining
-            logger.info(
-                "Epoch %d/%d — train_loss=%.4f val_loss=%.4f  "
-                "(%.0fs this epoch, %.0fs total, ETA %.0fs)",
-                epochs_done, config.epochs,
-                train_metrics.loss, val_metrics.loss,
-                epoch_elapsed, total_elapsed, eta,
+            self._log(
+                f"Epoch {epochs_done}/{config.epochs} — "
+                f"train_loss={train_metrics.loss:.4f} val_loss={val_metrics.loss:.4f}  "
+                f"({epoch_elapsed:.0f}s this epoch, {total_elapsed:.0f}s total, ETA {eta:.0f}s)"
             )
 
             if val_metrics.loss < best_val_loss:
@@ -173,7 +175,7 @@ class HierarchicalFineTuneTrainer:
                 )
 
             if patience_counter >= config.patience:
-                logger.info("Early stopping at epoch %d (patience=%d)", epoch + 1, config.patience)
+                self._log(f"Early stopping at epoch {epoch + 1} (patience={config.patience})")
                 break
 
         # Save latest
@@ -244,9 +246,9 @@ class HierarchicalFineTuneTrainer:
                 sec_per_batch = elapsed / batches_done
                 remaining = sec_per_batch * (n_batches - batches_done)
                 avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
-                logger.info(
-                    "  batch %d/%d — loss=%.4f  %.1fs elapsed  ETA %.0fs",
-                    batches_done, n_batches, avg_loss, elapsed, remaining,
+                self._log(
+                    f"  batch {batches_done}/{n_batches} — "
+                    f"loss={avg_loss:.4f}  {elapsed:.1f}s elapsed  ETA {remaining:.0f}s"
                 )
 
         if total_samples == 0:

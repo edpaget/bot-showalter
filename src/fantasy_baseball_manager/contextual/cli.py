@@ -1730,6 +1730,7 @@ def hier_finetune_cmd(
     # Train
     trainer = HierarchicalFineTuneTrainer(
         model, ft_config, model_store, target_stats, device,
+        log_fn=lambda msg: console.print(msg),
     )
 
     console.print("\nStarting hierarchical fine-tuning...")
