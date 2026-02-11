@@ -53,6 +53,7 @@ The projection pipeline is the heart of the system. It follows a linear stage-ba
         |  6. BatterBabipAdjuster                  |
         |  7. GBResidualAdjuster (ML)              |
         |  8. MTLBlender / ContextualBlender       |
+        |  8b. EnsembleAdjuster (multi-model)      |
         |  9. RebaselineAdjuster                   |
         | 10. ComponentAgingAdjuster               |
         +------------------------------------------+
@@ -133,6 +134,7 @@ Named pipelines are registered in `pipeline/presets.py`:
 | `mle` | Rookies only | MLE rate computer for thin MLB histories |
 | `contextual` | Transformer | Pitch-sequence model replaces Marcel |
 | `marcel_contextual` | Transformer blend | Marcel + contextual transformer blend |
+| `marcel_ensemble` | Best combined | Ensemble: 50/25/25 Marcel/MTL/contextual + GB residual |
 | `steamer` / `zips` | External | FanGraphs projection systems (fetched or CSV) |
 
 ## Module Map
@@ -168,6 +170,8 @@ src/fantasy_baseball_manager/
 │       ├── mtl_rate_computer.py       Standalone MTL rates
 │       ├── contextual_blender.py      Transformer blend
 │       ├── contextual_rate_*.py       Transformer rates
+│       ├── prediction_source.py       PredictionSource protocol + implementations
+│       ├── ensemble.py                EnsembleAdjuster (multi-model blending)
 │       ├── skill_change_adjuster.py   Year-over-year skill deltas
 │       ├── identity_enricher.py       Player ID resolution
 │       ├── playing_time.py            Marcel playing time
@@ -510,6 +514,8 @@ This section catalogs patterns and improvements that could make the modeling app
 
 5. **Incremental metadata**: `PlayerMetadata` is a TypedDict with optional fields, populated by each stage. Downstream stages can inspect what upstream stages contributed.
 
+6. **Formal ensemble framework**: The `EnsembleAdjuster` combines multiple prediction sources (MTL, contextual, GB residual) with per-stat-per-model weights and pluggable blending strategies. Sources declare their prediction mode (RATE vs RESIDUAL) via a common `PredictionSource` protocol, and weights are automatically renormalized when a source lacks coverage for a stat.
+
 ### Improvement Opportunities
 
 #### 1. Unified Model Registry & Discovery
@@ -528,21 +534,21 @@ class GBResidualModelV2:
 
 This would allow new models to be added by dropping a file into a directory without modifying central registry code. Models could declare their data dependencies, enabling the pipeline to auto-resolve data sources.
 
-#### 2. Formal Ensemble Framework
+#### 2. Formal Ensemble Framework (**Implemented**)
 
-**Current state**: Model blending is ad-hoc. `MTLBlender` uses a fixed 70/30 Marcel/MTL split. `ContextualBlender` uses a similar hard-coded weight. `GBResidualAdjuster` adds corrections rather than blending. Each blending strategy is a separate adjuster class with its own config.
+**Implemented** in `pipeline/stages/prediction_source.py` and `pipeline/stages/ensemble.py`. A `PredictionSource` protocol unifies all model types (MTL, contextual, GB residual) behind a common interface. Each source declares a `PredictionMode` — `RATE` (absolute predictions blended via weighted average with Marcel) or `RESIDUAL` (additive corrections applied after blending).
 
-**Improvement**: Introduce a generic `EnsembleAdjuster` that accepts a list of model predictions with per-model and per-stat weights:
+`EnsembleAdjuster` orchestrates multiple sources with per-stat-per-model weights and a pluggable `BlendingStrategy`:
 
 ```python
-ensemble = EnsembleAdjuster(
-    models=[marcel_rates, mtl_rates, contextual_rates],
-    weights={"hr": [0.5, 0.3, 0.2], "era": [0.3, 0.5, 0.2]},
-    strategy="weighted_average",  # or "stacking", "rank_average"
+config = EnsembleConfig(
+    default_weights={"marcel": 0.5, "mtl": 0.25, "contextual": 0.25},
+    weights={"hr": {"marcel": 0.4, "mtl": 0.3, "contextual": 0.3}},
 )
+ensemble = EnsembleAdjuster(sources=[mtl_source, ctx_source, gb_source], config=config)
 ```
 
-This would allow combining any number of models with stat-specific weighting, including learned weights from a meta-learner. Stacking (training a second-level model on first-level predictions) could be added as a strategy.
+When a source doesn't produce a prediction for a stat, its weight is excluded and remaining weights are renormalized. The `marcel_ensemble` preset wires all three sources with default 50/25/25 weights plus GB residual corrections. Future strategies (stacking, rank averaging) can be added by implementing the `BlendingStrategy` protocol.
 
 #### 3. Prediction Intervals & Uncertainty
 
