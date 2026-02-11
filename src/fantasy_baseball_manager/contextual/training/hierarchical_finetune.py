@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -131,17 +132,27 @@ class HierarchicalFineTuneTrainer:
         best_state_dict = None
         train_metrics = HierarchicalFineTuneMetrics(0.0, {}, {}, 0)
         epoch = 0
+        training_start = time.monotonic()
 
         for epoch in range(config.epochs):
+            epoch_start = time.monotonic()
             train_metrics = self._train_epoch(train_loader, optimizer, scheduler, global_step)
             global_step += len(train_loader)
 
             val_metrics = self._validate(val_loader)
 
+            epoch_elapsed = time.monotonic() - epoch_start
+            total_elapsed = time.monotonic() - training_start
+            epochs_done = epoch + 1
+            sec_per_epoch = total_elapsed / epochs_done
+            epochs_remaining = config.epochs - epochs_done
+            eta = sec_per_epoch * epochs_remaining
             logger.info(
-                "Epoch %d/%d — train_loss=%.4f val_loss=%.4f",
-                epoch + 1, config.epochs,
+                "Epoch %d/%d — train_loss=%.4f val_loss=%.4f  "
+                "(%.0fs this epoch, %.0fs total, ETA %.0fs)",
+                epochs_done, config.epochs,
                 train_metrics.loss, val_metrics.loss,
+                epoch_elapsed, total_elapsed, eta,
             )
 
             if val_metrics.loss < best_val_loss:
@@ -197,6 +208,8 @@ class HierarchicalFineTuneTrainer:
 
         n_batches = len(loader)
         accum = self._config.accumulation_steps
+        log_interval = self._config.log_interval
+        epoch_start = time.monotonic()
         optimizer.zero_grad()
         for batch_idx, batch in enumerate(loader):
             batch = self._batch_to_device(batch)
@@ -224,6 +237,17 @@ class HierarchicalFineTuneTrainer:
                 per_stat_ae += diff.abs().sum(dim=0)
 
             global_step += 1
+
+            if log_interval > 0 and (batch_idx + 1) % log_interval == 0:
+                elapsed = time.monotonic() - epoch_start
+                batches_done = batch_idx + 1
+                sec_per_batch = elapsed / batches_done
+                remaining = sec_per_batch * (n_batches - batches_done)
+                avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
+                logger.info(
+                    "  batch %d/%d — loss=%.4f  %.1fs elapsed  ETA %.0fs",
+                    batches_done, n_batches, avg_loss, elapsed, remaining,
+                )
 
         if total_samples == 0:
             return HierarchicalFineTuneMetrics(0.0, {}, {}, 0)
