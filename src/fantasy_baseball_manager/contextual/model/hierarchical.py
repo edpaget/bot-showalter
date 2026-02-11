@@ -91,25 +91,25 @@ class GamePooler(nn.Module):
         pitch_mask = padding_mask & ~player_token_mask & (game_ids >= 0)
 
         # Find max game count across batch
-        max_game_id_per_sample = []
-        for b in range(batch_size):
-            valid_ids = game_ids[b][pitch_mask[b]]
-            if valid_ids.numel() > 0:
-                max_game_id_per_sample.append(valid_ids.max().item())
-            else:
-                max_game_id_per_sample.append(-1)
-        n_games = int(max(max_game_id_per_sample)) + 1 if max(max_game_id_per_sample) >= 0 else 1
+        n_games = 1 if not pitch_mask.any() else int(game_ids[pitch_mask].max().item()) + 1
 
-        game_embeddings = torch.zeros(batch_size, n_games, d_model, device=hidden.device, dtype=hidden.dtype)
-        game_mask = torch.zeros(batch_size, n_games, dtype=torch.bool, device=hidden.device)
+        # Remap non-pitch game_ids to 0 so scatter indices are non-negative.
+        # Their contributions are zeroed by pitch_mask so they don't pollute.
+        safe_ids = game_ids.clamp(min=0)  # (batch, seq_len)
 
-        for b in range(batch_size):
-            for g in range(n_games):
-                token_mask = pitch_mask[b] & (game_ids[b] == g)
-                count = token_mask.sum().item()
-                if count > 0:
-                    game_embeddings[b, g] = hidden[b][token_mask].mean(dim=0)
-                    game_mask[b, g] = True
+        # Scatter-add hidden states per game
+        masked_hidden = hidden * pitch_mask.unsqueeze(-1)  # zero non-pitch
+        idx = safe_ids.unsqueeze(-1).expand(-1, -1, d_model)  # (batch, seq_len, d_model)
+        game_sums = hidden.new_zeros(batch_size, n_games, d_model)
+        game_sums.scatter_add_(1, idx, masked_hidden)
+
+        # Count pitch tokens per game
+        game_counts = hidden.new_zeros(batch_size, n_games)
+        game_counts.scatter_add_(1, safe_ids, pitch_mask.to(dtype=hidden.dtype))
+
+        # Mean pool (clamp avoids division by zero for empty games)
+        game_mask = game_counts > 0
+        game_embeddings = game_sums / game_counts.unsqueeze(-1).clamp(min=1)
 
         return game_embeddings, game_mask
 
