@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+
+echo "Running pre-commit checks..."
+
+echo "  ruff check..."
+uv run ruff check src tests
+
+echo "  type check..."
+uv run ty check src tests
+
+echo "  tests..."
+uv run pytest -q
+
+echo "All checks passed."
