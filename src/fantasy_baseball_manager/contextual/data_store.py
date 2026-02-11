@@ -182,10 +182,20 @@ class PreparedDataStore:
         meta: dict[str, Any],
     ) -> None:
         """Save hierarchical fine-tune windows as columnar tensors in {name}.pt."""
-        pt_path = self._pt_path(name)
         columnar = _hierarchical_rows_to_columnar(windows)
-        torch.save(columnar, pt_path)
-        logger.info("Saved %d hierarchical finetune windows (columnar) to %s", len(windows), pt_path)
+        self.save_hierarchical_finetune_columnar(name, columnar, meta)
+
+    def save_hierarchical_finetune_columnar(
+        self,
+        name: str,
+        data: dict[str, torch.Tensor | str],
+        meta: dict[str, Any],
+    ) -> None:
+        """Save a pre-built columnar dict directly as {name}.pt."""
+        pt_path = self._pt_path(name)
+        torch.save(data, pt_path)
+        n = int(data["seq_lengths"].shape[0])  # type: ignore[union-attr]
+        logger.info("Saved %d hierarchical finetune windows (columnar) to %s", n, pt_path)
         self._save_meta(name, meta)
 
     def load_hierarchical_finetune_data(

@@ -104,6 +104,122 @@ def build_hierarchical_windows(
     return windows
 
 
+def build_hierarchical_columnar(
+    player_contexts: list[PlayerContext],
+    tensorizer: Tensorizer,
+    config: HierarchicalFineTuneConfig,
+    target_stats: tuple[str, ...],
+    profile_lookup: dict[int, PlayerStatProfile],
+    archetype_model: ArchetypeModel,
+    stat_input_dim: int,
+) -> dict[str, torch.Tensor | str]:
+    """Build hierarchical fine-tuning data directly in flat columnar format.
+
+    Unlike :func:`build_hierarchical_windows`, this never materialises the full
+    list-of-tuples.  Per-player windows are iterated and their raw 1-D tensors
+    are appended to lightweight Python lists (just pointers).  A single
+    ``torch.cat`` at the end produces each contiguous flat buffer.
+
+    Returns:
+        Columnar dict suitable for :class:`HierarchicalFineTuneDataset`.
+    """
+    n = config.context_window
+    target_mode = config.target_mode
+    target_window = config.target_window
+    min_required = n + target_window if target_mode == "rates" else n + 1
+
+    eligible = [p for p in player_contexts if len(p.games) >= min_required]
+
+    # Accumulator lists — only store tensor *references* (~8 bytes each)
+    pitch_type_ids_parts: list[torch.Tensor] = []
+    pitch_result_ids_parts: list[torch.Tensor] = []
+    bb_type_ids_parts: list[torch.Tensor] = []
+    stand_ids_parts: list[torch.Tensor] = []
+    p_throws_ids_parts: list[torch.Tensor] = []
+    pa_event_ids_parts: list[torch.Tensor] = []
+    numeric_features_parts: list[torch.Tensor] = []
+    numeric_mask_parts: list[torch.Tensor] = []
+    padding_mask_parts: list[torch.Tensor] = []
+    player_token_mask_parts: list[torch.Tensor] = []
+    game_ids_parts: list[torch.Tensor] = []
+
+    seq_lengths_list: list[int] = []
+    targets_list: list[torch.Tensor] = []
+    context_mean_list: list[torch.Tensor] = []
+    identity_features_list: list[torch.Tensor] = []
+    archetype_ids_list: list[int] = []
+
+    for player_ctx in eligible:
+        # Look up identity (once per player)
+        profile = profile_lookup.get(player_ctx.player_id)
+        if profile is not None:
+            feat_vec = profile.to_feature_vector()
+            identity_features = torch.tensor(feat_vec, dtype=torch.float32)
+            archetype_id = int(archetype_model.predict_single(feat_vec))
+        else:
+            identity_features = torch.zeros(stat_input_dim, dtype=torch.float32)
+            archetype_id = 0
+
+        # Build windows — yields (TensorizedSingle, targets, context_mean)
+        player_windows = _build_player_windows(
+            player_ctx,
+            tensorizer=tensorizer,
+            context_window=n,
+            target_stats=target_stats,
+            target_mode=target_mode,
+            target_window=target_window,
+        )
+        for tensorized, targets, context_mean in player_windows:
+            # Append raw 1-D context tensors (just pointer references)
+            pitch_type_ids_parts.append(tensorized.pitch_type_ids)
+            pitch_result_ids_parts.append(tensorized.pitch_result_ids)
+            bb_type_ids_parts.append(tensorized.bb_type_ids)
+            stand_ids_parts.append(tensorized.stand_ids)
+            p_throws_ids_parts.append(tensorized.p_throws_ids)
+            pa_event_ids_parts.append(tensorized.pa_event_ids)
+            numeric_features_parts.append(tensorized.numeric_features)
+            numeric_mask_parts.append(tensorized.numeric_mask)
+            padding_mask_parts.append(tensorized.padding_mask)
+            player_token_mask_parts.append(tensorized.player_token_mask)
+            game_ids_parts.append(tensorized.game_ids)
+
+            seq_lengths_list.append(tensorized.seq_length)
+            targets_list.append(targets)
+            context_mean_list.append(context_mean)
+            identity_features_list.append(identity_features)
+            archetype_ids_list.append(archetype_id)
+
+    if not seq_lengths_list:
+        raise ValueError("No windows produced — check eligibility criteria")
+
+    n_windows = len(seq_lengths_list)
+    seq_lengths = torch.tensor(seq_lengths_list, dtype=torch.long)
+    offsets = torch.zeros(n_windows, dtype=torch.long)
+    if n_windows > 1:
+        offsets[1:] = seq_lengths[:-1].cumsum(0)
+
+    return {
+        "__format__": "columnar_v1",
+        "offsets": offsets,
+        "seq_lengths": seq_lengths,
+        "pitch_type_ids": torch.cat(pitch_type_ids_parts),
+        "pitch_result_ids": torch.cat(pitch_result_ids_parts),
+        "bb_type_ids": torch.cat(bb_type_ids_parts),
+        "stand_ids": torch.cat(stand_ids_parts),
+        "p_throws_ids": torch.cat(p_throws_ids_parts),
+        "pa_event_ids": torch.cat(pa_event_ids_parts),
+        "numeric_features": torch.cat(numeric_features_parts),
+        "numeric_mask": torch.cat(numeric_mask_parts),
+        "padding_mask": torch.cat(padding_mask_parts),
+        "player_token_mask": torch.cat(player_token_mask_parts),
+        "game_ids": torch.cat(game_ids_parts),
+        "targets": torch.stack(targets_list),
+        "context_mean": torch.stack(context_mean_list),
+        "identity_features": torch.stack(identity_features_list),
+        "archetype_ids": torch.tensor(archetype_ids_list, dtype=torch.long),
+    }
+
+
 class HierarchicalFineTuneDataset(Dataset[HierarchicalFineTuneSample]):
     """Wraps pre-built hierarchical sliding window examples in columnar format.
 

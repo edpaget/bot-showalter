@@ -25,6 +25,7 @@ from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
     HierarchicalFineTuneBatch,
     HierarchicalFineTuneDataset,
     HierarchicalFineTuneSample,
+    build_hierarchical_columnar,
     build_hierarchical_windows,
     collate_hierarchical_samples,
 )
@@ -133,6 +134,52 @@ class TestBuildHierarchicalWindows:
         _, _, _, identity_features, archetype_id = windows[0]
         assert torch.all(identity_features == 0.0)
         assert archetype_id == 0
+
+
+class TestBuildHierarchicalColumnar:
+    def test_matches_row_oriented_output(self, small_config: ModelConfig) -> None:
+        tensorizer = _build_tensorizer(small_config)
+        config = HierarchicalFineTuneConfig(
+            context_window=2, target_mode="counts", min_games=3,
+        )
+        contexts = [
+            make_player_context(n_games=6, pitches_per_game=5, player_id=660271 + i)
+            for i in range(3)
+        ]
+        profiles = [_make_profile(660271 + i) for i in range(3)]
+        archetype_model = _make_fitted_archetype_model(profiles)
+        profile_lookup = {660271 + i: profiles[i] for i in range(3)}
+
+        # Build both ways
+        rows = build_hierarchical_windows(
+            contexts, tensorizer, config, BATTER_TARGET_STATS,
+            profile_lookup, archetype_model, stat_input_dim=19,
+        )
+        columnar = build_hierarchical_columnar(
+            contexts, tensorizer, config, BATTER_TARGET_STATS,
+            profile_lookup, archetype_model, stat_input_dim=19,
+        )
+
+        assert isinstance(columnar, dict)
+        assert columnar["__format__"] == "columnar_v1"
+
+        # Same number of windows
+        n = len(rows)
+        seq_lengths = columnar["seq_lengths"]
+        assert isinstance(seq_lengths, torch.Tensor)
+        assert seq_lengths.shape[0] == n
+
+        # Spot-check: targets and identity match
+        targets = columnar["targets"]
+        assert isinstance(targets, torch.Tensor)
+        for i in range(min(3, n)):
+            assert torch.equal(targets[i], rows[i][1])
+
+        # Context fields are flat with correct total length
+        pitch_ids = columnar["pitch_type_ids"]
+        assert isinstance(pitch_ids, torch.Tensor)
+        total_tokens = sum(r[0].seq_length for r in rows)
+        assert pitch_ids.shape[0] == total_tokens
 
 
 class TestHierarchicalFineTuneDatasetColumnar:

@@ -358,7 +358,7 @@ def prepare_data_cmd(
             HierarchicalFineTuneConfig,
         )
         from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
-            build_hierarchical_windows,
+            build_hierarchical_columnar,
         )
         from fantasy_baseball_manager.marcel.data_source import (
             create_batting_source,
@@ -425,14 +425,14 @@ def prepare_data_cmd(
         )
         console.print(f"  {len(train_contexts)} training player contexts")
 
-        console.print("  Building hierarchical sliding windows (train)...")
-        train_windows = build_hierarchical_windows(
+        console.print("  Building hierarchical sliding windows (train) → columnar...")
+        train_columnar = build_hierarchical_columnar(
             train_contexts, tensorizer, hier_config, target_stats,
             profile_lookup, arch_model, stat_input_dim,
         )
-        # Free raw contexts before building validation
         del train_contexts
-        console.print(f"  {len(train_windows)} training windows")
+        n_train = int(train_columnar["seq_lengths"].shape[0])  # type: ignore[union-attr]
+        console.print(f"  {n_train} training windows")
 
         console.print("  Building validation contexts...")
         val_contexts = build_player_contexts(
@@ -441,12 +441,13 @@ def prepare_data_cmd(
         )
         console.print(f"  {len(val_contexts)} validation player contexts")
 
-        console.print("  Building hierarchical sliding windows (val)...")
-        val_windows = build_hierarchical_windows(
+        console.print("  Building hierarchical sliding windows (val) → columnar...")
+        val_columnar = build_hierarchical_columnar(
             val_contexts, tensorizer, hier_config, target_stats,
             profile_lookup, arch_model, stat_input_dim,
         )
         del val_contexts
+        n_val = int(val_columnar["seq_lengths"].shape[0])  # type: ignore[union-attr]
 
         hier_meta = _build_finetune_meta(
             train_seasons, val_season_list, perspective, hier_context_window,
@@ -455,11 +456,11 @@ def prepare_data_cmd(
         )
         train_name = f"hier_finetune_{perspective}_train"
         val_name = f"hier_finetune_{perspective}_val"
-        data_store.save_hierarchical_finetune_data(train_name, train_windows, hier_meta)
-        data_store.save_hierarchical_finetune_data(val_name, val_windows, hier_meta)
+        data_store.save_hierarchical_finetune_columnar(train_name, train_columnar, hier_meta)
+        data_store.save_hierarchical_finetune_columnar(val_name, val_columnar, hier_meta)
 
         console.print(
-            f"  Saved {len(train_windows)} train + {len(val_windows)} val hierarchical windows"
+            f"  Saved {n_train} train + {n_val} val hierarchical windows"
         )
 
     console.print("[bold green]Done![/bold green]")
@@ -1468,7 +1469,7 @@ def hier_finetune_cmd(
     )
     from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
         HierarchicalFineTuneDataset,
-        build_hierarchical_windows,
+        build_hierarchical_columnar,
     )
     from fantasy_baseball_manager.contextual.training.hierarchical_finetune import (
         HierarchicalFineTuneTrainer,
@@ -1698,20 +1699,20 @@ def hier_finetune_cmd(
         )
         console.print(f"  {len(val_contexts)} validation player contexts")
 
-        console.print("Building hierarchical sliding windows...")
-        train_windows = build_hierarchical_windows(
+        console.print("Building hierarchical sliding windows → columnar...")
+        train_columnar = build_hierarchical_columnar(
             train_contexts, tensorizer, ft_config, target_stats,
             profile_lookup, arch_model, stat_input_dim,
         )
-        del train_contexts  # Free raw data
-        val_windows = build_hierarchical_windows(
+        del train_contexts
+        val_columnar = build_hierarchical_columnar(
             val_contexts, tensorizer, ft_config, target_stats,
             profile_lookup, arch_model, stat_input_dim,
         )
         del val_contexts
 
-        train_dataset = HierarchicalFineTuneDataset.from_windows(train_windows)
-        val_dataset = HierarchicalFineTuneDataset.from_windows(val_windows)
+        train_dataset = HierarchicalFineTuneDataset(train_columnar)
+        val_dataset = HierarchicalFineTuneDataset(val_columnar)
 
     console.print(f"  {len(train_dataset)} train samples, {len(val_dataset)} val samples")
 
