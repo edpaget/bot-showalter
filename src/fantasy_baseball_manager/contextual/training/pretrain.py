@@ -7,8 +7,10 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 import torch.nn.functional as F
+from sklearn.metrics import classification_report
 from torch.amp import GradScaler
 from torch.utils.data import DataLoader
 
@@ -21,6 +23,7 @@ from fantasy_baseball_manager.contextual.training.dataset import (
 )
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.contextual.data.vocab import Vocabulary
     from fantasy_baseball_manager.contextual.model.config import ModelConfig
     from fantasy_baseball_manager.contextual.model.model import ContextualPerformanceModel
     from fantasy_baseball_manager.contextual.persistence import ContextualModelStore
@@ -28,6 +31,84 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.contextual.training.dataset import MGMDataset
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class ClassificationDiagnostics:
+    """Diagnostics for a single classification head."""
+
+    majority_class: str
+    majority_baseline: float
+    model_accuracy: float
+    train_accuracy: float
+    report: dict[str, Any]
+    distribution: dict[str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class PreTrainDiagnostics:
+    """Full diagnostics from pre-training validation."""
+
+    pitch_type: ClassificationDiagnostics
+    pitch_result: ClassificationDiagnostics
+
+
+def compute_classification_diagnostics(
+    targets: np.ndarray,
+    preds: np.ndarray,
+    vocab: Vocabulary,
+    train_accuracy: float,
+) -> ClassificationDiagnostics:
+    """Compute classification diagnostics from target/prediction arrays.
+
+    Filters out PAD (index 0) and UNK (index 1) before computing metrics.
+
+    Args:
+        targets: Array of target class indices.
+        preds: Array of predicted class indices.
+        vocab: Vocabulary to map indices to class names.
+        train_accuracy: Train accuracy from final epoch (for overfitting detection).
+
+    Returns:
+        ClassificationDiagnostics with majority baseline, report, and distribution.
+    """
+    # Filter out PAD (0) and UNK (1)
+    valid_mask = (targets >= 2) & (preds >= 2)
+    targets = targets[valid_mask]
+    preds = preds[valid_mask]
+
+    idx_to_token = vocab.index_to_token
+
+    # Distribution
+    unique, counts = np.unique(targets, return_counts=True)
+    distribution: dict[str, int] = {}
+    for idx, count in zip(unique, counts, strict=True):
+        token = idx_to_token.get(int(idx), f"<idx_{idx}>")
+        distribution[token] = int(count)
+
+    # Majority class baseline
+    total = int(targets.shape[0])
+    majority_idx = int(unique[np.argmax(counts)])
+    majority_class = idx_to_token.get(majority_idx, f"<idx_{majority_idx}>")
+    majority_baseline = float(np.max(counts)) / total if total > 0 else 0.0
+
+    # Model accuracy
+    model_accuracy = float(np.mean(targets == preds)) if total > 0 else 0.0
+
+    # Classification report
+    target_names = [idx_to_token.get(int(u), f"<idx_{u}>") for u in unique]
+    report: dict[str, Any] = classification_report(
+        targets, preds, labels=unique.tolist(), target_names=target_names, output_dict=True, zero_division=0,
+    )
+
+    return ClassificationDiagnostics(
+        majority_class=majority_class,
+        majority_baseline=majority_baseline,
+        model_accuracy=model_accuracy,
+        train_accuracy=train_accuracy,
+        report=report,
+        distribution=distribution,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,11 +146,20 @@ class MGMTrainer:
         train_dataset: MGMDataset,
         val_dataset: MGMDataset,
         resume_from: str | None = None,
-    ) -> dict[str, float]:
+        pitch_type_vocab: Vocabulary | None = None,
+        pitch_result_vocab: Vocabulary | None = None,
+    ) -> dict[str, Any]:
         """Run the pre-training loop.
 
+        Args:
+            train_dataset: Training dataset.
+            val_dataset: Validation dataset.
+            resume_from: Checkpoint name to resume from.
+            pitch_type_vocab: If provided, detailed diagnostics are computed.
+            pitch_result_vocab: If provided, detailed diagnostics are computed.
+
         Returns:
-            Dict with final validation metrics.
+            Dict with final validation metrics and optional ``"diagnostics"`` key.
         """
         config = self._config
 
@@ -161,10 +251,13 @@ class MGMTrainer:
             val_metrics = self._validate(val_loader)
 
             logger.info(
-                "Epoch %d/%d — train_loss=%.4f val_loss=%.4f pt_acc=%.4f pr_acc=%.4f",
+                "Epoch %d/%d — train_loss=%.4f val_loss=%.4f"
+                " train_pt_acc=%.4f val_pt_acc=%.4f"
+                " train_pr_acc=%.4f val_pr_acc=%.4f",
                 epoch + 1, config.epochs,
                 train_metrics.loss, val_metrics.loss,
-                val_metrics.pitch_type_accuracy, val_metrics.pitch_result_accuracy,
+                train_metrics.pitch_type_accuracy, val_metrics.pitch_type_accuracy,
+                train_metrics.pitch_result_accuracy, val_metrics.pitch_result_accuracy,
             )
 
             # Track best
@@ -184,8 +277,9 @@ class MGMTrainer:
 
         # Save latest
         val_metrics = self._validate(val_loader)
+        final_train_metrics = train_metrics
         self._save_checkpoint(
-            "pretrain_latest", config.epochs - 1, train_metrics, val_metrics,
+            "pretrain_latest", config.epochs - 1, final_train_metrics, val_metrics,
             optimizer, global_step, best_val_loss,
         )
 
@@ -193,13 +287,22 @@ class MGMTrainer:
         if best_state_dict is not None:
             self._model.load_state_dict(best_state_dict)
 
-        return {
+        result: dict[str, Any] = {
             "val_loss": val_metrics.loss,
             "val_pitch_type_loss": val_metrics.pitch_type_loss,
             "val_pitch_result_loss": val_metrics.pitch_result_loss,
             "val_pitch_type_accuracy": val_metrics.pitch_type_accuracy,
             "val_pitch_result_accuracy": val_metrics.pitch_result_accuracy,
         }
+
+        # Detailed diagnostics (only when vocabs are provided)
+        if pitch_type_vocab is not None and pitch_result_vocab is not None:
+            diagnostics = self._validate_detailed(
+                val_loader, pitch_type_vocab, pitch_result_vocab, final_train_metrics,
+            )
+            result["diagnostics"] = diagnostics
+
+        return result
 
     def _train_epoch(
         self,
@@ -339,6 +442,52 @@ class MGMTrainer:
             pitch_result_accuracy=total_pr_correct / total_masked,
             num_masked_tokens=total_masked,
         )
+
+    @torch.no_grad()
+    def _validate_detailed(
+        self,
+        loader: DataLoader[MaskedSample],
+        pitch_type_vocab: Vocabulary,
+        pitch_result_vocab: Vocabulary,
+        train_metrics: TrainingMetrics,
+    ) -> PreTrainDiagnostics:
+        """Run a full validation pass collecting per-position predictions for diagnostics."""
+        self._model.eval()
+        all_pt_targets: list[torch.Tensor] = []
+        all_pt_preds: list[torch.Tensor] = []
+        all_pr_targets: list[torch.Tensor] = []
+        all_pr_preds: list[torch.Tensor] = []
+
+        for batch in loader:
+            batch = self._batch_to_device(batch)
+            tb = masked_batch_to_tensorized_batch(batch)
+
+            with torch.amp.autocast(self._device.type, enabled=self._config.amp_enabled):
+                output = self._model(tb)
+                pt_logits = output["pitch_type_logits"]
+                pr_logits = output["pitch_result_logits"]
+
+            mask = batch.mask_positions
+            n_masked = int(mask.sum().item())
+            if n_masked > 0:
+                all_pt_targets.append(batch.target_pitch_type_ids[mask].cpu())
+                all_pt_preds.append(pt_logits[mask].argmax(dim=-1).cpu())
+                all_pr_targets.append(batch.target_pitch_result_ids[mask].cpu())
+                all_pr_preds.append(pr_logits[mask].argmax(dim=-1).cpu())
+
+        pt_targets_np = torch.cat(all_pt_targets).numpy()
+        pt_preds_np = torch.cat(all_pt_preds).numpy()
+        pr_targets_np = torch.cat(all_pr_targets).numpy()
+        pr_preds_np = torch.cat(all_pr_preds).numpy()
+
+        pt_diag = compute_classification_diagnostics(
+            pt_targets_np, pt_preds_np, pitch_type_vocab, train_metrics.pitch_type_accuracy,
+        )
+        pr_diag = compute_classification_diagnostics(
+            pr_targets_np, pr_preds_np, pitch_result_vocab, train_metrics.pitch_result_accuracy,
+        )
+
+        return PreTrainDiagnostics(pitch_type=pt_diag, pitch_result=pr_diag)
 
     def _compute_loss(
         self,

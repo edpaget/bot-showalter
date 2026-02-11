@@ -316,6 +316,53 @@ def prepare_data_cmd(
     console.print("[bold green]Done![/bold green]")
 
 
+def _print_classification_report(
+    name: str,
+    diag: object,
+) -> None:
+    """Print a classification report for one head."""
+    from fantasy_baseball_manager.contextual.training.pretrain import ClassificationDiagnostics
+
+    assert isinstance(diag, ClassificationDiagnostics)
+
+    console.print(f"\n  [bold]{name}[/bold]")
+    console.print(f"    Majority class:    {diag.majority_class} ({diag.majority_baseline:.1%})")
+    console.print(f"    Model accuracy:    {diag.model_accuracy:.1%}")
+    console.print(f"    Train accuracy:    {diag.train_accuracy:.1%}")
+    gap = diag.train_accuracy - diag.model_accuracy
+    gap_color = "red" if gap > 0.05 else "green"
+    console.print(f"    Train-val gap:     [{gap_color}]{gap:+.1%}[/{gap_color}]")
+
+    # Distribution sorted by frequency
+    sorted_dist = sorted(diag.distribution.items(), key=lambda x: x[1], reverse=True)
+    console.print("    Distribution:")
+    for cls, count in sorted_dist:
+        pct = count / sum(diag.distribution.values()) * 100
+        console.print(f"      {cls:>25s}  {count:>6d}  ({pct:5.1f}%)")
+
+    # Per-class report table
+    console.print(f"    {'Class':>25s}  {'Prec':>6s}  {'Recall':>6s}  {'F1':>6s}  {'Support':>7s}")
+    console.print(f"    {'─' * 25}  {'─' * 6}  {'─' * 6}  {'─' * 6}  {'─' * 7}")
+    for cls, _count in sorted_dist:
+        if cls in diag.report:
+            r = diag.report[cls]
+            console.print(
+                f"    {cls:>25s}  {r['precision']:6.3f}  {r['recall']:6.3f}"
+                f"  {r['f1-score']:6.3f}  {int(r['support']):7d}"
+            )
+
+
+def _print_diagnostics(diagnostics: object) -> None:
+    """Print full pre-training diagnostics."""
+    from fantasy_baseball_manager.contextual.training.pretrain import PreTrainDiagnostics
+
+    assert isinstance(diagnostics, PreTrainDiagnostics)
+
+    console.print("\n[bold]Validation Diagnostics[/bold]")
+    _print_classification_report("Pitch Type", diagnostics.pitch_type)
+    _print_classification_report("Pitch Result", diagnostics.pitch_result)
+
+
 @contextual_app.command(name="pretrain")
 def pretrain_cmd(
     seasons: Annotated[
@@ -605,12 +652,22 @@ def pretrain_cmd(
     trainer = MGMTrainer(model, model_config, config, model_store, device)
 
     console.print("\nStarting pre-training...")
-    result = trainer.train(train_dataset, val_dataset, resume_from=resume_from)
+    result = trainer.train(
+        train_dataset, val_dataset, resume_from=resume_from,
+        pitch_type_vocab=PITCH_TYPE_VOCAB,
+        pitch_result_vocab=PITCH_RESULT_VOCAB,
+    )
 
     console.print("\n[bold]Training complete![/bold]")
     console.print(f"  Val loss:              {result['val_loss']:.4f}")
     console.print(f"  Val pitch type acc:    {result['val_pitch_type_accuracy']:.4f}")
     console.print(f"  Val pitch result acc:  {result['val_pitch_result_accuracy']:.4f}")
+
+    if "diagnostics" in result:
+        from fantasy_baseball_manager.contextual.training.pretrain import PreTrainDiagnostics
+
+        diagnostics: PreTrainDiagnostics = result["diagnostics"]
+        _print_diagnostics(diagnostics)
 
 
 @contextual_app.command(name="finetune")
