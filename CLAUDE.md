@@ -19,6 +19,27 @@ Fantasy baseball manager. Python 3.13+, uses `uv` for dependency management.
 - Favor cohesive modules with low coupling. Use dependency injection to manage dependencies between components — accept collaborators as constructor/function parameters rather than importing and instantiating them directly.
 - Lint with ruff using the project's configured rule set.
 
+## Planning
+
+This project uses two tiers of planning:
+
+1. **Roadmaps** (`/roadmap` skill) — High-level multi-phase plans written to `docs/plans/<topic>.md`. These describe what to build and in what order, but not implementation detail.
+2. **Phase plans** (built-in plan mode) — When implementing a specific phase from a roadmap, use plan mode to design the detailed implementation steps, then execute after approval.
+
+When asked to "create a plan", "write a plan", or "plan out" a feature — produce a **roadmap** document. Do NOT start implementing or exploring code for implementation purposes unless explicitly asked to implement.
+
+When implementing from a roadmap or plan document, read it first and implement exactly what it specifies. Do not expand scope beyond the plan unless asked.
+
+## Implementation Discipline
+
+When executing a plan (after plan-mode approval):
+
+- Follow TDD: write the failing test first, then the minimum code to pass.
+- After each major step, run `uv run pytest` to verify.
+- When all steps are complete, run the full quality gate: `uv run pytest`, `uv run ruff check src tests`, `uv run ty check src tests`.
+- Fix any failures before committing.
+- Commit with a conventional commit message referencing what was done.
+
 ## Git Conventions
 
 - Write commits in the **Conventional Commits** style: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, etc.
