@@ -132,20 +132,22 @@ class HierarchicalFineTuneDataset(Dataset[HierarchicalFineTuneSample]):
 
     def __getitem__(self, index: int) -> HierarchicalFineTuneSample:
         d = self._data
+        off = int(d["offsets"][index].item())  # type: ignore[union-attr]
         sl = int(d["seq_lengths"][index].item())  # type: ignore[union-attr]
+        end = off + sl
 
         context = TensorizedSingle(
-            pitch_type_ids=d["pitch_type_ids"][index, :sl],  # type: ignore[index]
-            pitch_result_ids=d["pitch_result_ids"][index, :sl],  # type: ignore[index]
-            bb_type_ids=d["bb_type_ids"][index, :sl],  # type: ignore[index]
-            stand_ids=d["stand_ids"][index, :sl],  # type: ignore[index]
-            p_throws_ids=d["p_throws_ids"][index, :sl],  # type: ignore[index]
-            pa_event_ids=d["pa_event_ids"][index, :sl],  # type: ignore[index]
-            numeric_features=d["numeric_features"][index, :sl],  # type: ignore[index]
-            numeric_mask=d["numeric_mask"][index, :sl],  # type: ignore[index]
-            padding_mask=d["padding_mask"][index, :sl],  # type: ignore[index]
-            player_token_mask=d["player_token_mask"][index, :sl],  # type: ignore[index]
-            game_ids=d["game_ids"][index, :sl],  # type: ignore[index]
+            pitch_type_ids=d["pitch_type_ids"][off:end],  # type: ignore[index]
+            pitch_result_ids=d["pitch_result_ids"][off:end],  # type: ignore[index]
+            bb_type_ids=d["bb_type_ids"][off:end],  # type: ignore[index]
+            stand_ids=d["stand_ids"][off:end],  # type: ignore[index]
+            p_throws_ids=d["p_throws_ids"][off:end],  # type: ignore[index]
+            pa_event_ids=d["pa_event_ids"][off:end],  # type: ignore[index]
+            numeric_features=d["numeric_features"][off:end],  # type: ignore[index]
+            numeric_mask=d["numeric_mask"][off:end],  # type: ignore[index]
+            padding_mask=d["padding_mask"][off:end],  # type: ignore[index]
+            player_token_mask=d["player_token_mask"][off:end],  # type: ignore[index]
+            game_ids=d["game_ids"][off:end],  # type: ignore[index]
             seq_length=sl,
         )
         return HierarchicalFineTuneSample(

@@ -141,7 +141,12 @@ class TestPreparedDataStore:
             assert isinstance(v, torch.Tensor)
             return v
 
-        assert t("pitch_type_ids").shape == (2, 8)  # max seq_len
+        # Context fields are flat (total_tokens = 5 + 8 = 13)
+        assert t("pitch_type_ids").shape == (13,)
+        assert t("offsets").shape == (2,)
+        assert t("offsets")[0].item() == 0
+        assert t("offsets")[1].item() == 5
+        # Per-window fields are stacked (N, ...)
         assert t("targets").shape == (2, 2)
         assert t("identity_features").shape == (2, 13)
         assert t("archetype_ids").shape == (2,)

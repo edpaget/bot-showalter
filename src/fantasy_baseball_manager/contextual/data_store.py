@@ -16,8 +16,6 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from fantasy_baseball_manager.contextual.model.tensorizer import PAD_GAME_ID
-
 if TYPE_CHECKING:
     from fantasy_baseball_manager.contextual.model.tensorizer import TensorizedSingle
 
@@ -27,13 +25,18 @@ logger = logging.getLogger(__name__)
 def _hierarchical_rows_to_columnar(
     windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor, torch.Tensor, int]],
 ) -> dict[str, torch.Tensor | str]:
-    """Convert list-of-tuples hierarchical data to columnar dict of stacked tensors.
+    """Convert list-of-tuples hierarchical data to flat columnar dict.
 
-    Pre-allocates stacked tensors at global max sequence length, then copies each
-    window's data via slice assignment.
+    Context fields are concatenated flat (no padding) with an ``offsets`` tensor
+    for O(1) indexing into the flat buffer.  This uses exactly the same memory as
+    the original sequences — zero padding waste regardless of max_seq_len.
+
+    Per-window fields (targets, identity, etc.) are stacked normally since they
+    have uniform shape.
 
     Returns:
-        Dict with format marker ``"__format__": "columnar_v1"`` and stacked tensors.
+        Dict with format marker ``"__format__": "columnar_v1"`` and flat/stacked
+        tensors.
     """
     n = len(windows)
     if n == 0:
@@ -45,43 +48,46 @@ def _hierarchical_rows_to_columnar(
     n_targets = windows[0][1].shape[0]
     stat_input_dim = windows[0][3].shape[0]
 
-    # Find global max sequence length
-    max_seq = max(w[0].seq_length for w in windows)
+    # Collect seq lengths and compute total tokens / offsets
+    seq_lengths = torch.tensor([w[0].seq_length for w in windows], dtype=torch.long)
+    total_tokens = int(seq_lengths.sum().item())
+    offsets = torch.zeros(n, dtype=torch.long)
+    if n > 1:
+        offsets[1:] = seq_lengths[:-1].cumsum(0)
 
-    # Pre-allocate context fields (padded)
-    pitch_type_ids = torch.zeros(n, max_seq, dtype=torch.long)
-    pitch_result_ids = torch.zeros(n, max_seq, dtype=torch.long)
-    bb_type_ids = torch.zeros(n, max_seq, dtype=torch.long)
-    stand_ids = torch.zeros(n, max_seq, dtype=torch.long)
-    p_throws_ids = torch.zeros(n, max_seq, dtype=torch.long)
-    pa_event_ids = torch.zeros(n, max_seq, dtype=torch.long)
-    numeric_features = torch.zeros(n, max_seq, n_numeric, dtype=torch.float32)
-    numeric_mask = torch.zeros(n, max_seq, n_numeric, dtype=torch.bool)
-    padding_mask = torch.zeros(n, max_seq, dtype=torch.bool)
-    player_token_mask = torch.zeros(n, max_seq, dtype=torch.bool)
-    game_ids = torch.full((n, max_seq), PAD_GAME_ID, dtype=torch.long)
-    seq_lengths = torch.zeros(n, dtype=torch.long)
+    # Pre-allocate flat context fields — zero padding waste
+    pitch_type_ids = torch.zeros(total_tokens, dtype=torch.long)
+    pitch_result_ids = torch.zeros(total_tokens, dtype=torch.long)
+    bb_type_ids = torch.zeros(total_tokens, dtype=torch.long)
+    stand_ids = torch.zeros(total_tokens, dtype=torch.long)
+    p_throws_ids = torch.zeros(total_tokens, dtype=torch.long)
+    pa_event_ids = torch.zeros(total_tokens, dtype=torch.long)
+    numeric_features = torch.zeros(total_tokens, n_numeric, dtype=torch.float32)
+    numeric_mask = torch.zeros(total_tokens, n_numeric, dtype=torch.bool)
+    padding_mask = torch.zeros(total_tokens, dtype=torch.bool)
+    player_token_mask = torch.zeros(total_tokens, dtype=torch.bool)
+    game_ids = torch.zeros(total_tokens, dtype=torch.long)
 
-    # Per-window fields
+    # Per-window fields (uniform shape, stacked)
     targets = torch.zeros(n, n_targets, dtype=torch.float32)
     context_mean = torch.zeros(n, n_targets, dtype=torch.float32)
     identity_features = torch.zeros(n, stat_input_dim, dtype=torch.float32)
     archetype_ids = torch.zeros(n, dtype=torch.long)
 
     for i, (ctx, tgt, cm, id_feat, arch_id) in enumerate(windows):
+        off = int(offsets[i].item())
         sl = ctx.seq_length
-        pitch_type_ids[i, :sl] = ctx.pitch_type_ids
-        pitch_result_ids[i, :sl] = ctx.pitch_result_ids
-        bb_type_ids[i, :sl] = ctx.bb_type_ids
-        stand_ids[i, :sl] = ctx.stand_ids
-        p_throws_ids[i, :sl] = ctx.p_throws_ids
-        pa_event_ids[i, :sl] = ctx.pa_event_ids
-        numeric_features[i, :sl] = ctx.numeric_features
-        numeric_mask[i, :sl] = ctx.numeric_mask
-        padding_mask[i, :sl] = ctx.padding_mask
-        player_token_mask[i, :sl] = ctx.player_token_mask
-        game_ids[i, :sl] = ctx.game_ids
-        seq_lengths[i] = sl
+        pitch_type_ids[off:off + sl] = ctx.pitch_type_ids
+        pitch_result_ids[off:off + sl] = ctx.pitch_result_ids
+        bb_type_ids[off:off + sl] = ctx.bb_type_ids
+        stand_ids[off:off + sl] = ctx.stand_ids
+        p_throws_ids[off:off + sl] = ctx.p_throws_ids
+        pa_event_ids[off:off + sl] = ctx.pa_event_ids
+        numeric_features[off:off + sl] = ctx.numeric_features
+        numeric_mask[off:off + sl] = ctx.numeric_mask
+        padding_mask[off:off + sl] = ctx.padding_mask
+        player_token_mask[off:off + sl] = ctx.player_token_mask
+        game_ids[off:off + sl] = ctx.game_ids
 
         targets[i] = tgt
         context_mean[i] = cm
@@ -90,6 +96,8 @@ def _hierarchical_rows_to_columnar(
 
     return {
         "__format__": "columnar_v1",
+        "offsets": offsets,
+        "seq_lengths": seq_lengths,
         "pitch_type_ids": pitch_type_ids,
         "pitch_result_ids": pitch_result_ids,
         "bb_type_ids": bb_type_ids,
@@ -101,7 +109,6 @@ def _hierarchical_rows_to_columnar(
         "padding_mask": padding_mask,
         "player_token_mask": player_token_mask,
         "game_ids": game_ids,
-        "seq_lengths": seq_lengths,
         "targets": targets,
         "context_mean": context_mean,
         "identity_features": identity_features,
