@@ -411,8 +411,8 @@ class TestRateModeInference:
         assert player.rates["hbp"] == marcel_player.rates["hbp"]
 
     def test_legacy_mode_still_works(self) -> None:
-        """When rate_mode=False (default), existing count-based path is used."""
-        config = ContextualRateComputerConfig()
+        """When rate_mode=False, existing count-based path is used."""
+        config = ContextualRateComputerConfig(rate_mode=False)
         assert config.rate_mode is False
 
 
