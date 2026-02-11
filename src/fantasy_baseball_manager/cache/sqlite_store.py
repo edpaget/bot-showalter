@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from queue import Empty, Queue
@@ -18,21 +19,33 @@ class SqliteConnectionPool:
         self._db_path = db_path
         self._max_connections = max_connections
         self._pool: Queue[sqlite3.Connection] = Queue(maxsize=max_connections)
+        self._schema_lock = threading.Lock()
+        self._schema_initialized = False
+
+    def _ensure_initialized(self, conn: sqlite3.Connection) -> None:
+        if self._schema_initialized:
+            return
+        with self._schema_lock:
+            if self._schema_initialized:
+                return
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS cache ("
+                "  namespace TEXT NOT NULL,"
+                "  key TEXT NOT NULL,"
+                "  value TEXT NOT NULL,"
+                "  expires_at REAL NOT NULL,"
+                "  PRIMARY KEY (namespace, key)"
+                ")"
+            )
+            self._schema_initialized = True
 
     def _create_connection(self) -> sqlite3.Connection:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
-        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=5000")
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS cache ("
-            "  namespace TEXT NOT NULL,"
-            "  key TEXT NOT NULL,"
-            "  value TEXT NOT NULL,"
-            "  expires_at REAL NOT NULL,"
-            "  PRIMARY KEY (namespace, key)"
-            ")"
-        )
+        self._ensure_initialized(conn)
+        conn.execute("PRAGMA journal_mode=WAL")
         return conn
 
     @contextmanager
