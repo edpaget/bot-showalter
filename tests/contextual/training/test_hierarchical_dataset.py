@@ -24,6 +24,7 @@ from fantasy_baseball_manager.contextual.training.config import (
 from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
     HierarchicalFineTuneBatch,
     HierarchicalFineTuneDataset,
+    HierarchicalFineTuneSample,
     build_hierarchical_windows,
     collate_hierarchical_samples,
 )
@@ -134,6 +135,86 @@ class TestBuildHierarchicalWindows:
         assert archetype_id == 0
 
 
+class TestHierarchicalFineTuneDatasetColumnar:
+    def test_from_windows_creates_columnar_dataset(self, small_config: ModelConfig) -> None:
+        tensorizer = _build_tensorizer(small_config)
+        config = HierarchicalFineTuneConfig(
+            context_window=2, target_mode="counts", min_games=3,
+        )
+        contexts = [make_player_context(n_games=6, pitches_per_game=5, player_id=660271)]
+        profiles = [_make_profile(660271)]
+        archetype_model = _make_fitted_archetype_model(profiles)
+        profile_lookup = {660271: profiles[0]}
+
+        windows = build_hierarchical_windows(
+            contexts, tensorizer, config, BATTER_TARGET_STATS,
+            profile_lookup, archetype_model, stat_input_dim=19,
+        )
+        dataset = HierarchicalFineTuneDataset.from_windows(windows)
+
+        assert len(dataset) > 0
+        sample = dataset[0]
+        assert isinstance(sample, HierarchicalFineTuneSample)
+        assert sample.identity_features.shape == (19,)
+        assert isinstance(sample.archetype_id, int)
+        assert sample.context.seq_length > 0
+
+    def test_dict_constructor_indexes_correctly(self, small_config: ModelConfig) -> None:
+        tensorizer = _build_tensorizer(small_config)
+        config = HierarchicalFineTuneConfig(
+            context_window=2, target_mode="counts", min_games=3,
+        )
+        contexts = [
+            make_player_context(n_games=6, pitches_per_game=5, player_id=660271 + i)
+            for i in range(3)
+        ]
+        profiles = [_make_profile(660271 + i) for i in range(3)]
+        archetype_model = _make_fitted_archetype_model(profiles)
+        profile_lookup = {660271 + i: profiles[i] for i in range(3)}
+
+        windows = build_hierarchical_windows(
+            contexts, tensorizer, config, BATTER_TARGET_STATS,
+            profile_lookup, archetype_model, stat_input_dim=19,
+        )
+        # Build both old-style and new-style datasets
+        old_dataset = HierarchicalFineTuneDataset.from_windows(windows)
+
+        # Verify samples match original windows
+        for i in range(min(3, len(windows))):
+            sample = old_dataset[i]
+            orig_ctx, orig_targets, orig_cm, orig_id, orig_arch = windows[i]
+            assert sample.context.seq_length == orig_ctx.seq_length
+            assert torch.equal(sample.targets, orig_targets)
+            assert torch.equal(sample.context_mean, orig_cm)
+            assert torch.equal(sample.identity_features, orig_id)
+            assert sample.archetype_id == orig_arch
+            # Context tensors should match (trimmed from padded)
+            assert torch.equal(sample.context.pitch_type_ids, orig_ctx.pitch_type_ids)
+
+    def test_compute_target_std(self, small_config: ModelConfig) -> None:
+        tensorizer = _build_tensorizer(small_config)
+        config = HierarchicalFineTuneConfig(
+            context_window=2, target_mode="counts", min_games=3,
+        )
+        contexts = [
+            make_player_context(n_games=6, pitches_per_game=5, player_id=660271 + i)
+            for i in range(3)
+        ]
+        profiles = [_make_profile(660271 + i) for i in range(3)]
+        archetype_model = _make_fitted_archetype_model(profiles)
+        profile_lookup = {660271 + i: profiles[i] for i in range(3)}
+
+        windows = build_hierarchical_windows(
+            contexts, tensorizer, config, BATTER_TARGET_STATS,
+            profile_lookup, archetype_model, stat_input_dim=19,
+        )
+        dataset = HierarchicalFineTuneDataset.from_windows(windows)
+
+        target_std = dataset.compute_target_std()
+        assert target_std.shape == (len(BATTER_TARGET_STATS),)
+        assert (target_std >= 1e-6).all()  # clamped
+
+
 class TestCollateHierarchicalSamples:
     def test_produces_correct_batch_shapes(self, small_config: ModelConfig) -> None:
         tensorizer = _build_tensorizer(small_config)
@@ -152,7 +233,7 @@ class TestCollateHierarchicalSamples:
             contexts, tensorizer, config, BATTER_TARGET_STATS,
             profile_lookup, archetype_model, stat_input_dim=19,
         )
-        dataset = HierarchicalFineTuneDataset(windows)
+        dataset = HierarchicalFineTuneDataset.from_windows(windows)
 
         # Collate first 2 samples
         samples = [dataset[0], dataset[1]]

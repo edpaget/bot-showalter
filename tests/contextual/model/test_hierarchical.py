@@ -548,8 +548,8 @@ class TestIntegration:
             contexts[:2], tensorizer, ft_config, BATTER_TARGET_STATS,
             profile_lookup, arch_model, stat_input_dim=hc.batter_stat_input_dim,
         )
-        train_ds = HierarchicalFineTuneDataset(train_windows)
-        val_ds = HierarchicalFineTuneDataset(val_windows)
+        train_ds = HierarchicalFineTuneDataset.from_windows(train_windows)
+        val_ds = HierarchicalFineTuneDataset.from_windows(val_windows)
 
         # 5. Train 2 epochs
         store = ContextualModelStore(model_dir=tmp_path)

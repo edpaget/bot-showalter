@@ -132,7 +132,10 @@ def _make_datasets(
         profile_lookup, archetype_model, stat_input_dim=hc.batter_stat_input_dim,
     )
 
-    return HierarchicalFineTuneDataset(train_windows), HierarchicalFineTuneDataset(val_windows)
+    return (
+        HierarchicalFineTuneDataset.from_windows(train_windows),
+        HierarchicalFineTuneDataset.from_windows(val_windows),
+    )
 
 
 def _make_model(config: ModelConfig, hc: HierarchicalModelConfig) -> HierarchicalModel:

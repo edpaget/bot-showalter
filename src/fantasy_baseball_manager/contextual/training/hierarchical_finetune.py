@@ -11,9 +11,6 @@ import torch
 from torch.utils.data import DataLoader
 
 from fantasy_baseball_manager.contextual.persistence import ContextualModelMetadata
-from fantasy_baseball_manager.contextual.training.dataset import (
-    compute_target_statistics,
-)
 from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
     HierarchicalFineTuneBatch,
     HierarchicalFineTuneSample,
@@ -126,9 +123,7 @@ class HierarchicalFineTuneTrainer:
         )
 
         # Compute per-stat loss weights (inverse variance, normalized)
-        # Extract base (tensorized, targets, weights) tuples for compute_target_statistics
-        base_windows = [(w[0], w[1], w[2]) for w in train_dataset._windows]
-        target_std = compute_target_statistics(base_windows)[1]
+        target_std = train_dataset.compute_target_std()
         weights = 1.0 / (target_std ** 2)
         weights = weights / weights.sum() * len(weights)
         self._loss_weights = weights.to(self._device)

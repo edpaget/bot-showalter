@@ -1577,9 +1577,9 @@ def hier_finetune_cmd(
         stat_input_dim=stat_input_dim,
     )
 
-    # Try loading prepared data
-    train_windows = None
-    val_windows = None
+    # Try loading prepared data (columnar dict)
+    train_dataset: HierarchicalFineTuneDataset | None = None
+    val_dataset: HierarchicalFineTuneDataset | None = None
 
     if prepared_data:
         from fantasy_baseball_manager.contextual.data_store import PreparedDataStore
@@ -1597,12 +1597,16 @@ def hier_finetune_cmd(
             stored_meta = data_store.load_meta(train_name)
             if stored_meta == expected_meta:
                 console.print("\nLoading prepared hierarchical data...")
-                train_windows = data_store.load_hierarchical_finetune_data(train_name)
-                val_windows = data_store.load_hierarchical_finetune_data(val_name)
+                train_data = data_store.load_hierarchical_finetune_data(train_name)
+                val_data = data_store.load_hierarchical_finetune_data(val_name)
+                n_train = int(train_data["seq_lengths"].shape[0])  # type: ignore[union-attr]
+                n_val = int(val_data["seq_lengths"].shape[0])  # type: ignore[union-attr]
                 console.print(
-                    f"  Loaded prepared data ({len(train_windows)} train, "
-                    f"{len(val_windows)} val windows)"
+                    f"  Loaded prepared data ({n_train} train, "
+                    f"{n_val} val windows)"
                 )
+                train_dataset = HierarchicalFineTuneDataset(train_data)
+                val_dataset = HierarchicalFineTuneDataset(val_data)
             else:
                 console.print("[red]Prepared data exists but parameters don't match:[/red]")
                 _log_meta_mismatch(stored_meta, expected_meta)
@@ -1611,7 +1615,7 @@ def hier_finetune_cmd(
                     "or use --no-prepared-data to build inline."
                 )
 
-    if train_windows is None or val_windows is None:
+    if train_dataset is None or val_dataset is None:
         # Build or load identity
         if archetype_model_name is not None:
             console.print(f"\nLoading archetype model '{archetype_model_name}'...")
@@ -1706,8 +1710,9 @@ def hier_finetune_cmd(
         )
         del val_contexts
 
-    train_dataset = HierarchicalFineTuneDataset(train_windows)
-    val_dataset = HierarchicalFineTuneDataset(val_windows)
+        train_dataset = HierarchicalFineTuneDataset.from_windows(train_windows)
+        val_dataset = HierarchicalFineTuneDataset.from_windows(val_windows)
+
     console.print(f"  {len(train_dataset)} train samples, {len(val_dataset)} val samples")
 
     # Device selection

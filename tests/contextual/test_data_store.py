@@ -112,3 +112,70 @@ class TestPreparedDataStore:
             raise AssertionError("Expected FileNotFoundError")
         except FileNotFoundError:
             pass
+
+    def test_save_and_load_hierarchical_columnar(self, tmp_path: Path) -> None:
+        """Hierarchical save produces columnar dict; load round-trips correctly."""
+        store = PreparedDataStore(data_dir=tmp_path)
+        ts1 = _make_tensorized_single(5)
+        ts2 = _make_tensorized_single(8)
+        targets1 = torch.tensor([1.0, 0.5])
+        targets2 = torch.tensor([0.0, 1.0])
+        cm1 = torch.tensor([0.3, 0.2])
+        cm2 = torch.tensor([0.1, 0.4])
+        id1 = torch.randn(13)
+        id2 = torch.randn(13)
+        windows = [
+            (ts1, targets1, cm1, id1, 2),
+            (ts2, targets2, cm2, id2, 0),
+        ]
+        meta = {"perspective": "pitcher"}
+
+        store.save_hierarchical_finetune_data("hier_test", windows, meta)
+        loaded = store.load_hierarchical_finetune_data("hier_test")
+
+        assert isinstance(loaded, dict)
+        assert loaded["__format__"] == "columnar_v1"
+
+        def t(key: str) -> torch.Tensor:
+            v = loaded[key]
+            assert isinstance(v, torch.Tensor)
+            return v
+
+        assert t("pitch_type_ids").shape == (2, 8)  # max seq_len
+        assert t("targets").shape == (2, 2)
+        assert t("identity_features").shape == (2, 13)
+        assert t("archetype_ids").shape == (2,)
+        assert t("seq_lengths").shape == (2,)
+        assert t("seq_lengths")[0].item() == 5
+        assert t("seq_lengths")[1].item() == 8
+        # Values preserved
+        assert torch.equal(t("targets")[0], targets1)
+        assert torch.equal(t("targets")[1], targets2)
+        assert torch.allclose(t("identity_features")[0], id1)
+        assert t("archetype_ids")[0].item() == 2
+        assert t("archetype_ids")[1].item() == 0
+
+    def test_load_hierarchical_legacy_format(self, tmp_path: Path) -> None:
+        """Loading a legacy list-of-tuples .pt file returns columnar dict with warning."""
+        store = PreparedDataStore(data_dir=tmp_path)
+        ts1 = _make_tensorized_single(5)
+        targets = torch.tensor([1.0, 0.5])
+        cm = torch.tensor([0.3, 0.2])
+        identity = torch.randn(13)
+        legacy_windows = [(ts1, targets, cm, identity, 1)]
+
+        # Save in legacy format directly (bypass the new save)
+        pt_path = tmp_path / "legacy_hier.pt"
+        torch.save(legacy_windows, pt_path)
+
+        # Load should detect legacy and convert on-the-fly
+        loaded = store.load_hierarchical_finetune_data("legacy_hier")
+
+        assert isinstance(loaded, dict)
+        assert loaded["__format__"] == "columnar_v1"
+        targets_t = loaded["targets"]
+        assert isinstance(targets_t, torch.Tensor)
+        assert targets_t.shape == (1, 2)
+        seq_lengths_t = loaded["seq_lengths"]
+        assert isinstance(seq_lengths_t, torch.Tensor)
+        assert seq_lengths_t[0].item() == 5

@@ -105,26 +105,60 @@ def build_hierarchical_windows(
 
 
 class HierarchicalFineTuneDataset(Dataset[HierarchicalFineTuneSample]):
-    """Wraps pre-built hierarchical sliding window examples."""
+    """Wraps pre-built hierarchical sliding window examples in columnar format.
 
-    def __init__(
-        self,
+    Stores all data as stacked tensors (columnar) for minimal memory overhead.
+    Individual samples are sliced out and trimmed to their true sequence length
+    on ``__getitem__``.
+    """
+
+    def __init__(self, data: dict[str, torch.Tensor | str]) -> None:
+        self._data = data
+
+    @classmethod
+    def from_windows(
+        cls,
         windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor, torch.Tensor, int]],
-    ) -> None:
-        self._windows = windows
+    ) -> HierarchicalFineTuneDataset:
+        """Build a columnar dataset from a list of per-window tuples."""
+        from fantasy_baseball_manager.contextual.data_store import (
+            _hierarchical_rows_to_columnar,
+        )
+
+        return cls(_hierarchical_rows_to_columnar(windows))
 
     def __len__(self) -> int:
-        return len(self._windows)
+        return int(self._data["seq_lengths"].shape[0])  # type: ignore[union-attr]
 
     def __getitem__(self, index: int) -> HierarchicalFineTuneSample:
-        context, targets, context_mean, identity_features, archetype_id = self._windows[index]
+        d = self._data
+        sl = int(d["seq_lengths"][index].item())  # type: ignore[union-attr]
+
+        context = TensorizedSingle(
+            pitch_type_ids=d["pitch_type_ids"][index, :sl],  # type: ignore[index]
+            pitch_result_ids=d["pitch_result_ids"][index, :sl],  # type: ignore[index]
+            bb_type_ids=d["bb_type_ids"][index, :sl],  # type: ignore[index]
+            stand_ids=d["stand_ids"][index, :sl],  # type: ignore[index]
+            p_throws_ids=d["p_throws_ids"][index, :sl],  # type: ignore[index]
+            pa_event_ids=d["pa_event_ids"][index, :sl],  # type: ignore[index]
+            numeric_features=d["numeric_features"][index, :sl],  # type: ignore[index]
+            numeric_mask=d["numeric_mask"][index, :sl],  # type: ignore[index]
+            padding_mask=d["padding_mask"][index, :sl],  # type: ignore[index]
+            player_token_mask=d["player_token_mask"][index, :sl],  # type: ignore[index]
+            game_ids=d["game_ids"][index, :sl],  # type: ignore[index]
+            seq_length=sl,
+        )
         return HierarchicalFineTuneSample(
             context=context,
-            targets=targets,
-            context_mean=context_mean,
-            identity_features=identity_features,
-            archetype_id=archetype_id,
+            targets=d["targets"][index],  # type: ignore[index]
+            context_mean=d["context_mean"][index],  # type: ignore[index]
+            identity_features=d["identity_features"][index],  # type: ignore[index]
+            archetype_id=int(d["archetype_ids"][index].item()),  # type: ignore[union-attr]
         )
+
+    def compute_target_std(self) -> torch.Tensor:
+        """Per-stat standard deviation of targets, clamped to >= 1e-6."""
+        return self._data["targets"].std(dim=0).clamp(min=1e-6)  # type: ignore[union-attr]
 
 
 def collate_hierarchical_samples(
