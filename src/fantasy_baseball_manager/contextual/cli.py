@@ -997,6 +997,7 @@ def finetune_cmd(
     model_store = registry.contextual_store
     pretrain_state = torch.load(model_store._model_path(base_model), weights_only=True, map_location="cpu")
     pretrain_seq_len: int = pretrain_state["positional_encoding.pe"].shape[1]
+    del pretrain_state  # Free state dict — backbone is loaded separately below
     if max_seq_len is None:
         max_seq_len = pretrain_seq_len
         console.print(f"  Auto-detected max_seq_len={max_seq_len} from pretrained model")
@@ -1495,6 +1496,7 @@ def hier_finetune_cmd(
     model_store = registry.contextual_store
     pretrain_state = torch.load(model_store._model_path(base_model), weights_only=True, map_location="cpu")
     pretrain_seq_len: int = pretrain_state["positional_encoding.pe"].shape[1]
+    del pretrain_state  # Free state dict — backbone is loaded separately below
     if max_seq_len is None:
         max_seq_len = pretrain_seq_len
         console.print(f"  Auto-detected max_seq_len={max_seq_len} from pretrained model")

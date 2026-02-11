@@ -198,21 +198,22 @@ def build_hierarchical_columnar(
     if n_windows > 1:
         offsets[1:] = seq_lengths[:-1].cumsum(0)
 
+    # Categorical IDs stored as int16 (vocab sizes < 100) to save 75% vs int64
     return {
         "__format__": "columnar_v1",
         "offsets": offsets,
         "seq_lengths": seq_lengths,
-        "pitch_type_ids": torch.cat(pitch_type_ids_parts),
-        "pitch_result_ids": torch.cat(pitch_result_ids_parts),
-        "bb_type_ids": torch.cat(bb_type_ids_parts),
-        "stand_ids": torch.cat(stand_ids_parts),
-        "p_throws_ids": torch.cat(p_throws_ids_parts),
-        "pa_event_ids": torch.cat(pa_event_ids_parts),
+        "pitch_type_ids": torch.cat(pitch_type_ids_parts).to(torch.int16),
+        "pitch_result_ids": torch.cat(pitch_result_ids_parts).to(torch.int16),
+        "bb_type_ids": torch.cat(bb_type_ids_parts).to(torch.int16),
+        "stand_ids": torch.cat(stand_ids_parts).to(torch.int16),
+        "p_throws_ids": torch.cat(p_throws_ids_parts).to(torch.int16),
+        "pa_event_ids": torch.cat(pa_event_ids_parts).to(torch.int16),
         "numeric_features": torch.cat(numeric_features_parts),
         "numeric_mask": torch.cat(numeric_mask_parts),
         "padding_mask": torch.cat(padding_mask_parts),
         "player_token_mask": torch.cat(player_token_mask_parts),
-        "game_ids": torch.cat(game_ids_parts),
+        "game_ids": torch.cat(game_ids_parts).to(torch.int16),
         "targets": torch.stack(targets_list),
         "context_mean": torch.stack(context_mean_list),
         "identity_features": torch.stack(identity_features_list),
@@ -252,18 +253,19 @@ class HierarchicalFineTuneDataset(Dataset[HierarchicalFineTuneSample]):
         sl = int(d["seq_lengths"][index].item())  # type: ignore[union-attr]
         end = off + sl
 
+        # .long() handles both int16 (new format) and int64 (old format)
         context = TensorizedSingle(
-            pitch_type_ids=d["pitch_type_ids"][off:end],  # type: ignore[index]
-            pitch_result_ids=d["pitch_result_ids"][off:end],  # type: ignore[index]
-            bb_type_ids=d["bb_type_ids"][off:end],  # type: ignore[index]
-            stand_ids=d["stand_ids"][off:end],  # type: ignore[index]
-            p_throws_ids=d["p_throws_ids"][off:end],  # type: ignore[index]
-            pa_event_ids=d["pa_event_ids"][off:end],  # type: ignore[index]
+            pitch_type_ids=d["pitch_type_ids"][off:end].long(),  # type: ignore[union-attr]
+            pitch_result_ids=d["pitch_result_ids"][off:end].long(),  # type: ignore[union-attr]
+            bb_type_ids=d["bb_type_ids"][off:end].long(),  # type: ignore[union-attr]
+            stand_ids=d["stand_ids"][off:end].long(),  # type: ignore[union-attr]
+            p_throws_ids=d["p_throws_ids"][off:end].long(),  # type: ignore[union-attr]
+            pa_event_ids=d["pa_event_ids"][off:end].long(),  # type: ignore[union-attr]
             numeric_features=d["numeric_features"][off:end],  # type: ignore[index]
             numeric_mask=d["numeric_mask"][off:end],  # type: ignore[index]
             padding_mask=d["padding_mask"][off:end],  # type: ignore[index]
             player_token_mask=d["player_token_mask"][off:end],  # type: ignore[index]
-            game_ids=d["game_ids"][off:end],  # type: ignore[index]
+            game_ids=d["game_ids"][off:end].long(),  # type: ignore[union-attr]
             seq_length=sl,
         )
         return HierarchicalFineTuneSample(

@@ -55,18 +55,19 @@ def _hierarchical_rows_to_columnar(
     if n > 1:
         offsets[1:] = seq_lengths[:-1].cumsum(0)
 
-    # Pre-allocate flat context fields — zero padding waste
-    pitch_type_ids = torch.zeros(total_tokens, dtype=torch.long)
-    pitch_result_ids = torch.zeros(total_tokens, dtype=torch.long)
-    bb_type_ids = torch.zeros(total_tokens, dtype=torch.long)
-    stand_ids = torch.zeros(total_tokens, dtype=torch.long)
-    p_throws_ids = torch.zeros(total_tokens, dtype=torch.long)
-    pa_event_ids = torch.zeros(total_tokens, dtype=torch.long)
+    # Pre-allocate flat context fields — zero padding waste.
+    # Categorical IDs use int16 (vocab sizes < 100) to save 75% vs int64.
+    pitch_type_ids = torch.zeros(total_tokens, dtype=torch.int16)
+    pitch_result_ids = torch.zeros(total_tokens, dtype=torch.int16)
+    bb_type_ids = torch.zeros(total_tokens, dtype=torch.int16)
+    stand_ids = torch.zeros(total_tokens, dtype=torch.int16)
+    p_throws_ids = torch.zeros(total_tokens, dtype=torch.int16)
+    pa_event_ids = torch.zeros(total_tokens, dtype=torch.int16)
     numeric_features = torch.zeros(total_tokens, n_numeric, dtype=torch.float32)
     numeric_mask = torch.zeros(total_tokens, n_numeric, dtype=torch.bool)
     padding_mask = torch.zeros(total_tokens, dtype=torch.bool)
     player_token_mask = torch.zeros(total_tokens, dtype=torch.bool)
-    game_ids = torch.zeros(total_tokens, dtype=torch.long)
+    game_ids = torch.zeros(total_tokens, dtype=torch.int16)
 
     # Per-window fields (uniform shape, stacked)
     targets = torch.zeros(n, n_targets, dtype=torch.float32)
@@ -209,26 +210,35 @@ class PreparedDataStore:
         pt_path = self._pt_path(name)
         if not pt_path.exists():
             raise FileNotFoundError(f"Prepared data not found: {pt_path}")
-        raw: object = torch.load(pt_path, weights_only=False)
+        # Try mmap first (columnar format) — avoids loading all data into RAM;
+        # the OS pages data in/out as needed.
+        raw: object = torch.load(pt_path, weights_only=False, mmap=True)
         if isinstance(raw, dict) and raw.get("__format__") == "columnar_v1":
             n = int(raw["seq_lengths"].shape[0])
-            logger.info("Loaded %d hierarchical finetune windows (columnar) from %s", n, pt_path)
+            total_tokens = int(raw["seq_lengths"].sum().item())
+            logger.info(
+                "Loaded %d hierarchical finetune windows (%d total tokens, mmap) from %s",
+                n, total_tokens, pt_path,
+            )
             return raw
-        # Legacy list-of-tuples format
-        if isinstance(raw, list):
+        # Legacy list-of-tuples format — re-load without mmap for conversion
+        del raw
+        raw_legacy: object = torch.load(pt_path, weights_only=False)
+        if isinstance(raw_legacy, list):
             warnings.warn(
                 f"Loading legacy row-oriented hierarchical data from {pt_path}. "
                 "Re-run 'prepare-data --mode hier-finetune' to save in columnar format.",
                 DeprecationWarning,
                 stacklevel=2,
             )
-            columnar = _hierarchical_rows_to_columnar(raw)
+            columnar = _hierarchical_rows_to_columnar(raw_legacy)
+            del raw_legacy
             logger.info(
                 "Loaded and converted %d legacy hierarchical finetune windows from %s",
-                len(raw), pt_path,
+                columnar["seq_lengths"].shape[0], pt_path,  # type: ignore[union-attr]
             )
             return columnar
-        raise TypeError(f"Unexpected data format in {pt_path}: {type(raw)}")
+        raise TypeError(f"Unexpected data format in {pt_path}: {type(raw_legacy)}")
 
     def load_meta(self, name: str) -> dict[str, Any] | None:
         """Load {name}_meta.json, or None if missing."""

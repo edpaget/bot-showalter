@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 import torch
 from torch import Tensor, nn
 
+from fantasy_baseball_manager.contextual.model.tensorizer import TensorizedBatch
+
 if TYPE_CHECKING:
     from fantasy_baseball_manager.contextual.model.hierarchical_config import (
         HierarchicalModelConfig,
@@ -22,7 +24,6 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.contextual.model.model import (
         ContextualPerformanceModel,
     )
-    from fantasy_baseball_manager.contextual.model.tensorizer import TensorizedBatch
 
 
 class IdentityModule(nn.Module):
@@ -220,6 +221,12 @@ class HierarchicalModel(nn.Module):
     downstream learnable modules (identity, level3, head).
     """
 
+    # Max samples per backbone forward pass.  The backbone builds a
+    # (batch*heads, seq_len, seq_len) float attention mask — at batch=32,
+    # heads=8, seq_len=2048 that is 4 GB.  Micro-batching caps this at
+    # ~500 MB (micro_batch=4).
+    BACKBONE_MICRO_BATCH: int = 4
+
     def __init__(
         self,
         backbone: ContextualPerformanceModel,
@@ -243,6 +250,24 @@ class HierarchicalModel(nn.Module):
         for param in self.backbone.parameters():
             param.requires_grad = False
 
+    @staticmethod
+    def _slice_batch(batch: TensorizedBatch, start: int, end: int) -> TensorizedBatch:
+        """Slice a TensorizedBatch along the batch dimension."""
+        return TensorizedBatch(
+            pitch_type_ids=batch.pitch_type_ids[start:end],
+            pitch_result_ids=batch.pitch_result_ids[start:end],
+            bb_type_ids=batch.bb_type_ids[start:end],
+            stand_ids=batch.stand_ids[start:end],
+            p_throws_ids=batch.p_throws_ids[start:end],
+            pa_event_ids=batch.pa_event_ids[start:end],
+            numeric_features=batch.numeric_features[start:end],
+            numeric_mask=batch.numeric_mask[start:end],
+            padding_mask=batch.padding_mask[start:end],
+            player_token_mask=batch.player_token_mask[start:end],
+            game_ids=batch.game_ids[start:end],
+            seq_lengths=batch.seq_lengths[start:end],
+        )
+
     def forward(
         self,
         batch: TensorizedBatch,
@@ -259,13 +284,22 @@ class HierarchicalModel(nn.Module):
         Returns:
             {"performance_preds": (batch, n_targets)}
         """
-        # 1. Run frozen backbone to get hidden states.
-        # no_grad + detach avoids storing backbone attention activations
-        # (O(batch * heads * seq_len^2) per layer) which are unneeded since
-        # the backbone is frozen.
+        # 1. Run frozen backbone to get hidden states in micro-batches.
+        # The backbone builds a (batch*heads, seq_len, seq_len) float
+        # attention mask that is O(batch * heads * seq_len^2).  With
+        # batch=32, heads=8, seq_len=2048 that is 4 GB.  Micro-batching
+        # caps peak memory at ~500 MB.  no_grad prevents storing the
+        # computation graph; detach breaks gradient flow.
+        bs = batch.pitch_type_ids.shape[0]
+        mb = self.BACKBONE_MICRO_BATCH
+        hidden_parts: list[Tensor] = []
         with torch.no_grad():
-            backbone_output = self.backbone(batch)
-        hidden = backbone_output["transformer_output"].detach()  # (batch, seq_len, d_model)
+            for start in range(0, bs, mb):
+                end = min(start + mb, bs)
+                micro = self._slice_batch(batch, start, end)
+                out = self.backbone(micro)
+                hidden_parts.append(out["transformer_output"])
+        hidden = torch.cat(hidden_parts, dim=0).detach()  # (batch, seq_len, d_model)
 
         # 2. Identity branch
         identity_repr = self.identity_module(stat_features, archetype_ids)
