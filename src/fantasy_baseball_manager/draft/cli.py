@@ -52,6 +52,14 @@ from fantasy_baseball_manager.shared.orchestration import (
     build_projections_and_positions,
 )
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
+from fantasy_baseball_manager.valuation.replacement import (
+    BATTER_SCARCITY_ORDER,
+    PITCHER_SCARCITY_ORDER,
+    ReplacementConfig,
+    apply_replacement_adjustment,
+    assign_positions,
+    compute_replacement_levels,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +96,20 @@ def _load_roster_config(path: Path) -> RosterConfig:
     return RosterConfig(slots=tuple(slots))
 
 
+def _apply_pool_replacement(
+    players: list[PlayerValue],
+    player_positions: dict[str, tuple[str, ...]],
+    config: ReplacementConfig,
+    scarcity_order: tuple[str, ...],
+) -> list[PlayerValue]:
+    """Apply replacement-level adjustment to a single player pool."""
+    if not players:
+        return []
+    assignments = assign_positions(players, player_positions, config, scarcity_order)
+    thresholds = compute_replacement_levels(players, player_positions, config, scarcity_order)
+    return apply_replacement_adjustment(players, assignments, thresholds, player_positions)
+
+
 def draft_rank(
     year: Annotated[int | None, typer.Argument(help="Projection year (default: current year).")] = None,
     roster_config_file: Annotated[Path | None, typer.Option("--roster-config", help="YAML roster slot config.")] = None,
@@ -115,6 +137,9 @@ def draft_rank(
     pitching: Annotated[bool, typer.Option("--pitching", help="Show only pitchers.")] = False,
     engine: Annotated[str, typer.Option(help="Projection engine to use.")] = DEFAULT_ENGINE,
     method: Annotated[str, typer.Option(help="Valuation method to use.")] = DEFAULT_METHOD,
+    no_replacement: Annotated[
+        bool, typer.Option("--no-replacement", help="Skip replacement-level adjustment.")
+    ] = False,
     league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
@@ -204,8 +229,53 @@ def draft_rank(
             if pitching_ids:
                 logger.debug("  sample pitching IDs: %s", list(pitching_ids)[:5])
 
-        # Build composite-keyed positions dict for DraftState
+        # Shared pitcher-position set used by both replacement and composite logic
         _PITCHER_POSITIONS: frozenset[str] = frozenset({"SP", "RP", "P"})
+
+        # Apply replacement-level adjustment (VORP)
+        if not no_replacement:
+            replacement_config = ReplacementConfig(
+                team_count=league_settings.team_count,
+                roster_config=roster_config,
+            )
+            if show_batting:
+                batter_values = [v for v in all_values if v.position_type == "B"]
+                batter_positions = {
+                    pid: tuple(p for p in pos if p not in _PITCHER_POSITIONS)
+                    for pid, pos in player_positions.items()
+                    if pid in batting_ids and any(p not in _PITCHER_POSITIONS for p in pos)
+                }
+                adjusted_batters = _apply_pool_replacement(
+                    batter_values, batter_positions, replacement_config, BATTER_SCARCITY_ORDER
+                )
+                adjusted_batter_map = {p.player_id: p for p in adjusted_batters}
+            else:
+                adjusted_batter_map = {}
+
+            if show_pitching:
+                pitcher_values = [v for v in all_values if v.position_type == "P"]
+                pitcher_positions = {
+                    pid: tuple(p for p in pos if p in _PITCHER_POSITIONS)
+                    for pid, pos in player_positions.items()
+                    if pid in pitching_ids and any(p in _PITCHER_POSITIONS for p in pos)
+                }
+                adjusted_pitchers = _apply_pool_replacement(
+                    pitcher_values, pitcher_positions, replacement_config, PITCHER_SCARCITY_ORDER
+                )
+                adjusted_pitcher_map = {p.player_id: p for p in adjusted_pitchers}
+            else:
+                adjusted_pitcher_map = {}
+
+            all_values = [
+                adjusted_batter_map[v.player_id]
+                if v.position_type == "B" and v.player_id in adjusted_batter_map
+                else adjusted_pitcher_map[v.player_id]
+                if v.position_type == "P" and v.player_id in adjusted_pitcher_map
+                else v
+                for v in all_values
+            ]
+
+        # Build composite-keyed positions dict for DraftState
         two_way_ids = batting_ids & pitching_ids
         composite_positions: dict[tuple[str, str], tuple[str, ...]] = {}
         for pid, positions in player_positions.items():

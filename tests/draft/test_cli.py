@@ -10,6 +10,8 @@ from fantasy_baseball_manager.adp.models import ADPEntry
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.context import get_context
+from fantasy_baseball_manager.draft.cli import _apply_pool_replacement
+from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
     PitchingSeasonStats,
@@ -17,6 +19,10 @@ from fantasy_baseball_manager.marcel.models import (
 from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.services import ServiceContainer, set_container
 from fantasy_baseball_manager.valuation.models import PlayerValue, ValuationResult
+from fantasy_baseball_manager.valuation.replacement import (
+    BATTER_SCARCITY_ORDER,
+    ReplacementConfig,
+)
 
 runner = CliRunner()
 
@@ -600,7 +606,99 @@ class TestDraftRankCommand:
             assert result.exit_code == 0
             assert "Slugger Jones" in result.output
 
+    def test_no_replacement_flag_accepted(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "draft-rank", "2025", "--no-replacement"])
+        assert result.exit_code == 0
+        assert "Draft rankings" in result.output
+
     def test_method_unknown_rejected(self) -> None:
         _install_fake()
         result = runner.invoke(app, ["players", "draft-rank", "2025", "--method", "bogus"])
         assert result.exit_code == 1
+
+
+class TestApplyPoolReplacement:
+    def test_adjusts_values_for_single_pool(self) -> None:
+        players = [
+            PlayerValue(player_id="b1", name="Star", category_values=(), total_value=10.0, position_type="B"),
+            PlayerValue(player_id="b2", name="Good", category_values=(), total_value=7.0, position_type="B"),
+            PlayerValue(player_id="b3", name="OK", category_values=(), total_value=4.0, position_type="B"),
+        ]
+        positions = {"b1": ("SS",), "b2": ("SS",), "b3": ("SS",)}
+        config = ReplacementConfig(
+            team_count=1,
+            roster_config=RosterConfig(slots=(RosterSlot(position="SS", count=1),)),
+        )
+        result = _apply_pool_replacement(players, positions, config, BATTER_SCARCITY_ORDER)
+        assert len(result) == 3
+        # Star should have positive VORP (above replacement)
+        star = next(p for p in result if p.player_id == "b1")
+        assert star.total_value > 0
+        # Values should differ from originals (adjustment applied)
+        original_totals = {p.player_id: p.total_value for p in players}
+        adjusted_totals = {p.player_id: p.total_value for p in result}
+        assert adjusted_totals != original_totals
+
+    def test_empty_pool_returns_empty(self) -> None:
+        config = ReplacementConfig(
+            team_count=1,
+            roster_config=RosterConfig(slots=(RosterSlot(position="SS", count=1),)),
+        )
+        result = _apply_pool_replacement([], {}, config, BATTER_SCARCITY_ORDER)
+        assert result == []
+
+
+class TestReplacementIntegration:
+    def test_replacement_adjustment_on_by_default(self, tmp_path: Path) -> None:
+        _install_fake()
+        pos_file = tmp_path / "positions.csv"
+        pos_file.write_text("b1,1B/OF\nb2,OF\nb3,SS\np1,SP\np2,RP\np3,SP\n")
+        result_with = runner.invoke(
+            app, ["players", "draft-rank", "2025", "--positions", str(pos_file)],
+        )
+        result_without = runner.invoke(
+            app, ["players", "draft-rank", "2025", "--positions", str(pos_file), "--no-replacement"],
+        )
+        assert result_with.exit_code == 0
+        assert result_without.exit_code == 0
+        # Output should differ because replacement adjustment changes values
+        assert result_with.output != result_without.output
+
+    def test_no_replacement_produces_unadjusted_rankings(self, tmp_path: Path) -> None:
+        _install_fake()
+        pos_file = tmp_path / "positions.csv"
+        pos_file.write_text("b1,1B/OF\nb2,OF\nb3,SS\np1,SP\np2,RP\np3,SP\n")
+        result = runner.invoke(
+            app, ["players", "draft-rank", "2025", "--positions", str(pos_file), "--no-replacement"],
+        )
+        assert result.exit_code == 0
+        assert "Draft rankings" in result.output
+
+    def test_replacement_with_batting_only(self, tmp_path: Path) -> None:
+        _install_fake()
+        pos_file = tmp_path / "positions.csv"
+        pos_file.write_text("b1,1B/OF\nb2,OF\nb3,SS\n")
+        result = runner.invoke(
+            app, ["players", "draft-rank", "2025", "--batting", "--positions", str(pos_file)],
+        )
+        assert result.exit_code == 0
+        assert "Slugger Jones" in result.output
+        assert "Ace Adams" not in result.output
+
+    def test_replacement_with_pitching_only(self, tmp_path: Path) -> None:
+        _install_fake()
+        pos_file = tmp_path / "positions.csv"
+        pos_file.write_text("p1,SP\np2,RP\np3,SP\n")
+        result = runner.invoke(
+            app, ["players", "draft-rank", "2025", "--pitching", "--positions", str(pos_file)],
+        )
+        assert result.exit_code == 0
+        assert "Ace Adams" in result.output
+        assert "Slugger Jones" not in result.output
+
+    def test_replacement_with_no_positions_is_graceful(self) -> None:
+        _install_fake()
+        result = runner.invoke(app, ["players", "draft-rank", "2025"])
+        assert result.exit_code == 0
+        assert "Draft rankings" in result.output
