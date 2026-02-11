@@ -5,12 +5,17 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
-from fantasy_baseball_manager.valuation.models import PlayerValue
+from fantasy_baseball_manager.valuation.models import (
+    CategoryValue,
+    PlayerValue,
+    StatCategory,
+)
 from fantasy_baseball_manager.valuation.replacement import (
     BATTER_SCARCITY_ORDER,
     PITCHER_SCARCITY_ORDER,
     PositionThreshold,
     ReplacementConfig,
+    apply_replacement_adjustment,
     assign_positions,
     compute_replacement_levels,
 )
@@ -432,3 +437,270 @@ class TestIntegration:
         # 1B pool: assigned(1b0=15, 1b1=14) + unassigned(1b2=13, 1b3=12, 1b4=11, 1b5=10)
         # Threshold at index 2 → 1b2(13) = 13.0
         assert threshold_map["1B"].replacement_value == 13.0
+
+
+class TestApplyReplacementAdjustment:
+    def test_assigned_player_gets_threshold_subtracted(self) -> None:
+        """An assigned player's total_value is reduced by the position threshold."""
+        player = _make_player("p1", 10.0)
+        assignments = {"p1": "C"}
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=4.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {"p1": ("C",)}
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        assert len(result) == 1
+        assert result[0].total_value == pytest.approx(6.0)
+
+    def test_replacement_level_player_lands_at_zero(self) -> None:
+        """A player whose value equals the threshold ends up at 0.0 VORP."""
+        player = _make_player("p1", 4.0)
+        assignments = {"p1": "C"}
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=4.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {"p1": ("C",)}
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        assert result[0].total_value == pytest.approx(0.0)
+
+    def test_scarce_position_gets_larger_boost(self) -> None:
+        """C with low replacement outranks OF with high replacement after VORP."""
+        catcher = _make_player("c1", 8.0)
+        outfielder = _make_player("of1", 10.0)
+        assignments = {"c1": "C", "of1": "OF"}
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=2.0,
+            ),
+            PositionThreshold(
+                position="OF", roster_spots=60, replacement_rank=60,
+                replacement_value=6.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {"c1": ("C",), "of1": ("OF",)}
+
+        result = apply_replacement_adjustment(
+            [catcher, outfielder], assignments, thresholds, positions
+        )
+
+        result_map = {p.player_id: p for p in result}
+        # C: 8 - 2 = 6; OF: 10 - 6 = 4 → catcher ranks higher
+        assert result_map["c1"].total_value == pytest.approx(6.0)
+        assert result_map["of1"].total_value == pytest.approx(4.0)
+        assert result_map["c1"].total_value > result_map["of1"].total_value
+
+    def test_unassigned_player_gets_negative_value(self) -> None:
+        """Unassigned below-replacement player gets negative VORP using min eligible threshold."""
+        player = _make_player("p1", 2.0)
+        assignments: dict[str, str] = {}  # not assigned
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=4.0,
+            ),
+            PositionThreshold(
+                position="1B", roster_spots=12, replacement_rank=12,
+                replacement_value=6.0,
+            ),
+        ]
+        # Eligible at C and 1B; min threshold is C's 4.0
+        positions: dict[str, tuple[str, ...]] = {"p1": ("C", "1B")}
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        # 2.0 - 4.0 = -2.0 (uses min threshold = most favorable)
+        assert result[0].total_value == pytest.approx(-2.0)
+
+    def test_player_without_positions_returned_unchanged(self) -> None:
+        """A player with no position data gets replacement_value=0.0."""
+        player = _make_player("p1", 5.0)
+        assignments: dict[str, str] = {}
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=4.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {}  # no entry for p1
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        assert result[0].total_value == pytest.approx(5.0)
+
+
+def _make_player_with_categories(
+    player_id: str,
+    total_value: float,
+    category_values: tuple[CategoryValue, ...],
+    position_type: str = "batter",
+) -> PlayerValue:
+    return PlayerValue(
+        player_id=player_id,
+        name=f"Player {player_id}",
+        category_values=category_values,
+        total_value=total_value,
+        position_type=position_type,
+    )
+
+
+class TestProportionalScaling:
+    def test_category_values_scaled_proportionally(self) -> None:
+        """Each category value is scaled by adjusted_total / raw_total."""
+        categories = (
+            CategoryValue(category=StatCategory.HR, raw_stat=30.0, value=3.0),
+            CategoryValue(category=StatCategory.R, raw_stat=80.0, value=2.0),
+        )
+        player = _make_player_with_categories("p1", 5.0, categories)
+        assignments = {"p1": "C"}
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=2.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {"p1": ("C",)}
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        adjusted = result[0]
+        # total: 5 - 2 = 3; scale = 3/5 = 0.6
+        assert adjusted.total_value == pytest.approx(3.0)
+        assert adjusted.category_values[0].value == pytest.approx(1.8)  # 3.0 * 0.6
+        assert adjusted.category_values[1].value == pytest.approx(1.2)  # 2.0 * 0.6
+        # raw_stat preserved
+        assert adjusted.category_values[0].raw_stat == 30.0
+        assert adjusted.category_values[1].raw_stat == 80.0
+
+    def test_category_ratios_preserved_after_adjustment(self) -> None:
+        """The ratio between category values is the same before and after."""
+        categories = (
+            CategoryValue(category=StatCategory.HR, raw_stat=30.0, value=4.0),
+            CategoryValue(category=StatCategory.SB, raw_stat=20.0, value=1.0),
+        )
+        player = _make_player_with_categories("p1", 5.0, categories)
+        assignments = {"p1": "C"}
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=1.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {"p1": ("C",)}
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        adjusted = result[0]
+        original_ratio = 4.0 / 1.0
+        adjusted_ratio = adjusted.category_values[0].value / adjusted.category_values[1].value
+        assert adjusted_ratio == pytest.approx(original_ratio)
+
+    def test_zero_raw_total_sets_categories_to_zero(self) -> None:
+        """When raw total is 0.0, all category values become 0.0."""
+        categories = (
+            CategoryValue(category=StatCategory.HR, raw_stat=30.0, value=0.0),
+            CategoryValue(category=StatCategory.R, raw_stat=80.0, value=0.0),
+        )
+        player = _make_player_with_categories("p1", 0.0, categories)
+        assignments = {"p1": "C"}
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=2.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {"p1": ("C",)}
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        adjusted = result[0]
+        assert adjusted.total_value == pytest.approx(-2.0)
+        assert adjusted.category_values[0].value == 0.0
+        assert adjusted.category_values[1].value == 0.0
+        # raw_stat preserved
+        assert adjusted.category_values[0].raw_stat == 30.0
+
+    def test_composite_only_adjusts_total_value_only(self) -> None:
+        """When category_values is empty (ml-ridge), only total_value is adjusted."""
+        player = _make_player("p1", 10.0)
+        assignments = {"p1": "C"}
+        thresholds = [
+            PositionThreshold(
+                position="C", roster_spots=12, replacement_rank=12,
+                replacement_value=3.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {"p1": ("C",)}
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        assert result[0].total_value == pytest.approx(7.0)
+        assert result[0].category_values == ()
+
+    def test_player_metadata_preserved(self) -> None:
+        """player_id, name, and position_type are preserved through adjustment."""
+        player = PlayerValue(
+            player_id="abc123",
+            name="Mike Trout",
+            category_values=(),
+            total_value=10.0,
+            position_type="batter",
+        )
+        assignments = {"abc123": "OF"}
+        thresholds = [
+            PositionThreshold(
+                position="OF", roster_spots=60, replacement_rank=60,
+                replacement_value=3.0,
+            ),
+        ]
+        positions: dict[str, tuple[str, ...]] = {"abc123": ("OF",)}
+
+        result = apply_replacement_adjustment(
+            [player], assignments, thresholds, positions
+        )
+
+        assert result[0].player_id == "abc123"
+        assert result[0].name == "Mike Trout"
+        assert result[0].position_type == "batter"
+
+    def test_empty_players_returns_empty(self) -> None:
+        """Empty input list returns empty output."""
+        result = apply_replacement_adjustment([], {}, [], {})
+        assert result == []
+
+    def test_empty_thresholds_returns_unchanged(self) -> None:
+        """With no thresholds, all replacement values are 0.0."""
+        player = _make_player("p1", 5.0)
+        positions: dict[str, tuple[str, ...]] = {"p1": ("C",)}
+
+        result = apply_replacement_adjustment(
+            [player], {}, [], positions
+        )
+
+        assert result[0].total_value == pytest.approx(5.0)

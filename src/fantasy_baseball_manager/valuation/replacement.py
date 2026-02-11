@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.draft.models import RosterConfig
-    from fantasy_baseball_manager.valuation.models import PlayerValue
+
+from fantasy_baseball_manager.valuation.models import CategoryValue, PlayerValue
 
 BATTER_SCARCITY_ORDER = ("C", "SS", "2B", "3B", "1B", "OF")
 PITCHER_SCARCITY_ORDER = ("SP", "RP")
@@ -146,6 +147,80 @@ def compute_replacement_levels(
             )
         )
     return thresholds
+
+
+def apply_replacement_adjustment(
+    players: list[PlayerValue],
+    assignments: dict[str, str],
+    thresholds: list[PositionThreshold],
+    player_positions: dict[str, tuple[str, ...]],
+) -> list[PlayerValue]:
+    """Subtract position-specific replacement value from each player.
+
+    Assigned players: subtract their assigned position's threshold.
+    Unassigned players: subtract the min threshold among eligible positions
+    (most favorable), producing negative values for below-replacement players.
+
+    When category_values is non-empty (z-score): scales each category
+    proportionally: adjusted_cat = raw_cat * (adjusted_total / raw_total).
+    When category_values is empty (ml-ridge): adjusts total_value only.
+    """
+    threshold_map: dict[str, float] = {
+        t.position: t.replacement_value for t in thresholds
+    }
+
+    result: list[PlayerValue] = []
+    for player in players:
+        assigned_pos = assignments.get(player.player_id)
+        if assigned_pos is not None:
+            replacement_value = threshold_map.get(assigned_pos, 0.0)
+        else:
+            eligible = player_positions.get(player.player_id, ())
+            eligible_thresholds = [
+                threshold_map[pos] for pos in eligible if pos in threshold_map
+            ]
+            replacement_value = min(eligible_thresholds) if eligible_thresholds else 0.0
+
+        adjusted_total = player.total_value - replacement_value
+
+        if player.category_values:
+            adjusted_categories = _adjust_category_values(
+                player.category_values, player.total_value, adjusted_total
+            )
+        else:
+            adjusted_categories = player.category_values
+
+        result.append(
+            PlayerValue(
+                player_id=player.player_id,
+                name=player.name,
+                category_values=adjusted_categories,
+                total_value=adjusted_total,
+                position_type=player.position_type,
+            )
+        )
+    return result
+
+
+def _adjust_category_values(
+    category_values: tuple[CategoryValue, ...],
+    raw_total: float,
+    adjusted_total: float,
+) -> tuple[CategoryValue, ...]:
+    if raw_total == 0.0:
+        return tuple(
+            CategoryValue(category=cv.category, raw_stat=cv.raw_stat, value=0.0)
+            for cv in category_values
+        )
+    scale = adjusted_total / raw_total
+    return tuple(
+        CategoryValue(
+            category=cv.category,
+            raw_stat=cv.raw_stat,
+            value=cv.value * scale,
+        )
+        for cv in category_values
+    )
 
 
 def _build_util_pool(
