@@ -24,6 +24,16 @@ Usage::
     # Fine-tune on A100 80GB (context window is small, so bump batch instead)
     MODAL_GPU=A100-80GB modal run scripts/modal_train.py --command finetune --perspective pitcher --batch-size 128
 
+    # Build identity (archetypes) — CPU-only, no GPU needed
+    modal run scripts/modal_train.py --command build-identity --perspective pitcher --n-archetypes 8
+
+    # Prepare hierarchical fine-tune data on CPU (avoids 60GB+ memory on GPU)
+    modal run scripts/modal_train.py --command prepare --mode hier-finetune --perspective pitcher
+
+    # Hierarchical fine-tune (uses prepared data by default)
+    modal run scripts/modal_train.py --command hier-finetune --perspective pitcher
+    modal run scripts/modal_train.py --command hier-finetune --perspective pitcher --archetype-model pitcher_archetypes
+
     # Check data/checkpoints on volume
     modal run scripts/modal_train.py --command check
 
@@ -193,6 +203,11 @@ def prepare_data(
     perspective: str = "pitcher",
     context_window: int = 10,
     max_seq_len: int = 512,
+    # hier-finetune mode options
+    n_archetypes: int = 8,
+    archetype_model: str | None = None,
+    min_opportunities: float = 50.0,
+    profile_year: int | None = None,
 ) -> None:
     """Build tensorized training data on CPU (no GPU needed)."""
     import subprocess
@@ -209,7 +224,13 @@ def prepare_data(
         "--perspective", perspective,
         "--context-window", str(context_window),
         "--max-seq-len", str(max_seq_len),
+        "--n-archetypes", str(n_archetypes),
+        "--min-opportunities", str(min_opportunities),
     ]
+    if archetype_model is not None:
+        cmd.extend(["--archetype-model", archetype_model])
+    if profile_year is not None:
+        cmd.extend(["--profile-year", str(profile_year)])
 
     subprocess.run(cmd, cwd=APP_DIR, check=True)
     vol.commit()
@@ -231,6 +252,99 @@ def check_data() -> None:
         print("  modal volume put fantasy-baseball-data ~/.fantasy_baseball/statcast/ statcast/")
 
 
+@app.function(
+    image=image,
+    timeout=TIMEOUT,
+    volumes={DATA_DIR: vol},
+)
+def build_identity(
+    perspective: str = "pitcher",
+    n_archetypes: int = 8,
+    min_opportunities: float = 50.0,
+    profile_year: int = 2023,
+    name: str | None = None,
+) -> None:
+    """Build player stat profiles and fit archetype model (CPU-only)."""
+    import subprocess
+
+    _setup_symlinks()
+
+    cmd = [
+        "uv", "run", "fantasy-baseball-manager",
+        "contextual", "build-identity",
+        "--perspective", perspective,
+        "--n-archetypes", str(n_archetypes),
+        "--min-opportunities", str(min_opportunities),
+        "--profile-year", str(profile_year),
+    ]
+    if name is not None:
+        cmd.extend(["--name", name])
+
+    subprocess.run(cmd, cwd=APP_DIR, check=True)
+    vol.commit()
+
+
+@app.function(
+    image=image,
+    gpu=GPU,
+    timeout=TIMEOUT,
+    volumes={DATA_DIR: vol},
+)
+def hier_finetune(
+    perspective: str = "pitcher",
+    base_model: str = "pretrain_best",
+    seasons: str = "2015,2016,2017,2018,2019,2020,2021,2022",
+    val_seasons: str = "2023",
+    epochs: int = 30,
+    batch_size: int = 32,
+    identity_lr: float = 1e-3,
+    level3_lr: float = 5e-4,
+    head_lr: float = 1e-3,
+    n_archetypes: int = 8,
+    archetype_model: str | None = None,
+    min_opportunities: float = 50.0,
+    profile_year: int | None = None,
+    max_seq_len: int | None = None,
+    context_window: int | None = None,
+    prepared_data: bool = True,
+) -> None:
+    """Run hierarchical fine-tuning on a cloud GPU."""
+    import subprocess
+
+    _setup_symlinks()
+
+    cmd = [
+        "uv", "run", "fantasy-baseball-manager",
+        "contextual", "hier-finetune",
+        "--perspective", perspective,
+        "--base-model", base_model,
+        "--seasons", seasons,
+        "--val-seasons", val_seasons,
+        "--epochs", str(epochs),
+        "--batch-size", str(batch_size),
+        "--identity-lr", str(identity_lr),
+        "--level3-lr", str(level3_lr),
+        "--head-lr", str(head_lr),
+        "--n-archetypes", str(n_archetypes),
+        "--min-opportunities", str(min_opportunities),
+    ]
+    if prepared_data:
+        cmd.append("--prepared-data")
+    else:
+        cmd.append("--no-prepared-data")
+    if archetype_model is not None:
+        cmd.extend(["--archetype-model", archetype_model])
+    if profile_year is not None:
+        cmd.extend(["--profile-year", str(profile_year)])
+    if max_seq_len is not None:
+        cmd.extend(["--max-seq-len", str(max_seq_len)])
+    if context_window is not None:
+        cmd.extend(["--context-window", str(context_window)])
+
+    subprocess.run(cmd, cwd=APP_DIR, check=True)
+    vol.commit()
+
+
 @app.local_entrypoint()
 def main(
     command: str = "pretrain",
@@ -242,7 +356,7 @@ def main(
     learning_rate: float = 1e-4,
     resume_from: str | None = None,
     max_seq_len: int | None = None,
-    # finetune / prepare
+    # finetune / prepare / hier-finetune
     perspective: str = "pitcher",
     base_model: str = "pretrain_best",
     head_lr: float = 1e-3,
@@ -251,9 +365,17 @@ def main(
     # prepare only
     mode: str = "all",
     perspectives: str = "batter,pitcher",
-    context_window: int = 10,
+    context_window: int | None = None,
+    # hier-finetune / build-identity
+    identity_lr: float = 1e-3,
+    level3_lr: float = 5e-4,
+    n_archetypes: int = 8,
+    archetype_model: str | None = None,
+    min_opportunities: float = 50.0,
+    profile_year: int | None = None,
+    name: str | None = None,
 ) -> None:
-    """Local entrypoint — dispatches to pretrain, finetune, prepare, or check.
+    """Local entrypoint — dispatches to pretrain, finetune, hier-finetune, build-identity, prepare, or check.
 
     Set GPU via env var: ``MODAL_GPU=A100-80GB modal run scripts/modal_train.py ...``
 
@@ -263,6 +385,8 @@ def main(
         modal run scripts/modal_train.py --command pretrain --epochs 30
         MODAL_GPU=A100-80GB modal run scripts/modal_train.py --command pretrain --max-seq-len 2048 --batch-size 64
         modal run scripts/modal_train.py --command finetune --perspective pitcher
+        modal run scripts/modal_train.py --command build-identity --perspective pitcher --n-archetypes 8
+        modal run scripts/modal_train.py --command hier-finetune --perspective pitcher
         modal run scripts/modal_train.py --command check
     """
     if command == "check":
@@ -276,8 +400,12 @@ def main(
             val_seasons=val_seasons,
             perspectives=perspectives,
             perspective=perspective,
-            context_window=context_window,
+            context_window=context_window if context_window is not None else 10,
             max_seq_len=max_seq_len if max_seq_len is not None else 512,
+            n_archetypes=n_archetypes,
+            archetype_model=archetype_model,
+            min_opportunities=min_opportunities,
+            profile_year=profile_year,
         )
     elif command == "pretrain":
         pretrain.remote(
@@ -303,5 +431,34 @@ def main(
             resume_from=resume_from,
             max_seq_len=max_seq_len,
         )
+    elif command == "build-identity":
+        build_identity.remote(
+            perspective=perspective,
+            n_archetypes=n_archetypes,
+            min_opportunities=min_opportunities,
+            profile_year=profile_year if profile_year is not None else 2023,
+            name=name,
+        )
+    elif command == "hier-finetune":
+        hier_finetune.remote(
+            perspective=perspective,
+            base_model=base_model,
+            seasons=seasons,
+            val_seasons=val_seasons,
+            epochs=epochs,
+            batch_size=batch_size if batch_size != 64 else 32,
+            identity_lr=identity_lr,
+            level3_lr=level3_lr,
+            head_lr=head_lr,
+            n_archetypes=n_archetypes,
+            archetype_model=archetype_model,
+            min_opportunities=min_opportunities,
+            profile_year=profile_year,
+            max_seq_len=max_seq_len,
+            context_window=context_window,
+        )
     else:
-        raise ValueError(f"Unknown command: {command!r}. Use 'prepare', 'pretrain', 'finetune', or 'check'.")
+        raise ValueError(
+            f"Unknown command: {command!r}. "
+            "Use 'prepare', 'pretrain', 'finetune', 'hier-finetune', 'build-identity', or 'check'."
+        )

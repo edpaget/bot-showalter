@@ -86,7 +86,7 @@ def prepare_data_cmd(
         typer.Option(
             "--mode",
             "-m",
-            help="What to prepare: 'pretrain', 'finetune', or 'all'",
+            help="What to prepare: 'pretrain', 'finetune', 'hier-finetune', or 'all'",
         ),
     ] = "all",
     seasons: Annotated[
@@ -162,14 +162,44 @@ def prepare_data_cmd(
             help="Max parallel workers for data building (default: CPU count)",
         ),
     ] = None,
+    n_archetypes: Annotated[
+        int,
+        typer.Option(
+            "--n-archetypes",
+            help="Number of archetypes (hier-finetune mode only)",
+        ),
+    ] = 8,
+    archetype_model_name: Annotated[
+        str | None,
+        typer.Option(
+            "--archetype-model",
+            help="Pre-fitted archetype model name (hier-finetune mode only)",
+        ),
+    ] = None,
+    min_opportunities: Annotated[
+        float,
+        typer.Option(
+            "--min-opportunities",
+            help="Min career opportunities for profiles (hier-finetune mode only)",
+        ),
+    ] = 50.0,
+    profile_year: Annotated[
+        int | None,
+        typer.Option(
+            "--profile-year",
+            help="'As of' year for profiles (hier-finetune mode; default: max val_seasons)",
+        ),
+    ] = None,
 ) -> None:
     """Pre-build tensorized sequences and save to disk.
 
-    Saves prepared data so that pretrain/finetune can skip expensive data
-    building steps (parquet I/O, game sequence building, tensorization).
+    Saves prepared data so that pretrain/finetune/hier-finetune can skip
+    expensive data building steps (parquet I/O, game sequence building,
+    tensorization).
 
     Example:
         uv run fantasy-baseball-manager contextual prepare-data --mode all
+        uv run fantasy-baseball-manager contextual prepare-data --mode hier-finetune --perspective pitcher
     """
     from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
     from fantasy_baseball_manager.contextual.data.vocab import (
@@ -220,6 +250,7 @@ def prepare_data_cmd(
 
     do_pretrain = mode in ("pretrain", "all")
     do_finetune = mode in ("finetune", "all")
+    do_hier = mode == "hier-finetune"
 
     if do_pretrain:
         console.print("[bold]Preparing pre-training data...[/bold]")
@@ -312,6 +343,124 @@ def prepare_data_cmd(
             console.print(
                 f"  Saved {len(train_windows)} train + {len(val_windows)} val windows"
             )
+
+    if do_hier:
+        from fantasy_baseball_manager.context import init_context
+        from fantasy_baseball_manager.contextual.identity.archetypes import (
+            fit_archetypes,
+            load_archetype_model,
+            save_archetype_model,
+        )
+        from fantasy_baseball_manager.contextual.identity.stat_profile import (
+            PlayerStatProfileBuilder,
+        )
+        from fantasy_baseball_manager.contextual.training.config import (
+            HierarchicalFineTuneConfig,
+        )
+        from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
+            build_hierarchical_windows,
+        )
+        from fantasy_baseball_manager.marcel.data_source import (
+            create_batting_source,
+            create_pitching_source,
+        )
+
+        resolved_profile_year = profile_year if profile_year is not None else max(val_season_list)
+        init_context(year=resolved_profile_year)
+
+        hier_context_window = context_window
+        target_stats = BATTER_TARGET_STATS if perspective == "batter" else PITCHER_TARGET_STATS
+        stat_input_dim = 19 if perspective == "batter" else 13
+
+        console.print(f"[bold]Preparing hierarchical fine-tune data ({perspective})...[/bold]")
+
+        # Build or load archetype model
+        if archetype_model_name is not None:
+            console.print(f"  Loading archetype model '{archetype_model_name}'...")
+            arch_model = load_archetype_model(archetype_model_name)
+        else:
+            console.print("  Building stat profiles...")
+            profile_builder = PlayerStatProfileBuilder()
+            all_profiles = profile_builder.build_all_profiles(
+                create_batting_source(), create_pitching_source(),
+                resolved_profile_year, min_opportunities=min_opportunities,
+            )
+            profiles = [p for p in all_profiles if p.player_type == perspective]
+            console.print(f"  {len(profiles)} {perspective} profiles")
+
+            console.print("  Fitting archetypes...")
+            arch_model, _labels = fit_archetypes(profiles, n_archetypes=n_archetypes)
+            arch_name = f"{perspective}_archetypes"
+            save_archetype_model(arch_model, arch_name)
+            console.print(f"  Saved archetype model as '{arch_name}'")
+
+        # Build profile lookup (need profiles even when loading archetype model)
+        if archetype_model_name is not None:
+            console.print("  Building stat profiles for lookup...")
+            profile_builder = PlayerStatProfileBuilder()
+            all_profiles = profile_builder.build_all_profiles(
+                create_batting_source(), create_pitching_source(),
+                resolved_profile_year, min_opportunities=min_opportunities,
+            )
+            profiles = [p for p in all_profiles if p.player_type == perspective]
+            console.print(f"  {len(profiles)} {perspective} profiles")
+
+        profile_lookup = {int(p.player_id): p for p in profiles}
+
+        hier_min_games = hier_context_window + target_window if target_mode == "rates" else hier_context_window + 5
+        hier_config = HierarchicalFineTuneConfig(
+            train_seasons=train_seasons,
+            val_seasons=val_season_list,
+            perspective=perspective,
+            context_window=hier_context_window,
+            min_games=hier_min_games,
+            target_mode=target_mode,
+            target_window=target_window,
+        )
+
+        console.print("  Building training contexts...")
+        train_contexts = build_player_contexts(
+            builder, train_seasons, (perspective,), min_pitch_count=10,
+            max_workers=workers,
+        )
+        console.print(f"  {len(train_contexts)} training player contexts")
+
+        console.print("  Building hierarchical sliding windows (train)...")
+        train_windows = build_hierarchical_windows(
+            train_contexts, tensorizer, hier_config, target_stats,
+            profile_lookup, arch_model, stat_input_dim,
+        )
+        # Free raw contexts before building validation
+        del train_contexts
+        console.print(f"  {len(train_windows)} training windows")
+
+        console.print("  Building validation contexts...")
+        val_contexts = build_player_contexts(
+            builder, val_season_list, (perspective,), min_pitch_count=10,
+            max_workers=workers,
+        )
+        console.print(f"  {len(val_contexts)} validation player contexts")
+
+        console.print("  Building hierarchical sliding windows (val)...")
+        val_windows = build_hierarchical_windows(
+            val_contexts, tensorizer, hier_config, target_stats,
+            profile_lookup, arch_model, stat_input_dim,
+        )
+        del val_contexts
+
+        hier_meta = _build_finetune_meta(
+            train_seasons, val_season_list, perspective, hier_context_window,
+            max_seq_len, hier_config.min_games,
+            target_mode=target_mode, target_window=target_window,
+        )
+        train_name = f"hier_finetune_{perspective}_train"
+        val_name = f"hier_finetune_{perspective}_val"
+        data_store.save_hierarchical_finetune_data(train_name, train_windows, hier_meta)
+        data_store.save_hierarchical_finetune_data(val_name, val_windows, hier_meta)
+
+        console.print(
+            f"  Saved {len(train_windows)} train + {len(val_windows)} val hierarchical windows"
+        )
 
     console.print("[bold green]Done![/bold green]")
 
@@ -1275,12 +1424,21 @@ def hier_finetune_cmd(
             help="Feed-forward hidden dimension (must match pretrained model)",
         ),
     ] = 1024,
+    prepared_data: Annotated[
+        bool,
+        typer.Option(
+            "--prepared-data/--no-prepared-data",
+            help="Load pre-built hierarchical windows if available",
+        ),
+    ] = True,
 ) -> None:
     """Fine-tune a hierarchical model with identity conditioning.
 
     Orchestrates three phases: build identity (profiles + archetypes),
     build hierarchical dataset, and train. The backbone is loaded from
     a pre-trained checkpoint and frozen during training.
+
+    Pre-build data with: contextual prepare-data --mode hier-finetune
 
     Example:
         uv run fantasy-baseball-manager contextual hier-finetune --perspective pitcher --epochs 10
@@ -1419,96 +1577,134 @@ def hier_finetune_cmd(
         stat_input_dim=stat_input_dim,
     )
 
-    # Build or load identity
-    if archetype_model_name is not None:
-        console.print(f"\nLoading archetype model '{archetype_model_name}'...")
-        arch_model = load_archetype_model(archetype_model_name)
-        console.print(f"  Loaded ({arch_model.n_archetypes} archetypes)")
-        # Build profiles for the profile lookup
-        console.print("  Building stat profiles for player lookup...")
-        from fantasy_baseball_manager.marcel.data_source import (
-            create_batting_source,
-            create_pitching_source,
+    # Try loading prepared data
+    train_windows = None
+    val_windows = None
+
+    if prepared_data:
+        from fantasy_baseball_manager.contextual.data_store import PreparedDataStore
+
+        data_store = PreparedDataStore()
+        train_name = f"hier_finetune_{perspective}_train"
+        val_name = f"hier_finetune_{perspective}_val"
+
+        if data_store.exists(train_name) and data_store.exists(val_name):
+            expected_meta = _build_finetune_meta(
+                train_seasons, val_season_list, perspective, context_window,
+                max_seq_len, ft_config.min_games,
+                target_mode=target_mode, target_window=target_window,
+            )
+            stored_meta = data_store.load_meta(train_name)
+            if stored_meta == expected_meta:
+                console.print("\nLoading prepared hierarchical data...")
+                train_windows = data_store.load_hierarchical_finetune_data(train_name)
+                val_windows = data_store.load_hierarchical_finetune_data(val_name)
+                console.print(
+                    f"  Loaded prepared data ({len(train_windows)} train, "
+                    f"{len(val_windows)} val windows)"
+                )
+            else:
+                console.print("[red]Prepared data exists but parameters don't match:[/red]")
+                _log_meta_mismatch(stored_meta, expected_meta)
+                raise SystemExit(
+                    "Re-run 'prepare-data --mode hier-finetune' with matching parameters, "
+                    "or use --no-prepared-data to build inline."
+                )
+
+    if train_windows is None or val_windows is None:
+        # Build or load identity
+        if archetype_model_name is not None:
+            console.print(f"\nLoading archetype model '{archetype_model_name}'...")
+            arch_model = load_archetype_model(archetype_model_name)
+            console.print(f"  Loaded ({arch_model.n_archetypes} archetypes)")
+        else:
+            console.print("\nBuilding stat profiles...")
+            from fantasy_baseball_manager.marcel.data_source import (
+                create_batting_source,
+                create_pitching_source,
+            )
+
+            builder_profiles = PlayerStatProfileBuilder()
+            all_profiles = builder_profiles.build_all_profiles(
+                create_batting_source(), create_pitching_source(),
+                profile_year, min_opportunities=min_opportunities,
+            )
+            profiles = [p for p in all_profiles if p.player_type == perspective]
+            console.print(f"  {len(profiles)} {perspective} profiles built")
+
+            console.print("  Fitting archetypes...")
+            arch_model, _labels = fit_archetypes(profiles, n_archetypes=n_archetypes)
+            arch_name = f"{perspective}_archetypes"
+            save_archetype_model(arch_model, arch_name)
+            console.print(f"  Saved archetype model as '{arch_name}' ({arch_model.n_archetypes} archetypes)")
+
+        # Build profiles for player lookup (needed for both paths)
+        if archetype_model_name is not None:
+            console.print("  Building stat profiles for player lookup...")
+            from fantasy_baseball_manager.marcel.data_source import (
+                create_batting_source,
+                create_pitching_source,
+            )
+
+            builder_profiles = PlayerStatProfileBuilder()
+            all_profiles = builder_profiles.build_all_profiles(
+                create_batting_source(), create_pitching_source(),
+                profile_year, min_opportunities=min_opportunities,
+            )
+            profiles = [p for p in all_profiles if p.player_type == perspective]
+            console.print(f"  {len(profiles)} {perspective} profiles built")
+
+        profile_lookup = {int(p.player_id): p for p in profiles}
+
+        # Build hierarchical windows
+        console.print("\nBuilding training data...")
+        from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
+        from fantasy_baseball_manager.contextual.data.vocab import (
+            BB_TYPE_VOCAB,
+            HANDEDNESS_VOCAB,
+            PA_EVENT_VOCAB,
+            PITCH_RESULT_VOCAB,
+            PITCH_TYPE_VOCAB,
+        )
+        from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
+        from fantasy_baseball_manager.contextual.training.dataset import build_player_contexts
+        from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
+        from fantasy_baseball_manager.statcast.store import StatcastStore
+
+        store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
+        seq_builder = GameSequenceBuilder(store)
+
+        tensorizer = Tensorizer(
+            config=model_config,
+            pitch_type_vocab=PITCH_TYPE_VOCAB,
+            pitch_result_vocab=PITCH_RESULT_VOCAB,
+            bb_type_vocab=BB_TYPE_VOCAB,
+            handedness_vocab=HANDEDNESS_VOCAB,
+            pa_event_vocab=PA_EVENT_VOCAB,
         )
 
-        builder_profiles = PlayerStatProfileBuilder()
-        all_profiles = builder_profiles.build_all_profiles(
-            create_batting_source(), create_pitching_source(),
-            profile_year, min_opportunities=min_opportunities,
+        train_contexts = build_player_contexts(
+            seq_builder, train_seasons, (perspective,), min_pitch_count=10,
         )
-        profiles = [p for p in all_profiles if p.player_type == perspective]
-        console.print(f"  {len(profiles)} {perspective} profiles built")
-    else:
-        console.print("\nBuilding stat profiles...")
-        from fantasy_baseball_manager.marcel.data_source import (
-            create_batting_source,
-            create_pitching_source,
+        console.print(f"  {len(train_contexts)} training player contexts")
+
+        console.print("Building validation data...")
+        val_contexts = build_player_contexts(
+            seq_builder, val_season_list, (perspective,), min_pitch_count=10,
         )
+        console.print(f"  {len(val_contexts)} validation player contexts")
 
-        builder_profiles = PlayerStatProfileBuilder()
-        all_profiles = builder_profiles.build_all_profiles(
-            create_batting_source(), create_pitching_source(),
-            profile_year, min_opportunities=min_opportunities,
+        console.print("Building hierarchical sliding windows...")
+        train_windows = build_hierarchical_windows(
+            train_contexts, tensorizer, ft_config, target_stats,
+            profile_lookup, arch_model, stat_input_dim,
         )
-        profiles = [p for p in all_profiles if p.player_type == perspective]
-        console.print(f"  {len(profiles)} {perspective} profiles built")
-
-        console.print("  Fitting archetypes...")
-        arch_model, _labels = fit_archetypes(profiles, n_archetypes=n_archetypes)
-        arch_name = f"{perspective}_archetypes"
-        save_archetype_model(arch_model, arch_name)
-        console.print(f"  Saved archetype model as '{arch_name}' ({arch_model.n_archetypes} archetypes)")
-
-    # Build profile lookup (player_id -> profile) using int key from player_id string
-    profile_lookup = {int(p.player_id): p for p in profiles}
-
-    # Build hierarchical windows
-    console.print("\nBuilding training data...")
-    from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
-    from fantasy_baseball_manager.contextual.data.vocab import (
-        BB_TYPE_VOCAB,
-        HANDEDNESS_VOCAB,
-        PA_EVENT_VOCAB,
-        PITCH_RESULT_VOCAB,
-        PITCH_TYPE_VOCAB,
-    )
-    from fantasy_baseball_manager.contextual.model.tensorizer import Tensorizer
-    from fantasy_baseball_manager.contextual.training.dataset import build_player_contexts
-    from fantasy_baseball_manager.statcast.models import DEFAULT_DATA_DIR
-    from fantasy_baseball_manager.statcast.store import StatcastStore
-
-    store = StatcastStore(data_dir=DEFAULT_DATA_DIR)
-    seq_builder = GameSequenceBuilder(store)
-
-    tensorizer = Tensorizer(
-        config=model_config,
-        pitch_type_vocab=PITCH_TYPE_VOCAB,
-        pitch_result_vocab=PITCH_RESULT_VOCAB,
-        bb_type_vocab=BB_TYPE_VOCAB,
-        handedness_vocab=HANDEDNESS_VOCAB,
-        pa_event_vocab=PA_EVENT_VOCAB,
-    )
-
-    train_contexts = build_player_contexts(
-        seq_builder, train_seasons, (perspective,), min_pitch_count=10,
-    )
-    console.print(f"  {len(train_contexts)} training player contexts")
-
-    console.print("Building validation data...")
-    val_contexts = build_player_contexts(
-        seq_builder, val_season_list, (perspective,), min_pitch_count=10,
-    )
-    console.print(f"  {len(val_contexts)} validation player contexts")
-
-    console.print("Building hierarchical sliding windows...")
-    train_windows = build_hierarchical_windows(
-        train_contexts, tensorizer, ft_config, target_stats,
-        profile_lookup, arch_model, stat_input_dim,
-    )
-    val_windows = build_hierarchical_windows(
-        val_contexts, tensorizer, ft_config, target_stats,
-        profile_lookup, arch_model, stat_input_dim,
-    )
+        del train_contexts  # Free raw data
+        val_windows = build_hierarchical_windows(
+            val_contexts, tensorizer, ft_config, target_stats,
+            profile_lookup, arch_model, stat_input_dim,
+        )
+        del val_contexts
 
     train_dataset = HierarchicalFineTuneDataset(train_windows)
     val_dataset = HierarchicalFineTuneDataset(val_windows)

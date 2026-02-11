@@ -80,6 +80,31 @@ class PreparedDataStore:
         logger.info("Loaded %d finetune windows from %s", len(data), pt_path)
         return data
 
+    def save_hierarchical_finetune_data(
+        self,
+        name: str,
+        windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor, torch.Tensor, int]],
+        meta: dict[str, Any],
+    ) -> None:
+        """Save hierarchical fine-tune windows (5-element tuples) as {name}.pt."""
+        pt_path = self._pt_path(name)
+        torch.save(windows, pt_path)
+        logger.info("Saved %d hierarchical finetune windows to %s", len(windows), pt_path)
+        self._save_meta(name, meta)
+
+    def load_hierarchical_finetune_data(
+        self, name: str
+    ) -> list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor, torch.Tensor, int]]:
+        """Load hierarchical fine-tune windows from {name}.pt."""
+        pt_path = self._pt_path(name)
+        if not pt_path.exists():
+            raise FileNotFoundError(f"Prepared data not found: {pt_path}")
+        data: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor, torch.Tensor, int]] = (
+            torch.load(pt_path, weights_only=False)
+        )
+        logger.info("Loaded %d hierarchical finetune windows from %s", len(data), pt_path)
+        return data
+
     def load_meta(self, name: str) -> dict[str, Any] | None:
         """Load {name}_meta.json, or None if missing."""
         meta_path = self._meta_path(name)
