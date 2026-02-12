@@ -240,6 +240,37 @@ class PreparedDataStore:
             return columnar
         raise TypeError(f"Unexpected data format in {pt_path}: {type(raw_legacy)}")
 
+    def save_precomputed_data(
+        self,
+        name: str,
+        data: dict[str, torch.Tensor | str],
+        meta: dict[str, Any],
+    ) -> None:
+        """Save precomputed game-embedding columnar data as {name}.pt + metadata."""
+        pt_path = self._pt_path(name)
+        torch.save(data, pt_path)
+        n = int(data["n_games_per_window"].shape[0])  # type: ignore[union-attr]
+        logger.info("Saved %d precomputed windows to %s", n, pt_path)
+        self._save_meta(name, meta)
+
+    def load_precomputed_data(self, name: str) -> dict[str, torch.Tensor | str]:
+        """Load precomputed game-embedding data from {name}.pt.
+
+        Validates ``__format__ == "precomputed_v1"`` and uses mmap loading.
+        """
+        pt_path = self._pt_path(name)
+        if not pt_path.exists():
+            raise FileNotFoundError(f"Precomputed data not found: {pt_path}")
+        raw: object = torch.load(pt_path, weights_only=False, mmap=True)
+        if not isinstance(raw, dict) or raw.get("__format__") != "precomputed_v1":
+            raise TypeError(
+                f"Expected precomputed_v1 format in {pt_path}, "
+                f"got {type(raw).__name__}"
+            )
+        n = int(raw["n_games_per_window"].shape[0])
+        logger.info("Loaded %d precomputed windows (mmap) from %s", n, pt_path)
+        return raw
+
     def load_meta(self, name: str) -> dict[str, Any] | None:
         """Load {name}_meta.json, or None if missing."""
         meta_path = self._meta_path(name)

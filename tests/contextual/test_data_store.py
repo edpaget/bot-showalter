@@ -184,3 +184,77 @@ class TestPreparedDataStore:
         seq_lengths_t = loaded["seq_lengths"]
         assert isinstance(seq_lengths_t, torch.Tensor)
         assert seq_lengths_t[0].item() == 5
+
+    def test_save_load_precomputed_roundtrip(self, tmp_path: Path) -> None:
+        """Precomputed save/load preserves tensors."""
+        store = PreparedDataStore(data_dir=tmp_path)
+
+        d_model = 16
+        n_windows = 3
+        n_targets = 4
+        stat_dim = 13
+
+        # Build a minimal precomputed columnar dict
+        data: dict[str, torch.Tensor | str] = {
+            "__format__": "precomputed_v1",
+            "game_embeddings_flat": torch.randn(15, d_model),  # 3 windows * 5 games
+            "game_offsets": torch.tensor([0, 5, 10]),
+            "n_games_per_window": torch.tensor([5, 5, 5]),
+            "targets": torch.randn(n_windows, n_targets),
+            "context_mean": torch.randn(n_windows, n_targets),
+            "identity_features": torch.randn(n_windows, stat_dim),
+            "archetype_ids": torch.tensor([0, 1, 2]),
+        }
+        meta = {
+            "perspective": "pitcher",
+            "context_window": 10,
+            "backbone_checkpoint": "pretrain_best",
+            "d_model": d_model,
+            "n_windows": n_windows,
+        }
+
+        store.save_precomputed_data("precomputed_test", data, meta)
+        loaded = store.load_precomputed_data("precomputed_test")
+
+        assert isinstance(loaded, dict)
+        assert loaded["__format__"] == "precomputed_v1"
+
+        # Tensors match
+        def t(key: str) -> torch.Tensor:
+            v = loaded[key]
+            assert isinstance(v, torch.Tensor)
+            return v
+
+        def d_t(key: str) -> torch.Tensor:
+            v = data[key]
+            assert isinstance(v, torch.Tensor)
+            return v
+
+        assert torch.allclose(t("game_embeddings_flat"), d_t("game_embeddings_flat"))
+        assert torch.equal(t("game_offsets"), d_t("game_offsets"))
+        assert torch.equal(t("n_games_per_window"), d_t("n_games_per_window"))
+        assert torch.allclose(t("targets"), d_t("targets"))
+        assert torch.allclose(t("context_mean"), d_t("context_mean"))
+        assert torch.allclose(t("identity_features"), d_t("identity_features"))
+        assert torch.equal(t("archetype_ids"), d_t("archetype_ids"))
+
+        # Metadata matches
+        loaded_meta = store.load_meta("precomputed_test")
+        assert loaded_meta == meta
+
+    def test_precomputed_format_marker(self, tmp_path: Path) -> None:
+        """Saved precomputed data contains the format marker."""
+        store = PreparedDataStore(data_dir=tmp_path)
+        data: dict[str, torch.Tensor | str] = {
+            "__format__": "precomputed_v1",
+            "game_embeddings_flat": torch.randn(5, 8),
+            "game_offsets": torch.tensor([0]),
+            "n_games_per_window": torch.tensor([5]),
+            "targets": torch.randn(1, 2),
+            "context_mean": torch.randn(1, 2),
+            "identity_features": torch.randn(1, 13),
+            "archetype_ids": torch.tensor([0]),
+        }
+        store.save_precomputed_data("fmt_test", data, {"test": True})
+        loaded = store.load_precomputed_data("fmt_test")
+        assert loaded["__format__"] == "precomputed_v1"

@@ -317,3 +317,36 @@ class HierarchicalModel(nn.Module):
         preds = self.head(head_input)
 
         return {"performance_preds": preds}
+
+    def forward_precomputed(
+        self,
+        game_embeddings: Tensor,
+        game_mask: Tensor,
+        stat_features: Tensor,
+        archetype_ids: Tensor,
+    ) -> dict[str, Tensor]:
+        """Run hierarchical model on precomputed game embeddings.
+
+        Skips the frozen backbone entirely — uses cached per-game embeddings
+        directly with Level 3 attention, identity module, and prediction head.
+
+        Args:
+            game_embeddings: (batch, n_games, d_model)
+            game_mask: (batch, n_games) bool — True=valid game
+            stat_features: (batch, stat_input_dim)
+            archetype_ids: (batch,) long
+
+        Returns:
+            {"performance_preds": (batch, n_targets)}
+        """
+        # 1. Identity branch
+        identity_repr = self.identity_module(stat_features, archetype_ids)
+
+        # 2. Level 3 attention
+        proj_output = self.level3(game_embeddings, game_mask, identity_repr)
+
+        # 3. Prediction head
+        head_input = torch.cat([proj_output, identity_repr], dim=-1)
+        preds = self.head(head_input)
+
+        return {"performance_preds": preds}

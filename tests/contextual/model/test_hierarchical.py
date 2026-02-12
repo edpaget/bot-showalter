@@ -412,6 +412,107 @@ class TestHierarchicalModel:
         output = model(batch, stat_features, archetype_ids)
         assert output["performance_preds"].shape == (2, small_config.n_pitcher_targets)
 
+    def test_forward_precomputed_shape(self, small_config: ModelConfig) -> None:
+        hc = _small_hier_config(d_model=small_config.d_model)
+        backbone = self._make_backbone(small_config)
+        model = HierarchicalModel(
+            backbone=backbone,
+            hier_config=hc,
+            n_targets=small_config.n_batter_targets,
+            stat_input_dim=hc.batter_stat_input_dim,
+        )
+        game_embs = torch.randn(2, 5, hc.level3_d_model)
+        game_mask = torch.ones(2, 5, dtype=torch.bool)
+        stat_features = torch.randn(2, hc.batter_stat_input_dim)
+        archetype_ids = torch.randint(0, hc.n_archetypes, (2,))
+
+        output = model.forward_precomputed(game_embs, game_mask, stat_features, archetype_ids)
+        assert output["performance_preds"].shape == (2, small_config.n_batter_targets)
+
+    def test_forward_precomputed_gradients_flow(self, small_config: ModelConfig) -> None:
+        hc = _small_hier_config(d_model=small_config.d_model)
+        backbone = self._make_backbone(small_config)
+        model = HierarchicalModel(
+            backbone=backbone,
+            hier_config=hc,
+            n_targets=small_config.n_batter_targets,
+            stat_input_dim=hc.batter_stat_input_dim,
+        )
+        game_embs = torch.randn(2, 5, hc.level3_d_model)
+        game_mask = torch.ones(2, 5, dtype=torch.bool)
+        stat_features = torch.randn(2, hc.batter_stat_input_dim)
+        archetype_ids = torch.randint(0, hc.n_archetypes, (2,))
+
+        output = model.forward_precomputed(game_embs, game_mask, stat_features, archetype_ids)
+        loss = output["performance_preds"].pow(2).sum()
+        loss.backward()
+
+        # Identity/level3/head should get gradients
+        for name, p in model.identity_module.named_parameters():
+            if p.requires_grad:
+                assert p.grad is not None, f"identity_module.{name} has no grad"
+        for name, p in model.level3.named_parameters():
+            if p.requires_grad:
+                assert p.grad is not None, f"level3.{name} has no grad"
+        for name, p in model.head.named_parameters():
+            if p.requires_grad:
+                assert p.grad is not None, f"head.{name} has no grad"
+
+        # Backbone should NOT get gradients
+        for name, p in model.backbone.named_parameters():
+            assert p.grad is None or p.grad.abs().sum() == 0, (
+                f"Backbone param {name} has gradients in precomputed path"
+            )
+
+    def test_forward_precomputed_identity_differentiation(self, small_config: ModelConfig) -> None:
+        hc = _small_hier_config(d_model=small_config.d_model)
+        backbone = self._make_backbone(small_config)
+        model = HierarchicalModel(
+            backbone=backbone,
+            hier_config=hc,
+            n_targets=small_config.n_batter_targets,
+            stat_input_dim=hc.batter_stat_input_dim,
+        )
+        model.eval()
+        game_embs = torch.randn(1, 3, hc.level3_d_model)
+        game_mask = torch.ones(1, 3, dtype=torch.bool)
+
+        stat_a = torch.zeros(1, hc.batter_stat_input_dim)
+        stat_b = torch.ones(1, hc.batter_stat_input_dim) * 5.0
+        arch_a = torch.tensor([0])
+        arch_b = torch.tensor([2])
+
+        with torch.no_grad():
+            out_a = model.forward_precomputed(game_embs, game_mask, stat_a, arch_a)["performance_preds"]
+            out_b = model.forward_precomputed(game_embs, game_mask, stat_b, arch_b)["performance_preds"]
+
+        assert not torch.allclose(out_a, out_b, atol=1e-4)
+
+    def test_forward_precomputed_no_nan(self, small_config: ModelConfig) -> None:
+        hc = _small_hier_config(d_model=small_config.d_model)
+        backbone = self._make_backbone(small_config)
+        model = HierarchicalModel(
+            backbone=backbone,
+            hier_config=hc,
+            n_targets=small_config.n_batter_targets,
+            stat_input_dim=hc.batter_stat_input_dim,
+        )
+        game_embs = torch.randn(2, 5, hc.level3_d_model)
+        game_mask = torch.ones(2, 5, dtype=torch.bool)
+        stat_features = torch.randn(2, hc.batter_stat_input_dim)
+        archetype_ids = torch.randint(0, hc.n_archetypes, (2,))
+
+        output = model.forward_precomputed(game_embs, game_mask, stat_features, archetype_ids)
+        preds = output["performance_preds"]
+        assert not torch.isnan(preds).any()
+
+        loss = preds.pow(2).sum()
+        loss.backward()
+
+        for name, p in model.named_parameters():
+            if p.grad is not None:
+                assert not torch.isnan(p.grad).any(), f"NaN in grad for {name}"
+
     # -- helpers --
 
     @staticmethod

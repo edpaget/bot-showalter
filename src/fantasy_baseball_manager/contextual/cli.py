@@ -86,7 +86,7 @@ def prepare_data_cmd(
         typer.Option(
             "--mode",
             "-m",
-            help="What to prepare: 'pretrain', 'finetune', 'hier-finetune', or 'all'",
+            help="What to prepare: 'pretrain', 'finetune', 'hier-finetune', 'precomputed-hier', or 'all'",
         ),
     ] = "all",
     seasons: Annotated[
@@ -190,6 +190,41 @@ def prepare_data_cmd(
             help="'As of' year for profiles (hier-finetune mode; default: max val_seasons)",
         ),
     ] = None,
+    base_model: Annotated[
+        str,
+        typer.Option(
+            "--base-model",
+            help="Pre-trained backbone checkpoint (precomputed-hier mode only)",
+        ),
+    ] = "pretrain_best",
+    d_model: Annotated[
+        int,
+        typer.Option(
+            "--d-model",
+            help="Backbone hidden dimension (precomputed-hier mode only)",
+        ),
+    ] = 256,
+    n_layers: Annotated[
+        int,
+        typer.Option(
+            "--n-layers",
+            help="Backbone transformer layers (precomputed-hier mode only)",
+        ),
+    ] = 4,
+    n_heads: Annotated[
+        int,
+        typer.Option(
+            "--n-heads",
+            help="Backbone attention heads (precomputed-hier mode only)",
+        ),
+    ] = 8,
+    ff_dim: Annotated[
+        int,
+        typer.Option(
+            "--ff-dim",
+            help="Backbone feed-forward dimension (precomputed-hier mode only)",
+        ),
+    ] = 1024,
 ) -> None:
     """Pre-build tensorized sequences and save to disk.
 
@@ -200,6 +235,7 @@ def prepare_data_cmd(
     Example:
         uv run fantasy-baseball-manager contextual prepare-data --mode all
         uv run fantasy-baseball-manager contextual prepare-data --mode hier-finetune --perspective pitcher
+        uv run fantasy-baseball-manager contextual prepare-data --mode precomputed-hier --perspective pitcher --base-model pretrain_best
     """
     from fantasy_baseball_manager.contextual.data.builder import GameSequenceBuilder
     from fantasy_baseball_manager.contextual.data.vocab import (
@@ -251,6 +287,7 @@ def prepare_data_cmd(
     do_pretrain = mode in ("pretrain", "all")
     do_finetune = mode in ("finetune", "all")
     do_hier = mode == "hier-finetune"
+    do_precomputed = mode == "precomputed-hier"
 
     if do_pretrain:
         console.print("[bold]Preparing pre-training data...[/bold]")
@@ -461,6 +498,176 @@ def prepare_data_cmd(
 
         console.print(
             f"  Saved {n_train} train + {n_val} val hierarchical windows"
+        )
+
+    if do_precomputed:
+        import torch
+
+        from fantasy_baseball_manager.context import init_context
+        from fantasy_baseball_manager.contextual.identity.archetypes import (
+            fit_archetypes,
+            load_archetype_model,
+            save_archetype_model,
+        )
+        from fantasy_baseball_manager.contextual.identity.stat_profile import (
+            PlayerStatProfileBuilder,
+        )
+        from fantasy_baseball_manager.contextual.model.config import ModelConfig as PreModelConfig
+        from fantasy_baseball_manager.contextual.model.heads import PerformancePredictionHead
+        from fantasy_baseball_manager.contextual.training.config import (
+            HierarchicalFineTuneConfig,
+        )
+        from fantasy_baseball_manager.contextual.training.game_embedding_precomputer import (
+            GameEmbeddingPrecomputer,
+        )
+        from fantasy_baseball_manager.contextual.training.precomputed_dataset import (
+            build_precomputed_columnar,
+        )
+        from fantasy_baseball_manager.marcel.data_source import (
+            create_batting_source,
+            create_pitching_source,
+        )
+
+        resolved_profile_year = profile_year if profile_year is not None else max(
+            int(s.strip()) for s in val_seasons.split(",")
+        )
+        init_context(year=resolved_profile_year)
+
+        target_stats = BATTER_TARGET_STATS if perspective == "batter" else PITCHER_TARGET_STATS
+        stat_input_dim = 19 if perspective == "batter" else 13
+        n_targets = len(target_stats)
+
+        console.print(f"[bold]Preparing precomputed hierarchical data ({perspective})...[/bold]")
+
+        # Build or load archetype model
+        if archetype_model_name is not None:
+            console.print(f"  Loading archetype model '{archetype_model_name}'...")
+            arch_model = load_archetype_model(archetype_model_name)
+        else:
+            console.print("  Building stat profiles...")
+            profile_builder = PlayerStatProfileBuilder()
+            all_profiles = profile_builder.build_all_profiles(
+                create_batting_source(), create_pitching_source(),
+                resolved_profile_year, min_opportunities=min_opportunities,
+            )
+            profiles = [p for p in all_profiles if p.player_type == perspective]
+            console.print(f"  {len(profiles)} {perspective} profiles")
+
+            console.print("  Fitting archetypes...")
+            arch_model, _labels = fit_archetypes(profiles, n_archetypes=n_archetypes)
+            arch_name = f"{perspective}_archetypes"
+            save_archetype_model(arch_model, arch_name)
+            console.print(f"  Saved archetype model as '{arch_name}'")
+
+        # Build profile lookup
+        if archetype_model_name is not None:
+            console.print("  Building stat profiles for lookup...")
+            profile_builder = PlayerStatProfileBuilder()
+            all_profiles = profile_builder.build_all_profiles(
+                create_batting_source(), create_pitching_source(),
+                resolved_profile_year, min_opportunities=min_opportunities,
+            )
+            profiles = [p for p in all_profiles if p.player_type == perspective]
+            console.print(f"  {len(profiles)} {perspective} profiles")
+
+        profile_lookup = {int(p.player_id): p for p in profiles}
+
+        precomputed_context_window = context_window
+        precomputed_min_games = precomputed_context_window + target_window if target_mode == "rates" else precomputed_context_window + 5
+        precomputed_config = HierarchicalFineTuneConfig(
+            train_seasons=train_seasons,
+            val_seasons=tuple(int(s.strip()) for s in val_seasons.split(",")),
+            perspective=perspective,
+            context_window=precomputed_context_window,
+            min_games=precomputed_min_games,
+            target_mode=target_mode,
+            target_window=target_window,
+        )
+
+        # Load frozen backbone
+        console.print(f"  Loading frozen backbone '{base_model}'...")
+        registry = _get_registry()
+        model_store = registry.contextual_store
+        backbone_config = PreModelConfig(
+            max_seq_len=max_seq_len, d_model=d_model, n_layers=n_layers,
+            n_heads=n_heads, ff_dim=ff_dim,
+        )
+        backbone = model_store.load_model(base_model, backbone_config)
+        perf_head = PerformancePredictionHead(backbone_config, n_targets)
+        backbone.swap_head(perf_head)
+
+        # Device selection
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+        console.print(f"  Device: {device}")
+
+        # Build training contexts and precompute embeddings
+        console.print("  Building training contexts...")
+        train_contexts = build_player_contexts(
+            builder, train_seasons, (perspective,), min_pitch_count=10,
+            max_workers=workers,
+        )
+        console.print(f"  {len(train_contexts)} training player contexts")
+
+        console.print("  Building validation contexts...")
+        val_contexts = build_player_contexts(
+            builder, tuple(int(s.strip()) for s in val_seasons.split(",")),
+            (perspective,), min_pitch_count=10,
+            max_workers=workers,
+        )
+        console.print(f"  {len(val_contexts)} validation player contexts")
+
+        console.print("  Precomputing game embeddings (train + val)...")
+        precomputer = GameEmbeddingPrecomputer(
+            model=backbone, tensorizer=tensorizer, micro_batch_size=8, device=device,
+        )
+        all_contexts = train_contexts + val_contexts
+        game_index = precomputer.precompute(all_contexts)
+        console.print(f"  {len(game_index.index)} unique game embeddings precomputed")
+
+        console.print("  Building precomputed columnar data (train)...")
+        train_columnar = build_precomputed_columnar(
+            train_contexts, precomputed_config, target_stats,
+            profile_lookup, arch_model, game_index, stat_input_dim,
+        )
+        del train_contexts
+        n_train = int(train_columnar["n_games_per_window"].shape[0])  # type: ignore[union-attr]
+        console.print(f"  {n_train} training windows")
+
+        console.print("  Building precomputed columnar data (val)...")
+        val_columnar = build_precomputed_columnar(
+            val_contexts, precomputed_config, target_stats,
+            profile_lookup, arch_model, game_index, stat_input_dim,
+        )
+        del val_contexts
+        n_val = int(val_columnar["n_games_per_window"].shape[0])  # type: ignore[union-attr]
+        console.print(f"  {n_val} validation windows")
+
+        precomputed_meta: dict[str, object] = {
+            "seasons": sorted(train_seasons),
+            "val_seasons": sorted(int(s.strip()) for s in val_seasons.split(",")),
+            "perspective": perspective,
+            "context_window": precomputed_context_window,
+            "max_seq_len": max_seq_len,
+            "min_games": precomputed_min_games,
+            "target_mode": target_mode,
+            "target_window": target_window,
+            "backbone_checkpoint": base_model,
+            "d_model": d_model,
+            "n_windows_train": n_train,
+            "n_windows_val": n_val,
+        }
+        train_name = f"precomputed_{perspective}_train"
+        val_name = f"precomputed_{perspective}_val"
+        data_store.save_precomputed_data(train_name, train_columnar, precomputed_meta)
+        data_store.save_precomputed_data(val_name, val_columnar, precomputed_meta)
+
+        console.print(
+            f"  Saved {n_train} train + {n_val} val precomputed windows"
         )
 
     console.print("[bold green]Done![/bold green]")
@@ -1433,6 +1640,13 @@ def hier_finetune_cmd(
             help="Load pre-built hierarchical windows if available",
         ),
     ] = True,
+    precomputed: Annotated[
+        bool,
+        typer.Option(
+            "--precomputed/--no-precomputed",
+            help="Use precomputed game embeddings (faster training). Falls back to standard path if not available.",
+        ),
+    ] = True,
 ) -> None:
     """Fine-tune a hierarchical model with identity conditioning.
 
@@ -1441,9 +1655,11 @@ def hier_finetune_cmd(
     a pre-trained checkpoint and frozen during training.
 
     Pre-build data with: contextual prepare-data --mode hier-finetune
+    For faster training: contextual prepare-data --mode precomputed-hier
 
     Example:
         uv run fantasy-baseball-manager contextual hier-finetune --perspective pitcher --epochs 10
+        uv run fantasy-baseball-manager contextual hier-finetune --perspective pitcher --precomputed
     """
     import torch
 
@@ -1580,13 +1796,45 @@ def hier_finetune_cmd(
         stat_input_dim=stat_input_dim,
     )
 
-    # Try loading prepared data (columnar dict)
-    train_dataset: HierarchicalFineTuneDataset | None = None
-    val_dataset: HierarchicalFineTuneDataset | None = None
+    # Try loading precomputed data first, then fall back to prepared hierarchical data
+    from fantasy_baseball_manager.contextual.data_store import PreparedDataStore
+    from fantasy_baseball_manager.contextual.training.precomputed_dataset import (
+        PrecomputedDataset,
+    )
 
-    if prepared_data:
-        from fantasy_baseball_manager.contextual.data_store import PreparedDataStore
+    train_dataset: HierarchicalFineTuneDataset | PrecomputedDataset | None = None
+    val_dataset: HierarchicalFineTuneDataset | PrecomputedDataset | None = None
 
+    if precomputed:
+        data_store = PreparedDataStore()
+        pc_train_name = f"precomputed_{perspective}_train"
+        pc_val_name = f"precomputed_{perspective}_val"
+
+        if data_store.exists(pc_train_name) and data_store.exists(pc_val_name):
+            stored_meta = data_store.load_meta(pc_train_name)
+            # Validate backbone checkpoint matches
+            if stored_meta is not None and stored_meta.get("backbone_checkpoint") != base_model:
+                console.print(
+                    f"[yellow]Precomputed data was built with backbone "
+                    f"'{stored_meta.get('backbone_checkpoint')}' but --base-model is "
+                    f"'{base_model}'. Skipping precomputed data.[/yellow]"
+                )
+            else:
+                console.print("\nLoading precomputed game embeddings...")
+                train_pc_data = data_store.load_precomputed_data(pc_train_name)
+                val_pc_data = data_store.load_precomputed_data(pc_val_name)
+                n_train = int(train_pc_data["n_games_per_window"].shape[0])  # type: ignore[union-attr]
+                n_val = int(val_pc_data["n_games_per_window"].shape[0])  # type: ignore[union-attr]
+                console.print(
+                    f"  Loaded precomputed data ({n_train} train, "
+                    f"{n_val} val windows)"
+                )
+                train_dataset = PrecomputedDataset(train_pc_data)
+                val_dataset = PrecomputedDataset(val_pc_data)
+        else:
+            console.print("[yellow]No precomputed data found. Falling back to standard path.[/yellow]")
+
+    if train_dataset is None and val_dataset is None and prepared_data:
         data_store = PreparedDataStore()
         train_name = f"hier_finetune_{perspective}_train"
         val_name = f"hier_finetune_{perspective}_val"

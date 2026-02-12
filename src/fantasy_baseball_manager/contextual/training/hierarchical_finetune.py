@@ -17,6 +17,11 @@ from fantasy_baseball_manager.contextual.training.hierarchical_dataset import (
     HierarchicalFineTuneSample,
     collate_hierarchical_samples,
 )
+from fantasy_baseball_manager.contextual.training.precomputed_dataset import (
+    PrecomputedBatch,
+    PrecomputedDataset,
+    collate_precomputed_samples,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -68,15 +73,19 @@ class HierarchicalFineTuneTrainer:
 
     def train(
         self,
-        train_dataset: HierarchicalFineTuneDataset,
-        val_dataset: HierarchicalFineTuneDataset,
+        train_dataset: HierarchicalFineTuneDataset | PrecomputedDataset,
+        val_dataset: HierarchicalFineTuneDataset | PrecomputedDataset,
     ) -> dict[str, float]:
         """Run the hierarchical fine-tuning loop.
+
+        Accepts either HierarchicalFineTuneDataset (standard path with backbone)
+        or PrecomputedDataset (precomputed game embeddings, skips backbone).
 
         Returns:
             Dict with final validation metrics.
         """
         config = self._config
+        self._precomputed = isinstance(train_dataset, PrecomputedDataset)
 
         # Parameter groups with per-group learning rates
         param_groups = [
@@ -111,11 +120,12 @@ class HierarchicalFineTuneTrainer:
         if self._device.type == "cuda":
             loader_kwargs.update(num_workers=4, pin_memory=True, persistent_workers=True)
 
+        collate_fn = collate_precomputed_samples if self._precomputed else collate_hierarchical_samples
         train_loader = DataLoader(
             train_dataset,
             batch_size=config.batch_size,
             shuffle=True,
-            collate_fn=collate_hierarchical_samples,
+            collate_fn=collate_fn,
             generator=torch.Generator().manual_seed(config.seed),
             **loader_kwargs,
         )
@@ -123,7 +133,7 @@ class HierarchicalFineTuneTrainer:
             val_dataset,
             batch_size=config.batch_size,
             shuffle=False,
-            collate_fn=collate_hierarchical_samples,
+            collate_fn=collate_fn,
             **loader_kwargs,
         )
 
@@ -213,13 +223,10 @@ class HierarchicalFineTuneTrainer:
         log_interval = self._config.log_interval
         epoch_start = time.monotonic()
         optimizer.zero_grad()
-        for batch_idx, batch in enumerate(loader):
-            batch = self._batch_to_device(batch)
+        for batch_idx, raw_batch in enumerate(loader):
+            preds, targets = self._forward_batch(raw_batch)
 
-            output = self._model(batch.context, batch.identity_features, batch.archetype_ids)
-            preds = output["performance_preds"]
-
-            loss = self._compute_weighted_loss(preds, batch.targets)
+            loss = self._compute_weighted_loss(preds, targets)
             scaled_loss = loss / accum
             scaled_loss.backward()
 
@@ -229,12 +236,12 @@ class HierarchicalFineTuneTrainer:
                 scheduler.step()
                 optimizer.zero_grad()
 
-            n = batch.targets.shape[0]
+            n = targets.shape[0]
             total_loss += loss.item() * n
             total_samples += n
 
             with torch.no_grad():
-                diff = preds.cpu() - batch.targets.cpu()
+                diff = preds.cpu() - targets.cpu()
                 per_stat_se += (diff ** 2).sum(dim=0)
                 per_stat_ae += diff.abs().sum(dim=0)
 
@@ -277,23 +284,21 @@ class HierarchicalFineTuneTrainer:
         baseline_se = torch.zeros(len(self._target_stats))
         baseline_ae = torch.zeros(len(self._target_stats))
 
-        for batch in loader:
-            batch = self._batch_to_device(batch)
+        for raw_batch in loader:
+            preds, targets = self._forward_batch(raw_batch)
+            context_mean = self._get_context_mean(raw_batch)
 
-            output = self._model(batch.context, batch.identity_features, batch.archetype_ids)
-            preds = output["performance_preds"]
+            loss = self._compute_weighted_loss(preds, targets)
 
-            loss = self._compute_weighted_loss(preds, batch.targets)
-
-            n = batch.targets.shape[0]
+            n = targets.shape[0]
             total_loss += loss.item() * n
             total_samples += n
 
-            diff = preds.cpu() - batch.targets.cpu()
+            diff = preds.cpu() - targets.cpu()
             per_stat_se += (diff ** 2).sum(dim=0)
             per_stat_ae += diff.abs().sum(dim=0)
 
-            baseline_diff = batch.context_mean.cpu() - batch.targets.cpu()
+            baseline_diff = context_mean.cpu() - targets.cpu()
             baseline_se += (baseline_diff ** 2).sum(dim=0)
             baseline_ae += baseline_diff.abs().sum(dim=0)
 
@@ -359,6 +364,32 @@ class HierarchicalFineTuneTrainer:
             scheduler_state=scheduler_state,
         )
 
+    def _forward_batch(
+        self,
+        raw_batch: HierarchicalFineTuneBatch | PrecomputedBatch,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Dispatch forward pass based on batch type, returning (preds, targets)."""
+        if isinstance(raw_batch, PrecomputedBatch):
+            batch = self._batch_to_device_precomputed(raw_batch)
+            output = self._model.forward_precomputed(
+                batch.game_embeddings, batch.game_mask,
+                batch.identity_features, batch.archetype_ids,
+            )
+            return output["performance_preds"], batch.targets
+        else:
+            batch = self._batch_to_device(raw_batch)
+            output = self._model(batch.context, batch.identity_features, batch.archetype_ids)
+            return output["performance_preds"], batch.targets
+
+    def _get_context_mean(
+        self,
+        raw_batch: HierarchicalFineTuneBatch | PrecomputedBatch,
+    ) -> torch.Tensor:
+        """Extract context_mean from a batch, moving to device if needed."""
+        if isinstance(raw_batch, PrecomputedBatch):
+            return raw_batch.context_mean.to(self._device)
+        return raw_batch.context_mean.to(self._device)
+
     def _batch_to_device(self, batch: HierarchicalFineTuneBatch) -> HierarchicalFineTuneBatch:
         if self._device.type == "cpu":
             return batch
@@ -380,6 +411,18 @@ class HierarchicalFineTuneTrainer:
                 game_ids=ctx.game_ids.to(self._device),
                 seq_lengths=ctx.seq_lengths.to(self._device),
             ),
+            targets=batch.targets.to(self._device),
+            context_mean=batch.context_mean.to(self._device),
+            identity_features=batch.identity_features.to(self._device),
+            archetype_ids=batch.archetype_ids.to(self._device),
+        )
+
+    def _batch_to_device_precomputed(self, batch: PrecomputedBatch) -> PrecomputedBatch:
+        if self._device.type == "cpu":
+            return batch
+        return PrecomputedBatch(
+            game_embeddings=batch.game_embeddings.to(self._device),
+            game_mask=batch.game_mask.to(self._device),
             targets=batch.targets.to(self._device),
             context_mean=batch.context_mean.to(self._device),
             identity_features=batch.identity_features.to(self._device),
