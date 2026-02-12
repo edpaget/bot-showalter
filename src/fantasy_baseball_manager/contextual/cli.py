@@ -882,8 +882,8 @@ def pretrain_cmd(
     else:
         device = torch.device("cpu")
 
-    # Resolve AMP: only enable on CUDA even if --amp was passed
-    amp_enabled = amp and device.type == "cuda"
+    # Resolve AMP: enable on CUDA and MPS (float16 autocast supported since PyTorch 2.1+)
+    amp_enabled = amp and device.type in ("cuda", "mps")
 
     config = PreTrainingConfig(
         train_seasons=train_seasons,

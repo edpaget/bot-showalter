@@ -168,7 +168,7 @@ class MGMTrainer:
             lr=config.learning_rate,
             weight_decay=config.weight_decay,
         )
-        self._scaler = GradScaler(enabled=config.amp_enabled)
+        self._scaler = GradScaler(enabled=config.amp_enabled and self._device.type == "cuda")
 
         n_batches_per_epoch = math.ceil(len(train_dataset) / config.batch_size)
         total_steps = config.epochs * math.ceil(n_batches_per_epoch / config.accumulation_steps)
@@ -208,6 +208,8 @@ class MGMTrainer:
         loader_kwargs: dict[str, Any] = {}
         if self._device.type == "cuda":
             loader_kwargs.update(num_workers=4, pin_memory=True, persistent_workers=True)
+        elif self._device.type == "mps":
+            loader_kwargs.update(num_workers=2, persistent_workers=True)
 
         train_loader = DataLoader(
             train_dataset,
@@ -550,19 +552,19 @@ class MGMTrainer:
         if self._device.type == "cpu":
             return batch
         return MaskedBatch(
-            pitch_type_ids=batch.pitch_type_ids.to(self._device),
-            pitch_result_ids=batch.pitch_result_ids.to(self._device),
-            bb_type_ids=batch.bb_type_ids.to(self._device),
-            stand_ids=batch.stand_ids.to(self._device),
-            p_throws_ids=batch.p_throws_ids.to(self._device),
-            pa_event_ids=batch.pa_event_ids.to(self._device),
-            numeric_features=batch.numeric_features.to(self._device),
-            numeric_mask=batch.numeric_mask.to(self._device),
-            padding_mask=batch.padding_mask.to(self._device),
-            player_token_mask=batch.player_token_mask.to(self._device),
-            game_ids=batch.game_ids.to(self._device),
-            target_pitch_type_ids=batch.target_pitch_type_ids.to(self._device),
-            target_pitch_result_ids=batch.target_pitch_result_ids.to(self._device),
-            mask_positions=batch.mask_positions.to(self._device),
-            seq_lengths=batch.seq_lengths.to(self._device),
+            pitch_type_ids=batch.pitch_type_ids.to(self._device, non_blocking=True),
+            pitch_result_ids=batch.pitch_result_ids.to(self._device, non_blocking=True),
+            bb_type_ids=batch.bb_type_ids.to(self._device, non_blocking=True),
+            stand_ids=batch.stand_ids.to(self._device, non_blocking=True),
+            p_throws_ids=batch.p_throws_ids.to(self._device, non_blocking=True),
+            pa_event_ids=batch.pa_event_ids.to(self._device, non_blocking=True),
+            numeric_features=batch.numeric_features.to(self._device, non_blocking=True),
+            numeric_mask=batch.numeric_mask.to(self._device, non_blocking=True),
+            padding_mask=batch.padding_mask.to(self._device, non_blocking=True),
+            player_token_mask=batch.player_token_mask.to(self._device, non_blocking=True),
+            game_ids=batch.game_ids.to(self._device, non_blocking=True),
+            target_pitch_type_ids=batch.target_pitch_type_ids.to(self._device, non_blocking=True),
+            target_pitch_result_ids=batch.target_pitch_result_ids.to(self._device, non_blocking=True),
+            mask_positions=batch.mask_positions.to(self._device, non_blocking=True),
+            seq_lengths=batch.seq_lengths.to(self._device, non_blocking=True),
         )

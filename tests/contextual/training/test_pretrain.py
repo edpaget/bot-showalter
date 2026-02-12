@@ -218,6 +218,72 @@ class TestMGMTrainer:
         assert "val_loss" in result
         assert result["val_loss"] > 0
 
+    def test_mps_dataloader_uses_workers(self, small_config: ModelConfig, tmp_path: Path) -> None:
+        """On MPS, DataLoader should use num_workers=2 and persistent_workers but no pin_memory."""
+        import torch
+
+        train_config = PreTrainingConfig(
+            epochs=1, batch_size=2, learning_rate=1e-3, seed=42,
+            min_warmup_steps=1, warmup_fraction=0.1,
+        )
+        model = ContextualPerformanceModel(small_config, MaskedGamestateHead(small_config))
+        store = ContextualModelStore(model_dir=tmp_path)
+        trainer = MGMTrainer(model, small_config, train_config, store)
+
+        # Pretend device is MPS
+        trainer._device = torch.device("mps")
+
+        train_ds = _make_dataset(small_config, train_config, n_samples=4)
+        val_ds = _make_dataset(small_config, train_config, n_samples=2)
+
+        captured_kwargs: list[dict[str, object]] = []
+        original_init = DataLoader.__init__
+
+        def spy_init(self_loader: Any, *args: Any, **kwargs: Any) -> None:
+            captured_kwargs.append(kwargs)
+            original_init(self_loader, *args, **kwargs)
+
+        with (
+            patch.object(DataLoader, "__init__", spy_init),
+            patch.object(trainer, "_train_epoch", return_value=TrainingMetrics(0.1, 0.1, 0.1, 0.5, 0.5, 100)),
+            patch.object(trainer, "_validate", return_value=TrainingMetrics(0.1, 0.1, 0.1, 0.5, 0.5, 100)),
+        ):
+            trainer.train(train_ds, val_ds)
+
+        assert len(captured_kwargs) >= 2
+        for kwargs in captured_kwargs:
+            assert kwargs.get("num_workers") == 2
+            assert kwargs.get("persistent_workers") is True
+            assert "pin_memory" not in kwargs
+
+    def test_amp_enabled_on_mps_pretrain(self, small_config: ModelConfig, tmp_path: Path) -> None:
+        """AMP autocast should be enabled on MPS; GradScaler should be disabled."""
+        import torch
+
+        train_config = PreTrainingConfig(
+            epochs=1, batch_size=2, learning_rate=1e-3, seed=42,
+            min_warmup_steps=1, warmup_fraction=0.1,
+            amp_enabled=True,
+        )
+        model = ContextualPerformanceModel(small_config, MaskedGamestateHead(small_config))
+        store = ContextualModelStore(model_dir=tmp_path)
+        trainer = MGMTrainer(model, small_config, train_config, store)
+
+        # Pretend device is MPS
+        trainer._device = torch.device("mps")
+
+        train_ds = _make_dataset(small_config, train_config, n_samples=4)
+        val_ds = _make_dataset(small_config, train_config, n_samples=2)
+
+        with (
+            patch.object(trainer, "_train_epoch", return_value=TrainingMetrics(0.1, 0.1, 0.1, 0.5, 0.5, 100)),
+            patch.object(trainer, "_validate", return_value=TrainingMetrics(0.1, 0.1, 0.1, 0.5, 0.5, 100)),
+        ):
+            trainer.train(train_ds, val_ds)
+
+        # GradScaler should be disabled on MPS
+        assert not trainer._scaler.is_enabled()
+
     def test_cpu_dataloader_no_extra_workers(self, small_config: ModelConfig, tmp_path: Path) -> None:
         """On CPU, DataLoader should not set num_workers/pin_memory (defaults only)."""
         train_config = PreTrainingConfig(

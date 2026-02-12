@@ -119,6 +119,8 @@ class HierarchicalFineTuneTrainer:
         loader_kwargs: dict[str, Any] = {}
         if self._device.type == "cuda":
             loader_kwargs.update(num_workers=4, pin_memory=True, persistent_workers=True)
+        elif self._device.type == "mps":
+            loader_kwargs.update(num_workers=2, persistent_workers=True)
 
         collate_fn = collate_precomputed_samples if self._precomputed else collate_hierarchical_samples
         train_loader = DataLoader(
@@ -226,7 +228,9 @@ class HierarchicalFineTuneTrainer:
         for batch_idx, raw_batch in enumerate(loader):
             preds, targets = self._forward_batch(raw_batch)
 
-            loss = self._compute_weighted_loss(preds, targets)
+            with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+                loss = self._compute_weighted_loss(preds, targets)
+
             scaled_loss = loss / accum
             scaled_loss.backward()
 
@@ -288,7 +292,8 @@ class HierarchicalFineTuneTrainer:
             preds, targets = self._forward_batch(raw_batch)
             context_mean = self._get_context_mean(raw_batch)
 
-            loss = self._compute_weighted_loss(preds, targets)
+            with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+                loss = self._compute_weighted_loss(preds, targets)
 
             n = targets.shape[0]
             total_loss += loss.item() * n
@@ -369,17 +374,18 @@ class HierarchicalFineTuneTrainer:
         raw_batch: HierarchicalFineTuneBatch | PrecomputedBatch,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Dispatch forward pass based on batch type, returning (preds, targets)."""
-        if isinstance(raw_batch, PrecomputedBatch):
-            batch = self._batch_to_device_precomputed(raw_batch)
-            output = self._model.forward_precomputed(
-                batch.game_embeddings, batch.game_mask,
-                batch.identity_features, batch.archetype_ids,
-            )
-            return output["performance_preds"], batch.targets
-        else:
-            batch = self._batch_to_device(raw_batch)
-            output = self._model(batch.context, batch.identity_features, batch.archetype_ids)
-            return output["performance_preds"], batch.targets
+        with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+            if isinstance(raw_batch, PrecomputedBatch):
+                batch = self._batch_to_device_precomputed(raw_batch)
+                output = self._model.forward_precomputed(
+                    batch.game_embeddings, batch.game_mask,
+                    batch.identity_features, batch.archetype_ids,
+                )
+                return output["performance_preds"], batch.targets
+            else:
+                batch = self._batch_to_device(raw_batch)
+                output = self._model(batch.context, batch.identity_features, batch.archetype_ids)
+                return output["performance_preds"], batch.targets
 
     def _get_context_mean(
         self,
@@ -387,8 +393,8 @@ class HierarchicalFineTuneTrainer:
     ) -> torch.Tensor:
         """Extract context_mean from a batch, moving to device if needed."""
         if isinstance(raw_batch, PrecomputedBatch):
-            return raw_batch.context_mean.to(self._device)
-        return raw_batch.context_mean.to(self._device)
+            return raw_batch.context_mean.to(self._device, non_blocking=True)
+        return raw_batch.context_mean.to(self._device, non_blocking=True)
 
     def _batch_to_device(self, batch: HierarchicalFineTuneBatch) -> HierarchicalFineTuneBatch:
         if self._device.type == "cpu":
@@ -398,33 +404,33 @@ class HierarchicalFineTuneTrainer:
         ctx = batch.context
         return HierarchicalFineTuneBatch(
             context=TensorizedBatch(
-                pitch_type_ids=ctx.pitch_type_ids.to(self._device),
-                pitch_result_ids=ctx.pitch_result_ids.to(self._device),
-                bb_type_ids=ctx.bb_type_ids.to(self._device),
-                stand_ids=ctx.stand_ids.to(self._device),
-                p_throws_ids=ctx.p_throws_ids.to(self._device),
-                pa_event_ids=ctx.pa_event_ids.to(self._device),
-                numeric_features=ctx.numeric_features.to(self._device),
-                numeric_mask=ctx.numeric_mask.to(self._device),
-                padding_mask=ctx.padding_mask.to(self._device),
-                player_token_mask=ctx.player_token_mask.to(self._device),
-                game_ids=ctx.game_ids.to(self._device),
-                seq_lengths=ctx.seq_lengths.to(self._device),
+                pitch_type_ids=ctx.pitch_type_ids.to(self._device, non_blocking=True),
+                pitch_result_ids=ctx.pitch_result_ids.to(self._device, non_blocking=True),
+                bb_type_ids=ctx.bb_type_ids.to(self._device, non_blocking=True),
+                stand_ids=ctx.stand_ids.to(self._device, non_blocking=True),
+                p_throws_ids=ctx.p_throws_ids.to(self._device, non_blocking=True),
+                pa_event_ids=ctx.pa_event_ids.to(self._device, non_blocking=True),
+                numeric_features=ctx.numeric_features.to(self._device, non_blocking=True),
+                numeric_mask=ctx.numeric_mask.to(self._device, non_blocking=True),
+                padding_mask=ctx.padding_mask.to(self._device, non_blocking=True),
+                player_token_mask=ctx.player_token_mask.to(self._device, non_blocking=True),
+                game_ids=ctx.game_ids.to(self._device, non_blocking=True),
+                seq_lengths=ctx.seq_lengths.to(self._device, non_blocking=True),
             ),
-            targets=batch.targets.to(self._device),
-            context_mean=batch.context_mean.to(self._device),
-            identity_features=batch.identity_features.to(self._device),
-            archetype_ids=batch.archetype_ids.to(self._device),
+            targets=batch.targets.to(self._device, non_blocking=True),
+            context_mean=batch.context_mean.to(self._device, non_blocking=True),
+            identity_features=batch.identity_features.to(self._device, non_blocking=True),
+            archetype_ids=batch.archetype_ids.to(self._device, non_blocking=True),
         )
 
     def _batch_to_device_precomputed(self, batch: PrecomputedBatch) -> PrecomputedBatch:
         if self._device.type == "cpu":
             return batch
         return PrecomputedBatch(
-            game_embeddings=batch.game_embeddings.to(self._device),
-            game_mask=batch.game_mask.to(self._device),
-            targets=batch.targets.to(self._device),
-            context_mean=batch.context_mean.to(self._device),
-            identity_features=batch.identity_features.to(self._device),
-            archetype_ids=batch.archetype_ids.to(self._device),
+            game_embeddings=batch.game_embeddings.to(self._device, non_blocking=True),
+            game_mask=batch.game_mask.to(self._device, non_blocking=True),
+            targets=batch.targets.to(self._device, non_blocking=True),
+            context_mean=batch.context_mean.to(self._device, non_blocking=True),
+            identity_features=batch.identity_features.to(self._device, non_blocking=True),
+            archetype_ids=batch.archetype_ids.to(self._device, non_blocking=True),
         )

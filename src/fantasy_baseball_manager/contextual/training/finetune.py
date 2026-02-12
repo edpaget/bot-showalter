@@ -133,6 +133,8 @@ class FineTuneTrainer:
         loader_kwargs: dict[str, Any] = {}
         if self._device.type == "cuda":
             loader_kwargs.update(num_workers=4, pin_memory=True, persistent_workers=True)
+        elif self._device.type == "mps":
+            loader_kwargs.update(num_workers=2, persistent_workers=True)
 
         train_loader = DataLoader(
             train_dataset,
@@ -243,10 +245,11 @@ class FineTuneTrainer:
         for batch_idx, batch in enumerate(loader):
             batch = self._batch_to_device(batch)
 
-            output = self._model(batch.context)
-            preds = output["performance_preds"]  # (batch, n_targets)
+            with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+                output = self._model(batch.context)
+                preds = output["performance_preds"]  # (batch, n_targets)
+                loss = self._compute_weighted_loss(preds, batch.targets)
 
-            loss = self._compute_weighted_loss(preds, batch.targets)
             scaled_loss = loss / accum
             scaled_loss.backward()
 
@@ -303,10 +306,10 @@ class FineTuneTrainer:
         for batch in loader:
             batch = self._batch_to_device(batch)
 
-            output = self._model(batch.context)
-            preds = output["performance_preds"]  # (batch, n_targets)
-
-            loss = self._compute_weighted_loss(preds, batch.targets)
+            with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+                output = self._model(batch.context)
+                preds = output["performance_preds"]  # (batch, n_targets)
+                loss = self._compute_weighted_loss(preds, batch.targets)
 
             n = batch.targets.shape[0]
             total_loss += loss.item() * n
@@ -393,19 +396,19 @@ class FineTuneTrainer:
         ctx = batch.context
         return FineTuneBatch(
             context=TensorizedBatch(
-                pitch_type_ids=ctx.pitch_type_ids.to(self._device),
-                pitch_result_ids=ctx.pitch_result_ids.to(self._device),
-                bb_type_ids=ctx.bb_type_ids.to(self._device),
-                stand_ids=ctx.stand_ids.to(self._device),
-                p_throws_ids=ctx.p_throws_ids.to(self._device),
-                pa_event_ids=ctx.pa_event_ids.to(self._device),
-                numeric_features=ctx.numeric_features.to(self._device),
-                numeric_mask=ctx.numeric_mask.to(self._device),
-                padding_mask=ctx.padding_mask.to(self._device),
-                player_token_mask=ctx.player_token_mask.to(self._device),
-                game_ids=ctx.game_ids.to(self._device),
-                seq_lengths=ctx.seq_lengths.to(self._device),
+                pitch_type_ids=ctx.pitch_type_ids.to(self._device, non_blocking=True),
+                pitch_result_ids=ctx.pitch_result_ids.to(self._device, non_blocking=True),
+                bb_type_ids=ctx.bb_type_ids.to(self._device, non_blocking=True),
+                stand_ids=ctx.stand_ids.to(self._device, non_blocking=True),
+                p_throws_ids=ctx.p_throws_ids.to(self._device, non_blocking=True),
+                pa_event_ids=ctx.pa_event_ids.to(self._device, non_blocking=True),
+                numeric_features=ctx.numeric_features.to(self._device, non_blocking=True),
+                numeric_mask=ctx.numeric_mask.to(self._device, non_blocking=True),
+                padding_mask=ctx.padding_mask.to(self._device, non_blocking=True),
+                player_token_mask=ctx.player_token_mask.to(self._device, non_blocking=True),
+                game_ids=ctx.game_ids.to(self._device, non_blocking=True),
+                seq_lengths=ctx.seq_lengths.to(self._device, non_blocking=True),
             ),
-            targets=batch.targets.to(self._device),
-            context_mean=batch.context_mean.to(self._device),
+            targets=batch.targets.to(self._device, non_blocking=True),
+            context_mean=batch.context_mean.to(self._device, non_blocking=True),
         )
