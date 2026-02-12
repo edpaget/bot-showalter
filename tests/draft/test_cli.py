@@ -10,7 +10,6 @@ from fantasy_baseball_manager.adp.models import ADPEntry
 from fantasy_baseball_manager.cli import app
 from fantasy_baseball_manager.config import create_config
 from fantasy_baseball_manager.context import get_context
-from fantasy_baseball_manager.draft.cli import _apply_pool_replacement
 from fantasy_baseball_manager.draft.models import RosterConfig, RosterSlot
 from fantasy_baseball_manager.marcel.models import (
     BattingSeasonStats,
@@ -18,6 +17,7 @@ from fantasy_baseball_manager.marcel.models import (
 )
 from fantasy_baseball_manager.result import Ok
 from fantasy_baseball_manager.services import ServiceContainer, set_container
+from fantasy_baseball_manager.shared.orchestration import _apply_pool_replacement
 from fantasy_baseball_manager.valuation.models import PlayerValue, ValuationResult
 from fantasy_baseball_manager.valuation.replacement import (
     BATTER_SCARCITY_ORDER,
@@ -702,3 +702,26 @@ class TestReplacementIntegration:
         result = runner.invoke(app, ["players", "draft-rank", "2025"])
         assert result.exit_code == 0
         assert "Draft rankings" in result.output
+
+
+class TestDraftSimulateRosterConfig:
+    def test_passes_roster_config_to_build_projections(self) -> None:
+        """draft-simulate should forward roster_config to build_projections_and_positions."""
+        _install_fake()
+        fake_values = [
+            PlayerValue(player_id="b1", name="Hitter", category_values=(), total_value=5.0, position_type="B"),
+            PlayerValue(player_id="p1", name="Pitcher", category_values=(), total_value=3.0, position_type="P"),
+        ]
+        fake_positions: dict[tuple[str, str], tuple[str, ...]] = {
+            ("b1", "B"): ("1B",),
+            ("p1", "P"): ("SP",),
+        }
+        with patch(
+            "fantasy_baseball_manager.draft.cli.build_projections_and_positions",
+            return_value=(fake_values, fake_positions),
+        ) as mock_build:
+            result = runner.invoke(app, ["players", "draft-simulate", "2025", "--rounds", "1", "--teams", "2"])
+            assert result.exit_code == 0
+            mock_build.assert_called_once()
+            _, kwargs = mock_build.call_args
+            assert "roster_config" in kwargs

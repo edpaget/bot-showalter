@@ -49,6 +49,7 @@ from fantasy_baseball_manager.engines import DEFAULT_ENGINE, DEFAULT_METHOD, val
 from fantasy_baseball_manager.pipeline.presets import PIPELINES
 from fantasy_baseball_manager.services import cli_context, get_container, set_container
 from fantasy_baseball_manager.shared.orchestration import (
+    _apply_pool_replacement,
     build_projections_and_positions,
 )
 from fantasy_baseball_manager.valuation.models import PlayerValue, StatCategory
@@ -56,9 +57,6 @@ from fantasy_baseball_manager.valuation.replacement import (
     BATTER_SCARCITY_ORDER,
     PITCHER_SCARCITY_ORDER,
     ReplacementConfig,
-    apply_replacement_adjustment,
-    assign_positions,
-    compute_replacement_levels,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,20 +92,6 @@ def _load_roster_config(path: Path) -> RosterConfig:
     for position, count in slots_data.items():
         slots.append(RosterSlot(position=str(position), count=int(count)))
     return RosterConfig(slots=tuple(slots))
-
-
-def _apply_pool_replacement(
-    players: list[PlayerValue],
-    player_positions: dict[str, tuple[str, ...]],
-    config: ReplacementConfig,
-    scarcity_order: tuple[str, ...],
-) -> list[PlayerValue]:
-    """Apply replacement-level adjustment to a single player pool."""
-    if not players:
-        return []
-    assignments = assign_positions(players, player_positions, config, scarcity_order)
-    thresholds = compute_replacement_levels(players, player_positions, config, scarcity_order)
-    return apply_replacement_adjustment(players, assignments, thresholds, player_positions)
 
 
 def draft_rank(
@@ -483,7 +467,7 @@ def draft_simulate(
 
     # Build projections
     typer.echo(f"Generating projections for {year} using {engine}...")
-    all_values, composite_positions = build_projections_and_positions(engine, year)
+    all_values, composite_positions = build_projections_and_positions(engine, year, roster_config=roster_config)
     typer.echo(f"Running {teams}-team, {rounds}-round snake draft simulation...")
 
     result = simulate_draft(sim_config, all_values, composite_positions)
