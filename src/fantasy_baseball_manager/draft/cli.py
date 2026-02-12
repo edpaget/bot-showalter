@@ -38,6 +38,7 @@ from fantasy_baseball_manager.draft.simulation_models import (
     TeamConfig,
 )
 from fantasy_baseball_manager.draft.simulation_report import (
+    compute_adp_correlation,
     print_draft_rankings,
     print_pick_log,
     print_standings,
@@ -124,6 +125,12 @@ def draft_rank(
     no_replacement: Annotated[
         bool, typer.Option("--no-replacement", help="Skip replacement-level adjustment.")
     ] = False,
+    correlation: Annotated[
+        bool, typer.Option("--correlation", help="Print Spearman rank correlation with ADP.")
+    ] = False,
+    smoothing_window: Annotated[
+        int, typer.Option("--smoothing-window", help="Replacement-level smoothing window size.")
+    ] = 5,
     league_id: Annotated[str | None, typer.Option("--league-id", help="Override league ID from config.")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Override season from config.")] = None,
 ) -> None:
@@ -221,6 +228,7 @@ def draft_rank(
             replacement_config = ReplacementConfig(
                 team_count=league_settings.team_count,
                 roster_config=roster_config,
+                smoothing_window=smoothing_window,
             )
             if show_batting:
                 batter_values = [v for v in all_values if v.position_type == "B"]
@@ -373,6 +381,16 @@ def draft_rank(
             logger.debug("Fetched %d ADP entries from %s", len(adp_entries), adp_source_name)
 
         print_draft_rankings(rankings, year, adp_entries)
+
+        if correlation:
+            if adp_entries is None:
+                typer.echo("--correlation requires --adp", err=True)
+            else:
+                rho = compute_adp_correlation(rankings, adp_entries)
+                if rho is not None:
+                    typer.echo(f"\nSpearman rank correlation with ADP: {rho:.3f}")
+                else:
+                    typer.echo("\nNot enough ADP matches to compute correlation.", err=True)
 
 
 def _load_keepers_file(path: Path) -> dict[int, dict[str, object]]:

@@ -212,6 +212,34 @@ class _ADPLookup:
         return self._untyped.get(normalized)
 
 
+def compute_adp_correlation(
+    rankings: list[DraftRanking],
+    adp_entries: Sequence[ADPEntry],
+) -> float | None:
+    """Compute Spearman rank correlation between draft rankings and ADP.
+
+    Returns None when fewer than 2 players can be matched.
+    """
+    import numpy as np
+
+    from fantasy_baseball_manager.ml.validation import compute_spearman_rho
+
+    lookup = _ADPLookup(adp_entries)
+    ranks: list[float] = []
+    adps: list[float] = []
+
+    for r in rankings:
+        is_pitcher = bool(set(r.eligible_positions) & _PITCHER_POSITIONS)
+        adp = lookup.get(r.name, is_pitcher)
+        if adp is not None:
+            ranks.append(float(r.rank))
+            adps.append(adp)
+
+    if len(ranks) < 2:
+        return None
+    return compute_spearman_rho(np.array(ranks), np.array(adps))
+
+
 def print_draft_rankings(
     rankings: list[DraftRanking], year: int, adp_entries: Sequence[ADPEntry] | None = None
 ) -> None:

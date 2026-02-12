@@ -1,5 +1,6 @@
 from io import StringIO
 
+import pytest
 from rich.console import Console
 
 from fantasy_baseball_manager.adp.models import ADPEntry
@@ -363,3 +364,64 @@ class TestADPLookup:
         # Even though we ask for pitcher, it falls back to untyped lookup
         assert lookup.get("Tarik Skubal", is_pitcher=True) == 5.0
         assert lookup.get("Tarik Skubal", is_pitcher=False) == 5.0
+
+
+class TestComputeAdpCorrelation:
+    def test_basic_returns_float_in_range(self) -> None:
+        """3 rankings + 3 matching ADPs returns float in [-1, 1]."""
+        rankings = [
+            _make_draft_ranking(1, "p1", "Player A", ("OF",)),
+            _make_draft_ranking(2, "p2", "Player B", ("1B",)),
+            _make_draft_ranking(3, "p3", "Player C", ("SS",)),
+        ]
+        adp_entries = [
+            ADPEntry(name="Player A", adp=2.0, positions=("OF",)),
+            ADPEntry(name="Player B", adp=1.0, positions=("1B",)),
+            ADPEntry(name="Player C", adp=3.0, positions=("SS",)),
+        ]
+        result = simulation_report.compute_adp_correlation(rankings, adp_entries)
+        assert result is not None
+        assert -1.0 <= result <= 1.0
+
+    def test_perfect_correlation(self) -> None:
+        """Ranks match ADP order exactly -> returns ~1.0."""
+        rankings = [
+            _make_draft_ranking(1, "p1", "Player A", ("OF",)),
+            _make_draft_ranking(2, "p2", "Player B", ("1B",)),
+            _make_draft_ranking(3, "p3", "Player C", ("SS",)),
+        ]
+        adp_entries = [
+            ADPEntry(name="Player A", adp=1.0, positions=("OF",)),
+            ADPEntry(name="Player B", adp=2.0, positions=("1B",)),
+            ADPEntry(name="Player C", adp=3.0, positions=("SS",)),
+        ]
+        result = simulation_report.compute_adp_correlation(rankings, adp_entries)
+        assert result is not None
+        assert result == pytest.approx(1.0)
+
+    def test_no_matches_returns_none(self) -> None:
+        """No ADP names match -> returns None."""
+        rankings = [
+            _make_draft_ranking(1, "p1", "Player A", ("OF",)),
+        ]
+        adp_entries = [
+            ADPEntry(name="Unknown Player", adp=1.0, positions=("OF",)),
+        ]
+        result = simulation_report.compute_adp_correlation(rankings, adp_entries)
+        assert result is None
+
+    def test_partial_match_uses_subset(self) -> None:
+        """Only some names match -> uses matched subset."""
+        rankings = [
+            _make_draft_ranking(1, "p1", "Player A", ("OF",)),
+            _make_draft_ranking(2, "p2", "Player B", ("1B",)),
+            _make_draft_ranking(3, "p3", "Unknown", ("SS",)),
+        ]
+        adp_entries = [
+            ADPEntry(name="Player A", adp=1.0, positions=("OF",)),
+            ADPEntry(name="Player B", adp=2.0, positions=("1B",)),
+        ]
+        result = simulation_report.compute_adp_correlation(rankings, adp_entries)
+        assert result is not None
+        # Only 2 matched players, both in same order -> perfect correlation
+        assert result == pytest.approx(1.0)
