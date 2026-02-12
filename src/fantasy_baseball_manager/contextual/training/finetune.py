@@ -245,7 +245,7 @@ class FineTuneTrainer:
         for batch_idx, batch in enumerate(loader):
             batch = self._batch_to_device(batch)
 
-            with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+            with torch.amp.autocast(self._device.type, enabled=self._device.type == "cuda"):
                 output = self._model(batch.context)
                 preds = output["performance_preds"]  # (batch, n_targets)
                 loss = self._compute_weighted_loss(preds, batch.targets)
@@ -306,7 +306,7 @@ class FineTuneTrainer:
         for batch in loader:
             batch = self._batch_to_device(batch)
 
-            with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+            with torch.amp.autocast(self._device.type, enabled=self._device.type == "cuda"):
                 output = self._model(batch.context)
                 preds = output["performance_preds"]  # (batch, n_targets)
                 loss = self._compute_weighted_loss(preds, batch.targets)

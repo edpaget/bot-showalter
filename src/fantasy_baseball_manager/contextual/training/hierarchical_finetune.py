@@ -119,7 +119,10 @@ class HierarchicalFineTuneTrainer:
         loader_kwargs: dict[str, Any] = {}
         if self._device.type == "cuda":
             loader_kwargs.update(num_workers=4, pin_memory=True, persistent_workers=True)
-        elif self._device.type == "mps":
+        elif self._device.type == "mps" and not self._precomputed:
+            # Only use workers for the standard path (large pitch-level batches).
+            # Precomputed batches are tiny (~320KB); IPC overhead from workers
+            # dominates on macOS and causes a 3x+ slowdown.
             loader_kwargs.update(num_workers=2, persistent_workers=True)
 
         collate_fn = collate_precomputed_samples if self._precomputed else collate_hierarchical_samples
@@ -205,6 +208,8 @@ class HierarchicalFineTuneTrainer:
             "val_loss": val_metrics.loss,
             **{f"val_{stat}_mse": v for stat, v in val_metrics.per_stat_mse.items()},
             **{f"val_{stat}_mae": v for stat, v in val_metrics.per_stat_mae.items()},
+            **{f"baseline_{stat}_mse": v for stat, v in val_metrics.baseline_per_stat_mse.items()},
+            **{f"baseline_{stat}_mae": v for stat, v in val_metrics.baseline_per_stat_mae.items()},
         }
 
     def _train_epoch(
@@ -228,7 +233,7 @@ class HierarchicalFineTuneTrainer:
         for batch_idx, raw_batch in enumerate(loader):
             preds, targets = self._forward_batch(raw_batch)
 
-            with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+            with torch.amp.autocast(self._device.type, enabled=self._device.type == "cuda"):
                 loss = self._compute_weighted_loss(preds, targets)
 
             scaled_loss = loss / accum
@@ -292,7 +297,7 @@ class HierarchicalFineTuneTrainer:
             preds, targets = self._forward_batch(raw_batch)
             context_mean = self._get_context_mean(raw_batch)
 
-            with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+            with torch.amp.autocast(self._device.type, enabled=self._device.type == "cuda"):
                 loss = self._compute_weighted_loss(preds, targets)
 
             n = targets.shape[0]
@@ -374,7 +379,7 @@ class HierarchicalFineTuneTrainer:
         raw_batch: HierarchicalFineTuneBatch | PrecomputedBatch,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Dispatch forward pass based on batch type, returning (preds, targets)."""
-        with torch.amp.autocast(self._device.type, enabled=self._device.type != "cpu"):
+        with torch.amp.autocast(self._device.type, enabled=self._device.type == "cuda"):
             if isinstance(raw_batch, PrecomputedBatch):
                 batch = self._batch_to_device_precomputed(raw_batch)
                 output = self._model.forward_precomputed(
