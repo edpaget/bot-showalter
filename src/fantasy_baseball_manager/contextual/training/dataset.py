@@ -13,6 +13,7 @@ from fantasy_baseball_manager.contextual.model.tensorizer import (
     PAD_GAME_ID,
     TensorizedBatch,
     TensorizedSingle,
+    assemble_game_window,
 )
 
 if TYPE_CHECKING:
@@ -526,19 +527,24 @@ def _build_player_windows(
     target_stats: tuple[str, ...],
     target_mode: str = "counts",
     target_window: int = 1,
+    max_seq_len: int = 512,
 ) -> list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]]:
     """Build sliding windows for a single player.
 
     Top-level function so it's picklable for multiprocessing.
 
+    Pre-tensorizes each game once, then assembles windows from slices
+    to avoid redundant tensorization of shared games across windows.
+
     Returns:
         List of (tensorized_context, targets, context_mean) tuples.
     """
-    from fantasy_baseball_manager.contextual.data.models import PlayerContext as PC
-
     windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]] = []
     games = player_ctx.games
     n = context_window
+
+    # Tensorize all games up-front (each game only once)
+    tensorized_games = [tensorizer.tensorize_game(g) for g in games]
 
     if target_mode == "rates":
         k = target_window
@@ -554,28 +560,18 @@ def _build_player_windows(
 
             target_rate, context_rate = result
 
-            ctx = PC(
-                player_id=player_ctx.player_id,
-                player_name=player_ctx.player_name,
-                season=player_ctx.season,
-                perspective=player_ctx.perspective,
-                games=context_games,
+            tensorized = assemble_game_window(
+                tensorized_games[i : i + n], max_seq_len,
             )
-            tensorized = tensorizer.tensorize_context(ctx)
             windows.append((tensorized, target_rate, context_rate))
     else:
         for i in range(len(games) - n):
             context_games = games[i : i + n]
             target_game = games[i + n]
 
-            ctx = PC(
-                player_id=player_ctx.player_id,
-                player_name=player_ctx.player_name,
-                season=player_ctx.season,
-                perspective=player_ctx.perspective,
-                games=context_games,
+            tensorized = assemble_game_window(
+                tensorized_games[i : i + n], max_seq_len,
             )
-            tensorized = tensorizer.tensorize_context(ctx)
             targets = extract_game_stats(target_game, target_stats)
             context_mean = torch.stack(
                 [extract_game_stats(g, target_stats) for g in context_games]
@@ -619,6 +615,7 @@ def build_finetune_windows(
         target_stats=target_stats,
         target_mode=target_mode,
         target_window=target_window,
+        max_seq_len=tensorizer.max_seq_len,
     )
 
     windows: list[tuple[TensorizedSingle, torch.Tensor, torch.Tensor]] = []

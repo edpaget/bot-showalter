@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import torch
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.contextual.data.models import PitchEvent, PlayerContext
+    from fantasy_baseball_manager.contextual.data.models import GameSequence, PitchEvent, PlayerContext
     from fantasy_baseball_manager.contextual.data.vocab import Vocabulary
     from fantasy_baseball_manager.contextual.model.config import ModelConfig
 
@@ -107,8 +107,18 @@ class Tensorizer:
         self._handedness_vocab = handedness_vocab
         self._pa_event_vocab = pa_event_vocab
 
-    def tensorize_context(self, context: PlayerContext) -> TensorizedSingle:
-        """Convert a PlayerContext into a TensorizedSingle."""
+    @property
+    def max_seq_len(self) -> int:
+        """Maximum sequence length from the model config."""
+        return self._config.max_seq_len
+
+    def tensorize_game(self, game: GameSequence) -> TensorizedSingle:
+        """Tensorize a single game: [PLAYER] + pitches. No [CLS] token.
+
+        All game_ids are set to 0 (sentinel); callers re-index during assembly.
+        """
+        n_numeric = len(NUMERIC_FIELDS)
+
         pitch_type_ids: list[int] = []
         pitch_result_ids: list[int] = []
         bb_type_ids: list[int] = []
@@ -120,20 +130,7 @@ class Tensorizer:
         player_token_mask: list[bool] = []
         game_id_list: list[int] = []
 
-        n_numeric = len(NUMERIC_FIELDS)
-
-        # Determine which games fit within max_seq_len (keep newest, drop oldest)
-        # Account for the CLS token at position 0
-        games = list(context.games)
-        game_lengths = [1 + len(g.pitches) for g in games]  # 1 for player token
-
-        total = 1 + sum(game_lengths)  # +1 for CLS
-        while total > self._config.max_seq_len and games:
-            total -= game_lengths[0]
-            games.pop(0)
-            game_lengths.pop(0)
-
-        # Insert [CLS] token at position 0 — attends to all tokens across all games
+        # [PLAYER] token
         pitch_type_ids.append(0)
         pitch_result_ids.append(0)
         bb_type_ids.append(0)
@@ -142,37 +139,23 @@ class Tensorizer:
         pa_event_ids.append(0)
         numeric_features.append([0.0] * n_numeric)
         numeric_mask.append([False] * n_numeric)
-        player_token_mask.append(False)  # NOT a player token — gets pitch-like attention
-        game_id_list.append(CLS_GAME_ID)
+        player_token_mask.append(True)
+        game_id_list.append(0)
 
-        for game_idx, game in enumerate(games):
-            # Insert [PLAYER] token
-            pitch_type_ids.append(0)
-            pitch_result_ids.append(0)
-            bb_type_ids.append(0)
-            stand_ids.append(0)
-            p_throws_ids.append(0)
-            pa_event_ids.append(0)
-            numeric_features.append([0.0] * n_numeric)
-            numeric_mask.append([False] * n_numeric)
-            player_token_mask.append(True)
-            game_id_list.append(game_idx)
+        # Encode each pitch
+        for pitch in game.pitches:
+            pitch_type_ids.append(self._pitch_type_vocab.encode(pitch.pitch_type))
+            pitch_result_ids.append(self._pitch_result_vocab.encode(pitch.pitch_result))
+            bb_type_ids.append(self._bb_type_vocab.encode(pitch.bb_type) if pitch.bb_type is not None else 0)
+            stand_ids.append(self._handedness_vocab.encode(pitch.stand))
+            p_throws_ids.append(self._handedness_vocab.encode(pitch.p_throws))
+            pa_event_ids.append(self._pa_event_vocab.encode(pitch.pa_event) if pitch.pa_event is not None else 0)
 
-            # Encode each pitch
-            for pitch in game.pitches:
-                pitch_type_ids.append(self._pitch_type_vocab.encode(pitch.pitch_type))
-                pitch_result_ids.append(self._pitch_result_vocab.encode(pitch.pitch_result))
-                bb_type_ids.append(self._bb_type_vocab.encode(pitch.bb_type) if pitch.bb_type is not None else 0)
-                stand_ids.append(self._handedness_vocab.encode(pitch.stand))
-                p_throws_ids.append(self._handedness_vocab.encode(pitch.p_throws))
-                pa_event_ids.append(self._pa_event_vocab.encode(pitch.pa_event) if pitch.pa_event is not None else 0)
-
-                # Numeric features
-                nums, mask = self._encode_numeric(pitch)
-                numeric_features.append(nums)
-                numeric_mask.append(mask)
-                player_token_mask.append(False)
-                game_id_list.append(game_idx)
+            nums, mask = self._encode_numeric(pitch)
+            numeric_features.append(nums)
+            numeric_mask.append(mask)
+            player_token_mask.append(False)
+            game_id_list.append(0)
 
         seq_len = len(pitch_type_ids)
         return TensorizedSingle(
@@ -189,6 +172,15 @@ class Tensorizer:
             game_ids=torch.tensor(game_id_list, dtype=torch.long),
             seq_length=seq_len,
         )
+
+    def tensorize_context(self, context: PlayerContext) -> TensorizedSingle:
+        """Convert a PlayerContext into a TensorizedSingle.
+
+        Tensorizes each game independently, then assembles the window with
+        a [CLS] prefix and re-indexed game IDs.
+        """
+        game_tensors = [self.tensorize_game(g) for g in context.games]
+        return assemble_game_window(game_tensors, self._config.max_seq_len)
 
     def collate(self, items: list[TensorizedSingle]) -> TensorizedBatch:
         """Collate a list of TensorizedSingle into a padded TensorizedBatch."""
@@ -255,3 +247,79 @@ class Tensorizer:
                 values.append(float(raw))
                 mask.append(True)
         return values, mask
+
+
+def assemble_game_window(
+    games: list[TensorizedSingle],
+    max_seq_len: int,
+) -> TensorizedSingle:
+    """Assemble pre-tensorized games into a context window with [CLS] prefix.
+
+    Prepends a [CLS] token, concatenates game tensors, assigns game_ids 0..N-1,
+    and truncates oldest games if total exceeds max_seq_len.
+    """
+    n_numeric = len(NUMERIC_FIELDS)
+
+    # Compute total length and truncate oldest games if needed
+    game_lengths = [g.seq_length for g in games]
+    total = 1 + sum(game_lengths)  # +1 for CLS
+    start = 0
+    while total > max_seq_len and start < len(games):
+        total -= game_lengths[start]
+        start += 1
+    games = games[start:]
+
+    # CLS token arrays
+    cls_pitch_type = torch.zeros(1, dtype=torch.long)
+    cls_pitch_result = torch.zeros(1, dtype=torch.long)
+    cls_bb_type = torch.zeros(1, dtype=torch.long)
+    cls_stand = torch.zeros(1, dtype=torch.long)
+    cls_p_throws = torch.zeros(1, dtype=torch.long)
+    cls_pa_event = torch.zeros(1, dtype=torch.long)
+    cls_numeric = torch.zeros(1, n_numeric, dtype=torch.float32)
+    cls_numeric_mask = torch.zeros(1, n_numeric, dtype=torch.bool)
+    cls_padding = torch.ones(1, dtype=torch.bool)
+    cls_player_token = torch.zeros(1, dtype=torch.bool)
+    cls_game_id = torch.tensor([CLS_GAME_ID], dtype=torch.long)
+
+    # Concatenate game tensors with re-indexed game_ids
+    all_pitch_type = [cls_pitch_type]
+    all_pitch_result = [cls_pitch_result]
+    all_bb_type = [cls_bb_type]
+    all_stand = [cls_stand]
+    all_p_throws = [cls_p_throws]
+    all_pa_event = [cls_pa_event]
+    all_numeric = [cls_numeric]
+    all_numeric_mask = [cls_numeric_mask]
+    all_padding = [cls_padding]
+    all_player_token = [cls_player_token]
+    all_game_id = [cls_game_id]
+
+    for game_idx, g in enumerate(games):
+        all_pitch_type.append(g.pitch_type_ids)
+        all_pitch_result.append(g.pitch_result_ids)
+        all_bb_type.append(g.bb_type_ids)
+        all_stand.append(g.stand_ids)
+        all_p_throws.append(g.p_throws_ids)
+        all_pa_event.append(g.pa_event_ids)
+        all_numeric.append(g.numeric_features)
+        all_numeric_mask.append(g.numeric_mask)
+        all_padding.append(g.padding_mask)
+        all_player_token.append(g.player_token_mask)
+        all_game_id.append(torch.full((g.seq_length,), game_idx, dtype=torch.long))
+
+    seq_len = 1 + sum(g.seq_length for g in games)
+    return TensorizedSingle(
+        pitch_type_ids=torch.cat(all_pitch_type),
+        pitch_result_ids=torch.cat(all_pitch_result),
+        bb_type_ids=torch.cat(all_bb_type),
+        stand_ids=torch.cat(all_stand),
+        p_throws_ids=torch.cat(all_p_throws),
+        pa_event_ids=torch.cat(all_pa_event),
+        numeric_features=torch.cat(all_numeric),
+        numeric_mask=torch.cat(all_numeric_mask),
+        padding_mask=torch.cat(all_padding),
+        player_token_mask=torch.cat(all_player_token),
+        game_ids=torch.cat(all_game_id),
+        seq_length=seq_len,
+    )

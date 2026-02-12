@@ -15,6 +15,7 @@ from fantasy_baseball_manager.contextual.data.vocab import (
 from fantasy_baseball_manager.contextual.model.config import ModelConfig
 from fantasy_baseball_manager.contextual.model.tensorizer import (
     Tensorizer,
+    assemble_game_window,
 )
 
 from .conftest import make_game_sequence, make_pitch, make_player_context
@@ -371,3 +372,144 @@ class TestCollate:
         result = tensorizer.tensorize_context(ctx)
         # All tokens are real (no padding in a single TensorizedSingle)
         assert (result.game_ids != PAD_GAME_ID).all()
+
+
+class TestTensorizeGame:
+    """Tests for Tensorizer.tensorize_game() — single game without [CLS]."""
+
+    def test_single_game_shape(self) -> None:
+        """1 game with 3 pitches → seq_length=4 ([PLAYER] + 3 pitches), no [CLS]."""
+        tensorizer = _make_tensorizer()
+        game = make_game_sequence(n_pitches=3)
+        result = tensorizer.tensorize_game(game)
+        assert result.seq_length == 4  # [PLAYER] + 3 pitches
+        assert result.pitch_type_ids.shape == (4,)
+        assert result.numeric_features.shape == (4, 23)
+
+    def test_player_token_at_position_zero(self) -> None:
+        """The first token should be the [PLAYER] token."""
+        tensorizer = _make_tensorizer()
+        game = make_game_sequence(n_pitches=2)
+        result = tensorizer.tensorize_game(game)
+        assert result.player_token_mask[0].item() is True
+        assert result.player_token_mask[1].item() is False
+        assert result.player_token_mask[2].item() is False
+
+    def test_game_ids_all_zero(self) -> None:
+        """All game_ids should be 0 (sentinel for later re-indexing)."""
+        tensorizer = _make_tensorizer()
+        game = make_game_sequence(n_pitches=3)
+        result = tensorizer.tensorize_game(game)
+        assert (result.game_ids == 0).all()
+
+    def test_matches_tensorize_context_inner(self) -> None:
+        """Output should match the game slice from tensorize_context (skipping [CLS])."""
+        tensorizer = _make_tensorizer()
+        game = make_game_sequence(n_pitches=4)
+        ctx = PlayerContext(
+            player_id=660271,
+            player_name="Shohei Ohtani",
+            season=2024,
+            perspective="batter",
+            games=(game,),
+        )
+        full = tensorizer.tensorize_context(ctx)
+        single = tensorizer.tensorize_game(game)
+
+        # full has [CLS] at index 0, game tokens at 1:
+        import torch
+
+        torch.testing.assert_close(single.pitch_type_ids, full.pitch_type_ids[1:])
+        torch.testing.assert_close(single.pitch_result_ids, full.pitch_result_ids[1:])
+        torch.testing.assert_close(single.bb_type_ids, full.bb_type_ids[1:])
+        torch.testing.assert_close(single.stand_ids, full.stand_ids[1:])
+        torch.testing.assert_close(single.p_throws_ids, full.p_throws_ids[1:])
+        torch.testing.assert_close(single.pa_event_ids, full.pa_event_ids[1:])
+        torch.testing.assert_close(single.numeric_features, full.numeric_features[1:])
+        torch.testing.assert_close(single.numeric_mask, full.numeric_mask[1:])
+        torch.testing.assert_close(single.padding_mask, full.padding_mask[1:])
+        torch.testing.assert_close(single.player_token_mask, full.player_token_mask[1:])
+        # game_ids: full has game_id=0 for all game tokens, single should also be 0
+        torch.testing.assert_close(single.game_ids, full.game_ids[1:])
+
+    def test_padding_mask_all_true(self) -> None:
+        """All positions should be real (True) — no padding in a single game."""
+        tensorizer = _make_tensorizer()
+        game = make_game_sequence(n_pitches=3)
+        result = tensorizer.tensorize_game(game)
+        assert result.padding_mask.all()
+
+
+class TestAssembleGameWindow:
+    """Tests for assemble_game_window() — combining pre-tensorized games."""
+
+    def test_matches_tensorize_context(self) -> None:
+        """Assembled window should match tensorize_context output for 3 games."""
+        import torch
+
+        tensorizer = _make_tensorizer()
+        ctx = make_player_context(n_games=3, pitches_per_game=4)
+
+        expected = tensorizer.tensorize_context(ctx)
+
+        game_tensors = [tensorizer.tensorize_game(g) for g in ctx.games]
+        actual = assemble_game_window(game_tensors, max_seq_len=128)
+
+        torch.testing.assert_close(actual.pitch_type_ids, expected.pitch_type_ids)
+        torch.testing.assert_close(actual.pitch_result_ids, expected.pitch_result_ids)
+        torch.testing.assert_close(actual.bb_type_ids, expected.bb_type_ids)
+        torch.testing.assert_close(actual.stand_ids, expected.stand_ids)
+        torch.testing.assert_close(actual.p_throws_ids, expected.p_throws_ids)
+        torch.testing.assert_close(actual.pa_event_ids, expected.pa_event_ids)
+        torch.testing.assert_close(actual.numeric_features, expected.numeric_features)
+        torch.testing.assert_close(actual.numeric_mask, expected.numeric_mask)
+        torch.testing.assert_close(actual.padding_mask, expected.padding_mask)
+        torch.testing.assert_close(actual.player_token_mask, expected.player_token_mask)
+        torch.testing.assert_close(actual.game_ids, expected.game_ids)
+        assert actual.seq_length == expected.seq_length
+
+    def test_truncates_oldest(self) -> None:
+        """When max_seq_len is too small, oldest games are dropped."""
+        tensorizer = _make_tensorizer()
+        # 3 games x (1 player + 3 pitches) = 12, plus 1 CLS = 13
+        games = [make_game_sequence(n_pitches=3, game_pk=100 + i) for i in range(3)]
+        game_tensors = [tensorizer.tensorize_game(g) for g in games]
+
+        # max_seq_len=10 → can't fit all 3 games (13 tokens), must drop oldest
+        result = assemble_game_window(game_tensors, max_seq_len=10)
+
+        # Should drop game 0, keep games 1 and 2: 1 CLS + 2 x 4 = 9
+        assert result.seq_length == 9
+        # Game IDs should be re-indexed to 0 and 1
+        assert result.game_ids[0].item() == -1  # CLS
+        assert (result.game_ids[1:5] == 0).all()
+        assert (result.game_ids[5:] == 1).all()
+
+    def test_cls_at_position_zero(self) -> None:
+        """CLS token properties should match tensorize_context conventions."""
+        tensorizer = _make_tensorizer()
+        game = make_game_sequence(n_pitches=2)
+        game_tensors = [tensorizer.tensorize_game(game)]
+        result = assemble_game_window(game_tensors, max_seq_len=128)
+
+        assert result.game_ids[0].item() == -1
+        assert result.player_token_mask[0].item() is False
+        assert result.padding_mask[0].item() is True
+        assert result.pitch_type_ids[0].item() == 0
+        assert (result.numeric_features[0] == 0.0).all()
+        assert (result.numeric_mask[0] == False).all()  # noqa: E712
+
+    def test_single_game_matches_tensorize_context(self) -> None:
+        """Edge case: single game should also match."""
+        import torch
+
+        tensorizer = _make_tensorizer()
+        ctx = make_player_context(n_games=1, pitches_per_game=5)
+        expected = tensorizer.tensorize_context(ctx)
+
+        game_tensors = [tensorizer.tensorize_game(ctx.games[0])]
+        actual = assemble_game_window(game_tensors, max_seq_len=128)
+
+        torch.testing.assert_close(actual.pitch_type_ids, expected.pitch_type_ids)
+        torch.testing.assert_close(actual.game_ids, expected.game_ids)
+        assert actual.seq_length == expected.seq_length

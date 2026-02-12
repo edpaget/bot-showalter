@@ -97,6 +97,7 @@ def build_hierarchical_windows(
             target_stats=target_stats,
             target_mode=target_mode,
             target_window=target_window,
+            max_seq_len=tensorizer.max_seq_len,
         )
         for tensorized, targets, context_mean in player_windows:
             windows.append((tensorized, targets, context_mean, identity_features, archetype_id))
@@ -168,6 +169,7 @@ def build_hierarchical_columnar(
             target_stats=target_stats,
             target_mode=target_mode,
             target_window=target_window,
+            max_seq_len=tensorizer.max_seq_len,
         )
         for tensorized, targets, context_mean in player_windows:
             # Append raw 1-D context tensors (just pointer references)
