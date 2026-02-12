@@ -584,12 +584,23 @@ def prepare_data_cmd(
             target_window=target_window,
         )
 
-        # Load frozen backbone
+        # Load frozen backbone (auto-detect max_seq_len from checkpoint)
         console.print(f"  Loading frozen backbone '{base_model}'...")
         registry = _get_registry()
         model_store = registry.contextual_store
+        pretrain_state = torch.load(
+            model_store._model_path(base_model), weights_only=True, map_location="cpu",
+        )
+        pretrain_seq_len: int = pretrain_state["positional_encoding.pe"].shape[1]
+        del pretrain_state
+        resolved_max_seq_len = pretrain_seq_len
+        if max_seq_len != resolved_max_seq_len:
+            console.print(
+                f"  Auto-detected max_seq_len={resolved_max_seq_len} from pretrained model "
+                f"(overriding --max-seq-len {max_seq_len})"
+            )
         backbone_config = PreModelConfig(
-            max_seq_len=max_seq_len, d_model=d_model, n_layers=n_layers,
+            max_seq_len=resolved_max_seq_len, d_model=d_model, n_layers=n_layers,
             n_heads=n_heads, ff_dim=ff_dim,
         )
         backbone = model_store.load_model(base_model, backbone_config)
