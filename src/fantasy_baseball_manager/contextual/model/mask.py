@@ -30,9 +30,9 @@ def build_player_attention_mask(
     """
     batch, seq_len = padding_mask.shape
 
-    # Start: everything masked
-    mask = torch.ones(batch, seq_len, seq_len, dtype=torch.bool, device=padding_mask.device)
-
+    # Accumulate positions that should be *unmasked* (can attend), then invert.
+    # This avoids boolean masked assignment (mask[bool_3d] = val) which is
+    # broken on the MPS backend.
     # Expand padding_mask to (batch, 1, seq_len) for column-wise broadcasting
     can_attend_to = padding_mask.unsqueeze(1).expand(batch, seq_len, seq_len)
 
@@ -42,11 +42,11 @@ def build_player_attention_mask(
     # Rule 3a: Pitch tokens attend to same-game non-padding positions only
     pitch_token_mask = ~player_token_mask & padding_mask  # (batch, seq_len)
     pitch_rows = pitch_token_mask.unsqueeze(2).expand(batch, seq_len, seq_len)
-    mask[pitch_rows & same_game & can_attend_to] = False
+    unmask = pitch_rows & same_game & can_attend_to
 
     # Rule 3b: CLS token (game_id=-1) attends to all non-padding positions
     cls_rows = (game_ids == -1).unsqueeze(2).expand(batch, seq_len, seq_len)
-    mask[cls_rows & can_attend_to] = False
+    unmask = unmask | (cls_rows & can_attend_to)
 
     # Rule 2: Player tokens attend to same-game non-player non-padding positions + self
 
@@ -62,9 +62,9 @@ def build_player_attention_mask(
 
     # Explicitly include self-attention for player tokens
     player_diag = player_token_mask.unsqueeze(2) & player_token_mask.unsqueeze(1)
-    diag = torch.eye(seq_len, dtype=torch.bool, device=mask.device).unsqueeze(0)
+    diag = torch.eye(seq_len, dtype=torch.bool, device=padding_mask.device).unsqueeze(0)
     player_can_attend = player_can_attend | (player_diag & diag)
 
-    mask[player_can_attend] = False
+    unmask = unmask | player_can_attend
 
-    return mask
+    return ~unmask

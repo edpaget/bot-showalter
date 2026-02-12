@@ -78,8 +78,13 @@ class ContextualPerformanceModel(nn.Module):
         )
 
         # 1b. Replace CLS positions with learned embedding
-        cls_positions = batch.game_ids == -1  # (batch, seq_len)
-        embeddings[cls_positions] = self.cls_embedding.to(embeddings.dtype)
+        # Use torch.where instead of boolean masked assignment for MPS compatibility
+        cls_mask = (batch.game_ids == -1).unsqueeze(-1)  # (batch, seq_len, 1)
+        embeddings = torch.where(
+            cls_mask,
+            self.cls_embedding.to(embeddings.dtype),
+            embeddings,
+        )
 
         # 2. Add positional encoding
         embeddings = self.positional_encoding(embeddings)
