@@ -5,6 +5,7 @@ from fantasy_baseball_manager.db.connection import (
     create_connection,
     get_schema_version,
 )
+from fantasy_baseball_manager.db.schema import SCHEMA_VERSION
 
 
 class TestCreateConnection:
@@ -67,7 +68,7 @@ class TestCreateConnection:
 
         db_path = Path(str(tmp_path)) / "test.db"
         conn = create_connection(db_path)
-        assert get_schema_version(conn) == 1
+        assert get_schema_version(conn) == SCHEMA_VERSION
         conn.close()
 
     def test_idempotent_reopen(self, tmp_path: object) -> None:
@@ -77,13 +78,13 @@ class TestCreateConnection:
         conn1 = create_connection(db_path)
         conn1.close()
         conn2 = create_connection(db_path)
-        assert get_schema_version(conn2) == 1
+        assert get_schema_version(conn2) == SCHEMA_VERSION
         conn2.close()
 
     def test_in_memory_connection(self) -> None:
         conn = create_connection(":memory:")
         assert isinstance(conn, sqlite3.Connection)
-        assert get_schema_version(conn) == 1
+        assert get_schema_version(conn) == SCHEMA_VERSION
         conn.close()
 
 

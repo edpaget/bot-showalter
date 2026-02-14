@@ -5,6 +5,7 @@ import pytest
 
 from fantasy_baseball_manager.db.connection import get_schema_version
 from fantasy_baseball_manager.db.pool import ConnectionPool
+from fantasy_baseball_manager.db.schema import SCHEMA_VERSION
 
 
 class TestConnectionPool:
@@ -83,7 +84,7 @@ class TestConnectionPool:
         db_path = Path(str(tmp_path)) / "pool_test.db"
         pool = ConnectionPool(db_path, size=2)
         with pool.connection() as conn:
-            assert get_schema_version(conn) == 1
+            assert get_schema_version(conn) == SCHEMA_VERSION
             tables = {
                 row[0]
                 for row in conn.execute(

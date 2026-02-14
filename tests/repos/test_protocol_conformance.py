@@ -1,5 +1,6 @@
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
+from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
@@ -7,6 +8,7 @@ from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPit
 from fantasy_baseball_manager.repos.protocols import (
     BattingStatsRepo,
     LoadLogRepo,
+    ModelRunRepo,
     PitchingStatsRepo,
     PlayerRepo,
     ProjectionRepo,
@@ -34,6 +36,9 @@ class TestProtocolConformance:
 
     def test_statcast_pitch_repo_conforms(self) -> None:
         assert issubclass(SqliteStatcastPitchRepo, StatcastPitchRepo)
+
+    def test_model_run_repo_conforms(self) -> None:
+        assert issubclass(SqliteModelRunRepo, ModelRunRepo)
 
     def test_load_log_repo_conforms(self) -> None:
         assert issubclass(SqliteLoadLogRepo, LoadLogRepo)

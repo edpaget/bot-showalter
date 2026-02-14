@@ -1,7 +1,11 @@
+from __future__ import annotations
+
+import builtins
 from typing import Protocol, runtime_checkable
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.load_log import LoadLog
+from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.projection import Projection
@@ -54,6 +58,14 @@ class StatcastPitchRepo(Protocol):
     def get_by_batter_date(self, batter_id: int, game_date: str) -> list[StatcastPitch]: ...
     def get_by_game(self, game_pk: int) -> list[StatcastPitch]: ...
     def count(self) -> int: ...
+
+
+@runtime_checkable
+class ModelRunRepo(Protocol):
+    def upsert(self, record: ModelRunRecord) -> int: ...
+    def get(self, system: str, version: str) -> ModelRunRecord | None: ...
+    def list(self, system: str | None = None) -> builtins.list[ModelRunRecord]: ...
+    def delete(self, system: str, version: str) -> None: ...
 
 
 @runtime_checkable
