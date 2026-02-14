@@ -16,10 +16,6 @@ class _FakePreparableOnly:
         return "fake"
 
     @property
-    def category(self) -> str:
-        return "batting"
-
-    @property
     def description(self) -> str:
         return "Fake model"
 

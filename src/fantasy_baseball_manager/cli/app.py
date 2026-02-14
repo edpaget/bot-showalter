@@ -108,6 +108,5 @@ def info(model: _ModelArg) -> None:
         raise typer.Exit(code=1) from None
 
     typer.echo(f"Model: {m.name}")
-    typer.echo(f"Category: {m.category}")
     typer.echo(f"Description: {m.description}")
     typer.echo(f"Operations: {', '.join(sorted(m.supported_operations))}")

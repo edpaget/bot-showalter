@@ -14,10 +14,6 @@ class MarcelModel:
         return "marcel"
 
     @property
-    def category(self) -> str:
-        return "batting"
-
-    @property
     def description(self) -> str:
         return "Marcel the Monkey projection system — a simple, reliable baseline using weighted averages and regression to the mean."
 

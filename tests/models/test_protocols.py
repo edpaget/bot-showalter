@@ -25,10 +25,6 @@ class _StubModel:
         return "stub"
 
     @property
-    def category(self) -> str:
-        return "batting"
-
-    @property
     def description(self) -> str:
         return "A stub model"
 

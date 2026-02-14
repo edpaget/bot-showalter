@@ -32,9 +32,6 @@ class TestMarcelModel:
     def test_name(self) -> None:
         assert MarcelModel().name == "marcel"
 
-    def test_category(self) -> None:
-        assert MarcelModel().category == "batting"
-
     def test_supported_operations(self) -> None:
         ops = MarcelModel().supported_operations
         assert ops == frozenset({"prepare", "train", "evaluate"})

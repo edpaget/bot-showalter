@@ -33,7 +33,6 @@ class TestInfoCommand:
         result = runner.invoke(app, ["info", "marcel"])
         assert result.exit_code == 0
         assert "marcel" in result.output
-        assert "batting" in result.output
         assert "prepare" in result.output
         assert "train" in result.output
         assert "evaluate" in result.output
