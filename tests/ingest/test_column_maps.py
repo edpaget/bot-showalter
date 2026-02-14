@@ -8,8 +8,8 @@ from fantasy_baseball_manager.ingest.column_maps import (
 
 def _make_row(
     *,
-    name_first: str = "Mike",
-    name_last: str = "Trout",
+    name_first: str | float = "Mike",
+    name_last: str | float = "Trout",
     key_mlbam: int | float = 545361,
     key_fangraphs: int | float = 10155,
     key_bbref: str | float = "troutmi01",
@@ -98,6 +98,22 @@ class TestChadwickRowToPlayer:
         player = chadwick_row_to_player(row)
         assert player is not None
         assert isinstance(player.fangraphs_id, int)
+
+    def test_nan_name_first_gives_empty_string(self) -> None:
+        row = _make_row(name_first=float("nan"))
+        result = chadwick_row_to_player(row)
+        assert result is not None
+        assert result.name_first == ""
+
+    def test_nan_name_last_gives_empty_string(self) -> None:
+        row = _make_row(name_last=float("nan"))
+        result = chadwick_row_to_player(row)
+        assert result is not None
+        assert result.name_last == ""
+
+    def test_both_names_nan_returns_none(self) -> None:
+        row = _make_row(name_first=float("nan"), name_last=float("nan"))
+        assert chadwick_row_to_player(row) is None
 
 
 class TestToOptionalFloat:

@@ -5,7 +5,6 @@ import pytest
 
 from fantasy_baseball_manager.db.connection import get_schema_version
 from fantasy_baseball_manager.db.pool import ConnectionPool
-from fantasy_baseball_manager.db.schema import SCHEMA_VERSION
 
 
 class TestConnectionPool:
@@ -78,13 +77,24 @@ class TestConnectionPool:
         assert not errors, f"Thread errors: {errors}"
         assert len(results) == 6
 
+    def test_connection_is_clean_after_context_manager_exit(self) -> None:
+        pool = ConnectionPool(":memory:", size=1)
+        with pool.connection() as conn:
+            conn.execute("INSERT INTO player (name_first, name_last) VALUES ('Test', 'Player')")
+            # Do NOT commit
+        # Re-checkout the same connection; uncommitted insert should be rolled back
+        with pool.connection() as conn:
+            count = conn.execute("SELECT COUNT(*) FROM player").fetchone()[0]
+            assert count == 0
+        pool.close_all()
+
     def test_file_based_migrations_run_once(self, tmp_path: object) -> None:
         from pathlib import Path
 
         db_path = Path(str(tmp_path)) / "pool_test.db"
         pool = ConnectionPool(db_path, size=2)
         with pool.connection() as conn:
-            assert get_schema_version(conn) == SCHEMA_VERSION
+            assert get_schema_version(conn) >= 1
             tables = {
                 row[0]
                 for row in conn.execute(

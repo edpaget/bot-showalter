@@ -63,7 +63,6 @@ class SqliteStatcastPitchRepo:
                 pitch.loaded_at,
             ),
         )
-        self._conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
 
     def get_by_pitcher_date(self, pitcher_id: int, game_date: str) -> list[StatcastPitch]:
@@ -92,30 +91,30 @@ class SqliteStatcastPitchRepo:
         return row[0]
 
     @staticmethod
-    def _row_to_pitch(row: tuple) -> StatcastPitch:
+    def _row_to_pitch(row: sqlite3.Row) -> StatcastPitch:
         return StatcastPitch(
-            id=row[0],
-            game_pk=row[1],
-            game_date=row[2],
-            batter_id=row[3],
-            pitcher_id=row[4],
-            at_bat_number=row[5],
-            pitch_number=row[6],
-            pitch_type=row[7],
-            release_speed=row[8],
-            release_spin_rate=row[9],
-            pfx_x=row[10],
-            pfx_z=row[11],
-            plate_x=row[12],
-            plate_z=row[13],
-            zone=row[14],
-            events=row[15],
-            description=row[16],
-            launch_speed=row[17],
-            launch_angle=row[18],
-            hit_distance_sc=row[19],
-            barrel=row[20],
-            estimated_ba_using_speedangle=row[21],
-            estimated_woba_using_speedangle=row[22],
-            loaded_at=row[23],
+            id=row["id"],
+            game_pk=row["game_pk"],
+            game_date=row["game_date"],
+            batter_id=row["batter_id"],
+            pitcher_id=row["pitcher_id"],
+            at_bat_number=row["at_bat_number"],
+            pitch_number=row["pitch_number"],
+            pitch_type=row["pitch_type"],
+            release_speed=row["release_speed"],
+            release_spin_rate=row["release_spin_rate"],
+            pfx_x=row["pfx_x"],
+            pfx_z=row["pfx_z"],
+            plate_x=row["plate_x"],
+            plate_z=row["plate_z"],
+            zone=row["zone"],
+            events=row["events"],
+            description=row["description"],
+            launch_speed=row["launch_speed"],
+            launch_angle=row["launch_angle"],
+            hit_distance_sc=row["hit_distance_sc"],
+            barrel=row["barrel"],
+            estimated_ba_using_speedangle=row["estimated_ba_using_speedangle"],
+            estimated_woba_using_speedangle=row["estimated_woba_using_speedangle"],
+            loaded_at=row["loaded_at"],
         )

@@ -188,6 +188,6 @@ def import_cmd(
         )
 
     source = CsvSource(csv_path)
-    loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+    loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
     log = loader.load(encoding="utf-8-sig")
     print_import_result(log)

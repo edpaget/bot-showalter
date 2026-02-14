@@ -12,6 +12,7 @@ def create_connection(
 ) -> sqlite3.Connection:
     """Open a SQLite connection with WAL mode, foreign keys, and pending migrations applied."""
     conn = sqlite3.connect(str(path), check_same_thread=check_same_thread)
+    conn.row_factory = sqlite3.Row
     if str(path) != ":memory:":
         conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -51,9 +52,20 @@ def _run_migrations(conn: sqlite3.Connection, *, migrations_dir: Path | None = N
         if version <= current_version:
             continue
         sql = migration_file.read_text()
-        conn.executescript(sql)
-        conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
-        conn.commit()
+        statements = [s.strip() for s in sql.split(";") if s.strip()]
+        # Use manual transaction control so DDL is wrapped in the transaction
+        old_isolation = conn.isolation_level
+        conn.isolation_level = None
+        try:
+            conn.execute("BEGIN")
+            for statement in statements:
+                conn.execute(statement)
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.isolation_level = old_isolation
 
-    # Re-enable foreign keys after executescript (which implicitly commits and may reset pragmas)
     conn.execute("PRAGMA foreign_keys=ON")

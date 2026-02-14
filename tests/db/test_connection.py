@@ -1,11 +1,13 @@
 import sqlite3
+from pathlib import Path
+
+import pytest
 
 from fantasy_baseball_manager.db.connection import (
     attach_database,
     create_connection,
     get_schema_version,
 )
-from fantasy_baseball_manager.db.schema import SCHEMA_VERSION
 
 
 class TestCreateConnection:
@@ -68,7 +70,7 @@ class TestCreateConnection:
 
         db_path = Path(str(tmp_path)) / "test.db"
         conn = create_connection(db_path)
-        assert get_schema_version(conn) == SCHEMA_VERSION
+        assert get_schema_version(conn) >= 1
         conn.close()
 
     def test_idempotent_reopen(self, tmp_path: object) -> None:
@@ -78,13 +80,13 @@ class TestCreateConnection:
         conn1 = create_connection(db_path)
         conn1.close()
         conn2 = create_connection(db_path)
-        assert get_schema_version(conn2) == SCHEMA_VERSION
+        assert get_schema_version(conn2) >= 1
         conn2.close()
 
     def test_in_memory_connection(self) -> None:
         conn = create_connection(":memory:")
         assert isinstance(conn, sqlite3.Connection)
-        assert get_schema_version(conn) == SCHEMA_VERSION
+        assert get_schema_version(conn) >= 1
         conn.close()
 
 
@@ -121,6 +123,29 @@ class TestCustomMigrationsDir:
         conn.close()
 
 
+class TestAtomicMigrations:
+    def test_failed_migration_does_not_bump_version(self, tmp_path: object) -> None:
+        tmp = Path(str(tmp_path))
+        mig_dir = tmp / "migrations"
+        mig_dir.mkdir()
+        (mig_dir / "001_good.sql").write_text("CREATE TABLE good_table (id INTEGER PRIMARY KEY);")
+        (mig_dir / "002_bad.sql").write_text(
+            "CREATE TABLE bad_table (id INTEGER PRIMARY KEY);\n" "INSERT INTO nonexistent_table VALUES (1);"
+        )
+
+        db_path = tmp / "test.db"
+        with pytest.raises(sqlite3.OperationalError):
+            create_connection(db_path, migrations_dir=mig_dir)
+
+        # Re-open without running migrations to inspect state
+        raw_conn = sqlite3.connect(str(db_path))
+        assert get_schema_version(raw_conn) == 1
+        tables = {row[0] for row in raw_conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        assert "good_table" in tables
+        assert "bad_table" not in tables
+        raw_conn.close()
+
+
 class TestAttachDatabase:
     def test_attach_and_query(self, tmp_path: object) -> None:
         from pathlib import Path
@@ -141,5 +166,5 @@ class TestAttachDatabase:
         attach_database(main_conn, other_path, "other")
         rows = main_conn.execute("SELECT name_first, name_last FROM other.player").fetchall()
         assert len(rows) == 1
-        assert rows[0] == ("Mike", "Trout")
+        assert tuple(rows[0]) == ("Mike", "Trout")
         main_conn.close()

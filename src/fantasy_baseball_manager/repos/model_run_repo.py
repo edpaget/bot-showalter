@@ -44,7 +44,6 @@ class SqliteModelRunRepo:
                 record.created_at,
             ),
         )
-        self._conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
 
     def get(self, system: str, version: str) -> ModelRunRecord | None:
@@ -73,22 +72,21 @@ class SqliteModelRunRepo:
             "DELETE FROM model_run WHERE system = ? AND version = ?",
             (system, version),
         )
-        self._conn.commit()
 
     @staticmethod
-    def _row_to_record(row: tuple) -> ModelRunRecord:
+    def _row_to_record(row: sqlite3.Row) -> ModelRunRecord:
         return ModelRunRecord(
-            id=row[0],
-            system=row[1],
-            version=row[2],
-            train_dataset_id=row[3],
-            validation_dataset_id=row[4],
-            holdout_dataset_id=row[5],
-            config_json=json.loads(row[6]),
-            metrics_json=json.loads(row[7]) if row[7] is not None else None,
-            artifact_type=row[8],
-            artifact_path=row[9],
-            git_commit=row[10],
-            tags_json=json.loads(row[11]) if row[11] is not None else None,
-            created_at=row[12],
+            id=row["id"],
+            system=row["system"],
+            version=row["version"],
+            train_dataset_id=row["train_dataset_id"],
+            validation_dataset_id=row["validation_dataset_id"],
+            holdout_dataset_id=row["holdout_dataset_id"],
+            config_json=json.loads(row["config_json"]),
+            metrics_json=json.loads(row["metrics_json"]) if row["metrics_json"] is not None else None,
+            artifact_type=row["artifact_type"],
+            artifact_path=row["artifact_path"],
+            git_commit=row["git_commit"],
+            tags_json=json.loads(row["tags_json"]) if row["tags_json"] is not None else None,
+            created_at=row["created_at"],
         )

@@ -29,7 +29,7 @@ class TestPlayerLoader:
         source = FakeDataSource(_chadwick_df({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player)
+        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
         log = loader.load()
 
@@ -53,7 +53,7 @@ class TestPlayerLoader:
         source = FakeDataSource(df)
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player)
+        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
         log = loader.load()
 
@@ -64,7 +64,7 @@ class TestPlayerLoader:
         source = FakeDataSource(_chadwick_df({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player)
+        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
         loader.load()
         loader.load()
@@ -75,7 +75,7 @@ class TestPlayerLoader:
         source = ErrorDataSource()
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player)
+        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
         with pytest.raises(RuntimeError, match="fetch failed"):
             loader.load()
@@ -90,7 +90,7 @@ class TestPlayerLoader:
         source = FakeDataSource(_chadwick_df({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player)
+        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
         log = loader.load()
 
@@ -102,7 +102,7 @@ class TestPlayerLoader:
         source = FakeDataSource(pd.DataFrame())
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player)
+        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
         log = loader.load()
 
@@ -132,7 +132,7 @@ class TestPlayerLoader:
         source = FakeDataSource(df)
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player)
+        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
         log = loader.load()
 

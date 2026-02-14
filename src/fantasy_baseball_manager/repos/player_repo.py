@@ -30,7 +30,6 @@ class SqlitePlayerRepo:
                 player.position,
             ),
         )
-        self._conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
 
     def get_by_id(self, player_id: int) -> Player | None:
@@ -58,19 +57,19 @@ class SqlitePlayerRepo:
         return [self._row_to_player(row) for row in rows]
 
     @staticmethod
-    def _row_to_player(row: tuple) -> Player:
+    def _row_to_player(row: sqlite3.Row) -> Player:
         return Player(
-            id=row[0],
-            name_first=row[1],
-            name_last=row[2],
-            mlbam_id=row[3],
-            fangraphs_id=row[4],
-            bbref_id=row[5],
-            retro_id=row[6],
-            bats=row[7],
-            throws=row[8],
-            birth_date=row[9],
-            position=row[10],
+            id=row["id"],
+            name_first=row["name_first"],
+            name_last=row["name_last"],
+            mlbam_id=row["mlbam_id"],
+            fangraphs_id=row["fangraphs_id"],
+            bbref_id=row["bbref_id"],
+            retro_id=row["retro_id"],
+            bats=row["bats"],
+            throws=row["throws"],
+            birth_date=row["birth_date"],
+            position=row["position"],
         )
 
 
@@ -86,7 +85,6 @@ class SqliteTeamRepo:
                    name=excluded.name, league=excluded.league, division=excluded.division""",
             (team.abbreviation, team.name, team.league, team.division),
         )
-        self._conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
 
     def get_by_abbreviation(self, abbreviation: str) -> Team | None:
@@ -98,11 +96,11 @@ class SqliteTeamRepo:
         return [self._row_to_team(row) for row in rows]
 
     @staticmethod
-    def _row_to_team(row: tuple) -> Team:
+    def _row_to_team(row: sqlite3.Row) -> Team:
         return Team(
-            id=row[0],
-            abbreviation=row[1],
-            name=row[2],
-            league=row[3],
-            division=row[4],
+            id=row["id"],
+            abbreviation=row["abbreviation"],
+            name=row["name"],
+            league=row["league"],
+            division=row["division"],
         )

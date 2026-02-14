@@ -235,9 +235,14 @@ def chadwick_row_to_player(row: pd.Series) -> Player | None:
     if mlbam_id is None:
         return None
 
+    first = _to_optional_str(row["name_first"])
+    last = _to_optional_str(row["name_last"])
+    if first is None and last is None:
+        return None
+
     return Player(
-        name_first=str(row["name_first"]),
-        name_last=str(row["name_last"]),
+        name_first=first or "",
+        name_last=last or "",
         mlbam_id=mlbam_id,
         fangraphs_id=_to_optional_int(row["key_fangraphs"]),
         bbref_id=_to_optional_str(row["key_bbref"]),

@@ -42,6 +42,7 @@ class ConnectionPool:
         try:
             yield conn
         finally:
+            conn.rollback()
             self.release(conn)
 
     def close_all(self) -> None:

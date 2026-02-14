@@ -68,7 +68,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(_batting_projection_df())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         log = loader.load()
 
@@ -114,7 +114,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(df)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         log = loader.load()
 
@@ -138,7 +138,7 @@ class TestProjectionLoaderIntegration:
         source = CsvSource(csv_file)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         log = loader.load()
 
@@ -164,7 +164,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(df)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         log = loader.load()
 
@@ -178,7 +178,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(_batting_projection_df())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         loader.load()
         loader.load()
@@ -200,7 +200,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(_batting_projection_df())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         log = loader.load()
 
@@ -223,7 +223,7 @@ class TestProjectionVsActuals:
         source = FakeDataSource(_batting_projection_df())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
         loader.load()
 
         # Load actual stats
@@ -294,7 +294,7 @@ class TestProjectionVsActuals:
         source = FakeDataSource(df)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
         loader.load()
 
         pitching_repo = SqlitePitchingStatsRepo(conn)

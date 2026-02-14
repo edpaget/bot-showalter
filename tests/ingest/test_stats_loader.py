@@ -71,7 +71,7 @@ class TestStatsLoader:
         source = FakeDataSource(_batting_df({"player_id": player_id}))
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats")
+        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         log = loader.load()
 
@@ -96,7 +96,7 @@ class TestStatsLoader:
         source = FakeDataSource(df)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats")
+        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         log = loader.load()
 
@@ -106,7 +106,7 @@ class TestStatsLoader:
         source = ErrorDataSource()
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats")
+        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         with pytest.raises(RuntimeError, match="fetch failed"):
             loader.load()
@@ -121,7 +121,7 @@ class TestStatsLoader:
         source = FakeDataSource(pd.DataFrame())
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats")
+        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         log = loader.load()
 
@@ -133,7 +133,7 @@ class TestStatsLoader:
         source = FakeDataSource(_batting_df({"player_id": player_id}))
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats")
+        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         log = loader.load()
 
@@ -147,7 +147,7 @@ class TestStatsLoader:
         source = FakeDataSource(df)
         repo = SqlitePitchingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _pitching_mapper, "pitching_stats")
+        loader = StatsLoader(source, repo, log_repo, _pitching_mapper, "pitching_stats", conn=conn)
 
         log = loader.load()
 
@@ -157,6 +157,33 @@ class TestStatsLoader:
 
         stats = repo.get_by_player_season(player_id, 2024)
         assert len(stats) == 1
+
+    def test_upsert_error_rolls_back_and_writes_error_log(self, conn) -> None:
+        player_id = _seed_player(conn)
+        conn.commit()
+        # First row valid, second row has nonexistent player_id causing FK violation
+        df = pd.DataFrame(
+            [
+                {"player_id": player_id, "season": 2024},
+                {"player_id": 99999, "season": 2024},
+            ]
+        )
+        source = FakeDataSource(df)
+        repo = SqliteBattingStatsRepo(conn)
+        log_repo = SqliteLoadLogRepo(conn)
+        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+
+        with pytest.raises(Exception):
+            loader.load()
+
+        # First row's upsert should be rolled back
+        stats = repo.get_by_player_season(player_id, 2024)
+        assert len(stats) == 0
+
+        # Error log should be committed
+        logs = log_repo.get_by_target_table("batting_stats")
+        assert len(logs) == 1
+        assert logs[0].status == "error"
 
 
 class TestStatsLoaderIntegration:
@@ -201,7 +228,7 @@ class TestStatsLoaderIntegration:
         source = FakeDataSource(df)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats")
+        loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
 
         log = loader.load()
 
@@ -244,7 +271,7 @@ class TestStatsLoaderIntegration:
         source = FakeDataSource(df)
         repo = SqlitePitchingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "pitching_stats")
+        loader = StatsLoader(source, repo, log_repo, mapper, "pitching_stats", conn=conn)
 
         log = loader.load()
 
@@ -328,7 +355,7 @@ class TestStatsLoaderIntegration:
         source = FakeDataSource(df)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats")
+        loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
 
         log = loader.load()
 

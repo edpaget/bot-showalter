@@ -70,7 +70,6 @@ class SqliteProjectionRepo:
                 projection.source_type,
             ),
         )
-        self._conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
 
     def get_by_player_season(self, player_id: int, season: int, system: str | None = None) -> list[Projection]:
@@ -112,19 +111,16 @@ class SqliteProjectionRepo:
         return f"SELECT id, player_id, season, system, version, player_type, {stat_col_list}, loaded_at, source_type FROM projection"
 
     @staticmethod
-    def _row_to_projection(row: tuple) -> Projection:
-        # Columns: id, player_id, season, system, version, player_type, <stats>, loaded_at, source_type
-        stat_start = 6
-        stat_end = stat_start + len(_STAT_COLUMNS)
-        stat_json = {col: row[stat_start + i] for i, col in enumerate(_STAT_COLUMNS) if row[stat_start + i] is not None}
+    def _row_to_projection(row: sqlite3.Row) -> Projection:
+        stat_json = {col: row[col] for col in _STAT_COLUMNS if row[col] is not None}
         return Projection(
-            id=row[0],
-            player_id=row[1],
-            season=row[2],
-            system=row[3],
-            version=row[4],
-            player_type=row[5],
+            id=row["id"],
+            player_id=row["player_id"],
+            season=row["season"],
+            system=row["system"],
+            version=row["version"],
+            player_type=row["player_type"],
             stat_json=stat_json,
-            loaded_at=row[stat_end],
-            source_type=row[stat_end + 1],
+            loaded_at=row["loaded_at"],
+            source_type=row["source_type"],
         )

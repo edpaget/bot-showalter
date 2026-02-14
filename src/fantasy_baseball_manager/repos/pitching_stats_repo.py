@@ -51,7 +51,6 @@ class SqlitePitchingStatsRepo:
                 stats.loaded_at,
             ),
         )
-        self._conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
 
     def get_by_player_season(self, player_id: int, season: int, source: str | None = None) -> list[PitchingStats]:
@@ -81,31 +80,31 @@ class SqlitePitchingStatsRepo:
         return [self._row_to_stats(row) for row in rows]
 
     @staticmethod
-    def _row_to_stats(row: tuple) -> PitchingStats:
+    def _row_to_stats(row: sqlite3.Row) -> PitchingStats:
         return PitchingStats(
-            id=row[0],
-            player_id=row[1],
-            season=row[2],
-            team_id=row[3],
-            source=row[4],
-            w=row[5],
-            l=row[6],
-            era=row[7],
-            g=row[8],
-            gs=row[9],
-            sv=row[10],
-            hld=row[11],
-            ip=row[12],
-            h=row[13],
-            er=row[14],
-            hr=row[15],
-            bb=row[16],
-            so=row[17],
-            whip=row[18],
-            k_per_9=row[19],
-            bb_per_9=row[20],
-            fip=row[21],
-            xfip=row[22],
-            war=row[23],
-            loaded_at=row[24],
+            id=row["id"],
+            player_id=row["player_id"],
+            season=row["season"],
+            team_id=row["team_id"],
+            source=row["source"],
+            w=row["w"],
+            l=row["l"],
+            era=row["era"],
+            g=row["g"],
+            gs=row["gs"],
+            sv=row["sv"],
+            hld=row["hld"],
+            ip=row["ip"],
+            h=row["h"],
+            er=row["er"],
+            hr=row["hr"],
+            bb=row["bb"],
+            so=row["so"],
+            whip=row["whip"],
+            k_per_9=row["k_per_9"],
+            bb_per_9=row["bb_per_9"],
+            fip=row["fip"],
+            xfip=row["xfip"],
+            war=row["war"],
+            loaded_at=row["loaded_at"],
         )

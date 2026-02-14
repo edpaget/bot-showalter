@@ -52,7 +52,9 @@ class TestStatcastLoaderIntegration:
         source = FakeDataSource(df)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch")
+        loader = StatsLoader(
+            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+        )
 
         log = loader.load()
 
@@ -73,7 +75,9 @@ class TestStatcastLoaderIntegration:
         source = FakeDataSource(df)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch")
+        loader = StatsLoader(
+            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+        )
 
         log = loader.load()
 
@@ -84,7 +88,9 @@ class TestStatcastLoaderIntegration:
         source = FakeDataSource(df)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch")
+        loader = StatsLoader(
+            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+        )
 
         loader.load()
         loader.load()
@@ -101,6 +107,7 @@ class TestAttachJoin:
         stats_conn = create_connection(stats_path)
         player_repo = SqlitePlayerRepo(stats_conn)
         player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        stats_conn.commit()
         stats_conn.close()
 
         # Create statcast.db and insert a pitch
@@ -117,6 +124,7 @@ class TestAttachJoin:
                 pitch_type="FF",
             )
         )
+        sc_conn.commit()
         sc_conn.close()
 
         # Re-open stats and ATTACH statcast
@@ -129,5 +137,5 @@ class TestAttachJoin:
                WHERE sc.game_pk = 718001""").fetchall()
 
         assert len(rows) == 1
-        assert rows[0] == ("Mike", "Trout", "FF")
+        assert tuple(rows[0]) == ("Mike", "Trout", "FF")
         stats_conn.close()

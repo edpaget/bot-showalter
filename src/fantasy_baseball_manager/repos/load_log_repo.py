@@ -24,7 +24,6 @@ class SqliteLoadLogRepo:
                 log.error_message,
             ),
         )
-        self._conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
 
     def get_recent(self, limit: int = 20) -> list[LoadLog]:
@@ -42,15 +41,15 @@ class SqliteLoadLogRepo:
         return [self._row_to_log(row) for row in rows]
 
     @staticmethod
-    def _row_to_log(row: tuple) -> LoadLog:
+    def _row_to_log(row: sqlite3.Row) -> LoadLog:
         return LoadLog(
-            id=row[0],
-            source_type=row[1],
-            source_detail=row[2],
-            target_table=row[3],
-            rows_loaded=row[4],
-            started_at=row[5],
-            finished_at=row[6],
-            status=row[7],
-            error_message=row[8],
+            id=row["id"],
+            source_type=row["source_type"],
+            source_detail=row["source_detail"],
+            target_table=row["target_table"],
+            rows_loaded=row["rows_loaded"],
+            started_at=row["started_at"],
+            finished_at=row["finished_at"],
+            status=row["status"],
+            error_message=row["error_message"],
         )
