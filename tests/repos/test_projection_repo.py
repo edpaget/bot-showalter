@@ -1,0 +1,128 @@
+import sqlite3
+
+from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+
+
+def _seed_player(conn: sqlite3.Connection) -> int:
+    repo = SqlitePlayerRepo(conn)
+    return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+
+
+class TestSqliteProjectionRepo:
+    def test_upsert_and_get_by_player_season(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        proj = Projection(
+            player_id=player_id,
+            season=2025,
+            system="steamer",
+            version="2025.1",
+            player_type="batter",
+            stat_json={"hr": 30, "avg": 0.280},
+        )
+        repo.upsert(proj)
+        results = repo.get_by_player_season(player_id, 2025)
+        assert len(results) == 1
+        assert results[0].stat_json == {"hr": 30, "avg": 0.280}
+        assert results[0].system == "steamer"
+
+    def test_get_by_player_season_with_system(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="steamer",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 30},
+            )
+        )
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="zips",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 25},
+            )
+        )
+        results = repo.get_by_player_season(player_id, 2025, system="zips")
+        assert len(results) == 1
+        assert results[0].stat_json == {"hr": 25}
+
+    def test_get_by_system_version(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="steamer",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 30},
+            )
+        )
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="steamer",
+                version="2025.2",
+                player_type="batter",
+                stat_json={"hr": 32},
+            )
+        )
+        results = repo.get_by_system_version("steamer", "2025.1")
+        assert len(results) == 1
+        assert results[0].stat_json == {"hr": 30}
+
+    def test_upsert_updates_existing(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="steamer",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 30},
+            )
+        )
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="steamer",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 35},
+            )
+        )
+        results = repo.get_by_player_season(player_id, 2025, system="steamer")
+        assert len(results) == 1
+        assert results[0].stat_json == {"hr": 35}
+
+    def test_stat_json_round_trips(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        complex_stats = {"hr": 30, "avg": 0.280, "nested": {"war": 5.5}}
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="custom",
+                version="v1",
+                player_type="batter",
+                stat_json=complex_stats,
+            )
+        )
+        results = repo.get_by_player_season(player_id, 2025)
+        assert results[0].stat_json == complex_stats
