@@ -10,6 +10,62 @@ from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.repos.protocols import LoadLogRepo, PlayerRepo
 
 
+class StatsLoader:
+    def __init__(
+        self,
+        source: DataSource,
+        repo: Any,
+        load_log_repo: LoadLogRepo,
+        row_mapper: Callable[[pd.Series], Any | None],
+        target_table: str,
+    ) -> None:
+        self._source = source
+        self._repo = repo
+        self._load_log_repo = load_log_repo
+        self._row_mapper = row_mapper
+        self._target_table = target_table
+
+    def load(self, **fetch_params: Any) -> LoadLog:
+        started_at = datetime.now(timezone.utc).isoformat()
+
+        try:
+            df = self._source.fetch(**fetch_params)
+        except Exception as exc:
+            finished_at = datetime.now(timezone.utc).isoformat()
+            log = LoadLog(
+                source_type=self._source.source_type,
+                source_detail=self._source.source_detail,
+                target_table=self._target_table,
+                rows_loaded=0,
+                started_at=started_at,
+                finished_at=finished_at,
+                status="error",
+                error_message=str(exc),
+            )
+            self._load_log_repo.insert(log)
+            raise
+
+        rows_loaded = 0
+        for _, row in df.iterrows():
+            mapped = self._row_mapper(row)
+            if mapped is not None:
+                self._repo.upsert(mapped)
+                rows_loaded += 1
+
+        finished_at = datetime.now(timezone.utc).isoformat()
+        log = LoadLog(
+            source_type=self._source.source_type,
+            source_detail=self._source.source_detail,
+            target_table=self._target_table,
+            rows_loaded=rows_loaded,
+            started_at=started_at,
+            finished_at=finished_at,
+            status="success",
+        )
+        self._load_log_repo.insert(log)
+        return log
+
+
 class PlayerLoader:
     def __init__(
         self,

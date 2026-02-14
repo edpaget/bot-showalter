@@ -1,6 +1,9 @@
 import pandas as pd
 
-from fantasy_baseball_manager.ingest.column_maps import chadwick_row_to_player
+from fantasy_baseball_manager.ingest.column_maps import (
+    _to_optional_float,
+    chadwick_row_to_player,
+)
 
 
 def _make_row(
@@ -95,3 +98,27 @@ class TestChadwickRowToPlayer:
         player = chadwick_row_to_player(row)
         assert player is not None
         assert isinstance(player.fangraphs_id, int)
+
+
+class TestToOptionalFloat:
+    def test_valid_float(self) -> None:
+        assert _to_optional_float(3.14) == 3.14
+
+    def test_int_to_float(self) -> None:
+        result = _to_optional_float(5)
+        assert result == 5.0
+        assert isinstance(result, float)
+
+    def test_none_returns_none(self) -> None:
+        assert _to_optional_float(None) is None
+
+    def test_nan_returns_none(self) -> None:
+        assert _to_optional_float(float("nan")) is None
+
+    def test_zero(self) -> None:
+        result = _to_optional_float(0)
+        assert result == 0.0
+        assert isinstance(result, float)
+
+    def test_string_float(self) -> None:
+        assert _to_optional_float("3.14") == 3.14
