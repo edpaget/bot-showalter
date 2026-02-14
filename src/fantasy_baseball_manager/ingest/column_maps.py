@@ -7,6 +7,7 @@ import pandas as pd
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 
 
 def _to_optional_int(value: Any) -> int | None:
@@ -240,4 +241,53 @@ def chadwick_row_to_player(row: pd.Series) -> Player | None:
         fangraphs_id=_to_optional_int(row["key_fangraphs"]),
         bbref_id=_to_optional_str(row["key_bbref"]),
         retro_id=_to_optional_str(row["key_retro"]),
+    )
+
+
+def _to_required_int(value: Any) -> int | None:
+    """Convert to int, returning None if NaN (signals the row should be skipped)."""
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    return int(value)
+
+
+def statcast_pitch_mapper(row: pd.Series) -> StatcastPitch | None:
+    game_pk = _to_required_int(row.get("game_pk"))
+    batter_id = _to_required_int(row.get("batter"))
+    pitcher_id = _to_required_int(row.get("pitcher"))
+    at_bat_number = _to_required_int(row.get("at_bat_number"))
+    pitch_number = _to_required_int(row.get("pitch_number"))
+
+    if any(v is None for v in (game_pk, batter_id, pitcher_id, at_bat_number, pitch_number)):
+        return None
+
+    game_date = row.get("game_date")
+    if game_date is None or (isinstance(game_date, float) and math.isnan(game_date)):
+        return None
+
+    return StatcastPitch(
+        game_pk=game_pk,  # type: ignore[arg-type]
+        game_date=str(game_date),
+        batter_id=batter_id,  # type: ignore[arg-type]
+        pitcher_id=pitcher_id,  # type: ignore[arg-type]
+        at_bat_number=at_bat_number,  # type: ignore[arg-type]
+        pitch_number=pitch_number,  # type: ignore[arg-type]
+        pitch_type=_to_optional_str(row.get("pitch_type")),
+        release_speed=_to_optional_float(row.get("release_speed")),
+        release_spin_rate=_to_optional_float(row.get("release_spin_rate")),
+        pfx_x=_to_optional_float(row.get("pfx_x")),
+        pfx_z=_to_optional_float(row.get("pfx_z")),
+        plate_x=_to_optional_float(row.get("plate_x")),
+        plate_z=_to_optional_float(row.get("plate_z")),
+        zone=_to_optional_int_stat(row.get("zone")),
+        events=_to_optional_str(row.get("events")),
+        description=_to_optional_str(row.get("description")),
+        launch_speed=_to_optional_float(row.get("launch_speed")),
+        launch_angle=_to_optional_float(row.get("launch_angle")),
+        hit_distance_sc=_to_optional_float(row.get("hit_distance_sc")),
+        barrel=_to_optional_int_stat(row.get("barrel")),
+        estimated_ba_using_speedangle=_to_optional_float(row.get("estimated_ba_using_speedangle")),
+        estimated_woba_using_speedangle=_to_optional_float(row.get("estimated_woba_using_speedangle")),
     )

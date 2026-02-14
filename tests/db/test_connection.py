@@ -87,6 +87,39 @@ class TestCreateConnection:
         conn.close()
 
 
+class TestCustomMigrationsDir:
+    def test_custom_migrations_dir(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        tmp = Path(str(tmp_path))
+        custom_dir = tmp / "custom_migrations"
+        custom_dir.mkdir()
+        (custom_dir / "001_test.sql").write_text("CREATE TABLE test_custom (id INTEGER PRIMARY KEY);")
+
+        db_path = tmp / "test.db"
+        conn = create_connection(db_path, migrations_dir=custom_dir)
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+        }
+        assert "test_custom" in tables
+        assert "player" not in tables
+        conn.close()
+
+    def test_default_migrations_dir_unchanged(self) -> None:
+        conn = create_connection(":memory:")
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+        }
+        assert "player" in tables
+        conn.close()
+
+
 class TestAttachDatabase:
     def test_attach_and_query(self, tmp_path: object) -> None:
         from pathlib import Path

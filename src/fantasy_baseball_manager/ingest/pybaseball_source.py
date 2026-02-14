@@ -7,6 +7,7 @@ from pybaseball import (
     fg_batting_data,
     fg_pitching_data,
     pitching_stats_bref,
+    statcast,
 )
 
 
@@ -73,3 +74,16 @@ class BrefPitchingSource:
 
     def fetch(self, **params: Any) -> pd.DataFrame:
         return pitching_stats_bref(**params)
+
+
+class StatcastSource:
+    @property
+    def source_type(self) -> str:
+        return "pybaseball"
+
+    @property
+    def source_detail(self) -> str:
+        return "statcast"
+
+    def fetch(self, **params: Any) -> pd.DataFrame:
+        return statcast(**params)

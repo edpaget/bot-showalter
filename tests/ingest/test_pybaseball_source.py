@@ -5,6 +5,7 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     ChadwickSource,
     FgBattingSource,
     FgPitchingSource,
+    StatcastSource,
 )
 
 
@@ -61,3 +62,14 @@ class TestBrefPitchingSource:
 
     def test_source_detail(self) -> None:
         assert BrefPitchingSource().source_detail == "pitching_stats_bref"
+
+
+class TestStatcastSource:
+    def test_satisfies_datasource_protocol(self) -> None:
+        assert isinstance(StatcastSource(), DataSource)
+
+    def test_source_type(self) -> None:
+        assert StatcastSource().source_type == "pybaseball"
+
+    def test_source_detail(self) -> None:
+        assert StatcastSource().source_detail == "statcast"
