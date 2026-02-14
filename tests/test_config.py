@@ -57,3 +57,15 @@ class TestLoadConfigFromToml:
         toml_path.write_text("[models.steamer.params]\nsmoothing = 0.9\n")
         config = load_config(model_name="marcel", config_dir=tmp_path)
         assert config.model_params == {}
+
+    def test_version_loaded_from_toml(self, tmp_path: Path) -> None:
+        toml_path = tmp_path / "fbm.toml"
+        toml_path.write_text('[models.marcel]\nversion = "v2.1"\n')
+        config = load_config(model_name="marcel", config_dir=tmp_path)
+        assert config.version == "v2.1"
+
+    def test_tags_loaded_from_toml(self, tmp_path: Path) -> None:
+        toml_path = tmp_path / "fbm.toml"
+        toml_path.write_text('[models.marcel]\n\n[models.marcel.tags]\nenv = "dev"\nowner = "bob"\n')
+        config = load_config(model_name="marcel", config_dir=tmp_path)
+        assert config.tags == {"env": "dev", "owner": "bob"}

@@ -19,12 +19,17 @@ def load_config(
     model_section: dict[str, Any] = toml_data.get("models", {}).get(model_name, {})
     model_params: dict[str, Any] = model_section.get("params", {})
 
+    version: str | None = model_section.get("version")
+    tags: dict[str, str] = model_section.get("tags", {})
+
     return ModelConfig(
         data_dir=common.get("data_dir", "./data"),
         artifacts_dir=common.get("artifacts_dir", "./artifacts"),
         seasons=seasons if seasons is not None else common.get("seasons", []),
         model_params=model_params,
         output_dir=output_dir,
+        version=version,
+        tags=tags,
     )
 
 
