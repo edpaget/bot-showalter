@@ -48,6 +48,10 @@ class MarcelModel:
     def artifact_type(self) -> str:
         return ArtifactType.NONE.value
 
+    @property
+    def declared_features(self) -> tuple[Feature, ...]:
+        return _MARCEL_BATTING_FEATURES
+
     def prepare(self, config: ModelConfig, assembler: DatasetAssembler) -> PrepareResult:
         feature_set = FeatureSet(
             name=f"{self.name}_batting",

@@ -4,19 +4,20 @@ import sqlite3
 
 import pytest
 
-from tests.features.conftest import seed_batting_data
+from tests.features.conftest import seed_batting_data, seed_projection_data
 
 from fantasy_baseball_manager.features.sql import (
     JoinSpec,
     _join_alias,
     _plan_joins,
+    _raw_expr,
     _select_expr,
     _source_table,
     _join_clause,
     _spine_cte,
     generate_sql,
 )
-from fantasy_baseball_manager.features.types import Feature, FeatureSet, Source, SpineFilter
+from fantasy_baseball_manager.features.types import DeltaFeature, Feature, FeatureSet, Source, SpineFilter
 
 
 class TestSourceTable:
@@ -49,13 +50,17 @@ class TestJoinAlias:
     def test_projection_lag_0(self) -> None:
         assert _join_alias(Source.PROJECTION, 0) == "pr0"
 
+    def test_projection_with_system_counter(self) -> None:
+        assert _join_alias(Source.PROJECTION, 0, counter=0) == "pr0"
+        assert _join_alias(Source.PROJECTION, 0, counter=1) == "pr1"
+
 
 class TestPlanJoins:
     def test_single_feature_one_join(self) -> None:
         features = (Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),)
         joins = _plan_joins(features)
         assert len(joins) == 1
-        assert joins[0] == JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats")
+        assert joins[0] == JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats", system=None)
 
     def test_same_source_lag_deduplicated(self) -> None:
         features = (
@@ -79,7 +84,7 @@ class TestPlanJoins:
         features = (Feature(name="bats", source=Source.PLAYER, column="bats"),)
         joins = _plan_joins(features)
         assert len(joins) == 1
-        assert joins[0] == JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player")
+        assert joins[0] == JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player", system=None)
 
     def test_mixed_sources(self) -> None:
         features = (
@@ -122,13 +127,40 @@ class TestPlanJoins:
         assert joins[1].source == Source.PITCHING
         assert joins[2].source == Source.PLAYER
 
+    def test_projection_different_systems_separate_joins(self) -> None:
+        features = (
+            Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer"),
+            Feature(name="zips_hr", source=Source.PROJECTION, column="hr", system="zips"),
+        )
+        joins = _plan_joins(features)
+        assert len(joins) == 2
+        systems = {j.system for j in joins}
+        assert systems == {"steamer", "zips"}
+
+    def test_projection_same_system_deduped(self) -> None:
+        features = (
+            Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer"),
+            Feature(name="steamer_bb", source=Source.PROJECTION, column="bb", system="steamer"),
+        )
+        joins = _plan_joins(features)
+        assert len(joins) == 1
+
+    def test_delta_feature_plans_both_joins(self) -> None:
+        left = Feature(name="actual_hr", source=Source.BATTING, column="hr", lag=0)
+        right = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        delta = DeltaFeature(name="hr_error", left=left, right=right)
+        joins = _plan_joins((delta,))
+        sources = {j.source for j in joins}
+        assert Source.BATTING in sources
+        assert Source.PROJECTION in sources
+
 
 class TestSelectExprDirect:
-    def _joins_dict(self) -> dict[tuple[Source, int], JoinSpec]:
+    def _joins_dict(self) -> dict[tuple[Source, int, str | None], JoinSpec]:
         return {
-            (Source.BATTING, 1): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
-            (Source.PITCHING, 0): JoinSpec(source=Source.PITCHING, lag=0, alias="pi0", table="pitching_stats"),
-            (Source.PLAYER, 0): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
+            (Source.BATTING, 1, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
+            (Source.PITCHING, 0, None): JoinSpec(source=Source.PITCHING, lag=0, alias="pi0", table="pitching_stats"),
+            (Source.PLAYER, 0, None): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
         }
 
     def test_batting_direct(self) -> None:
@@ -152,8 +184,8 @@ class TestSelectExprDirect:
 
 class TestSelectExprAge:
     def test_computed_age(self) -> None:
-        joins_dict: dict[tuple[Source, int], JoinSpec] = {
-            (Source.PLAYER, 0): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
+        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
+            (Source.PLAYER, 0, None): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
         }
         f = Feature(name="age", source=Source.PLAYER, column="", computed="age")
         sql, params = _select_expr(f, joins_dict, None)
@@ -163,8 +195,8 @@ class TestSelectExprAge:
 
 class TestSelectExprRate:
     def test_rate_stat(self) -> None:
-        joins_dict: dict[tuple[Source, int], JoinSpec] = {
-            (Source.BATTING, 1): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
+        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
+            (Source.BATTING, 1, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
         }
         f = Feature(name="hr_rate", source=Source.BATTING, column="hr", lag=1, denominator="pa")
         sql, params = _select_expr(f, joins_dict, None)
@@ -292,6 +324,61 @@ class TestSelectExprRollingRate:
         # source filter appears twice — once for numerator, once for denominator
         assert sql.count("AND source = ?") == 2
         assert params == ["fangraphs", "fangraphs"]
+
+
+class TestSelectExprProjection:
+    def test_projection_direct(self) -> None:
+        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
+            (Source.PROJECTION, 0, "steamer"): JoinSpec(
+                source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer"
+            ),
+        }
+        f = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        sql, params = _select_expr(f, joins_dict, None)
+        assert sql == "pr0.hr AS steamer_hr"
+        assert params == []
+
+
+class TestRawExpr:
+    def test_raw_expr_direct(self) -> None:
+        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
+            (Source.BATTING, 1, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
+        }
+        f = Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1)
+        expr, params = _raw_expr(f, joins_dict, None)
+        assert expr == "b1.hr"
+        assert params == []
+
+
+class TestSelectExprDelta:
+    def test_delta_sql(self) -> None:
+        left = Feature(name="actual_hr", source=Source.BATTING, column="hr", lag=0)
+        right = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        delta = DeltaFeature(name="hr_error", left=left, right=right)
+        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
+            (Source.BATTING, 0, None): JoinSpec(source=Source.BATTING, lag=0, alias="b0", table="batting_stats"),
+            (Source.PROJECTION, 0, "steamer"): JoinSpec(
+                source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer"
+            ),
+        }
+        sql, params = _select_expr(delta, joins_dict, None)
+        assert sql == "(b0.hr - pr0.hr) AS hr_error"
+        assert params == []
+
+
+class TestJoinClauseProjection:
+    def test_projection_uses_system_filter(self) -> None:
+        join = JoinSpec(source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer")
+        sql, params = _join_clause(join, "fangraphs")
+        assert "LEFT JOIN projection pr0" in sql
+        assert "pr0.system = ?" in sql
+        assert "source" not in sql  # Should NOT use source filter for projections
+        assert params == ["steamer"]
+
+    def test_projection_season_join(self) -> None:
+        join = JoinSpec(source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer")
+        sql, _ = _join_clause(join, None)
+        assert "pr0.season = spine.season" in sql
 
 
 class TestSpineCte:
@@ -709,3 +796,80 @@ class TestRoundTrip:
         # Lag 1 from 2020 → need 2019 data, which doesn't exist
         for row in rows:
             assert row["hr_1"] is None
+
+
+class TestProjectionRoundTrip:
+    """Integration tests for projection features against seeded SQLite."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self, conn: sqlite3.Connection) -> None:
+        seed_batting_data(conn)
+        seed_projection_data(conn)
+        self._conn = conn
+
+    def _execute_dicts(self, fs: FeatureSet) -> list[dict[str, object]]:
+        sql, params = generate_sql(fs)
+        cursor = self._conn.execute(sql, params)
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def test_projection_direct_column(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer"),),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["steamer_hr"] == 38  # Steamer projected 38 HR for Trout
+
+    def test_projection_two_systems(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(
+                Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer"),
+                Feature(name="zips_hr", source=Source.PROJECTION, column="hr", system="zips"),
+            ),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["steamer_hr"] == 38
+        assert trout["zips_hr"] == 33
+
+    def test_delta_feature(self) -> None:
+        left = Feature(name="actual_hr", source=Source.BATTING, column="hr", lag=0)
+        right = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        delta = DeltaFeature(name="hr_error", left=left, right=right)
+        fs = FeatureSet(
+            name="test",
+            features=(delta,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        # actual_hr (2023) = 35, steamer_hr = 38, delta = 35 - 38 = -3
+        assert trout["hr_error"] == -3
+
+    def test_mixed_batting_projection_delta(self) -> None:
+        batting_hr = Feature(name="hr_0", source=Source.BATTING, column="hr", lag=0)
+        steamer_hr = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        delta = DeltaFeature(name="hr_error", left=batting_hr, right=steamer_hr)
+        fs = FeatureSet(
+            name="test",
+            features=(batting_hr, steamer_hr, delta),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        betts = next(r for r in rows if r["player_id"] == 2)
+        assert betts["hr_0"] == 32
+        assert betts["steamer_hr"] == 30
+        assert betts["hr_error"] == 2  # 32 - 30 = 2

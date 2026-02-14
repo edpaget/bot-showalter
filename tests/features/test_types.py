@@ -5,8 +5,10 @@ import pytest
 import re
 
 from fantasy_baseball_manager.features.types import (
+    AnyFeature,
     DatasetHandle,
     DatasetSplits,
+    DeltaFeature,
     Feature,
     FeatureBuilder,
     FeatureSet,
@@ -87,6 +89,14 @@ class TestFeature:
         assert f.aggregate == "mean"
         assert f.denominator == "pa"
 
+    def test_system_default_none(self) -> None:
+        f = Feature(name="hr_1", source=Source.BATTING, column="hr")
+        assert f.system is None
+
+    def test_system_field(self) -> None:
+        f = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        assert f.system == "steamer"
+
     def test_computed_feature(self) -> None:
         f = Feature(name="age", source=Source.PLAYER, column="", computed="age")
         assert f.computed == "age"
@@ -158,6 +168,19 @@ class TestFeatureBuilder:
         assert feature.window == 3
         assert feature.aggregate == "mean"
 
+    def test_system_returns_self(self) -> None:
+        builder = FeatureBuilder(source=Source.PROJECTION, column="hr")
+        result = builder.system("steamer")
+        assert result is builder
+
+    def test_system_sets_system_on_feature(self) -> None:
+        feature = FeatureBuilder(source=Source.PROJECTION, column="hr").system("steamer").alias("steamer_hr")
+        assert feature.system == "steamer"
+
+    def test_system_default_none_on_feature(self) -> None:
+        feature = FeatureBuilder(source=Source.BATTING, column="hr").alias("hr_0")
+        assert feature.system is None
+
     def test_defaults_without_chaining(self) -> None:
         feature = FeatureBuilder(source=Source.PITCHING, column="so").alias("so_0")
         assert feature.lag == 0
@@ -165,6 +188,7 @@ class TestFeatureBuilder:
         assert feature.aggregate is None
         assert feature.denominator is None
         assert feature.computed is None
+        assert feature.system is None
 
 
 class TestSourceRef:
@@ -206,6 +230,33 @@ class TestSourceRef:
     def test_source_attribute(self) -> None:
         ref = SourceRef(Source.BATTING)
         assert ref.source == Source.BATTING
+
+
+class TestDeltaFeature:
+    def test_construction(self) -> None:
+        left = Feature(name="actual_hr", source=Source.BATTING, column="hr", lag=0)
+        right = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        delta = DeltaFeature(name="hr_error", left=left, right=right)
+        assert delta.name == "hr_error"
+        assert delta.left is left
+        assert delta.right is right
+
+    def test_frozen(self) -> None:
+        left = Feature(name="actual_hr", source=Source.BATTING, column="hr")
+        right = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        delta = DeltaFeature(name="hr_error", left=left, right=right)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            delta.name = "changed"  # type: ignore[misc]
+
+    def test_any_feature_type(self) -> None:
+        f: AnyFeature = Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1)
+        assert isinstance(f, Feature)
+        d: AnyFeature = DeltaFeature(
+            name="hr_error",
+            left=Feature(name="actual_hr", source=Source.BATTING, column="hr"),
+            right=Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer"),
+        )
+        assert isinstance(d, DeltaFeature)
 
 
 class TestFeatureSet:
@@ -298,6 +349,29 @@ class TestFeatureSet:
         fs1 = FeatureSet(name="alpha", features=features, seasons=(2022,))
         fs2 = FeatureSet(name="beta", features=features, seasons=(2022,))
         assert fs1.version == fs2.version
+
+    def test_system_affects_version(self) -> None:
+        f1 = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        f2 = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="zips")
+        fs1 = FeatureSet(name="test", features=(f1,), seasons=(2022,))
+        fs2 = FeatureSet(name="test", features=(f2,), seasons=(2022,))
+        assert fs1.version != fs2.version
+
+    def test_with_delta_feature(self) -> None:
+        left = Feature(name="actual_hr", source=Source.BATTING, column="hr", lag=0)
+        right = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        delta = DeltaFeature(name="hr_error", left=left, right=right)
+        fs = FeatureSet(name="test", features=(left, delta), seasons=(2022,))
+        assert isinstance(fs.version, str)
+        assert len(fs.version) == 12
+
+    def test_delta_affects_version(self) -> None:
+        left = Feature(name="actual_hr", source=Source.BATTING, column="hr", lag=0)
+        right_a = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
+        right_b = Feature(name="zips_hr", source=Source.PROJECTION, column="hr", system="zips")
+        fs1 = FeatureSet(name="test", features=(DeltaFeature(name="err", left=left, right=right_a),), seasons=(2022,))
+        fs2 = FeatureSet(name="test", features=(DeltaFeature(name="err", left=left, right=right_b),), seasons=(2022,))
+        assert fs1.version != fs2.version
 
 
 class TestDatasetHandle:

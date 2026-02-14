@@ -8,6 +8,8 @@ from fantasy_baseball_manager.cli._dispatcher import UnsupportedOperation, dispa
 from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
     print_eval_result,
+    print_features,
+    print_import_result,
     print_predict_result,
     print_prepare_result,
     print_train_result,
@@ -15,15 +17,25 @@ from fantasy_baseball_manager.cli._output import (
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
+from fantasy_baseball_manager.ingest.column_maps import (
+    make_fg_projection_batting_mapper,
+    make_fg_projection_pitching_mapper,
+)
+from fantasy_baseball_manager.ingest.csv_source import CsvSource
+from fantasy_baseball_manager.ingest.loader import StatsLoader
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     EvalResult,
+    FeatureIntrospectable,
     PredictResult,
     PrepareResult,
     ProjectionModel,
     TrainResult,
 )
 from fantasy_baseball_manager.models.registry import get, list_models
+from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
+from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 
 app = typer.Typer(name="fbm", help="Fantasy Baseball Manager — projection model CLI")
 
@@ -120,3 +132,62 @@ def info(model: _ModelArg) -> None:
     typer.echo(f"Model: {m.name}")
     typer.echo(f"Description: {m.description}")
     typer.echo(f"Operations: {', '.join(sorted(m.supported_operations))}")
+
+
+@app.command()
+def features(model: _ModelArg) -> None:
+    """List declared features for a model."""
+    try:
+        m: ProjectionModel = get(model)
+    except KeyError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1) from None
+
+    if not isinstance(m, FeatureIntrospectable):
+        typer.echo(f"Error: model '{model}' does not expose features", err=True)
+        raise typer.Exit(code=1)
+
+    print_features(m.name, m.declared_features)
+
+
+@app.command("import")
+def import_cmd(
+    system: Annotated[str, typer.Argument(help="Projection system name (e.g. steamer, zips, atc)")],
+    csv_path: Annotated[Path, typer.Argument(help="Path to CSV file")],
+    version: Annotated[str, typer.Option("--version", help="Projection version")],
+    player_type: Annotated[str, typer.Option("--player-type", help="Player type: batter or pitcher")],
+    season: Annotated[int, typer.Option("--season", help="Season year for the projections")],
+    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+) -> None:
+    """Import third-party projections from a CSV file."""
+    if not csv_path.exists():
+        typer.echo(f"Error: file not found: {csv_path}", err=True)
+        raise typer.Exit(code=1)
+
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    player_repo = SqlitePlayerRepo(conn)
+    proj_repo = SqliteProjectionRepo(conn)
+    log_repo = SqliteLoadLogRepo(conn)
+    players = player_repo.all()
+
+    if player_type == "pitcher":
+        mapper = make_fg_projection_pitching_mapper(
+            players,
+            season=season,
+            system=system,
+            version=version,
+            source_type="third_party",
+        )
+    else:
+        mapper = make_fg_projection_batting_mapper(
+            players,
+            season=season,
+            system=system,
+            version=version,
+            source_type="third_party",
+        )
+
+    source = CsvSource(csv_path)
+    loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+    log = loader.load(encoding="utf-8-sig")
+    print_import_result(log)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fantasy_baseball_manager.features.types import Feature, FeatureSet, Source
+from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, Feature, FeatureSet, Source
 
 _SOURCE_TABLES: dict[Source, str] = {
     Source.BATTING: "batting_stats",
@@ -30,12 +30,15 @@ class JoinSpec:
     lag: int
     alias: str
     table: str
+    system: str | None = None
 
 
-def _join_alias(source: Source, lag: int) -> str:
+def _join_alias(source: Source, lag: int, counter: int | None = None) -> str:
     prefix = _ALIAS_PREFIXES[source]
     if source == Source.PLAYER:
         return prefix
+    if counter is not None:
+        return f"{prefix}{counter}"
     return f"{prefix}{lag}"
 
 
@@ -51,23 +54,45 @@ _AGG_FUNCTIONS: dict[str, str] = {
 }
 
 
-def _plan_joins(features: tuple[Feature, ...]) -> list[JoinSpec]:
-    seen: set[tuple[Source, int]] = set()
+def _extract_features(features: tuple[AnyFeature, ...]) -> list[Feature]:
+    """Extract all plain Features from a tuple that may contain DeltaFeatures."""
+    result: list[Feature] = []
     for f in features:
+        if isinstance(f, DeltaFeature):
+            result.append(f.left)
+            result.append(f.right)
+        else:
+            result.append(f)
+    return result
+
+
+def _plan_joins(features: tuple[AnyFeature, ...]) -> list[JoinSpec]:
+    plain_features = _extract_features(features)
+    seen: dict[tuple[Source, int, str | None], None] = {}
+    counter = 0
+    for f in plain_features:
         if _is_rolling(f):
             continue
         lag = 0 if f.source == Source.PLAYER else f.lag
-        key = (f.source, lag)
-        seen.add(key)
-    joins = [
-        JoinSpec(
-            source=source,
-            lag=lag,
-            alias=_join_alias(source, lag),
-            table=_source_table(source),
+        key = (f.source, lag, f.system)
+        if key not in seen:
+            seen[key] = None
+    joins: list[JoinSpec] = []
+    for source, lag, system in sorted(seen, key=lambda k: (k[0].value, k[1], k[2] or "")):
+        if source == Source.PROJECTION:
+            alias = _join_alias(source, lag, counter=counter)
+            counter += 1
+        else:
+            alias = _join_alias(source, lag)
+        joins.append(
+            JoinSpec(
+                source=source,
+                lag=lag,
+                alias=alias,
+                table=_source_table(source),
+                system=system,
+            )
         )
-        for source, lag in sorted(seen, key=lambda k: (k[0].value, k[1]))
-    ]
     return joins
 
 
@@ -95,16 +120,17 @@ def _rolling_subquery(
     return "".join(parts), params
 
 
-def _select_expr(
+def _raw_expr(
     feature: Feature,
-    joins_dict: dict[tuple[Source, int], JoinSpec],
+    joins_dict: dict[tuple[Source, int, str | None], JoinSpec],
     source_filter: str | None,
 ) -> tuple[str, list[object]]:
+    """Return the raw SQL expression for a feature (without AS alias)."""
     # Computed age
     if feature.computed == "age":
-        alias = joins_dict[(Source.PLAYER, 0)].alias
+        alias = joins_dict[(Source.PLAYER, 0, None)].alias
         return (
-            f"spine.season - CAST(SUBSTR({alias}.birth_date, 1, 4) AS INTEGER) AS {feature.name}",
+            f"spine.season - CAST(SUBSTR({alias}.birth_date, 1, 4) AS INTEGER)",
             [],
         )
 
@@ -116,7 +142,7 @@ def _select_expr(
         num_sql, num_params = _rolling_subquery(feature.column, "sum", table, lag, feature.window, source_filter)
         den_sql, den_params = _rolling_subquery(feature.denominator, "sum", table, lag, feature.window, source_filter)
         return (
-            f"CAST({num_sql} AS REAL) / NULLIF({den_sql}, 0) AS {feature.name}",
+            f"CAST({num_sql} AS REAL) / NULLIF({den_sql}, 0)",
             num_params + den_params,
         )
 
@@ -125,20 +151,35 @@ def _select_expr(
         sub_sql, sub_params = _rolling_subquery(
             feature.column, feature.aggregate, table, lag, feature.window, source_filter
         )
-        return f"{sub_sql} AS {feature.name}", sub_params
+        return sub_sql, sub_params
 
     # Non-rolling: need alias from joins_dict
-    alias = joins_dict[(feature.source, lag)].alias
+    key = (feature.source, lag, feature.system)
+    alias = joins_dict[key].alias
 
     # Rate stat (denominator, no aggregate)
     if feature.denominator is not None:
         return (
-            f"CAST({alias}.{feature.column} AS REAL) / NULLIF({alias}.{feature.denominator}, 0) AS {feature.name}",
+            f"CAST({alias}.{feature.column} AS REAL) / NULLIF({alias}.{feature.denominator}, 0)",
             [],
         )
 
     # Direct column
-    return f"{alias}.{feature.column} AS {feature.name}", []
+    return f"{alias}.{feature.column}", []
+
+
+def _select_expr(
+    feature: AnyFeature,
+    joins_dict: dict[tuple[Source, int, str | None], JoinSpec],
+    source_filter: str | None,
+) -> tuple[str, list[object]]:
+    if isinstance(feature, DeltaFeature):
+        left_sql, left_params = _raw_expr(feature.left, joins_dict, source_filter)
+        right_sql, right_params = _raw_expr(feature.right, joins_dict, source_filter)
+        return f"({left_sql} - {right_sql}) AS {feature.name}", left_params + right_params
+
+    expr, params = _raw_expr(feature, joins_dict, source_filter)
+    return f"{expr} AS {feature.name}", params
 
 
 def _infer_spine_table(feature_set: FeatureSet) -> str:
@@ -147,7 +188,7 @@ def _infer_spine_table(feature_set: FeatureSet) -> str:
         return "batting_stats"
     if sf.player_type == "pitcher":
         return "pitching_stats"
-    for f in feature_set.features:
+    for f in _extract_features(feature_set.features):
         if f.source in (Source.BATTING, Source.PITCHING):
             return _source_table(f.source)
     return "batting_stats"
@@ -189,9 +230,16 @@ def _join_clause(join: JoinSpec, source_filter: str | None) -> tuple[str, list[o
         f" AND {alias}.season = {season_expr}",
     ]
     params: list[object] = []
-    if source_filter is not None:
+
+    if join.source == Source.PROJECTION:
+        # Projection joins use system filter instead of source filter
+        if join.system is not None:
+            parts.append(f" AND {alias}.system = ?")
+            params.append(join.system)
+    elif source_filter is not None:
         parts.append(f" AND {alias}.source = ?")
         params.append(source_filter)
+
     return "".join(parts), params
 
 
@@ -202,7 +250,7 @@ def generate_sql(feature_set: FeatureSet) -> tuple[str, list[object]]:
 
     # Plan joins
     joins = _plan_joins(feature_set.features)
-    joins_dict = {(j.source, j.lag): j for j in joins}
+    joins_dict = {(j.source, j.lag, j.system): j for j in joins}
 
     # Build SELECT expressions
     select_parts = ["spine.player_id", "spine.season"]

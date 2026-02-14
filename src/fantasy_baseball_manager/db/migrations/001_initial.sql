@@ -90,8 +90,16 @@ CREATE TABLE IF NOT EXISTS projection (
     system TEXT NOT NULL,
     version TEXT NOT NULL,
     player_type TEXT NOT NULL,
-    stat_json TEXT NOT NULL,
+    pa INTEGER, ab INTEGER, h INTEGER, doubles INTEGER, triples INTEGER,
+    hr INTEGER, rbi INTEGER, r INTEGER, sb INTEGER, cs INTEGER,
+    bb INTEGER, so INTEGER, hbp INTEGER, sf INTEGER, sh INTEGER,
+    gdp INTEGER, ibb INTEGER, avg REAL, obp REAL, slg REAL,
+    ops REAL, woba REAL, wrc_plus REAL, war REAL,
+    w INTEGER, l INTEGER, era REAL, g INTEGER, gs INTEGER,
+    sv INTEGER, hld INTEGER, ip REAL, er INTEGER,
+    whip REAL, k_per_9 REAL, bb_per_9 REAL, fip REAL, xfip REAL,
     loaded_at TEXT,
+    source_type TEXT NOT NULL DEFAULT 'first_party',
     UNIQUE(player_id, season, system, version, player_type)
 );
 

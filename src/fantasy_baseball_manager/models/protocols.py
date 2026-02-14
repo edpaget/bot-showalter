@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
+from fantasy_baseball_manager.features.types import AnyFeature
 
 
 @dataclass(frozen=True)
@@ -88,3 +89,9 @@ class FineTunable(Protocol):
 @runtime_checkable
 class Ablatable(Protocol):
     def ablate(self, config: ModelConfig) -> AblationResult: ...
+
+
+@runtime_checkable
+class FeatureIntrospectable(Protocol):
+    @property
+    def declared_features(self) -> tuple[AnyFeature, ...]: ...

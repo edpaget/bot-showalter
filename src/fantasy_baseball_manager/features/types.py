@@ -30,6 +30,17 @@ class Feature:
     aggregate: str | None = None
     denominator: str | None = None
     computed: str | None = None
+    system: str | None = None
+
+
+@dataclass(frozen=True)
+class DeltaFeature:
+    name: str
+    left: Feature
+    right: Feature
+
+
+type AnyFeature = Feature | DeltaFeature
 
 
 class FeatureBuilder:
@@ -41,6 +52,7 @@ class FeatureBuilder:
         self._aggregate: str | None = None
         self._denominator: str | None = None
         self._computed: str | None = None
+        self._system: str | None = None
 
     def lag(self, n: int) -> FeatureBuilder:
         self._lag = n
@@ -60,6 +72,10 @@ class FeatureBuilder:
         self._denominator = denominator
         return self
 
+    def system(self, name: str) -> FeatureBuilder:
+        self._system = name
+        return self
+
     def alias(self, name: str) -> Feature:
         return Feature(
             name=name,
@@ -70,6 +86,7 @@ class FeatureBuilder:
             aggregate=self._aggregate,
             denominator=self._denominator,
             computed=self._computed,
+            system=self._system,
         )
 
 
@@ -87,7 +104,14 @@ class SourceRef:
         return Feature(name="age", source=self.source, column="", computed="age")
 
 
-def _feature_to_dict(f: Feature) -> dict[str, object]:
+def _feature_to_dict(f: AnyFeature) -> dict[str, object]:
+    if isinstance(f, DeltaFeature):
+        return {
+            "type": "delta",
+            "name": f.name,
+            "left": _feature_to_dict(f.left),
+            "right": _feature_to_dict(f.right),
+        }
     return {
         "name": f.name,
         "source": f.source.value,
@@ -97,6 +121,7 @@ def _feature_to_dict(f: Feature) -> dict[str, object]:
         "aggregate": f.aggregate,
         "denominator": f.denominator,
         "computed": f.computed,
+        "system": f.system,
     }
 
 
@@ -109,7 +134,7 @@ def _spine_filter_to_dict(sf: SpineFilter) -> dict[str, object]:
 
 
 def _compute_version(
-    features: tuple[Feature, ...],
+    features: tuple[AnyFeature, ...],
     seasons: tuple[int, ...],
     source_filter: str | None,
     spine_filter: SpineFilter,
@@ -128,7 +153,7 @@ def _compute_version(
 @dataclass(frozen=True)
 class FeatureSet:
     name: str
-    features: tuple[Feature, ...]
+    features: tuple[AnyFeature, ...]
     seasons: tuple[int, ...]
     source_filter: str | None = None
     spine_filter: SpineFilter = field(default_factory=SpineFilter)

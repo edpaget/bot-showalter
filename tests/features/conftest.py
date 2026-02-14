@@ -46,6 +46,24 @@ def seed_batting_data(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def seed_projection_data(conn: sqlite3.Connection) -> None:
+    """Insert projection data for 2 players x 1 season x 2 systems."""
+    projection_rows = [
+        # (player_id, season, system, version, player_type, hr, bb, avg, war)
+        (1, 2023, "steamer", "2023.1", "batter", 38, 68, 0.285, 6.0),
+        (1, 2023, "zips", "2023.1", "batter", 33, 62, 0.275, 5.2),
+        (2, 2023, "steamer", "2023.1", "batter", 30, 58, 0.290, 5.5),
+        (2, 2023, "zips", "2023.1", "batter", 27, 52, 0.280, 4.8),
+    ]
+    for pid, season, system, version, ptype, hr, bb, avg, war in projection_rows:
+        conn.execute(
+            "INSERT INTO projection (player_id, season, system, version, player_type, hr, bb, avg, war)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, hr, bb, avg, war),
+        )
+    conn.commit()
+
+
 @pytest.fixture
 def seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
     """Connection with 2 players x 4 seasons of batting data pre-loaded."""

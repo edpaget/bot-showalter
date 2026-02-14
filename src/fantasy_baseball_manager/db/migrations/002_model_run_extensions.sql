@@ -19,5 +19,3 @@ CREATE TABLE model_run (
     UNIQUE(system, version)
 );
 
--- Distinguish first-party vs third-party projections.
-ALTER TABLE projection ADD COLUMN source_type TEXT NOT NULL DEFAULT 'first_party';
