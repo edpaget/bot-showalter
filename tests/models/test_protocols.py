@@ -2,6 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -32,11 +33,29 @@ class _StubModel:
     def supported_operations(self) -> frozenset[str]:
         return frozenset({"prepare", "train"})
 
-    def prepare(self, config: ModelConfig) -> PrepareResult:
+    @property
+    def artifact_type(self) -> str:
+        return "none"
+
+    def prepare(self, config: ModelConfig, assembler: DatasetAssembler) -> PrepareResult:
         return PrepareResult(model_name="stub", rows_processed=0, artifacts_path="")
 
     def train(self, config: ModelConfig) -> TrainResult:
         return TrainResult(model_name="stub", metrics={}, artifacts_path="")
+
+
+class _StubModelWithoutArtifactType:
+    @property
+    def name(self) -> str:
+        return "stub"
+
+    @property
+    def description(self) -> str:
+        return "A stub model"
+
+    @property
+    def supported_operations(self) -> frozenset[str]:
+        return frozenset({"prepare", "train"})
 
 
 class TestProtocolRuntimeChecks:
@@ -60,6 +79,9 @@ class TestProtocolRuntimeChecks:
 
     def test_stub_is_not_ablatable(self) -> None:
         assert not isinstance(_StubModel(), Ablatable)
+
+    def test_model_without_artifact_type_is_not_projection_model(self) -> None:
+        assert not isinstance(_StubModelWithoutArtifactType(), ProjectionModel)
 
 
 class TestResultDataclasses:
@@ -108,3 +130,10 @@ class TestModelConfig:
         assert c.seasons == []
         assert c.model_params == {}
         assert c.output_dir is None
+        assert c.version is None
+        assert c.tags == {}
+
+    def test_model_config_with_version_and_tags(self) -> None:
+        c = ModelConfig(version="v1.0", tags={"env": "prod", "owner": "alice"})
+        assert c.version == "v1.0"
+        assert c.tags == {"env": "prod", "owner": "alice"}

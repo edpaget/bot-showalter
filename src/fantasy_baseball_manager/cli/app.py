@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -12,6 +13,8 @@ from fantasy_baseball_manager.cli._output import (
     print_train_result,
 )
 from fantasy_baseball_manager.config import load_config
+from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     EvalResult,
@@ -29,10 +32,17 @@ _OutputDirOpt = Annotated[str | None, typer.Option("--output-dir", help="Output 
 _SeasonOpt = Annotated[list[int] | None, typer.Option("--season", help="Season year(s) to include")]
 
 
+_ASSEMBLER_OPERATIONS: frozenset[str] = frozenset({"prepare"})
+
+
 def _run_action(operation: str, model_name: str, output_dir: str | None, seasons: list[int] | None) -> None:
     config = load_config(model_name=model_name, output_dir=output_dir, seasons=seasons)
+    assembler = None
+    if operation in _ASSEMBLER_OPERATIONS:
+        conn = create_connection(Path(config.data_dir) / "fbm.db")
+        assembler = SqliteDatasetAssembler(conn)
     try:
-        result = dispatch(operation, model_name, config)
+        result = dispatch(operation, model_name, config, assembler=assembler)
     except UnsupportedOperation as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None

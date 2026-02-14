@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
+from fantasy_baseball_manager.features.protocols import DatasetAssembler
+
 
 @dataclass(frozen=True)
 class ModelConfig:
@@ -9,6 +11,8 @@ class ModelConfig:
     seasons: list[int] = field(default_factory=list)
     model_params: dict[str, Any] = field(default_factory=dict)
     output_dir: str | None = None
+    version: str | None = None
+    tags: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -52,11 +56,13 @@ class ProjectionModel(Protocol):
     def description(self) -> str: ...
     @property
     def supported_operations(self) -> frozenset[str]: ...
+    @property
+    def artifact_type(self) -> str: ...
 
 
 @runtime_checkable
 class Preparable(Protocol):
-    def prepare(self, config: ModelConfig) -> PrepareResult: ...
+    def prepare(self, config: ModelConfig, assembler: DatasetAssembler) -> PrepareResult: ...
 
 
 @runtime_checkable

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -13,6 +16,7 @@ from fantasy_baseball_manager.models.protocols import (
     TrainResult,
 )
 from fantasy_baseball_manager.models.registry import get
+from fantasy_baseball_manager.models.run_manager import RunManager
 
 
 class UnsupportedOperation(Exception):
@@ -28,10 +32,18 @@ _OPERATION_MAP: dict[str, tuple[type, str]] = {
     "ablate": (Ablatable, "ablate"),
 }
 
+_ASSEMBLER_OPERATIONS: frozenset[str] = frozenset({"prepare"})
+
 type _AnyResult = PrepareResult | TrainResult | EvalResult | PredictResult | AblationResult
 
 
-def dispatch(operation: str, model_name: str, config: ModelConfig) -> _AnyResult:
+def dispatch(
+    operation: str,
+    model_name: str,
+    config: ModelConfig,
+    assembler: DatasetAssembler | None = None,
+    run_manager: RunManager | None = None,
+) -> _AnyResult:
     """Resolve a model from the registry, check capability, and invoke the operation."""
     model = get(model_name)
 
@@ -43,5 +55,17 @@ def dispatch(operation: str, model_name: str, config: ModelConfig) -> _AnyResult
     if not isinstance(model, protocol):
         raise UnsupportedOperation(f"Model '{model_name}' does not support '{operation}'")
 
+    context = None
+    if run_manager is not None and operation == "train":
+        context = run_manager.begin_run(model, config)
+
     method = getattr(model, method_name)
-    return method(config)
+    if operation in _ASSEMBLER_OPERATIONS:
+        result = method(config, assembler)
+    else:
+        result = method(config)
+
+    if context is not None and run_manager is not None:
+        run_manager.finalize_run(context, config)
+
+    return result
