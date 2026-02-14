@@ -126,3 +126,57 @@ class TestSqliteProjectionRepo:
         )
         results = repo.get_by_player_season(player_id, 2025)
         assert results[0].stat_json == complex_stats
+
+    def test_get_by_season(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="steamer",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 30},
+            )
+        )
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2024,
+                system="steamer",
+                version="2024.1",
+                player_type="batter",
+                stat_json={"hr": 28},
+            )
+        )
+        results = repo.get_by_season(2025)
+        assert len(results) == 1
+        assert results[0].season == 2025
+
+    def test_get_by_season_with_system(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="steamer",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 30},
+            )
+        )
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="zips",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 25},
+            )
+        )
+        results = repo.get_by_season(2025, system="steamer")
+        assert len(results) == 1
+        assert results[0].system == "steamer"

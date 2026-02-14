@@ -42,6 +42,19 @@ class SqliteProjectionRepo:
             ).fetchall()
         return [self._row_to_projection(row) for row in rows]
 
+    def get_by_season(self, season: int, system: str | None = None) -> list[Projection]:
+        if system is not None:
+            rows = self._conn.execute(
+                "SELECT * FROM projection WHERE season = ? AND system = ?",
+                (season, system),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM projection WHERE season = ?",
+                (season,),
+            ).fetchall()
+        return [self._row_to_projection(row) for row in rows]
+
     def get_by_system_version(self, system: str, version: str) -> list[Projection]:
         rows = self._conn.execute(
             "SELECT * FROM projection WHERE system = ? AND version = ?",

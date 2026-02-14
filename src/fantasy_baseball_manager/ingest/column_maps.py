@@ -7,6 +7,7 @@ import pandas as pd
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 
 
@@ -291,3 +292,129 @@ def statcast_pitch_mapper(row: pd.Series) -> StatcastPitch | None:
         estimated_ba_using_speedangle=_to_optional_float(row.get("estimated_ba_using_speedangle")),
         estimated_woba_using_speedangle=_to_optional_float(row.get("estimated_woba_using_speedangle")),
     )
+
+
+def _collect_stats(row: pd.Series, column_map: dict[str, str]) -> dict[str, Any]:
+    """Extract stats from a row, mapping CSV columns to canonical names, skipping NaN values."""
+    stats: dict[str, Any] = {}
+    for csv_col, stat_name in column_map.items():
+        val = row.get(csv_col)
+        if val is None:
+            continue
+        if isinstance(val, float) and math.isnan(val):
+            continue
+        stats[stat_name] = val
+    return stats
+
+
+_FG_BATTING_PROJECTION_COLUMNS: dict[str, str] = {
+    "PA": "pa",
+    "AB": "ab",
+    "H": "h",
+    "2B": "doubles",
+    "3B": "triples",
+    "HR": "hr",
+    "RBI": "rbi",
+    "R": "r",
+    "SB": "sb",
+    "CS": "cs",
+    "BB": "bb",
+    "SO": "so",
+    "HBP": "hbp",
+    "SF": "sf",
+    "SH": "sh",
+    "GDP": "gdp",
+    "IBB": "ibb",
+    "AVG": "avg",
+    "OBP": "obp",
+    "SLG": "slg",
+    "OPS": "ops",
+    "wOBA": "woba",
+    "wRC+": "wrc_plus",
+    "WAR": "war",
+}
+
+_FG_PITCHING_PROJECTION_COLUMNS: dict[str, str] = {
+    "W": "w",
+    "L": "l",
+    "G": "g",
+    "GS": "gs",
+    "SV": "sv",
+    "HLD": "hld",
+    "H": "h",
+    "ER": "er",
+    "HR": "hr",
+    "BB": "bb",
+    "SO": "so",
+    "ERA": "era",
+    "IP": "ip",
+    "WHIP": "whip",
+    "K/9": "k_per_9",
+    "BB/9": "bb_per_9",
+    "FIP": "fip",
+    "xFIP": "xfip",
+    "WAR": "war",
+}
+
+
+def _resolve_fg_projection_id(fg_lookup: dict[int, int], row: pd.Series) -> int | None:
+    fg_id = row.get("playerid")
+    if fg_id is None:
+        return None
+    if isinstance(fg_id, float) and math.isnan(fg_id):
+        return None
+    return fg_lookup.get(int(fg_id))
+
+
+def make_fg_projection_batting_mapper(
+    players: list[Player],
+    *,
+    season: int,
+    system: str,
+    version: str,
+) -> Callable[[pd.Series], Projection | None]:
+    fg_lookup = _build_fg_lookup(players)
+
+    def mapper(row: pd.Series) -> Projection | None:
+        player_id = _resolve_fg_projection_id(fg_lookup, row)
+        if player_id is None:
+            return None
+
+        stat_json = _collect_stats(row, _FG_BATTING_PROJECTION_COLUMNS)
+        return Projection(
+            player_id=player_id,
+            season=season,
+            system=system,
+            version=version,
+            player_type="batter",
+            stat_json=stat_json,
+        )
+
+    return mapper
+
+
+def make_fg_projection_pitching_mapper(
+    players: list[Player],
+    *,
+    season: int,
+    system: str,
+    version: str,
+) -> Callable[[pd.Series], Projection | None]:
+    fg_lookup = _build_fg_lookup(players)
+
+    def mapper(row: pd.Series) -> Projection | None:
+        player_id = _resolve_fg_projection_id(fg_lookup, row)
+        if player_id is None:
+            return None
+
+        stat_json = _collect_stats(row, _FG_PITCHING_PROJECTION_COLUMNS)
+        return Projection(
+            player_id=player_id,
+            season=season,
+            system=system,
+            version=version,
+            player_type="pitcher",
+            stat_json=stat_json,
+        )
+
+    return mapper
