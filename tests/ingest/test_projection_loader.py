@@ -186,6 +186,31 @@ class TestProjectionLoaderIntegration:
         results = proj_repo.get_by_season(2025, system="steamer")
         assert len(results) == 1
 
+    def test_third_party_import_sets_source_type(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        player_repo = SqlitePlayerRepo(conn)
+        players = player_repo.all()
+        mapper = make_fg_projection_batting_mapper(
+            players,
+            season=2025,
+            system="steamer",
+            version="2025.1",
+            source_type="third_party",
+        )
+        source = FakeDataSource(_batting_projection_df())
+        proj_repo = SqliteProjectionRepo(conn)
+        log_repo = SqliteLoadLogRepo(conn)
+        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection")
+
+        log = loader.load()
+
+        assert log.status == "success"
+        assert log.rows_loaded == 1
+
+        results = proj_repo.get_by_player_season(player_id, 2025, system="steamer")
+        assert len(results) == 1
+        assert results[0].source_type == "third_party"
+
 
 class TestProjectionVsActuals:
     def test_compare_batting_projection_to_actuals(self, conn: sqlite3.Connection) -> None:

@@ -101,6 +101,20 @@ class TestFgProjectionBattingMapper:
         assert result is not None
         assert "war" not in result.stat_json
 
+    def test_default_source_type_is_first_party(self) -> None:
+        mapper = make_fg_projection_batting_mapper([_trout()], season=2025, system="steamer", version="2025.1")
+        result = mapper(_fg_projection_batting_row())
+        assert result is not None
+        assert result.source_type == "first_party"
+
+    def test_third_party_source_type(self) -> None:
+        mapper = make_fg_projection_batting_mapper(
+            [_trout()], season=2025, system="steamer", version="2025.1", source_type="third_party"
+        )
+        result = mapper(_fg_projection_batting_row())
+        assert result is not None
+        assert result.source_type == "third_party"
+
     def test_works_with_zips(self) -> None:
         mapper = make_fg_projection_batting_mapper([_trout()], season=2025, system="zips", version="2025.1")
         result = mapper(_fg_projection_batting_row())
@@ -176,6 +190,20 @@ class TestFgProjectionPitchingMapper:
         mapper = make_fg_projection_pitching_mapper([_trout()], season=2025, system="zips", version="2025.1")
         result = mapper(_fg_projection_pitching_row(idfg=99999))
         assert result is None
+
+    def test_default_source_type_is_first_party(self) -> None:
+        mapper = make_fg_projection_pitching_mapper([_trout()], season=2025, system="steamer", version="2025.1")
+        result = mapper(_fg_projection_pitching_row())
+        assert result is not None
+        assert result.source_type == "first_party"
+
+    def test_third_party_source_type(self) -> None:
+        mapper = make_fg_projection_pitching_mapper(
+            [_trout()], season=2025, system="steamer", version="2025.1", source_type="third_party"
+        )
+        result = mapper(_fg_projection_pitching_row())
+        assert result is not None
+        assert result.source_type == "third_party"
 
     def test_nan_stat_excluded_from_json(self) -> None:
         mapper = make_fg_projection_pitching_mapper([_trout()], season=2025, system="steamer", version="2025.1")

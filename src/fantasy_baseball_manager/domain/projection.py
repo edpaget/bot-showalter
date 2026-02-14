@@ -10,5 +10,6 @@ class Projection:
     version: str
     player_type: str
     stat_json: dict[str, Any]
+    source_type: str = "first_party"
     id: int | None = None
     loaded_at: str | None = None

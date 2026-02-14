@@ -372,6 +372,7 @@ def make_fg_projection_batting_mapper(
     season: int,
     system: str,
     version: str,
+    source_type: str = "first_party",
 ) -> Callable[[pd.Series], Projection | None]:
     fg_lookup = _build_fg_lookup(players)
 
@@ -388,6 +389,7 @@ def make_fg_projection_batting_mapper(
             version=version,
             player_type="batter",
             stat_json=stat_json,
+            source_type=source_type,
         )
 
     return mapper
@@ -399,6 +401,7 @@ def make_fg_projection_pitching_mapper(
     season: int,
     system: str,
     version: str,
+    source_type: str = "first_party",
 ) -> Callable[[pd.Series], Projection | None]:
     fg_lookup = _build_fg_lookup(players)
 
@@ -415,6 +418,7 @@ def make_fg_projection_pitching_mapper(
             version=version,
             player_type="pitcher",
             stat_json=stat_json,
+            source_type=source_type,
         )
 
     return mapper
