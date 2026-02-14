@@ -359,12 +359,23 @@ Keep it simple: numbered SQL files (`001_initial.sql`, `002_add_barrel_column.sq
 - Tests
 
 ### Phase 6 — Feature store
-- `features/protocols.py`: FeatureStore Protocol
-- `features/feature_store.py`: create/register feature sets, materialize datasets as `ds_{id}` tables, manage train/validation/holdout splits
-- `features/model_run_repo.py`: record which datasets a model run used, store evaluation metrics
-- Schema migration for `feature_set`, `dataset`, `model_run` tables
-- Queries to compare metrics across model versions
-- Tests with in-memory SQLite
+
+Detailed design in **[feature-dsl.md](feature-dsl.md)**.
+
+Summary: a declarative Python API for defining model features (lag columns, rolling
+aggregates, rate stats, player metadata). A `DatasetAssembler` inspects feature
+declarations, generates SQL joins against the stat and player tables, and materializes
+the result into `ds_{id}` tables. Content-hashing enables automatic dataset reuse.
+
+Components from this phase:
+- `features/types.py`: `Feature`, `FeatureBuilder`, `FeatureSet`, `DatasetHandle`, etc.
+- `features/protocols.py`: `DatasetAssembler` protocol
+- `features/sql.py`: SQL generation from feature declarations
+- `features/assembler.py`: `SqliteDatasetAssembler` — materialization, caching, splits
+- `features/__init__.py`: public `batting`, `pitching`, `player` source refs
+
+Note: `model_run_repo.py` (provenance tracking, metrics storage) is covered by the
+[model-registry plan](model-registry.md), not here.
 
 ### Phase 7 — API source & extensibility
 - `ingest/api_source.py`: generic HTTP JSON → DataFrame adapter
