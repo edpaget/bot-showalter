@@ -44,3 +44,10 @@ def seed_batting_data(conn: sqlite3.Connection) -> None:
         batting_rows,
     )
     conn.commit()
+
+
+@pytest.fixture
+def seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
+    """Connection with 2 players x 4 seasons of batting data pre-loaded."""
+    seed_batting_data(conn)
+    return conn
