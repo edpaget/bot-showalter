@@ -1,0 +1,235 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from fantasy_baseball_manager.features.types import Feature, FeatureSet, Source
+
+_SOURCE_TABLES: dict[Source, str] = {
+    Source.BATTING: "batting_stats",
+    Source.PITCHING: "pitching_stats",
+    Source.PLAYER: "player",
+    Source.PROJECTION: "projection",
+}
+
+
+_ALIAS_PREFIXES: dict[Source, str] = {
+    Source.BATTING: "b",
+    Source.PITCHING: "pi",
+    Source.PLAYER: "p",
+    Source.PROJECTION: "pr",
+}
+
+
+def _source_table(source: Source) -> str:
+    return _SOURCE_TABLES[source]
+
+
+@dataclass(frozen=True)
+class JoinSpec:
+    source: Source
+    lag: int
+    alias: str
+    table: str
+
+
+def _join_alias(source: Source, lag: int) -> str:
+    prefix = _ALIAS_PREFIXES[source]
+    if source == Source.PLAYER:
+        return prefix
+    return f"{prefix}{lag}"
+
+
+def _is_rolling(feature: Feature) -> bool:
+    return feature.window > 1 and feature.aggregate is not None
+
+
+_AGG_FUNCTIONS: dict[str, str] = {
+    "mean": "AVG",
+    "sum": "SUM",
+    "min": "MIN",
+    "max": "MAX",
+}
+
+
+def _plan_joins(features: tuple[Feature, ...]) -> list[JoinSpec]:
+    seen: set[tuple[Source, int]] = set()
+    for f in features:
+        if _is_rolling(f):
+            continue
+        lag = 0 if f.source == Source.PLAYER else f.lag
+        key = (f.source, lag)
+        seen.add(key)
+    joins = [
+        JoinSpec(
+            source=source,
+            lag=lag,
+            alias=_join_alias(source, lag),
+            table=_source_table(source),
+        )
+        for source, lag in sorted(seen, key=lambda k: (k[0].value, k[1]))
+    ]
+    return joins
+
+
+def _rolling_subquery(
+    col: str,
+    agg: str,
+    table: str,
+    lag: int,
+    window: int,
+    source_filter: str | None,
+) -> tuple[str, list[object]]:
+    lower = lag + window - 1
+    upper = lag
+    func = _AGG_FUNCTIONS[agg]
+    parts = [
+        f"(SELECT {func}({col}) FROM {table}",
+        " WHERE player_id = spine.player_id",
+        f" AND season BETWEEN spine.season - {lower} AND spine.season - {upper}",
+    ]
+    params: list[object] = []
+    if source_filter is not None:
+        parts.append(" AND source = ?")
+        params.append(source_filter)
+    parts.append(")")
+    return "".join(parts), params
+
+
+def _select_expr(
+    feature: Feature,
+    joins_dict: dict[tuple[Source, int], JoinSpec],
+    source_filter: str | None,
+) -> tuple[str, list[object]]:
+    # Computed age
+    if feature.computed == "age":
+        alias = joins_dict[(Source.PLAYER, 0)].alias
+        return (
+            f"spine.season - CAST(SUBSTR({alias}.birth_date, 1, 4) AS INTEGER) AS {feature.name}",
+            [],
+        )
+
+    table = _source_table(feature.source)
+    lag = 0 if feature.source == Source.PLAYER else feature.lag
+
+    # Rolling rate (aggregate + denominator)
+    if _is_rolling(feature) and feature.denominator is not None:
+        num_sql, num_params = _rolling_subquery(feature.column, "sum", table, lag, feature.window, source_filter)
+        den_sql, den_params = _rolling_subquery(feature.denominator, "sum", table, lag, feature.window, source_filter)
+        return (
+            f"CAST({num_sql} AS REAL) / NULLIF({den_sql}, 0) AS {feature.name}",
+            num_params + den_params,
+        )
+
+    # Rolling aggregate (no denominator)
+    if _is_rolling(feature) and feature.aggregate is not None:
+        sub_sql, sub_params = _rolling_subquery(
+            feature.column, feature.aggregate, table, lag, feature.window, source_filter
+        )
+        return f"{sub_sql} AS {feature.name}", sub_params
+
+    # Non-rolling: need alias from joins_dict
+    alias = joins_dict[(feature.source, lag)].alias
+
+    # Rate stat (denominator, no aggregate)
+    if feature.denominator is not None:
+        return (
+            f"CAST({alias}.{feature.column} AS REAL) / NULLIF({alias}.{feature.denominator}, 0) AS {feature.name}",
+            [],
+        )
+
+    # Direct column
+    return f"{alias}.{feature.column} AS {feature.name}", []
+
+
+def _infer_spine_table(feature_set: FeatureSet) -> str:
+    sf = feature_set.spine_filter
+    if sf.player_type == "batter":
+        return "batting_stats"
+    if sf.player_type == "pitcher":
+        return "pitching_stats"
+    for f in feature_set.features:
+        if f.source in (Source.BATTING, Source.PITCHING):
+            return _source_table(f.source)
+    return "batting_stats"
+
+
+def _spine_cte(feature_set: FeatureSet) -> tuple[str, list[object]]:
+    table = _infer_spine_table(feature_set)
+    placeholders = ", ".join("?" for _ in feature_set.seasons)
+    parts = [
+        f"SELECT DISTINCT player_id, season FROM {table}",
+        f" WHERE season IN ({placeholders})",
+    ]
+    params: list[object] = list(feature_set.seasons)
+
+    if feature_set.source_filter is not None:
+        parts.append(" AND source = ?")
+        params.append(feature_set.source_filter)
+
+    sf = feature_set.spine_filter
+    if sf.min_pa is not None:
+        parts.append(" AND pa >= ?")
+        params.append(sf.min_pa)
+    if sf.min_ip is not None:
+        parts.append(" AND ip >= ?")
+        params.append(sf.min_ip)
+
+    return "".join(parts), params
+
+
+def _join_clause(join: JoinSpec, source_filter: str | None) -> tuple[str, list[object]]:
+    alias = join.alias
+    if join.source == Source.PLAYER:
+        return f"LEFT JOIN {join.table} {alias} ON {alias}.id = spine.player_id", []
+
+    season_expr = "spine.season" if join.lag == 0 else f"spine.season - {join.lag}"
+    parts = [
+        f"LEFT JOIN {join.table} {alias}",
+        f" ON {alias}.player_id = spine.player_id",
+        f" AND {alias}.season = {season_expr}",
+    ]
+    params: list[object] = []
+    if source_filter is not None:
+        parts.append(f" AND {alias}.source = ?")
+        params.append(source_filter)
+    return "".join(parts), params
+
+
+def generate_sql(feature_set: FeatureSet) -> tuple[str, list[object]]:
+    """Return (sql_string, params) for a parameterized SELECT query."""
+    # Build spine CTE
+    spine_sql, spine_params = _spine_cte(feature_set)
+
+    # Plan joins
+    joins = _plan_joins(feature_set.features)
+    joins_dict = {(j.source, j.lag): j for j in joins}
+
+    # Build SELECT expressions
+    select_parts = ["spine.player_id", "spine.season"]
+    select_params: list[object] = []
+    for f in feature_set.features:
+        expr, expr_params = _select_expr(f, joins_dict, feature_set.source_filter)
+        select_parts.append(expr)
+        select_params.extend(expr_params)
+
+    # Build JOIN clauses
+    join_parts: list[str] = []
+    join_params: list[object] = []
+    for j in joins:
+        clause, clause_params = _join_clause(j, feature_set.source_filter)
+        join_parts.append(clause)
+        join_params.extend(clause_params)
+
+    # Assemble query
+    select_list = ",\n    ".join(select_parts)
+    sql_parts = [
+        f"WITH spine AS (\n    {spine_sql}\n)\n",
+        f"SELECT\n    {select_list}\n",
+        "FROM spine\n",
+    ]
+    for jp in join_parts:
+        sql_parts.append(f"{jp}\n")
+
+    sql = "".join(sql_parts).rstrip("\n")
+    params = spine_params + select_params + join_params
+    return sql, params
