@@ -1,1 +1,1 @@
-from fantasy_baseball_manager.models.batting import marcel  # noqa: F401
+from fantasy_baseball_manager.models import marcel  # noqa: F401

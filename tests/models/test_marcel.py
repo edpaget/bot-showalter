@@ -1,4 +1,4 @@
-from fantasy_baseball_manager.models.batting.marcel import MarcelModel
+from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
     FineTunable,

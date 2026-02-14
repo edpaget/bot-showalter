@@ -1,7 +1,7 @@
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
-from fantasy_baseball_manager.models.batting.marcel import MarcelModel
+from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.registry import _clear, register
 
 runner = CliRunner()
