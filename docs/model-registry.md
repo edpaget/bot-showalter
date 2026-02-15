@@ -42,8 +42,11 @@ from fantasy_baseball_manager.models.registry import get, list_models, register
 # List registered models
 list_models()  # ["marcel"]
 
-# Get a model instance
-model = get("marcel")
+# Get a model class (not an instance — see docs/model-di.md)
+cls = get("marcel")
+
+# Instantiate via the composition root or directly with deps
+model = cls(assembler=assembler)
 model.name             # "marcel"
 model.description      # "Marcel the Monkey Forecasting System"
 model.supported_operations  # frozenset({"prepare", "train", "evaluate"})
