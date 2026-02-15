@@ -3,6 +3,7 @@ from typing import Any
 
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
+from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
 from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
@@ -44,10 +45,11 @@ class TestMarcelModel:
         ops = MarcelModel().supported_operations
         assert ops == frozenset({"prepare", "predict", "evaluate"})
 
-    def test_evaluate_returns_result(self) -> None:
-        result = MarcelModel().evaluate(ModelConfig())
-        assert result.model_name == "marcel"
-        assert isinstance(result.metrics, dict)
+    def test_is_evaluable_with_evaluator(self) -> None:
+        metrics = SystemMetrics(system="marcel", version="latest", source_type="first_party", metrics={})
+        evaluator = _FakeEvaluator(metrics)
+        model = MarcelModel(evaluator=evaluator)
+        assert isinstance(model, Evaluable)
 
 
 class TestMarcelPrepare:
@@ -317,3 +319,50 @@ class TestMarcelPositionFiltering:
         pitcher_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "pitcher"]
         assert 30 in batter_ids
         assert 30 in pitcher_ids
+
+
+class _FakeEvaluator:
+    def __init__(self, result: SystemMetrics) -> None:
+        self._result = result
+        self.calls: list[tuple[str, str, int]] = []
+
+    def evaluate(
+        self,
+        system: str,
+        version: str,
+        season: int,
+        stats: list[str] | None = None,
+        actuals_source: str = "fangraphs",
+    ) -> SystemMetrics:
+        self.calls.append((system, version, season))
+        return self._result
+
+
+class TestMarcelEvaluate:
+    def test_evaluate_delegates_to_evaluator(self) -> None:
+        metrics = SystemMetrics(
+            system="marcel",
+            version="latest",
+            source_type="first_party",
+            metrics={"hr": StatMetrics(rmse=0.1, mae=0.05, correlation=0.9, n=100)},
+        )
+        evaluator = _FakeEvaluator(metrics)
+        model = MarcelModel(evaluator=evaluator)
+        config = ModelConfig(seasons=[2025])
+        result = model.evaluate(config)
+        assert result is metrics
+        assert evaluator.calls == [("marcel", "latest", 2025)]
+
+    def test_evaluate_uses_config_version(self) -> None:
+        metrics = SystemMetrics(
+            system="marcel",
+            version="v2",
+            source_type="first_party",
+            metrics={},
+        )
+        evaluator = _FakeEvaluator(metrics)
+        model = MarcelModel(evaluator=evaluator)
+        config = ModelConfig(seasons=[2024], version="v2")
+        result = model.evaluate(config)
+        assert result is metrics
+        assert evaluator.calls == [("marcel", "v2", 2024)]

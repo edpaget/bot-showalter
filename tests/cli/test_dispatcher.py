@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from fantasy_baseball_manager.cli._dispatcher import dispatch, UnsupportedOperation
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.models.protocols import (
-    EvalResult,
     ModelConfig,
     PredictResult,
     PrepareResult,
@@ -47,8 +47,8 @@ class _FakeFullModel(_FakePreparableOnly):
     def train(self, config: ModelConfig) -> TrainResult:
         return TrainResult(model_name="fake", metrics={"rmse": 0.5}, artifacts_path="/tmp")
 
-    def evaluate(self, config: ModelConfig) -> EvalResult:
-        return EvalResult(model_name="fake", metrics={"mae": 0.3})
+    def evaluate(self, config: ModelConfig) -> SystemMetrics:
+        return SystemMetrics(system="fake", version="latest", source_type="first_party", metrics={})
 
     def predict(self, config: ModelConfig) -> PredictResult:
         return PredictResult(model_name="fake", predictions=[{"hr": 30}], output_path="/tmp")
@@ -67,7 +67,7 @@ class TestDispatch:
 
     def test_dispatch_evaluate(self) -> None:
         result = dispatch("evaluate", _FakeFullModel(), ModelConfig())
-        assert isinstance(result, EvalResult)
+        assert isinstance(result, SystemMetrics)
 
     def test_unsupported_operation_raises(self) -> None:
         with pytest.raises(UnsupportedOperation, match="does not support 'train'"):
@@ -161,5 +161,5 @@ class TestDispatchWithRunManager:
 
         result = dispatch("evaluate", _FakeFullModel(), config, run_manager=mgr)
 
-        assert isinstance(result, EvalResult)
+        assert isinstance(result, SystemMetrics)
         assert len(repo._records) == 0

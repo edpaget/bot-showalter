@@ -6,7 +6,6 @@ from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
     Evaluable,
-    EvalResult,
     FineTunable,
     ModelConfig,
     Predictable,
@@ -94,11 +93,6 @@ class TestResultDataclasses:
         with pytest.raises(FrozenInstanceError):
             r.model_name = "x"  # type: ignore[misc]
         assert r.metrics == {"rmse": 0.5}
-
-    def test_eval_result_frozen(self) -> None:
-        r = EvalResult(model_name="m", metrics={"mae": 0.3})
-        with pytest.raises(FrozenInstanceError):
-            r.model_name = "x"  # type: ignore[misc]
 
     def test_predict_result_frozen(self) -> None:
         r = PredictResult(model_name="m", predictions=[], output_path="/tmp")

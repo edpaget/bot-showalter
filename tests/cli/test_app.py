@@ -105,7 +105,7 @@ class TestActionCommands:
             "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
-        result = runner.invoke(app, ["evaluate", "marcel"])
+        result = runner.invoke(app, ["evaluate", "marcel", "--season", "2025"])
         assert result.exit_code == 0
 
     def test_finetune_marcel_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -486,30 +486,6 @@ def _seed_eval_data(conn: sqlite3.Connection, system: str = "steamer", version: 
     batting_repo.upsert(BattingStats(player_id=1, season=2025, source="fangraphs", hr=28, avg=0.265))
     batting_repo.upsert(BattingStats(player_id=2, season=2025, source="fangraphs", hr=40, avg=0.300))
     conn.commit()
-
-
-class TestEvalCommand:
-    def test_eval_command_exists(self) -> None:
-        result = runner.invoke(app, ["eval", "--help"])
-        assert result.exit_code == 0
-
-    def test_eval_with_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        db_conn = create_connection(":memory:")
-        _seed_eval_data(db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
-
-        result = runner.invoke(
-            app,
-            ["eval", "steamer", "--version", "2025.1", "--season", "2025"],
-        )
-        assert result.exit_code == 0, result.output
-        assert "hr" in result.output
-        assert "avg" in result.output
-        assert "RMSE" in result.output
-
-    def test_eval_missing_version_fails(self) -> None:
-        result = runner.invoke(app, ["eval", "steamer", "--season", "2025"])
-        assert result.exit_code != 0
 
 
 class TestCompareCommand:

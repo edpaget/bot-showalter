@@ -4,6 +4,7 @@ from typing import Any
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.models.marcel.convert import (
     projection_to_domain,
     rows_to_marcel_inputs,
@@ -19,7 +20,7 @@ from fantasy_baseball_manager.models.marcel.features import (
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
 from fantasy_baseball_manager.models.protocols import (
-    EvalResult,
+    Evaluator,
     ModelConfig,
     PredictResult,
     PrepareResult,
@@ -102,8 +103,13 @@ def _build_feature_sets(
 
 @register("marcel")
 class MarcelModel:
-    def __init__(self, assembler: DatasetAssembler | None = None) -> None:
+    def __init__(
+        self,
+        assembler: DatasetAssembler | None = None,
+        evaluator: Evaluator | None = None,
+    ) -> None:
         self._assembler = assembler
+        self._evaluator = evaluator
 
     @property
     def name(self) -> str:
@@ -193,5 +199,8 @@ class MarcelModel:
             output_path=config.output_dir or config.artifacts_dir,
         )
 
-    def evaluate(self, config: ModelConfig) -> EvalResult:
-        return EvalResult(model_name=self.name, metrics={})
+    def evaluate(self, config: ModelConfig) -> SystemMetrics:
+        assert self._evaluator is not None, "evaluator is required for evaluate"
+        version = config.version or "latest"
+        season = config.seasons[0]
+        return self._evaluator.evaluate(self.name, version, season)

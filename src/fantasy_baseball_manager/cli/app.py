@@ -10,7 +10,6 @@ from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
     print_comparison_result,
     print_error,
-    print_eval_result,
     print_features,
     print_import_result,
     print_ingest_result,
@@ -32,6 +31,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_runs_context,
     create_model,
 )
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.ingest.column_maps import (
@@ -50,7 +50,6 @@ from fantasy_baseball_manager.ingest.csv_source import CsvSource
 from fantasy_baseball_manager.ingest.loader import PlayerLoader, ProjectionLoader, StatsLoader
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
-    EvalResult,
     FeatureIntrospectable,
     PredictResult,
     PrepareResult,
@@ -81,8 +80,8 @@ def _run_action(operation: str, model_name: str, output_dir: str | None, seasons
             print_prepare_result(result)
         case TrainResult():
             print_train_result(result)
-        case EvalResult():
-            print_eval_result(result)
+        case SystemMetrics():
+            print_system_metrics(result)
         case PredictResult():
             print_predict_result(result)
         case AblationResult():
@@ -298,20 +297,6 @@ def import_cmd(
         loader = ProjectionLoader(source, ctx.proj_repo, ctx.log_repo, mapper, conn=ctx.conn)
         log = loader.load(encoding="utf-8-sig")
     print_import_result(log)
-
-
-@app.command("eval")
-def eval_cmd(
-    system: Annotated[str, typer.Argument(help="Projection system name")],
-    version: Annotated[str, typer.Option("--version", help="Projection version")],
-    season: Annotated[int, typer.Option("--season", help="Season to evaluate against")],
-    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
-    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
-) -> None:
-    """Evaluate a projection system against actual stats."""
-    with build_eval_context(data_dir) as ctx:
-        result = ctx.evaluator.evaluate(system, version, season, stats=stat)
-    print_system_metrics(result)
 
 
 @app.command("compare")

@@ -10,7 +10,6 @@ from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemS
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
-    EvalResult,
     PredictResult,
     PrepareResult,
     TrainResult,
@@ -38,16 +37,9 @@ def print_train_result(result: TrainResult) -> None:
     console.print(f"  Artifacts: {result.artifacts_path}")
 
 
-def print_eval_result(result: EvalResult) -> None:
-    console.print(f"[bold green]Evaluated[/bold green] model [bold]'{result.model_name}'[/bold]")
-    if result.metrics:
-        for name, value in result.metrics.items():
-            console.print(f"  {name}: {value}")
-
-
 def print_predict_result(result: PredictResult) -> None:
     console.print(f"[bold green]Predictions[/bold green] from model [bold]'{result.model_name}'[/bold]")
-    console.print(f"  {len(result.predictions)} predictions written to {result.output_path}")
+    console.print(f"  {len(result.predictions)} predictions saved to database")
 
 
 def print_ablation_result(result: AblationResult) -> None:

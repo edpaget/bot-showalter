@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
     Evaluable,
-    EvalResult,
     FineTunable,
     ModelConfig,
     Predictable,
@@ -31,7 +31,7 @@ _OPERATION_MAP: dict[str, tuple[type, str]] = {
     "ablate": (Ablatable, "ablate"),
 }
 
-type _AnyResult = PrepareResult | TrainResult | EvalResult | PredictResult | AblationResult
+type _AnyResult = PrepareResult | TrainResult | SystemMetrics | PredictResult | AblationResult
 
 
 def dispatch(

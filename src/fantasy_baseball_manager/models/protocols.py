@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.features.types import AnyFeature
 
 
@@ -27,12 +28,6 @@ class TrainResult:
     model_name: str
     metrics: dict[str, float]
     artifacts_path: str
-
-
-@dataclass(frozen=True)
-class EvalResult:
-    model_name: str
-    metrics: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -73,7 +68,19 @@ class Trainable(Protocol):
 
 @runtime_checkable
 class Evaluable(Protocol):
-    def evaluate(self, config: ModelConfig) -> EvalResult: ...
+    def evaluate(self, config: ModelConfig) -> SystemMetrics: ...
+
+
+@runtime_checkable
+class Evaluator(Protocol):
+    def evaluate(
+        self,
+        system: str,
+        version: str,
+        season: int,
+        stats: list[str] | None = None,
+        actuals_source: str = "fangraphs",
+    ) -> SystemMetrics: ...
 
 
 @runtime_checkable

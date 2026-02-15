@@ -57,7 +57,17 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
     conn = create_connection(Path(config.data_dir) / "fbm.db")
     try:
         assembler = SqliteDatasetAssembler(conn)
-        model = create_model(model_name, assembler=assembler, projection_repo=SqliteProjectionRepo(conn))
+        evaluator = ProjectionEvaluator(
+            SqliteProjectionRepo(conn),
+            SqliteBattingStatsRepo(conn),
+            SqlitePitchingStatsRepo(conn),
+        )
+        model = create_model(
+            model_name,
+            assembler=assembler,
+            projection_repo=SqliteProjectionRepo(conn),
+            evaluator=evaluator,
+        )
 
         run_manager: RunManager | None = None
         if config.version is not None:
