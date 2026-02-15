@@ -35,6 +35,8 @@ def _to_optional_str(value: Any) -> str | None:
         return None
     if isinstance(value, float) and math.isnan(value):
         return None
+    if pd.isna(value):
+        return None
     s = str(value)
     if s == "":
         return None
@@ -46,6 +48,8 @@ def _to_optional_int_stat(value: Any) -> int | None:
     if value is None:
         return None
     if isinstance(value, float) and math.isnan(value):
+        return None
+    if pd.isna(value):
         return None
     return int(value)
 

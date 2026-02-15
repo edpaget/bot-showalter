@@ -9,7 +9,7 @@ from pybaseball import (
     pitching_stats_bref,
     statcast,
 )
-from pybaseball.lahman import people as lahman_people
+from pylahman import People as lahman_people
 
 
 def _translate_fg_params(params: dict[str, Any]) -> dict[str, Any]:
