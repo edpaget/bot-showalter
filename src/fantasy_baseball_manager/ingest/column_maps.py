@@ -32,6 +32,8 @@ def _to_optional_float(value: Any) -> float | None:
         return None
     if isinstance(value, float) and math.isnan(value):
         return None
+    if pd.isna(value):
+        return None
     return float(value)
 
 

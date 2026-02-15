@@ -349,6 +349,9 @@ class TestToOptionalFloat:
     def test_string_float(self) -> None:
         assert _to_optional_float("3.14") == 3.14
 
+    def test_pandas_na_returns_none(self) -> None:
+        assert _to_optional_float(pd.NA) is None
+
 
 def _make_appearance_row(
     *,
