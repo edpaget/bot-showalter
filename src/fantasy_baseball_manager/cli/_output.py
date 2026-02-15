@@ -1,7 +1,10 @@
+import json
+
 import typer
 
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
+from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
@@ -77,6 +80,35 @@ def print_comparison_result(result: ComparisonResult) -> None:
             else:
                 values.append(f"{'—':>14}")
         typer.echo(f"  {stat_name:<12} {'  '.join(values)}")
+
+
+def print_run_list(records: list[ModelRunRecord]) -> None:
+    """Print a table of model runs."""
+    if not records:
+        typer.echo("No runs found.")
+        return
+    typer.echo(f"  {'System':<20} {'Version':<12} {'Created':<26} {'Tags'}")
+    typer.echo(f"  {'-' * 20} {'-' * 12} {'-' * 26} {'-' * 20}")
+    for r in records:
+        tags_str = ", ".join(f"{k}={v}" for k, v in r.tags_json.items()) if r.tags_json else ""
+        typer.echo(f"  {r.system:<20} {r.version:<12} {r.created_at:<26} {tags_str}")
+
+
+def print_run_detail(record: ModelRunRecord) -> None:
+    """Print full details of a model run."""
+    typer.echo(f"System:        {record.system}")
+    typer.echo(f"Version:       {record.version}")
+    typer.echo(f"Created:       {record.created_at}")
+    typer.echo(f"Git Commit:    {record.git_commit or 'N/A'}")
+    typer.echo(f"Artifact Type: {record.artifact_type}")
+    typer.echo(f"Artifact Path: {record.artifact_path or 'N/A'}")
+    if record.config_json:
+        typer.echo(f"Config:        {json.dumps(record.config_json, indent=2)}")
+    if record.metrics_json:
+        typer.echo(f"Metrics:       {json.dumps(record.metrics_json, indent=2)}")
+    if record.tags_json:
+        tags_str = ", ".join(f"{k}={v}" for k, v in record.tags_json.items())
+        typer.echo(f"Tags:          {tags_str}")
 
 
 def print_features(model_name: str, features: tuple[AnyFeature, ...]) -> None:

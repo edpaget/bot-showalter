@@ -13,11 +13,15 @@ from fantasy_baseball_manager.cli._output import (
     print_import_result,
     print_predict_result,
     print_prepare_result,
+    print_run_detail,
+    print_run_list,
     print_system_metrics,
     print_train_result,
 )
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.models.run_manager import RunManager
+from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_batting_mapper,
@@ -83,10 +87,47 @@ def prepare(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonO
     _run_action("prepare", model, output_dir, season)
 
 
+_VersionOpt = Annotated[str | None, typer.Option("--version", help="Run version for tracking")]
+_TagOpt = Annotated[list[str] | None, typer.Option("--tag", help="Tag as key=value (repeatable)")]
+
+
+def _parse_tags(raw_tags: list[str] | None) -> dict[str, str] | None:
+    if not raw_tags:
+        return None
+    parsed: dict[str, str] = {}
+    for tag in raw_tags:
+        key, _, value = tag.partition("=")
+        parsed[key] = value
+    return parsed
+
+
 @app.command()
-def train(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None) -> None:
+def train(
+    model: _ModelArg,
+    output_dir: _OutputDirOpt = None,
+    season: _SeasonOpt = None,
+    version: _VersionOpt = None,
+    tag: _TagOpt = None,
+) -> None:
     """Train a projection model."""
-    _run_action("train", model, output_dir, season)
+    tags = _parse_tags(tag)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags)
+
+    run_manager: RunManager | None = None
+    if config.version is not None:
+        conn = create_connection(Path(config.data_dir) / "fbm.db")
+        repo = SqliteModelRunRepo(conn)
+        run_manager = RunManager(model_run_repo=repo, artifacts_root=Path(config.artifacts_dir))
+
+    try:
+        result = dispatch("train", model, config, run_manager=run_manager)
+    except UnsupportedOperation as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1) from None
+
+    match result:
+        case TrainResult():
+            print_train_result(result)
 
 
 @app.command()
@@ -239,3 +280,72 @@ def compare_cmd(
     evaluator = ProjectionEvaluator(proj_repo, batting_repo, pitching_repo)
     result = evaluator.compare(parsed, season, stats=stat)
     print_comparison_result(result)
+
+
+# --- runs subcommand group ---
+
+_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
+
+runs_app = typer.Typer(name="runs", help="Manage first-party model runs")
+app.add_typer(runs_app, name="runs")
+
+
+@runs_app.command("list")
+def runs_list(
+    model: Annotated[str | None, typer.Option("--model", help="Filter by model name")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """List recorded model runs."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    repo = SqliteModelRunRepo(conn)
+    records = repo.list(system=model)
+    print_run_list(records)
+
+
+@runs_app.command("show")
+def runs_show(
+    run: Annotated[str, typer.Argument(help="Run identifier (system/version)")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show details of a model run."""
+    parts = run.split("/", 1)
+    if len(parts) != 2:
+        typer.echo(f"Error: invalid run format '{run}', expected 'system/version'", err=True)
+        raise typer.Exit(code=1)
+    system, version = parts
+
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    repo = SqliteModelRunRepo(conn)
+    record = repo.get(system, version)
+    if record is None:
+        typer.echo(f"Error: run '{run}' not found", err=True)
+        raise typer.Exit(code=1)
+    print_run_detail(record)
+
+
+@runs_app.command("delete")
+def runs_delete(
+    run: Annotated[str, typer.Argument(help="Run identifier (system/version)")],
+    yes: Annotated[bool, typer.Option("--yes", help="Skip confirmation")] = False,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Delete a model run and its artifacts."""
+    parts = run.split("/", 1)
+    if len(parts) != 2:
+        typer.echo(f"Error: invalid run format '{run}', expected 'system/version'", err=True)
+        raise typer.Exit(code=1)
+    system, version = parts
+
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    repo = SqliteModelRunRepo(conn)
+    record = repo.get(system, version)
+    if record is None:
+        typer.echo(f"Error: run '{run}' not found", err=True)
+        raise typer.Exit(code=1)
+
+    if not yes:
+        typer.confirm(f"Delete run '{run}'?", abort=True)
+
+    mgr = RunManager(model_run_repo=repo, artifacts_root=Path("."))
+    mgr.delete_run(system, version)
+    typer.echo(f"Deleted run '{run}'")

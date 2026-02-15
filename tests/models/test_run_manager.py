@@ -213,3 +213,67 @@ class TestRunManager:
 
         with pytest.raises(ValueError, match="version"):
             mgr.begin_run(model, config)
+
+    def test_delete_run_removes_record(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        import subprocess
+
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        config = ModelConfig(version="v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        mgr.finalize_run(ctx, config)
+        assert len(repo._records) == 1
+
+        mgr.delete_run("fake", "v1")
+
+        assert len(repo._records) == 0
+
+    def test_delete_run_removes_artifact_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        import subprocess
+
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        config = ModelConfig(version="v1")
+
+        artifact_dir = tmp_path / "fake" / "v1"
+        artifact_dir.mkdir(parents=True)
+        (artifact_dir / "model.pkl").write_text("data")
+
+        ctx = RunContext(system="fake", version="v1", run_dir=artifact_dir)
+        mgr.finalize_run(ctx, config)
+
+        mgr.delete_run("fake", "v1")
+
+        assert not artifact_dir.exists()
+
+    def test_delete_run_no_artifact_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        import subprocess
+
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        config = ModelConfig(version="v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        mgr.finalize_run(ctx, config)
+
+        # No error even though artifact dir doesn't exist
+        mgr.delete_run("fake", "v1")
+
+        assert len(repo._records) == 0

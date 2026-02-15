@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -6,12 +7,14 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.registry import _clear, register
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
+from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 
@@ -121,6 +124,52 @@ class TestActionCommands:
         _ensure_marcel_registered()
         result = runner.invoke(app, ["train", "marcel", "--season", "2023", "--season", "2024"])
         assert result.exit_code == 0
+
+
+class TestTrainRunTracking:
+    def test_train_with_version_records_run(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _ensure_marcel_registered()
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["train", "marcel", "--version", "v1"])
+        assert result.exit_code == 0, result.output
+
+        from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
+
+        repo = SqliteModelRunRepo(db_conn)
+        runs = repo.list(system="marcel")
+        assert len(runs) == 1
+        assert runs[0].version == "v1"
+
+    def test_train_with_tag_records_run(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _ensure_marcel_registered()
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["train", "marcel", "--version", "v1", "--tag", "env=test"])
+        assert result.exit_code == 0, result.output
+
+        from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
+
+        repo = SqliteModelRunRepo(db_conn)
+        runs = repo.list(system="marcel")
+        assert len(runs) == 1
+        assert runs[0].tags_json == {"env": "test"}
+
+    def test_train_without_version_skips_run_tracking(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _ensure_marcel_registered()
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["train", "marcel"])
+        assert result.exit_code == 0, result.output
+
+        from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
+
+        repo = SqliteModelRunRepo(db_conn)
+        runs = repo.list()
+        assert len(runs) == 0
 
 
 class TestFeaturesCommand:
@@ -319,3 +368,95 @@ class TestCompareCommand:
         assert result.exit_code == 0, result.output
         assert "steamer" in result.output
         assert "zips" in result.output
+
+
+def _seed_model_run(conn: sqlite3.Connection, system: str = "marcel", version: str = "v1") -> None:
+    repo = SqliteModelRunRepo(conn)
+    repo.upsert(
+        ModelRunRecord(
+            system=system,
+            version=version,
+            config_json={"data_dir": "./data", "seasons": [2023]},
+            artifact_type="none",
+            artifact_path=None,
+            git_commit="abc123",
+            tags_json={"env": "test"},
+            metrics_json={"rmse": 0.5},
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+    )
+
+
+class TestRunsListCommand:
+    def test_runs_list_command_exists(self) -> None:
+        result = runner.invoke(app, ["runs", "list", "--help"])
+        assert result.exit_code == 0
+
+    def test_runs_list_shows_records(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_model_run(db_conn, system="marcel", version="v1")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["runs", "list", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+        assert "marcel" in result.output
+        assert "v1" in result.output
+
+    def test_runs_list_filter_by_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_model_run(db_conn, system="marcel", version="v1")
+        _seed_model_run(db_conn, system="steamer", version="v1")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["runs", "list", "--model", "marcel", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+        assert "marcel" in result.output
+        assert "steamer" not in result.output
+
+    def test_runs_list_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["runs", "list", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+        assert "No runs found" in result.output
+
+
+class TestRunsShowCommand:
+    def test_runs_show_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_model_run(db_conn, system="marcel", version="v1")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["runs", "show", "marcel/v1", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+        assert "marcel" in result.output
+        assert "v1" in result.output
+        assert "abc123" in result.output
+
+    def test_runs_show_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["runs", "show", "nonexistent/v1", "--data-dir", "./data"])
+        assert result.exit_code != 0
+
+
+class TestRunsDeleteCommand:
+    def test_runs_delete_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_model_run(db_conn, system="marcel", version="v1")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["runs", "delete", "marcel/v1", "--yes", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+
+        repo = SqliteModelRunRepo(db_conn)
+        assert repo.get("marcel", "v1") is None
+
+    def test_runs_delete_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["runs", "delete", "nonexistent/v1", "--yes", "--data-dir", "./data"])
+        assert result.exit_code != 0

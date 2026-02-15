@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -78,6 +79,14 @@ class RunManager:
         )
 
         return self._repo.upsert(record)
+
+    def delete_run(self, system: str, version: str) -> None:
+        record = self._repo.get(system, version)
+        if record is not None and record.artifact_path is not None:
+            artifact_path = Path(record.artifact_path)
+            if artifact_path.is_dir():
+                shutil.rmtree(artifact_path)
+        self._repo.delete(system, version)
 
     @staticmethod
     def _capture_git_commit() -> str | None:

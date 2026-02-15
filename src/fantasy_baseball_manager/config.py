@@ -12,6 +12,8 @@ def load_config(
     config_dir: Path | None = None,
     output_dir: str | None = None,
     seasons: list[int] | None = None,
+    version: str | None = None,
+    tags: dict[str, str] | None = None,
 ) -> ModelConfig:
     """Load config from TOML file (if present) with CLI overrides applied on top."""
     toml_data = _load_toml(config_dir)
@@ -19,8 +21,11 @@ def load_config(
     model_section: dict[str, Any] = toml_data.get("models", {}).get(model_name, {})
     model_params: dict[str, Any] = model_section.get("params", {})
 
-    version: str | None = model_section.get("version")
-    tags: dict[str, str] = model_section.get("tags", {})
+    toml_version: str | None = model_section.get("version")
+    resolved_version = version if version is not None else toml_version
+
+    toml_tags: dict[str, str] = model_section.get("tags", {})
+    resolved_tags = {**toml_tags, **(tags or {})}
 
     return ModelConfig(
         data_dir=common.get("data_dir", "./data"),
@@ -28,8 +33,8 @@ def load_config(
         seasons=seasons if seasons is not None else common.get("seasons", []),
         model_params=model_params,
         output_dir=output_dir,
-        version=version,
-        tags=tags,
+        version=resolved_version,
+        tags=resolved_tags,
     )
 
 
