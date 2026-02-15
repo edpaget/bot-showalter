@@ -13,6 +13,7 @@ from fantasy_baseball_manager.cli.factory import (
     create_model,
 )
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
 from fantasy_baseball_manager.models.registry import _clear, register
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -21,6 +22,7 @@ from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 
 
@@ -307,6 +309,29 @@ class TestIngestContainer:
         assert source.source_detail == "chadwick_register"
         conn.close()
 
+    def test_statcast_pitch_repo(self) -> None:
+        conn = create_connection(":memory:")
+        statcast_conn = create_statcast_connection(":memory:")
+        container = IngestContainer(conn, statcast_conn=statcast_conn)
+        assert isinstance(container.statcast_pitch_repo, SqliteStatcastPitchRepo)
+        statcast_conn.close()
+        conn.close()
+
+    def test_statcast_source(self) -> None:
+        conn = create_connection(":memory:")
+        container = IngestContainer(conn)
+        source = container.statcast_source()
+        assert source.source_detail == "statcast"
+        conn.close()
+
+    def test_statcast_conn_property(self) -> None:
+        conn = create_connection(":memory:")
+        statcast_conn = create_statcast_connection(":memory:")
+        container = IngestContainer(conn, statcast_conn=statcast_conn)
+        assert container.statcast_conn is statcast_conn
+        statcast_conn.close()
+        conn.close()
+
 
 class TestBuildIngestContainer:
     def test_yields_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -314,15 +339,27 @@ class TestBuildIngestContainer:
             "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_statcast_connection",
+            lambda path: create_statcast_connection(":memory:"),
+        )
         with build_ingest_container("./data") as container:
             assert isinstance(container, IngestContainer)
+            assert container.statcast_conn is not None
 
     def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_statcast_connection",
+            lambda path: create_statcast_connection(":memory:"),
+        )
         with build_ingest_container("./data") as container:
             conn = container.conn
+            statcast_conn = container.statcast_conn
         with pytest.raises(ProgrammingError):
             conn.execute("SELECT 1")
+        with pytest.raises(ProgrammingError):
+            statcast_conn.execute("SELECT 1")

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.pybaseball_source import (
@@ -16,6 +17,7 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     FgBattingSource,
     FgPitchingSource,
     LahmanPeopleSource,
+    StatcastSource,
 )
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
@@ -25,6 +27,7 @@ from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
@@ -128,12 +131,25 @@ def build_import_context(data_dir: str) -> Iterator[ImportContext]:
 class IngestContainer:
     """DI container for the ingest command group."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, *, statcast_conn: sqlite3.Connection | None = None) -> None:
         self._conn = conn
+        self._statcast_conn = statcast_conn
 
     @property
     def conn(self) -> sqlite3.Connection:
         return self._conn
+
+    @property
+    def statcast_conn(self) -> sqlite3.Connection:
+        assert self._statcast_conn is not None, "statcast_conn not configured"
+        return self._statcast_conn
+
+    @property
+    def statcast_pitch_repo(self) -> SqliteStatcastPitchRepo:
+        return SqliteStatcastPitchRepo(self.statcast_conn)
+
+    def statcast_source(self) -> DataSource:
+        return StatcastSource()
 
     @property
     def player_repo(self) -> SqlitePlayerRepo:
@@ -176,9 +192,11 @@ class IngestContainer:
 def build_ingest_container(data_dir: str) -> Iterator[IngestContainer]:
     """Composition-root context manager for ingest commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
+    statcast_conn = create_statcast_connection(Path(data_dir) / "statcast.db")
     try:
-        yield IngestContainer(conn)
+        yield IngestContainer(conn, statcast_conn=statcast_conn)
     finally:
+        statcast_conn.close()
         conn.close()
 
 

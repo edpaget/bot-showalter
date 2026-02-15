@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import pytest
 
 from fantasy_baseball_manager.db.connection import attach_database, create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
@@ -13,7 +14,7 @@ from fantasy_baseball_manager.ingest.loader import StatsLoader
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
-from tests.ingest.conftest import FakeDataSource
+from tests.ingest.conftest import ErrorDataSource, FakeDataSource
 
 
 def _statcast_df(*overrides: dict[str, Any]) -> pd.DataFrame:
@@ -82,6 +83,57 @@ class TestStatcastLoaderIntegration:
         log = loader.load()
 
         assert log.rows_loaded == 1
+
+    def test_skips_rows_with_missing_required_fields(
+        self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection
+    ) -> None:
+        df = _statcast_df(
+            {},
+            {"game_pk": float("nan"), "at_bat_number": 2, "pitch_number": 1},
+        )
+        source = FakeDataSource(df)
+        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
+        log_repo = SqliteLoadLogRepo(conn)
+        loader = StatsLoader(
+            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+        )
+
+        log = loader.load()
+
+        assert log.status == "success"
+        assert log.rows_loaded == 1
+        assert pitch_repo.count() == 1
+
+    def test_empty_dataframe_loads_zero_rows(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
+        source = FakeDataSource(pd.DataFrame())
+        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
+        log_repo = SqliteLoadLogRepo(conn)
+        loader = StatsLoader(
+            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+        )
+
+        log = loader.load()
+
+        assert log.status == "success"
+        assert log.rows_loaded == 0
+        assert pitch_repo.count() == 0
+
+    def test_fetch_error_writes_error_log(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
+        source = ErrorDataSource()
+        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
+        log_repo = SqliteLoadLogRepo(conn)
+        loader = StatsLoader(
+            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+        )
+
+        with pytest.raises(RuntimeError, match="fetch failed"):
+            loader.load()
+
+        logs = log_repo.get_by_target_table("statcast_pitch")
+        assert len(logs) == 1
+        assert logs[0].status == "error"
+        assert logs[0].rows_loaded == 0
+        assert "fetch failed" in (logs[0].error_message or "")
 
     def test_upsert_deduplicates_on_reload(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
         df = _statcast_df({})

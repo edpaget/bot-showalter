@@ -43,6 +43,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
     make_lahman_bio_mapper,
+    statcast_pitch_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
 from fantasy_baseball_manager.ingest.loader import PlayerLoader, ProjectionLoader, StatsLoader
@@ -533,4 +534,27 @@ def ingest_pitching(
                 conn=container.conn,
             )
             log = loader.load(season=yr)
+            print_ingest_result(log)
+
+
+@ingest_app.command("statcast")
+def ingest_statcast(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest Statcast pitch-level data."""
+    with build_ingest_container(data_dir) as container:
+        for yr in season:
+            start_dt = f"{yr}-03-01"
+            end_dt = f"{yr}-11-30"
+            loader = StatsLoader(
+                container.statcast_source(),
+                container.statcast_pitch_repo,
+                container.log_repo,
+                statcast_pitch_mapper,
+                "statcast_pitch",
+                conn=container.statcast_conn,
+                log_conn=container.conn,
+            )
+            log = loader.load(start_dt=start_dt, end_dt=end_dt)
             print_ingest_result(log)
