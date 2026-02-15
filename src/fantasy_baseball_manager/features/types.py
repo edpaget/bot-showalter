@@ -34,6 +34,7 @@ class Feature:
     denominator: str | None = None
     computed: str | None = None
     system: str | None = None
+    version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,7 @@ class FeatureBuilder:
         self._denominator: str | None = None
         self._computed: str | None = None
         self._system: str | None = None
+        self._version: str | None = None
 
     def lag(self, n: int) -> FeatureBuilder:
         self._lag = n
@@ -94,6 +96,10 @@ class FeatureBuilder:
         self._system = name
         return self
 
+    def version(self, name: str) -> FeatureBuilder:
+        self._version = name
+        return self
+
     def alias(self, name: str) -> Feature:
         return Feature(
             name=name,
@@ -105,6 +111,7 @@ class FeatureBuilder:
             denominator=self._denominator,
             computed=self._computed,
             system=self._system,
+            version=self._version,
         )
 
 
@@ -159,6 +166,7 @@ def _feature_to_dict(f: AnyFeature) -> dict[str, object]:
         "denominator": f.denominator,
         "computed": f.computed,
         "system": f.system,
+        "version": f.version,
     }
 
 

@@ -70,6 +70,38 @@ def seed_projection_data(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def seed_projection_v2_data(conn: sqlite3.Connection) -> None:
+    """Insert version='2023.2' projection rows with different stats."""
+    projection_rows = [
+        # (player_id, season, system, version, player_type, hr, bb, avg, war)
+        (1, 2023, "steamer", "2023.2", "batter", 42, 72, 0.295, 7.0),
+        (2, 2023, "steamer", "2023.2", "batter", 34, 62, 0.300, 6.0),
+    ]
+    for pid, season, system, version, ptype, hr, bb, avg, war in projection_rows:
+        conn.execute(
+            "INSERT INTO projection (player_id, season, system, version, player_type, hr, bb, avg, war)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, hr, bb, avg, war),
+        )
+    conn.commit()
+
+
+def seed_projection_pitcher_data(conn: sqlite3.Connection) -> None:
+    """Insert player_type='pitcher' projection rows with different stats."""
+    projection_rows = [
+        # (player_id, season, system, version, player_type, hr, bb, avg, war)
+        (1, 2023, "steamer", "2023.1", "pitcher", 2, 80, 0.150, 3.0),
+        (2, 2023, "steamer", "2023.1", "pitcher", 1, 75, 0.140, 2.5),
+    ]
+    for pid, season, system, version, ptype, hr, bb, avg, war in projection_rows:
+        conn.execute(
+            "INSERT INTO projection (player_id, season, system, version, player_type, hr, bb, avg, war)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, hr, bb, avg, war),
+        )
+    conn.commit()
+
+
 @pytest.fixture
 def seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
     """Connection with 2 players x 4 seasons of batting data pre-loaded."""

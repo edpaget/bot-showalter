@@ -102,6 +102,14 @@ class TestFeature:
         f = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
         assert f.system == "steamer"
 
+    def test_version_default_none(self) -> None:
+        f = Feature(name="hr_1", source=Source.BATTING, column="hr")
+        assert f.version is None
+
+    def test_version_field(self) -> None:
+        f = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer", version="2023.1")
+        assert f.version == "2023.1"
+
     def test_computed_feature(self) -> None:
         f = Feature(name="age", source=Source.PLAYER, column="", computed="age")
         assert f.computed == "age"
@@ -185,6 +193,13 @@ class TestFeatureBuilder:
     def test_system_default_none_on_feature(self) -> None:
         feature = FeatureBuilder(source=Source.BATTING, column="hr").alias("hr_0")
         assert feature.system is None
+
+    def test_version_method(self) -> None:
+        builder = FeatureBuilder(source=Source.PROJECTION, column="hr")
+        result = builder.version("2023.1")
+        assert result is builder
+        feature = builder.system("steamer").alias("steamer_hr")
+        assert feature.version == "2023.1"
 
     def test_defaults_without_chaining(self) -> None:
         feature = FeatureBuilder(source=Source.PITCHING, column="so").alias("so_0")
@@ -354,6 +369,13 @@ class TestFeatureSet:
         fs1 = FeatureSet(name="alpha", features=features, seasons=(2022,))
         fs2 = FeatureSet(name="beta", features=features, seasons=(2022,))
         assert fs1.version == fs2.version
+
+    def test_version_field_affects_hash(self) -> None:
+        f1 = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer", version="2023.1")
+        f2 = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer", version="2023.2")
+        fs1 = FeatureSet(name="test", features=(f1,), seasons=(2022,))
+        fs2 = FeatureSet(name="test", features=(f2,), seasons=(2022,))
+        assert fs1.version != fs2.version
 
     def test_system_affects_version(self) -> None:
         f1 = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")

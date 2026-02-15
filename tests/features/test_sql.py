@@ -4,7 +4,12 @@ import sqlite3
 
 import pytest
 
-from tests.features.conftest import seed_batting_data, seed_projection_data
+from tests.features.conftest import (
+    seed_batting_data,
+    seed_projection_data,
+    seed_projection_pitcher_data,
+    seed_projection_v2_data,
+)
 
 from fantasy_baseball_manager.features.sql import (
     JoinSpec,
@@ -154,6 +159,24 @@ class TestPlanJoins:
         joins = _plan_joins(features)
         assert len(joins) == 1
 
+    def test_projection_different_versions_separate_joins(self) -> None:
+        features = (
+            Feature(name="steamer_hr_v1", source=Source.PROJECTION, column="hr", system="steamer", version="2023.1"),
+            Feature(name="steamer_hr_v2", source=Source.PROJECTION, column="hr", system="steamer", version="2023.2"),
+        )
+        joins = _plan_joins(features)
+        assert len(joins) == 2
+        versions = {j.version for j in joins}
+        assert versions == {"2023.1", "2023.2"}
+
+    def test_projection_same_system_and_version_deduped(self) -> None:
+        features = (
+            Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer", version="2023.1"),
+            Feature(name="steamer_bb", source=Source.PROJECTION, column="bb", system="steamer", version="2023.1"),
+        )
+        joins = _plan_joins(features)
+        assert len(joins) == 1
+
     def test_delta_feature_plans_both_joins(self) -> None:
         left = Feature(name="actual_hr", source=Source.BATTING, column="hr", lag=0)
         right = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
@@ -165,11 +188,13 @@ class TestPlanJoins:
 
 
 class TestSelectExprDirect:
-    def _joins_dict(self) -> dict[tuple[Source, int, str | None], JoinSpec]:
+    def _joins_dict(self) -> dict[tuple[Source, int, str | None, str | None], JoinSpec]:
         return {
-            (Source.BATTING, 1, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
-            (Source.PITCHING, 0, None): JoinSpec(source=Source.PITCHING, lag=0, alias="pi0", table="pitching_stats"),
-            (Source.PLAYER, 0, None): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
+            (Source.BATTING, 1, None, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
+            (Source.PITCHING, 0, None, None): JoinSpec(
+                source=Source.PITCHING, lag=0, alias="pi0", table="pitching_stats"
+            ),
+            (Source.PLAYER, 0, None, None): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
         }
 
     def test_batting_direct(self) -> None:
@@ -193,8 +218,8 @@ class TestSelectExprDirect:
 
 class TestSelectExprAge:
     def test_computed_age(self) -> None:
-        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
-            (Source.PLAYER, 0, None): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.PLAYER, 0, None, None): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
         }
         f = Feature(name="age", source=Source.PLAYER, column="", computed="age")
         sql, params = _select_expr(f, joins_dict, None)
@@ -204,8 +229,8 @@ class TestSelectExprAge:
 
 class TestSelectExprRate:
     def test_rate_stat(self) -> None:
-        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
-            (Source.BATTING, 1, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.BATTING, 1, None, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
         }
         f = Feature(name="hr_rate", source=Source.BATTING, column="hr", lag=1, denominator="pa")
         sql, params = _select_expr(f, joins_dict, None)
@@ -337,8 +362,8 @@ class TestSelectExprRollingRate:
 
 class TestSelectExprProjection:
     def test_projection_direct(self) -> None:
-        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
-            (Source.PROJECTION, 0, "steamer"): JoinSpec(
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.PROJECTION, 0, "steamer", None): JoinSpec(
                 source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer"
             ),
         }
@@ -350,8 +375,8 @@ class TestSelectExprProjection:
 
 class TestRawExpr:
     def test_raw_expr_direct(self) -> None:
-        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
-            (Source.BATTING, 1, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.BATTING, 1, None, None): JoinSpec(source=Source.BATTING, lag=1, alias="b1", table="batting_stats"),
         }
         f = Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1)
         expr, params = _raw_expr(f, joins_dict, None)
@@ -364,9 +389,9 @@ class TestSelectExprDelta:
         left = Feature(name="actual_hr", source=Source.BATTING, column="hr", lag=0)
         right = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
         delta = DeltaFeature(name="hr_error", left=left, right=right)
-        joins_dict: dict[tuple[Source, int, str | None], JoinSpec] = {
-            (Source.BATTING, 0, None): JoinSpec(source=Source.BATTING, lag=0, alias="b0", table="batting_stats"),
-            (Source.PROJECTION, 0, "steamer"): JoinSpec(
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.BATTING, 0, None, None): JoinSpec(source=Source.BATTING, lag=0, alias="b0", table="batting_stats"),
+            (Source.PROJECTION, 0, "steamer", None): JoinSpec(
                 source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer"
             ),
         }
@@ -388,6 +413,35 @@ class TestJoinClauseProjection:
         join = JoinSpec(source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer")
         sql, _ = _join_clause(join, None)
         assert "pr0.season = spine.season" in sql
+
+    def test_projection_uses_version_filter(self) -> None:
+        join = JoinSpec(
+            source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer", version="2023.1"
+        )
+        sql, params = _join_clause(join, None)
+        assert "pr0.version = ?" in sql
+        assert "2023.1" in params
+
+    def test_projection_no_version_filter_when_none(self) -> None:
+        join = JoinSpec(source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer")
+        sql, params = _join_clause(join, None)
+        assert "version" not in sql
+
+    def test_projection_uses_player_type_filter(self) -> None:
+        join = JoinSpec(source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer")
+        sql, params = _join_clause(join, None, player_type="batter")
+        assert "pr0.player_type = ?" in sql
+        assert "batter" in params
+
+    def test_projection_no_player_type_when_none(self) -> None:
+        join = JoinSpec(source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer")
+        sql, params = _join_clause(join, None, player_type=None)
+        assert "player_type" not in sql
+
+    def test_non_projection_ignores_player_type(self) -> None:
+        join = JoinSpec(source=Source.BATTING, lag=0, alias="b0", table="batting_stats")
+        sql, params = _join_clause(join, None, player_type="batter")
+        assert "player_type" not in sql
 
 
 class TestSpineCte:
@@ -882,6 +936,36 @@ class TestProjectionRoundTrip:
         assert betts["hr_0"] == 32
         assert betts["steamer_hr"] == 30
         assert betts["hr_error"] == 2  # 32 - 30 = 2
+
+    def test_projection_version_filter(self) -> None:
+        seed_projection_v2_data(self._conn)
+        # v2 has hr=42 for Trout, v1 has hr=38. Request v1 explicitly.
+        fs = FeatureSet(
+            name="test",
+            features=(
+                Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer", version="2023.1"),
+            ),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["steamer_hr"] == 38
+
+    def test_projection_player_type_filter(self) -> None:
+        seed_projection_pitcher_data(self._conn)
+        # Pitcher projections have hr=2 for Trout, batter projections have hr=38.
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer"),),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["steamer_hr"] == 38
 
 
 def _noop_transform(rows: list[dict[str, Any]]) -> dict[str, Any]:

@@ -38,6 +38,7 @@ class JoinSpec:
     alias: str
     table: str
     system: str | None = None
+    version: str | None = None
 
 
 def _join_alias(source: Source, lag: int, counter: int | None = None) -> str:
@@ -81,17 +82,17 @@ def _extract_features(features: tuple[AnyFeature, ...]) -> list[Feature]:
 
 def _plan_joins(features: tuple[AnyFeature, ...]) -> list[JoinSpec]:
     plain_features = _extract_features(features)
-    seen: dict[tuple[Source, int, str | None], None] = {}
+    seen: dict[tuple[Source, int, str | None, str | None], None] = {}
     counter = 0
     for f in plain_features:
         if _is_rolling(f):
             continue
         lag = 0 if f.source == Source.PLAYER else f.lag
-        key = (f.source, lag, f.system)
+        key = (f.source, lag, f.system, f.version)
         if key not in seen:
             seen[key] = None
     joins: list[JoinSpec] = []
-    for source, lag, system in sorted(seen, key=lambda k: (k[0].value, k[1], k[2] or "")):
+    for source, lag, system, version in sorted(seen, key=lambda k: (k[0].value, k[1], k[2] or "", k[3] or "")):
         if source == Source.PROJECTION:
             alias = _join_alias(source, lag, counter=counter)
             counter += 1
@@ -104,6 +105,7 @@ def _plan_joins(features: tuple[AnyFeature, ...]) -> list[JoinSpec]:
                 alias=alias,
                 table=_source_table(source),
                 system=system,
+                version=version,
             )
         )
     return joins
@@ -135,13 +137,13 @@ def _rolling_subquery(
 
 def _raw_expr(
     feature: Feature,
-    joins_dict: dict[tuple[Source, int, str | None], JoinSpec],
+    joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec],
     source_filter: str | None,
 ) -> tuple[str, list[object]]:
     """Return the raw SQL expression for a feature (without AS alias)."""
     # Computed age
     if feature.computed == "age":
-        alias = joins_dict[(Source.PLAYER, 0, None)].alias
+        alias = joins_dict[(Source.PLAYER, 0, None, None)].alias
         return (
             f"spine.season - CAST(SUBSTR({alias}.birth_date, 1, 4) AS INTEGER)",
             [],
@@ -167,7 +169,7 @@ def _raw_expr(
         return sub_sql, sub_params
 
     # Non-rolling: need alias from joins_dict
-    key = (feature.source, lag, feature.system)
+    key = (feature.source, lag, feature.system, feature.version)
     alias = joins_dict[key].alias
 
     # Rate stat (denominator, no aggregate)
@@ -183,7 +185,7 @@ def _raw_expr(
 
 def _select_expr(
     feature: AnyFeature,
-    joins_dict: dict[tuple[Source, int, str | None], JoinSpec],
+    joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec],
     source_filter: str | None,
 ) -> tuple[str, list[object]]:
     if isinstance(feature, DeltaFeature):
@@ -232,7 +234,9 @@ def _spine_cte(feature_set: FeatureSet) -> tuple[str, list[object]]:
     return "".join(parts), params
 
 
-def _join_clause(join: JoinSpec, source_filter: str | None) -> tuple[str, list[object]]:
+def _join_clause(
+    join: JoinSpec, source_filter: str | None, *, player_type: str | None = None
+) -> tuple[str, list[object]]:
     alias = join.alias
     if join.source == Source.PLAYER:
         return f"LEFT JOIN {join.table} {alias} ON {alias}.id = spine.player_id", []
@@ -250,6 +254,12 @@ def _join_clause(join: JoinSpec, source_filter: str | None) -> tuple[str, list[o
         if join.system is not None:
             parts.append(f" AND {alias}.system = ?")
             params.append(join.system)
+        if join.version is not None:
+            parts.append(f" AND {alias}.version = ?")
+            params.append(join.version)
+        if player_type is not None:
+            parts.append(f" AND {alias}.player_type = ?")
+            params.append(player_type)
     elif source_filter is not None:
         parts.append(f" AND {alias}.source = ?")
         params.append(source_filter)
@@ -264,7 +274,7 @@ def generate_sql(feature_set: FeatureSet) -> tuple[str, list[object]]:
 
     # Plan joins
     joins = _plan_joins(feature_set.features)
-    joins_dict = {(j.source, j.lag, j.system): j for j in joins}
+    joins_dict = {(j.source, j.lag, j.system, j.version): j for j in joins}
 
     # Build SELECT expressions (skip TransformFeature — handled in transform pass)
     select_parts = ["spine.player_id", "spine.season"]
@@ -280,7 +290,9 @@ def generate_sql(feature_set: FeatureSet) -> tuple[str, list[object]]:
     join_parts: list[str] = []
     join_params: list[object] = []
     for j in joins:
-        clause, clause_params = _join_clause(j, feature_set.source_filter)
+        clause, clause_params = _join_clause(
+            j, feature_set.source_filter, player_type=feature_set.spine_filter.player_type
+        )
         join_parts.append(clause)
         join_params.extend(clause_params)
 
