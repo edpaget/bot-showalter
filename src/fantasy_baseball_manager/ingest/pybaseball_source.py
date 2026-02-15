@@ -11,6 +11,15 @@ from pybaseball import (
 )
 
 
+def _translate_fg_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Translate canonical ``season`` kwarg to FanGraphs ``start_season``/``end_season``."""
+    if "season" in params:
+        yr = params.pop("season")
+        params.setdefault("start_season", yr)
+        params.setdefault("end_season", yr)
+    return params
+
+
 class ChadwickSource:
     @property
     def source_type(self) -> str:
@@ -34,7 +43,7 @@ class FgBattingSource:
         return "fg_batting_data"
 
     def fetch(self, **params: Any) -> pd.DataFrame:
-        return fg_batting_data(**params)
+        return fg_batting_data(**_translate_fg_params(params))
 
 
 class FgPitchingSource:
@@ -47,7 +56,7 @@ class FgPitchingSource:
         return "fg_pitching_data"
 
     def fetch(self, **params: Any) -> pd.DataFrame:
-        return fg_pitching_data(**params)
+        return fg_pitching_data(**_translate_fg_params(params))
 
 
 class BrefBattingSource:

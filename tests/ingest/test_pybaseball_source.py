@@ -6,6 +6,7 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     FgBattingSource,
     FgPitchingSource,
     StatcastSource,
+    _translate_fg_params,
 )
 
 
@@ -62,6 +63,20 @@ class TestBrefPitchingSource:
 
     def test_source_detail(self) -> None:
         assert BrefPitchingSource().source_detail == "pitching_stats_bref"
+
+
+class TestTranslateFgParams:
+    def test_translates_season_to_start_end(self) -> None:
+        result = _translate_fg_params({"season": 2023})
+        assert result == {"start_season": 2023, "end_season": 2023}
+
+    def test_passthrough_when_no_season(self) -> None:
+        result = _translate_fg_params({"start_season": 2022, "end_season": 2023})
+        assert result == {"start_season": 2022, "end_season": 2023}
+
+    def test_does_not_override_explicit_start_end(self) -> None:
+        result = _translate_fg_params({"season": 2023, "start_season": 2020})
+        assert result == {"start_season": 2020, "end_season": 2023}
 
 
 class TestStatcastSource:
