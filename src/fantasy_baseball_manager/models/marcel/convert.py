@@ -23,17 +23,17 @@ def rows_to_player_seasons(
 
     result: dict[int, tuple[int, list[SeasonLine], int]] = {}
     for pid, row in best_rows.items():
-        age = int(row.get("age", 0))
+        age = int(row.get("age") or 0)
         season_lines: list[SeasonLine] = []
         for lag_n in range(1, lags + 1):
-            stats = {cat: float(row.get(f"{cat}_{lag_n}", 0.0)) for cat in categories}
+            stats = {cat: float(row.get(f"{cat}_{lag_n}") or 0.0) for cat in categories}
             if pitcher:
-                ip = float(row.get(f"ip_{lag_n}", 0.0))
-                g = int(row.get(f"g_{lag_n}", 0))
-                gs = int(row.get(f"gs_{lag_n}", 0))
+                ip = float(row.get(f"ip_{lag_n}") or 0.0)
+                g = int(row.get(f"g_{lag_n}") or 0)
+                gs = int(row.get(f"gs_{lag_n}") or 0)
                 season_lines.append(SeasonLine(stats=stats, ip=ip, g=g, gs=gs))
             else:
-                pa = int(row.get(f"pa_{lag_n}", 0))
+                pa = int(row.get(f"pa_{lag_n}") or 0)
                 season_lines.append(SeasonLine(stats=stats, pa=pa))
         result[pid] = (pid, season_lines, age)
 
@@ -60,21 +60,21 @@ def rows_to_marcel_inputs(
 
     result: dict[int, MarcelInput] = {}
     for pid, row in best_rows.items():
-        age = int(row.get("age", 0))
-        weighted_rates = {cat: float(row.get(f"{cat}_wavg", 0.0)) for cat in categories}
-        weighted_pt = float(row.get("weighted_pt", 0.0))
-        league_rates = {cat: float(row.get(f"league_{cat}_rate", 0.0)) for cat in categories}
+        age = int(row.get("age") or 0)
+        weighted_rates = {cat: float(row.get(f"{cat}_wavg") or 0.0) for cat in categories}
+        weighted_pt = float(row.get("weighted_pt") or 0.0)
+        league_rates = {cat: float(row.get(f"league_{cat}_rate") or 0.0) for cat in categories}
 
         season_lines: list[SeasonLine] = []
         for lag_n in range(1, lags + 1):
-            stats = {cat: float(row.get(f"{cat}_{lag_n}", 0.0)) for cat in categories}
+            stats = {cat: float(row.get(f"{cat}_{lag_n}") or 0.0) for cat in categories}
             if pitcher:
-                ip = float(row.get(f"ip_{lag_n}", 0.0))
-                g = int(row.get(f"g_{lag_n}", 0))
-                gs = int(row.get(f"gs_{lag_n}", 0))
+                ip = float(row.get(f"ip_{lag_n}") or 0.0)
+                g = int(row.get(f"g_{lag_n}") or 0)
+                gs = int(row.get(f"gs_{lag_n}") or 0)
                 season_lines.append(SeasonLine(stats=stats, ip=ip, g=g, gs=gs))
             else:
-                pa = int(row.get(f"pa_{lag_n}", 0))
+                pa = int(row.get(f"pa_{lag_n}") or 0)
                 season_lines.append(SeasonLine(stats=stats, pa=pa))
 
         result[pid] = MarcelInput(
