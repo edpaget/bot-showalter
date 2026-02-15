@@ -1,7 +1,8 @@
-from fantasy_baseball_manager.features import batting, pitching, player
+from fantasy_baseball_manager.features import RowTransform, batting, pitching, player
 from fantasy_baseball_manager.features.types import (
     Feature,
     FeatureSet,
+    RowTransform as RowTransformDirect,
     Source,
     SourceRef,
     SpineFilter,
@@ -20,6 +21,9 @@ class TestPublicImports:
     def test_player_is_source_ref(self) -> None:
         assert isinstance(player, SourceRef)
         assert player.source == Source.PLAYER
+
+    def test_row_transform_exported(self) -> None:
+        assert RowTransform is RowTransformDirect
 
 
 class TestEndToEnd:
