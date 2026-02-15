@@ -36,6 +36,7 @@ from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
+    lahman_team_row_to_team,
     make_bref_batting_mapper,
     make_bref_pitching_mapper,
     make_fg_batting_mapper,
@@ -44,6 +45,8 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_pitching_mapper,
     make_il_stint_mapper,
     make_lahman_bio_mapper,
+    make_position_appearance_mapper,
+    make_roster_stint_mapper,
     statcast_pitch_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
@@ -582,6 +585,61 @@ def ingest_il(
                 container.log_repo,
                 mapper,
                 "il_stint",
+                conn=container.conn,
+            )
+            log = loader.load(season=yr)
+            print_ingest_result(log)
+
+
+@ingest_app.command("appearances")
+def ingest_appearances(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s)")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest position appearance data from Lahman."""
+    with build_ingest_container(data_dir) as container:
+        players = container.player_repo.all()
+        mapper = make_position_appearance_mapper(players)
+        for yr in season:
+            loader = StatsLoader(
+                container.appearances_source(),
+                container.position_appearance_repo,
+                container.log_repo,
+                mapper,
+                "position_appearance",
+                conn=container.conn,
+            )
+            log = loader.load(season=yr)
+            print_ingest_result(log)
+
+
+@ingest_app.command("roster")
+def ingest_roster(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s)")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest roster stint data from Lahman."""
+    with build_ingest_container(data_dir) as container:
+        # Auto-upsert teams first
+        teams_source = container.teams_source()
+        for yr in season:
+            teams_df = teams_source.fetch(season=yr)
+            for _, row in teams_df.iterrows():
+                team = lahman_team_row_to_team(row)
+                if team is not None:
+                    container.team_repo.upsert(team)
+            container.conn.commit()
+
+        players = container.player_repo.all()
+        teams = container.team_repo.all()
+        mapper = make_roster_stint_mapper(players, teams)
+        for yr in season:
+            loader = StatsLoader(
+                container.appearances_source(),
+                container.roster_stint_repo,
+                container.log_repo,
+                mapper,
+                "roster_stint",
                 conn=container.conn,
             )
             log = loader.load(season=yr)

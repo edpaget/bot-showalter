@@ -1,12 +1,15 @@
 import pandas as pd
 
-from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.projection import StatDistribution
 from fantasy_baseball_manager.ingest.column_maps import (
     _to_optional_float,
     chadwick_row_to_player,
     extract_distributions,
+    lahman_team_row_to_team,
     make_lahman_bio_mapper,
+    make_position_appearance_mapper,
+    make_roster_stint_mapper,
 )
 
 
@@ -345,3 +348,127 @@ class TestToOptionalFloat:
 
     def test_string_float(self) -> None:
         assert _to_optional_float("3.14") == 3.14
+
+
+def _make_appearance_row(
+    *,
+    playerID: str | float = "troum001",
+    yearID: int = 2023,
+    position: str = "CF",
+    games: int = 120,
+) -> pd.Series:
+    return pd.Series({"playerID": playerID, "yearID": yearID, "teamID": "LAA", "position": position, "games": games})
+
+
+class TestMakePositionAppearanceMapper:
+    def test_matched_player_maps_correctly(self) -> None:
+        mapper = make_position_appearance_mapper([_TROUT])
+        result = mapper(_make_appearance_row())
+        assert result is not None
+        assert result.player_id == 1
+        assert result.season == 2023
+        assert result.position == "CF"
+        assert result.games == 120
+
+    def test_unmatched_player_returns_none(self) -> None:
+        mapper = make_position_appearance_mapper([_TROUT])
+        result = mapper(_make_appearance_row(playerID="xxxxx999"))
+        assert result is None
+
+    def test_nan_player_id_returns_none(self) -> None:
+        mapper = make_position_appearance_mapper([_TROUT])
+        result = mapper(_make_appearance_row(playerID=float("nan")))
+        assert result is None
+
+    def test_games_value_preserved(self) -> None:
+        mapper = make_position_appearance_mapper([_TROUT])
+        result = mapper(_make_appearance_row(games=55))
+        assert result is not None
+        assert result.games == 55
+
+
+_TEST_TEAM = Team(abbreviation="LAA", name="Los Angeles Angels", league="AL", division="W", id=10)
+
+
+def _make_roster_row(
+    *,
+    playerID: str | float = "troum001",
+    yearID: int = 2023,
+    teamID: str | float = "LAA",
+) -> pd.Series:
+    return pd.Series({"playerID": playerID, "yearID": yearID, "teamID": teamID})
+
+
+class TestMakeRosterStintMapper:
+    def test_matched_player_and_team_maps_correctly(self) -> None:
+        mapper = make_roster_stint_mapper([_TROUT], [_TEST_TEAM])
+        result = mapper(_make_roster_row())
+        assert result is not None
+        assert result.player_id == 1
+        assert result.team_id == 10
+        assert result.season == 2023
+        assert result.start_date == "2023-03-01"
+
+    def test_unmatched_player_returns_none(self) -> None:
+        mapper = make_roster_stint_mapper([_TROUT], [_TEST_TEAM])
+        result = mapper(_make_roster_row(playerID="xxxxx999"))
+        assert result is None
+
+    def test_unmatched_team_returns_none(self) -> None:
+        mapper = make_roster_stint_mapper([_TROUT], [_TEST_TEAM])
+        result = mapper(_make_roster_row(teamID="NYY"))
+        assert result is None
+
+    def test_start_date_format(self) -> None:
+        mapper = make_roster_stint_mapper([_TROUT], [_TEST_TEAM])
+        result = mapper(_make_roster_row(yearID=2020))
+        assert result is not None
+        assert result.start_date == "2020-03-01"
+
+    def test_nan_player_id_returns_none(self) -> None:
+        mapper = make_roster_stint_mapper([_TROUT], [_TEST_TEAM])
+        result = mapper(_make_roster_row(playerID=float("nan")))
+        assert result is None
+
+    def test_nan_team_id_returns_none(self) -> None:
+        mapper = make_roster_stint_mapper([_TROUT], [_TEST_TEAM])
+        result = mapper(_make_roster_row(teamID=float("nan")))
+        assert result is None
+
+
+def _make_team_row(
+    *,
+    teamID: str | float = "LAA",
+    name: str | float = "Los Angeles Angels",
+    lgID: str | float = "AL",
+    divID: str | float = "W",
+) -> pd.Series:
+    return pd.Series({"teamID": teamID, "name": name, "lgID": lgID, "divID": divID, "yearID": 2023})
+
+
+class TestLahmanTeamRowToTeam:
+    def test_valid_row(self) -> None:
+        result = lahman_team_row_to_team(_make_team_row())
+        assert result is not None
+        assert result.abbreviation == "LAA"
+        assert result.name == "Los Angeles Angels"
+        assert result.league == "AL"
+        assert result.division == "W"
+
+    def test_missing_abbreviation_returns_none(self) -> None:
+        result = lahman_team_row_to_team(_make_team_row(teamID=float("nan")))
+        assert result is None
+
+    def test_missing_name_returns_none(self) -> None:
+        result = lahman_team_row_to_team(_make_team_row(name=float("nan")))
+        assert result is None
+
+    def test_missing_league_defaults_to_empty(self) -> None:
+        result = lahman_team_row_to_team(_make_team_row(lgID=float("nan")))
+        assert result is not None
+        assert result.league == ""
+
+    def test_missing_division_defaults_to_empty(self) -> None:
+        result = lahman_team_row_to_team(_make_team_row(divID=float("nan")))
+        assert result is not None
+        assert result.division == ""

@@ -9,7 +9,7 @@ from pybaseball import (
     pitching_stats_bref,
     statcast,
 )
-from pylahman import People as lahman_people
+from pylahman import Appearances, People as lahman_people, Teams
 
 _POSITION_COLUMNS: dict[str, str] = {
     "G_p": "P",
@@ -124,3 +124,49 @@ class StatcastSource:
 
     def fetch(self, **params: Any) -> pd.DataFrame:
         return statcast(**params)
+
+
+class LahmanAppearancesSource:
+    @property
+    def source_type(self) -> str:
+        return "pylahman"
+
+    @property
+    def source_detail(self) -> str:
+        return "appearances"
+
+    def fetch(self, **params: Any) -> pd.DataFrame:
+        df = Appearances()
+        if "season" in params:
+            df = df[df["yearID"] == params["season"]]
+        records: list[dict[str, Any]] = []
+        for _, row in df.iterrows():
+            for col, pos in _POSITION_COLUMNS.items():
+                games = row.get(col, 0)
+                if pd.notna(games) and int(games) > 0:
+                    records.append(
+                        {
+                            "playerID": row["playerID"],
+                            "yearID": row["yearID"],
+                            "teamID": row["teamID"],
+                            "position": pos,
+                            "games": int(games),
+                        }
+                    )
+        return pd.DataFrame(records)
+
+
+class LahmanTeamsSource:
+    @property
+    def source_type(self) -> str:
+        return "pylahman"
+
+    @property
+    def source_detail(self) -> str:
+        return "teams"
+
+    def fetch(self, **params: Any) -> pd.DataFrame:
+        df = Teams()
+        if "season" in params:
+            df = df[df["yearID"] == params["season"]]
+        return df

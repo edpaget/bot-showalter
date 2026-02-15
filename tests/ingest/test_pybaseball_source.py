@@ -5,7 +5,9 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     ChadwickSource,
     FgBattingSource,
     FgPitchingSource,
+    LahmanAppearancesSource,
     LahmanPeopleSource,
+    LahmanTeamsSource,
     StatcastSource,
     _translate_fg_params,
 )
@@ -108,3 +110,25 @@ class TestStatcastSource:
 
     def test_source_detail(self) -> None:
         assert StatcastSource().source_detail == "statcast"
+
+
+class TestLahmanAppearancesSource:
+    def test_satisfies_datasource_protocol(self) -> None:
+        assert isinstance(LahmanAppearancesSource(), DataSource)
+
+    def test_source_type(self) -> None:
+        assert LahmanAppearancesSource().source_type == "pylahman"
+
+    def test_source_detail(self) -> None:
+        assert LahmanAppearancesSource().source_detail == "appearances"
+
+
+class TestLahmanTeamsSource:
+    def test_satisfies_datasource_protocol(self) -> None:
+        assert isinstance(LahmanTeamsSource(), DataSource)
+
+    def test_source_type(self) -> None:
+        assert LahmanTeamsSource().source_type == "pylahman"
+
+    def test_source_detail(self) -> None:
+        assert LahmanTeamsSource().source_detail == "teams"

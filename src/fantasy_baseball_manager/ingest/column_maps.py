@@ -7,8 +7,10 @@ import pandas as pd
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.player import Player, Team
+from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
+from fantasy_baseball_manager.domain.roster_stint import RosterStint
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 from fantasy_baseball_manager.ingest.il_parser import parse_il_transaction
 
@@ -622,3 +624,70 @@ def make_il_stint_mapper(
         )
 
     return mapper
+
+
+def _build_team_abbrev_lookup(teams: list[Team]) -> dict[str, int]:
+    return {t.abbreviation: t.id for t in teams if t.id is not None}
+
+
+def make_position_appearance_mapper(
+    players: list[Player],
+) -> Callable[[pd.Series], PositionAppearance | None]:
+    retro_lookup = _build_retro_lookup(players)
+
+    def mapper(row: pd.Series) -> PositionAppearance | None:
+        retro_id = _to_optional_str(row.get("playerID"))
+        if retro_id is None:
+            return None
+        player = retro_lookup.get(retro_id)
+        if player is None or player.id is None:
+            return None
+        return PositionAppearance(
+            player_id=player.id,
+            season=int(row["yearID"]),
+            position=str(row["position"]),
+            games=int(row["games"]),
+        )
+
+    return mapper
+
+
+def make_roster_stint_mapper(
+    players: list[Player],
+    teams: list[Team],
+) -> Callable[[pd.Series], RosterStint | None]:
+    retro_lookup = _build_retro_lookup(players)
+    team_lookup = _build_team_abbrev_lookup(teams)
+
+    def mapper(row: pd.Series) -> RosterStint | None:
+        retro_id = _to_optional_str(row.get("playerID"))
+        if retro_id is None:
+            return None
+        player = retro_lookup.get(retro_id)
+        if player is None or player.id is None:
+            return None
+        team_abbrev = _to_optional_str(row.get("teamID"))
+        if team_abbrev is None:
+            return None
+        team_id = team_lookup.get(team_abbrev)
+        if team_id is None:
+            return None
+        season = int(row["yearID"])
+        return RosterStint(
+            player_id=player.id,
+            team_id=team_id,
+            season=season,
+            start_date=f"{season}-03-01",
+        )
+
+    return mapper
+
+
+def lahman_team_row_to_team(row: pd.Series) -> Team | None:
+    abbrev = _to_optional_str(row.get("teamID"))
+    name = _to_optional_str(row.get("name"))
+    if abbrev is None or name is None:
+        return None
+    league = _to_optional_str(row.get("lgID")) or ""
+    division = _to_optional_str(row.get("divID")) or ""
+    return Team(abbreviation=abbrev, name=name, league=league, division=division)

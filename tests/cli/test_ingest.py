@@ -16,7 +16,9 @@ from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
-from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
+from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
+from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 
 runner = CliRunner()
 
@@ -51,10 +53,14 @@ class _TestIngestContainer(IngestContainer):
         conn: sqlite3.Connection,
         fake_source: DataSource,
         fake_bio_source: DataSource | None = None,
+        fake_appearances_source: DataSource | None = None,
+        fake_teams_source: DataSource | None = None,
     ) -> None:
         super().__init__(conn)
         self._fake_source = fake_source
         self._fake_bio_source = fake_bio_source
+        self._fake_appearances_source = fake_appearances_source
+        self._fake_teams_source = fake_teams_source
 
     def player_source(self) -> DataSource:
         return self._fake_source
@@ -68,6 +74,16 @@ class _TestIngestContainer(IngestContainer):
     def bio_source(self) -> DataSource:
         if self._fake_bio_source is not None:
             return self._fake_bio_source
+        return self._fake_source
+
+    def appearances_source(self) -> DataSource:
+        if self._fake_appearances_source is not None:
+            return self._fake_appearances_source
+        return self._fake_source
+
+    def teams_source(self) -> DataSource:
+        if self._fake_teams_source is not None:
+            return self._fake_teams_source
         return self._fake_source
 
 
@@ -99,8 +115,16 @@ def _build_test_container(
     conn: sqlite3.Connection,
     fake_source: DataSource,
     fake_bio_source: DataSource | None = None,
+    fake_appearances_source: DataSource | None = None,
+    fake_teams_source: DataSource | None = None,
 ) -> Iterator[IngestContainer]:
-    yield _TestIngestContainer(conn, fake_source, fake_bio_source)
+    yield _TestIngestContainer(
+        conn,
+        fake_source,
+        fake_bio_source,
+        fake_appearances_source=fake_appearances_source,
+        fake_teams_source=fake_teams_source,
+    )
 
 
 # --- Tests ---
@@ -481,3 +505,105 @@ class TestIngestBio:
         # 0 rows loaded since no players matched
         assert "0" in result.output
         conn.close()
+
+
+def _make_appearances_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 82},
+            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 25},
+            {"playerID": "ohtas001", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 135},
+        ]
+    )
+
+
+def _make_teams_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {"teamID": "LAA", "name": "Los Angeles Angels", "lgID": "AL", "divID": "W", "yearID": 2023},
+        ]
+    )
+
+
+def _make_roster_appearances_df() -> pd.DataFrame:
+    """Lahman Appearances rows (pre-exploded format used by the roster mapper)."""
+    return pd.DataFrame(
+        [
+            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA"},
+            {"playerID": "ohtas001", "yearID": 2023, "teamID": "LAA"},
+        ]
+    )
+
+
+class TestIngestAppearances:
+    def test_ingest_appearances_loads_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        appearances_df = _make_appearances_df()
+        fake_appearances = _FakeSource(appearances_df, "pylahman", "appearances")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(
+                conn,
+                _FakeSource(pd.DataFrame(), "pybaseball", "chadwick_register"),
+                fake_appearances_source=fake_appearances,
+            ),
+        )
+
+        result = runner.invoke(app, ["ingest", "appearances", "--season", "2023"])
+        assert result.exit_code == 0, result.output
+        assert "position_appearance" in result.output
+        assert "success" in result.output
+
+        repo = SqlitePositionAppearanceRepo(conn)
+        appearances = repo.get_by_season(2023)
+        assert len(appearances) == 3
+        conn.close()
+
+    def test_ingest_appearances_requires_season(self) -> None:
+        result = runner.invoke(app, ["ingest", "appearances"])
+        assert result.exit_code != 0
+
+
+class TestIngestRoster:
+    def test_ingest_roster_loads_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        roster_df = _make_roster_appearances_df()
+        teams_df = _make_teams_df()
+        fake_appearances = _FakeSource(roster_df, "pylahman", "appearances")
+        fake_teams = _FakeSource(teams_df, "pylahman", "teams")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(
+                conn,
+                _FakeSource(pd.DataFrame(), "pybaseball", "chadwick_register"),
+                fake_appearances_source=fake_appearances,
+                fake_teams_source=fake_teams,
+            ),
+        )
+
+        result = runner.invoke(app, ["ingest", "roster", "--season", "2023"])
+        assert result.exit_code == 0, result.output
+        assert "roster_stint" in result.output
+        assert "success" in result.output
+
+        # Verify teams were auto-upserted
+        team_repo = SqliteTeamRepo(conn)
+        teams = team_repo.all()
+        assert len(teams) == 1
+        assert teams[0].abbreviation == "LAA"
+
+        # Verify roster stints
+        stint_repo = SqliteRosterStintRepo(conn)
+        stints = stint_repo.get_by_season(2023)
+        assert len(stints) == 2
+        conn.close()
+
+    def test_ingest_roster_requires_season(self) -> None:
+        result = runner.invoke(app, ["ingest", "roster"])
+        assert result.exit_code != 0

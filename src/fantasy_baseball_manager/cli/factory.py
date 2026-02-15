@@ -17,7 +17,9 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     ChadwickSource,
     FgBattingSource,
     FgPitchingSource,
+    LahmanAppearancesSource,
     LahmanPeopleSource,
+    LahmanTeamsSource,
     StatcastSource,
 )
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
@@ -28,7 +30,9 @@ from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
-from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
+from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
+from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
@@ -205,6 +209,24 @@ class IngestContainer:
 
     def bio_source(self) -> DataSource:
         return LahmanPeopleSource()
+
+    @property
+    def position_appearance_repo(self) -> SqlitePositionAppearanceRepo:
+        return SqlitePositionAppearanceRepo(self._conn)
+
+    @property
+    def roster_stint_repo(self) -> SqliteRosterStintRepo:
+        return SqliteRosterStintRepo(self._conn)
+
+    @property
+    def team_repo(self) -> SqliteTeamRepo:
+        return SqliteTeamRepo(self._conn)
+
+    def appearances_source(self) -> DataSource:
+        return LahmanAppearancesSource()
+
+    def teams_source(self) -> DataSource:
+        return LahmanTeamsSource()
 
 
 @contextmanager
