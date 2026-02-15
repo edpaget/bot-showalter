@@ -1,8 +1,10 @@
 from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature, Source
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_features,
+    build_batting_league_averages,
     build_batting_weighted_rates,
     build_pitching_features,
+    build_pitching_league_averages,
     build_pitching_weighted_rates,
 )
 
@@ -144,3 +146,47 @@ class TestBuildPitchingWeightedRates:
         assert "so_wavg" in dtf.outputs
         assert "er_wavg" in dtf.outputs
         assert "weighted_pt" in dtf.outputs
+
+
+class TestBuildBattingLeagueAverages:
+    def test_returns_derived_transform_feature(self) -> None:
+        dtf = build_batting_league_averages(("hr", "h"))
+        assert isinstance(dtf, DerivedTransformFeature)
+
+    def test_group_by_season_only(self) -> None:
+        dtf = build_batting_league_averages(("hr",))
+        assert dtf.group_by == ("season",)
+
+    def test_inputs_are_lag1_columns(self) -> None:
+        dtf = build_batting_league_averages(("hr", "h", "bb"))
+        expected = {"hr_1", "h_1", "bb_1", "pa_1"}
+        assert set(dtf.inputs) == expected
+
+    def test_outputs_are_league_rates(self) -> None:
+        dtf = build_batting_league_averages(("hr", "h"))
+        assert "league_hr_rate" in dtf.outputs
+        assert "league_h_rate" in dtf.outputs
+
+    def test_output_count(self) -> None:
+        dtf = build_batting_league_averages(("hr", "h", "bb"))
+        assert len(dtf.outputs) == 3
+
+
+class TestBuildPitchingLeagueAverages:
+    def test_returns_derived_transform_feature(self) -> None:
+        dtf = build_pitching_league_averages(("so", "er"))
+        assert isinstance(dtf, DerivedTransformFeature)
+
+    def test_group_by_season_only(self) -> None:
+        dtf = build_pitching_league_averages(("so",))
+        assert dtf.group_by == ("season",)
+
+    def test_inputs_include_ip_lag1(self) -> None:
+        dtf = build_pitching_league_averages(("so",))
+        assert "ip_1" in dtf.inputs
+        assert "so_1" in dtf.inputs
+
+    def test_outputs_are_league_rates(self) -> None:
+        dtf = build_pitching_league_averages(("so", "er"))
+        assert "league_so_rate" in dtf.outputs
+        assert "league_er_rate" in dtf.outputs
