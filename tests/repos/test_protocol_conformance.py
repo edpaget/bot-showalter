@@ -1,6 +1,7 @@
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
+from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
@@ -12,6 +13,7 @@ from fantasy_baseball_manager.repos.protocols import (
     BattingStatsRepo,
     ILStintRepo,
     LoadLogRepo,
+    MinorLeagueBattingStatsRepo,
     ModelRunRepo,
     PitchingStatsRepo,
     PlayerRepo,
@@ -54,6 +56,9 @@ class TestProtocolConformance:
 
     def test_roster_stint_repo_conforms(self) -> None:
         assert issubclass(SqliteRosterStintRepo, RosterStintRepo)
+
+    def test_minor_league_batting_stats_repo_conforms(self) -> None:
+        assert issubclass(SqliteMinorLeagueBattingStatsRepo, MinorLeagueBattingStatsRepo)
 
     def test_load_log_repo_conforms(self) -> None:
         assert issubclass(SqliteLoadLogRepo, LoadLogRepo)

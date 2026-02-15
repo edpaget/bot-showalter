@@ -6,6 +6,7 @@ import pandas as pd
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.il_stint import ILStint
+from fantasy_baseball_manager.domain.minor_league_batting_stats import MinorLeagueBattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
@@ -699,3 +700,47 @@ def lahman_team_row_to_team(row: pd.Series) -> Team | None:
     league = _to_optional_str(row.get("lgID")) or ""
     division = _to_optional_str(row.get("divID")) or ""
     return Team(abbreviation=abbrev, name=name, league=league, division=division)
+
+
+def make_milb_batting_mapper(
+    players: list[Player],
+) -> Callable[[pd.Series], MinorLeagueBattingStats | None]:
+    mlbam_lookup = _build_mlbam_lookup(players)
+
+    def mapper(row: pd.Series) -> MinorLeagueBattingStats | None:
+        raw_id = row["mlbam_id"]
+        if isinstance(raw_id, float) and math.isnan(raw_id):
+            return None
+        player_id = mlbam_lookup.get(int(raw_id))
+        if player_id is None:
+            return None
+
+        return MinorLeagueBattingStats(
+            player_id=player_id,
+            season=int(row["season"]),
+            level=str(row["level"]),
+            league=str(row["league"]),
+            team=str(row["team"]),
+            g=int(row["g"]),
+            pa=int(row["pa"]),
+            ab=int(row["ab"]),
+            h=int(row["h"]),
+            doubles=int(row["doubles"]),
+            triples=int(row["triples"]),
+            hr=int(row["hr"]),
+            r=int(row["r"]),
+            rbi=int(row["rbi"]),
+            bb=int(row["bb"]),
+            so=int(row["so"]),
+            sb=int(row["sb"]),
+            cs=int(row["cs"]),
+            avg=float(row["avg"]),
+            obp=float(row["obp"]),
+            slg=float(row["slg"]),
+            age=float(row["age"]),
+            hbp=_to_optional_int_stat(row.get("hbp")),
+            sf=_to_optional_int_stat(row.get("sf")),
+            sh=_to_optional_int_stat(row.get("sh")),
+        )
+
+    return mapper

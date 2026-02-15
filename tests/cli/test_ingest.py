@@ -15,6 +15,7 @@ from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
+from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
@@ -55,12 +56,14 @@ class _TestIngestContainer(IngestContainer):
         fake_bio_source: DataSource | None = None,
         fake_appearances_source: DataSource | None = None,
         fake_teams_source: DataSource | None = None,
+        fake_milb_batting_source: DataSource | None = None,
     ) -> None:
         super().__init__(conn)
         self._fake_source = fake_source
         self._fake_bio_source = fake_bio_source
         self._fake_appearances_source = fake_appearances_source
         self._fake_teams_source = fake_teams_source
+        self._fake_milb_batting_source = fake_milb_batting_source
 
     def player_source(self) -> DataSource:
         return self._fake_source
@@ -84,6 +87,11 @@ class _TestIngestContainer(IngestContainer):
     def teams_source(self) -> DataSource:
         if self._fake_teams_source is not None:
             return self._fake_teams_source
+        return self._fake_source
+
+    def milb_batting_source(self) -> DataSource:
+        if self._fake_milb_batting_source is not None:
+            return self._fake_milb_batting_source
         return self._fake_source
 
 
@@ -117,6 +125,7 @@ def _build_test_container(
     fake_bio_source: DataSource | None = None,
     fake_appearances_source: DataSource | None = None,
     fake_teams_source: DataSource | None = None,
+    fake_milb_batting_source: DataSource | None = None,
 ) -> Iterator[IngestContainer]:
     yield _TestIngestContainer(
         conn,
@@ -124,6 +133,7 @@ def _build_test_container(
         fake_bio_source,
         fake_appearances_source=fake_appearances_source,
         fake_teams_source=fake_teams_source,
+        fake_milb_batting_source=fake_milb_batting_source,
     )
 
 
@@ -606,4 +616,71 @@ class TestIngestRoster:
 
     def test_ingest_roster_requires_season(self) -> None:
         result = runner.invoke(app, ["ingest", "roster"])
+        assert result.exit_code != 0
+
+
+def _make_milb_batting_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "mlbam_id": 545361,
+                "season": 2024,
+                "level": "AAA",
+                "league": "International League",
+                "team": "Syracuse Mets",
+                "g": 120,
+                "pa": 500,
+                "ab": 450,
+                "h": 130,
+                "doubles": 25,
+                "triples": 3,
+                "hr": 18,
+                "r": 70,
+                "rbi": 65,
+                "bb": 40,
+                "so": 100,
+                "sb": 15,
+                "cs": 5,
+                "avg": 0.289,
+                "obp": 0.350,
+                "slg": 0.480,
+                "age": 24.5,
+                "hbp": 8,
+                "sf": 4,
+                "sh": 1,
+            },
+        ]
+    )
+
+
+class TestIngestMilbBatting:
+    def test_ingest_milb_batting_loads_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        milb_df = _make_milb_batting_df()
+        fake_milb = _FakeSource(milb_df, "mlb_api", "milb_batting")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(
+                conn,
+                _FakeSource(pd.DataFrame(), "pybaseball", "chadwick_register"),
+                fake_milb_batting_source=fake_milb,
+            ),
+        )
+
+        result = runner.invoke(app, ["ingest", "milb-batting", "--season", "2024", "--level", "AAA"])
+        assert result.exit_code == 0, result.output
+        assert "minor_league_batting_stats" in result.output
+        assert "success" in result.output
+
+        repo = SqliteMinorLeagueBattingStatsRepo(conn)
+        stats = repo.get_by_season_level(2024, "AAA")
+        assert len(stats) == 1
+        assert stats[0].hr == 18
+        conn.close()
+
+    def test_ingest_milb_batting_requires_season(self) -> None:
+        result = runner.invoke(app, ["ingest", "milb-batting"])
         assert result.exit_code != 0
