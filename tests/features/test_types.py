@@ -15,6 +15,7 @@ from fantasy_baseball_manager.features.types import (
     Source,
     SourceRef,
     SpineFilter,
+    TransformFeature,
 )
 
 
@@ -31,12 +32,16 @@ class TestSource:
     def test_projection_value(self) -> None:
         assert Source.PROJECTION.value == "projection"
 
+    def test_statcast_value(self) -> None:
+        assert Source.STATCAST.value == "statcast"
+
     def test_all_members(self) -> None:
         assert set(Source) == {
             Source.BATTING,
             Source.PITCHING,
             Source.PLAYER,
             Source.PROJECTION,
+            Source.STATCAST,
         }
 
 
@@ -431,3 +436,134 @@ class TestDatasetSplits:
         splits = DatasetSplits(train=train, validation=None, holdout=None)
         with pytest.raises(dataclasses.FrozenInstanceError):
             splits.train = train  # type: ignore[misc]
+
+
+def _sample_transform(rows: list[dict[str, object]]) -> dict[str, object]:
+    return {"out_a": 1.0, "out_b": 2.0}
+
+
+def _different_transform(rows: list[dict[str, object]]) -> dict[str, object]:
+    return {"out_a": 99.0, "out_b": 99.0}
+
+
+class TestTransformFeature:
+    def test_construction(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type", "release_speed"),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a", "out_b"),
+        )
+        assert tf.name == "pitch_mix"
+        assert tf.source == Source.STATCAST
+        assert tf.columns == ("pitch_type", "release_speed")
+        assert tf.group_by == ("player_id", "season")
+        assert tf.outputs == ("out_a", "out_b")
+        assert tf.version is None
+
+    def test_frozen(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            tf.name = "changed"  # type: ignore[misc]
+
+    def test_any_feature_type(self) -> None:
+        tf: AnyFeature = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        assert isinstance(tf, TransformFeature)
+
+    def test_content_hash_includes_transform_source(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        fs = FeatureSet(name="test", features=(tf,), seasons=(2023,))
+        # Version should incorporate transform source code
+        assert isinstance(fs.version, str)
+        assert len(fs.version) == 12
+
+    def test_content_hash_changes_when_transform_changes(self) -> None:
+        tf1 = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        tf2 = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_different_transform,
+            outputs=("out_a",),
+        )
+        fs1 = FeatureSet(name="test", features=(tf1,), seasons=(2023,))
+        fs2 = FeatureSet(name="test", features=(tf2,), seasons=(2023,))
+        assert fs1.version != fs2.version
+
+    def test_explicit_version_overrides_source(self) -> None:
+        tf1 = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+            version="v1",
+        )
+        tf2 = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_different_transform,
+            outputs=("out_a",),
+            version="v1",
+        )
+        fs1 = FeatureSet(name="test", features=(tf1,), seasons=(2023,))
+        fs2 = FeatureSet(name="test", features=(tf2,), seasons=(2023,))
+        # Same explicit version → same hash even though transforms differ
+        assert fs1.version == fs2.version
+
+    def test_different_explicit_versions_differ(self) -> None:
+        tf1 = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+            version="v1",
+        )
+        tf2 = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+            version="v2",
+        )
+        fs1 = FeatureSet(name="test", features=(tf1,), seasons=(2023,))
+        fs2 = FeatureSet(name="test", features=(tf2,), seasons=(2023,))
+        assert fs1.version != fs2.version

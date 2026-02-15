@@ -10,12 +10,14 @@ from fantasy_baseball_manager.features.types import (
     Source,
     SourceRef,
     SpineFilter,
+    TransformFeature,
 )
 
 batting = SourceRef(Source.BATTING)
 pitching = SourceRef(Source.PITCHING)
 player = SourceRef(Source.PLAYER)
 projection = SourceRef(Source.PROJECTION)
+statcast = SourceRef(Source.STATCAST)
 
 
 def delta(name: str, left: Feature, right: Feature) -> DeltaFeature:
@@ -34,9 +36,11 @@ __all__ = [
     "Source",
     "SourceRef",
     "SpineFilter",
+    "TransformFeature",
     "batting",
     "delta",
     "pitching",
     "player",
     "projection",
+    "statcast",
 ]

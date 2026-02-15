@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import enum
 import hashlib
+import inspect
 import json
 from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 
 class Source(enum.Enum):
@@ -11,6 +13,7 @@ class Source(enum.Enum):
     PITCHING = "pitching"
     PLAYER = "player"
     PROJECTION = "projection"
+    STATCAST = "statcast"
 
 
 @dataclass(frozen=True)
@@ -40,7 +43,22 @@ class DeltaFeature:
     right: Feature
 
 
-type AnyFeature = Feature | DeltaFeature
+class RowTransform(Protocol):
+    def __call__(self, rows: list[dict[str, Any]]) -> dict[str, Any]: ...
+
+
+@dataclass(frozen=True)
+class TransformFeature:
+    name: str
+    source: Source
+    columns: tuple[str, ...]
+    group_by: tuple[str, ...]
+    transform: RowTransform
+    outputs: tuple[str, ...]
+    version: str | None = None
+
+
+type AnyFeature = Feature | DeltaFeature | TransformFeature
 
 
 class FeatureBuilder:
@@ -104,7 +122,25 @@ class SourceRef:
         return Feature(name="age", source=self.source, column="", computed="age")
 
 
+def _transform_feature_to_dict(f: TransformFeature) -> dict[str, object]:
+    if f.version is not None:
+        identity = f.version
+    else:
+        identity = inspect.getsource(f.transform)
+    return {
+        "type": "transform",
+        "name": f.name,
+        "source": f.source.value,
+        "columns": list(f.columns),
+        "group_by": list(f.group_by),
+        "outputs": list(f.outputs),
+        "transform_identity": identity,
+    }
+
+
 def _feature_to_dict(f: AnyFeature) -> dict[str, object]:
+    if isinstance(f, TransformFeature):
+        return _transform_feature_to_dict(f)
     if isinstance(f, DeltaFeature):
         return {
             "type": "delta",
@@ -112,6 +148,7 @@ def _feature_to_dict(f: AnyFeature) -> dict[str, object]:
             "left": _feature_to_dict(f.left),
             "right": _feature_to_dict(f.right),
         }
+    assert isinstance(f, Feature)
     return {
         "name": f.name,
         "source": f.source.value,

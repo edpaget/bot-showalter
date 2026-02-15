@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, Feature, FeatureSet, Source
+from fantasy_baseball_manager.features.types import (
+    AnyFeature,
+    DeltaFeature,
+    Feature,
+    FeatureSet,
+    Source,
+    TransformFeature,
+)
 
 _SOURCE_TABLES: dict[Source, str] = {
     Source.BATTING: "batting_stats",
@@ -55,9 +62,15 @@ _AGG_FUNCTIONS: dict[str, str] = {
 
 
 def _extract_features(features: tuple[AnyFeature, ...]) -> list[Feature]:
-    """Extract all plain Features from a tuple that may contain DeltaFeatures."""
+    """Extract all plain Features from a tuple that may contain DeltaFeatures.
+
+    TransformFeature instances are skipped — they are handled in the
+    transform pass, not SQL generation.
+    """
     result: list[Feature] = []
     for f in features:
+        if isinstance(f, TransformFeature):
+            continue
         if isinstance(f, DeltaFeature):
             result.append(f.left)
             result.append(f.right)
@@ -178,6 +191,7 @@ def _select_expr(
         right_sql, right_params = _raw_expr(feature.right, joins_dict, source_filter)
         return f"({left_sql} - {right_sql}) AS {feature.name}", left_params + right_params
 
+    assert isinstance(feature, Feature)
     expr, params = _raw_expr(feature, joins_dict, source_filter)
     return f"{expr} AS {feature.name}", params
 
@@ -252,10 +266,12 @@ def generate_sql(feature_set: FeatureSet) -> tuple[str, list[object]]:
     joins = _plan_joins(feature_set.features)
     joins_dict = {(j.source, j.lag, j.system): j for j in joins}
 
-    # Build SELECT expressions
+    # Build SELECT expressions (skip TransformFeature — handled in transform pass)
     select_parts = ["spine.player_id", "spine.season"]
     select_params: list[object] = []
     for f in feature_set.features:
+        if isinstance(f, TransformFeature):
+            continue
         expr, expr_params = _select_expr(f, joins_dict, feature_set.source_filter)
         select_parts.append(expr)
         select_params.extend(expr_params)

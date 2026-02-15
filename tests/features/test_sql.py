@@ -17,7 +17,16 @@ from fantasy_baseball_manager.features.sql import (
     _spine_cte,
     generate_sql,
 )
-from fantasy_baseball_manager.features.types import DeltaFeature, Feature, FeatureSet, Source, SpineFilter
+from typing import Any
+
+from fantasy_baseball_manager.features.types import (
+    DeltaFeature,
+    Feature,
+    FeatureSet,
+    Source,
+    SpineFilter,
+    TransformFeature,
+)
 
 
 class TestSourceTable:
@@ -873,3 +882,52 @@ class TestProjectionRoundTrip:
         assert betts["hr_0"] == 32
         assert betts["steamer_hr"] == 30
         assert betts["hr_error"] == 2  # 32 - 30 = 2
+
+
+def _noop_transform(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"out": 0.0}
+
+
+class TestTransformFeatureSkipped:
+    def test_mixed_feature_set_generates_sql_only_for_regular(self) -> None:
+        regular = Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1)
+        transform = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type", "release_speed"),
+            group_by=("player_id", "season"),
+            transform=_noop_transform,
+            outputs=("ff_pct", "ff_velo"),
+        )
+        fs = FeatureSet(
+            name="test",
+            features=(regular, transform),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        sql, _ = generate_sql(fs)
+        assert "hr_1" in sql
+        assert "ff_pct" not in sql
+        assert "ff_velo" not in sql
+        assert "pitch_mix" not in sql
+
+    def test_transform_only_feature_set_generates_valid_sql(self) -> None:
+        transform = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_noop_transform,
+            outputs=("ff_pct",),
+        )
+        fs = FeatureSet(
+            name="test",
+            features=(transform,),
+            seasons=(2023,),
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        sql, _ = generate_sql(fs)
+        assert "spine.player_id" in sql
+        assert "spine.season" in sql
+        assert "ff_pct" not in sql
