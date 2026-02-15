@@ -17,7 +17,9 @@ from tests.ingest.conftest import FakeDataSource
 
 def _seed_player(conn: sqlite3.Connection) -> int:
     repo = SqlitePlayerRepo(conn)
-    return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, retro_id="troum001"))
+    return repo.upsert(
+        Player(name_first="Mike", name_last="Trout", mlbam_id=545361, bbref_id="troutmi01", retro_id="troum001")
+    )
 
 
 def _seed_team(conn: sqlite3.Connection) -> int:
@@ -28,8 +30,8 @@ def _seed_team(conn: sqlite3.Connection) -> int:
 def _appearance_df() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 82},
-            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 25},
+            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 82},
+            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 25},
         ]
     )
 
@@ -37,7 +39,7 @@ def _appearance_df() -> pd.DataFrame:
 def _roster_df() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA"},
+            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA"},
         ]
     )
 
@@ -129,7 +131,7 @@ class TestRosterStintLoader:
         teams = SqliteTeamRepo(conn).all()
         mapper = make_roster_stint_mapper(players, teams)
 
-        df = pd.DataFrame([{"playerID": "troum001", "yearID": 2023, "teamID": "NYY"}])
+        df = pd.DataFrame([{"playerID": "troutmi01", "yearID": 2023, "teamID": "NYY"}])
         source = FakeDataSource(df)
         repo = SqliteRosterStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)

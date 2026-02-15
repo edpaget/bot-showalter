@@ -352,7 +352,7 @@ class TestToOptionalFloat:
 
 def _make_appearance_row(
     *,
-    playerID: str | float = "troum001",
+    playerID: str | float = "troutmi01",
     yearID: int = 2023,
     position: str = "CF",
     games: int = 120,
@@ -392,7 +392,7 @@ _TEST_TEAM = Team(abbreviation="LAA", name="Los Angeles Angels", league="AL", di
 
 def _make_roster_row(
     *,
-    playerID: str | float = "troum001",
+    playerID: str | float = "troutmi01",
     yearID: int = 2023,
     teamID: str | float = "LAA",
 ) -> pd.Series:

@@ -626,6 +626,14 @@ def make_il_stint_mapper(
     return mapper
 
 
+def _build_bbref_lookup(players: list[Player]) -> dict[str, Player]:
+    lookup: dict[str, Player] = {}
+    for p in players:
+        if p.bbref_id is not None:
+            lookup[p.bbref_id] = p
+    return lookup
+
+
 def _build_team_abbrev_lookup(teams: list[Team]) -> dict[str, int]:
     return {t.abbreviation: t.id for t in teams if t.id is not None}
 
@@ -633,13 +641,13 @@ def _build_team_abbrev_lookup(teams: list[Team]) -> dict[str, int]:
 def make_position_appearance_mapper(
     players: list[Player],
 ) -> Callable[[pd.Series], PositionAppearance | None]:
-    retro_lookup = _build_retro_lookup(players)
+    bbref_lookup = _build_bbref_lookup(players)
 
     def mapper(row: pd.Series) -> PositionAppearance | None:
-        retro_id = _to_optional_str(row.get("playerID"))
-        if retro_id is None:
+        bbref_id = _to_optional_str(row.get("playerID"))
+        if bbref_id is None:
             return None
-        player = retro_lookup.get(retro_id)
+        player = bbref_lookup.get(bbref_id)
         if player is None or player.id is None:
             return None
         return PositionAppearance(
@@ -656,14 +664,14 @@ def make_roster_stint_mapper(
     players: list[Player],
     teams: list[Team],
 ) -> Callable[[pd.Series], RosterStint | None]:
-    retro_lookup = _build_retro_lookup(players)
+    bbref_lookup = _build_bbref_lookup(players)
     team_lookup = _build_team_abbrev_lookup(teams)
 
     def mapper(row: pd.Series) -> RosterStint | None:
-        retro_id = _to_optional_str(row.get("playerID"))
-        if retro_id is None:
+        bbref_id = _to_optional_str(row.get("playerID"))
+        if bbref_id is None:
             return None
-        player = retro_lookup.get(retro_id)
+        player = bbref_lookup.get(bbref_id)
         if player is None or player.id is None:
             return None
         team_abbrev = _to_optional_str(row.get("teamID"))

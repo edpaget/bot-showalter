@@ -510,9 +510,9 @@ class TestIngestBio:
 def _make_appearances_df() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 82},
-            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 25},
-            {"playerID": "ohtas001", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 135},
+            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 82},
+            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 25},
+            {"playerID": "ohtansh01", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 135},
         ]
     )
 
@@ -529,8 +529,8 @@ def _make_roster_appearances_df() -> pd.DataFrame:
     """Lahman Appearances rows (pre-exploded format used by the roster mapper)."""
     return pd.DataFrame(
         [
-            {"playerID": "troum001", "yearID": 2023, "teamID": "LAA"},
-            {"playerID": "ohtas001", "yearID": 2023, "teamID": "LAA"},
+            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA"},
+            {"playerID": "ohtansh01", "yearID": 2023, "teamID": "LAA"},
         ]
     )
 
