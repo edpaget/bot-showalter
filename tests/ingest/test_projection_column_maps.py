@@ -1,6 +1,9 @@
+from collections.abc import Callable
+
 import pandas as pd
 
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
@@ -19,7 +22,8 @@ def _trout() -> Player:
 
 def _fg_projection_batting_row(
     *,
-    idfg: int | float = 10155,
+    idfg: int | float | str = 10155,
+    mlbamid: int | float = 545361,
     pa: int = 600,
     ab: int = 530,
     h: int = 160,
@@ -42,7 +46,8 @@ def _fg_projection_batting_row(
 ) -> pd.Series:
     return pd.Series(
         {
-            "playerid": idfg,
+            "PlayerId": idfg,
+            "MLBAMID": mlbamid,
             "PA": pa,
             "AB": ab,
             "H": h,
@@ -87,12 +92,12 @@ class TestFgProjectionBattingMapper:
 
     def test_unknown_id_returns_none(self) -> None:
         mapper = make_fg_projection_batting_mapper([_trout()], season=2025, system="steamer", version="2025.1")
-        result = mapper(_fg_projection_batting_row(idfg=99999))
+        result = mapper(_fg_projection_batting_row(idfg=99999, mlbamid=888888))
         assert result is None
 
     def test_nan_id_returns_none(self) -> None:
         mapper = make_fg_projection_batting_mapper([_trout()], season=2025, system="steamer", version="2025.1")
-        result = mapper(_fg_projection_batting_row(idfg=float("nan")))
+        result = mapper(_fg_projection_batting_row(idfg=float("nan"), mlbamid=float("nan")))
         assert result is None
 
     def test_nan_stat_excluded_from_json(self) -> None:
@@ -115,6 +120,24 @@ class TestFgProjectionBattingMapper:
         assert result is not None
         assert result.source_type == "third_party"
 
+    def test_tier2_batting_stats_in_stat_json(self) -> None:
+        mapper = make_fg_projection_batting_mapper([_trout()], season=2025, system="steamer", version="2025.1")
+        row = _fg_projection_batting_row()
+        row["1B"] = 76
+        row["G"] = 141
+        row["ISO"] = 0.273
+        row["BABIP"] = 0.320
+        row["BB%"] = 0.10
+        row["K%"] = 0.20
+        result = mapper(row)
+        assert result is not None
+        assert result.stat_json["singles"] == 76
+        assert result.stat_json["g"] == 141
+        assert result.stat_json["iso"] == 0.273
+        assert result.stat_json["babip"] == 0.320
+        assert result.stat_json["bb_pct"] == 0.10
+        assert result.stat_json["k_pct"] == 0.20
+
     def test_works_with_zips(self) -> None:
         mapper = make_fg_projection_batting_mapper([_trout()], season=2025, system="zips", version="2025.1")
         result = mapper(_fg_projection_batting_row())
@@ -124,7 +147,8 @@ class TestFgProjectionBattingMapper:
 
 def _fg_projection_pitching_row(
     *,
-    idfg: int | float = 10155,
+    idfg: int | float | str = 10155,
+    mlbamid: int | float = 545361,
     w: int = 15,
     losses: int = 8,
     g: int = 32,
@@ -145,7 +169,8 @@ def _fg_projection_pitching_row(
 ) -> pd.Series:
     return pd.Series(
         {
-            "playerid": idfg,
+            "PlayerId": idfg,
+            "MLBAMID": mlbamid,
             "W": w,
             "L": losses,
             "G": g,
@@ -188,7 +213,7 @@ class TestFgProjectionPitchingMapper:
 
     def test_unknown_id_returns_none(self) -> None:
         mapper = make_fg_projection_pitching_mapper([_trout()], season=2025, system="zips", version="2025.1")
-        result = mapper(_fg_projection_pitching_row(idfg=99999))
+        result = mapper(_fg_projection_pitching_row(idfg=99999, mlbamid=888888))
         assert result is None
 
     def test_default_source_type_is_first_party(self) -> None:
@@ -210,3 +235,52 @@ class TestFgProjectionPitchingMapper:
         result = mapper(_fg_projection_pitching_row(war=float("nan")))
         assert result is not None
         assert "war" not in result.stat_json
+
+    def test_tier2_pitching_stats_in_stat_json(self) -> None:
+        mapper = make_fg_projection_pitching_mapper([_trout()], season=2025, system="steamer", version="2025.1")
+        row = _fg_projection_pitching_row()
+        row["QS"] = 20
+        row["TBF"] = 750
+        row["K%"] = 0.28
+        row["BABIP"] = 0.290
+        row["GB%"] = 0.45
+        result = mapper(row)
+        assert result is not None
+        assert result.stat_json["qs"] == 20
+        assert result.stat_json["tbf"] == 750
+        assert result.stat_json["k_pct"] == 0.28
+        assert result.stat_json["babip"] == 0.290
+        assert result.stat_json["gb_pct"] == 0.45
+
+
+class TestResolvePlayerIdFallback:
+    def _make_mapper(self) -> Callable[[pd.Series], Projection | None]:
+        return make_fg_projection_batting_mapper([_trout()], season=2025, system="steamer", version="2025.1")
+
+    def test_numeric_fg_id_resolves(self) -> None:
+        mapper = self._make_mapper()
+        result = mapper(_fg_projection_batting_row(idfg=10155, mlbamid=545361))
+        assert result is not None
+        assert result.player_id == 1
+
+    def test_sa_prefix_with_valid_mlbamid(self) -> None:
+        mapper = self._make_mapper()
+        result = mapper(_fg_projection_batting_row(idfg="sa3025154", mlbamid=545361))
+        assert result is not None
+        assert result.player_id == 1
+
+    def test_sa_prefix_without_mlbamid(self) -> None:
+        mapper = self._make_mapper()
+        result = mapper(_fg_projection_batting_row(idfg="sa3025154", mlbamid=float("nan")))
+        assert result is None
+
+    def test_numeric_not_in_fg_falls_back_to_mlbam(self) -> None:
+        mapper = self._make_mapper()
+        result = mapper(_fg_projection_batting_row(idfg=99999, mlbamid=545361))
+        assert result is not None
+        assert result.player_id == 1
+
+    def test_both_lookups_fail(self) -> None:
+        mapper = self._make_mapper()
+        result = mapper(_fg_projection_batting_row(idfg=99999, mlbamid=888888))
+        assert result is None

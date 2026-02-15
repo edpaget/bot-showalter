@@ -34,7 +34,8 @@ def _batting_projection_df() -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "playerid": 10155,
+                "PlayerId": 10155,
+                "MLBAMID": 545361,
                 "PA": 600,
                 "AB": 530,
                 "H": 160,
@@ -90,7 +91,8 @@ class TestProjectionLoaderIntegration:
         df = pd.DataFrame(
             [
                 {
-                    "playerid": 10155,
+                    "PlayerId": 10155,
+                    "MLBAMID": 545361,
                     "W": 12,
                     "L": 6,
                     "G": 30,
@@ -130,7 +132,7 @@ class TestProjectionLoaderIntegration:
     def test_csv_source_to_projection(self, tmp_path: Path, conn: sqlite3.Connection) -> None:
         player_id = _seed_player(conn)
         csv_file = tmp_path / "steamer_batting.csv"
-        csv_file.write_text("playerid,PA,HR,AVG,WAR\n" "10155,600,35,0.302,8.5\n")
+        csv_file.write_text("PlayerId,MLBAMID,PA,HR,AVG,WAR\n" "10155,545361,600,35,0.302,8.5\n")
 
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
@@ -157,8 +159,8 @@ class TestProjectionLoaderIntegration:
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
         df = pd.DataFrame(
             [
-                {"playerid": 10155, "HR": 35, "AVG": 0.302},
-                {"playerid": 99999, "HR": 20, "AVG": 0.250},
+                {"PlayerId": 10155, "MLBAMID": 545361, "HR": 35, "AVG": 0.302},
+                {"PlayerId": 99999, "MLBAMID": 999999, "HR": 20, "AVG": 0.250},
             ]
         )
         source = FakeDataSource(df)
@@ -270,7 +272,8 @@ class TestProjectionVsActuals:
         df = pd.DataFrame(
             [
                 {
-                    "playerid": 10155,
+                    "PlayerId": 10155,
+                    "MLBAMID": 545361,
                     "W": 12,
                     "L": 6,
                     "ERA": 3.00,

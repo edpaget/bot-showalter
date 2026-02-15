@@ -337,6 +337,19 @@ _FG_BATTING_PROJECTION_COLUMNS: dict[str, str] = {
     "wOBA": "woba",
     "wRC+": "wrc_plus",
     "WAR": "war",
+    "1B": "singles",
+    "G": "g",
+    "ISO": "iso",
+    "BABIP": "babip",
+    "BB%": "bb_pct",
+    "K%": "k_pct",
+    "wRC": "wrc",
+    "wRAA": "wraa",
+    "BsR": "bsr",
+    "Off": "off",
+    "Def": "def_",
+    "Fld": "fld",
+    "Spd": "spd",
 }
 
 _FG_PITCHING_PROJECTION_COLUMNS: dict[str, str] = {
@@ -359,16 +372,50 @@ _FG_PITCHING_PROJECTION_COLUMNS: dict[str, str] = {
     "FIP": "fip",
     "xFIP": "xfip",
     "WAR": "war",
+    "QS": "qs",
+    "BS": "bs",
+    "TBF": "tbf",
+    "R": "r",
+    "HBP": "hbp",
+    "IBB": "ibb",
+    "K/BB": "k_per_bb",
+    "HR/9": "hr_per_9",
+    "K%": "k_pct",
+    "BB%": "bb_pct",
+    "BABIP": "babip",
+    "LOB%": "lob_pct",
+    "GB%": "gb_pct",
+    "HR/FB": "hr_per_fb",
+    "RA9-WAR": "ra9_war",
+    "AVG": "avg",
 }
 
 
-def _resolve_fg_projection_id(fg_lookup: dict[int, int], row: pd.Series) -> int | None:
-    fg_id = row.get("playerid")
-    if fg_id is None:
+def _resolve_fg_projection_id(
+    fg_lookup: dict[int, int],
+    mlbam_lookup: dict[int, int],
+    row: pd.Series,
+) -> int | None:
+    player_id: int | None = None
+    fg_id = row.get("PlayerId")
+    if fg_id is not None and not (isinstance(fg_id, float) and math.isnan(fg_id)):
+        fg_str = str(fg_id)
+        if not fg_str.startswith("sa"):
+            try:
+                player_id = fg_lookup.get(int(float(fg_str)))
+            except (ValueError, OverflowError):
+                pass
+    if player_id is not None:
+        return player_id
+    mlbam_id = row.get("MLBAMID")
+    if mlbam_id is None:
         return None
-    if isinstance(fg_id, float) and math.isnan(fg_id):
+    if isinstance(mlbam_id, float) and math.isnan(mlbam_id):
         return None
-    return fg_lookup.get(int(fg_id))
+    try:
+        return mlbam_lookup.get(int(mlbam_id))
+    except (ValueError, OverflowError):
+        return None
 
 
 def make_fg_projection_batting_mapper(
@@ -380,9 +427,10 @@ def make_fg_projection_batting_mapper(
     source_type: str = "first_party",
 ) -> Callable[[pd.Series], Projection | None]:
     fg_lookup = _build_fg_lookup(players)
+    mlbam_lookup = _build_mlbam_lookup(players)
 
     def mapper(row: pd.Series) -> Projection | None:
-        player_id = _resolve_fg_projection_id(fg_lookup, row)
+        player_id = _resolve_fg_projection_id(fg_lookup, mlbam_lookup, row)
         if player_id is None:
             return None
 
@@ -409,9 +457,10 @@ def make_fg_projection_pitching_mapper(
     source_type: str = "first_party",
 ) -> Callable[[pd.Series], Projection | None]:
     fg_lookup = _build_fg_lookup(players)
+    mlbam_lookup = _build_mlbam_lookup(players)
 
     def mapper(row: pd.Series) -> Projection | None:
-        player_id = _resolve_fg_projection_id(fg_lookup, row)
+        player_id = _resolve_fg_projection_id(fg_lookup, mlbam_lookup, row)
         if player_id is None:
             return None
 
