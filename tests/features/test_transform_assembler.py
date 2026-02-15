@@ -185,3 +185,71 @@ class TestStatcastIntegration:
         # Both regular and transform columns present
         assert "hr_0" in rows[0]
         assert "ff_pct" in rows[0]
+
+    def test_pitcher_pitch_mix_materialize(
+        self,
+        pitcher_seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """Pitcher feature set joins statcast on pitcher_id, returning rows."""
+        fs = FeatureSet(
+            name="test_pitcher_statcast",
+            features=(PITCH_MIX,),
+            seasons=(2022, 2023),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="pitcher"),
+        )
+        assembler = SqliteDatasetAssembler(pitcher_seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        # 2 pitchers x 2 seasons = 4 rows
+        assert len(rows) == 4
+        for output in PITCH_MIX.outputs:
+            assert output in rows[0]
+        # At least one pitcher should have non-zero ff_pct (proves pitcher_id join worked)
+        assert any(r["ff_pct"] > 0 for r in rows)
+
+    def test_pitcher_pitch_mix_values(
+        self,
+        pitcher_seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """Verify specific pitch mix values for a known pitcher."""
+        fs = FeatureSet(
+            name="test_pitcher_values",
+            features=(PITCH_MIX,),
+            seasons=(2022,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="pitcher"),
+        )
+        assembler = SqliteDatasetAssembler(pitcher_seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        by_player = {r["player_id"]: r for r in rows}
+        # Pitcher player_id=3 (mlbam_id=100001) in 2022: pitched in game 1001
+        # 3 pitches: FF (95.0), FF (97.0), SL (85.0)
+        p3 = by_player[3]
+        assert p3["ff_pct"] == pytest.approx(2 / 3 * 100)
+        assert p3["ff_velo"] == pytest.approx((95.0 + 97.0) / 2)
+        assert p3["sl_pct"] == pytest.approx(1 / 3 * 100)
+
+    def test_batter_join_unaffected(
+        self,
+        pitcher_seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """Batter feature sets still join on batter_id after the pitcher fix."""
+        fs = FeatureSet(
+            name="test_batter_regression",
+            features=(PITCH_MIX,),
+            seasons=(2022,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(pitcher_seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        by_player = {r["player_id"]: r for r in rows}
+        # Player 1 (batter, mlbam_id=545361) should still get batter-side statcast data
+        p1 = by_player[1]
+        assert p1["ff_pct"] == pytest.approx(3 / 6 * 100)

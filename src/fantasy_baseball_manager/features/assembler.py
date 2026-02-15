@@ -100,10 +100,13 @@ class SqliteDatasetAssembler:
         )
         self._statcast_attached = True
 
-    def _build_raw_query(self, tf: TransformFeature, table_name: str) -> tuple[str, list[object]]:
+    def _build_raw_query(
+        self, tf: TransformFeature, table_name: str, *, player_type: str | None = None
+    ) -> tuple[str, list[object]]:
         """Build a raw-row query for a transform feature."""
         if tf.source == Source.STATCAST:
             self._attach_statcast()
+            sc_join_col = "pitcher_id" if player_type == "pitcher" else "batter_id"
             select_cols = ", ".join(f"sc.[{c}]" for c in tf.columns)
             sql = (
                 f"SELECT d.player_id, "
@@ -112,7 +115,7 @@ class SqliteDatasetAssembler:
                 f"FROM [{table_name}] d "
                 f"JOIN player p ON p.id = d.player_id "
                 f"JOIN [statcast].statcast_pitch sc "
-                f"ON sc.batter_id = p.mlbam_id "
+                f"ON sc.{sc_join_col} = p.mlbam_id "
                 f"AND CAST(SUBSTR(sc.game_date, 1, 4) AS INTEGER) = d.season"
             )
             return sql, []
@@ -132,10 +135,12 @@ class SqliteDatasetAssembler:
         )
         return sql, []
 
-    def _run_transforms(self, table_name: str, transforms: list[TransformFeature]) -> None:
+    def _run_transforms(
+        self, table_name: str, transforms: list[TransformFeature], *, player_type: str | None = None
+    ) -> None:
         """Execute the transform pass: query raw rows, group, transform, update."""
         for tf in transforms:
-            sql, params = self._build_raw_query(tf, table_name)
+            sql, params = self._build_raw_query(tf, table_name, player_type=player_type)
             cursor = self._conn.execute(sql, params)
             columns = [desc[0] for desc in cursor.description]
             all_rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -197,7 +202,7 @@ class SqliteDatasetAssembler:
         transforms = self._get_transform_features(feature_set)
         if transforms:
             self._add_transform_columns(handle.table_name, transforms)
-            self._run_transforms(handle.table_name, transforms)
+            self._run_transforms(handle.table_name, transforms, player_type=feature_set.spine_filter.player_type)
 
         # Pass 3: Derived-transform pass
         derived = self._get_derived_transform_features(feature_set)

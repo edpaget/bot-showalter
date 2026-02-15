@@ -150,6 +150,42 @@ def seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
     return conn
 
 
+def seed_pitching_data(conn: sqlite3.Connection) -> None:
+    """Insert 2 pitcher players with pitching_stats for integration tests.
+
+    Pitchers use mlbam_ids 100001 and 100004 which match pitcher_id values
+    in the statcast seed data, enabling pitcher-side statcast joins.
+    """
+    conn.execute(
+        "INSERT INTO player (id, name_first, name_last, birth_date, bats, mlbam_id) "
+        "VALUES (3, 'Gerrit', 'Cole', '1990-09-08', 'R', 100001)"
+    )
+    conn.execute(
+        "INSERT INTO player (id, name_first, name_last, birth_date, bats, mlbam_id) "
+        "VALUES (4, 'Max', 'Scherzer', '1984-07-27', 'R', 100004)"
+    )
+    pitching_rows = [
+        # (player_id, season, source, w, era, ip, so)
+        (3, 2022, "fangraphs", 13, 3.50, 200.0, 250),
+        (3, 2023, "fangraphs", 15, 2.63, 209.0, 222),
+        (4, 2022, "fangraphs", 11, 3.15, 180.0, 210),
+        (4, 2023, "fangraphs", 9, 4.01, 152.1, 170),
+    ]
+    conn.executemany(
+        "INSERT INTO pitching_stats (player_id, season, source, w, era, ip, so) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        pitching_rows,
+    )
+    conn.commit()
+
+
+@pytest.fixture
+def pitcher_seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
+    """Connection with batting data + pitcher data pre-loaded."""
+    seed_batting_data(conn)
+    seed_pitching_data(conn)
+    return conn
+
+
 def seed_statcast_data(sc_conn: sqlite3.Connection) -> None:
     """Insert statcast pitch data for 2 test players across 2022-2023."""
     pitches = [
