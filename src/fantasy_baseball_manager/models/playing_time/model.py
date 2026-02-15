@@ -6,6 +6,10 @@ from typing import Any
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
+from fantasy_baseball_manager.models.playing_time.aging import (
+    enrich_rows_with_age_pt_factor,
+    fit_playing_time_aging_curve,
+)
 from fantasy_baseball_manager.models.playing_time.convert import pt_projection_to_domain
 from fantasy_baseball_manager.models.playing_time.engine import (
     fit_playing_time,
@@ -22,7 +26,9 @@ from fantasy_baseball_manager.models.playing_time.features import (
     pitching_pt_feature_columns,
 )
 from fantasy_baseball_manager.models.playing_time.serialization import (
+    load_aging_curves,
     load_coefficients,
+    save_aging_curves,
     save_coefficients,
 )
 from fantasy_baseball_manager.models.protocols import (
@@ -34,6 +40,7 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.registry import register
 
 _ARTIFACT_FILENAME = "pt_coefficients.joblib"
+_AGING_CURVES_FILENAME = "pt_aging_curves.joblib"
 
 
 @register("playing_time")
@@ -109,6 +116,7 @@ class PlayingTimeModel:
     def train(self, config: ModelConfig) -> TrainResult:
         assert self._assembler is not None, "assembler is required for train"
         lags = config.model_params.get("lags", 3)
+        aging_min_samples: int = config.model_params.get("aging_min_samples", 30)
         batting_fs, pitching_fs = self._build_feature_sets(config.seasons, training=True, lags=lags)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
@@ -117,8 +125,30 @@ class PlayingTimeModel:
         bat_rows = self._assembler.read(bat_handle)
         pitch_rows = self._assembler.read(pitch_handle)
 
-        bat_columns = batting_pt_feature_columns(lags)
-        pitch_columns = pitching_pt_feature_columns(lags)
+        # Fit aging curves from training data
+        bat_curve = fit_playing_time_aging_curve(
+            bat_rows,
+            "batter",
+            "target_pa",
+            "pa_1",
+            min_pt=50.0,
+            min_samples=aging_min_samples,
+        )
+        pitch_curve = fit_playing_time_aging_curve(
+            pitch_rows,
+            "pitcher",
+            "target_ip",
+            "ip_1",
+            min_pt=10.0,
+            min_samples=aging_min_samples,
+        )
+
+        # Enrich rows with age_pt_factor
+        bat_rows = enrich_rows_with_age_pt_factor(bat_rows, bat_curve)
+        pitch_rows = enrich_rows_with_age_pt_factor(pitch_rows, pitch_curve)
+
+        bat_columns = batting_pt_feature_columns(lags) + ["age_pt_factor"]
+        pitch_columns = pitching_pt_feature_columns(lags) + ["age_pt_factor"]
 
         bat_coeff = fit_playing_time(bat_rows, bat_columns, "target_pa", "batter")
         pitch_coeff = fit_playing_time(pitch_rows, pitch_columns, "target_ip", "pitcher")
@@ -129,12 +159,18 @@ class PlayingTimeModel:
             {"batter": bat_coeff, "pitcher": pitch_coeff},
             artifact_path / _ARTIFACT_FILENAME,
         )
+        save_aging_curves(
+            {"batter": bat_curve, "pitcher": pitch_curve},
+            artifact_path / _AGING_CURVES_FILENAME,
+        )
 
         return TrainResult(
             model_name=self.name,
             metrics={
                 "r_squared_batter": bat_coeff.r_squared,
                 "r_squared_pitcher": pitch_coeff.r_squared,
+                "bat_peak_age": bat_curve.peak_age,
+                "pitch_peak_age": pitch_curve.peak_age,
             },
             artifacts_path=str(artifact_path),
         )
@@ -148,13 +184,21 @@ class PlayingTimeModel:
         bat_coeff = coefficients["batter"]
         pitch_coeff = coefficients["pitcher"]
 
+        aging_curves = load_aging_curves(artifact_path / _AGING_CURVES_FILENAME)
+
         batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
 
-        bat_rows = self._assembler.read(bat_handle)
-        pitch_rows = self._assembler.read(pitch_handle)
+        bat_rows = enrich_rows_with_age_pt_factor(
+            self._assembler.read(bat_handle),
+            aging_curves["batter"],
+        )
+        pitch_rows = enrich_rows_with_age_pt_factor(
+            self._assembler.read(pitch_handle),
+            aging_curves["pitcher"],
+        )
 
         projected_season = max(config.seasons) + 1 if config.seasons else 2025
         version = config.version or "latest"

@@ -2,9 +2,14 @@ from pathlib import Path
 from typing import Any
 
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
+from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
 from fantasy_baseball_manager.models.playing_time.engine import PlayingTimeCoefficients
 from fantasy_baseball_manager.models.playing_time.model import PlayingTimeModel
-from fantasy_baseball_manager.models.playing_time.serialization import save_coefficients
+from fantasy_baseball_manager.models.playing_time.serialization import (
+    load_coefficients,
+    save_aging_curves,
+    save_coefficients,
+)
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
     FineTunable,
@@ -139,14 +144,18 @@ class TestPlayingTimeModelProtocol:
         assert PlayingTimeModel().artifact_type == "file"
 
 
+def _train_config(tmp_path: Path) -> ModelConfig:
+    """Create a training config with aging_min_samples=1 for small test data."""
+    return ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path), model_params={"aging_min_samples": 1})
+
+
 class TestPlayingTimeTrain:
     def test_train_produces_coefficients_file(self, tmp_path: Path) -> None:
         batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
         pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
         assembler = FakeAssembler(batting_rows, pitching_rows)
         model = PlayingTimeModel(assembler=assembler)
-        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
-        model.train(config)
+        model.train(_train_config(tmp_path))
         artifact = tmp_path / "playing_time" / "latest" / "pt_coefficients.joblib"
         assert artifact.exists()
 
@@ -155,16 +164,43 @@ class TestPlayingTimeTrain:
         pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
         assembler = FakeAssembler(batting_rows, pitching_rows)
         model = PlayingTimeModel(assembler=assembler)
-        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
-        result = model.train(config)
+        result = model.train(_train_config(tmp_path))
         assert "r_squared_batter" in result.metrics
         assert "r_squared_pitcher" in result.metrics
         assert result.metrics["r_squared_batter"] >= 0.0
         assert result.metrics["r_squared_pitcher"] >= 0.0
 
+    def test_train_saves_aging_curves_file(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        model.train(_train_config(tmp_path))
+        artifact = tmp_path / "playing_time" / "latest" / "pt_aging_curves.joblib"
+        assert artifact.exists()
+
+    def test_train_coefficients_include_age_pt_factor(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        model.train(_train_config(tmp_path))
+        coefficients = load_coefficients(tmp_path / "playing_time" / "latest" / "pt_coefficients.joblib")
+        assert "age_pt_factor" in coefficients["batter"].feature_names
+        assert "age_pt_factor" in coefficients["pitcher"].feature_names
+
+    def test_train_metrics_include_peak_age(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        result = model.train(_train_config(tmp_path))
+        assert "bat_peak_age" in result.metrics
+        assert "pitch_peak_age" in result.metrics
+
 
 def _save_test_coefficients(tmp_path: Path) -> None:
-    """Save known coefficients for predict tests."""
+    """Save known coefficients and aging curves for predict tests."""
     batter = PlayingTimeCoefficients(
         feature_names=(
             "age",
@@ -181,8 +217,9 @@ def _save_test_coefficients(tmp_path: Path) -> None:
             "il_days_3yr",
             "il_recurrence",
             "pt_trend",
+            "age_pt_factor",
         ),
-        coefficients=(0.0, 0.8, 0.1, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        coefficients=(0.0, 0.8, 0.1, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0),
         intercept=50.0,
         r_squared=0.9,
         player_type="batter",
@@ -207,15 +244,19 @@ def _save_test_coefficients(tmp_path: Path) -> None:
             "il_days_3yr",
             "il_recurrence",
             "pt_trend",
+            "age_pt_factor",
         ),
-        coefficients=(0.0, 0.7, 0.15, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        coefficients=(0.0, 0.7, 0.15, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         intercept=20.0,
         r_squared=0.85,
         player_type="pitcher",
     )
+    batter_curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+    pitcher_curve = AgingCurve(peak_age=26.0, improvement_rate=0.008, decline_rate=0.007, player_type="pitcher")
     artifact_dir = tmp_path / "playing_time" / "latest"
     artifact_dir.mkdir(parents=True)
     save_coefficients({"batter": batter, "pitcher": pitcher}, artifact_dir / "pt_coefficients.joblib")
+    save_aging_curves({"batter": batter_curve, "pitcher": pitcher_curve}, artifact_dir / "pt_aging_curves.joblib")
 
 
 class TestPlayingTimePredict:
@@ -242,12 +283,10 @@ class TestPlayingTimePredict:
         assert batter_preds[0]["pa"] <= 750
 
     def test_predict_clamps_to_zero(self, tmp_path: Path) -> None:
-        _save_test_coefficients(tmp_path)
         # Fabricate a row where prediction goes negative
         row = _make_batting_row(1, 2023, pa_1=0.0)
         row["pa_2"] = 0.0
         row["pa_3"] = 0.0
-        # intercept=50 + 0.8*0 + 0.1*0 + 0.05*0 = 50 — not negative.
         # Override intercept by using a different saved coefficients set
         batter = PlayingTimeCoefficients(
             feature_names=("pa_1",),
@@ -263,9 +302,12 @@ class TestPlayingTimePredict:
             r_squared=0.5,
             player_type="pitcher",
         )
+        batter_curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        pitcher_curve = AgingCurve(peak_age=26.0, improvement_rate=0.008, decline_rate=0.007, player_type="pitcher")
         artifact_dir = tmp_path / "playing_time" / "latest"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         save_coefficients({"batter": batter, "pitcher": pitcher}, artifact_dir / "pt_coefficients.joblib")
+        save_aging_curves({"batter": batter_curve, "pitcher": pitcher_curve}, artifact_dir / "pt_aging_curves.joblib")
 
         assembler = FakeAssembler([row], pitching_rows=[])
         model = PlayingTimeModel(assembler=assembler)
@@ -310,3 +352,17 @@ class TestPlayingTimePredict:
         result = model.predict(config)
         assert result.model_name == "playing_time"
         assert len(result.predictions) == 0
+
+    def test_predict_age_affects_output(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        young_row = _make_batting_row(1, 2023)
+        young_row["age"] = 24
+        old_row = _make_batting_row(2, 2023)
+        old_row["age"] = 35
+        assembler = FakeAssembler([young_row, old_row], pitching_rows=[])
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        batter_preds = {p["player_id"]: p for p in result.predictions if p["player_type"] == "batter"}
+        # Young player (below peak) should get higher age_pt_factor -> higher prediction
+        assert batter_preds[1]["pa"] != batter_preds[2]["pa"]

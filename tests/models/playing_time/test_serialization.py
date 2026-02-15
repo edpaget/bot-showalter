@@ -2,9 +2,12 @@ from pathlib import Path
 
 import pytest
 
+from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
 from fantasy_baseball_manager.models.playing_time.engine import PlayingTimeCoefficients
 from fantasy_baseball_manager.models.playing_time.serialization import (
+    load_aging_curves,
     load_coefficients,
+    save_aging_curves,
     save_coefficients,
 )
 
@@ -36,3 +39,20 @@ class TestSerialization:
         path = tmp_path / "nonexistent.joblib"
         with pytest.raises(FileNotFoundError):
             load_coefficients(path)
+
+
+class TestAgingCurveSerialization:
+    def test_save_load_aging_curves_roundtrip(self, tmp_path: Path) -> None:
+        batter_curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        pitcher_curve = AgingCurve(peak_age=26.0, improvement_rate=0.008, decline_rate=0.007, player_type="pitcher")
+        curves = {"batter": batter_curve, "pitcher": pitcher_curve}
+        path = tmp_path / "aging_curves.joblib"
+        save_aging_curves(curves, path)
+        loaded = load_aging_curves(path)
+        assert loaded["batter"] == batter_curve
+        assert loaded["pitcher"] == pitcher_curve
+
+    def test_load_missing_aging_curves_raises(self, tmp_path: Path) -> None:
+        path = tmp_path / "nonexistent.joblib"
+        with pytest.raises(FileNotFoundError):
+            load_aging_curves(path)
