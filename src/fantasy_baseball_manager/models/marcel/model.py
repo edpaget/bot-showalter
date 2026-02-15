@@ -27,6 +27,20 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.registry import register
 
 
+def _is_batter(row: dict[str, Any]) -> bool:
+    pos = row.get("position")
+    if pos is None:
+        return True
+    return any(p != "P" for p in pos.split(","))
+
+
+def _is_pitcher(row: dict[str, Any]) -> bool:
+    pos = row.get("position")
+    if pos is None:
+        return True
+    return "P" in pos.split(",")
+
+
 def _build_marcel_config(model_params: dict[str, Any]) -> MarcelConfig:
     """Build MarcelConfig from model_params, using defaults for missing keys."""
     kwargs: dict[str, Any] = {}
@@ -136,8 +150,8 @@ class MarcelModel:
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
 
-        bat_rows = self._assembler.read(bat_handle)
-        pitch_rows = self._assembler.read(pitch_handle)
+        bat_rows = [r for r in self._assembler.read(bat_handle) if _is_batter(r)]
+        pitch_rows = [r for r in self._assembler.read(pitch_handle) if _is_pitcher(r)]
 
         projected_season = max(config.seasons) + 1 if config.seasons else 2025
 

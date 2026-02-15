@@ -10,6 +10,13 @@ from fantasy_baseball_manager.models.marcel.features import (
 
 
 class TestBuildBattingFeatures:
+    def test_includes_position(self) -> None:
+        features = build_batting_features(["hr"])
+        pos_features = [f for f in features if isinstance(f, Feature) and f.name == "position"]
+        assert len(pos_features) == 1
+        assert pos_features[0].source == Source.PLAYER
+        assert pos_features[0].column == "position"
+
     def test_includes_age(self) -> None:
         features = build_batting_features(["hr"])
         age_features = [f for f in features if isinstance(f, Feature) and f.computed == "age"]
@@ -44,11 +51,18 @@ class TestBuildBattingFeatures:
     def test_total_feature_count(self) -> None:
         cats = ["hr", "h", "bb"]
         features = build_batting_features(cats, lags=3)
-        # age + 3 lags * (pa + 3 cats) = 1 + 3 * 4 = 13
-        assert len(features) == 13
+        # age + position + 3 lags * (pa + 3 cats) = 2 + 3 * 4 = 14
+        assert len(features) == 14
 
 
 class TestBuildPitchingFeatures:
+    def test_includes_position(self) -> None:
+        features = build_pitching_features(["so"])
+        pos_features = [f for f in features if isinstance(f, Feature) and f.name == "position"]
+        assert len(pos_features) == 1
+        assert pos_features[0].source == Source.PLAYER
+        assert pos_features[0].column == "position"
+
     def test_includes_age(self) -> None:
         features = build_pitching_features(["so"])
         age_features = [f for f in features if isinstance(f, Feature) and f.computed == "age"]
@@ -79,8 +93,8 @@ class TestBuildPitchingFeatures:
     def test_total_feature_count(self) -> None:
         cats = ["so", "er"]
         features = build_pitching_features(cats, lags=3)
-        # age + 3 lags * (ip + g + gs + 2 cats) = 1 + 3 * 5 = 16
-        assert len(features) == 16
+        # age + position + 3 lags * (ip + g + gs + 2 cats) = 2 + 3 * 5 = 17
+        assert len(features) == 17
 
 
 class TestBuildBattingWeightedRates:

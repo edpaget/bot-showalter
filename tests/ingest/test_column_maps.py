@@ -235,6 +235,29 @@ class TestMakeLahmanBioMapper:
         assert result is not None
         assert result.throws is None
 
+    def test_eligible_positions_sets_position(self) -> None:
+        mapper = make_lahman_bio_mapper([_TROUT])
+        row = _make_lahman_row()
+        row["eligible_positions"] = "CF,RF"
+        result = mapper(row)
+        assert result is not None
+        assert result.position == "CF,RF"
+
+    def test_missing_eligible_positions_leaves_position_none(self) -> None:
+        mapper = make_lahman_bio_mapper([_TROUT])
+        row = _make_lahman_row()
+        result = mapper(row)
+        assert result is not None
+        assert result.position is None
+
+    def test_nan_eligible_positions_leaves_position_none(self) -> None:
+        mapper = make_lahman_bio_mapper([_TROUT])
+        row = _make_lahman_row()
+        row["eligible_positions"] = float("nan")
+        result = mapper(row)
+        assert result is not None
+        assert result.position is None
+
     def test_multiple_players_lookup(self) -> None:
         mapper = make_lahman_bio_mapper([_TROUT, _OHTANI])
         row = pd.Series(

@@ -206,3 +206,114 @@ class TestMarcelPredict:
         result = model.predict(config)
         assert result.model_name == "marcel"
         assert len(result.predictions) == 0
+
+
+def _batter_row(player_id: int, position: str | None) -> dict[str, Any]:
+    return {
+        "player_id": player_id,
+        "season": 2023,
+        "age": 29,
+        "position": position,
+        "pa_1": 600,
+        "pa_2": 550,
+        "pa_3": 500,
+        "hr_1": 30.0,
+        "hr_2": 25.0,
+        "hr_3": 20.0,
+        "hr_wavg": 310.0 / 6700.0,
+        "weighted_pt": 6700.0,
+        "league_hr_rate": 50.0 / 1100.0,
+    }
+
+
+def _pitcher_row(player_id: int, position: str | None) -> dict[str, Any]:
+    return {
+        "player_id": player_id,
+        "season": 2023,
+        "age": 28,
+        "position": position,
+        "ip_1": 180.0,
+        "ip_2": 170.0,
+        "ip_3": 160.0,
+        "g_1": 30,
+        "g_2": 28,
+        "g_3": 26,
+        "gs_1": 30,
+        "gs_2": 28,
+        "gs_3": 26,
+        "so_1": 200.0,
+        "so_2": 180.0,
+        "so_3": 150.0,
+        "so_wavg": 1110.0 / 1040.0,
+        "weighted_pt": 1040.0,
+        "league_so_rate": 200.0 / 180.0,
+    }
+
+
+_PREDICT_CONFIG = ModelConfig(
+    seasons=[2023],
+    model_params={
+        "batting_categories": ["hr"],
+        "pitching_categories": ["so"],
+    },
+)
+
+
+class TestMarcelPositionFiltering:
+    def test_batter_position_included_in_batting(self) -> None:
+        assembler = FakeAssembler(
+            batting_rows=[_batter_row(1, "SS")],
+            pitching_rows=[],
+        )
+        result = MarcelModel(assembler=assembler).predict(_PREDICT_CONFIG)
+        batter_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "batter"]
+        assert 1 in batter_ids
+
+    def test_batter_position_excluded_from_pitching(self) -> None:
+        assembler = FakeAssembler(
+            batting_rows=[],
+            pitching_rows=[_pitcher_row(1, "SS")],
+        )
+        result = MarcelModel(assembler=assembler).predict(_PREDICT_CONFIG)
+        pitcher_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "pitcher"]
+        assert 1 not in pitcher_ids
+
+    def test_pitcher_position_included_in_pitching(self) -> None:
+        assembler = FakeAssembler(
+            batting_rows=[],
+            pitching_rows=[_pitcher_row(10, "P")],
+        )
+        result = MarcelModel(assembler=assembler).predict(_PREDICT_CONFIG)
+        pitcher_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "pitcher"]
+        assert 10 in pitcher_ids
+
+    def test_pitcher_position_excluded_from_batting(self) -> None:
+        assembler = FakeAssembler(
+            batting_rows=[_batter_row(10, "P")],
+            pitching_rows=[],
+        )
+        result = MarcelModel(assembler=assembler).predict(_PREDICT_CONFIG)
+        batter_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "batter"]
+        assert 10 not in batter_ids
+
+    def test_two_way_included_in_both(self) -> None:
+        assembler = FakeAssembler(
+            batting_rows=[_batter_row(20, "DH,P")],
+            pitching_rows=[_pitcher_row(20, "DH,P")],
+        )
+        result = MarcelModel(assembler=assembler).predict(_PREDICT_CONFIG)
+        batter_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "batter"]
+        pitcher_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "pitcher"]
+        assert 20 in batter_ids
+        assert 20 in pitcher_ids
+
+    def test_null_position_included_in_both(self) -> None:
+        assembler = FakeAssembler(
+            batting_rows=[_batter_row(30, None)],
+            pitching_rows=[_pitcher_row(30, None)],
+        )
+        result = MarcelModel(assembler=assembler).predict(_PREDICT_CONFIG)
+        batter_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "batter"]
+        pitcher_ids = [p["player_id"] for p in result.predictions if p["player_type"] == "pitcher"]
+        assert 30 in batter_ids
+        assert 30 in pitcher_ids

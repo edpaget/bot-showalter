@@ -257,7 +257,7 @@ class TestFeaturesCommand:
         result = runner.invoke(app, ["features", "marcel"])
         assert result.exit_code == 0
         assert "Features for model 'marcel'" in result.output
-        assert "78 features" in result.output
+        assert "80 features" in result.output
         assert "hr_1" in result.output
         assert "age" in result.output
 
