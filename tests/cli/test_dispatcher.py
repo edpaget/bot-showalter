@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -120,8 +121,6 @@ class _FakeModelRunRepo:
 
 class TestDispatchWithRunManager:
     def test_dispatch_train_with_run_manager(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import subprocess
-
         monkeypatch.setattr(
             subprocess,
             "run",

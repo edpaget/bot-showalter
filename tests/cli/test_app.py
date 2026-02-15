@@ -145,10 +145,6 @@ class TestActionCommands:
 
 def _register_trainable_stub() -> None:
     """Register a minimal trainable stub model for run tracking tests."""
-    from fantasy_baseball_manager.domain.model_run import ArtifactType
-    from fantasy_baseball_manager.models.protocols import ModelConfig as _MC
-    from fantasy_baseball_manager.models.protocols import TrainResult
-
     _clear()
 
     class _TrainableStub:
@@ -168,7 +164,7 @@ def _register_trainable_stub() -> None:
         def artifact_type(self) -> str:
             return ArtifactType.NONE.value
 
-        def train(self, config: _MC) -> TrainResult:
+        def train(self, config: ModelConfig) -> TrainResult:
             return TrainResult(model_name="stub", metrics={}, artifacts_path=config.artifacts_dir)
 
     register("stub")(_TrainableStub)
@@ -220,8 +216,6 @@ class TestTrainRunTracking:
 
         result = runner.invoke(app, ["train", "stub"])
         assert result.exit_code == 0, result.output
-
-        from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 
         repo = SqliteModelRunRepo(db_conn)
         runs = repo.list()

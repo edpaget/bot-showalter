@@ -12,7 +12,6 @@ from fantasy_baseball_manager.db.connection import (
 
 class TestCreateConnection:
     def test_returns_connection(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         db_path = Path(str(tmp_path)) / "test.db"
         conn = create_connection(db_path)
@@ -20,7 +19,6 @@ class TestCreateConnection:
         conn.close()
 
     def test_enables_wal_mode(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         db_path = Path(str(tmp_path)) / "test.db"
         conn = create_connection(db_path)
@@ -30,7 +28,6 @@ class TestCreateConnection:
         conn.close()
 
     def test_enables_foreign_keys(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         db_path = Path(str(tmp_path)) / "test.db"
         conn = create_connection(db_path)
@@ -40,7 +37,6 @@ class TestCreateConnection:
         conn.close()
 
     def test_creates_all_tables(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         db_path = Path(str(tmp_path)) / "test.db"
         conn = create_connection(db_path)
@@ -66,7 +62,6 @@ class TestCreateConnection:
         conn.close()
 
     def test_schema_version_is_set(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         db_path = Path(str(tmp_path)) / "test.db"
         conn = create_connection(db_path)
@@ -74,7 +69,6 @@ class TestCreateConnection:
         conn.close()
 
     def test_idempotent_reopen(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         db_path = Path(str(tmp_path)) / "test.db"
         conn1 = create_connection(db_path)
@@ -92,7 +86,6 @@ class TestCreateConnection:
 
 class TestCustomMigrationsDir:
     def test_custom_migrations_dir(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         tmp = Path(str(tmp_path))
         custom_dir = tmp / "custom_migrations"
@@ -148,7 +141,6 @@ class TestAtomicMigrations:
 
 class TestAttachDatabase:
     def test_attach_and_query(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         tmp = Path(str(tmp_path))
         main_path = tmp / "main.db"

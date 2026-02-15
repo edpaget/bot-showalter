@@ -69,14 +69,15 @@ class TestCreateStatcastConnection:
 
     def test_unique_constraint_upserts(self) -> None:
         conn = create_statcast_connection(":memory:")
+        cols = "game_pk, game_date, batter_id, pitcher_id, at_bat_number, pitch_number, pitch_type"
         conn.execute(
-            "INSERT INTO statcast_pitch (game_pk, game_date, batter_id, pitcher_id, at_bat_number, pitch_number, pitch_type)"
-            " VALUES (718001, '2024-06-15', 545361, 477132, 1, 1, 'FF')"
+            f"INSERT INTO statcast_pitch ({cols})" " VALUES (718001, '2024-06-15', 545361, 477132, 1, 1, 'FF')"
         )
         conn.execute(
-            "INSERT INTO statcast_pitch (game_pk, game_date, batter_id, pitcher_id, at_bat_number, pitch_number, pitch_type)"
+            f"INSERT INTO statcast_pitch ({cols})"
             " VALUES (718001, '2024-06-15', 545361, 477132, 1, 1, 'SL')"
-            " ON CONFLICT(game_pk, at_bat_number, pitch_number) DO UPDATE SET pitch_type=excluded.pitch_type"
+            " ON CONFLICT(game_pk, at_bat_number, pitch_number)"
+            " DO UPDATE SET pitch_type=excluded.pitch_type"
         )
         conn.commit()
         rows = conn.execute("SELECT pitch_type FROM statcast_pitch").fetchall()

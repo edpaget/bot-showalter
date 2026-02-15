@@ -1,5 +1,6 @@
 import sqlite3
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -107,8 +108,6 @@ class TestConnectionPool:
             conn2.execute("SELECT 1")
 
     def test_file_based_migrations_run_once(self, tmp_path: object) -> None:
-        from pathlib import Path
-
         db_path = Path(str(tmp_path)) / "pool_test.db"
         pool = ConnectionPool(db_path, size=2)
         with pool.connection() as conn:

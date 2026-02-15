@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -133,7 +134,6 @@ class TestRunManager:
         assert record.tags_json == {"env": "test"}
 
     def test_finalize_run_captures_git_commit(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import subprocess
 
         fake_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123\n")
         monkeypatch.setattr(
@@ -152,7 +152,6 @@ class TestRunManager:
         assert repo._records[0].git_commit == "abc123"
 
     def test_finalize_run_git_commit_none_on_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import subprocess
 
         def _raise(*args, **kwargs):
             raise FileNotFoundError("git not found")
@@ -169,7 +168,6 @@ class TestRunManager:
         assert repo._records[0].git_commit is None
 
     def test_finalize_run_returns_record_id(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import subprocess
 
         monkeypatch.setattr(
             subprocess,
@@ -187,7 +185,6 @@ class TestRunManager:
         assert row_id == 1
 
     def test_finalize_run_with_metrics(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import subprocess
 
         monkeypatch.setattr(
             subprocess,
@@ -215,7 +212,6 @@ class TestRunManager:
             mgr.begin_run(model, config)
 
     def test_delete_run_removes_record(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import subprocess
 
         monkeypatch.setattr(
             subprocess,
@@ -235,7 +231,6 @@ class TestRunManager:
         assert len(repo._records) == 0
 
     def test_delete_run_removes_artifact_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import subprocess
 
         monkeypatch.setattr(
             subprocess,
@@ -259,7 +254,6 @@ class TestRunManager:
         assert not artifact_dir.exists()
 
     def test_delete_run_no_artifact_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import subprocess
 
         monkeypatch.setattr(
             subprocess,

@@ -108,7 +108,10 @@ class SqliteProjectionRepo:
     @staticmethod
     def _select_sql() -> str:
         stat_col_list = ", ".join(_STAT_COLUMNS)
-        return f"SELECT id, player_id, season, system, version, player_type, {stat_col_list}, loaded_at, source_type FROM projection"
+        return (
+            f"SELECT id, player_id, season, system, version, player_type,"
+            f" {stat_col_list}, loaded_at, source_type FROM projection"
+        )
 
     @staticmethod
     def _row_to_projection(row: sqlite3.Row) -> Projection:
