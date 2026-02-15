@@ -372,6 +372,17 @@ class TestSelectExprProjection:
         assert sql == "pr0.hr AS steamer_hr"
         assert params == []
 
+    def test_projection_rate(self) -> None:
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.PROJECTION, 0, "steamer", None): JoinSpec(
+                source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer"
+            ),
+        }
+        f = Feature(name="steamer_hr_rate", source=Source.PROJECTION, column="hr", system="steamer", denominator="pa")
+        sql, params = _select_expr(f, joins_dict, None)
+        assert sql == "CAST(pr0.hr AS REAL) / NULLIF(pr0.pa, 0) AS steamer_hr_rate"
+        assert params == []
+
 
 class TestRawExpr:
     def test_raw_expr_direct(self) -> None:
@@ -966,6 +977,26 @@ class TestProjectionRoundTrip:
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
         assert trout["steamer_hr"] == 38
+
+    def test_projection_rate_stat(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(
+                Feature(
+                    name="steamer_hr_rate",
+                    source=Source.PROJECTION,
+                    column="hr",
+                    system="steamer",
+                    denominator="pa",
+                ),
+            ),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["steamer_hr_rate"] == pytest.approx(38 / 620)
 
 
 def _noop_transform(rows: list[dict[str, Any]]) -> dict[str, Any]:

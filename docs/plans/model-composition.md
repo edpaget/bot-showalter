@@ -12,57 +12,34 @@ Both patterns should work within the existing `Model` protocol — no new abstra
 
 ### Design constraints
 
-- **Projections are stored as JSON blobs** (`stat_json` column). The SQL generator can't do `alias.hr` for projections — it needs `json_extract(alias.stat_json, '$.hr')`. This is the key gap in the existing `Source.PROJECTION` support.
-- **`Feature` already carries `system` and `version` fields.** The `FeatureBuilder` DSL already supports `.system()` and `.version()`. The SQL join planner already filters projection joins by system/version/player_type. So the plumbing is partially there — just the column expression generation is missing.
+- **Projections use flat columns** (`pa`, `hr`, `bb`, etc.), same schema as `batting_stats`. The `SqliteProjectionRepo` maps between flat columns and the domain `Projection.stat_json` dict. The SQL generator uses direct column references (`alias.hr`) — no `json_extract` needed.
+- **`Feature` already carries `system` and `version` fields.** The `FeatureBuilder` DSL supports `.system()` and `.version()`. The SQL join planner filters projection joins by system/version/player_type. Direct column access, join planning, and filtering all work end-to-end.
 - **Ensemble models don't need the feature system at all.** They operate on already-stored projections, not on raw data. A model that depends on `ProjectionRepo` is sufficient.
 
 ---
 
-## Phase 1 — Projection feature SQL: json_extract support
+## Phase 1 — Projection feature validation and test coverage
 
-Complete the `Source.PROJECTION` support so any model can declare features that read stats from a prior projection system's output.
+`Source.PROJECTION` features already work with flat columns: direct access, join planning, system/version/player_type filtering are all tested in `TestProjectionRoundTrip` (6 integration tests). The `projection` `SourceRef` is already exported from `features/__init__.py`.
 
-### 1a. Column expression for projection features
+This phase adds missing validation and test coverage.
 
-**File:** `features/sql.py`
-
-When a `Feature` has `source=Source.PROJECTION`, `_raw_expr` must emit `json_extract({alias}.stat_json, '$.{column}')` instead of `{alias}.{column}`. Specifically:
-
-- Direct column: `json_extract(pr0.stat_json, '$.hr')` instead of `pr0.hr`.
-- Rate stat (denominator): `CAST(json_extract(pr0.stat_json, '$.hr') AS REAL) / NULLIF(json_extract(pr0.stat_json, '$.pa'), 0)`.
-- Rolling aggregates over projections are unlikely to be needed (projections are single-season), but if requested the subquery form should use `json_extract` too.
-
-The change is localized to `_raw_expr` — add an early branch when `feature.source == Source.PROJECTION` that wraps column references in `json_extract`.
-
-### 1b. Feature DSL convenience
+### 1a. Validation: require `.system()` for projection features
 
 **File:** `features/types.py`
 
-`SourceRef` for `Source.PROJECTION` should require `.system()` before `.alias()` — a projection feature without a system filter is ambiguous. Add a validation check in `FeatureBuilder.alias()` that raises if `source == PROJECTION` and `system` is None.
+`FeatureBuilder.alias()` now raises `ValueError` when `source == Source.PROJECTION` and `system` is `None`. A projection feature without a system filter is ambiguous and previously caused a `KeyError` at SQL generation time.
 
-Add a module-level `SourceRef` for projections:
+### 1b. Rate stat coverage for projections
 
-**File:** `features/__init__.py`
+Added `pa` to all projection seed data fixtures and added tests for projection features with `denominator` (e.g., `hr / pa`). The generic `_raw_expr` handles denominators correctly for projections — just needed test coverage.
 
-```python
-projection = SourceRef(Source.PROJECTION)
-```
+### 1c. Tests added
 
-Usage:
-
-```python
-from fantasy_baseball_manager.features import projection
-
-projection.col("pa").system("marcel").version("2024.1").lag(0).alias("marcel_pa")
-projection.col("hr").system("marcel").lag(0).per("pa").alias("marcel_hr_rate")
-```
-
-### 1c. Tests
-
-- Unit test `generate_sql` with a feature set containing `Source.PROJECTION` features — verify `json_extract` appears in the output SQL.
-- Test that system/version params propagate into the JOIN clause (already covered by existing tests, but add a case that also checks the SELECT expression).
-- Test that a projection feature without `.system()` raises a validation error.
-- Integration test: insert projections into the DB, materialize a feature set that reads them, verify correct values.
+- `TestFeatureBuilder.test_projection_without_system_raises` — validates the new error.
+- `TestFeatureBuilder.test_projection_with_system_succeeds` — confirms valid usage still works.
+- `TestSelectExprProjection.test_projection_rate` — unit test for rate SQL expression.
+- `TestProjectionRoundTrip.test_projection_rate_stat` — integration test with real DB.
 
 ---
 
@@ -261,7 +238,7 @@ For the composite model, store `_pt_system` in `stat_json` so the display can sh
 ## Phase order and dependencies
 
 ```
-Phase 1 (Source.PROJECTION json_extract)
+Phase 1 (Source.PROJECTION validation + coverage) ✅
   ↓
 Phase 2 (Ensemble model)          Phase 3 (Stacked PT model)
   [independent of each other, but both depend on Phase 1]

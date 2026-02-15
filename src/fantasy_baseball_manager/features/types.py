@@ -111,6 +111,9 @@ class FeatureBuilder:
         return self
 
     def alias(self, name: str) -> Feature:
+        if self._source == Source.PROJECTION and self._system is None:
+            msg = "Projection features require .system() to be specified"
+            raise ValueError(msg)
         return Feature(
             name=name,
             source=self._source,

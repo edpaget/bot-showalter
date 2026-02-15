@@ -211,6 +211,16 @@ class TestFeatureBuilder:
         assert feature.computed is None
         assert feature.system is None
 
+    def test_projection_without_system_raises(self) -> None:
+        builder = FeatureBuilder(source=Source.PROJECTION, column="hr")
+        with pytest.raises(ValueError, match="system"):
+            builder.alias("proj_hr")
+
+    def test_projection_with_system_succeeds(self) -> None:
+        feature = FeatureBuilder(source=Source.PROJECTION, column="hr").system("steamer").alias("steamer_hr")
+        assert feature.source == Source.PROJECTION
+        assert feature.system == "steamer"
+
 
 class TestSourceRef:
     def test_col_returns_feature_builder(self) -> None:

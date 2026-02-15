@@ -46,7 +46,7 @@ def seed_batting_data(conn: sqlite3.Connection) -> None:
         (2, 2023, "fangraphs", 580, 32, 60, 480, 145),
     ]
     conn.executemany(
-        "INSERT INTO batting_stats (player_id, season, source, pa, hr, bb, ab, h) " "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO batting_stats (player_id, season, source, pa, hr, bb, ab, h) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         batting_rows,
     )
     conn.commit()
@@ -55,17 +55,17 @@ def seed_batting_data(conn: sqlite3.Connection) -> None:
 def seed_projection_data(conn: sqlite3.Connection) -> None:
     """Insert projection data for 2 players x 1 season x 2 systems."""
     projection_rows = [
-        # (player_id, season, system, version, player_type, hr, bb, avg, war)
-        (1, 2023, "steamer", "2023.1", "batter", 38, 68, 0.285, 6.0),
-        (1, 2023, "zips", "2023.1", "batter", 33, 62, 0.275, 5.2),
-        (2, 2023, "steamer", "2023.1", "batter", 30, 58, 0.290, 5.5),
-        (2, 2023, "zips", "2023.1", "batter", 27, 52, 0.280, 4.8),
+        # (player_id, season, system, version, player_type, pa, hr, bb, avg, war)
+        (1, 2023, "steamer", "2023.1", "batter", 620, 38, 68, 0.285, 6.0),
+        (1, 2023, "zips", "2023.1", "batter", 580, 33, 62, 0.275, 5.2),
+        (2, 2023, "steamer", "2023.1", "batter", 610, 30, 58, 0.290, 5.5),
+        (2, 2023, "zips", "2023.1", "batter", 570, 27, 52, 0.280, 4.8),
     ]
-    for pid, season, system, version, ptype, hr, bb, avg, war in projection_rows:
+    for pid, season, system, version, ptype, pa, hr, bb, avg, war in projection_rows:
         conn.execute(
-            "INSERT INTO projection (player_id, season, system, version, player_type, hr, bb, avg, war)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (pid, season, system, version, ptype, hr, bb, avg, war),
+            "INSERT INTO projection (player_id, season, system, version, player_type, pa, hr, bb, avg, war)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, pa, hr, bb, avg, war),
         )
     conn.commit()
 
@@ -73,15 +73,15 @@ def seed_projection_data(conn: sqlite3.Connection) -> None:
 def seed_projection_v2_data(conn: sqlite3.Connection) -> None:
     """Insert version='2023.2' projection rows with different stats."""
     projection_rows = [
-        # (player_id, season, system, version, player_type, hr, bb, avg, war)
-        (1, 2023, "steamer", "2023.2", "batter", 42, 72, 0.295, 7.0),
-        (2, 2023, "steamer", "2023.2", "batter", 34, 62, 0.300, 6.0),
+        # (player_id, season, system, version, player_type, pa, hr, bb, avg, war)
+        (1, 2023, "steamer", "2023.2", "batter", 630, 42, 72, 0.295, 7.0),
+        (2, 2023, "steamer", "2023.2", "batter", 620, 34, 62, 0.300, 6.0),
     ]
-    for pid, season, system, version, ptype, hr, bb, avg, war in projection_rows:
+    for pid, season, system, version, ptype, pa, hr, bb, avg, war in projection_rows:
         conn.execute(
-            "INSERT INTO projection (player_id, season, system, version, player_type, hr, bb, avg, war)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (pid, season, system, version, ptype, hr, bb, avg, war),
+            "INSERT INTO projection (player_id, season, system, version, player_type, pa, hr, bb, avg, war)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, pa, hr, bb, avg, war),
         )
     conn.commit()
 
@@ -89,15 +89,15 @@ def seed_projection_v2_data(conn: sqlite3.Connection) -> None:
 def seed_projection_pitcher_data(conn: sqlite3.Connection) -> None:
     """Insert player_type='pitcher' projection rows with different stats."""
     projection_rows = [
-        # (player_id, season, system, version, player_type, hr, bb, avg, war)
-        (1, 2023, "steamer", "2023.1", "pitcher", 2, 80, 0.150, 3.0),
-        (2, 2023, "steamer", "2023.1", "pitcher", 1, 75, 0.140, 2.5),
+        # (player_id, season, system, version, player_type, pa, hr, bb, avg, war)
+        (1, 2023, "steamer", "2023.1", "pitcher", 50, 2, 80, 0.150, 3.0),
+        (2, 2023, "steamer", "2023.1", "pitcher", 45, 1, 75, 0.140, 2.5),
     ]
-    for pid, season, system, version, ptype, hr, bb, avg, war in projection_rows:
+    for pid, season, system, version, ptype, pa, hr, bb, avg, war in projection_rows:
         conn.execute(
-            "INSERT INTO projection (player_id, season, system, version, player_type, hr, bb, avg, war)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (pid, season, system, version, ptype, hr, bb, avg, war),
+            "INSERT INTO projection (player_id, season, system, version, player_type, pa, hr, bb, avg, war)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, pa, hr, bb, avg, war),
         )
     conn.commit()
 
