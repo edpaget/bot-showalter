@@ -88,6 +88,8 @@ class EnsembleModel:
                         "season": season,
                         "player_type": player_type,
                         **result_stats,
+                        "_components": dict(components),
+                        "_mode": mode,
                     }
                 )
 

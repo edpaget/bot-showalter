@@ -201,7 +201,7 @@ Document the dependency in the model's description and in `fbm predict --help` o
 
 ---
 
-## Phase 4 — Evaluation support for composed models
+## Phase 4 — Evaluation support for composed models ✅
 
 Ensure the evaluation and comparison infrastructure works cleanly with ensembles and stacked models.
 
@@ -243,7 +243,7 @@ Phase 1 (Source.PROJECTION validation + coverage) ✅
 Phase 2 (Ensemble model) ✅        Phase 3 (Stacked PT model) ✅
   [independent of each other, but both depend on Phase 1]
   ↓                                ↓
-Phase 4 (Evaluation support)  [depends on 2 and 3]
+Phase 4 (Evaluation support) ✅  [depends on 2 and 3]
 ```
 
 Phase 2 technically doesn't need Phase 1 (it uses `ProjectionRepo` directly, not the feature system), so it could be done in parallel with Phase 1. But Phase 1 is a small, self-contained change that benefits both patterns, so doing it first keeps things clean.

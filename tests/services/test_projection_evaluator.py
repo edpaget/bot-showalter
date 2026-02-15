@@ -245,3 +245,66 @@ class TestCompareMultipleSystems:
         system_names = [s.system for s in result.systems]
         assert "steamer" in system_names
         assert "zips" in system_names
+
+
+class TestCompareComposedSystems:
+    def test_compare_includes_ensemble_system(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=29, avg=0.270, system="ensemble", version="2025.1")
+        _seed_batter_projection(proj_repo, 2, hr=23, avg=0.295, system="ensemble", version="2025.1")
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310)
+
+        result = evaluator.compare(
+            [("ensemble", "2025.1")],
+            season=2025,
+        )
+        assert len(result.systems) == 1
+        assert result.systems[0].system == "ensemble"
+        assert "hr" in result.systems[0].metrics
+        assert result.systems[0].metrics["hr"].n == 2
+
+    def test_compare_includes_composite_system(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, system="composite", version="2025.1")
+        _seed_batter_projection(proj_repo, 2, hr=24, avg=0.290, system="composite", version="2025.1")
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310)
+
+        result = evaluator.compare(
+            [("composite", "2025.1")],
+            season=2025,
+        )
+        assert len(result.systems) == 1
+        assert result.systems[0].system == "composite"
+        assert "hr" in result.systems[0].metrics
+
+    def test_compare_ensemble_alongside_components(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2):
+            _seed_player(conn, pid)
+        # Component systems
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, system="marcel", version="2025.1")
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300, system="marcel", version="2025.1")
+        _seed_batter_projection(proj_repo, 1, hr=28, avg=0.270, system="steamer", version="2025.1")
+        _seed_batter_projection(proj_repo, 2, hr=22, avg=0.290, system="steamer", version="2025.1")
+        # Ensemble system
+        _seed_batter_projection(proj_repo, 1, hr=29, avg=0.275, system="ensemble", version="2025.1")
+        _seed_batter_projection(proj_repo, 2, hr=24, avg=0.295, system="ensemble", version="2025.1")
+        # Actuals
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310)
+
+        result = evaluator.compare(
+            [("marcel", "2025.1"), ("steamer", "2025.1"), ("ensemble", "2025.1")],
+            season=2025,
+        )
+        assert len(result.systems) == 3
+        system_names = [s.system for s in result.systems]
+        assert "marcel" in system_names
+        assert "steamer" in system_names
+        assert "ensemble" in system_names

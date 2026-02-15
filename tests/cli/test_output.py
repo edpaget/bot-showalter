@@ -2,7 +2,8 @@ from typing import Any
 
 import pytest
 
-from fantasy_baseball_manager.cli._output import print_error, print_features
+from fantasy_baseball_manager.cli._output import print_error, print_features, print_player_projections
+from fantasy_baseball_manager.domain.projection import PlayerProjection
 from fantasy_baseball_manager.features.types import (
     DeltaFeature,
     Feature,
@@ -108,3 +109,83 @@ class TestPrintFeatures:
         assert "computed=age" in captured.out
         assert "delta(hr_1 - hr_2)" in captured.out
         assert "barrel_pct, hard_hit_pct" in captured.out
+
+
+def _make_player_projection(
+    stats: dict[str, Any],
+    system: str = "steamer",
+    version: str = "2025.1",
+    source_type: str = "third_party",
+    player_type: str = "batter",
+) -> PlayerProjection:
+    return PlayerProjection(
+        player_name="Mike Trout",
+        system=system,
+        version=version,
+        source_type=source_type,
+        player_type=player_type,
+        stats=stats,
+    )
+
+
+class TestPrintPlayerProjectionsLineage:
+    def test_print_player_projections_ensemble_lineage(self, capsys: pytest.CaptureFixture[str]) -> None:
+        proj = _make_player_projection(
+            stats={
+                "hr": 30.0,
+                "rbi": 90.0,
+                "_components": {"marcel": 0.6, "steamer": 0.4},
+                "_mode": "weighted_average",
+            },
+            system="ensemble",
+        )
+        print_player_projections([proj])
+        captured = capsys.readouterr()
+        assert "Sources:" in captured.out
+        assert "marcel 60%" in captured.out
+        assert "steamer 40%" in captured.out
+        assert "weighted_average" in captured.out
+
+    def test_print_player_projections_composite_lineage(self, capsys: pytest.CaptureFixture[str]) -> None:
+        proj = _make_player_projection(
+            stats={
+                "hr": 30.0,
+                "_pt_system": "playing_time",
+            },
+            system="composite",
+        )
+        print_player_projections([proj])
+        captured = capsys.readouterr()
+        assert "PT source:" in captured.out
+        assert "playing_time" in captured.out
+
+    def test_print_player_projections_hides_metadata_keys(self, capsys: pytest.CaptureFixture[str]) -> None:
+        proj = _make_player_projection(
+            stats={
+                "hr": 30.0,
+                "avg": 0.280,
+                "_components": {"marcel": 0.6, "steamer": 0.4},
+                "_mode": "weighted_average",
+                "_pt_system": "playing_time",
+                "rates": {"hr_rate": 0.05},
+            },
+            system="ensemble",
+        )
+        print_player_projections([proj])
+        captured = capsys.readouterr()
+        assert "_components" not in captured.out
+        assert "_mode" not in captured.out
+        assert "_pt_system" not in captured.out
+        assert "rates" not in captured.out
+        assert "hr" in captured.out
+        assert "avg" in captured.out
+
+    def test_print_player_projections_plain_system(self, capsys: pytest.CaptureFixture[str]) -> None:
+        proj = _make_player_projection(
+            stats={"hr": 30.0, "avg": 0.280},
+            system="steamer",
+        )
+        print_player_projections([proj])
+        captured = capsys.readouterr()
+        assert "Sources:" not in captured.out
+        assert "PT source:" not in captured.out

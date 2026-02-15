@@ -260,3 +260,45 @@ class TestEnsemblePredict:
         pred = result.predictions[0]
         assert pred["hr"] == 25.0
         assert pred["rbi"] == 90.0
+
+    def test_predict_includes_components_metadata(self) -> None:
+        """Prediction dicts include _components dict for lineage display."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"hr": 30.0}),
+                _make_projection(1, "steamer", "batter", {"hr": 20.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "steamer": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stats": ["hr"],
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["_components"] == {"marcel": 0.6, "steamer": 0.4}
+
+    def test_predict_includes_mode_metadata(self) -> None:
+        """Prediction dicts include _mode string for lineage display."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"hr": 30.0}),
+                _make_projection(1, "steamer", "batter", {"hr": 20.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "steamer": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["hr"],
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["_mode"] == "blend_rates"
