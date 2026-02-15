@@ -5,6 +5,7 @@ import typer
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
+from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
@@ -131,3 +132,32 @@ def print_features(model_name: str, features: tuple[AnyFeature, ...]) -> None:
             if f.system:
                 detail += f" system={f.system}"
             typer.echo(f"  {f.name:<20} {detail}")
+
+
+def print_player_projections(projections: list[PlayerProjection]) -> None:
+    """Print player projection results."""
+    if not projections:
+        typer.echo("No projections found.")
+        return
+    for proj in projections:
+        typer.echo(f"{proj.player_name} — {proj.system} v{proj.version} ({proj.source_type}, {proj.player_type})")
+        for stat_name in sorted(proj.stats):
+            value = proj.stats[stat_name]
+            if isinstance(value, float):
+                typer.echo(f"  {stat_name:<12} {value:.3f}")
+            else:
+                typer.echo(f"  {stat_name:<12} {value}")
+
+
+def print_system_summaries(summaries: list[SystemSummary]) -> None:
+    """Print a table of available projection systems."""
+    if not summaries:
+        typer.echo("No projection systems found for this season.")
+        return
+    typer.echo(f"  {'System':<14} {'Version':<12} {'Source':<14} {'Batters':>8} {'Pitchers':>9} {'Total':>6}")
+    typer.echo(f"  {'-' * 14} {'-' * 12} {'-' * 14} {'-' * 8} {'-' * 9} {'-' * 6}")
+    for s in summaries:
+        total = s.batter_count + s.pitcher_count
+        line = f"  {s.system:<14} {s.version:<12} {s.source_type:<14}"
+        line += f" {s.batter_count:>8} {s.pitcher_count:>9} {total:>6}"
+        typer.echo(line)

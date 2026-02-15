@@ -11,17 +11,20 @@ from fantasy_baseball_manager.cli._output import (
     print_eval_result,
     print_features,
     print_import_result,
+    print_player_projections,
     print_predict_result,
     print_prepare_result,
     print_run_detail,
     print_run_list,
     print_system_metrics,
+    print_system_summaries,
     print_train_result,
 )
 from fantasy_baseball_manager.cli.factory import (
     build_eval_context,
     build_import_context,
     build_model_context,
+    build_projections_context,
     build_runs_context,
     create_model,
 )
@@ -325,3 +328,33 @@ def runs_delete(
         mgr.delete_run(system, version)
         ctx.conn.commit()
         typer.echo(f"Deleted run '{run}'")
+
+
+# --- projections subcommand group ---
+
+projections_app = typer.Typer(name="projections", help="Look up and explore projection systems")
+app.add_typer(projections_app, name="projections")
+
+
+@projections_app.command("lookup")
+def projections_lookup(
+    player_name: Annotated[str, typer.Argument(help="Player name ('Last' or 'Last, First')")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str | None, typer.Option("--system", help="Filter by system")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Look up a player's projections across systems."""
+    with build_projections_context(data_dir) as ctx:
+        results = ctx.lookup_service.lookup(player_name, season, system=system)
+    print_player_projections(results)
+
+
+@projections_app.command("systems")
+def projections_systems(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """List available projection systems for a season."""
+    with build_projections_context(data_dir) as ctx:
+        summaries = ctx.lookup_service.list_systems(season)
+    print_system_summaries(summaries)

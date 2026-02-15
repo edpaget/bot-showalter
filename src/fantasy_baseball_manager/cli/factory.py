@@ -18,6 +18,7 @@ from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingSta
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
+from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 
 
 def create_model(name: str, **kwargs: Any) -> ProjectionModel:
@@ -109,5 +110,25 @@ def build_import_context(data_dir: str) -> Iterator[ImportContext]:
             proj_repo=SqliteProjectionRepo(conn),
             log_repo=SqliteLoadLogRepo(conn),
         )
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class ProjectionsContext:
+    conn: sqlite3.Connection
+    lookup_service: ProjectionLookupService
+
+
+@contextmanager
+def build_projections_context(data_dir: str) -> Iterator[ProjectionsContext]:
+    """Composition-root context manager for projections commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        lookup_service = ProjectionLookupService(
+            SqlitePlayerRepo(conn),
+            SqliteProjectionRepo(conn),
+        )
+        yield ProjectionsContext(conn=conn, lookup_service=lookup_service)
     finally:
         conn.close()

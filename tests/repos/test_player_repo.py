@@ -95,6 +95,38 @@ class TestSqlitePlayerRepo:
         repo.upsert(Player(name_first="Joe", name_last="Smith", mlbam_id=999999))
         assert len(repo.all()) == 2
 
+    def test_get_by_last_name_exact_match(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        results = repo.get_by_last_name("Trout")
+        assert len(results) == 1
+        assert results[0].name_last == "Trout"
+
+    def test_get_by_last_name_case_insensitive(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        results = repo.get_by_last_name("trout")
+        assert len(results) == 1
+        assert results[0].name_last == "Trout"
+
+    def test_get_by_last_name_no_partial(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        results = repo.get_by_last_name("Tro")
+        assert len(results) == 0
+
+    def test_get_by_last_name_multiple(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Joe", name_last="Smith", mlbam_id=100001))
+        repo.upsert(Player(name_first="John", name_last="Smith", mlbam_id=100002))
+        results = repo.get_by_last_name("Smith")
+        assert len(results) == 2
+
+    def test_get_by_last_name_no_match(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        results = repo.get_by_last_name("Nobody")
+        assert len(results) == 0
+
     def test_upsert_update_raises_conflict_on_secondary_key_change(self, conn: sqlite3.Connection) -> None:
         repo = SqlitePlayerRepo(conn)
         repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))
