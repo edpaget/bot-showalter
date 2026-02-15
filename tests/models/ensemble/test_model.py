@@ -1,5 +1,7 @@
 from typing import Any
 
+import pytest
+
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.models.ensemble import EnsembleModel
 from fantasy_baseball_manager.models.protocols import (
@@ -396,3 +398,212 @@ class TestEnsemblePredict:
         required_keys = {"player_id", "player_type", "season", "stat", "p10", "p25", "p50", "p75", "p90", "mean", "std"}
         for dist in result.distributions:
             assert required_keys <= set(dist.keys())
+
+
+class TestEnsembleStatcastGBMIntegration:
+    """Integration tests: statcast-gbm blends correctly with Marcel."""
+
+    def test_blend_batter_rates_marcel_and_statcast_gbm(self) -> None:
+        """Overlapping batter stats are weighted-averaged; unique stats pass through."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(
+                    1,
+                    "marcel",
+                    "batter",
+                    {"avg": 0.280, "obp": 0.350, "slg": 0.450, "hr": 25.0, "pa": 600.0},
+                ),
+                _make_projection(
+                    1,
+                    "statcast-gbm",
+                    "batter",
+                    {"avg": 0.270, "obp": 0.340, "slg": 0.430, "woba": 0.330, "iso": 0.180, "babip": 0.300},
+                ),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+            },
+        )
+        result = model.predict(config)
+        assert len(result.predictions) == 1
+        pred = result.predictions[0]
+
+        # Overlapping stats: weighted average from both systems
+        assert pred["avg"] == pytest.approx((0.280 * 0.6 + 0.270 * 0.4) / 1.0)
+        assert pred["obp"] == pytest.approx((0.350 * 0.6 + 0.340 * 0.4) / 1.0)
+        assert pred["slg"] == pytest.approx((0.450 * 0.6 + 0.430 * 0.4) / 1.0)
+
+        # statcast-gbm only: pass through at own value
+        assert pred["woba"] == pytest.approx(0.330)
+        assert pred["iso"] == pytest.approx(0.180)
+        assert pred["babip"] == pytest.approx(0.300)
+
+        # Marcel only: pass through at own value
+        assert pred["hr"] == pytest.approx(25.0)
+        assert pred["pa"] == pytest.approx(600.0)
+
+    def test_blend_pitcher_rates_marcel_and_statcast_gbm(self) -> None:
+        """Overlapping pitcher stats are weighted-averaged; unique stats pass through."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(
+                    1,
+                    "marcel",
+                    "pitcher",
+                    {"era": 3.50, "whip": 1.20, "k_per_9": 9.0, "bb_per_9": 3.0, "ip": 180.0, "so": 180.0},
+                ),
+                _make_projection(
+                    1,
+                    "statcast-gbm",
+                    "pitcher",
+                    {
+                        "era": 3.80,
+                        "whip": 1.25,
+                        "k_per_9": 8.5,
+                        "bb_per_9": 3.2,
+                        "fip": 3.60,
+                        "hr_per_9": 1.1,
+                        "babip": 0.295,
+                    },
+                ),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+            },
+        )
+        result = model.predict(config)
+        assert len(result.predictions) == 1
+        pred = result.predictions[0]
+
+        # Overlapping stats: weighted average
+        assert pred["era"] == pytest.approx(3.50 * 0.6 + 3.80 * 0.4)
+        assert pred["whip"] == pytest.approx(1.20 * 0.6 + 1.25 * 0.4)
+        assert pred["k_per_9"] == pytest.approx(9.0 * 0.6 + 8.5 * 0.4)
+        assert pred["bb_per_9"] == pytest.approx(3.0 * 0.6 + 3.2 * 0.4)
+
+        # statcast-gbm only
+        assert pred["fip"] == pytest.approx(3.60)
+        assert pred["hr_per_9"] == pytest.approx(1.1)
+        assert pred["babip"] == pytest.approx(0.295)
+
+        # Marcel only
+        assert pred["ip"] == pytest.approx(180.0)
+        assert pred["so"] == pytest.approx(180.0)
+
+    def test_unequal_weights_favor_heavier_system(self) -> None:
+        """With marcel=0.6, statcast-gbm=0.4, blended avg is closer to Marcel."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.300}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.250}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stats": ["avg"],
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        blended = pred["avg"]
+        # Blended should be closer to Marcel (0.300) than statcast-gbm (0.250)
+        assert abs(blended - 0.300) < abs(blended - 0.250)
+        assert blended == pytest.approx(0.280)
+
+    def test_player_in_statcast_gbm_only(self) -> None:
+        """Player existing only in statcast-gbm still gets predictions."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280}),
+                _make_projection(2, "statcast-gbm", "batter", {"avg": 0.260, "woba": 0.310}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+            },
+        )
+        result = model.predict(config)
+        preds = {p["player_id"]: p for p in result.predictions}
+        assert 2 in preds
+        assert preds[2]["avg"] == pytest.approx(0.260)
+        assert preds[2]["woba"] == pytest.approx(0.310)
+
+    def test_distributions_for_overlapping_stats_only(self) -> None:
+        """Distributions produced for stats in both systems, not for single-system stats."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "obp": 0.350}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.270, "obp": 0.340, "woba": 0.330}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+            },
+        )
+        result = model.predict(config)
+        assert result.distributions is not None
+        dist_stats = {d["stat"] for d in result.distributions}
+        # Overlapping stats get distributions
+        assert "avg" in dist_stats
+        assert "obp" in dist_stats
+        # Single-system stat does not
+        assert "woba" not in dist_stats
+
+    def test_blend_rates_mode_with_statcast_gbm(self) -> None:
+        """blend_rates mode works with statcast-gbm alongside Marcel."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(
+                    1,
+                    "marcel",
+                    "batter",
+                    {"avg": 0.280, "obp": 0.350, "pa": 600.0},
+                ),
+                _make_projection(
+                    1,
+                    "statcast-gbm",
+                    "batter",
+                    {"avg": 0.270, "obp": 0.340},
+                ),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg", "obp"],
+                "pt_stat": "pa",
+            },
+        )
+        result = model.predict(config)
+        assert len(result.predictions) == 1
+        pred = result.predictions[0]
+        # Rates are weighted-averaged
+        assert pred["avg"] == pytest.approx(0.280 * 0.6 + 0.270 * 0.4)
+        assert pred["obp"] == pytest.approx(0.350 * 0.6 + 0.340 * 0.4)
+        # pa comes from Marcel only (statcast-gbm lacks it)
+        assert pred["pa"] == pytest.approx(600.0)

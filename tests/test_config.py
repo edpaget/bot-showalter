@@ -71,6 +71,34 @@ class TestLoadConfigFromToml:
         assert config.tags == {"env": "dev", "owner": "bob"}
 
 
+class TestEnsembleConfigWithStatcastGBM:
+    def test_ensemble_config_with_statcast_gbm_component(self, tmp_path: Path) -> None:
+        """Recommended config: 60% Marcel / 40% statcast-gbm."""
+        toml_path = tmp_path / "fbm.toml"
+        toml_path.write_text('[models.ensemble.params.components]\nmarcel = 0.6\n"statcast-gbm" = 0.4\n')
+        config = load_config(model_name="ensemble", config_dir=tmp_path)
+        assert config.model_params["components"] == {"marcel": 0.6, "statcast-gbm": 0.4}
+
+    def test_ensemble_config_blend_rates_mode(self, tmp_path: Path) -> None:
+        """blend_rates mode with explicit stats list round-trips through TOML."""
+        toml_path = tmp_path / "fbm.toml"
+        toml_path.write_text(
+            "[models.ensemble.params]\n"
+            'mode = "blend_rates"\n'
+            'pt_stat = "pa"\n'
+            'stats = ["avg", "obp", "slg"]\n'
+            "\n"
+            "[models.ensemble.params.components]\n"
+            "marcel = 0.6\n"
+            '"statcast-gbm" = 0.4\n'
+        )
+        config = load_config(model_name="ensemble", config_dir=tmp_path)
+        assert config.model_params["mode"] == "blend_rates"
+        assert config.model_params["pt_stat"] == "pa"
+        assert config.model_params["stats"] == ["avg", "obp", "slg"]
+        assert config.model_params["components"] == {"marcel": 0.6, "statcast-gbm": 0.4}
+
+
 class TestLoadConfigCliOverrides:
     def test_cli_version_overrides_toml(self, tmp_path: Path) -> None:
         toml_path = tmp_path / "fbm.toml"
