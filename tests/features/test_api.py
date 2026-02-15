@@ -39,7 +39,7 @@ class TestEndToEnd:
             batting.col("hr").per("pa").rolling_mean(3).alias("hr_rate_3yr"),
             player.age(),
             player.col("bats").alias("bats"),
-            player.col("position").alias("position"),
+            player.positions(),
             batting.col("hr").lag(0).alias("hr_next"),
         ]
 

@@ -17,6 +17,7 @@ _SOURCE_TABLES: dict[Source, str] = {
     Source.PITCHING: "pitching_stats",
     Source.PLAYER: "player",
     Source.PROJECTION: "projection",
+    Source.IL_STINT: "il_stint",
 }
 
 
@@ -25,6 +26,7 @@ _ALIAS_PREFIXES: dict[Source, str] = {
     Source.PITCHING: "pi",
     Source.PLAYER: "p",
     Source.PROJECTION: "pr",
+    Source.IL_STINT: "ils",
 }
 
 
@@ -165,7 +167,7 @@ def _rolling_subquery(
         f" AND season BETWEEN spine.season - {lower} AND spine.season - {upper}",
     ]
     params: list[object] = []
-    if source_filter is not None:
+    if source_filter is not None and table != "il_stint":
         parts.append(" AND source = ?")
         params.append(source_filter)
     parts.append(")")
@@ -192,6 +194,17 @@ def _raw_expr(
         alias = joins_dict[(Source.PLAYER, 0, None, None)].alias
         return (
             f"spine.season - CAST(SUBSTR({alias}.birth_date, 1, 4) AS INTEGER)",
+            [],
+        )
+
+    # Computed positions
+    if feature.computed == "positions":
+        return (
+            "(SELECT GROUP_CONCAT(pa.position, ',')"
+            " FROM (SELECT position, games FROM position_appearance"
+            " WHERE player_id = spine.player_id"
+            " AND season = spine.season - 1"
+            " ORDER BY games DESC) pa)",
             [],
         )
 
@@ -298,6 +311,17 @@ def _join_clause(
 
     if join.source == Source.PLAYER:
         return f"LEFT JOIN {join.table} {alias} ON {alias}.id = spine.player_id", []
+
+    if join.source == Source.IL_STINT:
+        season_expr = "spine.season" if join.lag == 0 else f"spine.season - {join.lag}"
+        subquery = (
+            "(SELECT player_id, season, COALESCE(SUM(days), 0) AS days, COUNT(*) AS stint_count"
+            f" FROM {join.table} GROUP BY player_id, season)"
+        )
+        return (
+            f"LEFT JOIN {subquery} {alias} ON {alias}.player_id = spine.player_id AND {alias}.season = {season_expr}",
+            [],
+        )
 
     season_expr = "spine.season" if join.lag == 0 else f"spine.season - {join.lag}"
     parts = [

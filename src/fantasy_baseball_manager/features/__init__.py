@@ -20,6 +20,7 @@ pitching = SourceRef(Source.PITCHING)
 player = SourceRef(Source.PLAYER)
 projection = SourceRef(Source.PROJECTION)
 statcast = SourceRef(Source.STATCAST)
+il_stint = SourceRef(Source.IL_STINT)
 
 
 def delta(name: str, left: Feature, right: Feature) -> DeltaFeature:
@@ -43,6 +44,7 @@ __all__ = [
     "TransformFeature",
     "batting",
     "delta",
+    "il_stint",
     "pitching",
     "player",
     "projection",

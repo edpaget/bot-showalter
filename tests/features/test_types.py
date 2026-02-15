@@ -36,6 +36,9 @@ class TestSource:
     def test_statcast_value(self) -> None:
         assert Source.STATCAST.value == "statcast"
 
+    def test_il_stint_value(self) -> None:
+        assert Source.IL_STINT.value == "il_stint"
+
     def test_all_members(self) -> None:
         assert set(Source) == {
             Source.BATTING,
@@ -43,6 +46,7 @@ class TestSource:
             Source.PLAYER,
             Source.PROJECTION,
             Source.STATCAST,
+            Source.IL_STINT,
         }
 
 
@@ -295,6 +299,19 @@ class TestSourceRef:
         ref = SourceRef(Source.PITCHING)
         with pytest.raises(ValueError, match="age.*player"):
             ref.age()
+
+    def test_positions_returns_feature_for_player(self) -> None:
+        ref = SourceRef(Source.PLAYER)
+        feature = ref.positions()
+        assert isinstance(feature, Feature)
+        assert feature.name == "position"
+        assert feature.source == Source.PLAYER
+        assert feature.computed == "positions"
+
+    def test_positions_raises_for_non_player_source(self) -> None:
+        ref = SourceRef(Source.BATTING)
+        with pytest.raises(ValueError, match="positions.*player"):
+            ref.positions()
 
     def test_source_attribute(self) -> None:
         ref = SourceRef(Source.BATTING)

@@ -19,7 +19,7 @@ class SqlitePlayerRepo:
                 self._conn.execute(
                     """UPDATE player SET
                            name_first=?, name_last=?, fangraphs_id=?, bbref_id=?,
-                           retro_id=?, bats=?, throws=?, birth_date=?, position=?
+                           retro_id=?, bats=?, throws=?, birth_date=?
                        WHERE mlbam_id=?""",
                     (
                         player.name_first,
@@ -30,7 +30,6 @@ class SqlitePlayerRepo:
                         player.bats,
                         player.throws,
                         player.birth_date,
-                        player.position,
                         player.mlbam_id,
                     ),
                 )
@@ -41,8 +40,8 @@ class SqlitePlayerRepo:
         try:
             cursor = self._conn.execute(
                 """INSERT INTO player (name_first, name_last, mlbam_id, fangraphs_id,
-                                       bbref_id, retro_id, bats, throws, birth_date, position)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                       bbref_id, retro_id, bats, throws, birth_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     player.name_first,
                     player.name_last,
@@ -53,7 +52,6 @@ class SqlitePlayerRepo:
                     player.bats,
                     player.throws,
                     player.birth_date,
-                    player.position,
                 ),
             )
             return cursor.lastrowid  # type: ignore[return-value]
@@ -114,7 +112,6 @@ class SqlitePlayerRepo:
             bats=row["bats"],
             throws=row["throws"],
             birth_date=row["birth_date"],
-            position=row["position"],
         )
 
 

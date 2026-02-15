@@ -7,7 +7,7 @@ from fantasy_baseball_manager.features.types import DerivedTransformFeature, Fea
 
 
 def build_batting_features(categories: Sequence[str], lags: int = 3) -> list[Feature]:
-    features: list[Feature] = [player.age(), player.col("position").alias("position")]
+    features: list[Feature] = [player.age(), player.positions()]
     for lag_n in range(1, lags + 1):
         features.append(batting.col("pa").lag(lag_n).alias(f"pa_{lag_n}"))
         for cat in categories:
@@ -98,7 +98,7 @@ def build_pitching_league_averages(
 
 
 def build_pitching_features(categories: Sequence[str], lags: int = 3) -> list[Feature]:
-    features: list[Feature] = [player.age(), player.col("position").alias("position")]
+    features: list[Feature] = [player.age(), player.positions()]
     for lag_n in range(1, lags + 1):
         features.append(pitching.col("ip").lag(lag_n).alias(f"ip_{lag_n}"))
         features.append(pitching.col("g").lag(lag_n).alias(f"g_{lag_n}"))

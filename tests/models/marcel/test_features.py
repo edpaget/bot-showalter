@@ -15,7 +15,7 @@ class TestBuildBattingFeatures:
         pos_features = [f for f in features if isinstance(f, Feature) and f.name == "position"]
         assert len(pos_features) == 1
         assert pos_features[0].source == Source.PLAYER
-        assert pos_features[0].column == "position"
+        assert pos_features[0].computed == "positions"
 
     def test_includes_age(self) -> None:
         features = build_batting_features(["hr"])
@@ -61,7 +61,7 @@ class TestBuildPitchingFeatures:
         pos_features = [f for f in features if isinstance(f, Feature) and f.name == "position"]
         assert len(pos_features) == 1
         assert pos_features[0].source == Source.PLAYER
-        assert pos_features[0].column == "position"
+        assert pos_features[0].computed == "positions"
 
     def test_includes_age(self) -> None:
         features = build_pitching_features(["so"])

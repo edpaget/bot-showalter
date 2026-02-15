@@ -1,5 +1,3 @@
-import pandas as pd
-
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.pybaseball_source import (
     BrefBattingSource,
@@ -9,7 +7,6 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     FgPitchingSource,
     LahmanPeopleSource,
     StatcastSource,
-    _build_position_column,
     _translate_fg_params,
 )
 
@@ -111,82 +108,3 @@ class TestStatcastSource:
 
     def test_source_detail(self) -> None:
         assert StatcastSource().source_detail == "statcast"
-
-
-def _make_appearances(**overrides: object) -> dict[str, object]:
-    """Build an Appearances row with all position columns defaulting to 0."""
-    base: dict[str, object] = {
-        "playerID": "troutmi01",
-        "yearID": 2023,
-        "G_p": 0,
-        "G_c": 0,
-        "G_1b": 0,
-        "G_2b": 0,
-        "G_3b": 0,
-        "G_ss": 0,
-        "G_lf": 0,
-        "G_cf": 0,
-        "G_rf": 0,
-        "G_dh": 0,
-    }
-    base.update(overrides)
-    return base
-
-
-class TestBuildPositionColumn:
-    def test_single_position_above_threshold(self) -> None:
-        df = pd.DataFrame([_make_appearances(G_ss=500)])
-        result = _build_position_column(df)
-        row = result.set_index("playerID").loc["troutmi01"]
-        assert row["eligible_positions"] == "SS"
-
-    def test_multi_position_sorted_by_games(self) -> None:
-        df = pd.DataFrame([_make_appearances(G_ss=500, G_2b=200)])
-        result = _build_position_column(df)
-        row = result.set_index("playerID").loc["troutmi01"]
-        assert row["eligible_positions"] == "SS,2B"
-
-    def test_pitcher_only(self) -> None:
-        df = pd.DataFrame([_make_appearances(G_p=300)])
-        result = _build_position_column(df)
-        row = result.set_index("playerID").loc["troutmi01"]
-        assert row["eligible_positions"] == "P"
-
-    def test_below_threshold_excluded(self) -> None:
-        df = pd.DataFrame([_make_appearances(G_p=5)])
-        result = _build_position_column(df)
-        row = result.set_index("playerID").loc["troutmi01"]
-        assert pd.isna(row["eligible_positions"])
-
-    def test_aggregates_across_seasons(self) -> None:
-        rows = [
-            _make_appearances(yearID=2022, G_cf=80),
-            _make_appearances(yearID=2023, G_cf=90, G_rf=15),
-        ]
-        df = pd.DataFrame(rows)
-        result = _build_position_column(df)
-        row = result.set_index("playerID").loc["troutmi01"]
-        assert row["eligible_positions"] == "CF,RF"
-
-    def test_custom_min_games(self) -> None:
-        df = pd.DataFrame([_make_appearances(G_1b=15)])
-        result = _build_position_column(df, min_games=20)
-        row = result.set_index("playerID").loc["troutmi01"]
-        assert pd.isna(row["eligible_positions"])
-
-    def test_two_way_player(self) -> None:
-        df = pd.DataFrame([_make_appearances(G_dh=100, G_p=80)])
-        result = _build_position_column(df)
-        row = result.set_index("playerID").loc["troutmi01"]
-        assert row["eligible_positions"] == "DH,P"
-
-    def test_multiple_players(self) -> None:
-        rows = [
-            _make_appearances(playerID="troutmi01", G_cf=500),
-            {**_make_appearances(playerID="ohtansh01", G_dh=200, G_p=150)},
-        ]
-        df = pd.DataFrame(rows)
-        result = _build_position_column(df)
-        indexed = result.set_index("playerID")
-        assert indexed.loc["troutmi01"]["eligible_positions"] == "CF"
-        assert indexed.loc["ohtansh01"]["eligible_positions"] == "DH,P"

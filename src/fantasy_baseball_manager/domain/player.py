@@ -13,7 +13,6 @@ class Player:
     bats: str | None = None
     throws: str | None = None
     birth_date: str | None = None
-    position: str | None = None
 
 
 @dataclass(frozen=True)

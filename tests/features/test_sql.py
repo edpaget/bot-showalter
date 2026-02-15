@@ -7,6 +7,7 @@ import pytest
 from tests.features.conftest import (
     seed_batting_data,
     seed_distribution_data,
+    seed_il_stint_data,
     seed_projection_data,
     seed_projection_pitcher_data,
     seed_projection_v2_data,
@@ -48,6 +49,9 @@ class TestSourceTable:
     def test_projection(self) -> None:
         assert _source_table(Source.PROJECTION) == "projection"
 
+    def test_il_stint(self) -> None:
+        assert _source_table(Source.IL_STINT) == "il_stint"
+
 
 class TestJoinAlias:
     def test_batting_lag_0(self) -> None:
@@ -68,6 +72,9 @@ class TestJoinAlias:
     def test_projection_with_system_counter(self) -> None:
         assert _join_alias(Source.PROJECTION, 0, counter=0) == "pr0"
         assert _join_alias(Source.PROJECTION, 0, counter=1) == "pr1"
+
+    def test_il_stint_lag_1(self) -> None:
+        assert _join_alias(Source.IL_STINT, 1) == "ils1"
 
 
 class TestPlanJoins:
@@ -187,6 +194,22 @@ class TestPlanJoins:
         assert Source.BATTING in sources
         assert Source.PROJECTION in sources
 
+    def test_il_stint_creates_join(self) -> None:
+        features = (Feature(name="il_days_1", source=Source.IL_STINT, column="days", lag=1),)
+        joins = _plan_joins(features)
+        assert len(joins) == 1
+        assert joins[0].source == Source.IL_STINT
+        assert joins[0].lag == 1
+
+    def test_il_stint_same_lag_deduped(self) -> None:
+        features = (
+            Feature(name="il_days_1", source=Source.IL_STINT, column="days", lag=1),
+            Feature(name="il_stints_1", source=Source.IL_STINT, column="stint_count", lag=1),
+        )
+        joins = _plan_joins(features)
+        il_joins = [j for j in joins if j.source == Source.IL_STINT]
+        assert len(il_joins) == 1
+
 
 class TestSelectExprDirect:
     def _joins_dict(self) -> dict[tuple[Source, int, str | None, str | None], JoinSpec]:
@@ -216,6 +239,15 @@ class TestSelectExprDirect:
         assert sql == "p.bats AS bats"
         assert params == []
 
+    def test_il_stint_direct(self) -> None:
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.IL_STINT, 1, None, None): JoinSpec(source=Source.IL_STINT, lag=1, alias="ils1", table="il_stint"),
+        }
+        f = Feature(name="il_days_1", source=Source.IL_STINT, column="days", lag=1)
+        sql, params = _select_expr(f, joins_dict, None)
+        assert sql == "ils1.days AS il_days_1"
+        assert params == []
+
 
 class TestSelectExprAge:
     def test_computed_age(self) -> None:
@@ -225,6 +257,22 @@ class TestSelectExprAge:
         f = Feature(name="age", source=Source.PLAYER, column="", computed="age")
         sql, params = _select_expr(f, joins_dict, None)
         assert sql == "spine.season - CAST(SUBSTR(p.birth_date, 1, 4) AS INTEGER) AS age"
+        assert params == []
+
+
+class TestSelectExprPositions:
+    def test_computed_positions(self) -> None:
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.PLAYER, 0, None, None): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
+        }
+        f = Feature(name="position", source=Source.PLAYER, column="", computed="positions")
+        sql, params = _select_expr(f, joins_dict, None)
+        assert "GROUP_CONCAT" in sql
+        assert "position_appearance" in sql
+        assert "spine.player_id" in sql
+        assert "spine.season - 1" in sql
+        assert "ORDER BY games DESC" in sql
+        assert sql.endswith("AS position")
         assert params == []
 
 
@@ -758,6 +806,22 @@ class TestJoinClause:
         join = JoinSpec(source=Source.PITCHING, lag=2, alias="pi2", table="pitching_stats")
         sql, params = _join_clause(join, None)
         assert "pi2.season = spine.season - 2" in sql
+        assert params == []
+
+    def test_il_stint_aggregation_subquery(self) -> None:
+        join = JoinSpec(source=Source.IL_STINT, lag=1, alias="ils1", table="il_stint")
+        sql, params = _join_clause(join, None)
+        assert "COALESCE(SUM(days), 0) AS days" in sql
+        assert "COUNT(*) AS stint_count" in sql
+        assert "GROUP BY player_id, season" in sql
+        assert "ils1.player_id = spine.player_id" in sql
+        assert "ils1.season = spine.season - 1" in sql
+        assert params == []
+
+    def test_il_stint_no_source_filter(self) -> None:
+        join = JoinSpec(source=Source.IL_STINT, lag=1, alias="ils1", table="il_stint")
+        sql, params = _join_clause(join, "fangraphs")
+        assert "source" not in sql
         assert params == []
 
 
@@ -1294,3 +1358,71 @@ class TestTransformFeatureSkipped:
         assert "spine.player_id" in sql
         assert "spine.season" in sql
         assert "ff_pct" not in sql
+
+
+class TestILStintRoundTrip:
+    """Integration tests for IL stint features against seeded SQLite."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self, conn: sqlite3.Connection) -> None:
+        seed_batting_data(conn)
+        seed_il_stint_data(conn)
+        self._conn = conn
+
+    def _execute_dicts(self, fs: FeatureSet) -> list[dict[str, object]]:
+        sql, params = generate_sql(fs)
+        cursor = self._conn.execute(sql, params)
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def test_il_days_lag1(self) -> None:
+        """Player 1 had 77 days in 2022 (2 stints), so lag=1 from 2023 -> 77."""
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="il_days_1", source=Source.IL_STINT, column="days", lag=1),),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["il_days_1"] == 77  # 65 + 12
+
+    def test_stint_count_lag1(self) -> None:
+        """Player 1 had 2 stints in 2022, so lag=1 from 2023 -> 2."""
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="il_stints_1", source=Source.IL_STINT, column="stint_count", lag=1),),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["il_stints_1"] == 2
+
+    def test_no_stints_returns_null(self) -> None:
+        """Player 2 had no stints in 2022, lag=1 from 2023 -> NULL (no row in subquery)."""
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="il_days_1", source=Source.IL_STINT, column="days", lag=1),),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        betts = next(r for r in rows if r["player_id"] == 2)
+        assert betts["il_days_1"] is None
+
+    def test_il_days_lag2(self) -> None:
+        """Player 1 had 15 days in 2021, so lag=2 from 2023 -> 15."""
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="il_days_2", source=Source.IL_STINT, column="days", lag=2),),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["il_days_2"] == 15

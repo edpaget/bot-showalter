@@ -19,7 +19,6 @@ class TestPlayer:
         assert player.bats is None
         assert player.throws is None
         assert player.birth_date is None
-        assert player.position is None
 
     def test_construct_with_all_fields(self) -> None:
         player = Player(
@@ -33,7 +32,6 @@ class TestPlayer:
             bats="R",
             throws="R",
             birth_date="1991-08-07",
-            position="CF",
         )
         assert player.id == 1
         assert player.mlbam_id == 545361

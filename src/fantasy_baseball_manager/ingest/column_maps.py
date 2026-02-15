@@ -350,7 +350,6 @@ def make_lahman_bio_mapper(
             bats=_to_optional_str(row.get("bats")),
             throws=_to_optional_str(row.get("throws")),
             birth_date=birth_date,
-            position=_to_optional_str(row.get("eligible_positions")),
         )
 
     return mapper

@@ -14,6 +14,7 @@ class Source(enum.Enum):
     PLAYER = "player"
     PROJECTION = "projection"
     STATCAST = "statcast"
+    IL_STINT = "il_stint"
 
 
 @dataclass(frozen=True)
@@ -161,6 +162,12 @@ class SourceRef:
             msg = "age() is only available on the player source"
             raise ValueError(msg)
         return Feature(name="age", source=self.source, column="", computed="age")
+
+    def positions(self) -> Feature:
+        if self.source != Source.PLAYER:
+            msg = "positions() is only available on the player source"
+            raise ValueError(msg)
+        return Feature(name="position", source=self.source, column="", computed="positions")
 
 
 def _transform_feature_to_dict(f: TransformFeature) -> dict[str, object]:

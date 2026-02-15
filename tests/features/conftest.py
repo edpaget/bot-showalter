@@ -126,6 +126,23 @@ def seed_distribution_data(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def seed_il_stint_data(conn: sqlite3.Connection) -> None:
+    """Insert IL stint data for 2 players across 2021-2022."""
+    il_rows = [
+        # (player_id, season, start_date, il_type, days, injury_location, transaction_type)
+        (1, 2021, "2021-05-18", "10", 15, "Right calf strain", "placement"),
+        (1, 2022, "2022-07-12", "60", 65, "Back surgery", "placement"),
+        (1, 2022, "2022-04-01", "10", 12, "Left hamstring", "placement"),
+        (2, 2021, "2021-06-15", "15", 20, "Right hip", "placement"),
+    ]
+    conn.executemany(
+        "INSERT INTO il_stint (player_id, season, start_date, il_type, days, injury_location, transaction_type)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        il_rows,
+    )
+    conn.commit()
+
+
 @pytest.fixture
 def seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
     """Connection with 2 players x 4 seasons of batting data pre-loaded."""

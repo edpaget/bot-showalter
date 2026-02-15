@@ -59,11 +59,11 @@ class TestSqlitePlayerRepo:
 
     def test_upsert_updates_existing(self, conn: sqlite3.Connection) -> None:
         repo = SqlitePlayerRepo(conn)
-        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, position="CF"))
-        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, position="DH"))
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, bats="R"))
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, bats="L"))
         result = repo.get_by_mlbam_id(545361)
         assert result is not None
-        assert result.position == "DH"
+        assert result.bats == "L"
         assert len(repo.all()) == 1
 
     def test_upsert_raises_conflict_on_fangraphs_id(self, conn: sqlite3.Connection) -> None:

@@ -442,14 +442,12 @@ class TestIngestBio:
         assert trout.birth_date == "1991-08-07"
         assert trout.bats == "R"
         assert trout.throws == "R"
-        assert trout.position == "CF,RF"
 
         ohtani = repo.get_by_mlbam_id(660271)
         assert ohtani is not None
         assert ohtani.birth_date == "1994-07-05"
         assert ohtani.bats == "L"
         assert ohtani.throws == "R"
-        assert ohtani.position == "DH,P"
         conn.close()
 
     def test_ingest_bio_skips_unmatched_players(self, monkeypatch: pytest.MonkeyPatch) -> None:
