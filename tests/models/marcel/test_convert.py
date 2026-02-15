@@ -273,7 +273,7 @@ class TestProjectionToDomain:
         assert domain.player_type == "batter"
         assert domain.stat_json["hr"] == 25.0
         assert domain.stat_json["pa"] == 550
-        assert domain.stat_json["rates"]["hr"] == 0.045
+        assert "rates" not in domain.stat_json
 
     def test_pitcher_projection(self) -> None:
         proj = MarcelProjection(
@@ -288,3 +288,91 @@ class TestProjectionToDomain:
         assert domain.player_type == "pitcher"
         assert domain.stat_json["ip"] == 180.0
         assert domain.stat_json["so"] == 180.0
+
+    def test_batter_rate_stats(self) -> None:
+        proj = MarcelProjection(
+            player_id=1,
+            projected_season=2024,
+            age=29,
+            stats={
+                "h": 150.0,
+                "doubles": 30.0,
+                "triples": 3.0,
+                "hr": 25.0,
+                "bb": 60.0,
+                "hbp": 5.0,
+                "sf": 5.0,
+                "r": 80.0,
+                "rbi": 85.0,
+                "so": 120.0,
+                "sb": 10.0,
+                "cs": 3.0,
+            },
+            rates={},
+            pa=600,
+        )
+        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        # ab = pa - bb - hbp - sf = 600 - 60 - 5 - 5 = 530
+        ab = 530
+        assert domain.stat_json["ab"] == pytest.approx(ab)
+        assert domain.stat_json["avg"] == pytest.approx(150.0 / ab)
+        # obp = (h + bb + hbp) / (ab + bb + hbp + sf)
+        assert domain.stat_json["obp"] == pytest.approx((150 + 60 + 5) / (ab + 60 + 5 + 5))
+        # singles = 150 - 30 - 3 - 25 = 92
+        # slg = (92 + 2*30 + 3*3 + 4*25) / 530
+        assert domain.stat_json["slg"] == pytest.approx((92 + 60 + 9 + 100) / ab)
+        assert domain.stat_json["ops"] == pytest.approx(domain.stat_json["obp"] + domain.stat_json["slg"])
+
+    def test_pitcher_rate_stats(self) -> None:
+        proj = MarcelProjection(
+            player_id=2,
+            projected_season=2024,
+            age=28,
+            stats={
+                "w": 12.0,
+                "l": 6.0,
+                "sv": 0.0,
+                "h": 150.0,
+                "er": 60.0,
+                "hr": 18.0,
+                "bb": 45.0,
+                "so": 200.0,
+            },
+            rates={},
+            ip=180.0,
+        )
+        domain = projection_to_domain(proj, version="v1", player_type="pitcher")
+        assert domain.stat_json["era"] == pytest.approx(60.0 * 9 / 180.0)
+        assert domain.stat_json["whip"] == pytest.approx((150.0 + 45.0) / 180.0)
+        assert domain.stat_json["k_per_9"] == pytest.approx(200.0 * 9 / 180.0)
+        assert domain.stat_json["bb_per_9"] == pytest.approx(45.0 * 9 / 180.0)
+
+    def test_batter_zero_pa_no_rate_stats(self) -> None:
+        proj = MarcelProjection(
+            player_id=1,
+            projected_season=2024,
+            age=29,
+            stats={"h": 0.0, "hr": 0.0, "bb": 0.0, "hbp": 0.0, "sf": 0.0},
+            rates={},
+            pa=0,
+        )
+        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        assert "avg" not in domain.stat_json
+        assert "obp" not in domain.stat_json
+        assert "slg" not in domain.stat_json
+        assert "ops" not in domain.stat_json
+
+    def test_pitcher_zero_ip_no_rate_stats(self) -> None:
+        proj = MarcelProjection(
+            player_id=2,
+            projected_season=2024,
+            age=28,
+            stats={"er": 0.0, "h": 0.0, "bb": 0.0, "so": 0.0},
+            rates={},
+            ip=0.0,
+        )
+        domain = projection_to_domain(proj, version="v1", player_type="pitcher")
+        assert "era" not in domain.stat_json
+        assert "whip" not in domain.stat_json
+        assert "k_per_9" not in domain.stat_json
+        assert "bb_per_9" not in domain.stat_json

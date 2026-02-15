@@ -88,6 +88,44 @@ def rows_to_marcel_inputs(
     return result
 
 
+def _compute_batter_rates(stats: dict[str, float], pa: int) -> dict[str, float]:
+    """Derive batting rate stats from counting stats and PA."""
+    if pa <= 0:
+        return {}
+    bb = stats.get("bb", 0.0)
+    hbp = stats.get("hbp", 0.0)
+    sf = stats.get("sf", 0.0)
+    h = stats.get("h", 0.0)
+    doubles = stats.get("doubles", 0.0)
+    triples = stats.get("triples", 0.0)
+    hr = stats.get("hr", 0.0)
+
+    ab = pa - bb - hbp - sf
+    if ab <= 0:
+        return {}
+    singles = h - doubles - triples - hr
+    avg = h / ab
+    obp = (h + bb + hbp) / (ab + bb + hbp + sf)
+    slg = (singles + 2 * doubles + 3 * triples + 4 * hr) / ab
+    return {"ab": ab, "avg": avg, "obp": obp, "slg": slg, "ops": obp + slg}
+
+
+def _compute_pitcher_rates(stats: dict[str, float], ip: float) -> dict[str, float]:
+    """Derive pitching rate stats from counting stats and IP."""
+    if ip <= 0:
+        return {}
+    er = stats.get("er", 0.0)
+    h = stats.get("h", 0.0)
+    bb = stats.get("bb", 0.0)
+    so = stats.get("so", 0.0)
+    return {
+        "era": er * 9 / ip,
+        "whip": (h + bb) / ip,
+        "k_per_9": so * 9 / ip,
+        "bb_per_9": bb * 9 / ip,
+    }
+
+
 def projection_to_domain(
     proj: MarcelProjection,
     version: str,
@@ -95,11 +133,12 @@ def projection_to_domain(
 ) -> Projection:
     """Convert a MarcelProjection to a domain Projection for storage."""
     stat_json: dict[str, object] = dict(proj.stats)
-    stat_json["rates"] = dict(proj.rates)
     if proj.pa > 0:
         stat_json["pa"] = proj.pa
+        stat_json.update(_compute_batter_rates(proj.stats, proj.pa))
     if proj.ip > 0:
         stat_json["ip"] = proj.ip
+        stat_json.update(_compute_pitcher_rates(proj.stats, proj.ip))
 
     return Projection(
         player_id=proj.player_id,
