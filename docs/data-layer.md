@@ -274,33 +274,129 @@ for start, end in chunk_date_range("2024-06-01", "2024-06-30"):
 
 ## `features/` — Feature DSL and dataset assembly
 
-### Declaring features
+The feature system lets models declare the data they need as Python objects. The framework assembles (or reuses) a materialized SQLite table containing exactly those columns.
+
+### Package structure
+
+```
+features/
+    __init__.py          # Public API: SourceRef instances, exports
+    types.py             # Feature, TransformFeature, FeatureSet, etc.
+    protocols.py         # DatasetAssembler protocol
+    sql.py               # SQL generation from feature declarations
+    assembler.py         # SqliteDatasetAssembler (two-pass materialization)
+    library.py           # Reusable feature bundles
+    transforms/          # Python-based transform functions
+        pitch_mix.py     # Pitch-type usage and velocity profiles
+        batted_ball.py   # Exit velocity and launch angle metrics
+```
+
+### Feature types
+
+There are three kinds of features, all usable together in a single `FeatureSet`:
+
+| Type | Purpose | Handled by |
+|---|---|---|
+| `Feature` | SQL-expressible column lookups, lags, rolling aggregates, rate stats, computed values (age) | SQL generation pass |
+| `DeltaFeature` | Difference between two `Feature` values (e.g. actual minus projected) | SQL generation pass |
+| `TransformFeature` | Python callable applied to grouped raw rows — for features SQL cannot express | Transform pass |
+
+### Declaring SQL features
 
 ```python
-from fantasy_baseball_manager.features import batting, pitching, player
+from fantasy_baseball_manager.features import batting, player, projection, delta
+from fantasy_baseball_manager.features.types import FeatureSet, SpineFilter
 
 feature_set = FeatureSet(
     name="batter_model_v1",
     features=(
-        batting.col("hr"),                          # Current season HR
-        batting.col("hr").lag(1),                    # Previous season HR
-        batting.col("avg").rolling_mean(3),          # 3-year rolling AVG
-        batting.col("hr").per("pa"),                 # HR rate (HR / PA)
-        player.age(),                                # Age from birth_date
+        batting.col("hr").lag(1).alias("hr_1"),           # Previous season HR
+        batting.col("avg").rolling_mean(3).alias("avg_3"), # 3-year rolling AVG
+        batting.col("hr").per("pa").alias("hr_rate"),      # HR rate (HR / PA)
+        player.age(),                                      # Age from birth_date
+        projection.col("hr").system("steamer").alias("steamer_hr"),
+        delta("hr_error",
+              batting.col("hr").alias("actual_hr"),
+              projection.col("hr").system("steamer").alias("proj_hr")),
     ),
-    seasons=(2020, 2021, 2022, 2023, 2024),
-    spine_filter=SpineFilter(min_pa=200),
+    seasons=(2022, 2023),
+    source_filter="fangraphs",
+    spine_filter=SpineFilter(min_pa=200, player_type="batter"),
 )
 ```
 
-Features are immutable specs. The `FeatureSet.version` is a content hash of the feature definitions, seasons, and filters, so identical specs always produce the same version string.
+The builder API (`SourceRef.col()` → `FeatureBuilder` → `.lag()`, `.rolling_mean()`, `.per()`, `.system()`, `.alias()`) produces immutable `Feature` dataclasses. `SourceRef` instances (`batting`, `pitching`, `player`, `projection`, `statcast`) are pre-built in `features/__init__.py`.
 
-### Materializing datasets
+### Declaring Python transforms
+
+For features SQL cannot express — pitch-type distributions, batted-ball profiles, embeddings — use `TransformFeature`:
+
+```python
+from fantasy_baseball_manager.features.transforms import PITCH_MIX, BATTED_BALL
+
+feature_set = FeatureSet(
+    name="statcast_features",
+    features=(
+        batting.col("hr").lag(1).alias("hr_1"),
+        PITCH_MIX,      # 12 outputs: ff_pct, ff_velo, sl_pct, sl_velo, ...
+        BATTED_BALL,     # 5 outputs: avg_exit_velo, max_exit_velo, ...
+    ),
+    seasons=(2022, 2023),
+    source_filter="fangraphs",
+    spine_filter=SpineFilter(player_type="batter"),
+)
+```
+
+A `TransformFeature` declares what data to load (`source`, `columns`), how to group it (`group_by`), a Python callable to run on each group (`transform`), and what columns it produces (`outputs`). The `RowTransform` protocol is simply:
+
+```python
+class RowTransform(Protocol):
+    def __call__(self, rows: list[dict[str, Any]]) -> dict[str, Any]: ...
+```
+
+Custom transforms can be written by defining a function matching this signature and wrapping it in a `TransformFeature`.
+
+### Built-in transforms
+
+| Transform | Source | Outputs |
+|---|---|---|
+| `PITCH_MIX` | `statcast_pitch` | `ff_pct`, `ff_velo`, `sl_pct`, `sl_velo`, `ch_pct`, `ch_velo`, `cu_pct`, `cu_velo`, `si_pct`, `si_velo`, `fc_pct`, `fc_velo` |
+| `BATTED_BALL` | `statcast_pitch` | `avg_exit_velo`, `max_exit_velo`, `avg_launch_angle`, `barrel_pct`, `hard_hit_pct` |
+
+### Feature library
+
+`features/library.py` provides pre-built feature bundles:
+
+| Bundle | Contents |
+|---|---|
+| `STANDARD_BATTING_COUNTING` | 10 counting stats × 3 lags = 30 features |
+| `STANDARD_BATTING_RATES` | avg, obp, slg, ops, woba, wrc_plus at lag 1 |
+| `PLAYER_METADATA` | age |
+| `STATCAST_PITCH_MIX` | `PITCH_MIX` transform |
+| `STATCAST_BATTED_BALL` | `BATTED_BALL` transform |
+
+### Content hashing and caching
+
+`FeatureSet.version` is derived automatically by content-hashing all feature definitions, seasons, and filters. For `TransformFeature`, the hash includes the transform function's source code (via `inspect.getsource`) or an explicit `version` string if provided. Identical declarations produce the same version, enabling reuse.
+
+### Two-pass materialization
+
+The `SqliteDatasetAssembler` materializes a `FeatureSet` into a `ds_{id}` table:
+
+**Pass 1 — SQL:** Generate SQL from `Feature` and `DeltaFeature` declarations (spine CTE, JOINs, SELECT expressions), execute as `CREATE TABLE ds_{id} AS SELECT ...`. `TransformFeature` items are skipped during SQL generation.
+
+**Pass 2 — Transforms:** If any `TransformFeature` exists:
+1. `ALTER TABLE` to add a `REAL` column for each transform output.
+2. For each transform, query raw rows from the source table joined to the dataset spine.
+3. For `Source.STATCAST`, lazily `ATTACH` the statcast DB and join through `player.mlbam_id` to map `statcast_pitch.batter_id` to the dataset's `player_id`.
+4. Group rows by the transform's `group_by` key in Python.
+5. Call the transform function for each group.
+6. Batch `UPDATE` to write computed values back.
 
 ```python
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 
-assembler = SqliteDatasetAssembler(conn)
+assembler = SqliteDatasetAssembler(conn, statcast_path=Path("statcast.db"))
 
 # Materialize (or reuse if already cached)
 handle = assembler.get_or_materialize(feature_set)
@@ -309,11 +405,37 @@ handle = assembler.get_or_materialize(feature_set)
 # Read the data
 rows = assembler.read(handle)  # list[dict[str, Any]]
 
-# Split into train/validation/holdout
-splits = assembler.split(handle, train=0.7, validation=0.15, holdout=0.15)
+# Split into train/validation/holdout by season
+splits = assembler.split(
+    handle,
+    train=[2020, 2021, 2022],
+    validation=[2023],
+    holdout=[2024],
+)
+# splits.train, splits.validation, splits.holdout are DatasetHandles
 ```
 
-The assembler generates SQL from the feature declarations (via `features/sql.py`), executes the query, and stores the result in a `ds_{id}` table. Caching uses the `(name, version)` pair — identical feature sets skip re-materialization.
+### SQL generation
+
+Given features, `features/sql.py` builds a single parameterized query. Key rules:
+
+- Each unique `(source, lag, system)` tuple gets one `LEFT JOIN` with a table alias like `b1`, `pi0`, `p`, `pr0`.
+- Rolling aggregates use correlated subqueries: `(SELECT AVG(hr) FROM batting_stats WHERE player_id = spine.player_id AND season BETWEEN ...)`.
+- Rate stats become `CAST(col AS REAL) / NULLIF(denom, 0)`.
+- The spine is a CTE built from the relevant stat table, filtered by `SpineFilter`.
+- Projection joins use `system` filters instead of `source` filters.
+
+### DatasetAssembler protocol
+
+```python
+class DatasetAssembler(Protocol):
+    def materialize(self, feature_set: FeatureSet) -> DatasetHandle: ...
+    def get_or_materialize(self, feature_set: FeatureSet) -> DatasetHandle: ...
+    def split(self, handle, train, validation=None, holdout=None) -> DatasetSplits: ...
+    def read(self, handle: DatasetHandle) -> list[dict[str, Any]]: ...
+```
+
+The `statcast_path` parameter is on the concrete `SqliteDatasetAssembler` only — the protocol stays unchanged.
 
 ---
 
@@ -339,3 +461,5 @@ Indexes on `statcast_pitch`: `(pitcher_id, game_date)`, `(batter_id, game_date)`
 - **Frozen dataclasses.** Domain objects are immutable value types. No mutable state, no ORM base classes.
 - **Mapper factories with closures.** Column mappers close over a player ID lookup table built at mapper creation time, avoiding repeated queries during row iteration.
 - **Audit trail.** Every `StatsLoader.load()` call writes a `LoadLog` entry with timestamps, row count, and status (success/error).
+- **Two-pass materialization.** SQL-expressible features run as a single `CREATE TABLE AS SELECT` for performance. Python transforms run as a second pass only when needed, keeping the common case fast.
+- **Cross-database joins via ATTACH.** Statcast data lives in a separate DB file. The assembler lazily attaches it only when a `Source.STATCAST` transform is encountered, joining through `player.mlbam_id`.
