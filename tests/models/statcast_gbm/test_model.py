@@ -397,3 +397,35 @@ class TestStatcastGBMAblate:
         result = model.ablate(config)
         pitcher_keys = [k for k in result.feature_impacts if k.startswith("pitcher:")]
         assert len(pitcher_keys) > 0
+
+
+class TestStatcastGBMTrainWithMissingTargets:
+    def test_train_handles_missing_target_columns(self, tmp_path: Path) -> None:
+        # Build batter rows where some are missing target_slg (breaks iso but not avg)
+        good_rows = _make_rows(8, 2022)
+        bad_rows = _make_rows(2, 2022)
+        for row in bad_rows:
+            del row["target_slg"]
+        rows_2022 = good_rows + bad_rows
+
+        good_rows_2023 = _make_rows(8, 2023)
+        bad_rows_2023 = _make_rows(2, 2023)
+        for row in bad_rows_2023:
+            del row["target_slg"]
+        rows_2023 = good_rows_2023 + bad_rows_2023
+
+        rows_by_season = {2022: rows_2022, 2023: rows_2023}
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.train(config)
+        assert isinstance(result, TrainResult)
+        for target in BATTER_TARGETS:
+            assert f"batter_rmse_{target}" in result.metrics

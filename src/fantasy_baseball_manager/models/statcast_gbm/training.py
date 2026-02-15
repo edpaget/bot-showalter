@@ -1,30 +1,41 @@
 import copy
 import math
 import random
-from typing import Any
+from typing import Any, NamedTuple
 
 from sklearn.ensemble import HistGradientBoostingRegressor
+
+
+class TargetVector(NamedTuple):
+    indices: list[int]
+    values: list[float]
+
+
+def _filter_X(X: list[list[float]], indices: list[int]) -> list[list[float]]:
+    return [X[i] for i in indices]
 
 
 def extract_targets(
     rows: list[dict[str, Any]],
     targets: list[str],
-) -> dict[str, list[float]]:
-    result: dict[str, list[float]] = {t: [] for t in targets}
-    for row in rows:
+) -> dict[str, TargetVector]:
+    result: dict[str, TargetVector] = {t: TargetVector([], []) for t in targets}
+    for i, row in enumerate(rows):
         for target in targets:
             if target == "iso":
                 slg = row.get("target_slg")
                 avg = row.get("target_avg")
                 if slg is None or avg is None:
                     continue
-                result["iso"].append(slg - avg)
+                result["iso"].indices.append(i)
+                result["iso"].values.append(slg - avg)
             elif target == "hr_per_9":
                 hr_val = row.get("target_hr")
                 ip_val = row.get("target_ip")
                 if hr_val is None or ip_val is None or ip_val == 0:
                     continue
-                result["hr_per_9"].append(hr_val * 9 / ip_val)
+                result["hr_per_9"].indices.append(i)
+                result["hr_per_9"].values.append(hr_val * 9 / ip_val)
             elif target == "babip":
                 h_val = row.get("target_h")
                 hr_val = row.get("target_hr")
@@ -38,7 +49,8 @@ def extract_targets(
                     denom: float = ab_val - so_val - hr_val + sf_val
                     if denom == 0:
                         continue
-                    result["babip"].append((h_val - hr_val) / denom)
+                    result["babip"].indices.append(i)
+                    result["babip"].values.append((h_val - hr_val) / denom)
                 else:
                     # Pitcher path: babip = (h - hr) / (ip * 3 + h - so - hr)
                     ip_val = row.get("target_ip")
@@ -47,12 +59,14 @@ def extract_targets(
                     denom = ip_val * 3 + h_val - so_val - hr_val
                     if denom == 0:
                         continue
-                    result["babip"].append((h_val - hr_val) / denom)
+                    result["babip"].indices.append(i)
+                    result["babip"].values.append((h_val - hr_val) / denom)
             else:
                 value = row.get(f"target_{target}")
                 if value is None:
                     continue
-                result[target].append(value)
+                result[target].indices.append(i)
+                result[target].values.append(value)
     return result
 
 
@@ -75,15 +89,15 @@ def extract_features(
 
 def fit_models(
     X: list[list[float]],
-    targets_dict: dict[str, list[float]],
+    targets_dict: dict[str, TargetVector],
     model_params: dict[str, Any],
 ) -> dict[str, HistGradientBoostingRegressor]:
     allowed_params = {"max_iter", "max_depth", "learning_rate", "min_samples_leaf", "max_leaf_nodes"}
     filtered_params = {k: v for k, v in model_params.items() if k in allowed_params}
     models: dict[str, HistGradientBoostingRegressor] = {}
-    for target_name, y in targets_dict.items():
+    for target_name, tv in targets_dict.items():
         model = HistGradientBoostingRegressor(**filtered_params)
-        model.fit(X, y)
+        model.fit(_filter_X(X, tv.indices), tv.values)
         models[target_name] = model
     return models
 
@@ -91,13 +105,13 @@ def fit_models(
 def score_predictions(
     models: dict[str, HistGradientBoostingRegressor],
     X: list[list[float]],
-    targets_dict: dict[str, list[float]],
+    targets_dict: dict[str, TargetVector],
 ) -> dict[str, float]:
     metrics: dict[str, float] = {}
     for target_name, model in models.items():
-        y_true = targets_dict[target_name]
-        y_pred = model.predict(X)
-        mse = sum((yt - yp) ** 2 for yt, yp in zip(y_true, y_pred, strict=True)) / len(y_true)
+        tv = targets_dict[target_name]
+        y_pred = model.predict(_filter_X(X, tv.indices))
+        mse = sum((yt - yp) ** 2 for yt, yp in zip(tv.values, y_pred, strict=True)) / len(tv.values)
         metrics[f"rmse_{target_name}"] = math.sqrt(mse)
     return metrics
 
@@ -105,7 +119,7 @@ def score_predictions(
 def compute_permutation_importance(
     models: dict[str, HistGradientBoostingRegressor],
     X: list[list[float]],
-    targets_dict: dict[str, list[float]],
+    targets_dict: dict[str, TargetVector],
     feature_columns: list[str],
     n_repeats: int = 5,
     rng_seed: int = 42,
