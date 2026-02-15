@@ -18,11 +18,14 @@ from fantasy_baseball_manager.cli._output import (
     print_system_metrics,
     print_train_result,
 )
+from fantasy_baseball_manager.cli.factory import (
+    build_eval_context,
+    build_import_context,
+    build_model_context,
+    build_runs_context,
+    create_model,
+)
 from fantasy_baseball_manager.config import load_config
-from fantasy_baseball_manager.db.connection import create_connection
-from fantasy_baseball_manager.models.run_manager import RunManager
-from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
-from fantasy_baseball_manager.cli.factory import build_model_context, create_model
 from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
@@ -39,12 +42,7 @@ from fantasy_baseball_manager.models.protocols import (
     TrainResult,
 )
 from fantasy_baseball_manager.models.registry import list_models
-from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
-from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
-from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
-from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
-from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
-from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
+from fantasy_baseball_manager.models.run_manager import RunManager
 
 app = typer.Typer(name="fbm", help="Fantasy Baseball Manager — projection model CLI")
 
@@ -201,32 +199,29 @@ def import_cmd(
         typer.echo(f"Error: file not found: {csv_path}", err=True)
         raise typer.Exit(code=1)
 
-    conn = create_connection(Path(data_dir) / "fbm.db")
-    player_repo = SqlitePlayerRepo(conn)
-    proj_repo = SqliteProjectionRepo(conn)
-    log_repo = SqliteLoadLogRepo(conn)
-    players = player_repo.all()
+    with build_import_context(data_dir) as ctx:
+        players = ctx.player_repo.all()
 
-    if player_type == "pitcher":
-        mapper = make_fg_projection_pitching_mapper(
-            players,
-            season=season,
-            system=system,
-            version=version,
-            source_type="third_party",
-        )
-    else:
-        mapper = make_fg_projection_batting_mapper(
-            players,
-            season=season,
-            system=system,
-            version=version,
-            source_type="third_party",
-        )
+        if player_type == "pitcher":
+            mapper = make_fg_projection_pitching_mapper(
+                players,
+                season=season,
+                system=system,
+                version=version,
+                source_type="third_party",
+            )
+        else:
+            mapper = make_fg_projection_batting_mapper(
+                players,
+                season=season,
+                system=system,
+                version=version,
+                source_type="third_party",
+            )
 
-    source = CsvSource(csv_path)
-    loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
-    log = loader.load(encoding="utf-8-sig")
+        source = CsvSource(csv_path)
+        loader = StatsLoader(source, ctx.proj_repo, ctx.log_repo, mapper, "projection", conn=ctx.conn)
+        log = loader.load(encoding="utf-8-sig")
     print_import_result(log)
 
 
@@ -239,12 +234,8 @@ def eval_cmd(
     data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
 ) -> None:
     """Evaluate a projection system against actual stats."""
-    conn = create_connection(Path(data_dir) / "fbm.db")
-    proj_repo = SqliteProjectionRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
-    pitching_repo = SqlitePitchingStatsRepo(conn)
-    evaluator = ProjectionEvaluator(proj_repo, batting_repo, pitching_repo)
-    result = evaluator.evaluate(system, version, season, stats=stat)
+    with build_eval_context(data_dir) as ctx:
+        result = ctx.evaluator.evaluate(system, version, season, stats=stat)
     print_system_metrics(result)
 
 
@@ -264,12 +255,8 @@ def compare_cmd(
             raise typer.Exit(code=1)
         parsed.append((parts[0], parts[1]))
 
-    conn = create_connection(Path(data_dir) / "fbm.db")
-    proj_repo = SqliteProjectionRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
-    pitching_repo = SqlitePitchingStatsRepo(conn)
-    evaluator = ProjectionEvaluator(proj_repo, batting_repo, pitching_repo)
-    result = evaluator.compare(parsed, season, stats=stat)
+    with build_eval_context(data_dir) as ctx:
+        result = ctx.evaluator.compare(parsed, season, stats=stat)
     print_comparison_result(result)
 
 
@@ -287,9 +274,8 @@ def runs_list(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """List recorded model runs."""
-    conn = create_connection(Path(data_dir) / "fbm.db")
-    repo = SqliteModelRunRepo(conn)
-    records = repo.list(system=model)
+    with build_runs_context(data_dir) as ctx:
+        records = ctx.repo.list(system=model)
     print_run_list(records)
 
 
@@ -305,9 +291,8 @@ def runs_show(
         raise typer.Exit(code=1)
     system, version = parts
 
-    conn = create_connection(Path(data_dir) / "fbm.db")
-    repo = SqliteModelRunRepo(conn)
-    record = repo.get(system, version)
+    with build_runs_context(data_dir) as ctx:
+        record = ctx.repo.get(system, version)
     if record is None:
         typer.echo(f"Error: run '{run}' not found", err=True)
         raise typer.Exit(code=1)
@@ -327,10 +312,8 @@ def runs_delete(
         raise typer.Exit(code=1)
     system, version = parts
 
-    conn = create_connection(Path(data_dir) / "fbm.db")
-    try:
-        repo = SqliteModelRunRepo(conn)
-        record = repo.get(system, version)
+    with build_runs_context(data_dir) as ctx:
+        record = ctx.repo.get(system, version)
         if record is None:
             typer.echo(f"Error: run '{run}' not found", err=True)
             raise typer.Exit(code=1)
@@ -338,9 +321,7 @@ def runs_delete(
         if not yes:
             typer.confirm(f"Delete run '{run}'?", abort=True)
 
-        mgr = RunManager(model_run_repo=repo, artifacts_root=Path("."))
+        mgr = RunManager(model_run_repo=ctx.repo, artifacts_root=Path("."))
         mgr.delete_run(system, version)
-        conn.commit()
+        ctx.conn.commit()
         typer.echo(f"Deleted run '{run}'")
-    finally:
-        conn.close()

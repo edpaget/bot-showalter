@@ -289,9 +289,16 @@ class TestImportCommand:
         assert "third-party" in result.output.lower() or "csv" in result.output.lower()
 
     def test_import_batting_csv(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        db_conn = create_connection(":memory:")
-        _seed_player_for_import(db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        db_path = tmp_path / "fbm.db"
+        seed_conn = create_connection(db_path)
+        _seed_player_for_import(seed_conn)
+        seed_conn.commit()
+        seed_conn.close()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(db_path),
+        )
 
         csv_file = tmp_path / "steamer_batting.csv"
         csv_file.write_text("PlayerId,MLBAMID,PA,HR,AVG,WAR\n10155,545361,600,35,0.302,8.5\n")
@@ -312,16 +319,25 @@ class TestImportCommand:
         )
         assert result.exit_code == 0, result.output
 
-        proj_repo = SqliteProjectionRepo(db_conn)
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(verify_conn)
         projections = proj_repo.get_by_season(2025, system="steamer")
         assert len(projections) == 1
         assert projections[0].source_type == "third_party"
         assert projections[0].stat_json["hr"] == 35
+        verify_conn.close()
 
     def test_import_pitching_csv(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        db_conn = create_connection(":memory:")
-        _seed_player_for_import(db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        db_path = tmp_path / "fbm.db"
+        seed_conn = create_connection(db_path)
+        _seed_player_for_import(seed_conn)
+        seed_conn.commit()
+        seed_conn.close()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(db_path),
+        )
 
         csv_file = tmp_path / "steamer_pitching.csv"
         csv_file.write_text("PlayerId,MLBAMID,W,L,ERA,SO,IP,WAR\n10155,545361,12,6,3.00,200,185.0,5.5\n")
@@ -342,11 +358,13 @@ class TestImportCommand:
         )
         assert result.exit_code == 0, result.output
 
-        proj_repo = SqliteProjectionRepo(db_conn)
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(verify_conn)
         projections = proj_repo.get_by_season(2025, system="steamer")
         assert len(projections) == 1
         assert projections[0].source_type == "third_party"
         assert projections[0].stat_json["era"] == 3.00
+        verify_conn.close()
 
     def test_import_missing_file_exits_with_error(self) -> None:
         result = runner.invoke(
@@ -413,7 +431,7 @@ class TestEvalCommand:
     def test_eval_with_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
         _seed_eval_data(db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(
             app,
@@ -438,7 +456,7 @@ class TestCompareCommand:
         db_conn = create_connection(":memory:")
         _seed_eval_data(db_conn, system="steamer", version="2025.1")
         _seed_eval_data(db_conn, system="zips", version="2025.1")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(
             app,
@@ -474,7 +492,7 @@ class TestRunsListCommand:
     def test_runs_list_shows_records(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
         _seed_model_run(db_conn, system="marcel", version="v1")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(app, ["runs", "list", "--data-dir", "./data"])
         assert result.exit_code == 0, result.output
@@ -485,7 +503,7 @@ class TestRunsListCommand:
         db_conn = create_connection(":memory:")
         _seed_model_run(db_conn, system="marcel", version="v1")
         _seed_model_run(db_conn, system="steamer", version="v1")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(app, ["runs", "list", "--model", "marcel", "--data-dir", "./data"])
         assert result.exit_code == 0, result.output
@@ -494,7 +512,7 @@ class TestRunsListCommand:
 
     def test_runs_list_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(app, ["runs", "list", "--data-dir", "./data"])
         assert result.exit_code == 0, result.output
@@ -505,7 +523,7 @@ class TestRunsShowCommand:
     def test_runs_show_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
         _seed_model_run(db_conn, system="marcel", version="v1")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(app, ["runs", "show", "marcel/v1", "--data-dir", "./data"])
         assert result.exit_code == 0, result.output
@@ -515,7 +533,7 @@ class TestRunsShowCommand:
 
     def test_runs_show_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(app, ["runs", "show", "nonexistent/v1", "--data-dir", "./data"])
         assert result.exit_code != 0
@@ -530,7 +548,7 @@ class TestRunsDeleteCommand:
         seed_conn.close()
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(db_path),
         )
 
@@ -545,7 +563,7 @@ class TestRunsDeleteCommand:
 
     def test_runs_delete_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(app, ["runs", "delete", "nonexistent/v1", "--yes", "--data-dir", "./data"])
         assert result.exit_code != 0
