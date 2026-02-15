@@ -8,7 +8,13 @@ from fantasy_baseball_manager.features.transforms import (
     PLATE_DISCIPLINE,
     SPIN_PROFILE,
 )
-from fantasy_baseball_manager.features.types import AnyFeature, Feature, FeatureSet, SpineFilter
+from fantasy_baseball_manager.features.types import (
+    AnyFeature,
+    Feature,
+    FeatureSet,
+    SpineFilter,
+    TransformFeature,
+)
 
 _BATTER_LAG_STATS = ("pa", "hr", "h", "2b", "3b", "bb", "so", "sb")
 _PITCHER_LAG_STATS = ("ip", "so", "bb", "hr", "era", "fip")
@@ -41,6 +47,42 @@ def build_batter_feature_set(seasons: Sequence[int]) -> FeatureSet:
         source_filter="fangraphs",
         spine_filter=SpineFilter(player_type="batter"),
     )
+
+
+def _batter_target_features() -> list[Feature]:
+    direct = ("avg", "obp", "slg", "woba")
+    counting = ("h", "hr", "ab", "so", "sf")
+    features: list[Feature] = []
+    for stat in direct:
+        features.append(batting.col(stat).lag(0).alias(f"target_{stat}"))
+    for stat in counting:
+        features.append(batting.col(stat).lag(0).alias(f"target_{stat}"))
+    return features
+
+
+def build_batter_training_set(seasons: Sequence[int]) -> FeatureSet:
+    features: list[AnyFeature] = [player.age()]
+    features.extend(_batter_lag_features())
+    features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS])
+    features.extend(_batter_target_features())
+    return FeatureSet(
+        name="statcast_gbm_batting_train",
+        features=tuple(features),
+        seasons=tuple(seasons),
+        source_filter="fangraphs",
+        spine_filter=SpineFilter(player_type="batter"),
+    )
+
+
+def batter_feature_columns() -> list[str]:
+    fs = build_batter_feature_set([])
+    columns: list[str] = []
+    for f in fs.features:
+        if isinstance(f, TransformFeature):
+            columns.extend(f.outputs)
+        elif isinstance(f, Feature):
+            columns.append(f.name)
+    return columns
 
 
 def build_pitcher_feature_set(seasons: Sequence[int]) -> FeatureSet:
