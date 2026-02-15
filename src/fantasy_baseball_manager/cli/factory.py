@@ -28,6 +28,8 @@ from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
+from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
+from fantasy_baseball_manager.repos.level_factor_repo import SqliteLevelFactorRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
@@ -37,6 +39,7 @@ from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositi
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from fantasy_baseball_manager.services.league_environment_service import LeagueEnvironmentService
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
@@ -289,5 +292,45 @@ def build_report_context(data_dir: str) -> Iterator[ReportContext]:
             SqlitePitchingStatsRepo(conn),
         )
         yield ReportContext(conn=conn, report_service=report_service)
+    finally:
+        conn.close()
+
+
+class ComputeContainer:
+    """DI container for the compute command group."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        return self._conn
+
+    @property
+    def league_environment_repo(self) -> SqliteLeagueEnvironmentRepo:
+        return SqliteLeagueEnvironmentRepo(self._conn)
+
+    @property
+    def level_factor_repo(self) -> SqliteLevelFactorRepo:
+        return SqliteLevelFactorRepo(self._conn)
+
+    @property
+    def minor_league_batting_stats_repo(self) -> SqliteMinorLeagueBattingStatsRepo:
+        return SqliteMinorLeagueBattingStatsRepo(self._conn)
+
+    @property
+    def league_environment_service(self) -> LeagueEnvironmentService:
+        return LeagueEnvironmentService(
+            self.minor_league_batting_stats_repo,
+            self.league_environment_repo,
+        )
+
+
+@contextmanager
+def build_compute_container(data_dir: str) -> Iterator[ComputeContainer]:
+    """Composition-root context manager for compute commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield ComputeContainer(conn)
     finally:
         conn.close()
