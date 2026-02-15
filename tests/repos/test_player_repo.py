@@ -1,6 +1,9 @@
 import sqlite3
 
+import pytest
+
 from fantasy_baseball_manager.domain.player import Player, Team
+from fantasy_baseball_manager.repos.errors import PlayerConflictError
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
 
 
@@ -62,6 +65,53 @@ class TestSqlitePlayerRepo:
         assert result is not None
         assert result.position == "DH"
         assert len(repo.all()) == 1
+
+    def test_upsert_raises_conflict_on_fangraphs_id(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))
+        with pytest.raises(PlayerConflictError) as exc_info:
+            repo.upsert(Player(name_first="Joe", name_last="Smith", mlbam_id=999999, fangraphs_id=10155))
+        assert exc_info.value.conflicting_column == "fangraphs_id"
+        assert exc_info.value.existing_player.mlbam_id == 545361
+        assert exc_info.value.new_player.mlbam_id == 999999
+
+    def test_upsert_raises_conflict_on_bbref_id(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, bbref_id="troutmi01"))
+        with pytest.raises(PlayerConflictError) as exc_info:
+            repo.upsert(Player(name_first="Joe", name_last="Smith", mlbam_id=999999, bbref_id="troutmi01"))
+        assert exc_info.value.conflicting_column == "bbref_id"
+
+    def test_upsert_raises_conflict_on_retro_id(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, retro_id="troum001"))
+        with pytest.raises(PlayerConflictError) as exc_info:
+            repo.upsert(Player(name_first="Joe", name_last="Smith", mlbam_id=999999, retro_id="troum001"))
+        assert exc_info.value.conflicting_column == "retro_id"
+
+    def test_upsert_null_secondary_ids_no_conflict(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        repo.upsert(Player(name_first="Joe", name_last="Smith", mlbam_id=999999))
+        assert len(repo.all()) == 2
+
+    def test_upsert_update_raises_conflict_on_secondary_key_change(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))
+        repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271, fangraphs_id=19755))
+        with pytest.raises(PlayerConflictError) as exc_info:
+            repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=19755))
+        assert exc_info.value.conflicting_column == "fangraphs_id"
+
+
+def test_player_conflict_error_message() -> None:
+    new = Player(name_first="Joe", name_last="Smith", mlbam_id=999999)
+    existing = Player(id=1, name_first="Mike", name_last="Trout", mlbam_id=545361)
+    error = PlayerConflictError(new, existing, "fangraphs_id")
+    msg = str(error)
+    assert "fangraphs_id" in msg
+    assert "999999" in msg
+    assert "545361" in msg
 
 
 class TestSqliteTeamRepo:

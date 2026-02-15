@@ -12,9 +12,11 @@ class ConnectionPool:
 
     def __init__(self, path: str | Path, *, size: int = 5) -> None:
         self._closed = False
+        self._all_conns: list[sqlite3.Connection] = []
         self._pool: queue.Queue[sqlite3.Connection] = queue.Queue(maxsize=size)
         for _ in range(size):
             conn = create_connection(path, check_same_thread=False)
+            self._all_conns.append(conn)
             self._pool.put(conn)
 
     def get(self, *, timeout: float | None = None) -> sqlite3.Connection:
@@ -34,6 +36,8 @@ class ConnectionPool:
         """Return a connection to the pool."""
         if not self._closed:
             self._pool.put(conn)
+        else:
+            conn.close()
 
     @contextmanager
     def connection(self) -> Generator[sqlite3.Connection]:
@@ -46,11 +50,12 @@ class ConnectionPool:
             self.release(conn)
 
     def close_all(self) -> None:
-        """Drain the pool and close all connections."""
+        """Close all connections, including checked-out ones."""
         self._closed = True
+        for conn in self._all_conns:
+            conn.close()
         while not self._pool.empty():
             try:
-                conn = self._pool.get_nowait()
-                conn.close()
+                self._pool.get_nowait()
             except queue.Empty:
                 break

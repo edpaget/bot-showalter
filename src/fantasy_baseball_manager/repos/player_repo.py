@@ -1,6 +1,10 @@
 import sqlite3
+from typing import Never
 
 from fantasy_baseball_manager.domain.player import Player, Team
+from fantasy_baseball_manager.repos.errors import PlayerConflictError
+
+_SECONDARY_KEYS = ("fangraphs_id", "bbref_id", "retro_id")
 
 
 class SqlitePlayerRepo:
@@ -8,29 +12,63 @@ class SqlitePlayerRepo:
         self._conn = conn
 
     def upsert(self, player: Player) -> int:
-        cursor = self._conn.execute(
-            """INSERT INTO player (name_first, name_last, mlbam_id, fangraphs_id, bbref_id,
-                                   retro_id, bats, throws, birth_date, position)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(mlbam_id) DO UPDATE SET
-                   name_first=excluded.name_first, name_last=excluded.name_last,
-                   fangraphs_id=excluded.fangraphs_id, bbref_id=excluded.bbref_id,
-                   retro_id=excluded.retro_id, bats=excluded.bats, throws=excluded.throws,
-                   birth_date=excluded.birth_date, position=excluded.position""",
-            (
-                player.name_first,
-                player.name_last,
-                player.mlbam_id,
-                player.fangraphs_id,
-                player.bbref_id,
-                player.retro_id,
-                player.bats,
-                player.throws,
-                player.birth_date,
-                player.position,
-            ),
-        )
-        return cursor.lastrowid  # type: ignore[return-value]
+        existing = self._conn.execute("SELECT id FROM player WHERE mlbam_id = ?", (player.mlbam_id,)).fetchone()
+
+        if existing:
+            try:
+                self._conn.execute(
+                    """UPDATE player SET
+                           name_first=?, name_last=?, fangraphs_id=?, bbref_id=?,
+                           retro_id=?, bats=?, throws=?, birth_date=?, position=?
+                       WHERE mlbam_id=?""",
+                    (
+                        player.name_first,
+                        player.name_last,
+                        player.fangraphs_id,
+                        player.bbref_id,
+                        player.retro_id,
+                        player.bats,
+                        player.throws,
+                        player.birth_date,
+                        player.position,
+                        player.mlbam_id,
+                    ),
+                )
+                return existing["id"]
+            except sqlite3.IntegrityError:
+                self._raise_conflict(player)
+
+        try:
+            cursor = self._conn.execute(
+                """INSERT INTO player (name_first, name_last, mlbam_id, fangraphs_id,
+                                       bbref_id, retro_id, bats, throws, birth_date, position)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    player.name_first,
+                    player.name_last,
+                    player.mlbam_id,
+                    player.fangraphs_id,
+                    player.bbref_id,
+                    player.retro_id,
+                    player.bats,
+                    player.throws,
+                    player.birth_date,
+                    player.position,
+                ),
+            )
+            return cursor.lastrowid  # type: ignore[return-value]
+        except sqlite3.IntegrityError:
+            self._raise_conflict(player)
+
+    def _raise_conflict(self, player: Player) -> Never:
+        for col in _SECONDARY_KEYS:
+            value = getattr(player, col)
+            if value is None:
+                continue
+            row = self._conn.execute(f"SELECT * FROM player WHERE {col} = ?", (value,)).fetchone()
+            if row is not None:
+                raise PlayerConflictError(player, self._row_to_player(row), col)
+        raise  # re-raise original IntegrityError if we can't identify the conflict
 
     def get_by_id(self, player_id: int) -> Player | None:
         row = self._conn.execute("SELECT * FROM player WHERE id = ?", (player_id,)).fetchone()

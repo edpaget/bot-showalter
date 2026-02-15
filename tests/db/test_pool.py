@@ -88,6 +88,24 @@ class TestConnectionPool:
             assert count == 0
         pool.close_all()
 
+    def test_release_after_close_closes_connection(self) -> None:
+        pool = ConnectionPool(":memory:", size=1)
+        conn = pool.get()
+        pool.close_all()
+        pool.release(conn)
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")
+
+    def test_close_all_closes_checked_out_connections(self) -> None:
+        pool = ConnectionPool(":memory:", size=2)
+        conn1 = pool.get()
+        conn2 = pool.get()
+        pool.close_all()
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn1.execute("SELECT 1")
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn2.execute("SELECT 1")
+
     def test_file_based_migrations_run_once(self, tmp_path: object) -> None:
         from pathlib import Path
 
