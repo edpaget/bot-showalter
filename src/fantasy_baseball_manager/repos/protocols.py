@@ -8,7 +8,7 @@ from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player, Team
-from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 
 
@@ -47,9 +47,15 @@ class PitchingStatsRepo(Protocol):
 @runtime_checkable
 class ProjectionRepo(Protocol):
     def upsert(self, projection: Projection) -> int: ...
-    def get_by_player_season(self, player_id: int, season: int, system: str | None = None) -> list[Projection]: ...
-    def get_by_season(self, season: int, system: str | None = None) -> list[Projection]: ...
+    def get_by_player_season(
+        self, player_id: int, season: int, system: str | None = None, *, include_distributions: bool = False
+    ) -> list[Projection]: ...
+    def get_by_season(
+        self, season: int, system: str | None = None, *, include_distributions: bool = False
+    ) -> list[Projection]: ...
     def get_by_system_version(self, system: str, version: str) -> list[Projection]: ...
+    def upsert_distributions(self, projection_id: int, distributions: list[StatDistribution]) -> None: ...
+    def get_distributions(self, projection_id: int) -> list[StatDistribution]: ...
 
 
 @runtime_checkable

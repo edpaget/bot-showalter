@@ -3,6 +3,19 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class StatDistribution:
+    stat: str
+    p10: float
+    p25: float
+    p50: float
+    p75: float
+    p90: float
+    mean: float | None = None
+    std: float | None = None
+    family: str | None = None
+
+
+@dataclass(frozen=True)
 class Projection:
     player_id: int
     season: int
@@ -13,6 +26,7 @@ class Projection:
     source_type: str = "first_party"
     id: int | None = None
     loaded_at: str | None = None
+    distributions: dict[str, StatDistribution] | None = None
 
 
 @dataclass(frozen=True)
