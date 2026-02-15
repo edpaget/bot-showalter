@@ -13,7 +13,7 @@ def pt_projection_to_domain(
         stat_json: dict[str, object] = {"ip": pt}
         player_type = "pitcher"
     else:
-        stat_json = {"pa": int(pt)}
+        stat_json = {"pa": round(pt)}
         player_type = "batter"
 
     return Projection(

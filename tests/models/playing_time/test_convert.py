@@ -22,6 +22,16 @@ class TestPtProjectionToDomain:
             version="v1",
         )
         assert isinstance(proj.stat_json["pa"], int)
+        assert proj.stat_json["pa"] == 581
+
+    def test_batter_pa_rounds_half(self) -> None:
+        proj = pt_projection_to_domain(
+            player_id=1,
+            projected_season=2025,
+            pt=580.5,
+            pitcher=False,
+            version="v1",
+        )
         assert proj.stat_json["pa"] == 580
 
     def test_pitcher_returns_only_ip(self) -> None:

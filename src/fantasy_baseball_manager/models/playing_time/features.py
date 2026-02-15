@@ -42,17 +42,25 @@ def build_pitching_pt_features(lags: int = 3) -> list[Feature]:
 
 def build_batting_pt_derived_transforms(lags: int = 3) -> list[DerivedTransformFeature]:
     """Build derived transforms for batting playing-time projection."""
+    il_inputs = tuple(f"il_days_{i}" for i in range(1, lags + 1)) + ("il_stints_1",)
+    if lags >= 2:
+        il_inputs = il_inputs + ("il_stints_2",)
+
+    pt_inputs: tuple[str, ...] = ("pa_1",)
+    if lags >= 2:
+        pt_inputs = ("pa_1", "pa_2")
+
     return [
         DerivedTransformFeature(
             name="il_summary",
-            inputs=tuple(f"il_days_{i}" for i in range(1, lags + 1)) + ("il_stints_1", "il_stints_2"),
+            inputs=il_inputs,
             group_by=("player_id", "season"),
             transform=make_il_summary_transform(lags),
             outputs=("il_days_3yr", "il_recurrence"),
         ),
         DerivedTransformFeature(
             name="batting_pt_trend",
-            inputs=("pa_1", "pa_2"),
+            inputs=pt_inputs,
             group_by=("player_id", "season"),
             transform=make_pt_trend_transform("pa"),
             outputs=("pt_trend",),
@@ -62,17 +70,25 @@ def build_batting_pt_derived_transforms(lags: int = 3) -> list[DerivedTransformF
 
 def build_pitching_pt_derived_transforms(lags: int = 3) -> list[DerivedTransformFeature]:
     """Build derived transforms for pitching playing-time projection."""
+    il_inputs = tuple(f"il_days_{i}" for i in range(1, lags + 1)) + ("il_stints_1",)
+    if lags >= 2:
+        il_inputs = il_inputs + ("il_stints_2",)
+
+    pt_inputs: tuple[str, ...] = ("ip_1",)
+    if lags >= 2:
+        pt_inputs = ("ip_1", "ip_2")
+
     return [
         DerivedTransformFeature(
             name="il_summary",
-            inputs=tuple(f"il_days_{i}" for i in range(1, lags + 1)) + ("il_stints_1", "il_stints_2"),
+            inputs=il_inputs,
             group_by=("player_id", "season"),
             transform=make_il_summary_transform(lags),
             outputs=("il_days_3yr", "il_recurrence"),
         ),
         DerivedTransformFeature(
             name="pitching_pt_trend",
-            inputs=("ip_1", "ip_2"),
+            inputs=pt_inputs,
             group_by=("player_id", "season"),
             transform=make_pt_trend_transform("ip"),
             outputs=("pt_trend",),

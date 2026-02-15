@@ -163,6 +163,30 @@ class TestPitchingDerivedTransforms:
         assert all(isinstance(t, DerivedTransformFeature) for t in transforms)
 
 
+class TestBattingDerivedTransformsLags1:
+    def test_il_summary_inputs_with_lags_1(self) -> None:
+        transforms = build_batting_pt_derived_transforms(lags=1)
+        il_summary = next(t for t in transforms if t.name == "il_summary")
+        assert "il_stints_2" not in il_summary.inputs
+
+    def test_pt_trend_inputs_with_lags_1(self) -> None:
+        transforms = build_batting_pt_derived_transforms(lags=1)
+        pt_trend = next(t for t in transforms if t.name == "batting_pt_trend")
+        assert "pa_2" not in pt_trend.inputs
+
+
+class TestPitchingDerivedTransformsLags1:
+    def test_il_summary_inputs_with_lags_1(self) -> None:
+        transforms = build_pitching_pt_derived_transforms(lags=1)
+        il_summary = next(t for t in transforms if t.name == "il_summary")
+        assert "il_stints_2" not in il_summary.inputs
+
+    def test_pt_trend_inputs_with_lags_1(self) -> None:
+        transforms = build_pitching_pt_derived_transforms(lags=1)
+        pt_trend = next(t for t in transforms if t.name == "pitching_pt_trend")
+        assert "ip_2" not in pt_trend.inputs
+
+
 class TestBattingTrainingFeatures:
     def test_training_features_include_target_pa(self) -> None:
         features = build_batting_pt_training_features()

@@ -215,7 +215,10 @@ class PlayingTimeModel:
             aging_curves["pitcher"],
         )
 
-        projected_season = max(config.seasons) + 1 if config.seasons else 2025
+        if not config.seasons:
+            msg = "config.seasons must not be empty"
+            raise ValueError(msg)
+        projected_season = max(config.seasons) + 1
         version = config.version or "latest"
 
         predictions: list[dict[str, Any]] = []

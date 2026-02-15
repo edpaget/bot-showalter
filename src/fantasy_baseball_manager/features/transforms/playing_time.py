@@ -30,9 +30,10 @@ def make_pt_trend_transform(pt_column: str) -> Any:
 
     def transform(rows: list[dict[str, Any]]) -> dict[str, Any]:
         row = rows[0]
-        val_1 = row.get(f"{pt_column}_1") or 0
-        val_2 = row.get(f"{pt_column}_2") or 0
-        trend = val_1 / val_2 if val_2 else 1.0
-        return {"pt_trend": trend}
+        val_1 = row.get(f"{pt_column}_1")
+        val_2 = row.get(f"{pt_column}_2")
+        if val_1 is None or val_2 is None or val_2 == 0:
+            return {"pt_trend": 1.0}
+        return {"pt_trend": val_1 / val_2}
 
     return transform

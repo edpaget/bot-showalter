@@ -99,6 +99,12 @@ class TestPtTrendTransform:
         result = transform([row])
         assert result["pt_trend"] == 1.0
 
+    def test_returns_1_when_numerator_is_none(self) -> None:
+        transform = make_pt_trend_transform("pa")
+        row = {"pa_1": None, "pa_2": 400}
+        result = transform([row])
+        assert result["pt_trend"] == 1.0
+
     def test_ip_column(self) -> None:
         transform = make_pt_trend_transform("ip")
         row = {"ip_1": 180.0, "ip_2": 160.0}
