@@ -9,6 +9,7 @@ from fantasy_baseball_manager.features.types import (
     DatasetHandle,
     DatasetSplits,
     DeltaFeature,
+    DerivedTransformFeature,
     Feature,
     FeatureBuilder,
     FeatureSet,
@@ -468,6 +469,14 @@ def _different_transform(rows: list[dict[str, object]]) -> dict[str, object]:
     return {"out_a": 99.0, "out_b": 99.0}
 
 
+def _sample_derived_transform(rows: list[dict[str, object]]) -> dict[str, object]:
+    return {"derived_out": 42.0}
+
+
+def _different_derived_transform(rows: list[dict[str, object]]) -> dict[str, object]:
+    return {"derived_out": 99.0}
+
+
 class TestTransformFeature:
     def test_construction(self) -> None:
         tf = TransformFeature(
@@ -589,3 +598,93 @@ class TestTransformFeature:
         fs1 = FeatureSet(name="test", features=(tf1,), seasons=(2023,))
         fs2 = FeatureSet(name="test", features=(tf2,), seasons=(2023,))
         assert fs1.version != fs2.version
+
+
+class TestDerivedTransformFeature:
+    def test_construction(self) -> None:
+        dtf = DerivedTransformFeature(
+            name="weighted_avg",
+            inputs=("hr_1", "hr_2", "hr_3"),
+            group_by=("player_id", "season"),
+            transform=_sample_derived_transform,
+            outputs=("derived_out",),
+        )
+        assert dtf.name == "weighted_avg"
+        assert dtf.inputs == ("hr_1", "hr_2", "hr_3")
+        assert dtf.group_by == ("player_id", "season")
+        assert dtf.outputs == ("derived_out",)
+        assert dtf.version is None
+
+    def test_frozen(self) -> None:
+        dtf = DerivedTransformFeature(
+            name="weighted_avg",
+            inputs=("hr_1",),
+            group_by=("player_id", "season"),
+            transform=_sample_derived_transform,
+            outputs=("derived_out",),
+        )
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            dtf.name = "changed"  # type: ignore[misc]
+
+    def test_any_feature_type(self) -> None:
+        dtf: AnyFeature = DerivedTransformFeature(
+            name="weighted_avg",
+            inputs=("hr_1",),
+            group_by=("player_id", "season"),
+            transform=_sample_derived_transform,
+            outputs=("derived_out",),
+        )
+        assert isinstance(dtf, DerivedTransformFeature)
+
+    def test_content_hash_includes_derived_transform(self) -> None:
+        dtf = DerivedTransformFeature(
+            name="weighted_avg",
+            inputs=("hr_1",),
+            group_by=("player_id", "season"),
+            transform=_sample_derived_transform,
+            outputs=("derived_out",),
+        )
+        fs = FeatureSet(name="test", features=(dtf,), seasons=(2023,))
+        assert isinstance(fs.version, str)
+        assert len(fs.version) == 12
+
+    def test_content_hash_changes_when_transform_changes(self) -> None:
+        dtf1 = DerivedTransformFeature(
+            name="t",
+            inputs=("hr_1",),
+            group_by=("player_id", "season"),
+            transform=_sample_derived_transform,
+            outputs=("derived_out",),
+        )
+        dtf2 = DerivedTransformFeature(
+            name="t",
+            inputs=("hr_1",),
+            group_by=("player_id", "season"),
+            transform=_different_derived_transform,
+            outputs=("derived_out",),
+        )
+        fs1 = FeatureSet(name="test", features=(dtf1,), seasons=(2023,))
+        fs2 = FeatureSet(name="test", features=(dtf2,), seasons=(2023,))
+        assert fs1.version != fs2.version
+
+    def test_explicit_version_overrides_source(self) -> None:
+        dtf1 = DerivedTransformFeature(
+            name="t",
+            inputs=("hr_1",),
+            group_by=("player_id", "season"),
+            transform=_sample_derived_transform,
+            outputs=("derived_out",),
+            version="v1",
+        )
+        dtf2 = DerivedTransformFeature(
+            name="t",
+            inputs=("hr_1",),
+            group_by=("player_id", "season"),
+            transform=_different_derived_transform,
+            outputs=("derived_out",),
+            version="v1",
+        )
+        fs1 = FeatureSet(name="test", features=(dtf1,), seasons=(2023,))
+        fs2 = FeatureSet(name="test", features=(dtf2,), seasons=(2023,))
+        # Same explicit version → same hash even though transforms differ
+        assert fs1.version == fs2.version

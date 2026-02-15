@@ -59,7 +59,17 @@ class TransformFeature:
     version: str | None = None
 
 
-type AnyFeature = Feature | DeltaFeature | TransformFeature
+@dataclass(frozen=True)
+class DerivedTransformFeature:
+    name: str
+    inputs: tuple[str, ...]
+    group_by: tuple[str, ...]
+    transform: RowTransform
+    outputs: tuple[str, ...]
+    version: str | None = None
+
+
+type AnyFeature = Feature | DeltaFeature | TransformFeature | DerivedTransformFeature
 
 
 class FeatureBuilder:
@@ -145,7 +155,24 @@ def _transform_feature_to_dict(f: TransformFeature) -> dict[str, object]:
     }
 
 
+def _derived_transform_feature_to_dict(f: DerivedTransformFeature) -> dict[str, object]:
+    if f.version is not None:
+        identity = f.version
+    else:
+        identity = inspect.getsource(f.transform)
+    return {
+        "type": "derived_transform",
+        "name": f.name,
+        "inputs": list(f.inputs),
+        "group_by": list(f.group_by),
+        "outputs": list(f.outputs),
+        "transform_identity": identity,
+    }
+
+
 def _feature_to_dict(f: AnyFeature) -> dict[str, object]:
+    if isinstance(f, DerivedTransformFeature):
+        return _derived_transform_feature_to_dict(f)
     if isinstance(f, TransformFeature):
         return _transform_feature_to_dict(f)
     if isinstance(f, DeltaFeature):

@@ -5,7 +5,7 @@ import typer
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
-from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, TransformFeature
+from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     EvalResult,
@@ -119,6 +119,9 @@ def print_features(model_name: str, features: tuple[AnyFeature, ...]) -> None:
         elif isinstance(f, TransformFeature):
             outputs = ", ".join(f.outputs)
             typer.echo(f"  {f.name:<20} {f.source.value:<12} transform → {outputs}")
+        elif isinstance(f, DerivedTransformFeature):
+            outputs = ", ".join(f.outputs)
+            typer.echo(f"  {f.name:<20} derived      transform → {outputs}")
         elif f.computed:
             typer.echo(f"  {f.name:<20} {f.source.value:<12} computed={f.computed}")
         else:

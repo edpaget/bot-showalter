@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from fantasy_baseball_manager.features.types import (
     AnyFeature,
     DeltaFeature,
+    DerivedTransformFeature,
     Feature,
     FeatureSet,
     Source,
@@ -71,6 +72,8 @@ def _extract_features(features: tuple[AnyFeature, ...]) -> list[Feature]:
     result: list[Feature] = []
     for f in features:
         if isinstance(f, TransformFeature):
+            continue
+        if isinstance(f, DerivedTransformFeature):
             continue
         if isinstance(f, DeltaFeature):
             result.append(f.left)
@@ -280,7 +283,7 @@ def generate_sql(feature_set: FeatureSet) -> tuple[str, list[object]]:
     select_parts = ["spine.player_id", "spine.season"]
     select_params: list[object] = []
     for f in feature_set.features:
-        if isinstance(f, TransformFeature):
+        if isinstance(f, (TransformFeature, DerivedTransformFeature)):
             continue
         expr, expr_params = _select_expr(f, joins_dict, feature_set.source_filter)
         select_parts.append(expr)

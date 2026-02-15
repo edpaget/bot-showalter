@@ -11,6 +11,7 @@ from fantasy_baseball_manager.features.sql import generate_sql
 from fantasy_baseball_manager.features.types import (
     DatasetHandle,
     DatasetSplits,
+    DerivedTransformFeature,
     FeatureSet,
     Source,
     TransformFeature,
@@ -81,7 +82,9 @@ class SqliteDatasetAssembler:
     def _get_transform_features(self, feature_set: FeatureSet) -> list[TransformFeature]:
         return [f for f in feature_set.features if isinstance(f, TransformFeature)]
 
-    def _add_transform_columns(self, table_name: str, transforms: list[TransformFeature]) -> None:
+    def _add_transform_columns(
+        self, table_name: str, transforms: list[TransformFeature] | list[DerivedTransformFeature]
+    ) -> None:
         """ALTER TABLE to add REAL columns for each transform output."""
         for tf in transforms:
             for output in tf.outputs:
@@ -155,6 +158,35 @@ class SqliteDatasetAssembler:
 
             self._conn.commit()
 
+    def _get_derived_transform_features(self, feature_set: FeatureSet) -> list[DerivedTransformFeature]:
+        return [f for f in feature_set.features if isinstance(f, DerivedTransformFeature)]
+
+    def _run_derived_transforms(self, table_name: str, transforms: list[DerivedTransformFeature]) -> None:
+        """Execute the derived-transform pass: query from the dataset table itself."""
+        for tf in transforms:
+            input_cols = ", ".join(f"[{c}]" for c in tf.inputs)
+            group_cols = ", ".join(f"[{k}]" for k in tf.group_by)
+            sql = f"SELECT {group_cols}, {input_cols} FROM [{table_name}]"
+            cursor = self._conn.execute(sql)
+            columns = [desc[0] for desc in cursor.description]
+            all_rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+            groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
+            for row in all_rows:
+                key = tuple(row[k] for k in tf.group_by)
+                groups[key].append(row)
+
+            output_cols = ", ".join(f"[{o}] = ?" for o in tf.outputs)
+            where_parts = " AND ".join(f"[{k}] = ?" for k in tf.group_by)
+            update_sql = f"UPDATE [{table_name}] SET {output_cols} WHERE {where_parts}"
+
+            for group_key, group_rows in groups.items():
+                result = tf.transform(group_rows)
+                values = [result.get(o, 0.0) for o in tf.outputs]
+                self._conn.execute(update_sql, [*values, *group_key])
+
+            self._conn.commit()
+
     def materialize(self, feature_set: FeatureSet) -> DatasetHandle:
         # Pass 1: SQL materialization
         select_sql, params = generate_sql(feature_set)
@@ -166,6 +198,12 @@ class SqliteDatasetAssembler:
         if transforms:
             self._add_transform_columns(handle.table_name, transforms)
             self._run_transforms(handle.table_name, transforms)
+
+        # Pass 3: Derived-transform pass
+        derived = self._get_derived_transform_features(feature_set)
+        if derived:
+            self._add_transform_columns(handle.table_name, derived)
+            self._run_derived_transforms(handle.table_name, derived)
 
         return handle
 
@@ -180,7 +218,7 @@ class SqliteDatasetAssembler:
         feature_set_id: int = row[0]
 
         ds_row = self._conn.execute(
-            "SELECT id, table_name, row_count, seasons FROM dataset " "WHERE feature_set_id = ? AND split IS NULL",
+            "SELECT id, table_name, row_count, seasons FROM dataset WHERE feature_set_id = ? AND split IS NULL",
             (feature_set_id,),
         ).fetchone()
         if ds_row is not None:
