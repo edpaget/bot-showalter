@@ -688,6 +688,98 @@ class TestProjectionsLookupCommand:
         assert "No projections found" in result.output
 
 
+def _register_predictable_stub_with_projections() -> None:
+    """Register a stub that returns predictions with player_id/season for persistence tests."""
+    _clear()
+
+    class _PredictableStubWithProjections:
+        @property
+        def name(self) -> str:
+            return "pred-proj-stub"
+
+        @property
+        def description(self) -> str:
+            return "Predictable stub that returns full predictions."
+
+        @property
+        def supported_operations(self) -> frozenset[str]:
+            return frozenset({"predict"})
+
+        @property
+        def artifact_type(self) -> str:
+            return ArtifactType.NONE.value
+
+        def predict(self, config: ModelConfig) -> PredictResult:
+            return PredictResult(
+                model_name="pred-proj-stub",
+                predictions=[
+                    {"player_id": 1, "season": 2025, "player_type": "batter", "hr": 30, "pa": 600},
+                    {"player_id": 2, "season": 2025, "player_type": "pitcher", "so": 200, "ip": 180.0},
+                ],
+                output_path=config.artifacts_dir,
+            )
+
+    register("pred-proj-stub")(_PredictableStubWithProjections)
+
+
+def _seed_players_for_persistence(db_path: Path) -> None:
+    """Seed the two players that the predictable stub references."""
+    conn = create_connection(db_path)
+    conn.execute(
+        "INSERT INTO player (id, name_first, name_last, birth_date, bats) "
+        "VALUES (1, 'Mike', 'Trout', '1991-08-07', 'R')"
+    )
+    conn.execute(
+        "INSERT INTO player (id, name_first, name_last, birth_date, bats) "
+        "VALUES (2, 'Aaron', 'Judge', '1992-04-26', 'R')"
+    )
+    conn.commit()
+    conn.close()
+
+
+class TestPredictPersistence:
+    def test_predict_stores_projections_in_db(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _register_predictable_stub_with_projections()
+        db_path = tmp_path / "fbm.db"
+        _seed_players_for_persistence(db_path)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(db_path),
+        )
+
+        result = runner.invoke(app, ["predict", "pred-proj-stub", "--version", "v1"])
+        assert result.exit_code == 0, result.output
+
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(verify_conn)
+        projections = proj_repo.get_by_season(2025, system="pred-proj-stub")
+        assert len(projections) == 2
+        batter_proj = [p for p in projections if p.player_type == "batter"][0]
+        assert batter_proj.stat_json["hr"] == 30
+        assert batter_proj.stat_json["pa"] == 600
+        pitcher_proj = [p for p in projections if p.player_type == "pitcher"][0]
+        assert pitcher_proj.stat_json["so"] == 200
+        verify_conn.close()
+
+    def test_predict_uses_model_name_as_system(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _register_predictable_stub_with_projections()
+        db_path = tmp_path / "fbm.db"
+        _seed_players_for_persistence(db_path)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(db_path),
+        )
+
+        result = runner.invoke(app, ["predict", "pred-proj-stub", "--version", "v1"])
+        assert result.exit_code == 0, result.output
+
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(verify_conn)
+        projections = proj_repo.get_by_season(2025, system="pred-proj-stub")
+        assert all(p.system == "pred-proj-stub" for p in projections)
+        verify_conn.close()
+
+
 class TestProjectionsSystemsCommand:
     def test_systems_lists_available(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")

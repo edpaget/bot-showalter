@@ -43,6 +43,7 @@ class ModelContext:
     conn: sqlite3.Connection
     model: Model
     run_manager: RunManager | None
+    projection_repo: SqliteProjectionRepo | None = None
 
 
 @contextmanager
@@ -58,7 +59,8 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             repo = SqliteModelRunRepo(conn)
             run_manager = RunManager(model_run_repo=repo, artifacts_root=Path(config.artifacts_dir))
 
-        yield ModelContext(conn=conn, model=model, run_manager=run_manager)
+        projection_repo = SqliteProjectionRepo(conn)
+        yield ModelContext(conn=conn, model=model, run_manager=run_manager, projection_repo=projection_repo)
     finally:
         conn.close()
 

@@ -31,6 +31,7 @@ from fantasy_baseball_manager.cli.factory import (
     create_model,
 )
 from fantasy_baseball_manager.config import load_config
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
     make_bref_batting_mapper,
@@ -151,8 +152,22 @@ def predict(
     with build_model_context(model, config) as ctx:
         try:
             result = dispatch("predict", ctx.model, config, run_manager=ctx.run_manager)
-            if config.version is not None:
-                ctx.conn.commit()
+            if isinstance(result, PredictResult) and ctx.projection_repo is not None:
+                version = config.version or "latest"
+                for pred in result.predictions:
+                    if "player_id" not in pred or "season" not in pred:
+                        continue
+                    stat_json = {k: v for k, v in pred.items() if k not in ("player_id", "season", "player_type")}
+                    proj = Projection(
+                        player_id=pred["player_id"],
+                        season=pred["season"],
+                        system=model,
+                        version=version,
+                        player_type=pred.get("player_type", "batter"),
+                        stat_json=stat_json,
+                    )
+                    ctx.projection_repo.upsert(proj)
+            ctx.conn.commit()
         except UnsupportedOperation as e:
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(code=1) from None

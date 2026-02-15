@@ -136,7 +136,7 @@ This is backwards-compatible — `create_model` filters kwargs by constructor si
 
 ---
 
-## Phase 3 — Stacked playing-time model
+## Phase 3 — Stacked playing-time model ✅
 
 Demonstrate the stacked pattern: a playing-time model produces PA/IP projections, and a rate model consumes them via `Source.PROJECTION` features to compute counting stats.
 
@@ -240,7 +240,7 @@ For the composite model, store `_pt_system` in `stat_json` so the display can sh
 ```
 Phase 1 (Source.PROJECTION validation + coverage) ✅
   ↓
-Phase 2 (Ensemble model) ✅        Phase 3 (Stacked PT model)
+Phase 2 (Ensemble model) ✅        Phase 3 (Stacked PT model) ✅
   [independent of each other, but both depend on Phase 1]
   ↓                                ↓
 Phase 4 (Evaluation support)  [depends on 2 and 3]
