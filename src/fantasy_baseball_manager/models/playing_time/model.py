@@ -1,41 +1,39 @@
-"""Playing-time model — projects PA (batters) and IP (pitchers) only."""
+"""Playing-time model — projects PA (batters) and IP (pitchers) via OLS regression."""
 
+from pathlib import Path
 from typing import Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
-from fantasy_baseball_manager.features.types import FeatureSet
-from fantasy_baseball_manager.models.marcel.convert import rows_to_player_seasons
-from fantasy_baseball_manager.models.marcel.engine import project_playing_time
-from fantasy_baseball_manager.models.marcel.types import MarcelConfig
+from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
 from fantasy_baseball_manager.models.playing_time.convert import pt_projection_to_domain
+from fantasy_baseball_manager.models.playing_time.engine import (
+    fit_playing_time,
+    predict_playing_time,
+)
 from fantasy_baseball_manager.models.playing_time.features import (
+    batting_pt_feature_columns,
+    build_batting_pt_derived_transforms,
     build_batting_pt_features,
+    build_batting_pt_training_features,
+    build_pitching_pt_derived_transforms,
     build_pitching_pt_features,
+    build_pitching_pt_training_features,
+    pitching_pt_feature_columns,
+)
+from fantasy_baseball_manager.models.playing_time.serialization import (
+    load_coefficients,
+    save_coefficients,
 )
 from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
     PredictResult,
     PrepareResult,
+    TrainResult,
 )
 from fantasy_baseball_manager.models.registry import register
 
-
-def _build_marcel_config(model_params: dict[str, Any]) -> MarcelConfig:
-    """Build MarcelConfig from model_params, using defaults for missing keys."""
-    kwargs: dict[str, Any] = {}
-    for field_name in ("pa_weights", "ip_weights"):
-        if field_name in model_params:
-            kwargs[field_name] = tuple(model_params[field_name])
-    for field_name in (
-        "batting_baseline_pa",
-        "pitching_starter_baseline_ip",
-        "pitching_reliever_baseline_ip",
-        "reliever_gs_ratio",
-    ):
-        if field_name in model_params:
-            kwargs[field_name] = float(model_params[field_name])
-    return MarcelConfig(**kwargs)
+_ARTIFACT_FILENAME = "pt_coefficients.joblib"
 
 
 @register("playing_time")
@@ -49,45 +47,55 @@ class PlayingTimeModel:
 
     @property
     def description(self) -> str:
-        return "Playing-time projection — projects PA (batters) and IP (pitchers) using weighted historical data."
+        return "Playing-time projection — projects PA (batters) and IP (pitchers) via OLS regression."
 
     @property
     def supported_operations(self) -> frozenset[str]:
-        return frozenset({"prepare", "predict"})
+        return frozenset({"prepare", "train", "predict"})
 
     @property
     def artifact_type(self) -> str:
-        return ArtifactType.NONE.value
+        return ArtifactType.FILE.value
 
     def _build_feature_sets(
         self,
-        marcel_config: MarcelConfig,
         seasons: list[int],
+        *,
+        training: bool = False,
+        lags: int = 3,
     ) -> tuple[FeatureSet, FeatureSet]:
-        bat_lags = len(marcel_config.pa_weights)
-        pitch_lags = len(marcel_config.ip_weights)
-
-        batting_features = build_batting_pt_features(lags=bat_lags)
-        pitching_features = build_pitching_pt_features(lags=pitch_lags)
+        if training:
+            bat_features = build_batting_pt_training_features(lags)
+            pitch_features = build_pitching_pt_training_features(lags)
+        else:
+            bat_features: list[AnyFeature] = list(build_batting_pt_features(lags))
+            bat_features.extend(build_batting_pt_derived_transforms(lags))
+            pitch_features: list[AnyFeature] = list(build_pitching_pt_features(lags))
+            pitch_features.extend(build_pitching_pt_derived_transforms(lags))
 
         batting_fs = FeatureSet(
-            name="playing_time_batting",
-            features=tuple(batting_features),
+            name="playing_time_batting_train" if training else "playing_time_batting",
+            features=tuple(bat_features),
             seasons=tuple(seasons),
             source_filter="fangraphs",
+            spine_filter=SpineFilter(min_pa=50, player_type="batter"),
         )
         pitching_fs = FeatureSet(
-            name="playing_time_pitching",
-            features=tuple(pitching_features),
+            name="playing_time_pitching_train" if training else "playing_time_pitching",
+            features=tuple(pitch_features),
             seasons=tuple(seasons),
             source_filter="fangraphs",
+            spine_filter=SpineFilter(min_ip=10.0, player_type="pitcher"),
         )
         return batting_fs, pitching_fs
 
+    def _artifact_path(self, config: ModelConfig) -> Path:
+        return Path(config.artifacts_dir) / self.name / (config.version or "latest")
+
     def prepare(self, config: ModelConfig) -> PrepareResult:
         assert self._assembler is not None, "assembler is required for prepare"
-        marcel_config = _build_marcel_config(config.model_params)
-        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config.seasons)
+        lags = config.model_params.get("lags", 3)
+        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -98,12 +106,49 @@ class PlayingTimeModel:
             artifacts_path=config.artifacts_dir,
         )
 
+    def train(self, config: ModelConfig) -> TrainResult:
+        assert self._assembler is not None, "assembler is required for train"
+        lags = config.model_params.get("lags", 3)
+        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, training=True, lags=lags)
+
+        bat_handle = self._assembler.get_or_materialize(batting_fs)
+        pitch_handle = self._assembler.get_or_materialize(pitching_fs)
+
+        bat_rows = self._assembler.read(bat_handle)
+        pitch_rows = self._assembler.read(pitch_handle)
+
+        bat_columns = batting_pt_feature_columns(lags)
+        pitch_columns = pitching_pt_feature_columns(lags)
+
+        bat_coeff = fit_playing_time(bat_rows, bat_columns, "target_pa", "batter")
+        pitch_coeff = fit_playing_time(pitch_rows, pitch_columns, "target_ip", "pitcher")
+
+        artifact_path = self._artifact_path(config)
+        artifact_path.mkdir(parents=True, exist_ok=True)
+        save_coefficients(
+            {"batter": bat_coeff, "pitcher": pitch_coeff},
+            artifact_path / _ARTIFACT_FILENAME,
+        )
+
+        return TrainResult(
+            model_name=self.name,
+            metrics={
+                "r_squared_batter": bat_coeff.r_squared,
+                "r_squared_pitcher": pitch_coeff.r_squared,
+            },
+            artifacts_path=str(artifact_path),
+        )
+
     def predict(self, config: ModelConfig) -> PredictResult:
         assert self._assembler is not None, "assembler is required for predict"
-        marcel_config = _build_marcel_config(config.model_params)
-        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config.seasons)
-        bat_lags = len(marcel_config.pa_weights)
-        pitch_lags = len(marcel_config.ip_weights)
+        lags = config.model_params.get("lags", 3)
+
+        artifact_path = self._artifact_path(config)
+        coefficients = load_coefficients(artifact_path / _ARTIFACT_FILENAME)
+        bat_coeff = coefficients["batter"]
+        pitch_coeff = coefficients["pitcher"]
+
+        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -114,14 +159,17 @@ class PlayingTimeModel:
         projected_season = max(config.seasons) + 1 if config.seasons else 2025
         version = config.version or "latest"
 
-        bat_players = rows_to_player_seasons(bat_rows, categories=[], lags=bat_lags, pitcher=False)
-        pitch_players = rows_to_player_seasons(pitch_rows, categories=[], lags=pitch_lags, pitcher=True)
-
         predictions: list[dict[str, Any]] = []
 
-        for pid, (_pid, season_lines, _age) in bat_players.items():
-            pt = project_playing_time(season_lines, marcel_config)
-            domain = pt_projection_to_domain(pid, projected_season, pt, pitcher=False, version=version)
+        for row in bat_rows:
+            pt = predict_playing_time(row, bat_coeff, clamp_min=0.0, clamp_max=750.0)
+            domain = pt_projection_to_domain(
+                row["player_id"],
+                projected_season,
+                pt,
+                pitcher=False,
+                version=version,
+            )
             predictions.append(
                 {
                     "player_id": domain.player_id,
@@ -131,9 +179,15 @@ class PlayingTimeModel:
                 }
             )
 
-        for pid, (_pid, season_lines, _age) in pitch_players.items():
-            pt = project_playing_time(season_lines, marcel_config)
-            domain = pt_projection_to_domain(pid, projected_season, pt, pitcher=True, version=version)
+        for row in pitch_rows:
+            pt = predict_playing_time(row, pitch_coeff, clamp_min=0.0, clamp_max=250.0)
+            domain = pt_projection_to_domain(
+                row["player_id"],
+                projected_season,
+                pt,
+                pitcher=True,
+                version=version,
+            )
             predictions.append(
                 {
                     "player_id": domain.player_id,

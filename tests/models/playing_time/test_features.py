@@ -1,9 +1,13 @@
 from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature, Source
 from fantasy_baseball_manager.models.playing_time.features import (
+    batting_pt_feature_columns,
     build_batting_pt_derived_transforms,
     build_batting_pt_features,
+    build_batting_pt_training_features,
     build_pitching_pt_derived_transforms,
     build_pitching_pt_features,
+    build_pitching_pt_training_features,
+    pitching_pt_feature_columns,
 )
 
 
@@ -157,3 +161,87 @@ class TestPitchingDerivedTransforms:
     def test_all_are_derived_transform_features(self) -> None:
         transforms = build_pitching_pt_derived_transforms()
         assert all(isinstance(t, DerivedTransformFeature) for t in transforms)
+
+
+class TestBattingTrainingFeatures:
+    def test_training_features_include_target_pa(self) -> None:
+        features = build_batting_pt_training_features()
+        names = [f.name for f in features if isinstance(f, Feature)]
+        assert "target_pa" in names
+
+    def test_training_features_target_has_lag_zero(self) -> None:
+        features = build_batting_pt_training_features()
+        target = [f for f in features if isinstance(f, Feature) and f.name == "target_pa"]
+        assert len(target) == 1
+        assert target[0].lag == 0
+
+    def test_training_features_include_derived_transforms(self) -> None:
+        features = build_batting_pt_training_features()
+        derived = [f for f in features if isinstance(f, DerivedTransformFeature)]
+        names = [d.name for d in derived]
+        assert "il_summary" in names
+        assert "batting_pt_trend" in names
+
+
+class TestPitchingTrainingFeatures:
+    def test_training_features_include_target_ip(self) -> None:
+        features = build_pitching_pt_training_features()
+        names = [f.name for f in features if isinstance(f, Feature)]
+        assert "target_ip" in names
+
+    def test_training_features_target_has_lag_zero(self) -> None:
+        features = build_pitching_pt_training_features()
+        target = [f for f in features if isinstance(f, Feature) and f.name == "target_ip"]
+        assert len(target) == 1
+        assert target[0].lag == 0
+
+    def test_training_features_include_derived_transforms(self) -> None:
+        features = build_pitching_pt_training_features()
+        derived = [f for f in features if isinstance(f, DerivedTransformFeature)]
+        names = [d.name for d in derived]
+        assert "il_summary" in names
+        assert "pitching_pt_trend" in names
+
+
+class TestBattingFeatureColumns:
+    def test_feature_columns_excludes_target(self) -> None:
+        columns = batting_pt_feature_columns()
+        assert "target_pa" not in columns
+
+    def test_feature_columns_includes_derived_outputs(self) -> None:
+        columns = batting_pt_feature_columns()
+        assert "il_days_3yr" in columns
+        assert "il_recurrence" in columns
+        assert "pt_trend" in columns
+
+    def test_feature_columns_includes_base_features(self) -> None:
+        columns = batting_pt_feature_columns()
+        assert "age" in columns
+        assert "pa_1" in columns
+
+    def test_feature_columns_excludes_metadata(self) -> None:
+        columns = batting_pt_feature_columns()
+        assert "player_id" not in columns
+        assert "season" not in columns
+
+
+class TestPitchingFeatureColumns:
+    def test_feature_columns_excludes_target(self) -> None:
+        columns = pitching_pt_feature_columns()
+        assert "target_ip" not in columns
+
+    def test_feature_columns_includes_derived_outputs(self) -> None:
+        columns = pitching_pt_feature_columns()
+        assert "il_days_3yr" in columns
+        assert "il_recurrence" in columns
+        assert "pt_trend" in columns
+
+    def test_feature_columns_includes_base_features(self) -> None:
+        columns = pitching_pt_feature_columns()
+        assert "age" in columns
+        assert "ip_1" in columns
+
+    def test_feature_columns_excludes_metadata(self) -> None:
+        columns = pitching_pt_feature_columns()
+        assert "player_id" not in columns
+        assert "season" not in columns

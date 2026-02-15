@@ -3,7 +3,7 @@ from fantasy_baseball_manager.features.transforms.playing_time import (
     make_il_summary_transform,
     make_pt_trend_transform,
 )
-from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature
+from fantasy_baseball_manager.features.types import AnyFeature, DerivedTransformFeature, Feature
 
 
 def build_batting_pt_features(lags: int = 3) -> list[Feature]:
@@ -78,3 +78,44 @@ def build_pitching_pt_derived_transforms(lags: int = 3) -> list[DerivedTransform
             outputs=("pt_trend",),
         ),
     ]
+
+
+def build_batting_pt_training_features(lags: int = 3) -> list[AnyFeature]:
+    """Features + target (pa at lag 0) for training."""
+    features: list[AnyFeature] = list(build_batting_pt_features(lags))
+    features.extend(build_batting_pt_derived_transforms(lags))
+    features.append(batting.col("pa").lag(0).alias("target_pa"))
+    return features
+
+
+def build_pitching_pt_training_features(lags: int = 3) -> list[AnyFeature]:
+    """Features + target (ip at lag 0) for training."""
+    features: list[AnyFeature] = list(build_pitching_pt_features(lags))
+    features.extend(build_pitching_pt_derived_transforms(lags))
+    features.append(pitching.col("ip").lag(0).alias("target_ip"))
+    return features
+
+
+def _collect_feature_names(features: list[AnyFeature]) -> list[str]:
+    """Collect output column names from a list of features, excluding metadata."""
+    columns: list[str] = []
+    for f in features:
+        if isinstance(f, DerivedTransformFeature):
+            columns.extend(f.outputs)
+        elif isinstance(f, Feature):
+            columns.append(f.name)
+    return columns
+
+
+def batting_pt_feature_columns(lags: int = 3) -> list[str]:
+    """Return ordered list of feature column names for batting PT model."""
+    features: list[AnyFeature] = list(build_batting_pt_features(lags))
+    features.extend(build_batting_pt_derived_transforms(lags))
+    return _collect_feature_names(features)
+
+
+def pitching_pt_feature_columns(lags: int = 3) -> list[str]:
+    """Return ordered list of feature column names for pitching PT model."""
+    features: list[AnyFeature] = list(build_pitching_pt_features(lags))
+    features.extend(build_pitching_pt_derived_transforms(lags))
+    return _collect_feature_names(features)
