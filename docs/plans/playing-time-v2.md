@@ -89,7 +89,42 @@ def make_starter_ratio_transform() -> ...:
 
 This is the single most important missing feature for pitchers. A starter with `gs/g = 1.0` projects for ~180 IP; a reliever with `gs/g = 0.0` projects for ~60 IP. The current model has `gs_1` and `g_1` as separate features but no ratio, so the model must learn the relationship from linear terms alone.
 
-#### 1d. Interaction terms
+#### 1d. Team PA/IP share
+
+**File:** `features/transforms/playing_time.py`
+
+Add a transform that computes the player's share of their team's total PA or IP from the prior season:
+
+```python
+def make_team_pt_share_transform(pt_column: str) -> ...:
+    """
+    Inputs: {pt_column}_1, team_{pt_column}_1
+    Outputs: team_pt_share
+    """
+```
+
+- `team_pt_share = pa_1 / team_pa_1` (batters) or `ip_1 / team_ip_1` (pitchers)
+- When `team_pa_1` is 0 or None, default to 0.0
+
+This captures "established starter vs. platoon vs. bench" without needing to model the full roster. A player who took 12% of their team's PA last year is an everyday player; one who took 3% is a bench bat. This is a cheap, non-circular way to encode team context — it uses observed prior-season data rather than trying to predict future roster competition.
+
+**File:** `models/playing_time/features.py`
+
+Add `team_pa_1` and `team_ip_1` as base features. These require a new feature source that aggregates team-level PA/IP from batting/pitching stats joined through roster stints. The SQL generation will need a subquery:
+
+```sql
+LEFT JOIN (
+    SELECT rs.player_id, rs.season,
+           SUM(bs.pa) AS team_pa
+    FROM roster_stint rs
+    JOIN batting_stats bs ON bs.team_id = rs.team_id AND bs.season = rs.season
+    GROUP BY rs.player_id, rs.season
+) team1 ON team1.player_id = spine.player_id AND team1.season = spine.season - 1
+```
+
+If this join proves too complex for the feature DSL, compute `team_pt_share` directly in a derived transform that queries team totals at transform time, or pre-compute team totals as a separate feature source.
+
+#### 1e. Interaction terms
 
 **File:** `features/transforms/playing_time.py`
 
@@ -106,16 +141,17 @@ def make_pt_interaction_transform() -> ...:
 - `war_trend = war_1 × pt_trend` — high-WAR players with increasing PT are likely to keep it; low-WAR players with decreasing PT are likely to lose more
 - `age_il_interact = max(0, age - 30) × il_recurrence` — recurring injuries are more concerning for older players
 
-#### 1e. Wire features into feature builders
+#### 1f. Wire features into feature builders
 
 **File:** `models/playing_time/features.py`
 
 Register the new transforms in `build_batting_pt_derived_transforms()` and `build_pitching_pt_derived_transforms()`. Update `build_batting_pt_training_features()` and `build_pitching_pt_training_features()` accordingly.
 
-#### 1f. Tests
+#### 1g. Tests
 
 - Each transform produces correct outputs for known inputs.
-- Edge cases: `war_1 = None`, `g_1 = 0`, `il_days_1 = 0`, negative WAR.
+- Edge cases: `war_1 = None`, `g_1 = 0`, `il_days_1 = 0`, negative WAR, `team_pa_1 = 0`.
+- `team_pt_share` computes correct ratio and defaults to 0.0 when team total is missing.
 - Feature column lists include the new features.
 - End-to-end: train → predict cycle with new features produces valid output.
 
