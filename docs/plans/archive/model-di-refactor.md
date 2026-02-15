@@ -40,7 +40,7 @@ instantiating them with a zero-arg call.
 - Introduce a composition-root helper (e.g. `create_model(name, ...)` in
   `cli/factory.py` or inline in `app.py`) that looks up the class from the
   registry and instantiates it with the appropriate dependencies.
-- Update `_dispatcher.dispatch` to accept a `ProjectionModel` instance instead
+- Update `_dispatcher.dispatch` to accept a `Model` instance instead
   of a `model_name` string — the caller (CLI) is responsible for construction.
 - Update CLI commands (`_run_action`, `train`, etc.) to use the composition
   root for model construction.

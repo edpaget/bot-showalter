@@ -53,13 +53,13 @@ model.supported_operations  # frozenset({"prepare", "train", "evaluate"})
 model.artifact_type    # "none"
 ```
 
-### ProjectionModel protocol
+### Model protocol
 
-Every registered model implements `ProjectionModel` and one or more operation protocols:
+Every registered model implements `Model` and one or more operation protocols:
 
 ```python
 @runtime_checkable
-class ProjectionModel(Protocol):
+class Model(Protocol):
     @property
     def name(self) -> str: ...
     @property

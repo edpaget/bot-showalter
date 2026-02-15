@@ -127,11 +127,11 @@ class ArtifactType(Enum):
     DIRECTORY = "directory"  # Directory of files (e.g. TF SavedModel)
 ```
 
-Models declare their artifact type via a property on `ProjectionModel`:
+Models declare their artifact type via a property on `Model`:
 
 ```python
 @runtime_checkable
-class ProjectionModel(Protocol):
+class Model(Protocol):
     @property
     def name(self) -> str: ...
     @property
@@ -167,7 +167,7 @@ class RunManager:
         artifacts_root: Path,
     ) -> None: ...
 
-    def begin_run(self, model: ProjectionModel, config: ModelConfig) -> RunContext: ...
+    def begin_run(self, model: Model, config: ModelConfig) -> RunContext: ...
     def finalize_run(self, context: RunContext, metrics: dict[str, float]) -> ModelRunRecord: ...
 ```
 
@@ -330,7 +330,7 @@ All phases below assume the data-layer roadmap is complete.
 - `RunContext` class (managed run directory, metric logging)
 - `RunManager` class (begin/finalize lifecycle, git commit capture, delegates to `ModelRunRepo`)
 - Update `ModelConfig` with `version` and `tags`
-- Add `artifact_type` to `ProjectionModel` protocol
+- Add `artifact_type` to `Model` protocol
 - Update Marcel: `artifact_type = ArtifactType.NONE`
 - Wire `RunManager` into the dispatcher so `train` automatically records a model run
 - Update existing tests
