@@ -123,7 +123,7 @@ class TestAtomicMigrations:
         mig_dir.mkdir()
         (mig_dir / "001_good.sql").write_text("CREATE TABLE good_table (id INTEGER PRIMARY KEY);")
         (mig_dir / "002_bad.sql").write_text(
-            "CREATE TABLE bad_table (id INTEGER PRIMARY KEY);\n" "INSERT INTO nonexistent_table VALUES (1);"
+            "CREATE TABLE bad_table (id INTEGER PRIMARY KEY);\nINSERT INTO nonexistent_table VALUES (1);"
         )
 
         db_path = tmp / "test.db"

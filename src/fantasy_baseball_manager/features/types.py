@@ -35,6 +35,7 @@ class Feature:
     computed: str | None = None
     system: str | None = None
     version: str | None = None
+    distribution_column: str | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ class FeatureBuilder:
         self._computed: str | None = None
         self._system: str | None = None
         self._version: str | None = None
+        self._distribution_column: str | None = None
 
     def lag(self, n: int) -> FeatureBuilder:
         self._lag = n
@@ -110,6 +112,24 @@ class FeatureBuilder:
         self._version = name
         return self
 
+    def percentile(self, p: int) -> FeatureBuilder:
+        if self._source != Source.PROJECTION:
+            msg = "percentile() is only available on PROJECTION features"
+            raise ValueError(msg)
+        allowed = {10, 25, 50, 75, 90}
+        if p not in allowed:
+            msg = f"percentile must be one of 10, 25, 50, 75, 90, got {p}"
+            raise ValueError(msg)
+        self._distribution_column = f"p{p}"
+        return self
+
+    def std(self) -> FeatureBuilder:
+        if self._source != Source.PROJECTION:
+            msg = "std() is only available on PROJECTION features"
+            raise ValueError(msg)
+        self._distribution_column = "std"
+        return self
+
     def alias(self, name: str) -> Feature:
         if self._source == Source.PROJECTION and self._system is None:
             msg = "Projection features require .system() to be specified"
@@ -125,6 +145,7 @@ class FeatureBuilder:
             computed=self._computed,
             system=self._system,
             version=self._version,
+            distribution_column=self._distribution_column,
         )
 
 
@@ -197,6 +218,7 @@ def _feature_to_dict(f: AnyFeature) -> dict[str, object]:
         "computed": f.computed,
         "system": f.system,
         "version": f.version,
+        "distribution_column": f.distribution_column,
     }
 
 

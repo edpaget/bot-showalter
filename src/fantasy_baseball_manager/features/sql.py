@@ -40,6 +40,8 @@ class JoinSpec:
     table: str
     system: str | None = None
     version: str | None = None
+    distribution_stat: str | None = None
+    projection_alias: str | None = None
 
 
 def _join_alias(source: Source, lag: int, counter: int | None = None) -> str:
@@ -111,6 +113,38 @@ def _plan_joins(features: tuple[AnyFeature, ...]) -> list[JoinSpec]:
                 version=version,
             )
         )
+
+    # Plan distribution joins for features with distribution_column set
+    # Dedup key: (source, lag, system, version, stat) where stat = column
+    proj_lookup = {(j.source, j.lag, j.system, j.version): j for j in joins}
+    dist_seen: dict[tuple[Source, int, str | None, str | None, str], None] = {}
+    for f in plain_features:
+        if f.distribution_column is None:
+            continue
+        lag = 0 if f.source == Source.PLAYER else f.lag
+        dist_key = (f.source, lag, f.system, f.version, f.column)
+        if dist_key not in dist_seen:
+            dist_seen[dist_key] = None
+
+    pd_counter = 0
+    for source, lag, system, version, stat in sorted(
+        dist_seen, key=lambda k: (k[0].value, k[1], k[2] or "", k[3] or "", k[4])
+    ):
+        proj_join = proj_lookup[(source, lag, system, version)]
+        joins.append(
+            JoinSpec(
+                source=source,
+                lag=lag,
+                alias=f"pd{pd_counter}",
+                table="projection_distribution",
+                system=system,
+                version=version,
+                distribution_stat=stat,
+                projection_alias=proj_join.alias,
+            )
+        )
+        pd_counter += 1
+
     return joins
 
 
@@ -142,8 +176,17 @@ def _raw_expr(
     feature: Feature,
     joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec],
     source_filter: str | None,
+    *,
+    dist_joins_dict: dict[tuple[Source, int, str | None, str | None, str], JoinSpec] | None = None,
 ) -> tuple[str, list[object]]:
     """Return the raw SQL expression for a feature (without AS alias)."""
+    # Distribution column (e.g., p90, std)
+    if feature.distribution_column is not None and dist_joins_dict is not None:
+        lag = 0 if feature.source == Source.PLAYER else feature.lag
+        dist_key = (feature.source, lag, feature.system, feature.version, feature.column)
+        dist_join = dist_joins_dict[dist_key]
+        return f"{dist_join.alias}.{feature.distribution_column}", []
+
     # Computed age
     if feature.computed == "age":
         alias = joins_dict[(Source.PLAYER, 0, None, None)].alias
@@ -190,14 +233,16 @@ def _select_expr(
     feature: AnyFeature,
     joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec],
     source_filter: str | None,
+    *,
+    dist_joins_dict: dict[tuple[Source, int, str | None, str | None, str], JoinSpec] | None = None,
 ) -> tuple[str, list[object]]:
     if isinstance(feature, DeltaFeature):
-        left_sql, left_params = _raw_expr(feature.left, joins_dict, source_filter)
-        right_sql, right_params = _raw_expr(feature.right, joins_dict, source_filter)
+        left_sql, left_params = _raw_expr(feature.left, joins_dict, source_filter, dist_joins_dict=dist_joins_dict)
+        right_sql, right_params = _raw_expr(feature.right, joins_dict, source_filter, dist_joins_dict=dist_joins_dict)
         return f"({left_sql} - {right_sql}) AS {feature.name}", left_params + right_params
 
     assert isinstance(feature, Feature)
-    expr, params = _raw_expr(feature, joins_dict, source_filter)
+    expr, params = _raw_expr(feature, joins_dict, source_filter, dist_joins_dict=dist_joins_dict)
     return f"{expr} AS {feature.name}", params
 
 
@@ -241,6 +286,16 @@ def _join_clause(
     join: JoinSpec, source_filter: str | None, *, player_type: str | None = None
 ) -> tuple[str, list[object]]:
     alias = join.alias
+
+    # Distribution join
+    if join.distribution_stat is not None:
+        parts = [
+            f"LEFT JOIN {join.table} {alias}",
+            f" ON {alias}.projection_id = {join.projection_alias}.id",
+            f" AND {alias}.stat = ?",
+        ]
+        return "".join(parts), [join.distribution_stat]
+
     if join.source == Source.PLAYER:
         return f"LEFT JOIN {join.table} {alias} ON {alias}.id = spine.player_id", []
 
@@ -277,7 +332,10 @@ def generate_sql(feature_set: FeatureSet) -> tuple[str, list[object]]:
 
     # Plan joins
     joins = _plan_joins(feature_set.features)
-    joins_dict = {(j.source, j.lag, j.system, j.version): j for j in joins}
+    joins_dict = {(j.source, j.lag, j.system, j.version): j for j in joins if j.distribution_stat is None}
+    dist_joins_dict = {
+        (j.source, j.lag, j.system, j.version, j.distribution_stat): j for j in joins if j.distribution_stat is not None
+    }
 
     # Build SELECT expressions (skip TransformFeature — handled in transform pass)
     select_parts = ["spine.player_id", "spine.season"]
@@ -285,7 +343,7 @@ def generate_sql(feature_set: FeatureSet) -> tuple[str, list[object]]:
     for f in feature_set.features:
         if isinstance(f, (TransformFeature, DerivedTransformFeature)):
             continue
-        expr, expr_params = _select_expr(f, joins_dict, feature_set.source_filter)
+        expr, expr_params = _select_expr(f, joins_dict, feature_set.source_filter, dist_joins_dict=dist_joins_dict)
         select_parts.append(expr)
         select_params.extend(expr_params)
 

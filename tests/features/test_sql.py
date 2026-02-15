@@ -6,6 +6,7 @@ import pytest
 
 from tests.features.conftest import (
     seed_batting_data,
+    seed_distribution_data,
     seed_projection_data,
     seed_projection_pitcher_data,
     seed_projection_v2_data,
@@ -358,6 +359,168 @@ class TestSelectExprRollingRate:
         # source filter appears twice — once for numerator, once for denominator
         assert sql.count("AND source = ?") == 2
         assert params == ["fangraphs", "fangraphs"]
+
+
+class TestPlanJoinsDistribution:
+    def test_distribution_feature_plans_projection_and_distribution_joins(self) -> None:
+        features = (
+            Feature(
+                name="steamer_hr_p90",
+                source=Source.PROJECTION,
+                column="hr",
+                system="steamer",
+                distribution_column="p90",
+            ),
+        )
+        joins = _plan_joins(features)
+        # Should produce 2 joins: one projection join + one distribution join
+        assert len(joins) == 2
+        projection_joins = [j for j in joins if j.source == Source.PROJECTION and j.distribution_stat is None]
+        dist_joins = [j for j in joins if j.distribution_stat is not None]
+        assert len(projection_joins) == 1
+        assert len(dist_joins) == 1
+        assert dist_joins[0].distribution_stat == "hr"
+        assert dist_joins[0].alias.startswith("pd")
+
+    def test_same_stat_different_percentiles_share_distribution_join(self) -> None:
+        features = (
+            Feature(
+                name="steamer_hr_p90",
+                source=Source.PROJECTION,
+                column="hr",
+                system="steamer",
+                distribution_column="p90",
+            ),
+            Feature(
+                name="steamer_hr_p10",
+                source=Source.PROJECTION,
+                column="hr",
+                system="steamer",
+                distribution_column="p10",
+            ),
+        )
+        joins = _plan_joins(features)
+        projection_joins = [j for j in joins if j.source == Source.PROJECTION and j.distribution_stat is None]
+        dist_joins = [j for j in joins if j.distribution_stat is not None]
+        assert len(projection_joins) == 1
+        assert len(dist_joins) == 1  # Same stat shares one distribution join
+
+    def test_different_stats_separate_distribution_joins(self) -> None:
+        features = (
+            Feature(
+                name="steamer_hr_p90",
+                source=Source.PROJECTION,
+                column="hr",
+                system="steamer",
+                distribution_column="p90",
+            ),
+            Feature(
+                name="steamer_bb_p90",
+                source=Source.PROJECTION,
+                column="bb",
+                system="steamer",
+                distribution_column="p90",
+            ),
+        )
+        joins = _plan_joins(features)
+        dist_joins = [j for j in joins if j.distribution_stat is not None]
+        assert len(dist_joins) == 2
+
+    def test_mixed_point_and_distribution_share_projection_join(self) -> None:
+        features = (
+            Feature(
+                name="steamer_hr",
+                source=Source.PROJECTION,
+                column="hr",
+                system="steamer",
+            ),
+            Feature(
+                name="steamer_hr_p90",
+                source=Source.PROJECTION,
+                column="hr",
+                system="steamer",
+                distribution_column="p90",
+            ),
+        )
+        joins = _plan_joins(features)
+        projection_joins = [j for j in joins if j.source == Source.PROJECTION and j.distribution_stat is None]
+        assert len(projection_joins) == 1  # Shared projection join
+
+
+class TestSelectExprDistribution:
+    def test_distribution_percentile_expr(self) -> None:
+        f = Feature(
+            name="steamer_hr_p90",
+            source=Source.PROJECTION,
+            column="hr",
+            system="steamer",
+            distribution_column="p90",
+        )
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.PROJECTION, 0, "steamer", None): JoinSpec(
+                source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer"
+            ),
+        }
+        dist_joins_dict: dict[tuple[Source, int, str | None, str | None, str], JoinSpec] = {
+            (Source.PROJECTION, 0, "steamer", None, "hr"): JoinSpec(
+                source=Source.PROJECTION,
+                lag=0,
+                alias="pd0",
+                table="projection_distribution",
+                system="steamer",
+                distribution_stat="hr",
+                projection_alias="pr0",
+            ),
+        }
+        sql, params = _select_expr(f, joins_dict, None, dist_joins_dict=dist_joins_dict)
+        assert sql == "pd0.p90 AS steamer_hr_p90"
+        assert params == []
+
+    def test_distribution_std_expr(self) -> None:
+        f = Feature(
+            name="steamer_hr_std",
+            source=Source.PROJECTION,
+            column="hr",
+            system="steamer",
+            distribution_column="std",
+        )
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.PROJECTION, 0, "steamer", None): JoinSpec(
+                source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer"
+            ),
+        }
+        dist_joins_dict: dict[tuple[Source, int, str | None, str | None, str], JoinSpec] = {
+            (Source.PROJECTION, 0, "steamer", None, "hr"): JoinSpec(
+                source=Source.PROJECTION,
+                lag=0,
+                alias="pd0",
+                table="projection_distribution",
+                system="steamer",
+                distribution_stat="hr",
+                projection_alias="pr0",
+            ),
+        }
+        sql, params = _select_expr(f, joins_dict, None, dist_joins_dict=dist_joins_dict)
+        assert sql == "pd0.std AS steamer_hr_std"
+        assert params == []
+
+
+class TestJoinClauseDistribution:
+    def test_distribution_join_clause(self) -> None:
+        join = JoinSpec(
+            source=Source.PROJECTION,
+            lag=0,
+            alias="pd0",
+            table="projection_distribution",
+            system="steamer",
+            distribution_stat="hr",
+            projection_alias="pr0",
+        )
+        sql, params = _join_clause(join, None)
+        assert "LEFT JOIN projection_distribution pd0" in sql
+        assert "pd0.projection_id = pr0.id" in sql
+        assert "pd0.stat = ?" in sql
+        assert params == ["hr"]
 
 
 class TestSelectExprProjection:
@@ -997,6 +1160,91 @@ class TestProjectionRoundTrip:
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
         assert trout["steamer_hr_rate"] == pytest.approx(38 / 620)
+
+
+class TestDistributionRoundTrip:
+    """Integration tests for distribution features against seeded SQLite."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self, conn: sqlite3.Connection) -> None:
+        seed_batting_data(conn)
+        seed_projection_data(conn)
+        seed_distribution_data(conn)
+        self._conn = conn
+
+    def _execute_dicts(self, fs: FeatureSet) -> list[dict[str, object]]:
+        sql, params = generate_sql(fs)
+        cursor = self._conn.execute(sql, params)
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def test_distribution_percentile_round_trip(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(
+                Feature(
+                    name="steamer_hr_p90",
+                    source=Source.PROJECTION,
+                    column="hr",
+                    system="steamer",
+                    distribution_column="p90",
+                ),
+            ),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["steamer_hr_p90"] == 48.0
+
+    def test_mixed_point_and_distribution_features(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(
+                Feature(
+                    name="steamer_hr",
+                    source=Source.PROJECTION,
+                    column="hr",
+                    system="steamer",
+                ),
+                Feature(
+                    name="steamer_hr_p90",
+                    source=Source.PROJECTION,
+                    column="hr",
+                    system="steamer",
+                    distribution_column="p90",
+                ),
+            ),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        trout = next(r for r in rows if r["player_id"] == 1)
+        assert trout["steamer_hr"] == 38  # From projection table
+        assert trout["steamer_hr_p90"] == 48.0  # From projection_distribution table
+
+    def test_distribution_missing_returns_null(self) -> None:
+        # Betts has no zips distribution data
+        fs = FeatureSet(
+            name="test",
+            features=(
+                Feature(
+                    name="zips_hr_p90",
+                    source=Source.PROJECTION,
+                    column="hr",
+                    system="zips",
+                    distribution_column="p90",
+                ),
+            ),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        rows = self._execute_dicts(fs)
+        betts = next(r for r in rows if r["player_id"] == 2)
+        assert betts["zips_hr_p90"] is None
 
 
 def _noop_transform(rows: list[dict[str, Any]]) -> dict[str, Any]:

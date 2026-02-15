@@ -221,6 +221,44 @@ class TestFeatureBuilder:
         assert feature.source == Source.PROJECTION
         assert feature.system == "steamer"
 
+    def test_percentile_returns_self(self) -> None:
+        builder = FeatureBuilder(source=Source.PROJECTION, column="hr")
+        result = builder.percentile(90)
+        assert result is builder
+
+    def test_percentile_sets_distribution_column(self) -> None:
+        feature = (
+            FeatureBuilder(source=Source.PROJECTION, column="hr")
+            .percentile(90)
+            .system("steamer")
+            .alias("steamer_hr_p90")
+        )
+        assert feature.distribution_column == "p90"
+
+    def test_percentile_validates_source(self) -> None:
+        builder = FeatureBuilder(source=Source.BATTING, column="hr")
+        with pytest.raises(ValueError, match="PROJECTION"):
+            builder.percentile(90)
+
+    def test_percentile_validates_values(self) -> None:
+        builder = FeatureBuilder(source=Source.PROJECTION, column="hr")
+        with pytest.raises(ValueError, match="10, 25, 50, 75, 90"):
+            builder.percentile(99)
+
+    def test_std_returns_self(self) -> None:
+        builder = FeatureBuilder(source=Source.PROJECTION, column="hr")
+        result = builder.std()
+        assert result is builder
+
+    def test_std_sets_distribution_column(self) -> None:
+        feature = FeatureBuilder(source=Source.PROJECTION, column="hr").std().system("steamer").alias("steamer_hr_std")
+        assert feature.distribution_column == "std"
+
+    def test_std_validates_source(self) -> None:
+        builder = FeatureBuilder(source=Source.BATTING, column="hr")
+        with pytest.raises(ValueError, match="PROJECTION"):
+            builder.std()
+
 
 class TestSourceRef:
     def test_col_returns_feature_builder(self) -> None:

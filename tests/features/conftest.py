@@ -102,6 +102,30 @@ def seed_projection_pitcher_data(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def seed_distribution_data(conn: sqlite3.Connection) -> None:
+    """Insert projection_distribution rows for steamer/zips projections.
+
+    Requires seed_projection_data to have been called first (uses projection IDs).
+    """
+    # Look up projection IDs
+    rows = conn.execute("SELECT id, player_id, system FROM projection WHERE season = 2023").fetchall()
+    proj_map = {(r[1], r[2]): r[0] for r in rows}  # (player_id, system) -> id
+
+    dist_rows = [
+        # (projection_id, stat, p10, p25, p50, p75, p90, mean, std)
+        (proj_map[(1, "steamer")], "hr", 25.0, 30.0, 37.0, 42.0, 48.0, 37.5, 7.0),
+        (proj_map[(1, "steamer")], "bb", 45.0, 55.0, 67.0, 75.0, 85.0, 66.5, 12.0),
+        (proj_map[(2, "steamer")], "hr", 18.0, 23.0, 29.0, 35.0, 40.0, 29.5, 6.5),
+        (proj_map[(1, "zips")], "hr", 20.0, 26.0, 32.0, 38.0, 44.0, 32.5, 7.5),
+    ]
+    conn.executemany(
+        "INSERT INTO projection_distribution (projection_id, stat, p10, p25, p50, p75, p90, mean, std)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        dist_rows,
+    )
+    conn.commit()
+
+
 @pytest.fixture
 def seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
     """Connection with 2 players x 4 seasons of batting data pre-loaded."""

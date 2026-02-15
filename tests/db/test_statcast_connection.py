@@ -70,9 +70,7 @@ class TestCreateStatcastConnection:
     def test_unique_constraint_upserts(self) -> None:
         conn = create_statcast_connection(":memory:")
         cols = "game_pk, game_date, batter_id, pitcher_id, at_bat_number, pitch_number, pitch_type"
-        conn.execute(
-            f"INSERT INTO statcast_pitch ({cols})" " VALUES (718001, '2024-06-15', 545361, 477132, 1, 1, 'FF')"
-        )
+        conn.execute(f"INSERT INTO statcast_pitch ({cols}) VALUES (718001, '2024-06-15', 545361, 477132, 1, 1, 'FF')")
         conn.execute(
             f"INSERT INTO statcast_pitch ({cols})"
             " VALUES (718001, '2024-06-15', 545361, 477132, 1, 1, 'SL')"
