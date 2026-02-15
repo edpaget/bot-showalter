@@ -9,6 +9,7 @@ from typing import Any
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
+from fantasy_baseball_manager.ingest.mlb_milb_stats_source import MLBMinorLeagueBattingSource
 from fantasy_baseball_manager.ingest.mlb_transactions_source import MLBTransactionsSource
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.pybaseball_source import (
@@ -28,6 +29,7 @@ from fantasy_baseball_manager.models.run_manager import RunManager
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
+from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
@@ -35,6 +37,7 @@ from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositi
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 
@@ -222,6 +225,13 @@ class IngestContainer:
     def team_repo(self) -> SqliteTeamRepo:
         return SqliteTeamRepo(self._conn)
 
+    @property
+    def minor_league_batting_stats_repo(self) -> SqliteMinorLeagueBattingStatsRepo:
+        return SqliteMinorLeagueBattingStatsRepo(self._conn)
+
+    def milb_batting_source(self) -> DataSource:
+        return MLBMinorLeagueBattingSource()
+
     def appearances_source(self) -> DataSource:
         return LahmanAppearancesSource()
 
@@ -257,5 +267,27 @@ def build_projections_context(data_dir: str) -> Iterator[ProjectionsContext]:
             SqliteProjectionRepo(conn),
         )
         yield ProjectionsContext(conn=conn, lookup_service=lookup_service)
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class ReportContext:
+    conn: sqlite3.Connection
+    report_service: PerformanceReportService
+
+
+@contextmanager
+def build_report_context(data_dir: str) -> Iterator[ReportContext]:
+    """Composition-root context manager for report commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        report_service = PerformanceReportService(
+            SqliteProjectionRepo(conn),
+            SqlitePlayerRepo(conn),
+            SqliteBattingStatsRepo(conn),
+            SqlitePitchingStatsRepo(conn),
+        )
+        yield ReportContext(conn=conn, report_service=report_service)
     finally:
         conn.close()

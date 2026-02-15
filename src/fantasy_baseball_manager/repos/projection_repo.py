@@ -42,6 +42,9 @@ _STAT_COLUMNS: tuple[str, ...] = (
     "bb_per_9",
     "fip",
     "xfip",
+    "iso",
+    "babip",
+    "hr_per_9",
 )
 
 

@@ -1,0 +1,3 @@
+ALTER TABLE projection ADD COLUMN iso REAL;
+ALTER TABLE projection ADD COLUMN babip REAL;
+ALTER TABLE projection ADD COLUMN hr_per_9 REAL;

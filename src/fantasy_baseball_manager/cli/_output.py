@@ -5,6 +5,7 @@ from rich.table import Table
 
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
+from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
@@ -196,6 +197,33 @@ def print_player_projections(projections: list[PlayerProjection]) -> None:
             else:
                 table.add_row(stat_name, str(value))
         console.print(table)
+
+
+def print_performance_report(title: str, deltas: list[PlayerStatDelta]) -> None:
+    """Print a performance report table."""
+    if not deltas:
+        console.print("No results found.")
+        return
+    console.print(f"[bold]{title}[/bold]")
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Player")
+    table.add_column("Stat")
+    table.add_column("Actual", justify="right")
+    table.add_column("Expected", justify="right")
+    table.add_column("Delta", justify="right")
+    table.add_column("Pctile", justify="right")
+    for d in deltas:
+        color = "green" if d.delta > 0 else "red" if d.delta < 0 else ""
+        delta_str = f"[{color}]{d.delta:+.3f}[/{color}]" if color else f"{d.delta:+.3f}"
+        table.add_row(
+            d.player_name,
+            d.stat_name,
+            f"{d.actual:.3f}",
+            f"{d.expected:.3f}",
+            delta_str,
+            f"{d.percentile:.0f}",
+        )
+    console.print(table)
 
 
 def print_system_summaries(summaries: list[SystemSummary]) -> None:

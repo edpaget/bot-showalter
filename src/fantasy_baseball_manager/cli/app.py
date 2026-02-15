@@ -19,6 +19,7 @@ from fantasy_baseball_manager.cli._output import (
     print_run_detail,
     print_run_list,
     print_system_metrics,
+    print_performance_report,
     print_system_summaries,
     print_train_result,
 )
@@ -28,6 +29,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_ingest_container,
     build_model_context,
     build_projections_context,
+    build_report_context,
     build_runs_context,
     create_model,
 )
@@ -45,6 +47,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_pitching_mapper,
     make_il_stint_mapper,
     make_lahman_bio_mapper,
+    make_milb_batting_mapper,
     make_position_appearance_mapper,
     make_roster_stint_mapper,
     statcast_pitch_mapper,
@@ -644,3 +647,102 @@ def ingest_roster(
             )
             log = loader.load(season=yr)
             print_ingest_result(log)
+
+
+_MILB_LEVELS = ["AAA", "AA", "A+", "A", "ROK"]
+
+
+@ingest_app.command("milb-batting")
+def ingest_milb_batting(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s)")],
+    level: Annotated[list[str] | None, typer.Option("--level", help="Level(s): AAA, AA, A+, A, ROK")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest minor league batting stats from the MLB Stats API."""
+    levels = level if level else _MILB_LEVELS
+    with build_ingest_container(data_dir) as container:
+        players = container.player_repo.all()
+        mapper = make_milb_batting_mapper(players)
+        for yr in season:
+            for lvl in levels:
+                source = container.milb_batting_source()
+                loader = StatsLoader(
+                    source,
+                    container.minor_league_batting_stats_repo,
+                    container.log_repo,
+                    mapper,
+                    "minor_league_batting_stats",
+                    conn=container.conn,
+                )
+                log = loader.load(season=yr, level=lvl)
+                print_ingest_result(log)
+
+
+# --- report subcommand group ---
+
+report_app = typer.Typer(name="report", help="Over/underperformance reports vs model predictions")
+app.add_typer(report_app, name="report")
+
+
+@report_app.command("overperformers")
+def report_overperformers(
+    system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")],
+    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to report")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N rows")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show players who outperformed their expected stats."""
+    parts = system.split("/", 1)
+    if len(parts) != 2:
+        print_error(f"invalid system format '{system}', expected 'system/version'")
+        raise typer.Exit(code=1)
+    sys_name, version = parts
+
+    with build_report_context(data_dir) as ctx:
+        deltas = ctx.report_service.compute_deltas(
+            sys_name,
+            version,
+            season,
+            player_type,
+            stats=stat,
+        )
+
+    overperformers = [d for d in deltas if d.performance_delta > 0]
+    overperformers.sort(key=lambda d: d.performance_delta, reverse=True)
+    if top is not None:
+        overperformers = overperformers[:top]
+    print_performance_report("Overperformers", overperformers)
+
+
+@report_app.command("underperformers")
+def report_underperformers(
+    system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")],
+    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to report")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N rows")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show players who underperformed their expected stats."""
+    parts = system.split("/", 1)
+    if len(parts) != 2:
+        print_error(f"invalid system format '{system}', expected 'system/version'")
+        raise typer.Exit(code=1)
+    sys_name, version = parts
+
+    with build_report_context(data_dir) as ctx:
+        deltas = ctx.report_service.compute_deltas(
+            sys_name,
+            version,
+            season,
+            player_type,
+            stats=stat,
+        )
+
+    underperformers = [d for d in deltas if d.performance_delta < 0]
+    underperformers.sort(key=lambda d: d.performance_delta)
+    if top is not None:
+        underperformers = underperformers[:top]
+    print_performance_report("Underperformers", underperformers)
