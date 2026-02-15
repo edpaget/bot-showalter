@@ -63,7 +63,7 @@ class MLBMinorLeagueBattingSource:
             _BASE_URL,
             params={
                 "group": "hitting",
-                "type": "season",
+                "stats": "season",
                 "season": season,
                 "sportId": sport_id,
                 "limit": 5000,
