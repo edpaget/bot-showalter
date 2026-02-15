@@ -16,7 +16,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_pitching_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
-from fantasy_baseball_manager.ingest.loader import StatsLoader
+from fantasy_baseball_manager.ingest.loader import ProjectionLoader, StatsLoader
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
@@ -132,7 +132,7 @@ class TestProjectionLoaderIntegration:
     def test_csv_source_to_projection(self, tmp_path: Path, conn: sqlite3.Connection) -> None:
         player_id = _seed_player(conn)
         csv_file = tmp_path / "steamer_batting.csv"
-        csv_file.write_text("PlayerId,MLBAMID,PA,HR,AVG,WAR\n" "10155,545361,600,35,0.302,8.5\n")
+        csv_file.write_text("PlayerId,MLBAMID,PA,HR,AVG,WAR\n10155,545361,600,35,0.302,8.5\n")
 
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
@@ -327,3 +327,98 @@ class TestProjectionVsActuals:
         assert by_stat["so"].projected == 200.0
         assert by_stat["so"].actual == 180.0
         assert by_stat["so"].error == 20.0
+
+
+def _batting_projection_with_distributions_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "PlayerId": 10155,
+                "MLBAMID": 545361,
+                "PA": 600,
+                "AB": 530,
+                "H": 160,
+                "2B": 30,
+                "3B": 5,
+                "HR": 35,
+                "RBI": 90,
+                "R": 100,
+                "SB": 15,
+                "CS": 3,
+                "BB": 60,
+                "SO": 120,
+                "AVG": 0.302,
+                "OBP": 0.395,
+                "SLG": 0.575,
+                "OPS": 0.970,
+                "wOBA": 0.410,
+                "wRC+": 170.0,
+                "WAR": 8.5,
+                "HR_p10": 20.0,
+                "HR_p25": 25.0,
+                "HR_p50": 33.0,
+                "HR_p75": 40.0,
+                "HR_p90": 48.0,
+                "AVG_p10": 0.260,
+                "AVG_p25": 0.275,
+                "AVG_p50": 0.300,
+                "AVG_p75": 0.320,
+                "AVG_p90": 0.340,
+            }
+        ]
+    )
+
+
+class TestProjectionLoaderIntegrationWithDistributions:
+    def test_loads_projections_with_distributions(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        player_repo = SqlitePlayerRepo(conn)
+        players = player_repo.all()
+        mapper = make_fg_projection_batting_mapper(
+            players, season=2025, system="pecota", version="2025.1", source_type="third_party"
+        )
+        source = FakeDataSource(_batting_projection_with_distributions_df())
+        proj_repo = SqliteProjectionRepo(conn)
+        log_repo = SqliteLoadLogRepo(conn)
+        loader = ProjectionLoader(source, proj_repo, log_repo, mapper, conn=conn)
+
+        log = loader.load()
+
+        assert log.status == "success"
+        assert log.rows_loaded == 1
+        assert log.target_table == "projection"
+
+        results = proj_repo.get_by_player_season(player_id, 2025, system="pecota")
+        assert len(results) == 1
+        assert results[0].stat_json["hr"] == 35
+
+        # Verify distributions were persisted
+        dists = proj_repo.get_distributions(results[0].id)  # type: ignore[arg-type]
+        by_stat = {d.stat: d for d in dists}
+        assert "hr" in by_stat
+        assert by_stat["hr"].p10 == 20.0
+        assert by_stat["hr"].p90 == 48.0
+        assert "avg" in by_stat
+        assert by_stat["avg"].p50 == 0.300
+
+    def test_loads_projections_without_distributions(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        player_repo = SqlitePlayerRepo(conn)
+        players = player_repo.all()
+        mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
+        source = FakeDataSource(_batting_projection_df())
+        proj_repo = SqliteProjectionRepo(conn)
+        log_repo = SqliteLoadLogRepo(conn)
+        loader = ProjectionLoader(source, proj_repo, log_repo, mapper, conn=conn)
+
+        log = loader.load()
+
+        assert log.status == "success"
+        assert log.rows_loaded == 1
+
+        results = proj_repo.get_by_player_season(player_id, 2025, system="steamer")
+        assert len(results) == 1
+
+        # No distributions should be stored
+        dists = proj_repo.get_distributions(results[0].id)  # type: ignore[arg-type]
+        assert dists == []

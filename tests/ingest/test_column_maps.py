@@ -1,9 +1,11 @@
 import pandas as pd
 
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection import StatDistribution
 from fantasy_baseball_manager.ingest.column_maps import (
     _to_optional_float,
     chadwick_row_to_player,
+    extract_distributions,
     make_lahman_bio_mapper,
 )
 
@@ -276,6 +278,73 @@ class TestMakeLahmanBioMapper:
         assert result.mlbam_id == 660271
         assert result.birth_date == "1994-07-05"
         assert result.bats == "L"
+
+
+class TestExtractDistributions:
+    _COLUMN_MAP: dict[str, str] = {"HR": "hr", "AVG": "avg"}
+
+    def test_extracts_single_stat(self) -> None:
+        row = pd.Series({"HR": 35, "HR_p10": 20.0, "HR_p25": 25.0, "HR_p50": 33.0, "HR_p75": 40.0, "HR_p90": 48.0})
+        result = extract_distributions(row, {"HR": "hr"})
+        assert len(result) == 1
+        assert result[0] == StatDistribution(stat="hr", p10=20.0, p25=25.0, p50=33.0, p75=40.0, p90=48.0)
+
+    def test_extracts_multiple_stats(self) -> None:
+        row = pd.Series(
+            {
+                "HR": 35,
+                "HR_p10": 20.0,
+                "HR_p25": 25.0,
+                "HR_p50": 33.0,
+                "HR_p75": 40.0,
+                "HR_p90": 48.0,
+                "AVG": 0.300,
+                "AVG_p10": 0.260,
+                "AVG_p25": 0.275,
+                "AVG_p50": 0.300,
+                "AVG_p75": 0.320,
+                "AVG_p90": 0.340,
+            }
+        )
+        result = extract_distributions(row, self._COLUMN_MAP)
+        assert len(result) == 2
+        stats = {d.stat for d in result}
+        assert stats == {"hr", "avg"}
+
+    def test_no_percentile_columns_returns_empty(self) -> None:
+        row = pd.Series({"HR": 35, "AVG": 0.300})
+        result = extract_distributions(row, self._COLUMN_MAP)
+        assert result == []
+
+    def test_partial_percentiles_skipped(self) -> None:
+        row = pd.Series({"HR": 35, "HR_p10": 20.0, "HR_p90": 48.0})
+        result = extract_distributions(row, {"HR": "hr"})
+        assert result == []
+
+    def test_nan_percentile_skipped(self) -> None:
+        row = pd.Series(
+            {"HR": 35, "HR_p10": 20.0, "HR_p25": float("nan"), "HR_p50": 33.0, "HR_p75": 40.0, "HR_p90": 48.0}
+        )
+        result = extract_distributions(row, {"HR": "hr"})
+        assert result == []
+
+    def test_optional_mean_and_std(self) -> None:
+        row = pd.Series(
+            {
+                "HR": 35,
+                "HR_p10": 20.0,
+                "HR_p25": 25.0,
+                "HR_p50": 33.0,
+                "HR_p75": 40.0,
+                "HR_p90": 48.0,
+                "HR_mean": 32.5,
+                "HR_std": 8.2,
+            }
+        )
+        result = extract_distributions(row, {"HR": "hr"})
+        assert len(result) == 1
+        assert result[0].mean == 32.5
+        assert result[0].std == 8.2
 
 
 class TestToOptionalFloat:

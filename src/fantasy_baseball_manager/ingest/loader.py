@@ -7,8 +7,9 @@ import pandas as pd
 
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.ingest.protocols import DataSource
-from fantasy_baseball_manager.repos.protocols import LoadLogRepo, PlayerRepo
+from fantasy_baseball_manager.repos.protocols import LoadLogRepo, PlayerRepo, ProjectionRepo
 
 
 class StatsLoader:
@@ -166,4 +167,86 @@ class PlayerLoader:
         )
         self._load_log_repo.insert(log)
         self._conn.commit()
+        return log
+
+
+class ProjectionLoader:
+    def __init__(
+        self,
+        source: DataSource,
+        repo: ProjectionRepo,
+        load_log_repo: LoadLogRepo,
+        row_mapper: Callable[[pd.Series], Projection | None],
+        *,
+        conn: sqlite3.Connection,
+        log_conn: sqlite3.Connection | None = None,
+    ) -> None:
+        self._source = source
+        self._repo = repo
+        self._load_log_repo = load_log_repo
+        self._row_mapper = row_mapper
+        self._conn = conn
+        self._log_conn = log_conn if log_conn is not None else conn
+
+    def load(self, **fetch_params: Any) -> LoadLog:
+        started_at = datetime.now(timezone.utc).isoformat()
+
+        try:
+            df = self._source.fetch(**fetch_params)
+        except Exception as exc:
+            finished_at = datetime.now(timezone.utc).isoformat()
+            log = LoadLog(
+                source_type=self._source.source_type,
+                source_detail=self._source.source_detail,
+                target_table="projection",
+                rows_loaded=0,
+                started_at=started_at,
+                finished_at=finished_at,
+                status="error",
+                error_message=str(exc),
+            )
+            self._load_log_repo.insert(log)
+            self._log_conn.commit()
+            raise
+
+        rows_loaded = 0
+        try:
+            for _, row in df.iterrows():
+                projection = self._row_mapper(row)
+                if projection is None:
+                    continue
+                projection_id = self._repo.upsert(projection)
+                if projection.distributions is not None:
+                    self._repo.upsert_distributions(projection_id, list(projection.distributions.values()))
+                rows_loaded += 1
+            self._conn.commit()
+        except Exception as exc:
+            self._conn.rollback()
+            finished_at = datetime.now(timezone.utc).isoformat()
+            log = LoadLog(
+                source_type=self._source.source_type,
+                source_detail=self._source.source_detail,
+                target_table="projection",
+                rows_loaded=0,
+                started_at=started_at,
+                finished_at=finished_at,
+                status="error",
+                error_message=str(exc),
+            )
+            self._load_log_repo.insert(log)
+            self._log_conn.commit()
+            raise
+
+        finished_at = datetime.now(timezone.utc).isoformat()
+        log = LoadLog(
+            source_type=self._source.source_type,
+            source_detail=self._source.source_detail,
+            target_table="projection",
+            rows_loaded=rows_loaded,
+            started_at=started_at,
+            finished_at=finished_at,
+            status="success",
+        )
+        self._load_log_repo.insert(log)
+        self._log_conn.commit()
         return log

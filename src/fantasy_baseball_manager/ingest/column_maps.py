@@ -7,7 +7,7 @@ import pandas as pd
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 
 
@@ -367,6 +367,43 @@ def _collect_stats(row: pd.Series, column_map: dict[str, str]) -> dict[str, Any]
     return stats
 
 
+_REQUIRED_PERCENTILES: tuple[int, ...] = (10, 25, 50, 75, 90)
+
+
+def extract_distributions(
+    row: pd.Series,
+    column_map: dict[str, str],
+) -> list[StatDistribution]:
+    distributions: list[StatDistribution] = []
+    for csv_col, stat_name in column_map.items():
+        pct_keys = [f"{csv_col}_p{p}" for p in _REQUIRED_PERCENTILES]
+        pct_vals: list[float] = []
+        for key in pct_keys:
+            val = row.get(key)
+            if val is None:
+                break
+            if isinstance(val, float) and math.isnan(val):
+                break
+            pct_vals.append(float(val))
+        if len(pct_vals) != len(_REQUIRED_PERCENTILES):
+            continue
+        mean = _to_optional_float(row.get(f"{csv_col}_mean"))
+        std = _to_optional_float(row.get(f"{csv_col}_std"))
+        distributions.append(
+            StatDistribution(
+                stat=stat_name,
+                p10=pct_vals[0],
+                p25=pct_vals[1],
+                p50=pct_vals[2],
+                p75=pct_vals[3],
+                p90=pct_vals[4],
+                mean=mean,
+                std=std,
+            )
+        )
+    return distributions
+
+
 _FG_BATTING_PROJECTION_COLUMNS: dict[str, str] = {
     "PA": "pa",
     "AB": "ab",
@@ -490,6 +527,8 @@ def make_fg_projection_batting_mapper(
             return None
 
         stat_json = _collect_stats(row, _FG_BATTING_PROJECTION_COLUMNS)
+        dists = extract_distributions(row, _FG_BATTING_PROJECTION_COLUMNS)
+        distributions = {d.stat: d for d in dists} if dists else None
         return Projection(
             player_id=player_id,
             season=season,
@@ -498,6 +537,7 @@ def make_fg_projection_batting_mapper(
             player_type="batter",
             stat_json=stat_json,
             source_type=source_type,
+            distributions=distributions,
         )
 
     return mapper
@@ -520,6 +560,8 @@ def make_fg_projection_pitching_mapper(
             return None
 
         stat_json = _collect_stats(row, _FG_PITCHING_PROJECTION_COLUMNS)
+        dists = extract_distributions(row, _FG_PITCHING_PROJECTION_COLUMNS)
+        distributions = {d.stat: d for d in dists} if dists else None
         return Projection(
             player_id=player_id,
             season=season,
@@ -528,6 +570,7 @@ def make_fg_projection_pitching_mapper(
             player_type="pitcher",
             stat_json=stat_json,
             source_type=source_type,
+            distributions=distributions,
         )
 
     return mapper
