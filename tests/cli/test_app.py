@@ -67,7 +67,7 @@ class TestInfoCommand:
         assert result.exit_code == 0
         assert "marcel" in result.output
         assert "prepare" in result.output
-        assert "train" in result.output
+        assert "predict" in result.output
         assert "evaluate" in result.output
 
     def test_info_unknown_model(self) -> None:
@@ -77,11 +77,11 @@ class TestInfoCommand:
 
 
 class TestActionCommands:
-    def test_train_marcel(self) -> None:
+    def test_train_marcel_fails(self) -> None:
         _ensure_marcel_registered()
         result = runner.invoke(app, ["train", "marcel"])
-        assert result.exit_code == 0
-        assert "marcel" in result.output.lower()
+        assert result.exit_code != 0
+        assert "does not support" in result.output.lower()
 
     def test_prepare_marcel(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
@@ -105,64 +105,121 @@ class TestActionCommands:
         assert result.exit_code != 0
         assert "does not support" in result.output.lower()
 
-    def test_predict_marcel_fails(self) -> None:
+    def test_predict_marcel_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from fantasy_baseball_manager.models.protocols import ModelConfig
+
         _ensure_marcel_registered()
-        result = runner.invoke(app, ["predict", "marcel"])
-        assert result.exit_code != 0
+        seeded_conn = create_connection(":memory:")
+        _seed_batting_data(seeded_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.models.marcel.model.create_connection",
+            lambda path: seeded_conn,
+        )
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.load_config",
+            lambda **kwargs: ModelConfig(
+                seasons=[2023],
+                model_params={
+                    "batting_categories": ["hr", "bb", "h"],
+                    "pitching_categories": ["so"],
+                },
+            ),
+        )
+        result = runner.invoke(app, ["predict", "marcel", "--season", "2023"])
+        assert result.exit_code == 0, result.output
 
     def test_ablate_marcel_fails(self) -> None:
         _ensure_marcel_registered()
         result = runner.invoke(app, ["ablate", "marcel"])
         assert result.exit_code != 0
 
-    def test_train_with_output_dir(self) -> None:
+    def test_train_marcel_with_output_dir_fails(self) -> None:
         _ensure_marcel_registered()
         result = runner.invoke(app, ["train", "marcel", "--output-dir", "/tmp/out"])
-        assert result.exit_code == 0
+        assert result.exit_code != 0
 
-    def test_train_with_seasons(self) -> None:
+    def test_train_marcel_with_seasons_fails(self) -> None:
         _ensure_marcel_registered()
         result = runner.invoke(app, ["train", "marcel", "--season", "2023", "--season", "2024"])
-        assert result.exit_code == 0
+        assert result.exit_code != 0
+
+
+def _register_trainable_stub() -> None:
+    """Register a minimal trainable stub model for run tracking tests."""
+    from fantasy_baseball_manager.domain.model_run import ArtifactType
+    from fantasy_baseball_manager.models.protocols import ModelConfig as _MC
+    from fantasy_baseball_manager.models.protocols import TrainResult
+
+    _clear()
+
+    class _TrainableStub:
+        @property
+        def name(self) -> str:
+            return "stub"
+
+        @property
+        def description(self) -> str:
+            return "Stub model for testing."
+
+        @property
+        def supported_operations(self) -> frozenset[str]:
+            return frozenset({"train"})
+
+        @property
+        def artifact_type(self) -> str:
+            return ArtifactType.NONE.value
+
+        def train(self, config: _MC) -> TrainResult:
+            return TrainResult(model_name="stub", metrics={}, artifacts_path=config.artifacts_dir)
+
+    register("stub")(_TrainableStub)
 
 
 class TestTrainRunTracking:
-    def test_train_with_version_records_run(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _ensure_marcel_registered()
-        db_conn = create_connection(":memory:")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+    def test_train_with_version_records_run(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _register_trainable_stub()
+        db_path = tmp_path / "fbm.db"
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(db_path),
+        )
 
-        result = runner.invoke(app, ["train", "marcel", "--version", "v1"])
+        result = runner.invoke(app, ["train", "stub", "--version", "v1"])
         assert result.exit_code == 0, result.output
 
-        from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
-
-        repo = SqliteModelRunRepo(db_conn)
-        runs = repo.list(system="marcel")
+        # Verify with a SECOND connection — proves data was committed
+        verify_conn = create_connection(db_path)
+        repo = SqliteModelRunRepo(verify_conn)
+        runs = repo.list(system="stub")
         assert len(runs) == 1
         assert runs[0].version == "v1"
+        verify_conn.close()
 
-    def test_train_with_tag_records_run(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _ensure_marcel_registered()
-        db_conn = create_connection(":memory:")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+    def test_train_with_tag_records_run(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _register_trainable_stub()
+        db_path = tmp_path / "fbm.db"
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(db_path),
+        )
 
-        result = runner.invoke(app, ["train", "marcel", "--version", "v1", "--tag", "env=test"])
+        result = runner.invoke(app, ["train", "stub", "--version", "v1", "--tag", "env=test"])
         assert result.exit_code == 0, result.output
 
-        from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
-
-        repo = SqliteModelRunRepo(db_conn)
-        runs = repo.list(system="marcel")
+        # Verify with a SECOND connection — proves data was committed
+        verify_conn = create_connection(db_path)
+        repo = SqliteModelRunRepo(verify_conn)
+        runs = repo.list(system="stub")
         assert len(runs) == 1
         assert runs[0].tags_json == {"env": "test"}
+        verify_conn.close()
 
     def test_train_without_version_skips_run_tracking(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _ensure_marcel_registered()
+        _register_trainable_stub()
         db_conn = create_connection(":memory:")
         monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
 
-        result = runner.invoke(app, ["train", "marcel"])
+        result = runner.invoke(app, ["train", "stub"])
         assert result.exit_code == 0, result.output
 
         from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
@@ -178,7 +235,7 @@ class TestFeaturesCommand:
         result = runner.invoke(app, ["features", "marcel"])
         assert result.exit_code == 0
         assert "Features for model 'marcel'" in result.output
-        assert "16 features" in result.output
+        assert "74 features" in result.output
         assert "hr_1" in result.output
         assert "age" in result.output
 
@@ -215,7 +272,7 @@ class TestImportCommand:
         monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
 
         csv_file = tmp_path / "steamer_batting.csv"
-        csv_file.write_text("playerid,PA,HR,AVG,WAR\n10155,600,35,0.302,8.5\n")
+        csv_file.write_text("PlayerId,MLBAMID,PA,HR,AVG,WAR\n10155,545361,600,35,0.302,8.5\n")
 
         result = runner.invoke(
             app,
@@ -245,7 +302,7 @@ class TestImportCommand:
         monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
 
         csv_file = tmp_path / "steamer_pitching.csv"
-        csv_file.write_text("playerid,W,L,ERA,SO,IP,WAR\n10155,12,6,3.00,200,185.0,5.5\n")
+        csv_file.write_text("PlayerId,MLBAMID,W,L,ERA,SO,IP,WAR\n10155,545361,12,6,3.00,200,185.0,5.5\n")
 
         result = runner.invoke(
             app,
@@ -443,16 +500,26 @@ class TestRunsShowCommand:
 
 
 class TestRunsDeleteCommand:
-    def test_runs_delete_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        db_conn = create_connection(":memory:")
-        _seed_model_run(db_conn, system="marcel", version="v1")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+    def test_runs_delete_command(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_path = tmp_path / "fbm.db"
+        seed_conn = create_connection(db_path)
+        _seed_model_run(seed_conn, system="marcel", version="v1")
+        seed_conn.commit()
+        seed_conn.close()
 
-        result = runner.invoke(app, ["runs", "delete", "marcel/v1", "--yes", "--data-dir", "./data"])
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(db_path),
+        )
+
+        result = runner.invoke(app, ["runs", "delete", "marcel/v1", "--yes", "--data-dir", str(tmp_path)])
         assert result.exit_code == 0, result.output
 
-        repo = SqliteModelRunRepo(db_conn)
+        # Verify with a SECOND connection — proves deletion was committed
+        verify_conn = create_connection(db_path)
+        repo = SqliteModelRunRepo(verify_conn)
         assert repo.get("marcel", "v1") is None
+        verify_conn.close()
 
     def test_runs_delete_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
