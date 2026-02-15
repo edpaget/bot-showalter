@@ -3,89 +3,16 @@ import pytest
 from fantasy_baseball_manager.models.marcel.types import (
     LeagueAverages,
     MarcelConfig,
+    MarcelInput,
     SeasonLine,
 )
 from fantasy_baseball_manager.models.marcel.engine import (
     age_adjust,
-    compute_league_averages,
     project_all,
     project_player,
     project_playing_time,
     regress_to_mean,
-    weighted_average_rates,
 )
-
-
-class TestWeightedAverageRates:
-    def test_three_year_batter(self) -> None:
-        seasons = [
-            SeasonLine(stats={"hr": 30.0, "h": 150.0}, pa=600),
-            SeasonLine(stats={"hr": 25.0, "h": 140.0}, pa=500),
-            SeasonLine(stats={"hr": 20.0, "h": 120.0}, pa=400),
-        ]
-        weights = (5.0, 4.0, 3.0)
-        rates = weighted_average_rates(seasons, weights, ["hr", "h"])
-        # hr: (30*5 + 25*4 + 20*3) / (600*5 + 500*4 + 400*3)
-        # = (150+100+60) / (3000+2000+1200) = 310/6200
-        expected_hr = 310.0 / 6200.0
-        assert rates["hr"] == pytest.approx(expected_hr)
-        # h: (150*5 + 140*4 + 120*3) / 6200
-        expected_h = (750.0 + 560.0 + 360.0) / 6200.0
-        assert rates["h"] == pytest.approx(expected_h)
-
-    def test_two_year_batter(self) -> None:
-        seasons = [
-            SeasonLine(stats={"hr": 30.0}, pa=600),
-            SeasonLine(stats={"hr": 25.0}, pa=500),
-        ]
-        weights = (5.0, 4.0, 3.0)
-        rates = weighted_average_rates(seasons, weights, ["hr"])
-        # Only 2 seasons: weights renormalized to (5, 4) but used as-is for weighting
-        # hr: (30*5 + 25*4) / (600*5 + 500*4) = 250/5000
-        expected_hr = 250.0 / 5000.0
-        assert rates["hr"] == pytest.approx(expected_hr)
-
-    def test_one_year_batter(self) -> None:
-        seasons = [
-            SeasonLine(stats={"hr": 30.0}, pa=600),
-        ]
-        weights = (5.0, 4.0, 3.0)
-        rates = weighted_average_rates(seasons, weights, ["hr"])
-        # Only 1 season: weight is just (5,)
-        # hr: 30*5 / (600*5) = 30/600
-        expected_hr = 30.0 / 600.0
-        assert rates["hr"] == pytest.approx(expected_hr)
-
-    def test_zero_pa_season_excluded(self) -> None:
-        seasons = [
-            SeasonLine(stats={"hr": 30.0}, pa=600),
-            SeasonLine(stats={"hr": 0.0}, pa=0),  # missed season
-            SeasonLine(stats={"hr": 20.0}, pa=400),
-        ]
-        weights = (5.0, 4.0, 3.0)
-        rates = weighted_average_rates(seasons, weights, ["hr"])
-        # 0-PA season contributes 0 weighted stats and 0 weighted PA
-        # hr: (30*5 + 0*4 + 20*3) / (600*5 + 0*4 + 400*3) = 210/4200
-        expected_hr = 210.0 / 4200.0
-        assert rates["hr"] == pytest.approx(expected_hr)
-
-    def test_pitcher_with_ip(self) -> None:
-        seasons = [
-            SeasonLine(stats={"so": 200.0, "er": 60.0}, ip=180.0, g=30, gs=30),
-            SeasonLine(stats={"so": 180.0, "er": 55.0}, ip=170.0, g=28, gs=28),
-            SeasonLine(stats={"so": 150.0, "er": 50.0}, ip=160.0, g=26, gs=26),
-        ]
-        weights = (3.0, 2.0, 1.0)
-        rates = weighted_average_rates(seasons, weights, ["so", "er"])
-        # so: (200*3 + 180*2 + 150*1) / (180*3 + 170*2 + 160*1)
-        # = (600+360+150) / (540+340+160) = 1110/1040
-        expected_so = 1110.0 / 1040.0
-        assert rates["so"] == pytest.approx(expected_so)
-
-    def test_empty_seasons_returns_zero_rates(self) -> None:
-        rates = weighted_average_rates([], (5.0, 4.0, 3.0), ["hr", "h"])
-        assert rates["hr"] == 0.0
-        assert rates["h"] == 0.0
 
 
 class TestRegressToMean:
@@ -200,52 +127,25 @@ class TestAgeAdjust:
         assert result["hr"] == pytest.approx(0.05)
 
 
-class TestComputeLeagueAverages:
-    def test_batting_averages(self) -> None:
-        all_seasons: dict[int, list[SeasonLine]] = {
-            1: [SeasonLine(stats={"hr": 30.0, "h": 150.0}, pa=600)],
-            2: [SeasonLine(stats={"hr": 20.0, "h": 130.0}, pa=500)],
-        }
-        result = compute_league_averages(all_seasons, ["hr", "h"])
-        # total hr = 30 + 20 = 50, total PA = 600 + 500 = 1100
-        assert result.rates["hr"] == pytest.approx(50.0 / 1100.0)
-        assert result.rates["h"] == pytest.approx(280.0 / 1100.0)
-
-    def test_pitcher_averages(self) -> None:
-        all_seasons: dict[int, list[SeasonLine]] = {
-            1: [SeasonLine(stats={"so": 200.0}, ip=180.0, g=30, gs=30)],
-            2: [SeasonLine(stats={"so": 150.0}, ip=170.0, g=28, gs=28)],
-        }
-        result = compute_league_averages(all_seasons, ["so"])
-        assert result.rates["so"] == pytest.approx(350.0 / 350.0)
-
-    def test_multi_season_players(self) -> None:
-        all_seasons: dict[int, list[SeasonLine]] = {
-            1: [
-                SeasonLine(stats={"hr": 30.0}, pa=600),
-                SeasonLine(stats={"hr": 25.0}, pa=500),
-            ],
-        }
-        # Uses most recent season (index 0) for league averages
-        result = compute_league_averages(all_seasons, ["hr"])
-        assert result.rates["hr"] == pytest.approx(30.0 / 600.0)
-
-
 class TestProjectPlayer:
     def test_end_to_end_batter(self) -> None:
-        seasons = [
+        seasons = (
             SeasonLine(stats={"hr": 30.0}, pa=600),
             SeasonLine(stats={"hr": 25.0}, pa=500),
             SeasonLine(stats={"hr": 20.0}, pa=400),
-        ]
-        league = LeagueAverages(rates={"hr": 0.03})
+        )
+        marcel_input = MarcelInput(
+            weighted_rates={"hr": 310.0 / 6200.0},
+            weighted_pt=6200.0,
+            league_rates={"hr": 0.03},
+            age=29,
+            seasons=seasons,
+        )
         config = MarcelConfig(batting_categories=("hr",))
         proj = project_player(
             player_id=1,
-            seasons=seasons,
-            age=29,
+            marcel_input=marcel_input,
             projected_season=2024,
-            league_avg=league,
             config=config,
         )
         assert proj.player_id == 1
@@ -257,19 +157,23 @@ class TestProjectPlayer:
         assert proj.stats["hr"] > 0
 
     def test_end_to_end_pitcher(self) -> None:
-        seasons = [
+        seasons = (
             SeasonLine(stats={"so": 200.0}, ip=180.0, g=30, gs=30),
             SeasonLine(stats={"so": 180.0}, ip=170.0, g=28, gs=28),
             SeasonLine(stats={"so": 150.0}, ip=160.0, g=26, gs=26),
-        ]
-        league = LeagueAverages(rates={"so": 0.9})
+        )
+        marcel_input = MarcelInput(
+            weighted_rates={"so": 1110.0 / 1040.0},
+            weighted_pt=1040.0,
+            league_rates={"so": 0.9},
+            age=28,
+            seasons=seasons,
+        )
         config = MarcelConfig(pitching_categories=("so",))
         proj = project_player(
             player_id=2,
-            seasons=seasons,
-            age=28,
+            marcel_input=marcel_input,
             projected_season=2024,
-            league_avg=league,
             config=config,
         )
         assert proj.player_id == 2
@@ -278,33 +182,46 @@ class TestProjectPlayer:
         assert "so" in proj.stats
 
     def test_one_year_player(self) -> None:
-        seasons = [
-            SeasonLine(stats={"hr": 10.0}, pa=200),
-        ]
-        league = LeagueAverages(rates={"hr": 0.03})
+        seasons = (SeasonLine(stats={"hr": 10.0}, pa=200),)
+        marcel_input = MarcelInput(
+            weighted_rates={"hr": 10.0 / 200.0},
+            weighted_pt=200.0 * 5.0,
+            league_rates={"hr": 0.03},
+            age=25,
+            seasons=seasons,
+        )
         config = MarcelConfig(batting_categories=("hr",))
         proj = project_player(
             player_id=3,
-            seasons=seasons,
-            age=25,
+            marcel_input=marcel_input,
             projected_season=2024,
-            league_avg=league,
             config=config,
         )
         assert proj.player_id == 3
-        # With only 200 PA, should be heavily regressed
+        # With only 1000 weighted PT vs 1200 regression, should be regressed
         assert proj.rates["hr"] < 10.0 / 200.0
 
 
 class TestProjectAll:
     def test_batch_multiple_players(self) -> None:
-        players: dict[int, tuple[list[SeasonLine], int]] = {
-            1: ([SeasonLine(stats={"hr": 30.0}, pa=600)], 29),
-            2: ([SeasonLine(stats={"hr": 20.0}, pa=500)], 25),
+        players: dict[int, MarcelInput] = {
+            1: MarcelInput(
+                weighted_rates={"hr": 0.05},
+                weighted_pt=3000.0,
+                league_rates={"hr": 0.03},
+                age=29,
+                seasons=(SeasonLine(stats={"hr": 30.0}, pa=600),),
+            ),
+            2: MarcelInput(
+                weighted_rates={"hr": 0.04},
+                weighted_pt=2500.0,
+                league_rates={"hr": 0.03},
+                age=25,
+                seasons=(SeasonLine(stats={"hr": 20.0}, pa=500),),
+            ),
         }
-        league = LeagueAverages(rates={"hr": 0.03})
         config = MarcelConfig(batting_categories=("hr",))
-        results = project_all(players, 2024, league, config)
+        results = project_all(players, 2024, config)
         assert len(results) == 2
         ids = {p.player_id for p in results}
         assert ids == {1, 2}

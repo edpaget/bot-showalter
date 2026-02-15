@@ -3,41 +3,10 @@ from collections.abc import Sequence
 from fantasy_baseball_manager.models.marcel.types import (
     LeagueAverages,
     MarcelConfig,
+    MarcelInput,
     MarcelProjection,
     SeasonLine,
 )
-
-
-def weighted_average_rates(
-    seasons: Sequence[SeasonLine],
-    weights: tuple[float, ...],
-    categories: Sequence[str],
-) -> dict[str, float]:
-    """Compute weighted-average rate per PA/IP for each category across seasons.
-
-    Weights are positional: weights[0] for seasons[0] (most recent), etc.
-    If fewer seasons than weights, only available seasons are used.
-    Zero-PA/IP seasons contribute nothing to numerator or denominator.
-    """
-    if not seasons:
-        return {cat: 0.0 for cat in categories}
-
-    n = min(len(seasons), len(weights))
-    weighted_stats: dict[str, float] = {cat: 0.0 for cat in categories}
-    weighted_pt = 0.0
-
-    for i in range(n):
-        season = seasons[i]
-        w = weights[i]
-        pt = season.pa if season.pa > 0 else season.ip
-        weighted_pt += pt * w
-        for cat in categories:
-            weighted_stats[cat] += season.stats.get(cat, 0.0) * w
-
-    if weighted_pt == 0.0:
-        return {cat: 0.0 for cat in categories}
-
-    return {cat: weighted_stats[cat] / weighted_pt for cat in categories}
 
 
 def regress_to_mean(
@@ -111,73 +80,32 @@ def age_adjust(
     return {cat: rate * factor for cat, rate in rates.items()}
 
 
-def compute_league_averages(
-    all_seasons: dict[int, list[SeasonLine]],
-    categories: Sequence[str],
-) -> LeagueAverages:
-    """Compute league-average rates from most-recent season lines across all players."""
-    total_stats: dict[str, float] = {cat: 0.0 for cat in categories}
-    total_pt = 0.0
-
-    for seasons in all_seasons.values():
-        if not seasons:
-            continue
-        most_recent = seasons[0]
-        pt = most_recent.pa if most_recent.pa > 0 else most_recent.ip
-        total_pt += pt
-        for cat in categories:
-            total_stats[cat] += most_recent.stats.get(cat, 0.0)
-
-    if total_pt == 0.0:
-        return LeagueAverages(rates={cat: 0.0 for cat in categories})
-
-    return LeagueAverages(rates={cat: total_stats[cat] / total_pt for cat in categories})
-
-
-def _weighted_playing_time(seasons: Sequence[SeasonLine], weights: tuple[float, ...]) -> float:
-    """Total weighted playing time used for regression denominator."""
-    total = 0.0
-    pitcher = _is_pitcher(seasons)
-    for i, w in enumerate(weights):
-        if i < len(seasons):
-            pt = seasons[i].ip if pitcher else seasons[i].pa
-            total += pt * w
-    return total
-
-
 def project_player(
     player_id: int,
-    seasons: list[SeasonLine],
-    age: int,
+    marcel_input: MarcelInput,
     projected_season: int,
-    league_avg: LeagueAverages,
     config: MarcelConfig,
 ) -> MarcelProjection:
-    """Chain weighted averages, regression, age adjustment, and playing time projection."""
-    pitcher = _is_pitcher(seasons)
+    """Regress, age-adjust, project PT, and multiply to produce a projection."""
+    pitcher = _is_pitcher(marcel_input.seasons)
 
     if pitcher:
-        categories = list(config.pitching_categories)
-        weights = config.pitching_weights
         regression_n = config.pitching_regression_ip
     else:
-        categories = list(config.batting_categories)
-        weights = config.batting_weights
         regression_n = config.batting_regression_pa
 
-    rates = weighted_average_rates(seasons, weights, categories)
-    weighted_pt = _weighted_playing_time(seasons, weights)
-    regressed = regress_to_mean(rates, league_avg, weighted_pt, regression_n)
-    adjusted = age_adjust(regressed, age, config)
-    projected_pt = project_playing_time(seasons, config)
+    league = LeagueAverages(rates=marcel_input.league_rates)
+    regressed = regress_to_mean(marcel_input.weighted_rates, league, marcel_input.weighted_pt, regression_n)
+    adjusted = age_adjust(regressed, marcel_input.age, config)
+    projected_pt = project_playing_time(marcel_input.seasons, config)
 
-    projected_stats = {cat: adjusted[cat] * projected_pt for cat in categories}
+    projected_stats = {cat: adjusted[cat] * projected_pt for cat in adjusted}
 
     if pitcher:
         return MarcelProjection(
             player_id=player_id,
             projected_season=projected_season,
-            age=age,
+            age=marcel_input.age,
             stats=projected_stats,
             rates=adjusted,
             ip=projected_pt,
@@ -185,7 +113,7 @@ def project_player(
     return MarcelProjection(
         player_id=player_id,
         projected_season=projected_season,
-        age=age,
+        age=marcel_input.age,
         stats=projected_stats,
         rates=adjusted,
         pa=int(projected_pt),
@@ -193,13 +121,9 @@ def project_player(
 
 
 def project_all(
-    players: dict[int, tuple[list[SeasonLine], int]],
+    players: dict[int, MarcelInput],
     projected_season: int,
-    league_avg: LeagueAverages,
     config: MarcelConfig,
 ) -> list[MarcelProjection]:
-    """Project all players. players maps player_id → (seasons, age)."""
-    return [
-        project_player(pid, seasons, age, projected_season, league_avg, config)
-        for pid, (seasons, age) in players.items()
-    ]
+    """Project all players. players maps player_id -> MarcelInput."""
+    return [project_player(pid, marcel_input, projected_season, config) for pid, marcel_input in players.items()]

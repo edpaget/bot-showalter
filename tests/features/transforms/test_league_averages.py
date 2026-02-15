@@ -5,8 +5,6 @@ import pytest
 from fantasy_baseball_manager.features.transforms.league_averages import (
     make_league_avg_transform,
 )
-from fantasy_baseball_manager.models.marcel.engine import compute_league_averages
-from fantasy_baseball_manager.models.marcel.types import SeasonLine
 
 
 class TestMakeLeagueAvgTransform:
@@ -95,45 +93,3 @@ class TestMakeLeagueAvgTransform:
         result = transform([])
         assert result["league_hr_rate"] == 0.0
         assert result["league_h_rate"] == 0.0
-
-    def test_matches_engine_compute_league_averages_batting(self) -> None:
-        """Verify the transform matches the existing engine function for batters."""
-        categories = ("hr", "h", "bb")
-
-        # Engine format: dict[player_id, list[SeasonLine]]
-        all_seasons = {
-            1: [SeasonLine(stats={"hr": 30.0, "h": 150.0, "bb": 60.0}, pa=600)],
-            2: [SeasonLine(stats={"hr": 20.0, "h": 130.0, "bb": 50.0}, pa=500)],
-            3: [SeasonLine(stats={"hr": 25.0, "h": 140.0, "bb": 55.0}, pa=550)],
-        }
-        expected = compute_league_averages(all_seasons, categories)
-
-        # Transform format: list of rows with lag-1 columns
-        transform = make_league_avg_transform(categories=categories, pt_column="pa")
-        rows = [
-            {"hr_1": 30.0, "h_1": 150.0, "bb_1": 60.0, "pa_1": 600},
-            {"hr_1": 20.0, "h_1": 130.0, "bb_1": 50.0, "pa_1": 500},
-            {"hr_1": 25.0, "h_1": 140.0, "bb_1": 55.0, "pa_1": 550},
-        ]
-        result = transform(rows)
-        for cat in categories:
-            assert result[f"league_{cat}_rate"] == pytest.approx(expected.rates[cat])
-
-    def test_matches_engine_compute_league_averages_pitching(self) -> None:
-        """Verify the transform matches the existing engine function for pitchers."""
-        categories = ("so", "er")
-
-        all_seasons = {
-            1: [SeasonLine(stats={"so": 200.0, "er": 60.0}, ip=180.0, g=30, gs=30)],
-            2: [SeasonLine(stats={"so": 150.0, "er": 50.0}, ip=170.0, g=28, gs=28)],
-        }
-        expected = compute_league_averages(all_seasons, categories)
-
-        transform = make_league_avg_transform(categories=categories, pt_column="ip")
-        rows = [
-            {"so_1": 200.0, "er_1": 60.0, "ip_1": 180.0},
-            {"so_1": 150.0, "er_1": 50.0, "ip_1": 170.0},
-        ]
-        result = transform(rows)
-        for cat in categories:
-            assert result[f"league_{cat}_rate"] == pytest.approx(expected.rates[cat])

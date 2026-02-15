@@ -3,18 +3,19 @@ from typing import Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
-from fantasy_baseball_manager.features.types import Feature, FeatureSet
+from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
 from fantasy_baseball_manager.models.marcel.convert import (
     projection_to_domain,
-    rows_to_player_seasons,
+    rows_to_marcel_inputs,
 )
-from fantasy_baseball_manager.models.marcel.engine import (
-    compute_league_averages,
-    project_all,
-)
+from fantasy_baseball_manager.models.marcel.engine import project_all
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_features,
+    build_batting_league_averages,
+    build_batting_weighted_rates,
     build_pitching_features,
+    build_pitching_league_averages,
+    build_pitching_weighted_rates,
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
 from fantasy_baseball_manager.models.protocols import (
@@ -62,18 +63,23 @@ def _build_feature_sets(
     name_prefix: str,
 ) -> tuple[FeatureSet, FeatureSet]:
     """Build batting and pitching FeatureSets from MarcelConfig."""
-    batting_features = build_batting_features(marcel_config.batting_categories)
-    pitching_features = build_pitching_features(marcel_config.pitching_categories)
+    batting_base = build_batting_features(marcel_config.batting_categories)
+    batting_weighted = build_batting_weighted_rates(marcel_config.batting_categories, marcel_config.batting_weights)
+    batting_league = build_batting_league_averages(marcel_config.batting_categories)
+
+    pitching_base = build_pitching_features(marcel_config.pitching_categories)
+    pitching_weighted = build_pitching_weighted_rates(marcel_config.pitching_categories, marcel_config.pitching_weights)
+    pitching_league = build_pitching_league_averages(marcel_config.pitching_categories)
 
     batting_fs = FeatureSet(
         name=f"{name_prefix}_batting",
-        features=tuple(batting_features),
+        features=(*batting_base, batting_weighted, batting_league),
         seasons=tuple(seasons),
         source_filter="fangraphs",
     )
     pitching_fs = FeatureSet(
         name=f"{name_prefix}_pitching",
-        features=tuple(pitching_features),
+        features=(*pitching_base, pitching_weighted, pitching_league),
         seasons=tuple(seasons),
         source_filter="fangraphs",
     )
@@ -91,7 +97,7 @@ class MarcelModel:
 
     @property
     def description(self) -> str:
-        return "Marcel projection system — weighted averages, " "regression to the mean, and aging curves."
+        return "Marcel projection system — weighted averages, regression to the mean, and aging curves."
 
     @property
     def supported_operations(self) -> frozenset[str]:
@@ -102,11 +108,10 @@ class MarcelModel:
         return ArtifactType.NONE.value
 
     @property
-    def declared_features(self) -> tuple[Feature, ...]:
+    def declared_features(self) -> tuple[AnyFeature, ...]:
         default_config = MarcelConfig()
-        batting = build_batting_features(default_config.batting_categories)
-        pitching = build_pitching_features(default_config.pitching_categories)
-        return tuple(batting + pitching)
+        batting_fs, pitching_fs = _build_feature_sets(default_config, [], "marcel")
+        return batting_fs.features + pitching_fs.features
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
         assert self._assembler is not None, "assembler is required for prepare"
@@ -126,7 +131,7 @@ class MarcelModel:
         assert self._assembler is not None, "assembler is required for predict"
         marcel_config = _build_marcel_config(config.model_params)
         batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name)
-        lags = 3
+        lags = len(marcel_config.batting_weights)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -136,26 +141,13 @@ class MarcelModel:
 
         projected_season = max(config.seasons) + 1 if config.seasons else 2025
 
-        batting_cats = list(marcel_config.batting_categories)
-        pitching_cats = list(marcel_config.pitching_categories)
+        bat_inputs = rows_to_marcel_inputs(bat_rows, marcel_config.batting_categories, lags, pitcher=False)
+        pitch_inputs = rows_to_marcel_inputs(
+            pitch_rows, marcel_config.pitching_categories, len(marcel_config.pitching_weights), pitcher=True
+        )
 
-        bat_players = rows_to_player_seasons(bat_rows, batting_cats, lags, pitcher=False)
-        pitch_players = rows_to_player_seasons(pitch_rows, pitching_cats, lags, pitcher=True)
-
-        # Build player dicts for engine: {player_id: (seasons, age)}
-        bat_input: dict[int, tuple[list, int]] = {pid: (seasons, age) for pid, (_, seasons, age) in bat_players.items()}
-        pitch_input: dict[int, tuple[list, int]] = {
-            pid: (seasons, age) for pid, (_, seasons, age) in pitch_players.items()
-        }
-
-        # Compute league averages
-        bat_season_map = {pid: seasons for pid, (seasons, _) in bat_input.items()}
-        pitch_season_map = {pid: seasons for pid, (seasons, _) in pitch_input.items()}
-        bat_league = compute_league_averages(bat_season_map, batting_cats)
-        pitch_league = compute_league_averages(pitch_season_map, pitching_cats)
-
-        bat_projections = project_all(bat_input, projected_season, bat_league, marcel_config)
-        pitch_projections = project_all(pitch_input, projected_season, pitch_league, marcel_config)
+        bat_projections = project_all(bat_inputs, projected_season, marcel_config)
+        pitch_projections = project_all(pitch_inputs, projected_season, marcel_config)
 
         version = config.version or "latest"
 

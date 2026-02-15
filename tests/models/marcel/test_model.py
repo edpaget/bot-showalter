@@ -129,6 +129,9 @@ class TestMarcelPredict:
                 "hr_1": 30.0,
                 "hr_2": 25.0,
                 "hr_3": 20.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
             },
             {
                 "player_id": 2,
@@ -140,6 +143,9 @@ class TestMarcelPredict:
                 "hr_1": 20.0,
                 "hr_2": 18.0,
                 "hr_3": 15.0,
+                "hr_wavg": 217.0 / 5500.0,
+                "weighted_pt": 5500.0,
+                "league_hr_rate": 50.0 / 1100.0,
             },
         ]
         assembler = FakeAssembler(batting_rows)
@@ -170,6 +176,9 @@ class TestMarcelPredict:
                 "so_1": 200.0,
                 "so_2": 180.0,
                 "so_3": 150.0,
+                "so_wavg": 1110.0 / 1040.0,
+                "weighted_pt": 1040.0,
+                "league_so_rate": 200.0 / 180.0,
             },
         ]
         assembler = FakeAssembler(batting_rows=[], pitching_rows=pitching_rows)

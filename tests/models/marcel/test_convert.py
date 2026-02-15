@@ -1,9 +1,12 @@
+import pytest
+
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel.convert import (
     projection_to_domain,
+    rows_to_marcel_inputs,
     rows_to_player_seasons,
 )
-from fantasy_baseball_manager.models.marcel.types import MarcelProjection
+from fantasy_baseball_manager.models.marcel.types import MarcelInput, MarcelProjection
 
 
 class TestRowsToPlayerSeasons:
@@ -95,6 +98,160 @@ class TestRowsToPlayerSeasons:
         _, seasons, age = result[1]
         assert age == 32
         assert seasons[0].pa == 600
+
+
+class TestRowsToMarcelInputs:
+    def test_single_batter(self) -> None:
+        rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 550,
+                "pa_3": 500,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_3": 20.0,
+                "hr_wavg": 0.05,
+                "weighted_pt": 6200.0,
+                "league_hr_rate": 0.03,
+            },
+        ]
+        result = rows_to_marcel_inputs(rows, ["hr"], lags=3)
+        assert 1 in result
+        inp = result[1]
+        assert isinstance(inp, MarcelInput)
+        assert inp.age == 29
+        assert inp.weighted_rates == {"hr": 0.05}
+        assert inp.weighted_pt == 6200.0
+        assert inp.league_rates == {"hr": 0.03}
+        assert len(inp.seasons) == 3
+        assert inp.seasons[0].pa == 600
+        assert inp.seasons[1].pa == 550
+
+    def test_multiple_categories(self) -> None:
+        rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 500,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "h_1": 150.0,
+                "h_2": 130.0,
+                "hr_wavg": 0.05,
+                "h_wavg": 0.27,
+                "weighted_pt": 5000.0,
+                "league_hr_rate": 0.03,
+                "league_h_rate": 0.25,
+            },
+        ]
+        result = rows_to_marcel_inputs(rows, ["hr", "h"], lags=2)
+        inp = result[1]
+        assert inp.weighted_rates == {"hr": 0.05, "h": 0.27}
+        assert inp.league_rates == {"hr": 0.03, "h": 0.25}
+
+    def test_multiple_players(self) -> None:
+        rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "hr_1": 30.0,
+                "hr_wavg": 0.05,
+                "weighted_pt": 3000.0,
+                "league_hr_rate": 0.03,
+            },
+            {
+                "player_id": 2,
+                "season": 2023,
+                "age": 25,
+                "pa_1": 500,
+                "hr_1": 20.0,
+                "hr_wavg": 0.04,
+                "weighted_pt": 2500.0,
+                "league_hr_rate": 0.03,
+            },
+        ]
+        result = rows_to_marcel_inputs(rows, ["hr"], lags=1)
+        assert len(result) == 2
+        assert result[1].age == 29
+        assert result[2].age == 25
+
+    def test_pitcher_builds_season_lines_with_ip(self) -> None:
+        rows = [
+            {
+                "player_id": 10,
+                "season": 2023,
+                "age": 28,
+                "ip_1": 180.0,
+                "ip_2": 170.0,
+                "g_1": 30,
+                "g_2": 28,
+                "gs_1": 30,
+                "gs_2": 28,
+                "so_1": 200.0,
+                "so_2": 180.0,
+                "so_wavg": 1.07,
+                "weighted_pt": 880.0,
+                "league_so_rate": 0.9,
+            },
+        ]
+        result = rows_to_marcel_inputs(rows, ["so"], lags=2, pitcher=True)
+        inp = result[10]
+        assert inp.seasons[0].ip == 180.0
+        assert inp.seasons[0].g == 30
+        assert inp.seasons[0].gs == 30
+        assert inp.seasons[0].stats["so"] == 200.0
+        assert inp.seasons[1].ip == 170.0
+
+    def test_uses_most_recent_row_per_player(self) -> None:
+        rows = [
+            {
+                "player_id": 1,
+                "season": 2022,
+                "age": 28,
+                "pa_1": 500,
+                "hr_1": 25.0,
+                "hr_wavg": 0.04,
+                "weighted_pt": 2500.0,
+                "league_hr_rate": 0.03,
+            },
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "hr_1": 30.0,
+                "hr_wavg": 0.05,
+                "weighted_pt": 3000.0,
+                "league_hr_rate": 0.035,
+            },
+        ]
+        result = rows_to_marcel_inputs(rows, ["hr"], lags=1)
+        inp = result[1]
+        assert inp.age == 29
+        assert inp.weighted_pt == pytest.approx(3000.0)
+
+    def test_missing_derived_columns_default_to_zero(self) -> None:
+        rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "hr_1": 30.0,
+            },
+        ]
+        result = rows_to_marcel_inputs(rows, ["hr"], lags=1)
+        inp = result[1]
+        assert inp.weighted_rates == {"hr": 0.0}
+        assert inp.weighted_pt == 0.0
+        assert inp.league_rates == {"hr": 0.0}
 
 
 class TestProjectionToDomain:

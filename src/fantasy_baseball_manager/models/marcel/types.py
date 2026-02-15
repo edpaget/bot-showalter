@@ -16,6 +16,15 @@ class LeagueAverages:
 
 
 @dataclass(frozen=True)
+class MarcelInput:
+    weighted_rates: dict[str, float]
+    weighted_pt: float
+    league_rates: dict[str, float]
+    age: int
+    seasons: tuple[SeasonLine, ...]
+
+
+@dataclass(frozen=True)
 class MarcelProjection:
     player_id: int
     projected_season: int
