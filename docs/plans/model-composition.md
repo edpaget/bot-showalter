@@ -43,7 +43,7 @@ Added `pa` to all projection seed data fixtures and added tests for projection f
 
 ---
 
-## Phase 2 — Ensemble model
+## Phase 2 — Ensemble model ✅
 
 A model that reads projections from multiple systems and produces a weighted-average projection.
 
@@ -240,7 +240,7 @@ For the composite model, store `_pt_system` in `stat_json` so the display can sh
 ```
 Phase 1 (Source.PROJECTION validation + coverage) ✅
   ↓
-Phase 2 (Ensemble model)          Phase 3 (Stacked PT model)
+Phase 2 (Ensemble model) ✅        Phase 3 (Stacked PT model)
   [independent of each other, but both depend on Phase 1]
   ↓                                ↓
 Phase 4 (Evaluation support)  [depends on 2 and 3]
