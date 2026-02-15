@@ -1,5 +1,6 @@
 import typer
 
+from fantasy_baseball_manager.domain.evaluation import ComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature
 from fantasy_baseball_manager.models.protocols import (
@@ -48,6 +49,34 @@ def print_import_result(log: LoadLog) -> None:
     typer.echo(f"Import complete: {log.rows_loaded} projections loaded")
     typer.echo(f"  Source: {log.source_detail}")
     typer.echo(f"  Status: {log.status}")
+
+
+def print_system_metrics(metrics: SystemMetrics) -> None:
+    """Print evaluation results in tabular format."""
+    typer.echo(f"Evaluation: {metrics.system} v{metrics.version} ({metrics.source_type})")
+    typer.echo(f"  {'Stat':<12} {'RMSE':>10} {'MAE':>10} {'r':>10} {'N':>6}")
+    typer.echo(f"  {'-' * 12} {'-' * 10} {'-' * 10} {'-' * 10} {'-' * 6}")
+    for stat_name in sorted(metrics.metrics):
+        m = metrics.metrics[stat_name]
+        typer.echo(f"  {stat_name:<12} {m.rmse:>10.4f} {m.mae:>10.4f} {m.correlation:>10.4f} {m.n:>6}")
+
+
+def print_comparison_result(result: ComparisonResult) -> None:
+    """Print comparison table across systems."""
+    typer.echo(f"Comparison — season {result.season}")
+    system_labels = [f"{s.system}/{s.version}" for s in result.systems]
+    header_rmse = "  ".join(f"{label:>14}" for label in system_labels)
+    typer.echo(f"  {'Stat':<12} {header_rmse}")
+    typer.echo(f"  {'-' * 12} {'  '.join('-' * 14 for _ in system_labels)}")
+    for stat_name in result.stats:
+        values: list[str] = []
+        for sys_metrics in result.systems:
+            m = sys_metrics.metrics.get(stat_name)
+            if m:
+                values.append(f"{m.rmse:>14.4f}")
+            else:
+                values.append(f"{'—':>14}")
+        typer.echo(f"  {stat_name:<12} {'  '.join(values)}")
 
 
 def print_features(model_name: str, features: tuple[AnyFeature, ...]) -> None:

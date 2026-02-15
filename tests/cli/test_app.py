@@ -9,6 +9,9 @@ from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.registry import _clear, register
+from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 
@@ -233,3 +236,86 @@ class TestImportCommand:
             ],
         )
         assert result.exit_code != 0
+
+
+def _seed_eval_data(conn: sqlite3.Connection, system: str = "steamer", version: str = "2025.1") -> None:
+    """Seed projections and actuals for eval/compare tests."""
+    conn.execute(
+        "INSERT OR IGNORE INTO player (id, name_first, name_last, birth_date, bats) "
+        "VALUES (1, 'Mike', 'Trout', '1991-08-07', 'R')"
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO player (id, name_first, name_last, birth_date, bats) "
+        "VALUES (2, 'Aaron', 'Judge', '1992-04-26', 'R')"
+    )
+    proj_repo = SqliteProjectionRepo(conn)
+    batting_repo = SqliteBattingStatsRepo(conn)
+    proj_repo.upsert(
+        Projection(
+            player_id=1,
+            season=2025,
+            system=system,
+            version=version,
+            player_type="batter",
+            stat_json={"hr": 30, "avg": 0.280},
+            source_type="third_party",
+        )
+    )
+    proj_repo.upsert(
+        Projection(
+            player_id=2,
+            season=2025,
+            system=system,
+            version=version,
+            player_type="batter",
+            stat_json={"hr": 45, "avg": 0.310},
+            source_type="third_party",
+        )
+    )
+    batting_repo.upsert(BattingStats(player_id=1, season=2025, source="fangraphs", hr=28, avg=0.265))
+    batting_repo.upsert(BattingStats(player_id=2, season=2025, source="fangraphs", hr=40, avg=0.300))
+    conn.commit()
+
+
+class TestEvalCommand:
+    def test_eval_command_exists(self) -> None:
+        result = runner.invoke(app, ["eval", "--help"])
+        assert result.exit_code == 0
+
+    def test_eval_with_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_eval_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["eval", "steamer", "--version", "2025.1", "--season", "2025"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "hr" in result.output
+        assert "avg" in result.output
+        assert "RMSE" in result.output
+
+    def test_eval_missing_version_fails(self) -> None:
+        result = runner.invoke(app, ["eval", "steamer", "--season", "2025"])
+        assert result.exit_code != 0
+
+
+class TestCompareCommand:
+    def test_compare_command_exists(self) -> None:
+        result = runner.invoke(app, ["compare", "--help"])
+        assert result.exit_code == 0
+
+    def test_compare_with_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_eval_data(db_conn, system="steamer", version="2025.1")
+        _seed_eval_data(db_conn, system="zips", version="2025.1")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["compare", "steamer/2025.1", "zips/2025.1", "--season", "2025"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "steamer" in result.output
+        assert "zips" in result.output

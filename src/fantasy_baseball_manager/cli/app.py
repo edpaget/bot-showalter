@@ -7,11 +7,13 @@ import fantasy_baseball_manager.models  # noqa: F401 — trigger model registrat
 from fantasy_baseball_manager.cli._dispatcher import UnsupportedOperation, dispatch
 from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
+    print_comparison_result,
     print_eval_result,
     print_features,
     print_import_result,
     print_predict_result,
     print_prepare_result,
+    print_system_metrics,
     print_train_result,
 )
 from fantasy_baseball_manager.config import load_config
@@ -33,9 +35,12 @@ from fantasy_baseball_manager.models.protocols import (
     TrainResult,
 )
 from fantasy_baseball_manager.models.registry import get, list_models
+from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
+from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 
 app = typer.Typer(name="fbm", help="Fantasy Baseball Manager — projection model CLI")
 
@@ -191,3 +196,46 @@ def import_cmd(
     loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
     log = loader.load(encoding="utf-8-sig")
     print_import_result(log)
+
+
+@app.command("eval")
+def eval_cmd(
+    system: Annotated[str, typer.Argument(help="Projection system name")],
+    version: Annotated[str, typer.Option("--version", help="Projection version")],
+    season: Annotated[int, typer.Option("--season", help="Season to evaluate against")],
+    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
+    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+) -> None:
+    """Evaluate a projection system against actual stats."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    proj_repo = SqliteProjectionRepo(conn)
+    batting_repo = SqliteBattingStatsRepo(conn)
+    pitching_repo = SqlitePitchingStatsRepo(conn)
+    evaluator = ProjectionEvaluator(proj_repo, batting_repo, pitching_repo)
+    result = evaluator.evaluate(system, version, season, stats=stat)
+    print_system_metrics(result)
+
+
+@app.command("compare")
+def compare_cmd(
+    systems: Annotated[list[str], typer.Argument(help="Systems to compare (format: system/version)")],
+    season: Annotated[int, typer.Option("--season", help="Season to compare against")],
+    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to compare")] = None,
+    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+) -> None:
+    """Compare multiple projection systems against actuals."""
+    parsed: list[tuple[str, str]] = []
+    for s in systems:
+        parts = s.split("/", 1)
+        if len(parts) != 2:
+            typer.echo(f"Error: invalid system format '{s}', expected 'system/version'", err=True)
+            raise typer.Exit(code=1)
+        parsed.append((parts[0], parts[1]))
+
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    proj_repo = SqliteProjectionRepo(conn)
+    batting_repo = SqliteBattingStatsRepo(conn)
+    pitching_repo = SqlitePitchingStatsRepo(conn)
+    evaluator = ProjectionEvaluator(proj_repo, batting_repo, pitching_repo)
+    result = evaluator.compare(parsed, season, stats=stat)
+    print_comparison_result(result)
