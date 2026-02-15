@@ -7,10 +7,7 @@ from pathlib import Path
 import pytest
 
 from fantasy_baseball_manager.cli._dispatcher import dispatch, UnsupportedOperation
-from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
-from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
-from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.models.protocols import (
     EvalResult,
     ModelConfig,
@@ -19,11 +16,6 @@ from fantasy_baseball_manager.models.protocols import (
 )
 from fantasy_baseball_manager.models.registry import _clear, register
 from fantasy_baseball_manager.models.run_manager import RunManager
-
-
-def _make_assembler() -> SqliteDatasetAssembler:
-    conn = create_connection(":memory:")
-    return SqliteDatasetAssembler(conn)
 
 
 class _FakePreparableOnly:
@@ -43,7 +35,7 @@ class _FakePreparableOnly:
     def artifact_type(self) -> str:
         return "none"
 
-    def prepare(self, config: ModelConfig, assembler: DatasetAssembler) -> PrepareResult:
+    def prepare(self, config: ModelConfig) -> PrepareResult:
         return PrepareResult(model_name="fake", rows_processed=42, artifacts_path="/tmp")
 
 
@@ -67,8 +59,7 @@ def _clean_registry() -> None:
 class TestDispatch:
     def test_dispatch_prepare(self) -> None:
         register("fake")(_FakePreparableOnly)
-        assembler = _make_assembler()
-        result = dispatch("prepare", "fake", ModelConfig(), assembler=assembler)
+        result = dispatch("prepare", "fake", ModelConfig())
         assert isinstance(result, PrepareResult)
         assert result.rows_processed == 42
 

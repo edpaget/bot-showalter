@@ -1,10 +1,7 @@
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
-from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.model_run import ArtifactType
-from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import Feature, FeatureSet
 from fantasy_baseball_manager.models.marcel.convert import (
@@ -85,6 +82,9 @@ def _build_feature_sets(
 
 @register("marcel")
 class MarcelModel:
+    def __init__(self, assembler: DatasetAssembler | None = None) -> None:
+        self._assembler = assembler
+
     @property
     def name(self) -> str:
         return "marcel"
@@ -108,12 +108,13 @@ class MarcelModel:
         pitching = build_pitching_features(default_config.pitching_categories)
         return tuple(batting + pitching)
 
-    def prepare(self, config: ModelConfig, assembler: DatasetAssembler) -> PrepareResult:
+    def prepare(self, config: ModelConfig) -> PrepareResult:
+        assert self._assembler is not None, "assembler is required for prepare"
         marcel_config = _build_marcel_config(config.model_params)
         batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name)
 
-        bat_handle = assembler.get_or_materialize(batting_fs)
-        pitch_handle = assembler.get_or_materialize(pitching_fs)
+        bat_handle = self._assembler.get_or_materialize(batting_fs)
+        pitch_handle = self._assembler.get_or_materialize(pitching_fs)
 
         return PrepareResult(
             model_name=self.name,
@@ -121,24 +122,17 @@ class MarcelModel:
             artifacts_path=config.artifacts_dir,
         )
 
-    def predict(
-        self,
-        config: ModelConfig,
-        assembler: DatasetAssembler | None = None,
-    ) -> PredictResult:
+    def predict(self, config: ModelConfig) -> PredictResult:
+        assert self._assembler is not None, "assembler is required for predict"
         marcel_config = _build_marcel_config(config.model_params)
         batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name)
         lags = 3
 
-        if assembler is None:
-            conn = create_connection(Path(config.data_dir) / "fbm.db")
-            assembler = SqliteDatasetAssembler(conn)
+        bat_handle = self._assembler.get_or_materialize(batting_fs)
+        pitch_handle = self._assembler.get_or_materialize(pitching_fs)
 
-        bat_handle = assembler.get_or_materialize(batting_fs)
-        pitch_handle = assembler.get_or_materialize(pitching_fs)
-
-        bat_rows = assembler.read(bat_handle)
-        pitch_rows = assembler.read(pitch_handle)
+        bat_rows = self._assembler.read(bat_handle)
+        pitch_rows = self._assembler.read(pitch_handle)
 
         projected_season = max(config.seasons) + 1 if config.seasons else 2025
 

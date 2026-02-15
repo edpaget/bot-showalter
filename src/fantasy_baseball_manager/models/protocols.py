@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature
 
 
@@ -63,7 +62,7 @@ class ProjectionModel(Protocol):
 
 @runtime_checkable
 class Preparable(Protocol):
-    def prepare(self, config: ModelConfig, assembler: DatasetAssembler) -> PrepareResult: ...
+    def prepare(self, config: ModelConfig) -> PrepareResult: ...
 
 
 @runtime_checkable

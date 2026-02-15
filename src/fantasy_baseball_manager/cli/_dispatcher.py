@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fantasy_baseball_manager.features.protocols import DatasetAssembler
+from typing import Any
+
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -32,8 +33,6 @@ _OPERATION_MAP: dict[str, tuple[type, str]] = {
     "ablate": (Ablatable, "ablate"),
 }
 
-_ASSEMBLER_OPERATIONS: frozenset[str] = frozenset({"prepare"})
-
 type _AnyResult = PrepareResult | TrainResult | EvalResult | PredictResult | AblationResult
 
 
@@ -41,11 +40,11 @@ def dispatch(
     operation: str,
     model_name: str,
     config: ModelConfig,
-    assembler: DatasetAssembler | None = None,
     run_manager: RunManager | None = None,
+    **model_kwargs: Any,
 ) -> _AnyResult:
     """Resolve a model from the registry, check capability, and invoke the operation."""
-    model = get(model_name)
+    model = get(model_name, **model_kwargs)
 
     if operation not in _OPERATION_MAP:
         raise UnsupportedOperation(f"Model '{model_name}' does not support '{operation}'")
@@ -60,10 +59,7 @@ def dispatch(
         context = run_manager.begin_run(model, config)
 
     method = getattr(model, method_name)
-    if operation in _ASSEMBLER_OPERATIONS:
-        result = method(config, assembler)
-    else:
-        result = method(config)
+    result = method(config)
 
     if context is not None and run_manager is not None:
         run_manager.finalize_run(context, config)

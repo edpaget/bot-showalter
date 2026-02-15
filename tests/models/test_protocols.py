@@ -2,7 +2,6 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -37,7 +36,7 @@ class _StubModel:
     def artifact_type(self) -> str:
         return "none"
 
-    def prepare(self, config: ModelConfig, assembler: DatasetAssembler) -> PrepareResult:
+    def prepare(self, config: ModelConfig) -> PrepareResult:
         return PrepareResult(model_name="stub", rows_processed=0, artifacts_path="")
 
     def train(self, config: ModelConfig) -> TrainResult:

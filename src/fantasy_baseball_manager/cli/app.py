@@ -1,4 +1,3 @@
-import sqlite3
 from pathlib import Path
 from typing import Annotated
 
@@ -54,15 +53,10 @@ _OutputDirOpt = Annotated[str | None, typer.Option("--output-dir", help="Output 
 _SeasonOpt = Annotated[list[int] | None, typer.Option("--season", help="Season year(s) to include")]
 
 
-_ASSEMBLER_OPERATIONS: frozenset[str] = frozenset({"prepare"})
-
-
 def _run_action(operation: str, model_name: str, output_dir: str | None, seasons: list[int] | None) -> None:
     config = load_config(model_name=model_name, output_dir=output_dir, seasons=seasons)
-    assembler = None
-    if operation in _ASSEMBLER_OPERATIONS:
-        conn = create_connection(Path(config.data_dir) / "fbm.db")
-        assembler = SqliteDatasetAssembler(conn)
+    conn = create_connection(Path(config.data_dir) / "fbm.db")
+    assembler = SqliteDatasetAssembler(conn)
     try:
         result = dispatch(operation, model_name, config, assembler=assembler)
     except UnsupportedOperation as e:
@@ -114,23 +108,22 @@ def train(
     tags = _parse_tags(tag)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags)
 
-    conn: sqlite3.Connection | None = None
+    conn = create_connection(Path(config.data_dir) / "fbm.db")
+    assembler = SqliteDatasetAssembler(conn)
     run_manager: RunManager | None = None
     if config.version is not None:
-        conn = create_connection(Path(config.data_dir) / "fbm.db")
         repo = SqliteModelRunRepo(conn)
         run_manager = RunManager(model_run_repo=repo, artifacts_root=Path(config.artifacts_dir))
 
     try:
-        result = dispatch("train", model, config, run_manager=run_manager)
-        if conn is not None:
+        result = dispatch("train", model, config, run_manager=run_manager, assembler=assembler)
+        if config.version is not None:
             conn.commit()
     except UnsupportedOperation as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
     finally:
-        if conn is not None:
-            conn.close()
+        conn.close()
 
     match result:
         case TrainResult():

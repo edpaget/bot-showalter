@@ -78,8 +78,12 @@ class TestInfoCommand:
 
 
 class TestActionCommands:
-    def test_train_marcel_fails(self) -> None:
+    def test_train_marcel_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
         result = runner.invoke(app, ["train", "marcel"])
         assert result.exit_code != 0
         assert "does not support" in result.output.lower()
@@ -95,13 +99,21 @@ class TestActionCommands:
         result = runner.invoke(app, ["prepare", "marcel", "--season", "2023"])
         assert result.exit_code == 0
 
-    def test_evaluate_marcel(self) -> None:
+    def test_evaluate_marcel(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
         result = runner.invoke(app, ["evaluate", "marcel"])
         assert result.exit_code == 0
 
-    def test_finetune_marcel_fails(self) -> None:
+    def test_finetune_marcel_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
         result = runner.invoke(app, ["finetune", "marcel"])
         assert result.exit_code != 0
         assert "does not support" in result.output.lower()
@@ -111,7 +123,7 @@ class TestActionCommands:
         seeded_conn = create_connection(":memory:")
         _seed_batting_data(seeded_conn)
         monkeypatch.setattr(
-            "fantasy_baseball_manager.models.marcel.model.create_connection",
+            "fantasy_baseball_manager.cli.app.create_connection",
             lambda path: seeded_conn,
         )
         monkeypatch.setattr(
@@ -127,18 +139,30 @@ class TestActionCommands:
         result = runner.invoke(app, ["predict", "marcel", "--season", "2023"])
         assert result.exit_code == 0, result.output
 
-    def test_ablate_marcel_fails(self) -> None:
+    def test_ablate_marcel_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
         result = runner.invoke(app, ["ablate", "marcel"])
         assert result.exit_code != 0
 
-    def test_train_marcel_with_output_dir_fails(self) -> None:
+    def test_train_marcel_with_output_dir_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
         result = runner.invoke(app, ["train", "marcel", "--output-dir", "/tmp/out"])
         assert result.exit_code != 0
 
-    def test_train_marcel_with_seasons_fails(self) -> None:
+    def test_train_marcel_with_seasons_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
         result = runner.invoke(app, ["train", "marcel", "--season", "2023", "--season", "2024"])
         assert result.exit_code != 0
 
@@ -209,17 +233,22 @@ class TestTrainRunTracking:
         assert runs[0].tags_json == {"env": "test"}
         verify_conn.close()
 
-    def test_train_without_version_skips_run_tracking(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_train_without_version_skips_run_tracking(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         _register_trainable_stub()
-        db_conn = create_connection(":memory:")
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.create_connection", lambda path: db_conn)
+        db_path = tmp_path / "fbm.db"
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.create_connection",
+            lambda path: create_connection(db_path),
+        )
 
         result = runner.invoke(app, ["train", "stub"])
         assert result.exit_code == 0, result.output
 
-        repo = SqliteModelRunRepo(db_conn)
+        verify_conn = create_connection(db_path)
+        repo = SqliteModelRunRepo(verify_conn)
         runs = repo.list()
         assert len(runs) == 0
+        verify_conn.close()
 
 
 class TestFeaturesCommand:
