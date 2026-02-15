@@ -1,6 +1,9 @@
+from sqlite3 import ProgrammingError
+
 import pytest
 
-from fantasy_baseball_manager.cli.factory import create_model
+from fantasy_baseball_manager.cli.factory import build_model_context, create_model
+from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
 from fantasy_baseball_manager.models.registry import _clear, register
 
@@ -63,3 +66,62 @@ class TestCreateModel:
     def test_create_model_unknown_name_raises(self) -> None:
         with pytest.raises(KeyError, match="no model registered"):
             create_model("nonexistent")
+
+
+class TestBuildModelContext:
+    def test_yields_model_context_with_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("witharg")(_WithArgModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig()
+        with build_model_context("witharg", config) as ctx:
+            assert isinstance(ctx.model, _WithArgModel)
+            assert ctx.model.assembler is not None
+
+    def test_run_manager_is_none_without_version(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("witharg")(_WithArgModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig()
+        with build_model_context("witharg", config) as ctx:
+            assert ctx.run_manager is None
+
+    def test_run_manager_is_set_with_version(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("witharg")(_WithArgModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig(version="v1")
+        with build_model_context("witharg", config) as ctx:
+            assert ctx.run_manager is not None
+
+    def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("witharg")(_WithArgModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig()
+        with build_model_context("witharg", config) as ctx:
+            conn = ctx.conn
+        with pytest.raises(ProgrammingError):
+            conn.execute("SELECT 1")
+
+    def test_connection_closed_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("witharg")(_WithArgModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig()
+        with pytest.raises(RuntimeError):
+            with build_model_context("witharg", config) as ctx:
+                conn = ctx.conn
+                raise RuntimeError("boom")
+        with pytest.raises(ProgrammingError):
+            conn.execute("SELECT 1")

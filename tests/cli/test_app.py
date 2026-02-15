@@ -81,7 +81,7 @@ class TestActionCommands:
     def test_train_marcel_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
         result = runner.invoke(app, ["train", "marcel"])
@@ -93,7 +93,7 @@ class TestActionCommands:
         seeded_conn = create_connection(":memory:")
         _seed_batting_data(seeded_conn)
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: seeded_conn,
         )
         result = runner.invoke(app, ["prepare", "marcel", "--season", "2023"])
@@ -102,7 +102,7 @@ class TestActionCommands:
     def test_evaluate_marcel(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
         result = runner.invoke(app, ["evaluate", "marcel"])
@@ -111,7 +111,7 @@ class TestActionCommands:
     def test_finetune_marcel_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
         result = runner.invoke(app, ["finetune", "marcel"])
@@ -123,7 +123,7 @@ class TestActionCommands:
         seeded_conn = create_connection(":memory:")
         _seed_batting_data(seeded_conn)
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: seeded_conn,
         )
         monkeypatch.setattr(
@@ -142,7 +142,7 @@ class TestActionCommands:
     def test_ablate_marcel_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
         result = runner.invoke(app, ["ablate", "marcel"])
@@ -151,7 +151,7 @@ class TestActionCommands:
     def test_train_marcel_with_output_dir_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
         result = runner.invoke(app, ["train", "marcel", "--output-dir", "/tmp/out"])
@@ -160,7 +160,7 @@ class TestActionCommands:
     def test_train_marcel_with_seasons_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(":memory:"),
         )
         result = runner.invoke(app, ["train", "marcel", "--season", "2023", "--season", "2024"])
@@ -199,7 +199,7 @@ class TestTrainRunTracking:
         _register_trainable_stub()
         db_path = tmp_path / "fbm.db"
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(db_path),
         )
 
@@ -218,7 +218,7 @@ class TestTrainRunTracking:
         _register_trainable_stub()
         db_path = tmp_path / "fbm.db"
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(db_path),
         )
 
@@ -237,7 +237,7 @@ class TestTrainRunTracking:
         _register_trainable_stub()
         db_path = tmp_path / "fbm.db"
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.create_connection",
+            "fantasy_baseball_manager.cli.factory.create_connection",
             lambda path: create_connection(db_path),
         )
 

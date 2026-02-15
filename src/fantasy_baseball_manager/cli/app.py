@@ -22,7 +22,7 @@ from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.models.run_manager import RunManager
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
-from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
+from fantasy_baseball_manager.cli.factory import build_model_context, create_model
 from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
@@ -38,7 +38,6 @@ from fantasy_baseball_manager.models.protocols import (
     ProjectionModel,
     TrainResult,
 )
-from fantasy_baseball_manager.cli.factory import create_model
 from fantasy_baseball_manager.models.registry import list_models
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
@@ -56,14 +55,12 @@ _SeasonOpt = Annotated[list[int] | None, typer.Option("--season", help="Season y
 
 def _run_action(operation: str, model_name: str, output_dir: str | None, seasons: list[int] | None) -> None:
     config = load_config(model_name=model_name, output_dir=output_dir, seasons=seasons)
-    conn = create_connection(Path(config.data_dir) / "fbm.db")
-    assembler = SqliteDatasetAssembler(conn)
-    model = create_model(model_name, assembler=assembler)
-    try:
-        result = dispatch(operation, model, config)
-    except UnsupportedOperation as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(code=1) from None
+    with build_model_context(model_name, config) as ctx:
+        try:
+            result = dispatch(operation, ctx.model, config)
+        except UnsupportedOperation as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(code=1) from None
 
     match result:
         case PrepareResult():
@@ -110,23 +107,14 @@ def train(
     tags = _parse_tags(tag)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags)
 
-    conn = create_connection(Path(config.data_dir) / "fbm.db")
-    assembler = SqliteDatasetAssembler(conn)
-    run_manager: RunManager | None = None
-    if config.version is not None:
-        repo = SqliteModelRunRepo(conn)
-        run_manager = RunManager(model_run_repo=repo, artifacts_root=Path(config.artifacts_dir))
-
-    model_instance = create_model(model, assembler=assembler)
-    try:
-        result = dispatch("train", model_instance, config, run_manager=run_manager)
-        if config.version is not None:
-            conn.commit()
-    except UnsupportedOperation as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(code=1) from None
-    finally:
-        conn.close()
+    with build_model_context(model, config) as ctx:
+        try:
+            result = dispatch("train", ctx.model, config, run_manager=ctx.run_manager)
+            if config.version is not None:
+                ctx.conn.commit()
+        except UnsupportedOperation as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(code=1) from None
 
     match result:
         case TrainResult():
