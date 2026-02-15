@@ -39,6 +39,8 @@ _COLUMNS = [
     "hbp",
     "sf",
     "sh",
+    "first_name",
+    "last_name",
 ]
 
 
@@ -108,6 +110,8 @@ class MLBMinorLeagueBattingSource:
                         "hbp": stat.get("hitByPitch"),
                         "sf": stat.get("sacFlies"),
                         "sh": stat.get("sacBunts"),
+                        "first_name": player.get("firstName", ""),
+                        "last_name": player.get("lastName", ""),
                     }
                 )
 

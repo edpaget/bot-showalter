@@ -619,38 +619,38 @@ class TestIngestRoster:
         assert result.exit_code != 0
 
 
-def _make_milb_batting_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {
-                "mlbam_id": 545361,
-                "season": 2024,
-                "level": "AAA",
-                "league": "International League",
-                "team": "Syracuse Mets",
-                "g": 120,
-                "pa": 500,
-                "ab": 450,
-                "h": 130,
-                "doubles": 25,
-                "triples": 3,
-                "hr": 18,
-                "r": 70,
-                "rbi": 65,
-                "bb": 40,
-                "so": 100,
-                "sb": 15,
-                "cs": 5,
-                "avg": 0.289,
-                "obp": 0.350,
-                "slg": 0.480,
-                "age": 24.5,
-                "hbp": 8,
-                "sf": 4,
-                "sh": 1,
-            },
-        ]
-    )
+def _make_milb_batting_df(**overrides: object) -> pd.DataFrame:
+    defaults: dict[str, object] = {
+        "mlbam_id": 545361,
+        "season": 2024,
+        "level": "AAA",
+        "league": "International League",
+        "team": "Syracuse Mets",
+        "g": 120,
+        "pa": 500,
+        "ab": 450,
+        "h": 130,
+        "doubles": 25,
+        "triples": 3,
+        "hr": 18,
+        "r": 70,
+        "rbi": 65,
+        "bb": 40,
+        "so": 100,
+        "sb": 15,
+        "cs": 5,
+        "avg": 0.289,
+        "obp": 0.350,
+        "slg": 0.480,
+        "age": 24.5,
+        "hbp": 8,
+        "sf": 4,
+        "sh": 1,
+        "first_name": "Mike",
+        "last_name": "Trout",
+    }
+    defaults.update(overrides)
+    return pd.DataFrame([defaults])
 
 
 class TestIngestMilbBatting:
@@ -679,6 +679,42 @@ class TestIngestMilbBatting:
         stats = repo.get_by_season_level(2024, "AAA")
         assert len(stats) == 1
         assert stats[0].hr == 18
+        conn.close()
+
+    def test_ingest_milb_batting_auto_registers_unknown_players(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        # No players seeded — mlbam_id 777777 is unknown
+        milb_df = _make_milb_batting_df(
+            mlbam_id=777777,
+            first_name="Prospect",
+            last_name="Jones",
+        )
+        fake_milb = _FakeSource(milb_df, "mlb_api", "milb_batting")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(
+                conn,
+                _FakeSource(pd.DataFrame(), "pybaseball", "chadwick_register"),
+                fake_milb_batting_source=fake_milb,
+            ),
+        )
+
+        result = runner.invoke(app, ["ingest", "milb-batting", "--season", "2024", "--level", "AAA"])
+        assert result.exit_code == 0, result.output
+        assert "1" in result.output
+
+        # Player should have been auto-registered
+        player_repo = SqlitePlayerRepo(conn)
+        player = player_repo.get_by_mlbam_id(777777)
+        assert player is not None
+        assert player.name_first == "Prospect"
+        assert player.name_last == "Jones"
+
+        # Stats should be loaded
+        repo = SqliteMinorLeagueBattingStatsRepo(conn)
+        stats = repo.get_by_season_level(2024, "AAA")
+        assert len(stats) == 1
         conn.close()
 
     def test_ingest_milb_batting_requires_season(self) -> None:

@@ -101,6 +101,10 @@ class TestMLBMinorLeagueBattingSource:
         assert df.iloc[0]["hbp"] == 8
         assert df.iloc[0]["sf"] == 4
         assert df.iloc[0]["sh"] == 1
+        assert df.iloc[0]["first_name"] == "Mike"
+        assert df.iloc[0]["last_name"] == "Trout"
+        assert df.iloc[1]["first_name"] == "Shohei"
+        assert df.iloc[1]["last_name"] == "Ohtani"
 
     def test_empty_response_returns_empty_dataframe(self) -> None:
         response = _fake_api_response([])
@@ -112,6 +116,8 @@ class TestMLBMinorLeagueBattingSource:
         assert len(df) == 0
         assert "mlbam_id" in df.columns
         assert "hr" in df.columns
+        assert "first_name" in df.columns
+        assert "last_name" in df.columns
 
     def test_http_error_raises(self) -> None:
         response = httpx.Response(500, content=b"Internal Server Error")

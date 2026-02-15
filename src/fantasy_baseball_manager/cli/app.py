@@ -1,6 +1,8 @@
+import math
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
+import pandas as pd
 import typer
 
 import fantasy_baseball_manager.models  # noqa: F401 — trigger model registration
@@ -24,6 +26,7 @@ from fantasy_baseball_manager.cli._output import (
     print_train_result,
 )
 from fantasy_baseball_manager.cli.factory import (
+    IngestContainer,
     build_eval_context,
     build_import_context,
     build_ingest_container,
@@ -35,6 +38,7 @@ from fantasy_baseball_manager.cli.factory import (
 )
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.config import load_config
+from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
@@ -649,6 +653,47 @@ def ingest_roster(
             print_ingest_result(log)
 
 
+def _auto_register_players(df: pd.DataFrame, container: IngestContainer) -> None:
+    """Register any players in the DataFrame that aren't already in the player table."""
+    if df.empty:
+        return
+    existing_mlbam_ids = {p.mlbam_id for p in container.player_repo.all() if p.mlbam_id is not None}
+    registered = 0
+    for _, row in df.iterrows():
+        mlbam_id = row.get("mlbam_id")
+        if mlbam_id is None or (isinstance(mlbam_id, float) and math.isnan(mlbam_id)):
+            continue
+        if int(mlbam_id) in existing_mlbam_ids:
+            continue
+        first = row.get("first_name", "")
+        last = row.get("last_name", "")
+        container.player_repo.upsert(Player(name_first=str(first), name_last=str(last), mlbam_id=int(mlbam_id)))
+        existing_mlbam_ids.add(int(mlbam_id))
+        registered += 1
+    if registered:
+        container.conn.commit()
+
+
+class _PreloadedSource:
+    """Wraps a pre-fetched DataFrame so StatsLoader can use it without re-fetching."""
+
+    def __init__(self, df: pd.DataFrame, original: object) -> None:
+        self._df = df
+        self._source_type = getattr(original, "source_type", "unknown")
+        self._source_detail = getattr(original, "source_detail", "unknown")
+
+    @property
+    def source_type(self) -> str:
+        return self._source_type  # type: ignore[return-value]
+
+    @property
+    def source_detail(self) -> str:
+        return self._source_detail  # type: ignore[return-value]
+
+    def fetch(self, **params: Any) -> pd.DataFrame:
+        return self._df
+
+
 _MILB_LEVELS = ["AAA", "AA", "A+", "A", "ROK"]
 
 
@@ -661,13 +706,15 @@ def ingest_milb_batting(
     """Ingest minor league batting stats from the MLB Stats API."""
     levels = level if level else _MILB_LEVELS
     with build_ingest_container(data_dir) as container:
-        players = container.player_repo.all()
-        mapper = make_milb_batting_mapper(players)
         for yr in season:
             for lvl in levels:
                 source = container.milb_batting_source()
+                df = source.fetch(season=yr, level=lvl)
+                _auto_register_players(df, container)
+                players = container.player_repo.all()
+                mapper = make_milb_batting_mapper(players)
                 loader = StatsLoader(
-                    source,
+                    _PreloadedSource(df, source),
                     container.minor_league_batting_stats_repo,
                     container.log_repo,
                     mapper,
