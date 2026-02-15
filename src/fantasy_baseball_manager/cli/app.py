@@ -137,9 +137,29 @@ def evaluate(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _Season
 
 
 @app.command()
-def predict(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None) -> None:
+def predict(
+    model: _ModelArg,
+    output_dir: _OutputDirOpt = None,
+    season: _SeasonOpt = None,
+    version: _VersionOpt = None,
+    tag: _TagOpt = None,
+) -> None:
     """Generate predictions from a projection model."""
-    _run_action("predict", model, output_dir, season)
+    tags = _parse_tags(tag)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags)
+
+    with build_model_context(model, config) as ctx:
+        try:
+            result = dispatch("predict", ctx.model, config, run_manager=ctx.run_manager)
+            if config.version is not None:
+                ctx.conn.commit()
+        except UnsupportedOperation as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(code=1) from None
+
+    match result:
+        case PredictResult():
+            print_predict_result(result)
 
 
 @app.command()
@@ -290,9 +310,13 @@ def runs_list(
     print_run_list(records)
 
 
+_OperationOpt = Annotated[str, typer.Option("--operation", help="Operation type (train, predict)")]
+
+
 @runs_app.command("show")
 def runs_show(
     run: Annotated[str, typer.Argument(help="Run identifier (system/version)")],
+    operation: _OperationOpt = "train",
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show details of a model run."""
@@ -303,7 +327,7 @@ def runs_show(
     system, version = parts
 
     with build_runs_context(data_dir) as ctx:
-        record = ctx.repo.get(system, version)
+        record = ctx.repo.get(system, version, operation)
     if record is None:
         typer.echo(f"Error: run '{run}' not found", err=True)
         raise typer.Exit(code=1)
@@ -313,6 +337,7 @@ def runs_show(
 @runs_app.command("delete")
 def runs_delete(
     run: Annotated[str, typer.Argument(help="Run identifier (system/version)")],
+    operation: _OperationOpt = "train",
     yes: Annotated[bool, typer.Option("--yes", help="Skip confirmation")] = False,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
@@ -324,7 +349,7 @@ def runs_delete(
     system, version = parts
 
     with build_runs_context(data_dir) as ctx:
-        record = ctx.repo.get(system, version)
+        record = ctx.repo.get(system, version, operation)
         if record is None:
             typer.echo(f"Error: run '{run}' not found", err=True)
             raise typer.Exit(code=1)
@@ -333,7 +358,7 @@ def runs_delete(
             typer.confirm(f"Delete run '{run}'?", abort=True)
 
         mgr = RunManager(model_run_repo=ctx.repo, artifacts_root=Path("."))
-        mgr.delete_run(system, version)
+        mgr.delete_run(system, version, operation)
         ctx.conn.commit()
         typer.echo(f"Deleted run '{run}'")
 

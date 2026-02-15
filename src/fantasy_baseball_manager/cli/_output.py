@@ -96,17 +96,18 @@ def print_run_list(records: list[ModelRunRecord]) -> None:
     if not records:
         typer.echo("No runs found.")
         return
-    typer.echo(f"  {'System':<20} {'Version':<12} {'Created':<26} {'Tags'}")
-    typer.echo(f"  {'-' * 20} {'-' * 12} {'-' * 26} {'-' * 20}")
+    typer.echo(f"  {'System':<20} {'Version':<12} {'Operation':<12} {'Created':<26} {'Tags'}")
+    typer.echo(f"  {'-' * 20} {'-' * 12} {'-' * 12} {'-' * 26} {'-' * 20}")
     for r in records:
         tags_str = ", ".join(f"{k}={v}" for k, v in r.tags_json.items()) if r.tags_json else ""
-        typer.echo(f"  {r.system:<20} {r.version:<12} {r.created_at:<26} {tags_str}")
+        typer.echo(f"  {r.system:<20} {r.version:<12} {r.operation:<12} {r.created_at:<26} {tags_str}")
 
 
 def print_run_detail(record: ModelRunRecord) -> None:
     """Print full details of a model run."""
     typer.echo(f"System:        {record.system}")
     typer.echo(f"Version:       {record.version}")
+    typer.echo(f"Operation:     {record.operation}")
     typer.echo(f"Created:       {record.created_at}")
     typer.echo(f"Git Commit:    {record.git_commit or 'N/A'}")
     typer.echo(f"Artifact Type: {record.artifact_type}")

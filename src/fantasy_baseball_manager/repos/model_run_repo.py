@@ -14,11 +14,11 @@ class SqliteModelRunRepo:
     def upsert(self, record: ModelRunRecord) -> int:
         cursor = self._conn.execute(
             """INSERT INTO model_run
-                   (system, version, train_dataset_id, validation_dataset_id,
+                   (system, version, operation, train_dataset_id, validation_dataset_id,
                     holdout_dataset_id, config_json, metrics_json, artifact_type,
                     artifact_path, git_commit, tags_json, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(system, version) DO UPDATE SET
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(system, version, operation) DO UPDATE SET
                    train_dataset_id=excluded.train_dataset_id,
                    validation_dataset_id=excluded.validation_dataset_id,
                    holdout_dataset_id=excluded.holdout_dataset_id,
@@ -32,6 +32,7 @@ class SqliteModelRunRepo:
             (
                 record.system,
                 record.version,
+                record.operation,
                 record.train_dataset_id,
                 record.validation_dataset_id,
                 record.holdout_dataset_id,
@@ -46,10 +47,10 @@ class SqliteModelRunRepo:
         )
         return cursor.lastrowid  # type: ignore[return-value]
 
-    def get(self, system: str, version: str) -> ModelRunRecord | None:
+    def get(self, system: str, version: str, operation: str = "train") -> ModelRunRecord | None:
         row = self._conn.execute(
-            "SELECT * FROM model_run WHERE system = ? AND version = ?",
-            (system, version),
+            "SELECT * FROM model_run WHERE system = ? AND version = ? AND operation = ?",
+            (system, version, operation),
         ).fetchone()
         if row is None:
             return None
@@ -67,10 +68,10 @@ class SqliteModelRunRepo:
             ).fetchall()
         return [self._row_to_record(row) for row in rows]
 
-    def delete(self, system: str, version: str) -> None:
+    def delete(self, system: str, version: str, operation: str = "train") -> None:
         self._conn.execute(
-            "DELETE FROM model_run WHERE system = ? AND version = ?",
-            (system, version),
+            "DELETE FROM model_run WHERE system = ? AND version = ? AND operation = ?",
+            (system, version, operation),
         )
 
     @staticmethod
@@ -79,6 +80,7 @@ class SqliteModelRunRepo:
             id=row["id"],
             system=row["system"],
             version=row["version"],
+            operation=row["operation"],
             train_dataset_id=row["train_dataset_id"],
             validation_dataset_id=row["validation_dataset_id"],
             holdout_dataset_id=row["holdout_dataset_id"],

@@ -16,6 +16,7 @@ class ModelRunRecord:
     config_json: dict[str, Any]
     artifact_type: str
     created_at: str
+    operation: str = "train"
     train_dataset_id: int | None = None
     validation_dataset_id: int | None = None
     holdout_dataset_id: int | None = None

@@ -11,6 +11,7 @@ from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.models.protocols import (
     EvalResult,
     ModelConfig,
+    PredictResult,
     PrepareResult,
     TrainResult,
 )
@@ -41,13 +42,16 @@ class _FakePreparableOnly:
 class _FakeFullModel(_FakePreparableOnly):
     @property
     def supported_operations(self) -> frozenset[str]:
-        return frozenset({"prepare", "train", "evaluate"})
+        return frozenset({"prepare", "train", "evaluate", "predict"})
 
     def train(self, config: ModelConfig) -> TrainResult:
         return TrainResult(model_name="fake", metrics={"rmse": 0.5}, artifacts_path="/tmp")
 
     def evaluate(self, config: ModelConfig) -> EvalResult:
         return EvalResult(model_name="fake", metrics={"mae": 0.3})
+
+    def predict(self, config: ModelConfig) -> PredictResult:
+        return PredictResult(model_name="fake", predictions=[{"hr": 30}], output_path="/tmp")
 
 
 class TestDispatch:
@@ -85,13 +89,13 @@ class _FakeModelRunRepo:
         self._records.append(record)
         return row_id
 
-    def get(self, system: str, version: str) -> ModelRunRecord | None:
+    def get(self, system: str, version: str, operation: str = "train") -> ModelRunRecord | None:
         return None
 
     def list(self, system: str | None = None) -> builtins.list[ModelRunRecord]:
         return builtins.list(self._records)
 
-    def delete(self, system: str, version: str) -> None:
+    def delete(self, system: str, version: str, operation: str = "train") -> None:
         pass
 
 
@@ -131,7 +135,26 @@ class TestDispatchWithRunManager:
 
         assert repo._records[0].metrics_json == {"rmse": 0.5}
 
-    def test_dispatch_non_train_ignores_run_manager(self, tmp_path: Path) -> None:
+    def test_dispatch_predict_with_run_manager(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = _FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        config = ModelConfig(version="v1")
+
+        result = dispatch("predict", _FakeFullModel(), config, run_manager=mgr)
+
+        assert isinstance(result, PredictResult)
+        assert len(repo._records) == 1
+        assert repo._records[0].system == "fake"
+        assert repo._records[0].version == "v1"
+        assert repo._records[0].operation == "predict"
+
+    def test_dispatch_non_tracked_operation_ignores_run_manager(self, tmp_path: Path) -> None:
         repo = _FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")

@@ -22,9 +22,9 @@ class FakeModelRunRepo:
         self._records.append(record)
         return row_id
 
-    def get(self, system: str, version: str) -> ModelRunRecord | None:
+    def get(self, system: str, version: str, operation: str = "train") -> ModelRunRecord | None:
         for r in self._records:
-            if r.system == system and r.version == version:
+            if r.system == system and r.version == version and r.operation == operation:
                 return r
         return None
 
@@ -33,8 +33,10 @@ class FakeModelRunRepo:
             return [r for r in self._records if r.system == system]
         return builtins.list(self._records)
 
-    def delete(self, system: str, version: str) -> None:
-        self._records = [r for r in self._records if not (r.system == system and r.version == version)]
+    def delete(self, system: str, version: str, operation: str = "train") -> None:
+        self._records = [
+            r for r in self._records if not (r.system == system and r.version == version and r.operation == operation)
+        ]
 
 
 class _FakeModel:
@@ -201,6 +203,62 @@ class TestRunManager:
         mgr.finalize_run(ctx, config)
 
         assert repo._records[0].metrics_json == {"rmse": 0.5}
+
+    def test_begin_run_with_operation(self, tmp_path: Path) -> None:
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        model = _FakeModel()
+        config = ModelConfig(version="v1")
+
+        ctx = mgr.begin_run(model, config, operation="predict")
+
+        assert ctx.operation == "predict"
+
+    def test_finalize_run_records_operation(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        config = ModelConfig(version="v1")
+        ctx = RunContext(
+            system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none", operation="predict"
+        )
+
+        mgr.finalize_run(ctx, config)
+
+        assert len(repo._records) == 1
+        assert repo._records[0].operation == "predict"
+
+    def test_delete_run_with_operation(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        config = ModelConfig(version="v1")
+
+        # Create both a train and predict run
+        ctx_train = RunContext(
+            system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none", operation="train"
+        )
+        mgr.finalize_run(ctx_train, config)
+        ctx_predict = RunContext(
+            system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none", operation="predict"
+        )
+        mgr.finalize_run(ctx_predict, config)
+        assert len(repo._records) == 2
+
+        mgr.delete_run("fake", "v1", operation="predict")
+
+        assert len(repo._records) == 1
+        assert repo._records[0].operation == "train"
 
     def test_version_required(self, tmp_path: Path) -> None:
         repo = FakeModelRunRepo()

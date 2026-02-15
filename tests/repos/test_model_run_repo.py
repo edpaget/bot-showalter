@@ -101,6 +101,34 @@ class TestSqliteModelRunRepo:
         assert result.validation_dataset_id is None
         assert result.holdout_dataset_id is None
 
+    def test_upsert_and_get_with_operation(self, conn: sqlite3.Connection) -> None:
+        repo = SqliteModelRunRepo(conn)
+        repo.upsert(_make_record(operation="predict"))
+
+        result = repo.get("marcel", "2026.1", operation="predict")
+        assert result is not None
+        assert result.operation == "predict"
+
+        # Default operation should not find the predict run
+        assert repo.get("marcel", "2026.1") is None
+
+    def test_same_system_version_different_operations(self, conn: sqlite3.Connection) -> None:
+        repo = SqliteModelRunRepo(conn)
+        repo.upsert(_make_record(operation="train"))
+        repo.upsert(_make_record(operation="predict"))
+
+        results = repo.list(system="marcel")
+        assert len(results) == 2
+
+    def test_delete_with_operation(self, conn: sqlite3.Connection) -> None:
+        repo = SqliteModelRunRepo(conn)
+        repo.upsert(_make_record(operation="train"))
+        repo.upsert(_make_record(operation="predict"))
+
+        repo.delete("marcel", "2026.1", operation="predict")
+        assert repo.get("marcel", "2026.1", operation="predict") is None
+        assert repo.get("marcel", "2026.1", operation="train") is not None
+
     def test_json_round_trip(self, conn: sqlite3.Connection) -> None:
         repo = SqliteModelRunRepo(conn)
         config = {"nested": {"key": [1, 2, 3]}, "flag": True}

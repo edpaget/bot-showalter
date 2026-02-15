@@ -12,7 +12,7 @@ from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunReco
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel import MarcelModel
-from fantasy_baseball_manager.models.protocols import ModelConfig, TrainResult
+from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, TrainResult
 from fantasy_baseball_manager.models.registry import _clear, register
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
@@ -242,6 +242,71 @@ class TestTrainRunTracking:
         )
 
         result = runner.invoke(app, ["train", "stub"])
+        assert result.exit_code == 0, result.output
+
+        verify_conn = create_connection(db_path)
+        repo = SqliteModelRunRepo(verify_conn)
+        runs = repo.list()
+        assert len(runs) == 0
+        verify_conn.close()
+
+
+def _register_predictable_stub() -> None:
+    """Register a minimal predictable stub model for predict run tracking tests."""
+    _clear()
+
+    class _PredictableStub:
+        @property
+        def name(self) -> str:
+            return "pred-stub"
+
+        @property
+        def description(self) -> str:
+            return "Predictable stub model for testing."
+
+        @property
+        def supported_operations(self) -> frozenset[str]:
+            return frozenset({"predict"})
+
+        @property
+        def artifact_type(self) -> str:
+            return ArtifactType.NONE.value
+
+        def predict(self, config: ModelConfig) -> PredictResult:
+            return PredictResult(model_name="pred-stub", predictions=[{"hr": 30}], output_path=config.artifacts_dir)
+
+    register("pred-stub")(_PredictableStub)
+
+
+class TestPredictRunTracking:
+    def test_predict_with_version_records_run(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _register_predictable_stub()
+        db_path = tmp_path / "fbm.db"
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(db_path),
+        )
+
+        result = runner.invoke(app, ["predict", "pred-stub", "--version", "v1"])
+        assert result.exit_code == 0, result.output
+
+        verify_conn = create_connection(db_path)
+        repo = SqliteModelRunRepo(verify_conn)
+        runs = repo.list(system="pred-stub")
+        assert len(runs) == 1
+        assert runs[0].version == "v1"
+        assert runs[0].operation == "predict"
+        verify_conn.close()
+
+    def test_predict_without_version_skips_run_tracking(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _register_predictable_stub()
+        db_path = tmp_path / "fbm.db"
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(db_path),
+        )
+
+        result = runner.invoke(app, ["predict", "pred-stub"])
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)

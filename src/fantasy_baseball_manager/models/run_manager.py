@@ -12,11 +12,12 @@ from fantasy_baseball_manager.repos.protocols import ModelRunRepo
 
 
 class RunContext:
-    def __init__(self, system: str, version: str, run_dir: Path, artifact_type: str) -> None:
+    def __init__(self, system: str, version: str, run_dir: Path, artifact_type: str, operation: str = "train") -> None:
         self._system = system
         self._version = version
         self._run_dir = run_dir
         self._artifact_type = artifact_type
+        self._operation = operation
         self._metrics: dict[str, float] = {}
 
     @property
@@ -36,6 +37,10 @@ class RunContext:
         return self._artifact_type
 
     @property
+    def operation(self) -> str:
+        return self._operation
+
+    @property
     def metrics(self) -> dict[str, float]:
         return dict(self._metrics)
 
@@ -48,7 +53,7 @@ class RunManager:
         self._repo = model_run_repo
         self._artifacts_root = artifacts_root
 
-    def begin_run(self, model: Model, config: ModelConfig) -> RunContext:
+    def begin_run(self, model: Model, config: ModelConfig, operation: str = "train") -> RunContext:
         if config.version is None:
             raise ValueError("config.version is required to begin a model run")
 
@@ -57,7 +62,13 @@ class RunManager:
         if model.artifact_type != ArtifactType.NONE.value:
             run_dir.mkdir(parents=True, exist_ok=True)
 
-        return RunContext(system=model.name, version=config.version, run_dir=run_dir, artifact_type=model.artifact_type)
+        return RunContext(
+            system=model.name,
+            version=config.version,
+            run_dir=run_dir,
+            artifact_type=model.artifact_type,
+            operation=operation,
+        )
 
     def finalize_run(self, context: RunContext, config: ModelConfig) -> int:
         git_commit = self._capture_git_commit()
@@ -76,22 +87,23 @@ class RunManager:
             version=context.version,
             config_json=config_json,
             artifact_type=context.artifact_type,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            operation=context.operation,
             artifact_path=str(context.run_dir),
             git_commit=git_commit,
             tags_json=config.tags if config.tags else None,
             metrics_json=metrics,
-            created_at=datetime.now(timezone.utc).isoformat(),
         )
 
         return self._repo.upsert(record)
 
-    def delete_run(self, system: str, version: str) -> None:
-        record = self._repo.get(system, version)
+    def delete_run(self, system: str, version: str, operation: str = "train") -> None:
+        record = self._repo.get(system, version, operation)
         if record is not None and record.artifact_path is not None:
             artifact_path = Path(record.artifact_path)
             if artifact_path.is_dir():
                 shutil.rmtree(artifact_path)
-        self._repo.delete(system, version)
+        self._repo.delete(system, version, operation)
 
     @staticmethod
     def _capture_git_commit() -> str | None:

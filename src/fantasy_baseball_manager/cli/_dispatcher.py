@@ -50,8 +50,8 @@ def dispatch(
         raise UnsupportedOperation(f"Model '{model.name}' does not support '{operation}'")
 
     context = None
-    if run_manager is not None and operation == "train":
-        context = run_manager.begin_run(model, config)
+    if run_manager is not None and operation in {"train", "predict"}:
+        context = run_manager.begin_run(model, config, operation=operation)
 
     method = getattr(model, method_name)
     result = method(config)
