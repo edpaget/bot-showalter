@@ -414,6 +414,7 @@ name = "fantasy-baseball-manager"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "pandas" },
     { name = "pybaseball" },
     { name = "pylahman" },
@@ -432,6 +433,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28.0" },
     { name = "pandas", specifier = ">=2.2.0" },
     { name = "pybaseball", specifier = ">=2.2.0" },
     { name = "pylahman", specifier = ">=0.7.0" },

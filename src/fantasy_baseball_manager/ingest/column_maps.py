@@ -5,10 +5,12 @@ from typing import Any
 import pandas as pd
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
+from fantasy_baseball_manager.ingest.il_parser import parse_il_transaction
 
 
 def _to_optional_int(value: Any) -> int | None:
@@ -571,6 +573,53 @@ def make_fg_projection_pitching_mapper(
             stat_json=stat_json,
             source_type=source_type,
             distributions=distributions,
+        )
+
+    return mapper
+
+
+def _extract_date(value: Any) -> str:
+    """Extract YYYY-MM-DD from a datetime string or date-only string."""
+    s = str(value)
+    return s[:10]
+
+
+def make_il_stint_mapper(
+    players: list[Player],
+    *,
+    season: int,
+) -> Callable[[pd.Series], ILStint | None]:
+    mlbam_lookup = _build_mlbam_lookup(players)
+
+    def mapper(row: pd.Series) -> ILStint | None:
+        mlb_id = row.get("mlbam_id")
+        if mlb_id is None:
+            return None
+        if isinstance(mlb_id, float) and math.isnan(mlb_id):
+            return None
+        player_id = mlbam_lookup.get(int(mlb_id))
+        if player_id is None:
+            return None
+
+        description = row.get("description")
+        if description is None:
+            return None
+        parsed = parse_il_transaction(str(description))
+        if parsed is None:
+            return None
+
+        effective_date = row.get("effective_date")
+        if effective_date is None:
+            return None
+        start_date = _extract_date(effective_date)
+
+        return ILStint(
+            player_id=player_id,
+            season=season,
+            start_date=start_date,
+            il_type=parsed.il_type,
+            injury_location=parsed.injury_description,
+            transaction_type=parsed.transaction_type,
         )
 
     return mapper

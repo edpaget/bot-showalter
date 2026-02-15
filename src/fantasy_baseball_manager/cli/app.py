@@ -42,6 +42,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_pitching_mapper,
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
+    make_il_stint_mapper,
     make_lahman_bio_mapper,
     statcast_pitch_mapper,
 )
@@ -557,4 +558,27 @@ def ingest_statcast(
                 log_conn=container.conn,
             )
             log = loader.load(start_dt=start_dt, end_dt=end_dt)
+            print_ingest_result(log)
+
+
+@ingest_app.command("il")
+def ingest_il(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest IL transaction data from the MLB Stats API."""
+    with build_ingest_container(data_dir) as container:
+        players = container.player_repo.all()
+        for yr in season:
+            mapper = make_il_stint_mapper(players, season=yr)
+            source = container.il_source()
+            loader = StatsLoader(
+                source,
+                container.il_stint_repo,
+                container.log_repo,
+                mapper,
+                "il_stint",
+                conn=container.conn,
+            )
+            log = loader.load(season=yr)
             print_ingest_result(log)

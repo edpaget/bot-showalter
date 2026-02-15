@@ -9,6 +9,7 @@ from typing import Any
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
+from fantasy_baseball_manager.ingest.mlb_transactions_source import MLBTransactionsSource
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.pybaseball_source import (
     BrefBattingSource,
@@ -23,6 +24,7 @@ from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
+from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
@@ -183,6 +185,13 @@ class IngestContainer:
         if name == "bbref":
             return BrefPitchingSource()
         raise ValueError(f"Unknown pitching source: {name!r}")
+
+    @property
+    def il_stint_repo(self) -> SqliteILStintRepo:
+        return SqliteILStintRepo(self._conn)
+
+    def il_source(self) -> DataSource:
+        return MLBTransactionsSource()
 
     def bio_source(self) -> DataSource:
         return LahmanPeopleSource()

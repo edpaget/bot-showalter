@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "httpx>=0.28.0",
     "pandas>=2.2.0",
     "pybaseball>=2.2.0",
     "pylahman>=0.7.0",
