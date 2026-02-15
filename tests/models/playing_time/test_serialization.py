@@ -3,12 +3,18 @@ from pathlib import Path
 import pytest
 
 from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
-from fantasy_baseball_manager.models.playing_time.engine import PlayingTimeCoefficients
+from fantasy_baseball_manager.models.playing_time.engine import (
+    PlayingTimeCoefficients,
+    ResidualBuckets,
+    ResidualPercentiles,
+)
 from fantasy_baseball_manager.models.playing_time.serialization import (
     load_aging_curves,
     load_coefficients,
+    load_residual_buckets,
     save_aging_curves,
     save_coefficients,
+    save_residual_buckets,
 )
 
 
@@ -56,3 +62,30 @@ class TestAgingCurveSerialization:
         path = tmp_path / "nonexistent.joblib"
         with pytest.raises(FileNotFoundError):
             load_aging_curves(path)
+
+
+class TestResidualBucketsSerialization:
+    def test_save_load_residual_buckets_roundtrip(self, tmp_path: Path) -> None:
+        percs = ResidualPercentiles(
+            p10=-30.0,
+            p25=-10.0,
+            p50=2.0,
+            p75=15.0,
+            p90=40.0,
+            count=100,
+            std=25.0,
+            mean_offset=1.5,
+        )
+        batter = ResidualBuckets(buckets={"all": percs, "young_healthy": percs}, player_type="batter")
+        pitcher = ResidualBuckets(buckets={"all": percs}, player_type="pitcher")
+        data = {"batter": batter, "pitcher": pitcher}
+        path = tmp_path / "pt_residual_buckets.joblib"
+        save_residual_buckets(data, path)
+        loaded = load_residual_buckets(path)
+        assert loaded["batter"] == batter
+        assert loaded["pitcher"] == pitcher
+
+    def test_load_missing_residual_buckets_raises(self, tmp_path: Path) -> None:
+        path = tmp_path / "nonexistent.joblib"
+        with pytest.raises(FileNotFoundError):
+            load_residual_buckets(path)

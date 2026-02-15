@@ -1,7 +1,14 @@
+import random
+
 from fantasy_baseball_manager.models.playing_time.engine import (
     PlayingTimeCoefficients,
+    ResidualBuckets,
+    ResidualPercentiles,
+    _bucket_key,
+    compute_residual_buckets,
     fit_playing_time,
     predict_playing_time,
+    predict_playing_time_distribution,
 )
 
 
@@ -94,3 +101,171 @@ class TestPredictPlayingTime:
         )
         result = predict_playing_time({"x1": 5.0, "x2": None}, coefficients)
         assert abs(result - (10.0 + 2.0 * 5.0 + 3.0 * 0.0)) < 1e-6
+
+
+class TestBucketKey:
+    def test_bucket_key_young_healthy(self) -> None:
+        assert _bucket_key(25, 0) == "young_healthy"
+
+    def test_bucket_key_young_injured(self) -> None:
+        assert _bucket_key(25, 15) == "young_injured"
+
+    def test_bucket_key_old_healthy(self) -> None:
+        assert _bucket_key(32, 0) == "old_healthy"
+
+    def test_bucket_key_old_injured(self) -> None:
+        assert _bucket_key(32, 30) == "old_injured"
+
+    def test_bucket_key_none_age_is_young(self) -> None:
+        assert _bucket_key(None, 0) == "young_healthy"
+
+    def test_bucket_key_none_il_is_healthy(self) -> None:
+        assert _bucket_key(25, None) == "young_healthy"
+
+    def test_bucket_key_boundary_age_30_is_old(self) -> None:
+        assert _bucket_key(30, 0) == "old_healthy"
+
+
+def _make_residual_rows(
+    n: int,
+    *,
+    age: float = 25.0,
+    il_days_1: float = 0.0,
+    noise_std: float = 0.0,
+) -> tuple[list[dict[str, float | None]], PlayingTimeCoefficients]:
+    """Build synthetic rows where target = 2*x1 + 100 + noise."""
+    rng = random.Random(42)
+    coeff = PlayingTimeCoefficients(
+        feature_names=("x1",),
+        coefficients=(2.0,),
+        intercept=100.0,
+        r_squared=1.0,
+        player_type="batter",
+    )
+    rows: list[dict[str, float | None]] = []
+    for i in range(n):
+        x1 = float(i * 10)
+        noise = rng.gauss(0, noise_std) if noise_std > 0 else 0.0
+        rows.append(
+            {
+                "x1": x1,
+                "age": age,
+                "il_days_1": il_days_1,
+                "target": 100.0 + 2.0 * x1 + noise,
+            }
+        )
+    return rows, coeff
+
+
+class TestComputeResidualBuckets:
+    def test_all_bucket_always_present(self) -> None:
+        rows, coeff = _make_residual_rows(30)
+        result = compute_residual_buckets(rows, coeff, "target")
+        assert "all" in result.buckets
+
+    def test_residual_percentiles_ordered(self) -> None:
+        rows, coeff = _make_residual_rows(30, noise_std=20.0)
+        result = compute_residual_buckets(rows, coeff, "target")
+        for percs in result.buckets.values():
+            assert percs.p10 <= percs.p25 <= percs.p50 <= percs.p75 <= percs.p90
+
+    def test_perfect_fit_has_zero_residuals(self) -> None:
+        rows, coeff = _make_residual_rows(30, noise_std=0.0)
+        result = compute_residual_buckets(rows, coeff, "target")
+        percs = result.buckets["all"]
+        assert abs(percs.p10) < 1e-6
+        assert abs(percs.p50) < 1e-6
+        assert abs(percs.p90) < 1e-6
+
+    def test_noisy_data_captures_spread(self) -> None:
+        rows, coeff = _make_residual_rows(100, noise_std=50.0)
+        result = compute_residual_buckets(rows, coeff, "target")
+        percs = result.buckets["all"]
+        assert percs.p90 - percs.p10 > 0
+
+    def test_buckets_reflect_feature_based_variance(self) -> None:
+        low_rows, coeff = _make_residual_rows(30, age=25.0, il_days_1=0.0, noise_std=5.0)
+        high_rows, _ = _make_residual_rows(30, age=35.0, il_days_1=20.0, noise_std=50.0)
+        all_rows = low_rows + high_rows
+        result = compute_residual_buckets(all_rows, coeff, "target")
+        yh = result.buckets["young_healthy"]
+        oi = result.buckets["old_injured"]
+        assert (oi.p90 - oi.p10) > (yh.p90 - yh.p10)
+
+    def test_small_bucket_excluded(self) -> None:
+        rows, coeff = _make_residual_rows(30, age=25.0, il_days_1=0.0)
+        # Add just 2 old_injured rows — below min_bucket_size
+        for i in range(2):
+            rows.append({"x1": float(i), "age": 35.0, "il_days_1": 20.0, "target": 100.0 + 2.0 * i})
+        result = compute_residual_buckets(rows, coeff, "target", min_bucket_size=20)
+        assert "old_injured" not in result.buckets
+        assert "all" in result.buckets
+
+
+def _zero_residual_buckets(player_type: str = "batter") -> ResidualBuckets:
+    """Build a ResidualBuckets with all offsets at zero."""
+    percs = ResidualPercentiles(p10=0.0, p25=0.0, p50=0.0, p75=0.0, p90=0.0, count=100, std=0.0, mean_offset=0.0)
+    return ResidualBuckets(buckets={"all": percs, "young_healthy": percs}, player_type=player_type)
+
+
+def _spread_residual_buckets(player_type: str = "batter") -> ResidualBuckets:
+    """Build a ResidualBuckets with known nonzero offsets."""
+    percs = ResidualPercentiles(
+        p10=-50.0,
+        p25=-20.0,
+        p50=5.0,
+        p75=30.0,
+        p90=60.0,
+        count=100,
+        std=35.0,
+        mean_offset=3.0,
+    )
+    return ResidualBuckets(buckets={"all": percs, "young_healthy": percs}, player_type=player_type)
+
+
+class TestPredictPlayingTimeDistribution:
+    def test_distribution_percentiles_ordered(self) -> None:
+        buckets = _spread_residual_buckets()
+        dist = predict_playing_time_distribution(400.0, {"age": 25.0, "il_days_1": 0.0}, buckets)
+        assert dist.p10 <= dist.p25 <= dist.p50 <= dist.p75 <= dist.p90
+
+    def test_zero_residuals_give_point_at_all_percentiles(self) -> None:
+        buckets = _zero_residual_buckets()
+        dist = predict_playing_time_distribution(400.0, {"age": 25.0, "il_days_1": 0.0}, buckets)
+        assert dist.p10 == dist.p25 == dist.p50 == dist.p75 == dist.p90 == 400.0
+
+    def test_negative_offset_clamps_to_zero(self) -> None:
+        # point estimate = 20, p10 offset = -50 → should clamp to 0
+        buckets = _spread_residual_buckets()
+        dist = predict_playing_time_distribution(20.0, {"age": 25.0, "il_days_1": 0.0}, buckets)
+        assert dist.p10 == 0.0
+
+    def test_positive_offset_clamps_to_max(self) -> None:
+        buckets = _spread_residual_buckets()
+        dist = predict_playing_time_distribution(720.0, {"age": 25.0, "il_days_1": 0.0}, buckets, clamp_max=750.0)
+        assert dist.p90 == 750.0
+
+    def test_fallback_to_all_when_bucket_missing(self) -> None:
+        # Only "all" bucket exists; old_injured should fall back to "all"
+        percs = ResidualPercentiles(
+            p10=-10.0,
+            p25=-5.0,
+            p50=0.0,
+            p75=5.0,
+            p90=10.0,
+            count=50,
+            std=8.0,
+            mean_offset=0.0,
+        )
+        buckets = ResidualBuckets(buckets={"all": percs}, player_type="batter")
+        dist = predict_playing_time_distribution(400.0, {"age": 35.0, "il_days_1": 20.0}, buckets)
+        assert dist.p10 == 390.0
+        assert dist.p90 == 410.0
+
+    def test_stat_name_matches_player_type(self) -> None:
+        batter_buckets = _zero_residual_buckets("batter")
+        pitcher_buckets = _zero_residual_buckets("pitcher")
+        bat_dist = predict_playing_time_distribution(400.0, {"age": 25.0, "il_days_1": 0.0}, batter_buckets)
+        pitch_dist = predict_playing_time_distribution(180.0, {"age": 25.0, "il_days_1": 0.0}, pitcher_buckets)
+        assert bat_dist.stat == "pa"
+        assert pitch_dist.stat == "ip"

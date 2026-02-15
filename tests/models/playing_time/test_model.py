@@ -3,12 +3,17 @@ from typing import Any
 
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
-from fantasy_baseball_manager.models.playing_time.engine import PlayingTimeCoefficients
+from fantasy_baseball_manager.models.playing_time.engine import (
+    PlayingTimeCoefficients,
+    ResidualBuckets,
+    ResidualPercentiles,
+)
 from fantasy_baseball_manager.models.playing_time.model import PlayingTimeModel
 from fantasy_baseball_manager.models.playing_time.serialization import (
     load_coefficients,
     save_aging_curves,
     save_coefficients,
+    save_residual_buckets,
 )
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
@@ -198,6 +203,15 @@ class TestPlayingTimeTrain:
         assert "bat_peak_age" in result.metrics
         assert "pitch_peak_age" in result.metrics
 
+    def test_train_saves_residual_buckets_file(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(30)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(30)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        model.train(_train_config(tmp_path))
+        artifact = tmp_path / "playing_time" / "latest" / "pt_residual_buckets.joblib"
+        assert artifact.exists()
+
 
 def _save_test_coefficients(tmp_path: Path) -> None:
     """Save known coefficients and aging curves for predict tests."""
@@ -257,6 +271,32 @@ def _save_test_coefficients(tmp_path: Path) -> None:
     artifact_dir.mkdir(parents=True)
     save_coefficients({"batter": batter, "pitcher": pitcher}, artifact_dir / "pt_coefficients.joblib")
     save_aging_curves({"batter": batter_curve, "pitcher": pitcher_curve}, artifact_dir / "pt_aging_curves.joblib")
+    bat_percs = ResidualPercentiles(
+        p10=-40.0,
+        p25=-15.0,
+        p50=0.0,
+        p75=20.0,
+        p90=50.0,
+        count=100,
+        std=30.0,
+        mean_offset=2.0,
+    )
+    pitch_percs = ResidualPercentiles(
+        p10=-20.0,
+        p25=-8.0,
+        p50=0.0,
+        p75=10.0,
+        p90=25.0,
+        count=100,
+        std=15.0,
+        mean_offset=1.0,
+    )
+    bat_buckets = ResidualBuckets(buckets={"all": bat_percs}, player_type="batter")
+    pitch_buckets = ResidualBuckets(buckets={"all": pitch_percs}, player_type="pitcher")
+    save_residual_buckets(
+        {"batter": bat_buckets, "pitcher": pitch_buckets},
+        artifact_dir / "pt_residual_buckets.joblib",
+    )
 
 
 class TestPlayingTimePredict:
@@ -366,3 +406,70 @@ class TestPlayingTimePredict:
         batter_preds = {p["player_id"]: p for p in result.predictions if p["player_type"] == "batter"}
         # Young player (below peak) should get higher age_pt_factor -> higher prediction
         assert batter_preds[1]["pa"] != batter_preds[2]["pa"]
+
+    def test_predict_produces_distributions(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        batting_rows = [_make_batting_row(1, 2023)]
+        pitching_rows = [_make_pitching_row(10, 2023)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        assert result.distributions is not None
+        assert len(result.distributions) == 2
+
+    def test_predict_distribution_percentiles_ordered(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        batting_rows = [_make_batting_row(1, 2023)]
+        assembler = FakeAssembler(batting_rows, pitching_rows=[])
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        assert result.distributions is not None
+        d = result.distributions[0]
+        assert d["p10"] <= d["p25"] <= d["p50"] <= d["p75"] <= d["p90"]
+
+    def test_predict_batter_distribution_stat_is_pa(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        batting_rows = [_make_batting_row(1, 2023)]
+        assembler = FakeAssembler(batting_rows, pitching_rows=[])
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        assert result.distributions is not None
+        assert result.distributions[0]["stat"] == "pa"
+
+    def test_predict_pitcher_distribution_stat_is_ip(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        pitching_rows = [_make_pitching_row(10, 2023)]
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        assert result.distributions is not None
+        assert result.distributions[0]["stat"] == "ip"
+
+    def test_predict_distribution_includes_required_keys(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        batting_rows = [_make_batting_row(1, 2023)]
+        assembler = FakeAssembler(batting_rows, pitching_rows=[])
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        assert result.distributions is not None
+        d = result.distributions[0]
+        required_keys = {"player_id", "player_type", "season", "stat", "p10", "p25", "p50", "p75", "p90", "mean", "std"}
+        assert required_keys.issubset(d.keys())
+
+    def test_predict_without_residual_buckets_file_skips_distributions(self, tmp_path: Path) -> None:
+        """Backward compat: missing residual buckets file → no distributions."""
+        _save_test_coefficients(tmp_path)
+        # Remove the residual buckets file
+        rb_path = tmp_path / "playing_time" / "latest" / "pt_residual_buckets.joblib"
+        rb_path.unlink()
+        batting_rows = [_make_batting_row(1, 2023)]
+        assembler = FakeAssembler(batting_rows, pitching_rows=[])
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        assert result.distributions is None

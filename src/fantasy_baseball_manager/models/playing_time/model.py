@@ -12,8 +12,10 @@ from fantasy_baseball_manager.models.playing_time.aging import (
 )
 from fantasy_baseball_manager.models.playing_time.convert import pt_projection_to_domain
 from fantasy_baseball_manager.models.playing_time.engine import (
+    compute_residual_buckets,
     fit_playing_time,
     predict_playing_time,
+    predict_playing_time_distribution,
 )
 from fantasy_baseball_manager.models.playing_time.features import (
     batting_pt_feature_columns,
@@ -28,8 +30,10 @@ from fantasy_baseball_manager.models.playing_time.features import (
 from fantasy_baseball_manager.models.playing_time.serialization import (
     load_aging_curves,
     load_coefficients,
+    load_residual_buckets,
     save_aging_curves,
     save_coefficients,
+    save_residual_buckets,
 )
 from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
@@ -41,6 +45,7 @@ from fantasy_baseball_manager.models.registry import register
 
 _ARTIFACT_FILENAME = "pt_coefficients.joblib"
 _AGING_CURVES_FILENAME = "pt_aging_curves.joblib"
+_RESIDUAL_BUCKETS_FILENAME = "pt_residual_buckets.joblib"
 
 
 @register("playing_time")
@@ -164,6 +169,13 @@ class PlayingTimeModel:
             artifact_path / _AGING_CURVES_FILENAME,
         )
 
+        bat_residuals = compute_residual_buckets(bat_rows, bat_coeff, "target_pa")
+        pitch_residuals = compute_residual_buckets(pitch_rows, pitch_coeff, "target_ip")
+        save_residual_buckets(
+            {"batter": bat_residuals, "pitcher": pitch_residuals},
+            artifact_path / _RESIDUAL_BUCKETS_FILENAME,
+        )
+
         return TrainResult(
             model_name=self.name,
             metrics={
@@ -186,6 +198,9 @@ class PlayingTimeModel:
 
         aging_curves = load_aging_curves(artifact_path / _AGING_CURVES_FILENAME)
 
+        residual_buckets_path = artifact_path / _RESIDUAL_BUCKETS_FILENAME
+        residual_buckets = load_residual_buckets(residual_buckets_path) if residual_buckets_path.exists() else None
+
         batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
@@ -204,6 +219,7 @@ class PlayingTimeModel:
         version = config.version or "latest"
 
         predictions: list[dict[str, Any]] = []
+        all_distributions: list[dict[str, Any]] | None = [] if residual_buckets else None
 
         for row in bat_rows:
             pt = predict_playing_time(row, bat_coeff, clamp_min=0.0, clamp_max=750.0)
@@ -222,6 +238,29 @@ class PlayingTimeModel:
                     **domain.stat_json,
                 }
             )
+            if residual_buckets and all_distributions is not None:
+                dist = predict_playing_time_distribution(
+                    pt,
+                    row,
+                    residual_buckets["batter"],
+                    clamp_min=0.0,
+                    clamp_max=750.0,
+                )
+                all_distributions.append(
+                    {
+                        "player_id": row["player_id"],
+                        "player_type": "batter",
+                        "season": projected_season,
+                        "stat": dist.stat,
+                        "p10": dist.p10,
+                        "p25": dist.p25,
+                        "p50": dist.p50,
+                        "p75": dist.p75,
+                        "p90": dist.p90,
+                        "mean": dist.mean,
+                        "std": dist.std,
+                    }
+                )
 
         for row in pitch_rows:
             pt = predict_playing_time(row, pitch_coeff, clamp_min=0.0, clamp_max=250.0)
@@ -240,9 +279,33 @@ class PlayingTimeModel:
                     **domain.stat_json,
                 }
             )
+            if residual_buckets and all_distributions is not None:
+                dist = predict_playing_time_distribution(
+                    pt,
+                    row,
+                    residual_buckets["pitcher"],
+                    clamp_min=0.0,
+                    clamp_max=250.0,
+                )
+                all_distributions.append(
+                    {
+                        "player_id": row["player_id"],
+                        "player_type": "pitcher",
+                        "season": projected_season,
+                        "stat": dist.stat,
+                        "p10": dist.p10,
+                        "p25": dist.p25,
+                        "p50": dist.p50,
+                        "p75": dist.p75,
+                        "p90": dist.p90,
+                        "mean": dist.mean,
+                        "std": dist.std,
+                    }
+                )
 
         return PredictResult(
             model_name=self.name,
             predictions=predictions,
             output_path=config.output_dir or config.artifacts_dir,
+            distributions=all_distributions if all_distributions else None,
         )
