@@ -1,6 +1,7 @@
 import sqlite3
 from typing import Any
 
+from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
@@ -321,6 +322,33 @@ class TestMarcelPositionFiltering:
         assert 30 in pitcher_ids
 
 
+class _FakeProjectionRepo:
+    def __init__(self, projections: list[Projection]) -> None:
+        self._projections = projections
+
+    def upsert(self, projection: Projection) -> int:
+        return 1
+
+    def get_by_player_season(
+        self, player_id: int, season: int, system: str | None = None, *, include_distributions: bool = False
+    ) -> list[Projection]:
+        return [p for p in self._projections if p.player_id == player_id and p.season == season]
+
+    def get_by_season(
+        self, season: int, system: str | None = None, *, include_distributions: bool = False
+    ) -> list[Projection]:
+        return [p for p in self._projections if p.season == season and (system is None or p.system == system)]
+
+    def get_by_system_version(self, system: str, version: str) -> list[Projection]:
+        return [p for p in self._projections if p.system == system and p.version == version]
+
+    def upsert_distributions(self, projection_id: int, distributions: list[StatDistribution]) -> None:
+        pass
+
+    def get_distributions(self, projection_id: int) -> list[StatDistribution]:
+        return []
+
+
 class _FakeEvaluator:
     def __init__(self, result: SystemMetrics) -> None:
         self._result = result
@@ -381,3 +409,125 @@ class TestMarcelEvaluate:
         result = model.evaluate(config)
         assert result is metrics
         assert evaluator.calls == [("marcel", "latest", 2025, 300)]
+
+
+class TestMarcelPredictWithProjectionRepo:
+    def test_uses_playing_time_pt(self) -> None:
+        """When projection_repo has PT projections, Marcel uses them."""
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 550,
+                "pa_3": 500,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_3": 20.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
+            },
+        ]
+        pt_projection = Projection(
+            player_id=1,
+            season=2024,
+            system="playing_time",
+            version="latest",
+            player_type="batter",
+            stat_json={"pa": 450},
+        )
+        assembler = FakeAssembler(batting_rows)
+        repo = _FakeProjectionRepo([pt_projection])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"]},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        assert len(result.predictions) == 1
+        assert result.predictions[0]["pa"] == 450
+
+    def test_without_projection_repo_uses_internal_formula(self) -> None:
+        """Without a projection_repo, Marcel uses its built-in PT formula."""
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 550,
+                "pa_3": 500,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_3": 20.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
+            },
+        ]
+        assembler = FakeAssembler(batting_rows)
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"]},
+        )
+        model = MarcelModel(assembler=assembler)
+        result = model.predict(config)
+        assert len(result.predictions) == 1
+        # Marcel formula: 0.5*600 + 0.1*550 + 200 = 555
+        assert result.predictions[0]["pa"] == 555
+
+    def test_partial_pt_coverage(self) -> None:
+        """Repo has PT for player 1 but not player 2; player 2 falls back."""
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 550,
+                "pa_3": 500,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_3": 20.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
+            },
+            {
+                "player_id": 2,
+                "season": 2023,
+                "age": 25,
+                "pa_1": 500,
+                "pa_2": 450,
+                "pa_3": 400,
+                "hr_1": 20.0,
+                "hr_2": 18.0,
+                "hr_3": 15.0,
+                "hr_wavg": 217.0 / 5500.0,
+                "weighted_pt": 5500.0,
+                "league_hr_rate": 50.0 / 1100.0,
+            },
+        ]
+        pt_projection = Projection(
+            player_id=1,
+            season=2024,
+            system="playing_time",
+            version="latest",
+            player_type="batter",
+            stat_json={"pa": 400},
+        )
+        assembler = FakeAssembler(batting_rows)
+        repo = _FakeProjectionRepo([pt_projection])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"]},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        by_id = {p["player_id"]: p for p in result.predictions}
+        # Player 1 uses repo PT
+        assert by_id[1]["pa"] == 400
+        # Player 2 falls back: 0.5*500 + 0.1*450 + 200 = 495
+        assert by_id[2]["pa"] == 495

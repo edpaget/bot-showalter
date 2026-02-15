@@ -10,6 +10,7 @@ from fantasy_baseball_manager.models.marcel.convert import (
     rows_to_marcel_inputs,
 )
 from fantasy_baseball_manager.models.marcel.engine import project_all
+from fantasy_baseball_manager.repos.protocols import ProjectionRepo
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_features,
     build_batting_league_averages,
@@ -107,9 +108,11 @@ class MarcelModel:
         self,
         assembler: DatasetAssembler | None = None,
         evaluator: Evaluator | None = None,
+        projection_repo: ProjectionRepo | None = None,
     ) -> None:
         self._assembler = assembler
         self._evaluator = evaluator
+        self._projection_repo = projection_repo
 
     @property
     def name(self) -> str:
@@ -166,8 +169,21 @@ class MarcelModel:
             pitch_rows, marcel_config.pitching_categories, len(marcel_config.pitching_weights), pitcher=True
         )
 
-        bat_projections = project_all(bat_inputs, projected_season, marcel_config)
-        pitch_projections = project_all(pitch_inputs, projected_season, marcel_config)
+        pt_lookup: dict[int, float] | None = None
+        if self._projection_repo is not None:
+            pt_projections = self._projection_repo.get_by_season(projected_season, system="playing_time")
+            pt_map: dict[int, float] = {}
+            for proj in pt_projections:
+                stat = proj.stat_json
+                if proj.player_type == "batter" and "pa" in stat:
+                    pt_map[proj.player_id] = float(stat["pa"])
+                elif proj.player_type == "pitcher" and "ip" in stat:
+                    pt_map[proj.player_id] = float(stat["ip"])
+            if pt_map:
+                pt_lookup = pt_map
+
+        bat_projections = project_all(bat_inputs, projected_season, marcel_config, projected_pts=pt_lookup)
+        pitch_projections = project_all(pitch_inputs, projected_season, marcel_config, projected_pts=pt_lookup)
 
         version = config.version or "latest"
 

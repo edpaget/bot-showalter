@@ -85,6 +85,7 @@ def project_player(
     marcel_input: MarcelInput,
     projected_season: int,
     config: MarcelConfig,
+    projected_pt: float | None = None,
 ) -> MarcelProjection:
     """Regress, age-adjust, project PT, and multiply to produce a projection."""
     pitcher = _is_pitcher(marcel_input.seasons)
@@ -97,9 +98,13 @@ def project_player(
     league = LeagueAverages(rates=marcel_input.league_rates)
     regressed = regress_to_mean(marcel_input.weighted_rates, league, marcel_input.weighted_pt, regression_n)
     adjusted = age_adjust(regressed, marcel_input.age, config)
-    projected_pt = project_playing_time(marcel_input.seasons, config)
 
-    projected_stats = {cat: adjusted[cat] * projected_pt for cat in adjusted}
+    if projected_pt is not None:
+        pt = projected_pt
+    else:
+        pt = project_playing_time(marcel_input.seasons, config)
+
+    projected_stats = {cat: adjusted[cat] * pt for cat in adjusted}
 
     if pitcher:
         return MarcelProjection(
@@ -108,7 +113,7 @@ def project_player(
             age=marcel_input.age,
             stats=projected_stats,
             rates=adjusted,
-            ip=projected_pt,
+            ip=pt,
         )
     return MarcelProjection(
         player_id=player_id,
@@ -116,7 +121,7 @@ def project_player(
         age=marcel_input.age,
         stats=projected_stats,
         rates=adjusted,
-        pa=int(projected_pt),
+        pa=int(pt),
     )
 
 
@@ -124,6 +129,11 @@ def project_all(
     players: dict[int, MarcelInput],
     projected_season: int,
     config: MarcelConfig,
+    projected_pts: dict[int, float] | None = None,
 ) -> list[MarcelProjection]:
     """Project all players. players maps player_id -> MarcelInput."""
-    return [project_player(pid, marcel_input, projected_season, config) for pid, marcel_input in players.items()]
+    pts = projected_pts or {}
+    return [
+        project_player(pid, marcel_input, projected_season, config, projected_pt=pts.get(pid))
+        for pid, marcel_input in players.items()
+    ]

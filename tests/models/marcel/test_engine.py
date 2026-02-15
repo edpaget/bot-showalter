@@ -202,7 +202,107 @@ class TestProjectPlayer:
         assert proj.rates["hr"] < 10.0 / 200.0
 
 
+class TestProjectPlayerWithProjectedPt:
+    def test_uses_supplied_value_for_batter(self) -> None:
+        seasons = (SeasonLine(stats={"hr": 30.0}, pa=600),)
+        marcel_input = MarcelInput(
+            weighted_rates={"hr": 0.05},
+            weighted_pt=3000.0,
+            league_rates={"hr": 0.03},
+            age=29,
+            seasons=seasons,
+        )
+        config = MarcelConfig(batting_categories=("hr",))
+        proj = project_player(
+            player_id=1,
+            marcel_input=marcel_input,
+            projected_season=2024,
+            config=config,
+            projected_pt=450.0,
+        )
+        assert proj.pa == 450
+
+    def test_without_projected_pt_uses_internal_formula(self) -> None:
+        seasons = (SeasonLine(stats={"hr": 30.0}, pa=600),)
+        marcel_input = MarcelInput(
+            weighted_rates={"hr": 0.05},
+            weighted_pt=3000.0,
+            league_rates={"hr": 0.03},
+            age=29,
+            seasons=seasons,
+        )
+        config = MarcelConfig(batting_categories=("hr",))
+        proj = project_player(
+            player_id=1,
+            marcel_input=marcel_input,
+            projected_season=2024,
+            config=config,
+        )
+        expected_pt = project_playing_time(seasons, config)
+        assert proj.pa == int(expected_pt)
+
+    def test_uses_supplied_value_for_pitcher(self) -> None:
+        seasons = (SeasonLine(stats={"so": 200.0}, ip=180.0, g=30, gs=30),)
+        marcel_input = MarcelInput(
+            weighted_rates={"so": 1.1},
+            weighted_pt=900.0,
+            league_rates={"so": 0.9},
+            age=28,
+            seasons=seasons,
+        )
+        config = MarcelConfig(pitching_categories=("so",))
+        proj = project_player(
+            player_id=2,
+            marcel_input=marcel_input,
+            projected_season=2024,
+            config=config,
+            projected_pt=180.0,
+        )
+        assert proj.ip == 180.0
+
+
 class TestProjectAll:
+    def test_with_projected_pts_applies_to_matching_player(self) -> None:
+        players: dict[int, MarcelInput] = {
+            1: MarcelInput(
+                weighted_rates={"hr": 0.05},
+                weighted_pt=3000.0,
+                league_rates={"hr": 0.03},
+                age=29,
+                seasons=(SeasonLine(stats={"hr": 30.0}, pa=600),),
+            ),
+            2: MarcelInput(
+                weighted_rates={"hr": 0.04},
+                weighted_pt=2500.0,
+                league_rates={"hr": 0.03},
+                age=25,
+                seasons=(SeasonLine(stats={"hr": 20.0}, pa=500),),
+            ),
+        }
+        config = MarcelConfig(batting_categories=("hr",))
+        results = project_all(players, 2024, config, projected_pts={1: 450.0})
+        by_id = {p.player_id: p for p in results}
+        # Player 1 uses supplied PT
+        assert by_id[1].pa == 450
+        # Player 2 falls back to internal formula
+        expected_pt = project_playing_time(players[2].seasons, config)
+        assert by_id[2].pa == int(expected_pt)
+
+    def test_without_projected_pts_uses_internal_formula(self) -> None:
+        players: dict[int, MarcelInput] = {
+            1: MarcelInput(
+                weighted_rates={"hr": 0.05},
+                weighted_pt=3000.0,
+                league_rates={"hr": 0.03},
+                age=29,
+                seasons=(SeasonLine(stats={"hr": 30.0}, pa=600),),
+            ),
+        }
+        config = MarcelConfig(batting_categories=("hr",))
+        results = project_all(players, 2024, config)
+        expected_pt = project_playing_time(players[1].seasons, config)
+        assert results[0].pa == int(expected_pt)
+
     def test_batch_multiple_players(self) -> None:
         players: dict[int, MarcelInput] = {
             1: MarcelInput(
