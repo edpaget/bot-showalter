@@ -7,6 +7,8 @@ from fantasy_baseball_manager.domain.projection_accuracy import (
     ProjectionComparison,
     compare_to_batting_actuals,
     compare_to_pitching_actuals,
+    missing_batting_comparisons,
+    missing_pitching_comparisons,
 )
 
 
@@ -139,3 +141,61 @@ class TestCompareToPitchingActuals:
         assert by_stat["era"].actual == 3.50
         assert by_stat["so"].error == 10.0
         assert by_stat["w"].error == 2.0
+
+
+class TestMissingBattingComparisons:
+    def test_creates_comparisons_with_zero_projected(self) -> None:
+        actual = _batting_actuals(hr=28, avg=0.265, pa=580, sb=12)
+        comparisons = missing_batting_comparisons(actual)
+
+        by_stat = {c.stat_name: c for c in comparisons}
+        assert "hr" in by_stat
+        assert by_stat["hr"].projected == 0.0
+        assert by_stat["hr"].actual == 28.0
+        assert by_stat["hr"].error == -28.0
+
+    def test_skips_none_actuals(self) -> None:
+        actual = _batting_actuals(hr=28)  # avg, pa, sb also set; war is None
+        comparisons = missing_batting_comparisons(actual)
+
+        stat_names = {c.stat_name for c in comparisons}
+        assert "war" not in stat_names
+
+    def test_all_none_returns_empty(self) -> None:
+        actual = BattingStats(player_id=1, season=2025, source="fangraphs")
+        comparisons = missing_batting_comparisons(actual)
+        assert comparisons == []
+
+    def test_rate_stat_included(self) -> None:
+        actual = _batting_actuals(avg=0.300)
+        comparisons = missing_batting_comparisons(actual)
+        by_stat = {c.stat_name: c for c in comparisons}
+        assert by_stat["avg"].projected == 0.0
+        assert by_stat["avg"].actual == 0.300
+        assert by_stat["avg"].error == -0.300
+
+
+class TestMissingPitchingComparisons:
+    def test_creates_comparisons_with_zero_projected(self) -> None:
+        actual = PitchingStats(
+            player_id=1,
+            season=2025,
+            source="fangraphs",
+            era=3.50,
+            so=190,
+            w=10,
+        )
+        comparisons = missing_pitching_comparisons(actual)
+
+        by_stat = {c.stat_name: c for c in comparisons}
+        assert "era" in by_stat
+        assert by_stat["era"].projected == 0.0
+        assert by_stat["era"].actual == 3.50
+        assert by_stat["era"].error == -3.50
+
+    def test_skips_none_actuals(self) -> None:
+        actual = PitchingStats(player_id=1, season=2025, source="fangraphs", era=3.50)
+        comparisons = missing_pitching_comparisons(actual)
+        stat_names = {c.stat_name for c in comparisons}
+        assert "so" not in stat_names
+        assert "era" in stat_names

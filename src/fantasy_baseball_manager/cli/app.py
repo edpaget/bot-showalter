@@ -134,10 +134,28 @@ def train(
             print_train_result(result)
 
 
+_TopOpt = Annotated[int | None, typer.Option("--top", help="Top N players by WAR to include")]
+
+
 @app.command()
-def evaluate(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None) -> None:
+def evaluate(
+    model: _ModelArg,
+    output_dir: _OutputDirOpt = None,
+    season: _SeasonOpt = None,
+    top: _TopOpt = None,
+) -> None:
     """Evaluate a projection model."""
-    _run_action("evaluate", model, output_dir, season)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, top=top)
+    with build_model_context(model, config) as ctx:
+        try:
+            result = dispatch("evaluate", ctx.model, config)
+        except UnsupportedOperation as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from None
+
+    match result:
+        case SystemMetrics():
+            print_system_metrics(result)
 
 
 @app.command()
@@ -305,6 +323,7 @@ def compare_cmd(
     season: Annotated[int, typer.Option("--season", help="Season to compare against")],
     stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to compare")] = None,
     data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+    top: _TopOpt = None,
 ) -> None:
     """Compare multiple projection systems against actuals."""
     parsed: list[tuple[str, str]] = []
@@ -316,7 +335,7 @@ def compare_cmd(
         parsed.append((parts[0], parts[1]))
 
     with build_eval_context(data_dir) as ctx:
-        result = ctx.evaluator.compare(parsed, season, stats=stat)
+        result = ctx.evaluator.compare(parsed, season, stats=stat, top=top)
     print_comparison_result(result)
 
 

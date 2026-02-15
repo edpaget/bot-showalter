@@ -203,4 +203,4 @@ class MarcelModel:
         assert self._evaluator is not None, "evaluator is required for evaluate"
         version = config.version or "latest"
         season = config.seasons[0]
-        return self._evaluator.evaluate(self.name, version, season)
+        return self._evaluator.evaluate(self.name, version, season, top=config.top)

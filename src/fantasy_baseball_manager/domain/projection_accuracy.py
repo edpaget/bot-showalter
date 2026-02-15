@@ -97,3 +97,34 @@ def compare_to_batting_actuals(projection: Projection, actual: BattingStats) -> 
 def compare_to_pitching_actuals(projection: Projection, actual: PitchingStats) -> list[ProjectionComparison]:
     """Compare a pitching projection to actual pitching stats."""
     return _compare(projection, actual, _PITCHING_STAT_FIELDS)
+
+
+def _missing_comparisons(
+    actual_obj: object,
+    stat_fields: tuple[str, ...],
+) -> list[ProjectionComparison]:
+    comparisons: list[ProjectionComparison] = []
+    for stat_name in stat_fields:
+        actual_val = getattr(actual_obj, stat_name, None)
+        if actual_val is None:
+            continue
+        a = float(actual_val)
+        comparisons.append(
+            ProjectionComparison(
+                stat_name=stat_name,
+                projected=0.0,
+                actual=a,
+                error=-a,
+            )
+        )
+    return comparisons
+
+
+def missing_batting_comparisons(actual: BattingStats) -> list[ProjectionComparison]:
+    """Create comparisons for a batter with no projection (projected=0)."""
+    return _missing_comparisons(actual, _BATTING_STAT_FIELDS)
+
+
+def missing_pitching_comparisons(actual: PitchingStats) -> list[ProjectionComparison]:
+    """Create comparisons for a pitcher with no projection (projected=0)."""
+    return _missing_comparisons(actual, _PITCHING_STAT_FIELDS)

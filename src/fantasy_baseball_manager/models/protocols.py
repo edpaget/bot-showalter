@@ -14,6 +14,7 @@ class ModelConfig:
     output_dir: str | None = None
     version: str | None = None
     tags: dict[str, str] = field(default_factory=dict)
+    top: int | None = None
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ class Evaluator(Protocol):
         season: int,
         stats: list[str] | None = None,
         actuals_source: str = "fangraphs",
+        top: int | None = None,
     ) -> SystemMetrics: ...
 
 

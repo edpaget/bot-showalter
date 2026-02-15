@@ -324,7 +324,7 @@ class TestMarcelPositionFiltering:
 class _FakeEvaluator:
     def __init__(self, result: SystemMetrics) -> None:
         self._result = result
-        self.calls: list[tuple[str, str, int]] = []
+        self.calls: list[tuple[str, str, int, int | None]] = []
 
     def evaluate(
         self,
@@ -333,8 +333,9 @@ class _FakeEvaluator:
         season: int,
         stats: list[str] | None = None,
         actuals_source: str = "fangraphs",
+        top: int | None = None,
     ) -> SystemMetrics:
-        self.calls.append((system, version, season))
+        self.calls.append((system, version, season, top))
         return self._result
 
 
@@ -351,7 +352,7 @@ class TestMarcelEvaluate:
         config = ModelConfig(seasons=[2025])
         result = model.evaluate(config)
         assert result is metrics
-        assert evaluator.calls == [("marcel", "latest", 2025)]
+        assert evaluator.calls == [("marcel", "latest", 2025, None)]
 
     def test_evaluate_uses_config_version(self) -> None:
         metrics = SystemMetrics(
@@ -365,4 +366,18 @@ class TestMarcelEvaluate:
         config = ModelConfig(seasons=[2024], version="v2")
         result = model.evaluate(config)
         assert result is metrics
-        assert evaluator.calls == [("marcel", "v2", 2024)]
+        assert evaluator.calls == [("marcel", "v2", 2024, None)]
+
+    def test_evaluate_passes_top(self) -> None:
+        metrics = SystemMetrics(
+            system="marcel",
+            version="latest",
+            source_type="first_party",
+            metrics={},
+        )
+        evaluator = _FakeEvaluator(metrics)
+        model = MarcelModel(evaluator=evaluator)
+        config = ModelConfig(seasons=[2025], top=300)
+        result = model.evaluate(config)
+        assert result is metrics
+        assert evaluator.calls == [("marcel", "latest", 2025, 300)]

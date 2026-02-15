@@ -49,6 +49,7 @@ def _seed_batting_actuals(
     avg: float,
     season: int = 2025,
     source: str = "fangraphs",
+    war: float | None = None,
 ) -> None:
     batting_repo.upsert(
         BattingStats(
@@ -57,6 +58,7 @@ def _seed_batting_actuals(
             source=source,
             hr=hr,
             avg=avg,
+            war=war,
         )
     )
 
@@ -90,6 +92,7 @@ def _seed_pitching_actuals(
     so: int,
     season: int = 2025,
     source: str = "fangraphs",
+    war: float | None = None,
 ) -> None:
     pitching_repo.upsert(
         PitchingStats(
@@ -98,6 +101,7 @@ def _seed_pitching_actuals(
             source=source,
             era=era,
             so=so,
+            war=war,
         )
     )
 
@@ -245,6 +249,82 @@ class TestCompareMultipleSystems:
         system_names = [s.system for s in result.systems]
         assert "steamer" in system_names
         assert "zips" in system_names
+
+
+class TestEvaluateActualsDriven:
+    def test_unprojected_player_included_with_zero(self, conn: sqlite3.Connection) -> None:
+        """A player with actuals but no projection should appear with projected=0."""
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2):
+            _seed_player(conn, pid)
+        # Player 1 has projection and actuals
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+        # Player 2 has only actuals — no projection
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025)
+        assert result.metrics["hr"].n == 2
+        assert result.metrics["avg"].n == 2
+
+    def test_unprojected_pitcher_included_with_zero(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
+        for pid in (10, 11):
+            _seed_player(conn, pid)
+        _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
+        _seed_pitching_actuals(pitching_repo, 10, era=3.50, so=190)
+        # Player 11 has only actuals
+        _seed_pitching_actuals(pitching_repo, 11, era=4.00, so=160)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025)
+        assert result.metrics["era"].n == 2
+        assert result.metrics["so"].n == 2
+
+
+class TestEvaluateTopNFilter:
+    def test_top_filters_by_war(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2, 3):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
+        _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265, war=5.0)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310, war=3.0)
+        _seed_batting_actuals(batting_repo, 3, hr=18, avg=0.240, war=1.0)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025, top=2)
+        # Only top 2 by WAR should be included
+        assert result.metrics["hr"].n == 2
+
+    def test_top_none_includes_all(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2, 3):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
+        _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265, war=5.0)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310, war=3.0)
+        _seed_batting_actuals(batting_repo, 3, hr=18, avg=0.240, war=1.0)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025, top=None)
+        assert result.metrics["hr"].n == 3
+
+    def test_top_filters_pitchers_by_war(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
+        for pid in (10, 11, 12):
+            _seed_player(conn, pid)
+        _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
+        _seed_pitcher_projection(proj_repo, 11, era=4.00, so=150)
+        _seed_pitcher_projection(proj_repo, 12, era=5.00, so=100)
+        _seed_pitching_actuals(pitching_repo, 10, era=3.50, so=190, war=6.0)
+        _seed_pitching_actuals(pitching_repo, 11, era=3.80, so=160, war=4.0)
+        _seed_pitching_actuals(pitching_repo, 12, era=4.50, so=120, war=1.0)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025, top=2)
+        assert result.metrics["era"].n == 2
+        assert result.metrics["so"].n == 2
 
 
 class TestCompareComposedSystems:
