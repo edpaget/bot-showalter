@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 from typing import Annotated
 
@@ -113,6 +114,7 @@ def train(
     tags = _parse_tags(tag)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags)
 
+    conn: sqlite3.Connection | None = None
     run_manager: RunManager | None = None
     if config.version is not None:
         conn = create_connection(Path(config.data_dir) / "fbm.db")
@@ -121,9 +123,14 @@ def train(
 
     try:
         result = dispatch("train", model, config, run_manager=run_manager)
+        if conn is not None:
+            conn.commit()
     except UnsupportedOperation as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
+    finally:
+        if conn is not None:
+            conn.close()
 
     match result:
         case TrainResult():
@@ -337,15 +344,19 @@ def runs_delete(
     system, version = parts
 
     conn = create_connection(Path(data_dir) / "fbm.db")
-    repo = SqliteModelRunRepo(conn)
-    record = repo.get(system, version)
-    if record is None:
-        typer.echo(f"Error: run '{run}' not found", err=True)
-        raise typer.Exit(code=1)
+    try:
+        repo = SqliteModelRunRepo(conn)
+        record = repo.get(system, version)
+        if record is None:
+            typer.echo(f"Error: run '{run}' not found", err=True)
+            raise typer.Exit(code=1)
 
-    if not yes:
-        typer.confirm(f"Delete run '{run}'?", abort=True)
+        if not yes:
+            typer.confirm(f"Delete run '{run}'?", abort=True)
 
-    mgr = RunManager(model_run_repo=repo, artifacts_root=Path("."))
-    mgr.delete_run(system, version)
-    typer.echo(f"Deleted run '{run}'")
+        mgr = RunManager(model_run_repo=repo, artifacts_root=Path("."))
+        mgr.delete_run(system, version)
+        conn.commit()
+        typer.echo(f"Deleted run '{run}'")
+    finally:
+        conn.close()
