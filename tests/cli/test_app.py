@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from fantasy_baseball_manager.cli.app import app
+from fantasy_baseball_manager.cli.app import _parse_params, app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
@@ -877,3 +877,28 @@ class TestReportCommands:
         assert result.exit_code == 0, result.output
         assert "Underperformers" in result.output
         assert "Aaron Judge" in result.output or "Judge" in result.output
+
+
+class TestParseParams:
+    def test_parse_params_coerces_bool(self) -> None:
+        result = _parse_params(["use_playing_time=false"])
+        assert result == {"use_playing_time": False}
+
+    def test_parse_params_coerces_bool_true(self) -> None:
+        result = _parse_params(["use_playing_time=True"])
+        assert result == {"use_playing_time": True}
+
+    def test_parse_params_coerces_int(self) -> None:
+        result = _parse_params(["lags=5"])
+        assert result == {"lags": 5}
+
+    def test_parse_params_coerces_float(self) -> None:
+        result = _parse_params(["alpha=0.1"])
+        assert result == {"alpha": 0.1}
+
+    def test_parse_params_leaves_string(self) -> None:
+        result = _parse_params(["name=hello"])
+        assert result == {"name": "hello"}
+
+    def test_parse_params_none_returns_none(self) -> None:
+        assert _parse_params(None) is None

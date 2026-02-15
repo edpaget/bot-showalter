@@ -119,3 +119,19 @@ class TestLoadConfigCliOverrides:
     def test_cli_tags_when_toml_has_none(self, tmp_path: Path) -> None:
         config = load_config(model_name="marcel", config_dir=tmp_path, tags={"x": "1"})
         assert config.tags == {"x": "1"}
+
+    def test_cli_params_override_toml(self, tmp_path: Path) -> None:
+        toml_path = tmp_path / "fbm.toml"
+        toml_path.write_text("[models.marcel.params]\nlags = 3\n")
+        config = load_config(model_name="marcel", config_dir=tmp_path, model_params={"lags": 5})
+        assert config.model_params["lags"] == 5
+
+    def test_cli_params_merge_with_toml(self, tmp_path: Path) -> None:
+        toml_path = tmp_path / "fbm.toml"
+        toml_path.write_text("[models.marcel.params]\na = 1\n")
+        config = load_config(model_name="marcel", config_dir=tmp_path, model_params={"b": 2})
+        assert config.model_params == {"a": 1, "b": 2}
+
+    def test_cli_params_when_toml_has_none(self, tmp_path: Path) -> None:
+        config = load_config(model_name="marcel", config_dir=tmp_path, model_params={"x": 1})
+        assert config.model_params == {"x": 1}

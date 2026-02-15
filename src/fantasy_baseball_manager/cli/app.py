@@ -27,6 +27,7 @@ from fantasy_baseball_manager.cli._output import (
 )
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
+    build_compute_container,
     build_eval_context,
     build_import_context,
     build_ingest_container,
@@ -99,9 +100,22 @@ def _run_action(operation: str, model_name: str, output_dir: str | None, seasons
 
 
 @app.command()
-def prepare(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None) -> None:
+def prepare(
+    model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None, param: _ParamOpt = None
+) -> None:
     """Prepare data for a projection model."""
-    _run_action("prepare", model, output_dir, season)
+    params = _parse_params(param)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
+    with build_model_context(model, config) as ctx:
+        try:
+            result = dispatch("prepare", ctx.model, config)
+        except UnsupportedOperation as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from None
+
+    match result:
+        case PrepareResult():
+            print_prepare_result(result)
 
 
 _VersionOpt = Annotated[str | None, typer.Option("--version", help="Run version for tracking")]
@@ -118,6 +132,34 @@ def _parse_tags(raw_tags: list[str] | None) -> dict[str, str] | None:
     return parsed
 
 
+_ParamOpt = Annotated[list[str] | None, typer.Option("--param", help="Model param as key=value (repeatable)")]
+
+
+def _coerce_value(value: str) -> Any:
+    """Coerce a CLI string value to bool, int, float, or leave as str."""
+    if value.lower() in ("true", "false"):
+        return value.lower() == "true"
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    return value
+
+
+def _parse_params(raw_params: list[str] | None) -> dict[str, Any] | None:
+    if not raw_params:
+        return None
+    parsed: dict[str, Any] = {}
+    for param in raw_params:
+        key, _, value = param.partition("=")
+        parsed[key] = _coerce_value(value)
+    return parsed
+
+
 @app.command()
 def train(
     model: _ModelArg,
@@ -125,10 +167,14 @@ def train(
     season: _SeasonOpt = None,
     version: _VersionOpt = None,
     tag: _TagOpt = None,
+    param: _ParamOpt = None,
 ) -> None:
     """Train a projection model."""
     tags = _parse_tags(tag)
-    config = load_config(model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags)
+    params = _parse_params(param)
+    config = load_config(
+        model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
+    )
 
     with build_model_context(model, config) as ctx:
         try:
@@ -175,10 +221,14 @@ def predict(
     season: _SeasonOpt = None,
     version: _VersionOpt = None,
     tag: _TagOpt = None,
+    param: _ParamOpt = None,
 ) -> None:
     """Generate predictions from a projection model."""
     tags = _parse_tags(tag)
-    config = load_config(model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags)
+    params = _parse_params(param)
+    config = load_config(
+        model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
+    )
 
     with build_model_context(model, config) as ctx:
         try:
@@ -723,6 +773,31 @@ def ingest_milb_batting(
                 )
                 log = loader.load(season=yr, level=lvl)
                 print_ingest_result(log)
+
+
+# --- compute subcommand group ---
+
+_MILB_COMPUTE_LEVELS = ["AAA", "AA", "A+", "A", "ROK"]
+
+compute_app = typer.Typer(name="compute", help="Compute derived data from ingested stats")
+app.add_typer(compute_app, name="compute")
+
+
+@compute_app.command("league-env")
+def compute_league_env(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s)")],
+    level: Annotated[list[str] | None, typer.Option("--level", help="Level(s): AAA, AA, A+, A, ROK")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Compute league environment aggregates from minor league batting stats."""
+    levels = level if level else _MILB_COMPUTE_LEVELS
+    with build_compute_container(data_dir) as container:
+        for yr in season:
+            for lvl in levels:
+                count = container.league_environment_service.compute_for_season_level(yr, lvl)
+                container.conn.commit()
+                console.print(f"  {lvl} {yr}: {count} league(s) computed")
+    console.print("[bold green]Done.[/bold green]")
 
 
 # --- report subcommand group ---
