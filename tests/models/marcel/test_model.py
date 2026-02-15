@@ -564,3 +564,40 @@ class TestMarcelPredictWithProjectionRepo:
         pitcher_pred = [p for p in result.predictions if p["player_type"] == "pitcher"][0]
         assert batter_pred["pa"] == 500
         assert pitcher_pred["ip"] == 80.0
+
+    def test_use_playing_time_false_skips_repo(self) -> None:
+        """Setting use_playing_time=False ignores the projection_repo."""
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 550,
+                "pa_3": 500,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_3": 20.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
+            },
+        ]
+        pt_projection = Projection(
+            player_id=1,
+            season=2024,
+            system="playing_time",
+            version="latest",
+            player_type="batter",
+            stat_json={"pa": 450},
+        )
+        assembler = FakeAssembler(batting_rows)
+        repo = _FakeProjectionRepo([pt_projection])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "use_playing_time": False},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        # Should use Marcel formula (0.5*600 + 0.1*550 + 200 = 555), NOT repo's 450
+        assert result.predictions[0]["pa"] == 555

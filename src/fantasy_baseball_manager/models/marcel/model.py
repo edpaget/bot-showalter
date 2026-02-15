@@ -171,7 +171,8 @@ class MarcelModel:
 
         bat_pt_lookup: dict[int, float] | None = None
         pitch_pt_lookup: dict[int, float] | None = None
-        if self._projection_repo is not None:
+        use_pt = config.model_params.get("use_playing_time", True)
+        if use_pt and self._projection_repo is not None:
             pt_projections = self._projection_repo.get_by_season(projected_season, system="playing_time")
             bat_pt_map: dict[int, float] = {}
             pitch_pt_map: dict[int, float] = {}
