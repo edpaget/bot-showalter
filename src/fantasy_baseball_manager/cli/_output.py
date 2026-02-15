@@ -55,6 +55,14 @@ def print_import_result(log: LoadLog) -> None:
     typer.echo(f"  Status: {log.status}")
 
 
+def print_ingest_result(log: LoadLog) -> None:
+    typer.echo(f"Ingest complete: {log.rows_loaded} rows loaded into {log.target_table}")
+    typer.echo(f"  Source: {log.source_detail}")
+    typer.echo(f"  Status: {log.status}")
+    if log.error_message:
+        typer.echo(f"  Error: {log.error_message}")
+
+
 def print_system_metrics(metrics: SystemMetrics) -> None:
     """Print evaluation results in tabular format."""
     typer.echo(f"Evaluation: {metrics.system} v{metrics.version} ({metrics.source_type})")

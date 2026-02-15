@@ -8,6 +8,14 @@ from typing import Any
 
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
+from fantasy_baseball_manager.ingest.protocols import DataSource
+from fantasy_baseball_manager.ingest.pybaseball_source import (
+    BrefBattingSource,
+    BrefPitchingSource,
+    ChadwickSource,
+    FgBattingSource,
+    FgPitchingSource,
+)
 from fantasy_baseball_manager.models.protocols import ModelConfig, ProjectionModel
 from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
@@ -110,6 +118,60 @@ def build_import_context(data_dir: str) -> Iterator[ImportContext]:
             proj_repo=SqliteProjectionRepo(conn),
             log_repo=SqliteLoadLogRepo(conn),
         )
+    finally:
+        conn.close()
+
+
+class IngestContainer:
+    """DI container for the ingest command group."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        return self._conn
+
+    @property
+    def player_repo(self) -> SqlitePlayerRepo:
+        return SqlitePlayerRepo(self._conn)
+
+    @property
+    def batting_stats_repo(self) -> SqliteBattingStatsRepo:
+        return SqliteBattingStatsRepo(self._conn)
+
+    @property
+    def pitching_stats_repo(self) -> SqlitePitchingStatsRepo:
+        return SqlitePitchingStatsRepo(self._conn)
+
+    @property
+    def log_repo(self) -> SqliteLoadLogRepo:
+        return SqliteLoadLogRepo(self._conn)
+
+    def player_source(self) -> DataSource:
+        return ChadwickSource()
+
+    def batting_source(self, name: str) -> DataSource:
+        if name == "fangraphs":
+            return FgBattingSource()
+        if name == "bbref":
+            return BrefBattingSource()
+        raise ValueError(f"Unknown batting source: {name!r}")
+
+    def pitching_source(self, name: str) -> DataSource:
+        if name == "fangraphs":
+            return FgPitchingSource()
+        if name == "bbref":
+            return BrefPitchingSource()
+        raise ValueError(f"Unknown pitching source: {name!r}")
+
+
+@contextmanager
+def build_ingest_container(data_dir: str) -> Iterator[IngestContainer]:
+    """Composition-root context manager for ingest commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield IngestContainer(conn)
     finally:
         conn.close()
 

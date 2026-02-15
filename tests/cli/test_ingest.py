@@ -1,0 +1,344 @@
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
+
+import pandas as pd
+import pytest
+from typer.testing import CliRunner
+
+from fantasy_baseball_manager.cli._output import print_ingest_result
+from fantasy_baseball_manager.cli.app import app
+from fantasy_baseball_manager.cli.factory import IngestContainer
+from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.domain.load_log import LoadLog
+from fantasy_baseball_manager.ingest.protocols import DataSource
+from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
+from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
+from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+
+runner = CliRunner()
+
+
+# --- Fake data source for testing ---
+
+
+class _FakeSource:
+    def __init__(self, df: pd.DataFrame, source_type: str, source_detail: str) -> None:
+        self._df = df
+        self._source_type = source_type
+        self._source_detail = source_detail
+
+    @property
+    def source_type(self) -> str:
+        return self._source_type
+
+    @property
+    def source_detail(self) -> str:
+        return self._source_detail
+
+    def fetch(self, **params: Any) -> pd.DataFrame:
+        return self._df
+
+
+# --- Test container subclass ---
+
+
+class _TestIngestContainer(IngestContainer):
+    def __init__(self, conn: sqlite3.Connection, fake_source: DataSource) -> None:
+        super().__init__(conn)
+        self._fake_source = fake_source
+
+    def player_source(self) -> DataSource:
+        return self._fake_source
+
+    def batting_source(self, name: str) -> DataSource:
+        return self._fake_source
+
+    def pitching_source(self, name: str) -> DataSource:
+        return self._fake_source
+
+
+def _make_player_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "key_mlbam": 545361,
+                "name_first": "Mike",
+                "name_last": "Trout",
+                "key_fangraphs": 10155,
+                "key_bbref": "troutmi01",
+                "key_retro": "troum001",
+            },
+            {
+                "key_mlbam": 660271,
+                "name_first": "Shohei",
+                "name_last": "Ohtani",
+                "key_fangraphs": 19755,
+                "key_bbref": "ohtansh01",
+                "key_retro": "ohtas001",
+            },
+        ]
+    )
+
+
+@contextmanager
+def _build_test_container(conn: sqlite3.Connection, fake_source: DataSource) -> Iterator[IngestContainer]:
+    yield _TestIngestContainer(conn, fake_source)
+
+
+# --- Tests ---
+
+
+class TestPrintIngestResult:
+    def test_success(self, capsys: pytest.CaptureFixture[str]) -> None:
+        log = LoadLog(
+            source_type="pybaseball",
+            source_detail="chadwick_register",
+            target_table="player",
+            rows_loaded=42,
+            started_at="2024-01-01T00:00:00",
+            finished_at="2024-01-01T00:01:00",
+            status="success",
+        )
+        print_ingest_result(log)
+        captured = capsys.readouterr()
+        assert "42" in captured.out
+        assert "player" in captured.out
+        assert "chadwick_register" in captured.out
+        assert "success" in captured.out
+
+    def test_error_shows_message(self, capsys: pytest.CaptureFixture[str]) -> None:
+        log = LoadLog(
+            source_type="pybaseball",
+            source_detail="fg_batting_data",
+            target_table="batting_stats",
+            rows_loaded=0,
+            started_at="2024-01-01T00:00:00",
+            finished_at="2024-01-01T00:01:00",
+            status="error",
+            error_message="connection timeout",
+        )
+        print_ingest_result(log)
+        captured = capsys.readouterr()
+        assert "error" in captured.out
+        assert "connection timeout" in captured.out
+
+
+class TestIngestPlayers:
+    def test_ingest_players_loads_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        player_df = _make_player_df()
+        fake_source = _FakeSource(player_df, "pybaseball", "chadwick_register")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(conn, fake_source),
+        )
+
+        result = runner.invoke(app, ["ingest", "players"])
+        assert result.exit_code == 0, result.output
+        assert "2" in result.output
+        assert "player" in result.output
+        assert "success" in result.output
+
+        # Verify data actually in DB
+        repo = SqlitePlayerRepo(conn)
+        players = repo.all()
+        assert len(players) == 2
+        names = {p.name_last for p in players}
+        assert "Trout" in names
+        assert "Ohtani" in names
+        conn.close()
+
+    def test_ingest_players_custom_data_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        player_df = _make_player_df()
+        fake_source = _FakeSource(player_df, "pybaseball", "chadwick_register")
+
+        captured_data_dir: list[str] = []
+
+        @contextmanager
+        def _capturing_container(data_dir: str) -> Iterator[IngestContainer]:
+            captured_data_dir.append(data_dir)
+            yield _TestIngestContainer(conn, fake_source)
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            _capturing_container,
+        )
+
+        result = runner.invoke(app, ["ingest", "players", "--data-dir", "/custom/path"])
+        assert result.exit_code == 0, result.output
+        assert captured_data_dir == ["/custom/path"]
+        conn.close()
+
+
+def _seed_players(conn: sqlite3.Connection) -> None:
+    """Seed player data needed for batting/pitching mapper lookups."""
+    repo = SqlitePlayerRepo(conn)
+    repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))
+    repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271, fangraphs_id=19755))
+    conn.commit()
+
+
+def _make_fg_batting_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "IDfg": 10155,
+                "Season": 2023,
+                "PA": 600,
+                "AB": 500,
+                "H": 150,
+                "2B": 30,
+                "3B": 5,
+                "HR": 35,
+                "RBI": 90,
+                "R": 100,
+                "SB": 10,
+                "CS": 3,
+                "BB": 80,
+                "SO": 120,
+                "HBP": 5,
+                "SF": 4,
+                "SH": 0,
+                "GDP": 8,
+                "IBB": 10,
+                "AVG": 0.300,
+                "OBP": 0.400,
+                "SLG": 0.600,
+                "OPS": 1.000,
+                "wOBA": 0.420,
+                "wRC+": 180.0,
+                "WAR": 8.5,
+            },
+        ]
+    )
+
+
+class TestIngestBatting:
+    def test_ingest_batting_loads_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        batting_df = _make_fg_batting_df()
+        fake_source = _FakeSource(batting_df, "pybaseball", "fg_batting_data")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(conn, fake_source),
+        )
+
+        result = runner.invoke(app, ["ingest", "batting", "--season", "2023"])
+        assert result.exit_code == 0, result.output
+        assert "1" in result.output
+        assert "batting_stats" in result.output
+        assert "success" in result.output
+
+        # Verify data in DB
+        repo = SqliteBattingStatsRepo(conn)
+        stats = repo.get_by_season(2023, source="fangraphs")
+        assert len(stats) == 1
+        assert stats[0].hr == 35
+        assert stats[0].pa == 600
+        conn.close()
+
+    def test_ingest_batting_multiple_seasons(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        batting_df = _make_fg_batting_df()
+        fake_source = _FakeSource(batting_df, "pybaseball", "fg_batting_data")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(conn, fake_source),
+        )
+
+        result = runner.invoke(app, ["ingest", "batting", "--season", "2022", "--season", "2023"])
+        assert result.exit_code == 0, result.output
+        # Should see two result outputs (one per season)
+        assert result.output.count("success") == 2
+
+    def test_ingest_batting_requires_season(self) -> None:
+        result = runner.invoke(app, ["ingest", "batting"])
+        assert result.exit_code != 0
+
+
+def _make_fg_pitching_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "IDfg": 19755,
+                "Season": 2024,
+                "W": 15,
+                "L": 5,
+                "G": 30,
+                "GS": 30,
+                "SV": 0,
+                "H": 120,
+                "ER": 50,
+                "HR": 15,
+                "BB": 40,
+                "SO": 200,
+                "ERA": 2.80,
+                "IP": 180.0,
+                "WHIP": 0.95,
+                "K/9": 10.0,
+                "BB/9": 2.0,
+                "FIP": 2.90,
+                "xFIP": 3.00,
+                "WAR": 6.0,
+            },
+        ]
+    )
+
+
+class TestIngestPitching:
+    def test_ingest_pitching_loads_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        pitching_df = _make_fg_pitching_df()
+        fake_source = _FakeSource(pitching_df, "pybaseball", "fg_pitching_data")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(conn, fake_source),
+        )
+
+        result = runner.invoke(app, ["ingest", "pitching", "--season", "2024"])
+        assert result.exit_code == 0, result.output
+        assert "1" in result.output
+        assert "pitching_stats" in result.output
+        assert "success" in result.output
+
+        # Verify data in DB
+        repo = SqlitePitchingStatsRepo(conn)
+        stats = repo.get_by_season(2024, source="fangraphs")
+        assert len(stats) == 1
+        assert stats[0].w == 15
+        assert stats[0].so == 200
+        conn.close()
+
+    def test_ingest_pitching_multiple_seasons(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        pitching_df = _make_fg_pitching_df()
+        fake_source = _FakeSource(pitching_df, "pybaseball", "fg_pitching_data")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(conn, fake_source),
+        )
+
+        result = runner.invoke(app, ["ingest", "pitching", "--season", "2023", "--season", "2024"])
+        assert result.exit_code == 0, result.output
+        assert result.output.count("success") == 2
+
+    def test_ingest_pitching_requires_season(self) -> None:
+        result = runner.invoke(app, ["ingest", "pitching"])
+        assert result.exit_code != 0

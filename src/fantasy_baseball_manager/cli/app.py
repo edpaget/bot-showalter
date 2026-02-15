@@ -11,6 +11,7 @@ from fantasy_baseball_manager.cli._output import (
     print_eval_result,
     print_features,
     print_import_result,
+    print_ingest_result,
     print_player_projections,
     print_predict_result,
     print_prepare_result,
@@ -23,6 +24,7 @@ from fantasy_baseball_manager.cli._output import (
 from fantasy_baseball_manager.cli.factory import (
     build_eval_context,
     build_import_context,
+    build_ingest_container,
     build_model_context,
     build_projections_context,
     build_runs_context,
@@ -30,11 +32,16 @@ from fantasy_baseball_manager.cli.factory import (
 )
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.ingest.column_maps import (
+    chadwick_row_to_player,
+    make_bref_batting_mapper,
+    make_bref_pitching_mapper,
+    make_fg_batting_mapper,
+    make_fg_pitching_mapper,
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
-from fantasy_baseball_manager.ingest.loader import StatsLoader
+from fantasy_baseball_manager.ingest.loader import PlayerLoader, StatsLoader
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     EvalResult,
@@ -358,3 +365,84 @@ def projections_systems(
     with build_projections_context(data_dir) as ctx:
         summaries = ctx.lookup_service.list_systems(season)
     print_system_summaries(summaries)
+
+
+# --- ingest subcommand group ---
+
+ingest_app = typer.Typer(name="ingest", help="Ingest historical player data and stats")
+app.add_typer(ingest_app, name="ingest")
+
+
+@ingest_app.command("players")
+def ingest_players(
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest player data from the Chadwick register."""
+    with build_ingest_container(data_dir) as container:
+        source = container.player_source()
+        loader = PlayerLoader(
+            source,
+            container.player_repo,
+            container.log_repo,
+            chadwick_row_to_player,
+            conn=container.conn,
+        )
+        log = loader.load()
+    print_ingest_result(log)
+
+
+_SourceOpt = Annotated[str, typer.Option("--source", help="Data source: fangraphs or bbref")]
+
+
+@ingest_app.command("batting")
+def ingest_batting(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
+    source: _SourceOpt = "fangraphs",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest historical batting stats."""
+    with build_ingest_container(data_dir) as container:
+        data_source = container.batting_source(source)
+        players = container.player_repo.all()
+        for yr in season:
+            if source == "fangraphs":
+                mapper = make_fg_batting_mapper(players)
+            else:
+                mapper = make_bref_batting_mapper(players, season=yr)
+            loader = StatsLoader(
+                data_source,
+                container.batting_stats_repo,
+                container.log_repo,
+                mapper,
+                "batting_stats",
+                conn=container.conn,
+            )
+            log = loader.load(season=yr)
+            print_ingest_result(log)
+
+
+@ingest_app.command("pitching")
+def ingest_pitching(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
+    source: _SourceOpt = "fangraphs",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest historical pitching stats."""
+    with build_ingest_container(data_dir) as container:
+        data_source = container.pitching_source(source)
+        players = container.player_repo.all()
+        for yr in season:
+            if source == "fangraphs":
+                mapper = make_fg_pitching_mapper(players)
+            else:
+                mapper = make_bref_pitching_mapper(players, season=yr)
+            loader = StatsLoader(
+                data_source,
+                container.pitching_stats_repo,
+                container.log_repo,
+                mapper,
+                "pitching_stats",
+                conn=container.conn,
+            )
+            log = loader.load(season=yr)
+            print_ingest_result(log)
