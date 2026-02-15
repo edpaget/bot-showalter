@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
-from fantasy_baseball_manager.models.protocols import ModelConfig, ProjectionModel
+from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.repos.protocols import ModelRunRepo
 
 
@@ -48,7 +48,7 @@ class RunManager:
         self._repo = model_run_repo
         self._artifacts_root = artifacts_root
 
-    def begin_run(self, model: ProjectionModel, config: ModelConfig) -> RunContext:
+    def begin_run(self, model: Model, config: ModelConfig) -> RunContext:
         if config.version is None:
             raise ValueError("config.version is required to begin a model run")
 

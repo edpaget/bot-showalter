@@ -10,14 +10,14 @@ from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
     Predictable,
     Preparable,
-    ProjectionModel,
+    Model,
     Trainable,
 )
 
 
 class TestMarcelModel:
-    def test_is_projection_model(self) -> None:
-        assert isinstance(MarcelModel(), ProjectionModel)
+    def test_is_model(self) -> None:
+        assert isinstance(MarcelModel(), Model)
 
     def test_is_preparable(self) -> None:
         assert isinstance(MarcelModel(), Preparable)

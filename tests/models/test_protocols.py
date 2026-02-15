@@ -13,7 +13,7 @@ from fantasy_baseball_manager.models.protocols import (
     PredictResult,
     Preparable,
     PrepareResult,
-    ProjectionModel,
+    Model,
     Trainable,
     TrainResult,
 )
@@ -58,8 +58,8 @@ class _StubModelWithoutArtifactType:
 
 
 class TestProtocolRuntimeChecks:
-    def test_stub_is_projection_model(self) -> None:
-        assert isinstance(_StubModel(), ProjectionModel)
+    def test_stub_is_model(self) -> None:
+        assert isinstance(_StubModel(), Model)
 
     def test_stub_is_preparable(self) -> None:
         assert isinstance(_StubModel(), Preparable)
@@ -79,8 +79,8 @@ class TestProtocolRuntimeChecks:
     def test_stub_is_not_ablatable(self) -> None:
         assert not isinstance(_StubModel(), Ablatable)
 
-    def test_model_without_artifact_type_is_not_projection_model(self) -> None:
-        assert not isinstance(_StubModelWithoutArtifactType(), ProjectionModel)
+    def test_model_without_artifact_type_is_not_model(self) -> None:
+        assert not isinstance(_StubModelWithoutArtifactType(), Model)
 
 
 class TestResultDataclasses:

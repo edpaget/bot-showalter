@@ -1,8 +1,8 @@
 from collections.abc import Callable
 
-from fantasy_baseball_manager.models.protocols import ProjectionModel
+from fantasy_baseball_manager.models.protocols import Model
 
-_REGISTRY: dict[str, Callable[..., ProjectionModel]] = {}
+_REGISTRY: dict[str, Callable[..., Model]] = {}
 
 
 def register(name: str) -> Callable[[type], type]:
@@ -17,7 +17,7 @@ def register(name: str) -> Callable[[type], type]:
     return decorator
 
 
-def get(name: str) -> Callable[..., ProjectionModel]:
+def get(name: str) -> Callable[..., Model]:
     """Return the registered model class (not an instance)."""
     if name not in _REGISTRY:
         raise KeyError(f"'{name}': no model registered with this name")

@@ -48,7 +48,7 @@ from fantasy_baseball_manager.models.protocols import (
     FeatureIntrospectable,
     PredictResult,
     PrepareResult,
-    ProjectionModel,
+    Model,
     TrainResult,
 )
 from fantasy_baseball_manager.models.registry import list_models
@@ -169,7 +169,7 @@ def list_cmd() -> None:
 def info(model: _ModelArg) -> None:
     """Show metadata and supported operations for a model."""
     try:
-        m: ProjectionModel = create_model(model)
+        m: Model = create_model(model)
     except KeyError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
@@ -183,7 +183,7 @@ def info(model: _ModelArg) -> None:
 def features(model: _ModelArg) -> None:
     """List declared features for a model."""
     try:
-        m: ProjectionModel = create_model(model)
+        m: Model = create_model(model)
     except KeyError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None

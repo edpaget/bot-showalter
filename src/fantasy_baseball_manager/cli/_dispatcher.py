@@ -11,7 +11,7 @@ from fantasy_baseball_manager.models.protocols import (
     PredictResult,
     Preparable,
     PrepareResult,
-    ProjectionModel,
+    Model,
     Trainable,
     TrainResult,
 )
@@ -36,7 +36,7 @@ type _AnyResult = PrepareResult | TrainResult | EvalResult | PredictResult | Abl
 
 def dispatch(
     operation: str,
-    model: ProjectionModel,
+    model: Model,
     config: ModelConfig,
     run_manager: RunManager | None = None,
 ) -> _AnyResult:

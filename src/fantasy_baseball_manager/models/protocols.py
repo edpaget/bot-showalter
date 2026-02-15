@@ -49,7 +49,7 @@ class AblationResult:
 
 
 @runtime_checkable
-class ProjectionModel(Protocol):
+class Model(Protocol):
     @property
     def name(self) -> str: ...
     @property

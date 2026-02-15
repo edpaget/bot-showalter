@@ -16,7 +16,7 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     FgBattingSource,
     FgPitchingSource,
 )
-from fantasy_baseball_manager.models.protocols import ModelConfig, ProjectionModel
+from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -29,7 +29,7 @@ from fantasy_baseball_manager.services.projection_evaluator import ProjectionEva
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 
 
-def create_model(name: str, **kwargs: Any) -> ProjectionModel:
+def create_model(name: str, **kwargs: Any) -> Model:
     """Look up a model class by name and instantiate it, forwarding matching kwargs."""
     cls = get(name)
     sig = inspect.signature(cls)
@@ -40,7 +40,7 @@ def create_model(name: str, **kwargs: Any) -> ProjectionModel:
 @dataclass(frozen=True)
 class ModelContext:
     conn: sqlite3.Connection
-    model: ProjectionModel
+    model: Model
     run_manager: RunManager | None
 
 
