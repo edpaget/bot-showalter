@@ -6,8 +6,10 @@ import typer
 import fantasy_baseball_manager.models  # noqa: F401 — trigger model registration
 from fantasy_baseball_manager.cli._dispatcher import UnsupportedOperation, dispatch
 from fantasy_baseball_manager.cli._output import (
+    console,
     print_ablation_result,
     print_comparison_result,
+    print_error,
     print_eval_result,
     print_features,
     print_import_result,
@@ -43,7 +45,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_lahman_bio_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
-from fantasy_baseball_manager.ingest.loader import PlayerLoader, StatsLoader
+from fantasy_baseball_manager.ingest.loader import PlayerLoader, ProjectionLoader, StatsLoader
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     EvalResult,
@@ -69,7 +71,7 @@ def _run_action(operation: str, model_name: str, output_dir: str | None, seasons
         try:
             result = dispatch(operation, ctx.model, config)
         except UnsupportedOperation as e:
-            typer.echo(f"Error: {e}", err=True)
+            print_error(str(e))
             raise typer.Exit(code=1) from None
 
     match result:
@@ -123,7 +125,7 @@ def train(
             if config.version is not None:
                 ctx.conn.commit()
         except UnsupportedOperation as e:
-            typer.echo(f"Error: {e}", err=True)
+            print_error(str(e))
             raise typer.Exit(code=1) from None
 
     match result:
@@ -169,7 +171,7 @@ def predict(
                     ctx.projection_repo.upsert(proj)
             ctx.conn.commit()
         except UnsupportedOperation as e:
-            typer.echo(f"Error: {e}", err=True)
+            print_error(str(e))
             raise typer.Exit(code=1) from None
 
     match result:
@@ -194,11 +196,11 @@ def list_cmd() -> None:
     """List all registered projection models."""
     names = list_models()
     if not names:
-        typer.echo("No models registered.")
+        console.print("No models registered.")
         return
-    typer.echo("Registered models:")
+    console.print("[bold]Registered models:[/bold]")
     for name in names:
-        typer.echo(f"  {name}")
+        console.print(f"  {name}")
 
 
 @app.command()
@@ -207,12 +209,12 @@ def info(model: _ModelArg) -> None:
     try:
         m: Model = create_model(model)
     except KeyError as e:
-        typer.echo(f"Error: {e}", err=True)
+        print_error(str(e))
         raise typer.Exit(code=1) from None
 
-    typer.echo(f"Model: {m.name}")
-    typer.echo(f"Description: {m.description}")
-    typer.echo(f"Operations: {', '.join(sorted(m.supported_operations))}")
+    console.print(f"[bold]Model:[/bold] {m.name}")
+    console.print(f"[bold]Description:[/bold] {m.description}")
+    console.print(f"[bold]Operations:[/bold] {', '.join(sorted(m.supported_operations))}")
 
 
 @app.command()
@@ -221,11 +223,11 @@ def features(model: _ModelArg) -> None:
     try:
         m: Model = create_model(model)
     except KeyError as e:
-        typer.echo(f"Error: {e}", err=True)
+        print_error(str(e))
         raise typer.Exit(code=1) from None
 
     if not isinstance(m, FeatureIntrospectable):
-        typer.echo(f"Error: model '{model}' does not expose features", err=True)
+        print_error(f"model '{model}' does not expose features")
         raise typer.Exit(code=1)
 
     print_features(m.name, m.declared_features)
@@ -242,7 +244,7 @@ def import_cmd(
 ) -> None:
     """Import third-party projections from a CSV file."""
     if not csv_path.exists():
-        typer.echo(f"Error: file not found: {csv_path}", err=True)
+        print_error(f"file not found: {csv_path}")
         raise typer.Exit(code=1)
 
     with build_import_context(data_dir) as ctx:
@@ -266,7 +268,7 @@ def import_cmd(
             )
 
         source = CsvSource(csv_path)
-        loader = StatsLoader(source, ctx.proj_repo, ctx.log_repo, mapper, "projection", conn=ctx.conn)
+        loader = ProjectionLoader(source, ctx.proj_repo, ctx.log_repo, mapper, conn=ctx.conn)
         log = loader.load(encoding="utf-8-sig")
     print_import_result(log)
 
@@ -297,7 +299,7 @@ def compare_cmd(
     for s in systems:
         parts = s.split("/", 1)
         if len(parts) != 2:
-            typer.echo(f"Error: invalid system format '{s}', expected 'system/version'", err=True)
+            print_error(f"invalid system format '{s}', expected 'system/version'")
             raise typer.Exit(code=1)
         parsed.append((parts[0], parts[1]))
 
@@ -337,14 +339,14 @@ def runs_show(
     """Show details of a model run."""
     parts = run.split("/", 1)
     if len(parts) != 2:
-        typer.echo(f"Error: invalid run format '{run}', expected 'system/version'", err=True)
+        print_error(f"invalid run format '{run}', expected 'system/version'")
         raise typer.Exit(code=1)
     system, version = parts
 
     with build_runs_context(data_dir) as ctx:
         record = ctx.repo.get(system, version, operation)
     if record is None:
-        typer.echo(f"Error: run '{run}' not found", err=True)
+        print_error(f"run '{run}' not found")
         raise typer.Exit(code=1)
     print_run_detail(record)
 
@@ -359,14 +361,14 @@ def runs_delete(
     """Delete a model run and its artifacts."""
     parts = run.split("/", 1)
     if len(parts) != 2:
-        typer.echo(f"Error: invalid run format '{run}', expected 'system/version'", err=True)
+        print_error(f"invalid run format '{run}', expected 'system/version'")
         raise typer.Exit(code=1)
     system, version = parts
 
     with build_runs_context(data_dir) as ctx:
         record = ctx.repo.get(system, version, operation)
         if record is None:
-            typer.echo(f"Error: run '{run}' not found", err=True)
+            print_error(f"run '{run}' not found")
             raise typer.Exit(code=1)
 
         if not yes:
@@ -375,7 +377,7 @@ def runs_delete(
         mgr = RunManager(model_run_repo=ctx.repo, artifacts_root=Path("."))
         mgr.delete_run(system, version, operation)
         ctx.conn.commit()
-        typer.echo(f"Deleted run '{run}'")
+        console.print(f"[bold green]Deleted[/bold green] run '{run}'")
 
 
 # --- projections subcommand group ---

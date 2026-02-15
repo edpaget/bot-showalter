@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from fantasy_baseball_manager.cli._output import print_features
+from fantasy_baseball_manager.cli._output import print_error, print_features
 from fantasy_baseball_manager.features.types import (
     DeltaFeature,
     Feature,
@@ -45,6 +45,15 @@ def _transform_feature() -> TransformFeature:
         transform=dummy,
         outputs=("barrel_pct", "hard_hit_pct"),
     )
+
+
+class TestPrintError:
+    def test_print_error_writes_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_error("something went wrong")
+        captured = capsys.readouterr()
+        assert "Error:" in captured.err
+        assert "something went wrong" in captured.err
+        assert captured.out == ""
 
 
 class TestPrintFeatures:
