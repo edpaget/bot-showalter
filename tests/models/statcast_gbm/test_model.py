@@ -360,10 +360,40 @@ class TestStatcastGBMEvaluate:
 
 
 class TestStatcastGBMAblate:
+    def _build_model_and_config(self) -> tuple[StatcastGBMModel, ModelConfig]:
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(seasons=[2022, 2023])
+        return model, config
+
     def test_ablate_returns_result(self) -> None:
-        model = StatcastGBMModel()
-        config = ModelConfig(seasons=[2023])
+        model, config = self._build_model_and_config()
         result = model.ablate(config)
         assert isinstance(result, AblationResult)
         assert result.model_name == "statcast-gbm"
         assert isinstance(result.feature_impacts, dict)
+
+    def test_ablate_returns_nonempty_impacts(self) -> None:
+        model, config = self._build_model_and_config()
+        result = model.ablate(config)
+        assert len(result.feature_impacts) > 0
+
+    def test_ablate_impacts_include_batter_features(self) -> None:
+        model, config = self._build_model_and_config()
+        result = model.ablate(config)
+        batter_keys = [k for k in result.feature_impacts if k.startswith("batter:")]
+        assert len(batter_keys) > 0
+
+    def test_ablate_impacts_include_pitcher_features(self) -> None:
+        model, config = self._build_model_and_config()
+        result = model.ablate(config)
+        pitcher_keys = [k for k in result.feature_impacts if k.startswith("pitcher:")]
+        assert len(pitcher_keys) > 0

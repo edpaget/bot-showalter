@@ -1,4 +1,6 @@
+import copy
 import math
+import random
 from typing import Any
 
 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -98,3 +100,34 @@ def score_predictions(
         mse = sum((yt - yp) ** 2 for yt, yp in zip(y_true, y_pred, strict=True)) / len(y_true)
         metrics[f"rmse_{target_name}"] = math.sqrt(mse)
     return metrics
+
+
+def compute_permutation_importance(
+    models: dict[str, HistGradientBoostingRegressor],
+    X: list[list[float]],
+    targets_dict: dict[str, list[float]],
+    feature_columns: list[str],
+    n_repeats: int = 5,
+    rng_seed: int = 42,
+) -> dict[str, float]:
+    baseline_metrics = score_predictions(models, X, targets_dict)
+    baseline_rmses = {t: baseline_metrics[f"rmse_{t}"] for t in targets_dict}
+    n_targets = len(targets_dict)
+    rng = random.Random(rng_seed)
+    n_rows = len(X)
+
+    importances: dict[str, float] = {}
+    for j, col_name in enumerate(feature_columns):
+        repeat_increases: list[float] = []
+        for _ in range(n_repeats):
+            X_permuted = copy.deepcopy(X)
+            perm = list(range(n_rows))
+            rng.shuffle(perm)
+            for i in range(n_rows):
+                X_permuted[i][j] = X[perm[i]][j]
+            permuted_metrics = score_predictions(models, X_permuted, targets_dict)
+            mean_increase = sum(permuted_metrics[f"rmse_{t}"] - baseline_rmses[t] for t in targets_dict) / n_targets
+            repeat_increases.append(mean_increase)
+        importances[col_name] = sum(repeat_increases) / n_repeats
+
+    return importances

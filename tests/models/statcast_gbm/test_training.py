@@ -1,6 +1,8 @@
 import math
+import random
 
 from fantasy_baseball_manager.models.statcast_gbm.training import (
+    compute_permutation_importance,
     extract_features,
     extract_targets,
     fit_models,
@@ -135,3 +137,39 @@ class TestScorePredictions:
         assert "rmse_avg" in metrics
         assert "rmse_obp" in metrics
         assert all(isinstance(v, float) for v in metrics.values())
+
+
+class TestComputePermutationImportance:
+    def test_returns_all_feature_columns(self) -> None:
+        feature_cols = ["feat_a", "feat_b", "feat_c"]
+        X = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]
+        targets = {"avg": [0.250, 0.300, 0.275, 0.280]}
+        models = fit_models(X, targets, {})
+        result = compute_permutation_importance(models, X, targets, feature_cols)
+        assert set(result.keys()) == set(feature_cols)
+
+    def test_important_feature_has_positive_impact(self) -> None:
+        # feat_a = target (signal); feat_b = noise
+        # Use enough data + small min_samples_leaf so the tree actually learns
+        gen = random.Random(99)
+        all_X = [[float(i), gen.random()] for i in range(80)]
+        all_y = [float(i) for i in range(80)]
+        X_train = [all_X[i] for i in range(0, 80, 2)]
+        y_train = {"y": [all_y[i] for i in range(0, 80, 2)]}
+        X_holdout = [all_X[i] for i in range(1, 80, 2)]
+        y_holdout = {"y": [all_y[i] for i in range(1, 80, 2)]}
+        models = fit_models(X_train, y_train, {"min_samples_leaf": 5})
+        result = compute_permutation_importance(models, X_holdout, y_holdout, ["feat_a", "feat_b"])
+        assert result["feat_a"] > 0
+
+    def test_irrelevant_feature_has_near_zero_impact(self) -> None:
+        gen = random.Random(99)
+        all_X = [[float(i), gen.random()] for i in range(80)]
+        all_y = [float(i) for i in range(80)]
+        X_train = [all_X[i] for i in range(0, 80, 2)]
+        y_train = {"y": [all_y[i] for i in range(0, 80, 2)]}
+        X_holdout = [all_X[i] for i in range(1, 80, 2)]
+        y_holdout = {"y": [all_y[i] for i in range(1, 80, 2)]}
+        models = fit_models(X_train, y_train, {"min_samples_leaf": 5})
+        result = compute_permutation_importance(models, X_holdout, y_holdout, ["feat_a", "feat_b"])
+        assert result["feat_b"] < result["feat_a"]

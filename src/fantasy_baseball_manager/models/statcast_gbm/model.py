@@ -25,6 +25,7 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.models.statcast_gbm.training import (
+    compute_permutation_importance,
     extract_features,
     extract_targets,
     fit_models,
@@ -202,9 +203,67 @@ class StatcastGBMModel:
         )
 
     def ablate(self, config: ModelConfig) -> AblationResult:
+        assert self._assembler is not None, "assembler is required for ablate"
+
+        train_seasons = config.seasons[:-1]
+        holdout_seasons = [config.seasons[-1]]
+        feature_impacts: dict[str, float] = {}
+
+        # --- Batter ablation ---
+        bat_fs = build_batter_training_set(config.seasons)
+        bat_handle = self._assembler.get_or_materialize(bat_fs)
+        bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=holdout_seasons)
+
+        bat_train_rows = self._assembler.read(bat_splits.train)
+        bat_feature_cols = batter_feature_columns()
+        bat_targets = list(BATTER_TARGETS)
+
+        bat_X_train = extract_features(bat_train_rows, bat_feature_cols)
+        bat_y_train = extract_targets(bat_train_rows, bat_targets)
+        bat_models = fit_models(bat_X_train, bat_y_train, config.model_params)
+
+        if bat_splits.holdout is not None:
+            bat_holdout_rows = self._assembler.read(bat_splits.holdout)
+            bat_X_holdout = extract_features(bat_holdout_rows, bat_feature_cols)
+            bat_y_holdout = extract_targets(bat_holdout_rows, bat_targets)
+            bat_importance = compute_permutation_importance(
+                bat_models,
+                bat_X_holdout,
+                bat_y_holdout,
+                bat_feature_cols,
+            )
+            for col, impact in bat_importance.items():
+                feature_impacts[f"batter:{col}"] = impact
+
+        # --- Pitcher ablation ---
+        pit_fs = build_pitcher_training_set(config.seasons)
+        pit_handle = self._assembler.get_or_materialize(pit_fs)
+        pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=holdout_seasons)
+
+        pit_train_rows = self._assembler.read(pit_splits.train)
+        pit_feature_cols = pitcher_feature_columns()
+        pit_targets = list(PITCHER_TARGETS)
+
+        pit_X_train = extract_features(pit_train_rows, pit_feature_cols)
+        pit_y_train = extract_targets(pit_train_rows, pit_targets)
+        pit_models = fit_models(pit_X_train, pit_y_train, config.model_params)
+
+        if pit_splits.holdout is not None:
+            pit_holdout_rows = self._assembler.read(pit_splits.holdout)
+            pit_X_holdout = extract_features(pit_holdout_rows, pit_feature_cols)
+            pit_y_holdout = extract_targets(pit_holdout_rows, pit_targets)
+            pit_importance = compute_permutation_importance(
+                pit_models,
+                pit_X_holdout,
+                pit_y_holdout,
+                pit_feature_cols,
+            )
+            for col, impact in pit_importance.items():
+                feature_impacts[f"pitcher:{col}"] = impact
+
         return AblationResult(
             model_name=self.name,
-            feature_impacts={},
+            feature_impacts=feature_impacts,
         )
 
     def _artifact_path(self, config: ModelConfig) -> Path:
