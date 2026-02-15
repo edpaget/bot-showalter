@@ -8,10 +8,11 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.model_run import ModelRunRecord
+from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel import MarcelModel
+from fantasy_baseball_manager.models.protocols import ModelConfig, TrainResult
 from fantasy_baseball_manager.models.registry import _clear, register
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
@@ -106,8 +107,6 @@ class TestActionCommands:
         assert "does not support" in result.output.lower()
 
     def test_predict_marcel_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from fantasy_baseball_manager.models.protocols import ModelConfig
-
         _ensure_marcel_registered()
         seeded_conn = create_connection(":memory:")
         _seed_batting_data(seeded_conn)
