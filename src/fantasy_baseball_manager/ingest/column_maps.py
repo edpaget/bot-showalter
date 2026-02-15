@@ -299,6 +299,57 @@ def statcast_pitch_mapper(row: pd.Series) -> StatcastPitch | None:
     )
 
 
+def _build_retro_lookup(players: list[Player]) -> dict[str, Player]:
+    lookup: dict[str, Player] = {}
+    for p in players:
+        if p.retro_id is not None:
+            lookup[p.retro_id] = p
+    return lookup
+
+
+def _build_birth_date(year: int | None, month: int | None, day: int | None) -> str | None:
+    if year is None:
+        return None
+    m = month if month is not None else 1
+    d = day if day is not None else 1
+    return f"{year:04d}-{m:02d}-{d:02d}"
+
+
+def make_lahman_bio_mapper(
+    players: list[Player],
+) -> Callable[[pd.Series], Player | None]:
+    retro_lookup = _build_retro_lookup(players)
+
+    def mapper(row: pd.Series) -> Player | None:
+        retro_id = _to_optional_str(row["retroID"])
+        if retro_id is None:
+            return None
+        player = retro_lookup.get(retro_id)
+        if player is None:
+            return None
+
+        year = _to_optional_int_stat(row.get("birthYear"))
+        month = _to_optional_int_stat(row.get("birthMonth"))
+        day = _to_optional_int_stat(row.get("birthDay"))
+        birth_date = _build_birth_date(year, month, day)
+
+        return Player(
+            id=player.id,
+            name_first=player.name_first,
+            name_last=player.name_last,
+            mlbam_id=player.mlbam_id,
+            fangraphs_id=player.fangraphs_id,
+            bbref_id=player.bbref_id,
+            retro_id=player.retro_id,
+            bats=_to_optional_str(row.get("bats")),
+            throws=_to_optional_str(row.get("throws")),
+            birth_date=birth_date,
+            position=player.position,
+        )
+
+    return mapper
+
+
 def _collect_stats(row: pd.Series, column_map: dict[str, str]) -> dict[str, Any]:
     """Extract stats from a row, mapping CSV columns to canonical names, skipping NaN values."""
     stats: dict[str, Any] = {}
@@ -403,7 +454,7 @@ def _resolve_fg_projection_id(
         if not fg_str.startswith("sa"):
             try:
                 player_id = fg_lookup.get(int(float(fg_str)))
-            except (ValueError, OverflowError):
+            except ValueError, OverflowError:
                 pass
     if player_id is not None:
         return player_id
@@ -414,7 +465,7 @@ def _resolve_fg_projection_id(
         return None
     try:
         return mlbam_lookup.get(int(mlbam_id))
-    except (ValueError, OverflowError):
+    except ValueError, OverflowError:
         return None
 
 

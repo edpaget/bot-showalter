@@ -46,9 +46,15 @@ class _FakeSource:
 
 
 class _TestIngestContainer(IngestContainer):
-    def __init__(self, conn: sqlite3.Connection, fake_source: DataSource) -> None:
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        fake_source: DataSource,
+        fake_bio_source: DataSource | None = None,
+    ) -> None:
         super().__init__(conn)
         self._fake_source = fake_source
+        self._fake_bio_source = fake_bio_source
 
     def player_source(self) -> DataSource:
         return self._fake_source
@@ -57,6 +63,11 @@ class _TestIngestContainer(IngestContainer):
         return self._fake_source
 
     def pitching_source(self, name: str) -> DataSource:
+        return self._fake_source
+
+    def bio_source(self) -> DataSource:
+        if self._fake_bio_source is not None:
+            return self._fake_bio_source
         return self._fake_source
 
 
@@ -84,8 +95,12 @@ def _make_player_df() -> pd.DataFrame:
 
 
 @contextmanager
-def _build_test_container(conn: sqlite3.Connection, fake_source: DataSource) -> Iterator[IngestContainer]:
-    yield _TestIngestContainer(conn, fake_source)
+def _build_test_container(
+    conn: sqlite3.Connection,
+    fake_source: DataSource,
+    fake_bio_source: DataSource | None = None,
+) -> Iterator[IngestContainer]:
+    yield _TestIngestContainer(conn, fake_source, fake_bio_source)
 
 
 # --- Tests ---
@@ -176,10 +191,28 @@ class TestIngestPlayers:
 
 
 def _seed_players(conn: sqlite3.Connection) -> None:
-    """Seed player data needed for batting/pitching mapper lookups."""
+    """Seed player data needed for batting/pitching/bio mapper lookups."""
     repo = SqlitePlayerRepo(conn)
-    repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))
-    repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271, fangraphs_id=19755))
+    repo.upsert(
+        Player(
+            name_first="Mike",
+            name_last="Trout",
+            mlbam_id=545361,
+            fangraphs_id=10155,
+            bbref_id="troutmi01",
+            retro_id="troum001",
+        )
+    )
+    repo.upsert(
+        Player(
+            name_first="Shohei",
+            name_last="Ohtani",
+            mlbam_id=660271,
+            fangraphs_id=19755,
+            bbref_id="ohtansh01",
+            retro_id="ohtas001",
+        )
+    )
     conn.commit()
 
 
@@ -342,3 +375,106 @@ class TestIngestPitching:
     def test_ingest_pitching_requires_season(self) -> None:
         result = runner.invoke(app, ["ingest", "pitching"])
         assert result.exit_code != 0
+
+
+def _make_lahman_people_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "retroID": "troum001",
+                "bbrefID": "troutmi01",
+                "birthYear": 1991,
+                "birthMonth": 8,
+                "birthDay": 7,
+                "bats": "R",
+                "throws": "R",
+            },
+            {
+                "retroID": "ohtas001",
+                "bbrefID": "ohtansh01",
+                "birthYear": 1994,
+                "birthMonth": 7,
+                "birthDay": 5,
+                "bats": "L",
+                "throws": "R",
+            },
+            {
+                "retroID": "noone999",
+                "bbrefID": "nobody01",
+                "birthYear": 1985,
+                "birthMonth": 1,
+                "birthDay": 1,
+                "bats": "R",
+                "throws": "R",
+            },
+        ]
+    )
+
+
+class TestIngestBio:
+    def test_ingest_bio_enriches_existing_players(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        lahman_df = _make_lahman_people_df()
+        fake_bio_source = _FakeSource(lahman_df, "pybaseball", "lahman_people")
+        # Player source not used here, but container needs one
+        fake_player_source = _FakeSource(pd.DataFrame(), "pybaseball", "chadwick_register")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(conn, fake_player_source, fake_bio_source),
+        )
+
+        result = runner.invoke(app, ["ingest", "bio"])
+        assert result.exit_code == 0, result.output
+        assert "2" in result.output
+        assert "player" in result.output
+        assert "success" in result.output
+
+        # Verify bio data actually in DB
+        repo = SqlitePlayerRepo(conn)
+        trout = repo.get_by_mlbam_id(545361)
+        assert trout is not None
+        assert trout.birth_date == "1991-08-07"
+        assert trout.bats == "R"
+        assert trout.throws == "R"
+
+        ohtani = repo.get_by_mlbam_id(660271)
+        assert ohtani is not None
+        assert ohtani.birth_date == "1994-07-05"
+        assert ohtani.bats == "L"
+        assert ohtani.throws == "R"
+        conn.close()
+
+    def test_ingest_bio_skips_unmatched_players(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        # Only unmatched player in Lahman data
+        lahman_df = pd.DataFrame(
+            [
+                {
+                    "retroID": "noone999",
+                    "bbrefID": "nobody01",
+                    "birthYear": 1985,
+                    "birthMonth": 1,
+                    "birthDay": 1,
+                    "bats": "R",
+                    "throws": "R",
+                },
+            ]
+        )
+        fake_bio_source = _FakeSource(lahman_df, "pybaseball", "lahman_people")
+        fake_player_source = _FakeSource(pd.DataFrame(), "pybaseball", "chadwick_register")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            lambda data_dir: _build_test_container(conn, fake_player_source, fake_bio_source),
+        )
+
+        result = runner.invoke(app, ["ingest", "bio"])
+        assert result.exit_code == 0, result.output
+        # 0 rows loaded since no players matched
+        assert "0" in result.output
+        conn.close()

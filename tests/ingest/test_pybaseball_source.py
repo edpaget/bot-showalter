@@ -5,6 +5,7 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     ChadwickSource,
     FgBattingSource,
     FgPitchingSource,
+    LahmanPeopleSource,
     StatcastSource,
     _translate_fg_params,
 )
@@ -85,6 +86,17 @@ class TestTranslateFgParams:
     def test_does_not_override_explicit_qual(self) -> None:
         result = _translate_fg_params({"qual": 100})
         assert result["qual"] == 100
+
+
+class TestLahmanPeopleSource:
+    def test_satisfies_datasource_protocol(self) -> None:
+        assert isinstance(LahmanPeopleSource(), DataSource)
+
+    def test_source_type(self) -> None:
+        assert LahmanPeopleSource().source_type == "pybaseball"
+
+    def test_source_detail(self) -> None:
+        assert LahmanPeopleSource().source_detail == "lahman_people"
 
 
 class TestStatcastSource:

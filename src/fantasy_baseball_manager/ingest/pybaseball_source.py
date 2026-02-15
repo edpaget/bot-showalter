@@ -9,6 +9,7 @@ from pybaseball import (
     pitching_stats_bref,
     statcast,
 )
+from pybaseball.lahman import people as lahman_people
 
 
 def _translate_fg_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -84,6 +85,19 @@ class BrefPitchingSource:
 
     def fetch(self, **params: Any) -> pd.DataFrame:
         return pitching_stats_bref(**params)
+
+
+class LahmanPeopleSource:
+    @property
+    def source_type(self) -> str:
+        return "pybaseball"
+
+    @property
+    def source_detail(self) -> str:
+        return "lahman_people"
+
+    def fetch(self, **params: Any) -> pd.DataFrame:
+        return lahman_people()
 
 
 class StatcastSource:

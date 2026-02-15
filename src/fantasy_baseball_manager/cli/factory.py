@@ -15,6 +15,7 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     ChadwickSource,
     FgBattingSource,
     FgPitchingSource,
+    LahmanPeopleSource,
 )
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
@@ -164,6 +165,9 @@ class IngestContainer:
         if name == "bbref":
             return BrefPitchingSource()
         raise ValueError(f"Unknown pitching source: {name!r}")
+
+    def bio_source(self) -> DataSource:
+        return LahmanPeopleSource()
 
 
 @contextmanager

@@ -39,6 +39,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_pitching_mapper,
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
+    make_lahman_bio_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
 from fantasy_baseball_manager.ingest.loader import PlayerLoader, StatsLoader
@@ -385,6 +386,26 @@ def ingest_players(
             container.player_repo,
             container.log_repo,
             chadwick_row_to_player,
+            conn=container.conn,
+        )
+        log = loader.load()
+    print_ingest_result(log)
+
+
+@ingest_app.command("bio")
+def ingest_bio(
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Enrich existing players with birth date, bats, and throws from Lahman."""
+    with build_ingest_container(data_dir) as container:
+        players = container.player_repo.all()
+        source = container.bio_source()
+        mapper = make_lahman_bio_mapper(players)
+        loader = PlayerLoader(
+            source,
+            container.player_repo,
+            container.log_repo,
+            mapper,
             conn=container.conn,
         )
         log = loader.load()
