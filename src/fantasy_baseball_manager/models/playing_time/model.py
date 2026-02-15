@@ -16,6 +16,7 @@ from fantasy_baseball_manager.models.playing_time.engine import (
     fit_playing_time,
     predict_playing_time,
     predict_playing_time_distribution,
+    select_alpha,
 )
 from fantasy_baseball_manager.models.playing_time.features import (
     batting_pt_feature_columns,
@@ -155,8 +156,19 @@ class PlayingTimeModel:
         bat_columns = batting_pt_feature_columns(lags) + ["age_pt_factor"]
         pitch_columns = pitching_pt_feature_columns(lags) + ["age_pt_factor"]
 
-        bat_coeff = fit_playing_time(bat_rows, bat_columns, "target_pa", "batter")
-        pitch_coeff = fit_playing_time(pitch_rows, pitch_columns, "target_ip", "pitcher")
+        alpha_override: float | None = config.model_params.get("alpha", None)
+
+        bat_alpha = (
+            alpha_override if alpha_override is not None else select_alpha(bat_rows, bat_columns, "target_pa", "batter")
+        )
+        pitch_alpha = (
+            alpha_override
+            if alpha_override is not None
+            else select_alpha(pitch_rows, pitch_columns, "target_ip", "pitcher")
+        )
+
+        bat_coeff = fit_playing_time(bat_rows, bat_columns, "target_pa", "batter", alpha=bat_alpha)
+        pitch_coeff = fit_playing_time(pitch_rows, pitch_columns, "target_ip", "pitcher", alpha=pitch_alpha)
 
         artifact_path = self._artifact_path(config)
         artifact_path.mkdir(parents=True, exist_ok=True)
@@ -183,6 +195,8 @@ class PlayingTimeModel:
                 "r_squared_pitcher": pitch_coeff.r_squared,
                 "bat_peak_age": bat_curve.peak_age,
                 "pitch_peak_age": pitch_curve.peak_age,
+                "alpha_batter": bat_alpha,
+                "alpha_pitcher": pitch_alpha,
             },
             artifacts_path=str(artifact_path),
         )

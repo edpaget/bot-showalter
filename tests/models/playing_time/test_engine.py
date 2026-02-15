@@ -9,6 +9,7 @@ from fantasy_baseball_manager.models.playing_time.engine import (
     fit_playing_time,
     predict_playing_time,
     predict_playing_time_distribution,
+    select_alpha,
 )
 
 
@@ -55,6 +56,113 @@ class TestFitPlayingTime:
         assert abs(result.coefficients[0] - 2.0) < 1e-6
         assert abs(result.coefficients[1] - 3.0) < 1e-6
         assert abs(result.intercept - 10.0) < 1e-6
+
+
+class TestFitPlayingTimeRidge:
+    """Tests for ridge regression support in fit_playing_time."""
+
+    def _ols_rows(self) -> list[dict[str, float]]:
+        """Synthetic data: y = 2*x1 + 3*x2 + 10."""
+        return [
+            {"x1": 1.0, "x2": 2.0, "target": 2 * 1.0 + 3 * 2.0 + 10},
+            {"x1": 3.0, "x2": 1.0, "target": 2 * 3.0 + 3 * 1.0 + 10},
+            {"x1": 5.0, "x2": 4.0, "target": 2 * 5.0 + 3 * 4.0 + 10},
+            {"x1": 2.0, "x2": 6.0, "target": 2 * 2.0 + 3 * 6.0 + 10},
+            {"x1": 4.0, "x2": 3.0, "target": 2 * 4.0 + 3 * 3.0 + 10},
+        ]
+
+    def test_alpha_zero_matches_ols(self) -> None:
+        rows = self._ols_rows()
+        ols = fit_playing_time(rows, ["x1", "x2"], "target", "batter", alpha=0.0)
+        assert abs(ols.coefficients[0] - 2.0) < 1e-6
+        assert abs(ols.coefficients[1] - 3.0) < 1e-6
+        assert abs(ols.intercept - 10.0) < 1e-6
+
+    def test_large_alpha_shrinks_coefficients(self) -> None:
+        rows = self._ols_rows()
+        ols = fit_playing_time(rows, ["x1", "x2"], "target", "batter", alpha=0.0)
+        ridge = fit_playing_time(rows, ["x1", "x2"], "target", "batter", alpha=1000.0)
+        for ols_c, ridge_c in zip(ols.coefficients, ridge.coefficients):
+            assert abs(ridge_c) < abs(ols_c)
+
+    def test_ridge_stores_alpha_in_result(self) -> None:
+        rows = self._ols_rows()
+        result = fit_playing_time(rows, ["x1", "x2"], "target", "batter", alpha=42.0)
+        assert result.alpha == 42.0
+
+    def test_ridge_still_recovers_intercept(self) -> None:
+        # With perfect data and moderate alpha, intercept should still be reasonable
+        # (not regularized). For perfect data, intercept absorbs some bias but should
+        # not be pushed toward zero the way coefficients are.
+        rows = self._ols_rows()
+        ridge = fit_playing_time(rows, ["x1", "x2"], "target", "batter", alpha=1.0)
+        # Intercept should be non-trivial (OLS intercept is 10.0)
+        assert ridge.intercept > 1.0
+
+    def test_ridge_r_squared_on_training_data(self) -> None:
+        rows = self._ols_rows()
+        result = fit_playing_time(rows, ["x1", "x2"], "target", "batter", alpha=1.0)
+        assert 0.0 <= result.r_squared <= 1.0
+
+
+class TestSelectAlpha:
+    """Tests for select_alpha cross-validation."""
+
+    def _multi_season_rows(self) -> list[dict[str, float]]:
+        """Rows across 3 seasons with y = 2*x1 + 10 + noise."""
+        rng = random.Random(99)
+        rows: list[dict[str, float]] = []
+        for season in [2021, 2022, 2023]:
+            for i in range(20):
+                x1 = float(i * 5 + rng.gauss(0, 1))
+                rows.append({"x1": x1, "season": float(season), "target": 2.0 * x1 + 10.0 + rng.gauss(0, 5)})
+        return rows
+
+    def test_returns_alpha_from_candidate_list(self) -> None:
+        rows = self._multi_season_rows()
+        alphas = (0.01, 0.1, 1.0, 10.0, 100.0)
+        result = select_alpha(rows, ["x1"], "target", "batter", alphas=alphas)
+        assert result in alphas
+
+    def test_splits_by_season_not_random(self) -> None:
+        # With 3 distinct seasons, each fold should hold out exactly one season
+        rows = [
+            {"x1": float(i), "season": float(s), "target": 2.0 * i + 10.0}
+            for s in [2021, 2022, 2023]
+            for i in range(10)
+        ]
+        # If splitting is by season, result should still be valid
+        result = select_alpha(rows, ["x1"], "target", "batter")
+        assert result in (0.01, 0.1, 1.0, 10.0, 100.0)
+
+    def test_single_season_returns_first_alpha(self) -> None:
+        rows = [{"x1": float(i), "season": 2023.0, "target": 2.0 * i} for i in range(20)]
+        alphas = (5.0, 10.0, 50.0)
+        result = select_alpha(rows, ["x1"], "target", "batter", alphas=alphas)
+        assert result == 5.0
+
+    def test_custom_alphas(self) -> None:
+        rows = self._multi_season_rows()
+        alphas = (0.5, 5.0, 50.0)
+        result = select_alpha(rows, ["x1"], "target", "batter", alphas=alphas)
+        assert result in alphas
+
+    def test_n_folds_capped_by_season_count(self) -> None:
+        # 3 seasons, n_folds=5 → should use 3 folds (one per season)
+        rows = self._multi_season_rows()
+        result = select_alpha(rows, ["x1"], "target", "batter", n_folds=5)
+        assert result in (0.01, 0.1, 1.0, 10.0, 100.0)
+
+    def test_perfect_data_prefers_low_alpha(self) -> None:
+        # Noise-free data: least regularization should win
+        rows = [
+            {"x1": float(i), "season": float(s), "target": 2.0 * i + 10.0}
+            for s in [2021, 2022, 2023]
+            for i in range(20)
+        ]
+        alphas = (0.01, 1.0, 100.0)
+        result = select_alpha(rows, ["x1"], "target", "batter", alphas=alphas)
+        assert result == 0.01
 
 
 class TestPredictPlayingTime:

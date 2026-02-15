@@ -15,6 +15,7 @@ class PlayingTimeCoefficients:
     intercept: float
     r_squared: float
     player_type: str  # "batter" or "pitcher"
+    alpha: float = 0.0  # ridge penalty; 0 = OLS
 
 
 @dataclass(frozen=True)
@@ -47,10 +48,12 @@ def fit_playing_time(
     feature_names: list[str],
     target_column: str,
     player_type: str,
+    alpha: float = 0.0,
 ) -> PlayingTimeCoefficients:
-    """Fit an OLS regression for playing-time projection.
+    """Fit a ridge regression for playing-time projection.
 
-    Rows with None target are skipped. None feature values are treated as 0.0.
+    When alpha=0.0 this is equivalent to OLS. Rows with None target are
+    skipped. None feature values are treated as 0.0.
     """
     filtered = [r for r in rows if r.get(target_column) is not None]
 
@@ -68,8 +71,16 @@ def fit_playing_time(
             x_data[i, j + 1] = float(val) if val is not None else 0.0
         y_data[i] = float(row[target_column])
 
-    # Solve y = X @ beta via least squares
-    beta, _, _, _ = np.linalg.lstsq(x_data, y_data, rcond=None)
+    if alpha > 0.0:
+        # Ridge closed form: β = (X'X + αI)⁻¹ X'y
+        xtx = x_data.T @ x_data
+        xty = x_data.T @ y_data
+        penalty = alpha * np.eye(k + 1)
+        penalty[0, 0] = 0.0  # don't regularize intercept
+        beta = np.linalg.solve(xtx + penalty, xty)
+    else:
+        # OLS via least-squares (handles rank-deficient matrices)
+        beta, _, _, _ = np.linalg.lstsq(x_data, y_data, rcond=None)
 
     intercept = float(beta[0])
     coefficients = tuple(float(b) for b in beta[1:])
@@ -86,7 +97,75 @@ def fit_playing_time(
         intercept=intercept,
         r_squared=r_squared,
         player_type=player_type,
+        alpha=alpha,
     )
+
+
+def select_alpha(
+    rows: list[dict[str, Any]],
+    feature_names: list[str],
+    target_column: str,
+    player_type: str,
+    alphas: tuple[float, ...] = (0.01, 0.1, 1.0, 10.0, 100.0),
+    n_folds: int = 5,
+) -> float:
+    """Select the best ridge alpha via season-based cross-validation.
+
+    Splits data by season (leave-one-season-out when n_seasons <= n_folds,
+    otherwise groups seasons into n_folds folds). Returns the alpha with
+    lowest mean RMSE across folds. If only one season exists, returns the
+    first alpha.
+    """
+    # Group rows by season
+    season_groups: dict[float, list[dict[str, Any]]] = {}
+    for row in rows:
+        s = float(row["season"])
+        season_groups.setdefault(s, []).append(row)
+
+    seasons = sorted(season_groups.keys())
+    if len(seasons) <= 1:
+        return alphas[0]
+
+    # Build folds: assign each season to a fold index
+    actual_folds = min(n_folds, len(seasons))
+    fold_assignments: dict[float, int] = {}
+    for i, s in enumerate(seasons):
+        fold_assignments[s] = i % actual_folds
+
+    # For each alpha, compute mean RMSE across folds
+    best_alpha = alphas[0]
+    best_rmse = float("inf")
+
+    for alpha in alphas:
+        fold_rmses: list[float] = []
+        for fold_idx in range(actual_folds):
+            train_rows = [r for r in rows if fold_assignments[float(r["season"])] != fold_idx]
+            test_rows = [r for r in rows if fold_assignments[float(r["season"])] == fold_idx]
+            if not train_rows or not test_rows:
+                continue
+            coeff = fit_playing_time(train_rows, feature_names, target_column, player_type, alpha=alpha)
+            # Compute RMSE on test fold
+            sse = 0.0
+            count = 0
+            for row in test_rows:
+                actual = row.get(target_column)
+                if actual is None:
+                    continue
+                predicted = coeff.intercept
+                for name, c in zip(coeff.feature_names, coeff.coefficients):
+                    val = row.get(name)
+                    predicted += c * (float(val) if val is not None else 0.0)
+                sse += (float(actual) - predicted) ** 2
+                count += 1
+            if count > 0:
+                fold_rmses.append((sse / count) ** 0.5)
+        if fold_rmses:
+            mean_rmse = sum(fold_rmses) / len(fold_rmses)
+            if mean_rmse < best_rmse:
+                best_rmse = mean_rmse
+                best_alpha = alpha
+
+    return best_alpha
 
 
 def compute_residual_buckets(

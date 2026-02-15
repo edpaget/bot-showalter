@@ -86,6 +86,15 @@ def _make_batting_row(player_id: int, season: int, pa_1: float = 500.0) -> dict[
         "il_days_3yr": 10.0,
         "il_recurrence": 1.0,
         "pt_trend": 50.0,
+        # Phase 1 derived features:
+        "war_above_2": 1.0,
+        "war_above_4": 0.0,
+        "war_below_0": 0.0,
+        "il_minor": 0.0,
+        "il_moderate": 0.0,
+        "il_severe": 0.0,
+        "war_trend": 0.5,
+        "age_il_interact": 0.0,
         # Training target:
         "target_pa": pa_1 + 20.0,
     }
@@ -114,6 +123,16 @@ def _make_pitching_row(player_id: int, season: int, ip_1: float = 180.0) -> dict
         "il_days_3yr": 15.0,
         "il_recurrence": 0.0,
         "pt_trend": 10.0,
+        # Phase 1 derived features:
+        "war_above_2": 1.0,
+        "war_above_4": 0.0,
+        "war_below_0": 0.0,
+        "il_minor": 0.0,
+        "il_moderate": 0.0,
+        "il_severe": 0.0,
+        "war_trend": 0.5,
+        "age_il_interact": 0.0,
+        "starter_ratio": 1.0,
         # Training target:
         "target_ip": ip_1 + 5.0,
     }
@@ -211,6 +230,44 @@ class TestPlayingTimeTrain:
         model.train(_train_config(tmp_path))
         artifact = tmp_path / "playing_time" / "latest" / "pt_residual_buckets.joblib"
         assert artifact.exists()
+
+    def test_train_metrics_include_alpha(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        result = model.train(_train_config(tmp_path))
+        assert "alpha_batter" in result.metrics
+        assert "alpha_pitcher" in result.metrics
+
+    def test_train_alpha_override(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "alpha": 5.0},
+        )
+        result = model.train(config)
+        assert result.metrics["alpha_batter"] == 5.0
+        assert result.metrics["alpha_pitcher"] == 5.0
+
+    def test_train_coefficients_have_alpha(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "alpha": 3.0},
+        )
+        model.train(config)
+        coefficients = load_coefficients(tmp_path / "playing_time" / "latest" / "pt_coefficients.joblib")
+        assert coefficients["batter"].alpha == 3.0
+        assert coefficients["pitcher"].alpha == 3.0
 
 
 def _save_test_coefficients(tmp_path: Path) -> None:
