@@ -68,15 +68,23 @@ class TestBrefPitchingSource:
 class TestTranslateFgParams:
     def test_translates_season_to_start_end(self) -> None:
         result = _translate_fg_params({"season": 2023})
-        assert result == {"start_season": 2023, "end_season": 2023}
+        assert result == {"start_season": 2023, "end_season": 2023, "qual": 0}
 
     def test_passthrough_when_no_season(self) -> None:
         result = _translate_fg_params({"start_season": 2022, "end_season": 2023})
-        assert result == {"start_season": 2022, "end_season": 2023}
+        assert result == {"start_season": 2022, "end_season": 2023, "qual": 0}
 
     def test_does_not_override_explicit_start_end(self) -> None:
         result = _translate_fg_params({"season": 2023, "start_season": 2020})
-        assert result == {"start_season": 2020, "end_season": 2023}
+        assert result == {"start_season": 2020, "end_season": 2023, "qual": 0}
+
+    def test_defaults_qual_to_zero(self) -> None:
+        result = _translate_fg_params({})
+        assert result["qual"] == 0
+
+    def test_does_not_override_explicit_qual(self) -> None:
+        result = _translate_fg_params({"qual": 100})
+        assert result["qual"] == 100
 
 
 class TestStatcastSource:

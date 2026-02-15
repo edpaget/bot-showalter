@@ -17,6 +17,7 @@ def _translate_fg_params(params: dict[str, Any]) -> dict[str, Any]:
         yr = params.pop("season")
         params.setdefault("start_season", yr)
         params.setdefault("end_season", yr)
+    params.setdefault("qual", 0)
     return params
 
 
