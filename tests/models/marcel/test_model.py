@@ -531,3 +531,36 @@ class TestMarcelPredictWithProjectionRepo:
         assert by_id[1]["pa"] == 400
         # Player 2 falls back: 0.5*500 + 0.1*450 + 200 = 495
         assert by_id[2]["pa"] == 495
+
+    def test_two_way_player_uses_correct_pt_per_type(self) -> None:
+        """A two-way player should use PA for batting and IP for pitching, not mix them."""
+        batting_rows = [_batter_row(20, "DH,P")]
+        pitching_rows = [_pitcher_row(20, "DH,P")]
+        pt_batter = Projection(
+            player_id=20,
+            season=2024,
+            system="playing_time",
+            version="latest",
+            player_type="batter",
+            stat_json={"pa": 500},
+        )
+        pt_pitcher = Projection(
+            player_id=20,
+            season=2024,
+            system="playing_time",
+            version="latest",
+            player_type="pitcher",
+            stat_json={"ip": 80.0},
+        )
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        repo = _FakeProjectionRepo([pt_batter, pt_pitcher])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "pitching_categories": ["so"]},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        batter_pred = [p for p in result.predictions if p["player_type"] == "batter"][0]
+        pitcher_pred = [p for p in result.predictions if p["player_type"] == "pitcher"][0]
+        assert batter_pred["pa"] == 500
+        assert pitcher_pred["ip"] == 80.0

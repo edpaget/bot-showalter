@@ -169,21 +169,25 @@ class MarcelModel:
             pitch_rows, marcel_config.pitching_categories, len(marcel_config.pitching_weights), pitcher=True
         )
 
-        pt_lookup: dict[int, float] | None = None
+        bat_pt_lookup: dict[int, float] | None = None
+        pitch_pt_lookup: dict[int, float] | None = None
         if self._projection_repo is not None:
             pt_projections = self._projection_repo.get_by_season(projected_season, system="playing_time")
-            pt_map: dict[int, float] = {}
+            bat_pt_map: dict[int, float] = {}
+            pitch_pt_map: dict[int, float] = {}
             for proj in pt_projections:
                 stat = proj.stat_json
                 if proj.player_type == "batter" and "pa" in stat:
-                    pt_map[proj.player_id] = float(stat["pa"])
+                    bat_pt_map[proj.player_id] = float(stat["pa"])
                 elif proj.player_type == "pitcher" and "ip" in stat:
-                    pt_map[proj.player_id] = float(stat["ip"])
-            if pt_map:
-                pt_lookup = pt_map
+                    pitch_pt_map[proj.player_id] = float(stat["ip"])
+            if bat_pt_map:
+                bat_pt_lookup = bat_pt_map
+            if pitch_pt_map:
+                pitch_pt_lookup = pitch_pt_map
 
-        bat_projections = project_all(bat_inputs, projected_season, marcel_config, projected_pts=pt_lookup)
-        pitch_projections = project_all(pitch_inputs, projected_season, marcel_config, projected_pts=pt_lookup)
+        bat_projections = project_all(bat_inputs, projected_season, marcel_config, projected_pts=bat_pt_lookup)
+        pitch_projections = project_all(pitch_inputs, projected_season, marcel_config, projected_pts=pitch_pt_lookup)
 
         version = config.version or "latest"
 
