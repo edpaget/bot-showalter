@@ -105,5 +105,5 @@ class RunManager:
             if result.returncode == 0:
                 return result.stdout.strip()
             return None
-        except FileNotFoundError, OSError:
+        except OSError:
             return None

@@ -114,6 +114,23 @@ class TestDispatchWithRunManager:
         assert repo._records[0].system == "fake"
         assert repo._records[0].version == "v1"
 
+    def test_dispatch_train_transfers_metrics_to_run_record(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = _FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        config = ModelConfig(version="v1")
+
+        dispatch("train", _FakeFullModel(), config, run_manager=mgr)
+
+        assert repo._records[0].metrics_json == {"rmse": 0.5}
+
     def test_dispatch_non_train_ignores_run_manager(self, tmp_path: Path) -> None:
         repo = _FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)

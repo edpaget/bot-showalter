@@ -56,6 +56,10 @@ def dispatch(
     method = getattr(model, method_name)
     result = method(config)
 
+    if context is not None and isinstance(result, TrainResult):
+        for key, value in result.metrics.items():
+            context.log_metric(key, value)
+
     if context is not None and run_manager is not None:
         run_manager.finalize_run(context, config)
 
