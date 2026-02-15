@@ -8,7 +8,7 @@ Fantasy baseball manager. Python 3.14+, uses `uv` for dependency management. Tes
 
 - **Run tests:** `uv run pytest`
 - **Lint:** `uv run ruff check src tests`
-- **Format:** `uv run black src tests`
+- **Format:** `uv run ruff format src tests`
 - **Type check:** `uv run ty check src tests`
 - **Install deps:** `uv sync`
 

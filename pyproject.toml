@@ -15,7 +15,6 @@ fbm = "fantasy_baseball_manager.cli.app:app"
 
 [dependency-groups]
 dev = [
-    "black>=26.1.0",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
     "ruff>=0.15.1",
@@ -31,6 +30,3 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "PLC0415"]
-
-[tool.black]
-line-length = 120
