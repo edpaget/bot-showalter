@@ -2,6 +2,7 @@ from sqlite3 import ProgrammingError
 
 import pytest
 
+from fantasy_baseball_manager.cli._dispatcher import dispatch
 from fantasy_baseball_manager.cli.factory import build_model_context, create_model
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
@@ -111,6 +112,43 @@ class TestBuildModelContext:
             conn = ctx.conn
         with pytest.raises(ProgrammingError):
             conn.execute("SELECT 1")
+
+    def test_new_model_with_custom_dependency_works_end_to_end(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Register → build_model_context → dispatch with a custom dep requires
+        zero changes to dispatcher or protocols."""
+
+        class _CustomModel:
+            def __init__(self, assembler: object = None, scorer: object = None) -> None:
+                self.assembler = assembler
+                self.scorer = scorer
+
+            @property
+            def name(self) -> str:
+                return "custom"
+
+            @property
+            def description(self) -> str:
+                return "Model with custom dependency"
+
+            @property
+            def supported_operations(self) -> frozenset[str]:
+                return frozenset({"prepare"})
+
+            def prepare(self, config: ModelConfig) -> PrepareResult:
+                return PrepareResult(model_name="custom", rows_processed=42, artifacts_path="")
+
+        register("custom")(_CustomModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig()
+        with build_model_context("custom", config) as ctx:
+            result = dispatch("prepare", ctx.model, config, ctx.run_manager)
+
+        assert isinstance(result, PrepareResult)
+        assert result.model_name == "custom"
+        assert result.rows_processed == 42
 
     def test_connection_closed_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         register("witharg")(_WithArgModel)
