@@ -302,3 +302,97 @@ class TestEnsemblePredict:
         result = model.predict(config)
         pred = result.predictions[0]
         assert pred["_mode"] == "blend_rates"
+
+    def test_predict_includes_distributions(self) -> None:
+        """With 2+ systems, result.distributions is populated."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"hr": 30.0, "rbi": 100.0}),
+                _make_projection(1, "steamer", "batter", {"hr": 20.0, "rbi": 80.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "steamer": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stats": ["hr", "rbi"],
+            },
+        )
+        result = model.predict(config)
+        assert result.distributions is not None
+        assert len(result.distributions) == 2  # one per stat
+        # Check that distributions have correct player info
+        hr_dist = next(d for d in result.distributions if d["stat"] == "hr")
+        assert hr_dist["player_id"] == 1
+        assert hr_dist["player_type"] == "batter"
+        assert hr_dist["season"] == 2025
+        assert "mean" in hr_dist
+        assert "std" in hr_dist
+        assert "p10" in hr_dist
+        assert "p90" in hr_dist
+
+    def test_predict_single_system_no_distributions(self) -> None:
+        """Only 1 system available for a player → no distributions."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"hr": 30.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "steamer": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stats": ["hr"],
+            },
+        )
+        result = model.predict(config)
+        # Single system → no spread → distributions is None
+        assert result.distributions is None
+
+    def test_predict_distributions_none_when_all_single(self) -> None:
+        """All players have only 1 system → distributions is None."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"hr": 30.0}),
+                _make_projection(2, "steamer", "batter", {"hr": 25.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "steamer": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stats": ["hr"],
+            },
+        )
+        result = model.predict(config)
+        # Each player only in 1 system → no spread for anyone
+        assert result.distributions is None
+
+    def test_predict_distributions_format(self) -> None:
+        """Each distribution dict has the required keys for CLI persistence."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"hr": 30.0}),
+                _make_projection(1, "steamer", "batter", {"hr": 20.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "steamer": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stats": ["hr"],
+            },
+        )
+        result = model.predict(config)
+        assert result.distributions is not None
+        required_keys = {"player_id", "player_type", "season", "stat", "p10", "p25", "p50", "p75", "p90", "mean", "std"}
+        for dist in result.distributions:
+            assert required_keys <= set(dist.keys())

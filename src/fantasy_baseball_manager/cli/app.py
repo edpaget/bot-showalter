@@ -33,7 +33,7 @@ from fantasy_baseball_manager.cli.factory import (
     create_model,
 )
 from fantasy_baseball_manager.config import load_config
-from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
     make_bref_batting_mapper,
@@ -156,6 +156,7 @@ def predict(
             result = dispatch("predict", ctx.model, config, run_manager=ctx.run_manager)
             if isinstance(result, PredictResult) and ctx.projection_repo is not None:
                 version = config.version or "latest"
+                projection_ids: dict[tuple[int, str], int] = {}
                 for pred in result.predictions:
                     if "player_id" not in pred or "season" not in pred:
                         continue
@@ -168,7 +169,31 @@ def predict(
                         player_type=pred.get("player_type", "batter"),
                         stat_json=stat_json,
                     )
-                    ctx.projection_repo.upsert(proj)
+                    proj_id = ctx.projection_repo.upsert(proj)
+                    projection_ids[(pred["player_id"], pred.get("player_type", "batter"))] = proj_id
+
+                if result.distributions is not None:
+                    # Group distributions by (player_id, player_type)
+                    grouped_dists: dict[tuple[int, str], list[StatDistribution]] = {}
+                    for dist_dict in result.distributions:
+                        key = (dist_dict["player_id"], dist_dict["player_type"])
+                        sd = StatDistribution(
+                            stat=dist_dict["stat"],
+                            p10=dist_dict["p10"],
+                            p25=dist_dict["p25"],
+                            p50=dist_dict["p50"],
+                            p75=dist_dict["p75"],
+                            p90=dist_dict["p90"],
+                            mean=dist_dict["mean"],
+                            std=dist_dict["std"],
+                        )
+                        grouped_dists.setdefault(key, []).append(sd)
+
+                    for key, dists in grouped_dists.items():
+                        proj_id = projection_ids.get(key)
+                        if proj_id is not None:
+                            ctx.projection_repo.upsert_distributions(proj_id, dists)
+
             ctx.conn.commit()
         except UnsupportedOperation as e:
             print_error(str(e))

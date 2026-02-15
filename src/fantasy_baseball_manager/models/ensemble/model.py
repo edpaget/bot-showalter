@@ -6,7 +6,7 @@ from typing import Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.domain.projection import Projection
-from fantasy_baseball_manager.models.ensemble.engine import blend_rates, weighted_average
+from fantasy_baseball_manager.models.ensemble.engine import blend_rates, weighted_average, weighted_spread
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.repos.protocols import ProjectionRepo
@@ -56,6 +56,7 @@ class EnsembleModel:
 
         # Compute ensemble for each player
         predictions: list[dict[str, Any]] = []
+        all_distributions: list[dict[str, Any]] = []
         for (player_id, player_type), system_map in grouped.items():
             # Collect (stat_json, weight) pairs for available systems
             pairs: list[tuple[dict[str, Any], float]] = []
@@ -93,9 +94,30 @@ class EnsembleModel:
                     }
                 )
 
+            # Compute distributional spread when ≥2 systems contribute
+            if len(pairs) >= 2:
+                spread = weighted_spread(pairs, stats=effective_stats)
+                for stat_name, dist in spread.items():
+                    all_distributions.append(
+                        {
+                            "player_id": player_id,
+                            "player_type": player_type,
+                            "season": season,
+                            "stat": stat_name,
+                            "p10": dist.p10,
+                            "p25": dist.p25,
+                            "p50": dist.p50,
+                            "p75": dist.p75,
+                            "p90": dist.p90,
+                            "mean": dist.mean,
+                            "std": dist.std,
+                        }
+                    )
+
         output_path = config.output_dir or config.artifacts_dir
         return PredictResult(
             model_name="ensemble",
             predictions=predictions,
             output_path=output_path,
+            distributions=all_distributions if all_distributions else None,
         )

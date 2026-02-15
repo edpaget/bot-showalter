@@ -40,6 +40,7 @@ class PredictResult:
     model_name: str
     predictions: list[dict[str, Any]]
     output_path: str
+    distributions: list[dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
