@@ -4,6 +4,8 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     build_batter_feature_set,
     build_batter_training_set,
     build_pitcher_feature_set,
+    build_pitcher_training_set,
+    pitcher_feature_columns,
 )
 
 
@@ -121,3 +123,55 @@ class TestPitcherFeatureSet:
         assert "ip_2" in names
         assert "so_1" in names
         assert "so_2" in names
+
+
+class TestPitcherTrainingSet:
+    def test_includes_targets(self) -> None:
+        fs = build_pitcher_training_set([2023])
+        names = [f.name for f in fs.features if isinstance(f, Feature)]
+        assert "target_era" in names
+        assert "target_fip" in names
+        assert "target_k_per_9" in names
+        assert "target_bb_per_9" in names
+        assert "target_whip" in names
+        # Counting stats for derived targets
+        assert "target_h" in names
+        assert "target_hr" in names
+        assert "target_ip" in names
+        assert "target_so" in names
+
+    def test_includes_input_features(self) -> None:
+        fs = build_pitcher_training_set([2023])
+        names: list[str] = []
+        for f in fs.features:
+            if isinstance(f, TransformFeature):
+                names.append(f.name)
+            elif isinstance(f, Feature):
+                names.append(f.name)
+        assert "age" in names
+        assert "ip_1" in names
+        assert "pitch_mix" in names
+
+    def test_name(self) -> None:
+        fs = build_pitcher_training_set([2023])
+        assert fs.name == "statcast_gbm_pitching_train"
+
+
+class TestPitcherFeatureColumns:
+    def test_returns_list_of_strings(self) -> None:
+        columns = pitcher_feature_columns()
+        assert isinstance(columns, list)
+        assert all(isinstance(c, str) for c in columns)
+
+    def test_no_target_columns(self) -> None:
+        columns = pitcher_feature_columns()
+        assert not any(c.startswith("target_") for c in columns)
+
+    def test_includes_feature_names(self) -> None:
+        columns = pitcher_feature_columns()
+        assert "age" in columns
+        assert "ip_1" in columns
+        # TransformFeature outputs should be expanded
+        assert "avg_spin_rate" in columns
+        assert "ff_pct" in columns
+        assert "chase_rate" in columns

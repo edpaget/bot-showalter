@@ -17,18 +17,35 @@ def extract_targets(
                 if slg is None or avg is None:
                     continue
                 result["iso"].append(slg - avg)
+            elif target == "hr_per_9":
+                hr_val = row.get("target_hr")
+                ip_val = row.get("target_ip")
+                if hr_val is None or ip_val is None or ip_val == 0:
+                    continue
+                result["hr_per_9"].append(hr_val * 9 / ip_val)
             elif target == "babip":
                 h_val = row.get("target_h")
                 hr_val = row.get("target_hr")
                 ab_val = row.get("target_ab")
                 so_val = row.get("target_so")
-                sf_val = row.get("target_sf")
-                if h_val is None or hr_val is None or ab_val is None or so_val is None or sf_val is None:
-                    continue
-                denom: float = ab_val - so_val - hr_val + sf_val
-                if denom == 0:
-                    continue
-                result["babip"].append((h_val - hr_val) / denom)
+                if ab_val is not None:
+                    # Batter path: babip = (h - hr) / (ab - so - hr + sf)
+                    sf_val = row.get("target_sf")
+                    if h_val is None or hr_val is None or so_val is None or sf_val is None:
+                        continue
+                    denom: float = ab_val - so_val - hr_val + sf_val
+                    if denom == 0:
+                        continue
+                    result["babip"].append((h_val - hr_val) / denom)
+                else:
+                    # Pitcher path: babip = (h - hr) / (ip * 3 + h - so - hr)
+                    ip_val = row.get("target_ip")
+                    if h_val is None or hr_val is None or ip_val is None or so_val is None:
+                        continue
+                    denom = ip_val * 3 + h_val - so_val - hr_val
+                    if denom == 0:
+                        continue
+                    result["babip"].append((h_val - hr_val) / denom)
             else:
                 value = row.get(f"target_{target}")
                 if value is None:

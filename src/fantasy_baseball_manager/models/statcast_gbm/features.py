@@ -96,3 +96,39 @@ def build_pitcher_feature_set(seasons: Sequence[int]) -> FeatureSet:
         source_filter="fangraphs",
         spine_filter=SpineFilter(player_type="pitcher"),
     )
+
+
+def _pitcher_target_features() -> list[Feature]:
+    direct = ("era", "fip", "k_per_9", "bb_per_9", "whip")
+    counting = ("h", "hr", "ip", "so")
+    features: list[Feature] = []
+    for stat in direct:
+        features.append(pitching.col(stat).lag(0).alias(f"target_{stat}"))
+    for stat in counting:
+        features.append(pitching.col(stat).lag(0).alias(f"target_{stat}"))
+    return features
+
+
+def build_pitcher_training_set(seasons: Sequence[int]) -> FeatureSet:
+    features: list[AnyFeature] = [player.age()]
+    features.extend(_pitcher_lag_features())
+    features.extend([PITCH_MIX, SPIN_PROFILE, PLATE_DISCIPLINE])
+    features.extend(_pitcher_target_features())
+    return FeatureSet(
+        name="statcast_gbm_pitching_train",
+        features=tuple(features),
+        seasons=tuple(seasons),
+        source_filter="fangraphs",
+        spine_filter=SpineFilter(player_type="pitcher"),
+    )
+
+
+def pitcher_feature_columns() -> list[str]:
+    fs = build_pitcher_feature_set([])
+    columns: list[str] = []
+    for f in fs.features:
+        if isinstance(f, TransformFeature):
+            columns.extend(f.outputs)
+        elif isinstance(f, Feature):
+            columns.append(f.name)
+    return columns

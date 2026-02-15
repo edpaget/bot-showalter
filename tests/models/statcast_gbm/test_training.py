@@ -54,6 +54,40 @@ class TestExtractTargets:
         result = extract_targets(rows, ["avg"])
         assert result["avg"] == [0.300]
 
+    def test_hr_per_9_computed(self) -> None:
+        rows = [
+            {"target_hr": 20, "target_ip": 180.0},
+        ]
+        result = extract_targets(rows, ["hr_per_9"])
+        expected = 20 * 9 / 180.0
+        assert len(result["hr_per_9"]) == 1
+        assert math.isclose(result["hr_per_9"][0], expected, abs_tol=1e-9)
+
+    def test_hr_per_9_skips_zero_ip(self) -> None:
+        rows = [
+            {"target_hr": 5, "target_ip": 0},
+        ]
+        result = extract_targets(rows, ["hr_per_9"])
+        assert result["hr_per_9"] == []
+
+    def test_pitcher_babip_computed(self) -> None:
+        # pitcher babip = (h - hr) / (ip * 3 + h - so - hr)
+        rows = [
+            {"target_h": 150, "target_hr": 20, "target_ip": 180.0, "target_so": 160},
+        ]
+        result = extract_targets(rows, ["babip"])
+        expected = (150 - 20) / (180.0 * 3 + 150 - 160 - 20)
+        assert len(result["babip"]) == 1
+        assert math.isclose(result["babip"][0], expected, abs_tol=1e-9)
+
+    def test_pitcher_babip_skips_zero_denom(self) -> None:
+        # Construct a case where ip*3 + h - so - hr == 0
+        rows = [
+            {"target_h": 10, "target_hr": 5, "target_ip": 0, "target_so": 5},
+        ]
+        result = extract_targets(rows, ["babip"])
+        assert result["babip"] == []
+
 
 class TestExtractFeatures:
     def test_extracts_values(self) -> None:

@@ -19,9 +19,11 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     build_batter_feature_set,
     build_batter_training_set,
     build_pitcher_feature_set,
+    build_pitcher_training_set,
+    pitcher_feature_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
-from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS
+from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.models.statcast_gbm.training import (
     extract_features,
     extract_targets,
@@ -79,32 +81,57 @@ class StatcastGBMModel:
     def train(self, config: ModelConfig) -> TrainResult:
         assert self._assembler is not None, "assembler is required for train"
 
-        train_fs = build_batter_training_set(config.seasons)
-        handle = self._assembler.get_or_materialize(train_fs)
-
         train_seasons = config.seasons[:-1]
         holdout_seasons = [config.seasons[-1]]
-        splits = self._assembler.split(handle, train=train_seasons, holdout=holdout_seasons)
-
-        train_rows = self._assembler.read(splits.train)
-        feature_columns = batter_feature_columns()
-        targets = list(BATTER_TARGETS)
-
-        X_train = extract_features(train_rows, feature_columns)
-        y_train = extract_targets(train_rows, targets)
-
-        models = fit_models(X_train, y_train, config.model_params)
-
         metrics: dict[str, float] = {}
-        if splits.holdout is not None:
-            holdout_rows = self._assembler.read(splits.holdout)
-            X_holdout = extract_features(holdout_rows, feature_columns)
-            y_holdout = extract_targets(holdout_rows, targets)
-            metrics = score_predictions(models, X_holdout, y_holdout)
-
         artifact_path = self._artifact_path(config)
         artifact_path.mkdir(parents=True, exist_ok=True)
-        save_models(models, artifact_path / "batter_models.joblib")
+
+        # --- Batter training ---
+        bat_fs = build_batter_training_set(config.seasons)
+        bat_handle = self._assembler.get_or_materialize(bat_fs)
+        bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=holdout_seasons)
+
+        bat_train_rows = self._assembler.read(bat_splits.train)
+        bat_feature_cols = batter_feature_columns()
+        bat_targets = list(BATTER_TARGETS)
+
+        bat_X_train = extract_features(bat_train_rows, bat_feature_cols)
+        bat_y_train = extract_targets(bat_train_rows, bat_targets)
+        bat_models = fit_models(bat_X_train, bat_y_train, config.model_params)
+
+        if bat_splits.holdout is not None:
+            bat_holdout_rows = self._assembler.read(bat_splits.holdout)
+            bat_X_holdout = extract_features(bat_holdout_rows, bat_feature_cols)
+            bat_y_holdout = extract_targets(bat_holdout_rows, bat_targets)
+            bat_metrics = score_predictions(bat_models, bat_X_holdout, bat_y_holdout)
+            for key, value in bat_metrics.items():
+                metrics[f"batter_{key}"] = value
+
+        save_models(bat_models, artifact_path / "batter_models.joblib")
+
+        # --- Pitcher training ---
+        pit_fs = build_pitcher_training_set(config.seasons)
+        pit_handle = self._assembler.get_or_materialize(pit_fs)
+        pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=holdout_seasons)
+
+        pit_train_rows = self._assembler.read(pit_splits.train)
+        pit_feature_cols = pitcher_feature_columns()
+        pit_targets = list(PITCHER_TARGETS)
+
+        pit_X_train = extract_features(pit_train_rows, pit_feature_cols)
+        pit_y_train = extract_targets(pit_train_rows, pit_targets)
+        pit_models = fit_models(pit_X_train, pit_y_train, config.model_params)
+
+        if pit_splits.holdout is not None:
+            pit_holdout_rows = self._assembler.read(pit_splits.holdout)
+            pit_X_holdout = extract_features(pit_holdout_rows, pit_feature_cols)
+            pit_y_holdout = extract_targets(pit_holdout_rows, pit_targets)
+            pit_metrics = score_predictions(pit_models, pit_X_holdout, pit_y_holdout)
+            for key, value in pit_metrics.items():
+                metrics[f"pitcher_{key}"] = value
+
+        save_models(pit_models, artifact_path / "pitcher_models.joblib")
 
         return TrainResult(
             model_name=self.name,
@@ -121,29 +148,51 @@ class StatcastGBMModel:
     def predict(self, config: ModelConfig) -> PredictResult:
         assert self._assembler is not None, "assembler is required for predict"
 
-        predict_fs = build_batter_feature_set(config.seasons)
-        handle = self._assembler.get_or_materialize(predict_fs)
-        rows = self._assembler.read(handle)
-
         artifact_path = self._artifact_path(config)
-        models = load_models(artifact_path / "batter_models.joblib")
-
-        feature_columns = batter_feature_columns()
-        X = extract_features(rows, feature_columns)
-
         predictions_by_row: list[dict[str, Any]] = []
-        target_preds: dict[str, list[float]] = {}
-        for target_name, model in models.items():
-            target_preds[target_name] = list(model.predict(X))
 
-        for i, row in enumerate(rows):
+        # --- Batter predictions ---
+        bat_fs = build_batter_feature_set(config.seasons)
+        bat_handle = self._assembler.get_or_materialize(bat_fs)
+        bat_rows = self._assembler.read(bat_handle)
+        bat_models = load_models(artifact_path / "batter_models.joblib")
+        bat_feature_cols = batter_feature_columns()
+        bat_X = extract_features(bat_rows, bat_feature_cols)
+
+        bat_target_preds: dict[str, list[float]] = {}
+        for target_name, model in bat_models.items():
+            bat_target_preds[target_name] = list(model.predict(bat_X))
+
+        for i, row in enumerate(bat_rows):
             pred: dict[str, Any] = {
                 "player_id": row["player_id"],
                 "season": row["season"],
                 "player_type": "batter",
             }
-            for target_name in models:
-                pred[target_name] = target_preds[target_name][i]
+            for target_name in bat_models:
+                pred[target_name] = bat_target_preds[target_name][i]
+            predictions_by_row.append(pred)
+
+        # --- Pitcher predictions ---
+        pit_fs = build_pitcher_feature_set(config.seasons)
+        pit_handle = self._assembler.get_or_materialize(pit_fs)
+        pit_rows = self._assembler.read(pit_handle)
+        pit_models = load_models(artifact_path / "pitcher_models.joblib")
+        pit_feature_cols = pitcher_feature_columns()
+        pit_X = extract_features(pit_rows, pit_feature_cols)
+
+        pit_target_preds: dict[str, list[float]] = {}
+        for target_name, model in pit_models.items():
+            pit_target_preds[target_name] = list(model.predict(pit_X))
+
+        for i, row in enumerate(pit_rows):
+            pred = {
+                "player_id": row["player_id"],
+                "season": row["season"],
+                "player_type": "pitcher",
+            }
+            for target_name in pit_models:
+                pred[target_name] = pit_target_preds[target_name][i]
             predictions_by_row.append(pred)
 
         return PredictResult(
