@@ -1,5 +1,11 @@
 from fantasy_baseball_manager.features import batting, player
-from fantasy_baseball_manager.features.transforms import BATTED_BALL, PITCH_MIX
+from fantasy_baseball_manager.features.transforms import (
+    BATTED_BALL,
+    EXPECTED_STATS,
+    PITCH_MIX,
+    PLATE_DISCIPLINE,
+    SPIN_PROFILE,
+)
 from fantasy_baseball_manager.features.types import Feature, TransformFeature
 
 _COUNTING_STATS = ("pa", "ab", "h", "hr", "rbi", "r", "sb", "cs", "bb", "so")
@@ -22,3 +28,9 @@ PLAYER_METADATA: tuple[Feature, ...] = (player.age(),)
 STATCAST_PITCH_MIX: tuple[TransformFeature, ...] = (PITCH_MIX,)
 
 STATCAST_BATTED_BALL: tuple[TransformFeature, ...] = (BATTED_BALL,)
+
+STATCAST_PLATE_DISCIPLINE: tuple[TransformFeature, ...] = (PLATE_DISCIPLINE,)
+
+STATCAST_EXPECTED_STATS: tuple[TransformFeature, ...] = (EXPECTED_STATS,)
+
+STATCAST_SPIN_PROFILE: tuple[TransformFeature, ...] = (SPIN_PROFILE,)
