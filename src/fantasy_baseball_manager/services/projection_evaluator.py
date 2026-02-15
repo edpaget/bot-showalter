@@ -40,10 +40,10 @@ class ProjectionEvaluator:
         comparisons: list[ProjectionComparison] = []
         source_type = "first_party"
 
-        for proj in projections:
-            if projections:
-                source_type = proj.source_type
+        if projections:
+            source_type = projections[0].source_type
 
+        for proj in projections:
             if proj.player_type == "batter":
                 actuals = self._batting_repo.get_by_player_season(
                     proj.player_id,

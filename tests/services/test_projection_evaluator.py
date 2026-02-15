@@ -205,6 +205,25 @@ class TestEvaluateWithStatFilter:
         assert "avg" not in result.metrics
 
 
+class TestEvaluateSourceType:
+    def test_source_type_from_projections(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        _seed_player(conn, 1)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, source_type="third_party")
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025)
+
+        assert result.source_type == "third_party"
+
+    def test_source_type_default_when_no_projections(self, conn: sqlite3.Connection) -> None:
+        evaluator, _, _, _ = _make_evaluator(conn)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025)
+
+        assert result.source_type == "first_party"
+
+
 class TestCompareMultipleSystems:
     def test_compare_multiple_systems(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)

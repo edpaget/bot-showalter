@@ -12,10 +12,11 @@ from fantasy_baseball_manager.repos.protocols import ModelRunRepo
 
 
 class RunContext:
-    def __init__(self, system: str, version: str, run_dir: Path) -> None:
+    def __init__(self, system: str, version: str, run_dir: Path, artifact_type: str) -> None:
         self._system = system
         self._version = version
         self._run_dir = run_dir
+        self._artifact_type = artifact_type
         self._metrics: dict[str, float] = {}
 
     @property
@@ -29,6 +30,10 @@ class RunContext:
     @property
     def version(self) -> str:
         return self._version
+
+    @property
+    def artifact_type(self) -> str:
+        return self._artifact_type
 
     @property
     def metrics(self) -> dict[str, float]:
@@ -52,7 +57,7 @@ class RunManager:
         if model.artifact_type != ArtifactType.NONE.value:
             run_dir.mkdir(parents=True, exist_ok=True)
 
-        return RunContext(system=model.name, version=config.version, run_dir=run_dir)
+        return RunContext(system=model.name, version=config.version, run_dir=run_dir, artifact_type=model.artifact_type)
 
     def finalize_run(self, context: RunContext, config: ModelConfig) -> int:
         git_commit = self._capture_git_commit()
@@ -70,7 +75,7 @@ class RunManager:
             system=context.system,
             version=context.version,
             config_json=config_json,
-            artifact_type=ArtifactType.NONE.value,
+            artifact_type=context.artifact_type,
             artifact_path=str(context.run_dir),
             git_commit=git_commit,
             tags_json=config.tags if config.tags else None,

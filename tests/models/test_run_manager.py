@@ -68,27 +68,27 @@ class TestRunContext:
     def test_run_dir_created(self, tmp_path: Path) -> None:
         run_dir = tmp_path / "artifacts" / "fake" / "v1"
         run_dir.mkdir(parents=True)
-        ctx = RunContext(system="fake", version="v1", run_dir=run_dir)
+        ctx = RunContext(system="fake", version="v1", run_dir=run_dir, artifact_type="none")
         assert ctx.run_dir == run_dir
         assert ctx.run_dir.exists()
 
     def test_log_metric(self) -> None:
-        ctx = RunContext(system="fake", version="v1", run_dir=Path("/tmp"))
+        ctx = RunContext(system="fake", version="v1", run_dir=Path("/tmp"), artifact_type="none")
         ctx.log_metric("rmse", 0.5)
         assert ctx.metrics == {"rmse": 0.5}
 
     def test_log_metric_overwrites(self) -> None:
-        ctx = RunContext(system="fake", version="v1", run_dir=Path("/tmp"))
+        ctx = RunContext(system="fake", version="v1", run_dir=Path("/tmp"), artifact_type="none")
         ctx.log_metric("rmse", 0.5)
         ctx.log_metric("rmse", 0.3)
         assert ctx.metrics == {"rmse": 0.3}
 
     def test_metrics_initially_empty(self) -> None:
-        ctx = RunContext(system="fake", version="v1", run_dir=Path("/tmp"))
+        ctx = RunContext(system="fake", version="v1", run_dir=Path("/tmp"), artifact_type="none")
         assert ctx.metrics == {}
 
     def test_system_and_version_properties(self) -> None:
-        ctx = RunContext(system="marcel", version="v2.0", run_dir=Path("/tmp"))
+        ctx = RunContext(system="marcel", version="v2.0", run_dir=Path("/tmp"), artifact_type="none")
         assert ctx.system == "marcel"
         assert ctx.version == "v2.0"
 
@@ -123,7 +123,7 @@ class TestRunManager:
         repo = FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1", tags={"env": "test"})
-        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none")
 
         mgr.finalize_run(ctx, config)
 
@@ -145,7 +145,7 @@ class TestRunManager:
         repo = FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")
-        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none")
 
         mgr.finalize_run(ctx, config)
 
@@ -161,7 +161,7 @@ class TestRunManager:
         repo = FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")
-        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none")
 
         mgr.finalize_run(ctx, config)
 
@@ -178,7 +178,7 @@ class TestRunManager:
         repo = FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")
-        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none")
 
         row_id = mgr.finalize_run(ctx, config)
 
@@ -195,7 +195,7 @@ class TestRunManager:
         repo = FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")
-        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none")
         ctx.log_metric("rmse", 0.5)
 
         mgr.finalize_run(ctx, config)
@@ -222,7 +222,7 @@ class TestRunManager:
         repo = FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")
-        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none")
         mgr.finalize_run(ctx, config)
         assert len(repo._records) == 1
 
@@ -246,12 +246,46 @@ class TestRunManager:
         artifact_dir.mkdir(parents=True)
         (artifact_dir / "model.pkl").write_text("data")
 
-        ctx = RunContext(system="fake", version="v1", run_dir=artifact_dir)
+        ctx = RunContext(system="fake", version="v1", run_dir=artifact_dir, artifact_type="none")
         mgr.finalize_run(ctx, config)
 
         mgr.delete_run("fake", "v1")
 
         assert not artifact_dir.exists()
+
+    def test_finalize_run_records_artifact_type(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        model = _FakeModelWithDir()  # artifact_type == "directory"
+        config = ModelConfig(version="v1")
+        ctx = mgr.begin_run(model, config)
+
+        mgr.finalize_run(ctx, config)
+
+        assert repo._records[0].artifact_type == "directory"
+
+    def test_finalize_run_records_none_artifact_type(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        model = _FakeModel()  # artifact_type == "none"
+        config = ModelConfig(version="v1")
+        ctx = mgr.begin_run(model, config)
+
+        mgr.finalize_run(ctx, config)
+
+        assert repo._records[0].artifact_type == "none"
 
     def test_delete_run_no_artifact_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
@@ -264,7 +298,7 @@ class TestRunManager:
         repo = FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")
-        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1")
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none")
         mgr.finalize_run(ctx, config)
 
         # No error even though artifact dir doesn't exist
