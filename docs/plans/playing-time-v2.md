@@ -248,15 +248,45 @@ def coefficient_summary(coefficients: PlayingTimeCoefficients) -> list[dict[str,
 
 Print this during training so we can verify coefficients have sensible signs and magnitudes (e.g., `il_days_1` should be negative, `pa_1` should be positive, `war_above_4` should be positive).
 
-#### 3c. Wire into CLI
+#### 3c. Feature ablation
 
-Print coefficient summary and holdout metrics during `fbm train playing_time`. No new CLI commands needed — just richer output.
+**File:** `models/playing_time/engine.py`
 
-#### 3d. Tests
+```python
+def ablation_study(
+    rows: list[dict[str, Any]],
+    feature_groups: dict[str, list[str]],
+    base_features: list[str],
+    target_column: str,
+    player_type: str,
+    holdout_rows: list[dict[str, Any]],
+    alpha: float = 1.0,
+) -> list[dict[str, Any]]:
+    """Train with cumulative feature groups and report holdout R²/RMSE for each."""
+```
+
+Train the model with incremental feature groups and measure holdout performance for each:
+
+- Baseline (v1 features only)
+- \+ WAR thresholds
+- \+ IL severity
+- \+ starter ratio (pitchers) / team PT share (batters)
+- \+ interaction terms
+- All v2 features
+
+Returns a list of `{"group": str, "features": list[str], "r_squared": float, "rmse": float}` dicts. This directly answers "which features are worth keeping?" early in development rather than waiting until Phase 6.
+
+#### 3d. Wire into CLI
+
+Print coefficient summary, holdout metrics, and ablation results during `fbm train playing_time`. No new CLI commands needed — just richer output. Ablation runs automatically when `config.model_params.get("ablation", False)` is set.
+
+#### 3e. Tests
 
 - Holdout R² is reported when ≥4 seasons provided.
 - Holdout R² is not reported when <4 seasons provided.
 - Coefficient summary includes all features with correct names.
+- Ablation study returns one entry per feature group with valid R² values.
+- Ablation with a single group matches standalone training result.
 
 ---
 
@@ -375,22 +405,9 @@ Write a comparison workflow (or document the CLI commands) that:
 3. Runs Marcel with internal formula (baseline)
 4. Compares RMSE on counting stats (HR, R, RBI, SB, SO, W, SV, IP) for top-300 players
 
-#### 6b. Feature ablation
+#### 6b. Hyperparameter tuning
 
-Train the model with subsets of features to identify which additions provide the most lift:
-
-- Baseline (v1 features only)
-- + WAR thresholds
-- + IL severity
-- + starter ratio
-- + interaction terms
-- All v2 features
-
-Report holdout R² for each configuration.
-
-#### 6c. Hyperparameter tuning
-
-Tune `alpha` (ridge penalty), `min_pa`/`min_ip` (spine filter thresholds), and `lags` (number of historical seasons). Document final chosen values.
+Tune `alpha` (ridge penalty), `min_pa`/`min_ip` (spine filter thresholds), and `lags` (number of historical seasons). Use Phase 3's ablation results to decide final feature set. Document final chosen values.
 
 ---
 
@@ -421,11 +438,11 @@ Phases 1–3 are expected to deliver the bulk of the improvement. Phases 4–5 r
 | 1 | `models/playing_time/features.py` | Register new transforms, update feature column lists |
 | 2 | `models/playing_time/engine.py` | Ridge regression, alpha selection |
 | 2 | `models/playing_time/model.py` | Wire alpha selection into train() |
-| 3 | `models/playing_time/model.py` | Holdout evaluation, coefficient reporting |
-| 3 | `models/playing_time/engine.py` | Coefficient summary function |
+| 3 | `models/playing_time/model.py` | Holdout evaluation, coefficient reporting, ablation wiring |
+| 3 | `models/playing_time/engine.py` | Coefficient summary, feature ablation study |
 | 4 | `models/playing_time/aging.py` | Quadratic aging curve |
 | 5 | `models/playing_time/engine.py` | Finer buckets, variance model |
-| 6 | — | Evaluation commands, documentation |
+| 6 | — | A/B comparison, hyperparameter tuning |
 
 ## Out of Scope
 
