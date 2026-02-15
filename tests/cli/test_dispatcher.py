@@ -14,7 +14,6 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
     TrainResult,
 )
-from fantasy_baseball_manager.models.registry import _clear, register
 from fantasy_baseball_manager.models.run_manager import RunManager
 
 
@@ -51,42 +50,28 @@ class _FakeFullModel(_FakePreparableOnly):
         return EvalResult(model_name="fake", metrics={"mae": 0.3})
 
 
-@pytest.fixture(autouse=True)
-def _clean_registry() -> None:
-    _clear()
-
-
 class TestDispatch:
     def test_dispatch_prepare(self) -> None:
-        register("fake")(_FakePreparableOnly)
-        result = dispatch("prepare", "fake", ModelConfig())
+        result = dispatch("prepare", _FakePreparableOnly(), ModelConfig())
         assert isinstance(result, PrepareResult)
         assert result.rows_processed == 42
 
     def test_dispatch_train(self) -> None:
-        register("fake")(_FakeFullModel)
-        result = dispatch("train", "fake", ModelConfig())
+        result = dispatch("train", _FakeFullModel(), ModelConfig())
         assert isinstance(result, TrainResult)
         assert result.metrics == {"rmse": 0.5}
 
     def test_dispatch_evaluate(self) -> None:
-        register("fake")(_FakeFullModel)
-        result = dispatch("evaluate", "fake", ModelConfig())
+        result = dispatch("evaluate", _FakeFullModel(), ModelConfig())
         assert isinstance(result, EvalResult)
 
     def test_unsupported_operation_raises(self) -> None:
-        register("fake")(_FakePreparableOnly)
         with pytest.raises(UnsupportedOperation, match="does not support 'train'"):
-            dispatch("train", "fake", ModelConfig())
-
-    def test_unknown_model_raises(self) -> None:
-        with pytest.raises(KeyError, match="no model registered"):
-            dispatch("train", "nonexistent", ModelConfig())
+            dispatch("train", _FakePreparableOnly(), ModelConfig())
 
     def test_unknown_operation_raises(self) -> None:
-        register("fake")(_FakePreparableOnly)
         with pytest.raises(UnsupportedOperation, match="does not support 'bogus'"):
-            dispatch("bogus", "fake", ModelConfig())
+            dispatch("bogus", _FakePreparableOnly(), ModelConfig())
 
 
 class _FakeModelRunRepo:
@@ -118,12 +103,11 @@ class TestDispatchWithRunManager:
             lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
         )
 
-        register("fake")(_FakeFullModel)
         repo = _FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")
 
-        result = dispatch("train", "fake", config, run_manager=mgr)
+        result = dispatch("train", _FakeFullModel(), config, run_manager=mgr)
 
         assert isinstance(result, TrainResult)
         assert len(repo._records) == 1
@@ -131,12 +115,11 @@ class TestDispatchWithRunManager:
         assert repo._records[0].version == "v1"
 
     def test_dispatch_non_train_ignores_run_manager(self, tmp_path: Path) -> None:
-        register("fake")(_FakeFullModel)
         repo = _FakeModelRunRepo()
         mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
         config = ModelConfig(version="v1")
 
-        result = dispatch("evaluate", "fake", config, run_manager=mgr)
+        result = dispatch("evaluate", _FakeFullModel(), config, run_manager=mgr)
 
         assert isinstance(result, EvalResult)
         assert len(repo._records) == 0

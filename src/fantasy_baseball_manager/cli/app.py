@@ -38,7 +38,8 @@ from fantasy_baseball_manager.models.protocols import (
     ProjectionModel,
     TrainResult,
 )
-from fantasy_baseball_manager.models.registry import get, list_models
+from fantasy_baseball_manager.cli.factory import create_model
+from fantasy_baseball_manager.models.registry import list_models
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
@@ -57,8 +58,9 @@ def _run_action(operation: str, model_name: str, output_dir: str | None, seasons
     config = load_config(model_name=model_name, output_dir=output_dir, seasons=seasons)
     conn = create_connection(Path(config.data_dir) / "fbm.db")
     assembler = SqliteDatasetAssembler(conn)
+    model = create_model(model_name, assembler=assembler)
     try:
-        result = dispatch(operation, model_name, config, assembler=assembler)
+        result = dispatch(operation, model, config)
     except UnsupportedOperation as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
@@ -115,8 +117,9 @@ def train(
         repo = SqliteModelRunRepo(conn)
         run_manager = RunManager(model_run_repo=repo, artifacts_root=Path(config.artifacts_dir))
 
+    model_instance = create_model(model, assembler=assembler)
     try:
-        result = dispatch("train", model, config, run_manager=run_manager, assembler=assembler)
+        result = dispatch("train", model_instance, config, run_manager=run_manager)
         if config.version is not None:
             conn.commit()
     except UnsupportedOperation as e:
@@ -170,7 +173,7 @@ def list_cmd() -> None:
 def info(model: _ModelArg) -> None:
     """Show metadata and supported operations for a model."""
     try:
-        m: ProjectionModel = get(model)
+        m: ProjectionModel = create_model(model)
     except KeyError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
@@ -184,7 +187,7 @@ def info(model: _ModelArg) -> None:
 def features(model: _ModelArg) -> None:
     """List declared features for a model."""
     try:
-        m: ProjectionModel = get(model)
+        m: ProjectionModel = create_model(model)
     except KeyError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None

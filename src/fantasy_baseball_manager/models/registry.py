@@ -1,6 +1,4 @@
-import inspect
 from collections.abc import Callable
-from typing import Any
 
 from fantasy_baseball_manager.models.protocols import ProjectionModel
 
@@ -19,14 +17,11 @@ def register(name: str) -> Callable[[type], type]:
     return decorator
 
 
-def get(name: str, **kwargs: Any) -> ProjectionModel:
-    """Instantiate and return a registered model, forwarding matching kwargs."""
+def get(name: str) -> Callable[..., ProjectionModel]:
+    """Return the registered model class (not an instance)."""
     if name not in _REGISTRY:
         raise KeyError(f"'{name}': no model registered with this name")
-    cls = _REGISTRY[name]
-    sig = inspect.signature(cls)
-    filtered = {k: v for k, v in kwargs.items() if k in sig.parameters}
-    return cls(**filtered)
+    return _REGISTRY[name]
 
 
 def list_models() -> list[str]:

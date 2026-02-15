@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -13,10 +11,10 @@ from fantasy_baseball_manager.models.protocols import (
     PredictResult,
     Preparable,
     PrepareResult,
+    ProjectionModel,
     Trainable,
     TrainResult,
 )
-from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
 
 
@@ -38,21 +36,18 @@ type _AnyResult = PrepareResult | TrainResult | EvalResult | PredictResult | Abl
 
 def dispatch(
     operation: str,
-    model_name: str,
+    model: ProjectionModel,
     config: ModelConfig,
     run_manager: RunManager | None = None,
-    **model_kwargs: Any,
 ) -> _AnyResult:
-    """Resolve a model from the registry, check capability, and invoke the operation."""
-    model = get(model_name, **model_kwargs)
-
+    """Check capability and invoke the operation on a pre-built model instance."""
     if operation not in _OPERATION_MAP:
-        raise UnsupportedOperation(f"Model '{model_name}' does not support '{operation}'")
+        raise UnsupportedOperation(f"Model '{model.name}' does not support '{operation}'")
 
     protocol, method_name = _OPERATION_MAP[operation]
 
     if not isinstance(model, protocol):
-        raise UnsupportedOperation(f"Model '{model_name}' does not support '{operation}'")
+        raise UnsupportedOperation(f"Model '{model.name}' does not support '{operation}'")
 
     context = None
     if run_manager is not None and operation == "train":
