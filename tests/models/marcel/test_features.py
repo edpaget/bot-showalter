@@ -1,7 +1,9 @@
-from fantasy_baseball_manager.features.types import Feature, Source
+from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature, Source
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_features,
+    build_batting_weighted_rates,
     build_pitching_features,
+    build_pitching_weighted_rates,
 )
 
 
@@ -77,3 +79,68 @@ class TestBuildPitchingFeatures:
         features = build_pitching_features(cats, lags=3)
         # age + 3 lags * (ip + g + gs + 2 cats) = 1 + 3 * 5 = 16
         assert len(features) == 16
+
+
+class TestBuildBattingWeightedRates:
+    def test_returns_derived_transform_feature(self) -> None:
+        dtf = build_batting_weighted_rates(("hr", "h"), weights=(5.0, 4.0, 3.0))
+        assert isinstance(dtf, DerivedTransformFeature)
+
+    def test_group_by_player_season(self) -> None:
+        dtf = build_batting_weighted_rates(("hr",), weights=(5.0, 4.0, 3.0))
+        assert dtf.group_by == ("player_id", "season")
+
+    def test_inputs_include_category_and_pa_lags(self) -> None:
+        dtf = build_batting_weighted_rates(("hr", "h"), weights=(5.0, 4.0, 3.0))
+        expected_inputs = {"hr_1", "hr_2", "hr_3", "h_1", "h_2", "h_3", "pa_1", "pa_2", "pa_3"}
+        assert set(dtf.inputs) == expected_inputs
+
+    def test_outputs_include_wavg_and_weighted_pt(self) -> None:
+        dtf = build_batting_weighted_rates(("hr", "h"), weights=(5.0, 4.0, 3.0))
+        assert "hr_wavg" in dtf.outputs
+        assert "h_wavg" in dtf.outputs
+        assert "weighted_pt" in dtf.outputs
+
+    def test_output_count(self) -> None:
+        dtf = build_batting_weighted_rates(("hr", "h", "bb"), weights=(5.0, 4.0, 3.0))
+        # 3 categories + weighted_pt = 4
+        assert len(dtf.outputs) == 4
+
+    def test_version_derived_from_weights(self) -> None:
+        dtf1 = build_batting_weighted_rates(("hr",), weights=(5.0, 4.0, 3.0))
+        dtf2 = build_batting_weighted_rates(("hr",), weights=(3.0, 2.0, 1.0))
+        assert dtf1.version is not None
+        assert dtf2.version is not None
+        assert dtf1.version != dtf2.version
+
+    def test_same_weights_same_version(self) -> None:
+        dtf1 = build_batting_weighted_rates(("hr",), weights=(5.0, 4.0, 3.0))
+        dtf2 = build_batting_weighted_rates(("hr",), weights=(5.0, 4.0, 3.0))
+        assert dtf1.version == dtf2.version
+
+    def test_custom_lags(self) -> None:
+        dtf = build_batting_weighted_rates(("hr",), weights=(5.0, 4.0))
+        # 2 weights → 2 lags: hr_1, hr_2, pa_1, pa_2
+        assert set(dtf.inputs) == {"hr_1", "hr_2", "pa_1", "pa_2"}
+
+
+class TestBuildPitchingWeightedRates:
+    def test_returns_derived_transform_feature(self) -> None:
+        dtf = build_pitching_weighted_rates(("so",), weights=(3.0, 2.0, 1.0))
+        assert isinstance(dtf, DerivedTransformFeature)
+
+    def test_inputs_include_ip_lags(self) -> None:
+        dtf = build_pitching_weighted_rates(("so",), weights=(3.0, 2.0, 1.0))
+        assert "ip_1" in dtf.inputs
+        assert "ip_2" in dtf.inputs
+        assert "ip_3" in dtf.inputs
+
+    def test_group_by_player_season(self) -> None:
+        dtf = build_pitching_weighted_rates(("so",), weights=(3.0, 2.0, 1.0))
+        assert dtf.group_by == ("player_id", "season")
+
+    def test_outputs_include_wavg_and_weighted_pt(self) -> None:
+        dtf = build_pitching_weighted_rates(("so", "er"), weights=(3.0, 2.0, 1.0))
+        assert "so_wavg" in dtf.outputs
+        assert "er_wavg" in dtf.outputs
+        assert "weighted_pt" in dtf.outputs
