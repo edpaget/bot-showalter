@@ -122,9 +122,9 @@ class TestPitchingPtFeatures:
 
 
 class TestBattingDerivedTransforms:
-    def test_produces_two_transforms(self) -> None:
+    def test_produces_five_transforms(self) -> None:
         transforms = build_batting_pt_derived_transforms()
-        assert len(transforms) == 2
+        assert len(transforms) == 5
 
     def test_il_summary_outputs(self) -> None:
         transforms = build_batting_pt_derived_transforms()
@@ -137,15 +137,52 @@ class TestBattingDerivedTransforms:
         pt_trend = next(t for t in transforms if t.name == "batting_pt_trend")
         assert "pt_trend" in pt_trend.outputs
 
+    def test_war_threshold_outputs(self) -> None:
+        transforms = build_batting_pt_derived_transforms()
+        wt = next(t for t in transforms if t.name == "war_threshold")
+        assert set(wt.outputs) == {"war_above_2", "war_above_4", "war_below_0"}
+
+    def test_war_threshold_inputs(self) -> None:
+        transforms = build_batting_pt_derived_transforms()
+        wt = next(t for t in transforms if t.name == "war_threshold")
+        assert "war_1" in wt.inputs
+
+    def test_il_severity_outputs(self) -> None:
+        transforms = build_batting_pt_derived_transforms()
+        ils = next(t for t in transforms if t.name == "il_severity")
+        assert set(ils.outputs) == {"il_minor", "il_moderate", "il_severe"}
+
+    def test_il_severity_inputs(self) -> None:
+        transforms = build_batting_pt_derived_transforms()
+        ils = next(t for t in transforms if t.name == "il_severity")
+        assert "il_days_1" in ils.inputs
+
+    def test_pt_interaction_outputs(self) -> None:
+        transforms = build_batting_pt_derived_transforms()
+        pi = next(t for t in transforms if t.name == "pt_interaction")
+        assert set(pi.outputs) == {"war_trend", "age_il_interact"}
+
+    def test_pt_interaction_inputs(self) -> None:
+        transforms = build_batting_pt_derived_transforms()
+        pi = next(t for t in transforms if t.name == "pt_interaction")
+        assert "war_1" in pi.inputs
+        assert "pt_trend" in pi.inputs
+        assert "age" in pi.inputs
+        assert "il_recurrence" in pi.inputs
+
+    def test_pt_interaction_is_last(self) -> None:
+        transforms = build_batting_pt_derived_transforms()
+        assert transforms[-1].name == "pt_interaction"
+
     def test_all_are_derived_transform_features(self) -> None:
         transforms = build_batting_pt_derived_transforms()
         assert all(isinstance(t, DerivedTransformFeature) for t in transforms)
 
 
 class TestPitchingDerivedTransforms:
-    def test_produces_two_transforms(self) -> None:
+    def test_produces_six_transforms(self) -> None:
         transforms = build_pitching_pt_derived_transforms()
-        assert len(transforms) == 2
+        assert len(transforms) == 6
 
     def test_il_summary_outputs(self) -> None:
         transforms = build_pitching_pt_derived_transforms()
@@ -157,6 +194,36 @@ class TestPitchingDerivedTransforms:
         transforms = build_pitching_pt_derived_transforms()
         pt_trend = next(t for t in transforms if t.name == "pitching_pt_trend")
         assert "pt_trend" in pt_trend.outputs
+
+    def test_war_threshold_outputs(self) -> None:
+        transforms = build_pitching_pt_derived_transforms()
+        wt = next(t for t in transforms if t.name == "war_threshold")
+        assert set(wt.outputs) == {"war_above_2", "war_above_4", "war_below_0"}
+
+    def test_il_severity_outputs(self) -> None:
+        transforms = build_pitching_pt_derived_transforms()
+        ils = next(t for t in transforms if t.name == "il_severity")
+        assert set(ils.outputs) == {"il_minor", "il_moderate", "il_severe"}
+
+    def test_starter_ratio_outputs(self) -> None:
+        transforms = build_pitching_pt_derived_transforms()
+        sr = next(t for t in transforms if t.name == "starter_ratio")
+        assert set(sr.outputs) == {"starter_ratio"}
+
+    def test_starter_ratio_inputs(self) -> None:
+        transforms = build_pitching_pt_derived_transforms()
+        sr = next(t for t in transforms if t.name == "starter_ratio")
+        assert "gs_1" in sr.inputs
+        assert "g_1" in sr.inputs
+
+    def test_pt_interaction_outputs(self) -> None:
+        transforms = build_pitching_pt_derived_transforms()
+        pi = next(t for t in transforms if t.name == "pt_interaction")
+        assert set(pi.outputs) == {"war_trend", "age_il_interact"}
+
+    def test_pt_interaction_is_last(self) -> None:
+        transforms = build_pitching_pt_derived_transforms()
+        assert transforms[-1].name == "pt_interaction"
 
     def test_all_are_derived_transform_features(self) -> None:
         transforms = build_pitching_pt_derived_transforms()
@@ -205,6 +272,9 @@ class TestBattingTrainingFeatures:
         names = [d.name for d in derived]
         assert "il_summary" in names
         assert "batting_pt_trend" in names
+        assert "war_threshold" in names
+        assert "il_severity" in names
+        assert "pt_interaction" in names
 
 
 class TestPitchingTrainingFeatures:
@@ -225,6 +295,10 @@ class TestPitchingTrainingFeatures:
         names = [d.name for d in derived]
         assert "il_summary" in names
         assert "pitching_pt_trend" in names
+        assert "war_threshold" in names
+        assert "il_severity" in names
+        assert "starter_ratio" in names
+        assert "pt_interaction" in names
 
 
 class TestBattingFeatureColumns:
@@ -237,6 +311,17 @@ class TestBattingFeatureColumns:
         assert "il_days_3yr" in columns
         assert "il_recurrence" in columns
         assert "pt_trend" in columns
+
+    def test_feature_columns_includes_new_derived_outputs(self) -> None:
+        columns = batting_pt_feature_columns()
+        assert "war_above_2" in columns
+        assert "war_above_4" in columns
+        assert "war_below_0" in columns
+        assert "il_minor" in columns
+        assert "il_moderate" in columns
+        assert "il_severe" in columns
+        assert "war_trend" in columns
+        assert "age_il_interact" in columns
 
     def test_feature_columns_includes_base_features(self) -> None:
         columns = batting_pt_feature_columns()
@@ -259,6 +344,18 @@ class TestPitchingFeatureColumns:
         assert "il_days_3yr" in columns
         assert "il_recurrence" in columns
         assert "pt_trend" in columns
+
+    def test_feature_columns_includes_new_derived_outputs(self) -> None:
+        columns = pitching_pt_feature_columns()
+        assert "war_above_2" in columns
+        assert "war_above_4" in columns
+        assert "war_below_0" in columns
+        assert "il_minor" in columns
+        assert "il_moderate" in columns
+        assert "il_severe" in columns
+        assert "starter_ratio" in columns
+        assert "war_trend" in columns
+        assert "age_il_interact" in columns
 
     def test_feature_columns_includes_base_features(self) -> None:
         columns = pitching_pt_feature_columns()

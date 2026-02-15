@@ -1,7 +1,11 @@
 from fantasy_baseball_manager.features import batting, il_stint, pitching, player
 from fantasy_baseball_manager.features.transforms.playing_time import (
+    make_il_severity_transform,
     make_il_summary_transform,
+    make_pt_interaction_transform,
     make_pt_trend_transform,
+    make_starter_ratio_transform,
+    make_war_threshold_transform,
 )
 from fantasy_baseball_manager.features.types import AnyFeature, DerivedTransformFeature, Feature
 
@@ -65,6 +69,27 @@ def build_batting_pt_derived_transforms(lags: int = 3) -> list[DerivedTransformF
             transform=make_pt_trend_transform("pa"),
             outputs=("pt_trend",),
         ),
+        DerivedTransformFeature(
+            name="war_threshold",
+            inputs=("war_1",),
+            group_by=("player_id", "season"),
+            transform=make_war_threshold_transform(),
+            outputs=("war_above_2", "war_above_4", "war_below_0"),
+        ),
+        DerivedTransformFeature(
+            name="il_severity",
+            inputs=("il_days_1",),
+            group_by=("player_id", "season"),
+            transform=make_il_severity_transform(),
+            outputs=("il_minor", "il_moderate", "il_severe"),
+        ),
+        DerivedTransformFeature(
+            name="pt_interaction",
+            inputs=("war_1", "pt_trend", "age", "il_recurrence"),
+            group_by=("player_id", "season"),
+            transform=make_pt_interaction_transform(),
+            outputs=("war_trend", "age_il_interact"),
+        ),
     ]
 
 
@@ -92,6 +117,34 @@ def build_pitching_pt_derived_transforms(lags: int = 3) -> list[DerivedTransform
             group_by=("player_id", "season"),
             transform=make_pt_trend_transform("ip"),
             outputs=("pt_trend",),
+        ),
+        DerivedTransformFeature(
+            name="war_threshold",
+            inputs=("war_1",),
+            group_by=("player_id", "season"),
+            transform=make_war_threshold_transform(),
+            outputs=("war_above_2", "war_above_4", "war_below_0"),
+        ),
+        DerivedTransformFeature(
+            name="il_severity",
+            inputs=("il_days_1",),
+            group_by=("player_id", "season"),
+            transform=make_il_severity_transform(),
+            outputs=("il_minor", "il_moderate", "il_severe"),
+        ),
+        DerivedTransformFeature(
+            name="starter_ratio",
+            inputs=("gs_1", "g_1"),
+            group_by=("player_id", "season"),
+            transform=make_starter_ratio_transform(),
+            outputs=("starter_ratio",),
+        ),
+        DerivedTransformFeature(
+            name="pt_interaction",
+            inputs=("war_1", "pt_trend", "age", "il_recurrence"),
+            group_by=("player_id", "season"),
+            transform=make_pt_interaction_transform(),
+            outputs=("war_trend", "age_il_interact"),
         ),
     ]
 
