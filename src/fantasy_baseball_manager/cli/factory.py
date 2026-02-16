@@ -78,6 +78,9 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             assembler=assembler,
             projection_repo=SqliteProjectionRepo(conn),
             evaluator=evaluator,
+            milb_repo=SqliteMinorLeagueBattingStatsRepo(conn),
+            league_env_repo=SqliteLeagueEnvironmentRepo(conn),
+            level_factor_repo=SqliteLevelFactorRepo(conn),
         )
 
         run_manager: RunManager | None = None
