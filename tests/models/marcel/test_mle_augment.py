@@ -87,6 +87,31 @@ class TestAugmentInputsWithMle:
         assert len(mi.seasons) == 1
         assert mi.seasons[0].pa == 200  # Marcel default baseline
 
+    def test_mle_only_player_uses_age_from_projection(self) -> None:
+        """MLE-only player gets age from MLE projection stat_json."""
+        mle_proj = _make_mle_projection(player_id=99, pa=400)
+        # Add age to stat_json (as MLE model now provides)
+        stat_json = dict(mle_proj.stat_json)
+        stat_json["age"] = 22.5
+        mle_proj = Projection(
+            player_id=99,
+            season=2026,
+            system="mle",
+            version="v1",
+            player_type="batter",
+            stat_json=stat_json,
+        )
+
+        result = augment_inputs_with_mle(
+            inputs={},
+            mle_projections=[mle_proj],
+            categories=BATTING_CATEGORIES,
+            league_rates=LEAGUE_RATES,
+            discount_factor=DISCOUNT_FACTOR,
+        )
+
+        assert result[99].age == 22
+
     def test_mixed_player_augments_existing(self) -> None:
         """Player has MLB data — MLE is PA-weight merged."""
         existing = _make_marcel_input(weighted_pt=1000.0)

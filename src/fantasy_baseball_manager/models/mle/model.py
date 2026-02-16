@@ -3,7 +3,6 @@
 from collections import defaultdict
 from typing import Any
 
-from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.models.mle.engine import (
     apply_recency_weights,
@@ -95,9 +94,10 @@ class MLEModel:
 
         # Collect all translated lines per player per season
         player_season_lines: dict[int, dict[int, list[TranslatedBattingLine]]] = defaultdict(lambda: defaultdict(list))
+        player_ages: dict[int, float] = {}
 
         for season in mle_seasons:
-            self._translate_season(season, mle_config, age_config, player_season_lines)
+            self._translate_season(season, mle_config, age_config, player_season_lines, player_ages)
 
         # For each player: combine multi-level, apply recency, regress, output
         predictions: list[dict[str, Any]] = []
@@ -109,6 +109,7 @@ class MLEModel:
                 projected_season=projected_season,
                 mle_config=mle_config,
                 version=version,
+                age=player_ages.get(player_id),
             )
             if projection is not None:
                 predictions.append(projection)
@@ -126,6 +127,7 @@ class MLEModel:
         mle_config: MLEConfig,
         age_config: AgeAdjustmentConfig | None,
         player_season_lines: dict[int, dict[int, list[TranslatedBattingLine]]],
+        player_ages: dict[int, float] | None = None,
     ) -> None:
         assert self._milb_repo is not None
         assert self._league_env_repo is not None
@@ -159,6 +161,8 @@ class MLEModel:
                     age_config=age_config,
                 )
                 player_season_lines[stats.player_id][season].append(translated)
+                if player_ages is not None:
+                    player_ages[stats.player_id] = stats.age
 
     def _project_player(
         self,
@@ -168,6 +172,7 @@ class MLEModel:
         projected_season: int,
         mle_config: MLEConfig,
         version: str,
+        age: float | None = None,
     ) -> dict[str, Any] | None:
         assert self._league_env_repo is not None
 
@@ -218,8 +223,8 @@ class MLEModel:
             projected_season=projected_season,
             weighted_line=weighted_line,
             regressed_rates=regressed,
-            mlb_env=mlb_env,
             version=version,
+            age=age,
         )
 
     def _build_prediction(
@@ -228,8 +233,8 @@ class MLEModel:
         projected_season: int,
         weighted_line: TranslatedBattingLine,
         regressed_rates: dict[str, float],
-        mlb_env: LeagueEnvironment,
         version: str,
+        age: float | None = None,
     ) -> dict[str, Any]:
         # Reconstruct counting stats from regressed rates
         pa = weighted_line.pa
@@ -273,7 +278,7 @@ class MLEModel:
             sf=sf,
         )
 
-        return {
+        result: dict[str, Any] = {
             "player_id": player_id,
             "season": projected_season,
             "player_type": "batter",
@@ -295,3 +300,6 @@ class MLEModel:
             "k_pct": round(line.k_pct, 3),
             "bb_pct": round(line.bb_pct, 3),
         }
+        if age is not None:
+            result["age"] = age
+        return result

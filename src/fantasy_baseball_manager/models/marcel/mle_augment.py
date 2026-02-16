@@ -99,11 +99,12 @@ def augment_inputs_with_mle(
                 stats={cat: mle_rates[cat] * BASELINE_PA for cat in categories},
                 pa=BASELINE_PA,
             )
+            mle_age = int(float(proj.stat_json.get("age", 0)))
             result[player_id] = MarcelInput(
                 weighted_rates=mle_rates,
                 weighted_pt=effective_mle_pa,
                 league_rates=dict(league_rates),
-                age=0,
+                age=mle_age,
                 seasons=(baseline_season,),
             )
 

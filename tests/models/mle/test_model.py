@@ -399,3 +399,18 @@ class TestMLEModelPredict:
         # A young player at AA (age 20, benchmark 21) gets favorable age adjustment
         # so the age-adjusted prediction should have higher OBP
         assert result_with_age.predictions[0]["obp"] > result_no_age.predictions[0]["obp"]
+
+    def test_predict_includes_age_in_output(self) -> None:
+        stats = [_milb_stats(player_id=1, season=2025, age=22.5)]
+        model = _build_model(
+            milb_data=stats,
+            envs=[_aa_env(), _mlb_env()],
+            factors=[_aa_factor()],
+        )
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={"season": 2026, "mle_seasons": [2025]},
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["age"] == 22.5
