@@ -212,6 +212,82 @@ def compute_residual_buckets(
     return ResidualBuckets(buckets=buckets, player_type=coefficients.player_type)
 
 
+def evaluate_holdout(
+    train_rows: list[dict[str, Any]],
+    holdout_rows: list[dict[str, Any]],
+    feature_names: list[str],
+    target_column: str,
+    player_type: str,
+    alpha: float = 0.0,
+) -> dict[str, float]:
+    """Fit on train_rows, evaluate R² and RMSE on holdout_rows."""
+    coeff = fit_playing_time(train_rows, feature_names, target_column, player_type, alpha=alpha)
+
+    filtered = [r for r in holdout_rows if r.get(target_column) is not None]
+    n = len(filtered)
+    if n == 0:
+        return {"r_squared": 0.0, "rmse": 0.0, "n": 0.0}
+
+    y_actual = np.empty(n, dtype=np.float64)
+    y_pred = np.empty(n, dtype=np.float64)
+    for i, row in enumerate(filtered):
+        y_actual[i] = float(row[target_column])
+        pred = coeff.intercept
+        for name, c in zip(coeff.feature_names, coeff.coefficients):
+            val = row.get(name)
+            pred += c * (float(val) if val is not None else 0.0)
+        y_pred[i] = pred
+
+    ss_res = float(np.sum((y_actual - y_pred) ** 2))
+    ss_tot = float(np.sum((y_actual - np.mean(y_actual)) ** 2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0.0 else 0.0
+    rmse = float(np.sqrt(ss_res / n))
+
+    return {"r_squared": r_squared, "rmse": rmse, "n": float(n)}
+
+
+def coefficient_report(
+    coefficients: PlayingTimeCoefficients,
+) -> list[dict[str, float | str]]:
+    """Return feature coefficients sorted by |coefficient| descending, including intercept."""
+    entries: list[dict[str, float | str]] = []
+    for name, coeff in zip(coefficients.feature_names, coefficients.coefficients):
+        entries.append({"feature": name, "coefficient": coeff})
+    entries.append({"feature": "intercept", "coefficient": coefficients.intercept})
+    entries.sort(key=lambda e: abs(float(e["coefficient"])), reverse=True)
+    return entries
+
+
+def ablation_study(
+    train_rows: list[dict[str, Any]],
+    holdout_rows: list[dict[str, Any]],
+    feature_groups: list[tuple[str, list[str]]],
+    target_column: str,
+    player_type: str,
+    alpha: float = 0.0,
+) -> list[dict[str, Any]]:
+    """Cumulatively add feature groups, evaluate each on holdout data."""
+    results: list[dict[str, Any]] = []
+    cumulative_features: list[str] = []
+
+    for group_name, group_features in feature_groups:
+        cumulative_features = cumulative_features + group_features
+        holdout_metrics = evaluate_holdout(
+            train_rows, holdout_rows, cumulative_features, target_column, player_type, alpha=alpha
+        )
+        results.append(
+            {
+                "group": group_name,
+                "features": list(cumulative_features),
+                "feature_count": len(cumulative_features),
+                "rmse": holdout_metrics["rmse"],
+                "r_squared": holdout_metrics["r_squared"],
+            }
+        )
+
+    return results
+
+
 def predict_playing_time(
     features: dict[str, float | None],
     coefficients: PlayingTimeCoefficients,

@@ -5,7 +5,10 @@ from fantasy_baseball_manager.models.playing_time.engine import (
     ResidualBuckets,
     ResidualPercentiles,
     _bucket_key,
+    ablation_study,
+    coefficient_report,
     compute_residual_buckets,
+    evaluate_holdout,
     fit_playing_time,
     predict_playing_time,
     predict_playing_time_distribution,
@@ -377,3 +380,163 @@ class TestPredictPlayingTimeDistribution:
         pitch_dist = predict_playing_time_distribution(180.0, {"age": 25.0, "il_days_1": 0.0}, pitcher_buckets)
         assert bat_dist.stat == "pa"
         assert pitch_dist.stat == "ip"
+
+
+class TestEvaluateHoldout:
+    def _make_rows(self, n: int, noise: float = 0.0) -> list[dict[str, float]]:
+        """Rows where target = 2*x1 + 3*x2 + 10 + noise."""
+        rng = random.Random(42)
+        rows: list[dict[str, float]] = []
+        for i in range(n):
+            x1 = float(i)
+            x2 = float(i * 2)
+            target = 2.0 * x1 + 3.0 * x2 + 10.0
+            if noise > 0:
+                target += rng.gauss(0, noise)
+            rows.append({"x1": x1, "x2": x2, "target": target})
+        return rows
+
+    def test_returns_r_squared_and_rmse(self) -> None:
+        train = self._make_rows(20)
+        holdout = self._make_rows(10)
+        result = evaluate_holdout(train, holdout, ["x1", "x2"], "target", "batter")
+        assert "r_squared" in result
+        assert "rmse" in result
+        assert "n" in result
+
+    def test_perfect_fit_gives_r_squared_one(self) -> None:
+        train = self._make_rows(20, noise=0.0)
+        holdout = self._make_rows(10, noise=0.0)
+        result = evaluate_holdout(train, holdout, ["x1", "x2"], "target", "batter", alpha=0.0)
+        assert abs(result["r_squared"] - 1.0) < 1e-6
+        assert result["rmse"] < 1e-6
+
+    def test_holdout_metrics_differ_from_train(self) -> None:
+        rng = random.Random(99)
+        train = self._make_rows(30, noise=0.0)
+        holdout = self._make_rows(15, noise=0.0)
+        # Add noise only to holdout targets
+        for row in holdout:
+            row["target"] += rng.gauss(0, 20.0)
+        result = evaluate_holdout(train, holdout, ["x1", "x2"], "target", "batter")
+        # Training R² should be ~1.0 but holdout R² should be lower
+        train_coeff = fit_playing_time(train, ["x1", "x2"], "target", "batter")
+        assert result["r_squared"] < train_coeff.r_squared
+
+    def test_handles_none_values(self) -> None:
+        train = self._make_rows(20)
+        holdout: list[dict[str, float | None]] = [
+            {"x1": 1.0, "x2": 2.0, "target": 2.0 + 6.0 + 10.0},
+            {"x1": 3.0, "x2": None, "target": 6.0 + 0.0 + 10.0},
+            {"x1": 2.0, "x2": 4.0, "target": None},  # should be skipped
+        ]
+        result = evaluate_holdout(train, holdout, ["x1", "x2"], "target", "batter")
+        assert result["n"] == 2  # third row skipped
+
+
+class TestCoefficientReport:
+    def _make_coefficients(self) -> PlayingTimeCoefficients:
+        return PlayingTimeCoefficients(
+            feature_names=("x1", "x2", "x3"),
+            coefficients=(0.5, -3.0, 1.5),
+            intercept=10.0,
+            r_squared=0.9,
+            player_type="batter",
+        )
+
+    def test_returns_one_entry_per_feature(self) -> None:
+        coeff = self._make_coefficients()
+        report = coefficient_report(coeff)
+        # 3 features + 1 intercept
+        assert len(report) == 4
+
+    def test_entries_contain_name_and_coefficient(self) -> None:
+        coeff = self._make_coefficients()
+        report = coefficient_report(coeff)
+        for entry in report:
+            assert "feature" in entry
+            assert "coefficient" in entry
+
+    def test_sorted_by_absolute_coefficient_descending(self) -> None:
+        coeff = self._make_coefficients()
+        report = coefficient_report(coeff)
+        abs_values = [abs(float(entry["coefficient"])) for entry in report]
+        assert abs_values == sorted(abs_values, reverse=True)
+
+    def test_includes_intercept(self) -> None:
+        coeff = self._make_coefficients()
+        report = coefficient_report(coeff)
+        intercept_entries = [e for e in report if e["feature"] == "intercept"]
+        assert len(intercept_entries) == 1
+        assert float(intercept_entries[0]["coefficient"]) == 10.0
+
+
+class TestAblationStudy:
+    def _make_rows(self, n: int, noise: float = 0.0) -> list[dict[str, float]]:
+        """Rows where target = 2*x1 + 0.5*x2 + 0.3*x3 + 10."""
+        rng = random.Random(42)
+        rows: list[dict[str, float]] = []
+        for i in range(n):
+            x1 = float(i * 5)
+            x2 = float(i * 3)
+            x3 = float(i)
+            target = 2.0 * x1 + 0.5 * x2 + 0.3 * x3 + 10.0
+            if noise > 0:
+                target += rng.gauss(0, noise)
+            rows.append({"x1": x1, "x2": x2, "x3": x3, "target": target})
+        return rows
+
+    def test_returns_one_result_per_group(self) -> None:
+        train = self._make_rows(30)
+        holdout = self._make_rows(10)
+        groups = [("base", ["x1"]), ("extra", ["x2", "x3"])]
+        result = ablation_study(train, holdout, groups, "target", "batter")
+        assert len(result) == 2
+
+    def test_each_result_has_required_keys(self) -> None:
+        train = self._make_rows(30)
+        holdout = self._make_rows(10)
+        groups = [("base", ["x1"]), ("extra", ["x2"])]
+        result = ablation_study(train, holdout, groups, "target", "batter")
+        for entry in result:
+            assert "group" in entry
+            assert "rmse" in entry
+            assert "r_squared" in entry
+            assert "feature_count" in entry
+
+    def test_groups_are_cumulative(self) -> None:
+        train = self._make_rows(30)
+        holdout = self._make_rows(10)
+        groups = [("base", ["x1"]), ("extra", ["x2"]), ("more", ["x3"])]
+        result = ablation_study(train, holdout, groups, "target", "batter")
+        counts = [entry["feature_count"] for entry in result]
+        assert counts == sorted(counts)
+        assert counts == [1, 2, 3]
+
+    def test_more_features_generally_helps(self) -> None:
+        # Use independent features to ensure adding features actually helps
+        rng = random.Random(42)
+        train: list[dict[str, float]] = []
+        for _ in range(50):
+            x1 = rng.gauss(50, 20)
+            x2 = rng.gauss(0, 10)  # independent of x1
+            target = 2.0 * x1 + 0.5 * x2 + 10.0 + rng.gauss(0, 5.0)
+            train.append({"x1": x1, "x2": x2, "target": target})
+        holdout: list[dict[str, float]] = []
+        for _ in range(20):
+            x1 = rng.gauss(50, 20)
+            x2 = rng.gauss(0, 10)
+            target = 2.0 * x1 + 0.5 * x2 + 10.0 + rng.gauss(0, 5.0)
+            holdout.append({"x1": x1, "x2": x2, "target": target})
+        groups = [("base", ["x1"]), ("extra", ["x2"])]
+        result = ablation_study(train, holdout, groups, "target", "batter")
+        # Final RMSE should be <= first RMSE (more features help)
+        assert result[-1]["rmse"] <= result[0]["rmse"]
+
+    def test_single_group_works(self) -> None:
+        train = self._make_rows(30)
+        holdout = self._make_rows(10)
+        groups = [("only", ["x1"])]
+        result = ablation_study(train, holdout, groups, "target", "batter")
+        assert len(result) == 1
+        assert result[0]["group"] == "only"

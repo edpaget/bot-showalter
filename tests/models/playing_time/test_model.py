@@ -16,6 +16,7 @@ from fantasy_baseball_manager.models.playing_time.serialization import (
     save_residual_buckets,
 )
 from fantasy_baseball_manager.models.protocols import (
+    Ablatable,
     Evaluable,
     FineTunable,
     Model,
@@ -162,7 +163,7 @@ class TestPlayingTimeModelProtocol:
 
     def test_supported_operations_includes_train(self) -> None:
         ops = PlayingTimeModel().supported_operations
-        assert ops == frozenset({"prepare", "train", "predict"})
+        assert ops == frozenset({"prepare", "train", "predict", "ablate"})
 
     def test_artifact_type_is_file(self) -> None:
         assert PlayingTimeModel().artifact_type == "file"
@@ -530,3 +531,100 @@ class TestPlayingTimePredict:
         config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
         result = model.predict(config)
         assert result.distributions is None
+
+
+def _make_multi_season_batting_rows(seasons: list[int], players_per_season: int = 10) -> list[dict[str, Any]]:
+    """Create batting rows across multiple seasons with varying PA."""
+    rows: list[dict[str, Any]] = []
+    for season in seasons:
+        for i in range(players_per_season):
+            rows.append(_make_batting_row(i, season, pa_1=400.0 + i * 20 + season % 10))
+    return rows
+
+
+def _make_multi_season_pitching_rows(seasons: list[int], players_per_season: int = 10) -> list[dict[str, Any]]:
+    """Create pitching rows across multiple seasons with varying IP."""
+    rows: list[dict[str, Any]] = []
+    for season in seasons:
+        for i in range(players_per_season):
+            rows.append(_make_pitching_row(i + 100, season, ip_1=150.0 + i * 10 + season % 10))
+    return rows
+
+
+def _multi_season_train_config(tmp_path: Path, seasons: list[int]) -> ModelConfig:
+    return ModelConfig(seasons=seasons, artifacts_dir=str(tmp_path), model_params={"aging_min_samples": 1})
+
+
+class TestPlayingTimeTrainHoldout:
+    def test_train_holdout_metrics_with_multiple_seasons(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        result = model.train(_multi_season_train_config(tmp_path, seasons))
+        assert "rmse_batter_holdout" in result.metrics
+        assert "r_squared_batter_holdout" in result.metrics
+        assert "rmse_pitcher_holdout" in result.metrics
+        assert "r_squared_pitcher_holdout" in result.metrics
+
+    def test_train_no_holdout_with_few_seasons(self, tmp_path: Path) -> None:
+        seasons = [2022, 2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        result = model.train(_multi_season_train_config(tmp_path, seasons))
+        assert "rmse_batter_holdout" not in result.metrics
+        assert "r_squared_batter_holdout" not in result.metrics
+
+    def test_train_coefficient_report_in_metrics(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        result = model.train(_multi_season_train_config(tmp_path, seasons))
+        assert "n_batter_features" in result.metrics
+        assert "n_pitcher_features" in result.metrics
+        assert result.metrics["n_batter_features"] > 0
+        assert result.metrics["n_pitcher_features"] > 0
+
+
+class TestPlayingTimeAblate:
+    def test_ablate_returns_ablation_result(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = _multi_season_train_config(tmp_path, seasons)
+        result = model.ablate(config)
+        assert result.model_name == "playing_time"
+        assert isinstance(result.feature_impacts, dict)
+
+    def test_ablate_feature_impacts_has_batter_and_pitcher(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = _multi_season_train_config(tmp_path, seasons)
+        result = model.ablate(config)
+        batter_keys = [k for k in result.feature_impacts if k.startswith("batter:")]
+        pitcher_keys = [k for k in result.feature_impacts if k.startswith("pitcher:")]
+        assert len(batter_keys) > 0
+        assert len(pitcher_keys) > 0
+
+    def test_ablate_requires_multiple_seasons(self, tmp_path: Path) -> None:
+        seasons = [2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = _multi_season_train_config(tmp_path, seasons)
+        result = model.ablate(config)
+        assert len(result.feature_impacts) == 0
+
+    def test_model_is_ablatable(self) -> None:
+        assert isinstance(PlayingTimeModel(), Ablatable)

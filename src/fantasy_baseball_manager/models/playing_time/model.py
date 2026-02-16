@@ -12,7 +12,10 @@ from fantasy_baseball_manager.models.playing_time.aging import (
 )
 from fantasy_baseball_manager.models.playing_time.convert import pt_projection_to_domain
 from fantasy_baseball_manager.models.playing_time.engine import (
+    ablation_study,
+    coefficient_report,
     compute_residual_buckets,
+    evaluate_holdout,
     fit_playing_time,
     predict_playing_time,
     predict_playing_time_distribution,
@@ -37,6 +40,7 @@ from fantasy_baseball_manager.models.playing_time.serialization import (
     save_residual_buckets,
 )
 from fantasy_baseball_manager.models.protocols import (
+    AblationResult,
     ModelConfig,
     PredictResult,
     PrepareResult,
@@ -64,7 +68,7 @@ class PlayingTimeModel:
 
     @property
     def supported_operations(self) -> frozenset[str]:
-        return frozenset({"prepare", "train", "predict"})
+        return frozenset({"prepare", "train", "predict", "ablate"})
 
     @property
     def artifact_type(self) -> str:
@@ -188,16 +192,45 @@ class PlayingTimeModel:
             artifact_path / _RESIDUAL_BUCKETS_FILENAME,
         )
 
+        metrics: dict[str, float] = {
+            "r_squared_batter": bat_coeff.r_squared,
+            "r_squared_pitcher": pitch_coeff.r_squared,
+            "bat_peak_age": bat_curve.peak_age,
+            "pitch_peak_age": pitch_curve.peak_age,
+            "alpha_batter": bat_alpha,
+            "alpha_pitcher": pitch_alpha,
+        }
+
+        # Holdout evaluation when enough seasons are available
+        if len(config.seasons) >= 4:
+            last_season = float(max(config.seasons))
+            bat_train = [r for r in bat_rows if float(r.get("season", 0)) != last_season]
+            bat_holdout = [r for r in bat_rows if float(r.get("season", 0)) == last_season]
+            pitch_train = [r for r in pitch_rows if float(r.get("season", 0)) != last_season]
+            pitch_holdout = [r for r in pitch_rows if float(r.get("season", 0)) == last_season]
+
+            if bat_train and bat_holdout:
+                bat_ho = evaluate_holdout(bat_train, bat_holdout, bat_columns, "target_pa", "batter", alpha=bat_alpha)
+                metrics["rmse_batter_holdout"] = bat_ho["rmse"]
+                metrics["r_squared_batter_holdout"] = bat_ho["r_squared"]
+
+            if pitch_train and pitch_holdout:
+                pitch_ho = evaluate_holdout(
+                    pitch_train, pitch_holdout, pitch_columns, "target_ip", "pitcher", alpha=pitch_alpha
+                )
+                metrics["rmse_pitcher_holdout"] = pitch_ho["rmse"]
+                metrics["r_squared_pitcher_holdout"] = pitch_ho["r_squared"]
+
+        # Coefficient report — log feature counts
+        bat_report = coefficient_report(bat_coeff)
+        pitch_report = coefficient_report(pitch_coeff)
+        # Subtract 1 for intercept entry
+        metrics["n_batter_features"] = float(len(bat_report) - 1)
+        metrics["n_pitcher_features"] = float(len(pitch_report) - 1)
+
         return TrainResult(
             model_name=self.name,
-            metrics={
-                "r_squared_batter": bat_coeff.r_squared,
-                "r_squared_pitcher": pitch_coeff.r_squared,
-                "bat_peak_age": bat_curve.peak_age,
-                "pitch_peak_age": pitch_curve.peak_age,
-                "alpha_batter": bat_alpha,
-                "alpha_pitcher": pitch_alpha,
-            },
+            metrics=metrics,
             artifacts_path=str(artifact_path),
         )
 
@@ -326,3 +359,100 @@ class PlayingTimeModel:
             output_path=config.output_dir or config.artifacts_dir,
             distributions=all_distributions if all_distributions else None,
         )
+
+    def ablate(self, config: ModelConfig) -> AblationResult:
+        assert self._assembler is not None, "assembler is required for ablate"
+        lags = config.model_params.get("lags", 3)
+        aging_min_samples: int = config.model_params.get("aging_min_samples", 30)
+
+        if len(config.seasons) < 2:
+            return AblationResult(model_name=self.name, feature_impacts={})
+
+        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, training=True, lags=lags)
+        bat_handle = self._assembler.get_or_materialize(batting_fs)
+        pitch_handle = self._assembler.get_or_materialize(pitching_fs)
+        bat_rows = self._assembler.read(bat_handle)
+        pitch_rows = self._assembler.read(pitch_handle)
+
+        # Fit aging curves and enrich
+        bat_curve = fit_playing_time_aging_curve(
+            bat_rows, "batter", "target_pa", "pa_1", min_pt=50.0, min_samples=aging_min_samples
+        )
+        pitch_curve = fit_playing_time_aging_curve(
+            pitch_rows, "pitcher", "target_ip", "ip_1", min_pt=10.0, min_samples=aging_min_samples
+        )
+        bat_rows = enrich_rows_with_age_pt_factor(bat_rows, bat_curve)
+        pitch_rows = enrich_rows_with_age_pt_factor(pitch_rows, pitch_curve)
+
+        last_season = float(max(config.seasons))
+        bat_train = [r for r in bat_rows if float(r.get("season", 0)) != last_season]
+        bat_holdout = [r for r in bat_rows if float(r.get("season", 0)) == last_season]
+        pitch_train = [r for r in pitch_rows if float(r.get("season", 0)) != last_season]
+        pitch_holdout = [r for r in pitch_rows if float(r.get("season", 0)) == last_season]
+
+        alpha_override: float | None = config.model_params.get("alpha", None)
+
+        batting_groups: list[tuple[str, list[str]]] = [
+            ("base", ["age", "pa_1", "pa_2", "pa_3"]),
+            ("war", ["war_1", "war_2"]),
+            (
+                "il",
+                ["il_days_1", "il_days_2", "il_days_3", "il_stints_1", "il_stints_2", "il_days_3yr", "il_recurrence"],
+            ),
+            ("war_thresholds", ["war_above_2", "war_above_4", "war_below_0"]),
+            ("il_severity", ["il_minor", "il_moderate", "il_severe"]),
+            ("interactions", ["war_trend", "age_il_interact", "pt_trend"]),
+            ("aging", ["age_pt_factor"]),
+        ]
+
+        pitching_groups: list[tuple[str, list[str]]] = [
+            ("base", ["age", "ip_1", "ip_2", "ip_3", "g_1", "g_2", "g_3", "gs_1"]),
+            ("war", ["war_1", "war_2"]),
+            (
+                "il",
+                ["il_days_1", "il_days_2", "il_days_3", "il_stints_1", "il_stints_2", "il_days_3yr", "il_recurrence"],
+            ),
+            ("war_thresholds", ["war_above_2", "war_above_4", "war_below_0"]),
+            ("il_severity", ["il_minor", "il_moderate", "il_severe"]),
+            ("interactions", ["war_trend", "age_il_interact", "pt_trend"]),
+            ("aging", ["age_pt_factor"]),
+            ("starter_ratio", ["starter_ratio"]),
+        ]
+
+        feature_impacts: dict[str, float] = {}
+
+        if bat_train and bat_holdout:
+            bat_alpha = (
+                alpha_override
+                if alpha_override is not None
+                else select_alpha(
+                    bat_train, batting_pt_feature_columns(lags) + ["age_pt_factor"], "target_pa", "batter"
+                )
+            )
+            bat_results = ablation_study(bat_train, bat_holdout, batting_groups, "target_pa", "batter", alpha=bat_alpha)
+            for i, entry in enumerate(bat_results):
+                if i == 0:
+                    delta = entry["rmse"]
+                else:
+                    delta = bat_results[i - 1]["rmse"] - entry["rmse"]
+                feature_impacts[f"batter:{entry['group']}"] = delta
+
+        if pitch_train and pitch_holdout:
+            pitch_alpha = (
+                alpha_override
+                if alpha_override is not None
+                else select_alpha(
+                    pitch_train, pitching_pt_feature_columns(lags) + ["age_pt_factor"], "target_ip", "pitcher"
+                )
+            )
+            pitch_results = ablation_study(
+                pitch_train, pitch_holdout, pitching_groups, "target_ip", "pitcher", alpha=pitch_alpha
+            )
+            for i, entry in enumerate(pitch_results):
+                if i == 0:
+                    delta = entry["rmse"]
+                else:
+                    delta = pitch_results[i - 1]["rmse"] - entry["rmse"]
+                feature_impacts[f"pitcher:{entry['group']}"] = delta
+
+        return AblationResult(model_name=self.name, feature_impacts=feature_impacts)
