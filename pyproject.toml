@@ -22,6 +22,8 @@ dev = [
     "matplotlib>=3.10.0",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
+    "pytest-randomly>=4.0.1",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.15.1",
     "ty>=0.0.17",
 ]
@@ -35,3 +37,6 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "PLC0415"]
+
+[tool.pytest.ini_options]
+addopts = "-n auto -p randomly"

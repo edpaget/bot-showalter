@@ -6,7 +6,8 @@ Fantasy baseball manager. Python 3.14+, uses `uv` for dependency management. Tes
 
 ## Development Commands
 
-- **Run tests:** `uv run pytest`
+- **Run tests:** `uv run pytest` (runs in parallel via xdist, randomized order via pytest-randomly)
+- **Reproduce test ordering:** `uv run pytest -p randomly -p no:xdist --randomly-seed=SEED` (use the seed printed at the top of a failing run)
 - **Lint:** `uv run ruff check src tests`
 - **Format:** `uv run ruff format src tests`
 - **Type check:** `uv run ty check src tests`
