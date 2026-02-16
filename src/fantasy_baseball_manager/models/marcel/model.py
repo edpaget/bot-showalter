@@ -10,6 +10,7 @@ from fantasy_baseball_manager.models.marcel.convert import (
     rows_to_marcel_inputs,
 )
 from fantasy_baseball_manager.models.marcel.engine import project_all
+from fantasy_baseball_manager.models.marcel.mle_augment import augment_inputs_with_mle
 from fantasy_baseball_manager.repos.protocols import ProjectionRepo
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_features,
@@ -168,6 +169,22 @@ class MarcelModel:
         pitch_inputs = rows_to_marcel_inputs(
             pitch_rows, marcel_config.pitching_categories, len(marcel_config.pitching_weights), pitcher=True
         )
+
+        use_mle = config.model_params.get("use_mle", False)
+        if use_mle and self._projection_repo is not None:
+            mle_projections = self._projection_repo.get_by_season(projected_season, system="mle")
+            if mle_projections:
+                # Extract league rates from existing inputs (use first available)
+                sample_input = next(iter(bat_inputs.values()), None)
+                lg_rates = dict(sample_input.league_rates) if sample_input else {}
+                mle_discount = float(config.model_params.get("mle_discount", 0.55))
+                bat_inputs = augment_inputs_with_mle(
+                    inputs=bat_inputs,
+                    mle_projections=mle_projections,
+                    categories=marcel_config.batting_categories,
+                    league_rates=lg_rates,
+                    discount_factor=mle_discount,
+                )
 
         bat_pt_lookup: dict[int, float] | None = None
         pitch_pt_lookup: dict[int, float] | None = None

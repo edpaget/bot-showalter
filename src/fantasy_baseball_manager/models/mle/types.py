@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -79,3 +79,27 @@ class TranslatedBattingLine:
     def babip(self) -> float:
         bip = self.ab - self.so - self.hr + self.sf
         return (self.h - self.hr) / bip if bip > 0 else 0.0
+
+
+DEFAULT_STABILIZATION_PA: dict[str, float] = {
+    "k_pct": 60.0,
+    "bb_pct": 120.0,
+    "iso": 160.0,
+    "babip": 820.0,
+}
+
+
+@dataclass(frozen=True)
+class BlendConfig:
+    discount_factor: float = 0.55
+    stabilization_pa: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_STABILIZATION_PA))
+
+
+@dataclass(frozen=True)
+class BlendedStatLine:
+    player_id: int
+    season: int
+    mlb_pa: int
+    mle_pa: int
+    effective_pa: float
+    rates: dict[str, float]
