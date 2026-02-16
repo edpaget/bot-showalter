@@ -1,0 +1,16 @@
+[common]
+data_dir = "./data"
+artifacts_dir = "./artifacts"
+
+[models.ensemble.params]
+mode = "weighted_average"
+season = 2025
+stats = ["avg", "obp", "slg", "era", "fip", "whip", "k_per_9", "bb_per_9"]
+
+[models.ensemble.params.components]
+marcel = 0.6
+"statcast-gbm" = 0.4
+
+[models.ensemble.params.versions]
+marcel = "latest"
+"statcast-gbm" = "v1"
