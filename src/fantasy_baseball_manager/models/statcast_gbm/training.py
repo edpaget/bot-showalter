@@ -1,9 +1,11 @@
 import copy
-import math
 import random
 from typing import Any, NamedTuple
 
+import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
+
+from fantasy_baseball_manager.models.sampling import holdout_metrics
 
 
 class TargetVector(NamedTuple):
@@ -111,8 +113,8 @@ def score_predictions(
     for target_name, model in models.items():
         tv = targets_dict[target_name]
         y_pred = model.predict(_filter_X(X, tv.indices))
-        mse = sum((yt - yp) ** 2 for yt, yp in zip(tv.values, y_pred, strict=True)) / len(tv.values)
-        metrics[f"rmse_{target_name}"] = math.sqrt(mse)
+        target_metrics = holdout_metrics(np.array(tv.values), y_pred)
+        metrics[f"rmse_{target_name}"] = target_metrics["rmse"]
     return metrics
 
 
