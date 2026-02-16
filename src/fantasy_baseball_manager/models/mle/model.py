@@ -7,6 +7,7 @@ from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.models.mle.engine import (
     apply_recency_weights,
+    clamp_xbh,
     combine_translated_lines,
     regress_to_mlb,
     translate_batting_line,
@@ -254,26 +255,23 @@ class MLEModel:
         doubles = round(h * doubles_ratio)
         triples = round(h * triples_ratio)
 
-        # Clamp XBH
-        xbh = doubles + triples + hr
-        if xbh > h:
-            available = max(h - hr, 0)
-            total_non_hr = doubles + triples
-            if total_non_hr > 0:
-                ratio = available / total_non_hr
-                doubles = int(doubles * ratio)
-                triples = int(triples * ratio)
+        doubles, triples = clamp_xbh(doubles, triples, hr, h)
 
-        avg = h / ab if ab > 0 else 0.0
-        obp_denom = ab + bb + hbp + sf
-        obp = (h + bb + hbp) / obp_denom if obp_denom > 0 else 0.0
-        tb = h + doubles + triples * 2 + hr * 3
-        slg = tb / ab if ab > 0 else 0.0
-        iso = slg - avg
-        k_pct = so / pa if pa > 0 else 0.0
-        bb_pct = bb / pa if pa > 0 else 0.0
-        bip_out = max(ab - so - hr + sf, 0)
-        babip = (h - hr) / bip_out if bip_out > 0 else 0.0
+        line = TranslatedBattingLine(
+            player_id=player_id,
+            season=projected_season,
+            source_level=weighted_line.source_level,
+            pa=pa,
+            ab=ab,
+            h=h,
+            doubles=doubles,
+            triples=triples,
+            hr=hr,
+            bb=bb,
+            so=so,
+            hbp=hbp,
+            sf=sf,
+        )
 
         return {
             "player_id": player_id,
@@ -289,11 +287,11 @@ class MLEModel:
             "hr": hr,
             "bb": bb,
             "so": so,
-            "avg": round(avg, 3),
-            "obp": round(obp, 3),
-            "slg": round(slg, 3),
-            "iso": round(iso, 3),
-            "babip": round(babip, 3),
-            "k_pct": round(k_pct, 3),
-            "bb_pct": round(bb_pct, 3),
+            "avg": round(line.avg, 3),
+            "obp": round(line.obp, 3),
+            "slg": round(line.slg, 3),
+            "iso": round(line.iso, 3),
+            "babip": round(line.babip, 3),
+            "k_pct": round(line.k_pct, 3),
+            "bb_pct": round(line.bb_pct, 3),
         }

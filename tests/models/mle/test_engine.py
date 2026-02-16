@@ -513,6 +513,45 @@ class TestAgeAdjustedTranslation:
         k_relative = abs(adjusted.k_pct - unadjusted.k_pct) / unadjusted.k_pct
         assert babip_relative > k_relative
 
+    def test_k_dampening_configurable(self) -> None:
+        stats = _aa_stats(age=20.0)
+        default_config = _age_config()  # k_dampening defaults to 0.5
+        custom_config = AgeAdjustmentConfig(
+            benchmarks=DEFAULT_AGE_BENCHMARKS,
+            k_dampening=0.3,
+        )
+
+        default_result = translate_batting_line(
+            stats=stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+            age_config=default_config,
+        )
+        custom_result = translate_batting_line(
+            stats=stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+            age_config=custom_config,
+        )
+
+        # Different k_dampening should produce different K%
+        assert default_result.k_pct != custom_result.k_pct
+
+        # k_dampening=0.3 means less adjustment effect on K%
+        # For young player (full_adj > 1), smaller dampening → K% closer to unadjusted
+        unadjusted = translate_batting_line(
+            stats=stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+        )
+        assert abs(custom_result.k_pct - unadjusted.k_pct) < abs(default_result.k_pct - unadjusted.k_pct)
+
     def test_age_adjusted_line_preserves_invariants(self) -> None:
         stats = _aa_stats(age=20.0)
         age_config = _age_config()
@@ -554,13 +593,6 @@ def _translated_line(
     so: int = 75,
     hbp: int = 3,
     sf: int = 2,
-    avg: float = 0.259,
-    obp: float = 0.327,
-    slg: float = 0.430,
-    k_pct: float = 0.250,
-    bb_pct: float = 0.083,
-    iso: float = 0.171,
-    babip: float = 0.300,
 ) -> TranslatedBattingLine:
     return TranslatedBattingLine(
         player_id=player_id,
@@ -576,13 +608,6 @@ def _translated_line(
         so=so,
         hbp=hbp,
         sf=sf,
-        avg=avg,
-        obp=obp,
-        slg=slg,
-        k_pct=k_pct,
-        bb_pct=bb_pct,
-        iso=iso,
-        babip=babip,
     )
 
 
@@ -593,20 +618,22 @@ class TestCombineTranslatedLines:
         assert result == line
 
     def test_combine_multi_level_pa_weights_rates(self) -> None:
-        line_aa = _translated_line(pa=200, ab=180, k_pct=0.300, bb_pct=0.070, iso=0.150, babip=0.280)
+        line_aa = _translated_line(pa=200, ab=180, h=50, so=60, bb=15, hbp=3, sf=2, doubles=10, triples=1, hr=5)
         line_aaa = _translated_line(
-            pa=300, ab=270, k_pct=0.200, bb_pct=0.090, iso=0.190, babip=0.310, source_level="AAA"
+            pa=300, ab=270, h=70, so=60, bb=25, hbp=3, sf=2, doubles=15, triples=2, hr=8, source_level="AAA"
         )
         result = combine_translated_lines([line_aa, line_aaa])
 
-        # PA-weighted: (200*0.300 + 300*0.200)/500 = 0.240
-        assert result.k_pct == pytest.approx(0.240, abs=1e-6)
-        # PA-weighted: (200*0.070 + 300*0.090)/500 = 0.082
-        assert result.bb_pct == pytest.approx(0.082, abs=1e-6)
-        # PA-weighted ISO: (200*0.150 + 300*0.190)/500 = 0.174
-        assert result.iso == pytest.approx(0.174, abs=1e-6)
-        # PA-weighted BABIP: (200*0.280 + 300*0.310)/500 = 0.298
-        assert result.babip == pytest.approx(0.298, abs=1e-6)
+        # Rates derived from summed counting stats
+        # k_pct = total_so / total_pa = 120/500
+        assert result.k_pct == pytest.approx(120 / 500, abs=1e-6)
+        # bb_pct = total_bb / total_pa = 40/500
+        assert result.bb_pct == pytest.approx(40 / 500, abs=1e-6)
+        # iso = slg - avg, derived from summed counts
+        total_tb = 120 + 25 + 3 * 2 + 13 * 3
+        assert result.iso == pytest.approx(total_tb / 450 - 120 / 450, abs=1e-6)
+        # babip = (H-HR) / (AB-SO-HR+SF) = (120-13)/(450-120-13+4) = 107/321
+        assert result.babip == pytest.approx(107 / 321, abs=1e-6)
 
     def test_combine_sums_counting_stats(self) -> None:
         line1 = _translated_line(pa=200, ab=180, h=50, doubles=10, triples=1, hr=5, bb=15, so=50, hbp=3, sf=2)
@@ -640,29 +667,32 @@ class TestCombineTranslatedLines:
 
 class TestApplyRecencyWeights:
     def test_recency_single_season(self) -> None:
-        line = _translated_line(k_pct=0.250, bb_pct=0.080, iso=0.170, babip=0.300)
+        line = _translated_line()
         result = apply_recency_weights([(line, 5.0)])
-        assert result.k_pct == pytest.approx(0.250, abs=1e-6)
-        assert result.bb_pct == pytest.approx(0.080, abs=1e-6)
+        # Default: so=75, pa=300, bb=25
+        assert result.k_pct == pytest.approx(75 / 300, abs=1e-6)
+        assert result.bb_pct == pytest.approx(25 / 300, abs=1e-6)
 
     def test_recency_recent_season_weighted_higher(self) -> None:
-        recent = _translated_line(pa=400, ab=360, k_pct=0.200, bb_pct=0.090, iso=0.190, babip=0.310)
-        older = _translated_line(pa=400, ab=360, k_pct=0.300, bb_pct=0.060, iso=0.140, babip=0.280)
+        recent = _translated_line(pa=400, ab=360, h=70, so=80, bb=30, hbp=5, sf=5)
+        older = _translated_line(pa=400, ab=360, h=70, so=120, bb=30, hbp=5, sf=5)
         result = apply_recency_weights([(recent, 5.0), (older, 3.0)])
 
         # With equal PA, rates should be closer to recent line
-        # weighted_k = (400*5*0.200 + 400*3*0.300) / (400*5 + 400*3) = 0.2375
-        expected_k = (400 * 5 * 0.200 + 400 * 3 * 0.300) / (400 * 5 + 400 * 3)
-        assert result.k_pct == pytest.approx(expected_k, abs=1e-6)
+        # weighted_so = round(80*5 + 120*3) = 760
+        # weighted_pa = round(400*5 + 400*3) = 3200
+        # k_pct = 760/3200 = 0.2375
+        assert result.k_pct == pytest.approx(760 / 3200, abs=1e-6)
         assert result.k_pct < 0.250  # Closer to 0.200 than 0.300
 
     def test_recency_zero_weight_season_ignored(self) -> None:
-        active = _translated_line(pa=400, ab=360, k_pct=0.220, bb_pct=0.085, iso=0.175, babip=0.305)
-        ignored = _translated_line(pa=400, ab=360, k_pct=0.350, bb_pct=0.040, iso=0.100, babip=0.250)
+        active = _translated_line(pa=400, ab=360, h=80, so=88, bb=30, hbp=5, sf=5)
+        ignored = _translated_line(pa=400, ab=360, h=60, so=140, bb=30, hbp=5, sf=5)
         result = apply_recency_weights([(active, 5.0), (ignored, 0.0)])
 
-        assert result.k_pct == pytest.approx(0.220, abs=1e-6)
-        assert result.bb_pct == pytest.approx(0.085, abs=1e-6)
+        # Only one active line → returned unchanged
+        assert result.k_pct == pytest.approx(88 / 400, abs=1e-6)
+        assert result.bb_pct == pytest.approx(30 / 400, abs=1e-6)
 
 
 class TestRegressToMlb:

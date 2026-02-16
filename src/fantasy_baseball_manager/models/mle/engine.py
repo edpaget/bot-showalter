@@ -59,7 +59,7 @@ def translate_rates(
     )
 
 
-def _clamp_xbh(doubles: int, triples: int, hr: int, h: int) -> tuple[int, int]:
+def clamp_xbh(doubles: int, triples: int, hr: int, h: int) -> tuple[int, int]:
     """Scale 2B and 3B down proportionally if XBH exceeds H, preserving HR."""
     xbh = doubles + triples + hr
     if xbh <= h:
@@ -127,7 +127,7 @@ def translate_batting_line(
     # 3b. Apply age adjustment to translated rates
     if age_config is not None:
         full_adj = compute_age_adjustment(age=stats.age, level=stats.level, config=age_config)
-        dampened_adj = 1.0 + (full_adj - 1.0) * 0.5
+        dampened_adj = 1.0 + (full_adj - 1.0) * age_config.k_dampening
         rates = TranslatedRates(
             k_pct=rates.k_pct * (1.0 / dampened_adj),
             bb_pct=rates.bb_pct * dampened_adj,
@@ -151,22 +151,10 @@ def translate_batting_line(
     triples = round(stats.triples * m * 0.85)
 
     # Clamp XBH if they exceed H
-    doubles, triples = _clamp_xbh(doubles, triples, hr, h)
+    doubles, triples = clamp_xbh(doubles, triples, hr, h)
 
     # Ensure h doesn't exceed ab
     h = min(h, ab)
-
-    # 5. Derive rate stats
-    avg = h / ab if ab > 0 else 0.0
-    obp_denom = ab + bb + hbp + sf
-    obp = (h + bb + hbp) / obp_denom if obp_denom > 0 else 0.0
-    tb_t = h + doubles + triples * 2 + hr * 3
-    slg = tb_t / ab if ab > 0 else 0.0
-    derived_iso = slg - avg
-    k_pct_out = so / pa if pa > 0 else 0.0
-    bb_pct_out = bb / pa if pa > 0 else 0.0
-    bip_out = ab - so - hr + sf
-    babip_out = (h - hr) / bip_out if bip_out > 0 else 0.0
 
     return TranslatedBattingLine(
         player_id=stats.player_id,
@@ -182,107 +170,28 @@ def translate_batting_line(
         so=so,
         hbp=hbp,
         sf=sf,
-        avg=avg,
-        obp=obp,
-        slg=slg,
-        k_pct=k_pct_out,
-        bb_pct=bb_pct_out,
-        iso=derived_iso,
-        babip=babip_out,
     )
-
-
-def _derive_rates(
-    *,
-    pa: int,
-    ab: int,
-    h: int,
-    doubles: int,
-    triples: int,
-    hr: int,
-    bb: int,
-    so: int,
-    hbp: int,
-    sf: int,
-) -> dict[str, float]:
-    """Derive rate stats from counting stats."""
-    avg = h / ab if ab > 0 else 0.0
-    obp_denom = ab + bb + hbp + sf
-    obp = (h + bb + hbp) / obp_denom if obp_denom > 0 else 0.0
-    tb = h + doubles + triples * 2 + hr * 3
-    slg = tb / ab if ab > 0 else 0.0
-    iso = slg - avg
-    k_pct = so / pa if pa > 0 else 0.0
-    bb_pct = bb / pa if pa > 0 else 0.0
-    bip = ab - so - hr + sf
-    babip = (h - hr) / bip if bip > 0 else 0.0
-    return {
-        "avg": avg,
-        "obp": obp,
-        "slg": slg,
-        "iso": iso,
-        "k_pct": k_pct,
-        "bb_pct": bb_pct,
-        "babip": babip,
-    }
 
 
 def combine_translated_lines(lines: Sequence[TranslatedBattingLine]) -> TranslatedBattingLine:
-    """PA-weight rate stats and sum counting stats across multiple translated lines."""
+    """Sum counting stats across multiple translated lines. Rates derive automatically."""
     if len(lines) == 1:
         return lines[0]
-
-    total_pa = sum(line.pa for line in lines)
-    total_ab = sum(line.ab for line in lines)
-    total_h = sum(line.h for line in lines)
-    total_doubles = sum(line.doubles for line in lines)
-    total_triples = sum(line.triples for line in lines)
-    total_hr = sum(line.hr for line in lines)
-    total_bb = sum(line.bb for line in lines)
-    total_so = sum(line.so for line in lines)
-    total_hbp = sum(line.hbp for line in lines)
-    total_sf = sum(line.sf for line in lines)
-
-    rates = _derive_rates(
-        pa=total_pa,
-        ab=total_ab,
-        h=total_h,
-        doubles=total_doubles,
-        triples=total_triples,
-        hr=total_hr,
-        bb=total_bb,
-        so=total_so,
-        hbp=total_hbp,
-        sf=total_sf,
-    )
-
-    # PA-weight the rate stats that can't be derived from counting stats alone
-    k_pct = sum(line.k_pct * line.pa for line in lines) / total_pa
-    bb_pct = sum(line.bb_pct * line.pa for line in lines) / total_pa
-    iso = sum(line.iso * line.pa for line in lines) / total_pa
-    babip = sum(line.babip * line.pa for line in lines) / total_pa
 
     return TranslatedBattingLine(
         player_id=lines[0].player_id,
         season=lines[0].season,
         source_level=lines[0].source_level,
-        pa=total_pa,
-        ab=total_ab,
-        h=total_h,
-        doubles=total_doubles,
-        triples=total_triples,
-        hr=total_hr,
-        bb=total_bb,
-        so=total_so,
-        hbp=total_hbp,
-        sf=total_sf,
-        avg=rates["avg"],
-        obp=rates["obp"],
-        slg=rates["slg"],
-        k_pct=k_pct,
-        bb_pct=bb_pct,
-        iso=iso,
-        babip=babip,
+        pa=sum(line.pa for line in lines),
+        ab=sum(line.ab for line in lines),
+        h=sum(line.h for line in lines),
+        doubles=sum(line.doubles for line in lines),
+        triples=sum(line.triples for line in lines),
+        hr=sum(line.hr for line in lines),
+        bb=sum(line.bb for line in lines),
+        so=sum(line.so for line in lines),
+        hbp=sum(line.hbp for line in lines),
+        sf=sum(line.sf for line in lines),
     )
 
 
@@ -292,7 +201,7 @@ def apply_recency_weights(
     """Apply Marcel-style recency weights across seasons.
 
     Each tuple is (translated_line, weight). Produces a single composite line
-    with rates weighted by pa * recency_weight.
+    with counting stats weighted by pa * recency_weight. Rates derive automatically.
     """
     if len(season_lines) == 1:
         return season_lines[0][0]
@@ -302,60 +211,20 @@ def apply_recency_weights(
     if len(active) == 1:
         return active[0][0]
 
-    weighted_pa = sum(line.pa * w for line, w in active)
-
-    # PA-weight rate stats by recency
-    k_pct = sum(line.k_pct * line.pa * w for line, w in active) / weighted_pa
-    bb_pct = sum(line.bb_pct * line.pa * w for line, w in active) / weighted_pa
-    iso = sum(line.iso * line.pa * w for line, w in active) / weighted_pa
-    babip = sum(line.babip * line.pa * w for line, w in active) / weighted_pa
-
-    # Weighted counting stats
-    total_pa = round(weighted_pa)
-    total_ab = round(sum(line.ab * w for line, w in active))
-    total_h = round(sum(line.h * w for line, w in active))
-    total_doubles = round(sum(line.doubles * w for line, w in active))
-    total_triples = round(sum(line.triples * w for line, w in active))
-    total_hr = round(sum(line.hr * w for line, w in active))
-    total_bb = round(sum(line.bb * w for line, w in active))
-    total_so = round(sum(line.so * w for line, w in active))
-    total_hbp = round(sum(line.hbp * w for line, w in active))
-    total_sf = round(sum(line.sf * w for line, w in active))
-
-    rates = _derive_rates(
-        pa=total_pa,
-        ab=total_ab,
-        h=total_h,
-        doubles=total_doubles,
-        triples=total_triples,
-        hr=total_hr,
-        bb=total_bb,
-        so=total_so,
-        hbp=total_hbp,
-        sf=total_sf,
-    )
-
     return TranslatedBattingLine(
         player_id=active[0][0].player_id,
         season=active[0][0].season,
         source_level=active[0][0].source_level,
-        pa=total_pa,
-        ab=total_ab,
-        h=total_h,
-        doubles=total_doubles,
-        triples=total_triples,
-        hr=total_hr,
-        bb=total_bb,
-        so=total_so,
-        hbp=total_hbp,
-        sf=total_sf,
-        avg=rates["avg"],
-        obp=rates["obp"],
-        slg=rates["slg"],
-        k_pct=k_pct,
-        bb_pct=bb_pct,
-        iso=iso,
-        babip=babip,
+        pa=round(sum(line.pa * w for line, w in active)),
+        ab=round(sum(line.ab * w for line, w in active)),
+        h=round(sum(line.h * w for line, w in active)),
+        doubles=round(sum(line.doubles * w for line, w in active)),
+        triples=round(sum(line.triples * w for line, w in active)),
+        hr=round(sum(line.hr * w for line, w in active)),
+        bb=round(sum(line.bb * w for line, w in active)),
+        so=round(sum(line.so * w for line, w in active)),
+        hbp=round(sum(line.hbp * w for line, w in active)),
+        sf=round(sum(line.sf * w for line, w in active)),
     )
 
 

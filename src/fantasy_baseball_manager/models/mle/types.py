@@ -30,6 +30,7 @@ class AgeAdjustmentConfig:
     development_rate_per_year: float = 0.006
     min_multiplier: float = 0.85
     max_multiplier: float = 1.25
+    k_dampening: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -47,10 +48,34 @@ class TranslatedBattingLine:
     so: int
     hbp: int
     sf: int
-    avg: float
-    obp: float
-    slg: float
-    k_pct: float
-    bb_pct: float
-    iso: float
-    babip: float
+
+    @property
+    def avg(self) -> float:
+        return self.h / self.ab if self.ab > 0 else 0.0
+
+    @property
+    def obp(self) -> float:
+        denom = self.ab + self.bb + self.hbp + self.sf
+        return (self.h + self.bb + self.hbp) / denom if denom > 0 else 0.0
+
+    @property
+    def slg(self) -> float:
+        tb = self.h + self.doubles + self.triples * 2 + self.hr * 3
+        return tb / self.ab if self.ab > 0 else 0.0
+
+    @property
+    def iso(self) -> float:
+        return self.slg - self.avg
+
+    @property
+    def k_pct(self) -> float:
+        return self.so / self.pa if self.pa > 0 else 0.0
+
+    @property
+    def bb_pct(self) -> float:
+        return self.bb / self.pa if self.pa > 0 else 0.0
+
+    @property
+    def babip(self) -> float:
+        bip = self.ab - self.so - self.hr + self.sf
+        return (self.h - self.hr) / bip if bip > 0 else 0.0
