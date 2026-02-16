@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.protocols import (
@@ -429,3 +431,29 @@ class TestStatcastGBMTrainWithMissingTargets:
         assert isinstance(result, TrainResult)
         for target in BATTER_TARGETS:
             assert f"batter_rmse_{target}" in result.metrics
+
+
+class TestStatcastGBMSeasonValidation:
+    def test_train_empty_seasons(self) -> None:
+        model = StatcastGBMModel(assembler=FakeAssembler())
+        config = ModelConfig(seasons=[])
+        with pytest.raises(ValueError, match="train requires at least 2 seasons"):
+            model.train(config)
+
+    def test_train_single_season(self) -> None:
+        model = StatcastGBMModel(assembler=FakeAssembler())
+        config = ModelConfig(seasons=[2023])
+        with pytest.raises(ValueError, match="train requires at least 2 seasons"):
+            model.train(config)
+
+    def test_ablate_empty_seasons(self) -> None:
+        model = StatcastGBMModel(assembler=FakeAssembler())
+        config = ModelConfig(seasons=[])
+        with pytest.raises(ValueError, match="ablate requires at least 2 seasons"):
+            model.ablate(config)
+
+    def test_ablate_single_season(self) -> None:
+        model = StatcastGBMModel(assembler=FakeAssembler())
+        config = ModelConfig(seasons=[2023])
+        with pytest.raises(ValueError, match="ablate requires at least 2 seasons"):
+            model.ablate(config)

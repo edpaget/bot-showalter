@@ -81,6 +81,9 @@ class StatcastGBMModel:
 
     def train(self, config: ModelConfig) -> TrainResult:
         assert self._assembler is not None, "assembler is required for train"
+        if len(config.seasons) < 2:
+            msg = f"train requires at least 2 seasons (got {len(config.seasons)})"
+            raise ValueError(msg)
 
         train_seasons = config.seasons[:-1]
         holdout_seasons = [config.seasons[-1]]
@@ -204,6 +207,9 @@ class StatcastGBMModel:
 
     def ablate(self, config: ModelConfig) -> AblationResult:
         assert self._assembler is not None, "assembler is required for ablate"
+        if len(config.seasons) < 2:
+            msg = f"ablate requires at least 2 seasons (got {len(config.seasons)})"
+            raise ValueError(msg)
 
         train_seasons = config.seasons[:-1]
         holdout_seasons = [config.seasons[-1]]
