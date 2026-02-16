@@ -6,6 +6,7 @@ from typing import Any
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
+from fantasy_baseball_manager.models.sampling import temporal_holdout_split
 from fantasy_baseball_manager.models.playing_time.aging import (
     enrich_rows_with_age_pt_factor,
     fit_playing_time_aging_curve,
@@ -203,11 +204,8 @@ class PlayingTimeModel:
 
         # Holdout evaluation when enough seasons are available
         if len(config.seasons) >= 4:
-            last_season = float(max(config.seasons))
-            bat_train = [r for r in bat_rows if float(r.get("season", 0)) != last_season]
-            bat_holdout = [r for r in bat_rows if float(r.get("season", 0)) == last_season]
-            pitch_train = [r for r in pitch_rows if float(r.get("season", 0)) != last_season]
-            pitch_holdout = [r for r in pitch_rows if float(r.get("season", 0)) == last_season]
+            bat_train, bat_holdout = temporal_holdout_split(bat_rows)
+            pitch_train, pitch_holdout = temporal_holdout_split(pitch_rows)
 
             if bat_train and bat_holdout:
                 bat_ho = evaluate_holdout(bat_train, bat_holdout, bat_columns, "target_pa", "batter", alpha=bat_alpha)
@@ -384,11 +382,8 @@ class PlayingTimeModel:
         bat_rows = enrich_rows_with_age_pt_factor(bat_rows, bat_curve)
         pitch_rows = enrich_rows_with_age_pt_factor(pitch_rows, pitch_curve)
 
-        last_season = float(max(config.seasons))
-        bat_train = [r for r in bat_rows if float(r.get("season", 0)) != last_season]
-        bat_holdout = [r for r in bat_rows if float(r.get("season", 0)) == last_season]
-        pitch_train = [r for r in pitch_rows if float(r.get("season", 0)) != last_season]
-        pitch_holdout = [r for r in pitch_rows if float(r.get("season", 0)) == last_season]
+        bat_train, bat_holdout = temporal_holdout_split(bat_rows)
+        pitch_train, pitch_holdout = temporal_holdout_split(pitch_rows)
 
         alpha_override: float | None = config.model_params.get("alpha", None)
 

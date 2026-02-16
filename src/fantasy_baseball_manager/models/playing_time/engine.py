@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 
 from fantasy_baseball_manager.domain.projection import StatDistribution
+from fantasy_baseball_manager.models.sampling import holdout_metrics, season_kfold
 
 
 @dataclass(frozen=True)
@@ -116,21 +117,9 @@ def select_alpha(
     lowest mean RMSE across folds. If only one season exists, returns the
     first alpha.
     """
-    # Group rows by season
-    season_groups: dict[float, list[dict[str, Any]]] = {}
-    for row in rows:
-        s = float(row["season"])
-        season_groups.setdefault(s, []).append(row)
-
-    seasons = sorted(season_groups.keys())
-    if len(seasons) <= 1:
+    folds = list(season_kfold(rows, n_folds))
+    if not folds:
         return alphas[0]
-
-    # Build folds: assign each season to a fold index
-    actual_folds = min(n_folds, len(seasons))
-    fold_assignments: dict[float, int] = {}
-    for i, s in enumerate(seasons):
-        fold_assignments[s] = i % actual_folds
 
     # For each alpha, compute mean RMSE across folds
     best_alpha = alphas[0]
@@ -138,9 +127,7 @@ def select_alpha(
 
     for alpha in alphas:
         fold_rmses: list[float] = []
-        for fold_idx in range(actual_folds):
-            train_rows = [r for r in rows if fold_assignments[float(r["season"])] != fold_idx]
-            test_rows = [r for r in rows if fold_assignments[float(r["season"])] == fold_idx]
+        for train_rows, test_rows in folds:
             if not train_rows or not test_rows:
                 continue
             coeff = fit_playing_time(train_rows, feature_names, target_column, player_type, alpha=alpha)
@@ -238,12 +225,7 @@ def evaluate_holdout(
             pred += c * (float(val) if val is not None else 0.0)
         y_pred[i] = pred
 
-    ss_res = float(np.sum((y_actual - y_pred) ** 2))
-    ss_tot = float(np.sum((y_actual - np.mean(y_actual)) ** 2))
-    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0.0 else 0.0
-    rmse = float(np.sqrt(ss_res / n))
-
-    return {"r_squared": r_squared, "rmse": rmse, "n": float(n)}
+    return holdout_metrics(y_actual, y_pred)
 
 
 def coefficient_report(
