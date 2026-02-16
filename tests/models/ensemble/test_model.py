@@ -607,3 +607,34 @@ class TestEnsembleStatcastGBMIntegration:
         assert pred["obp"] == pytest.approx(0.350 * 0.6 + 0.340 * 0.4)
         # pa comes from Marcel only (statcast-gbm lacks it)
         assert pred["pa"] == pytest.approx(600.0)
+
+    def test_versions_param_filters_by_version(self) -> None:
+        """When versions dict is provided, only that version is used per system."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280}, season=2025),
+                Projection(
+                    player_id=1,
+                    season=2025,
+                    system="marcel",
+                    version="old",
+                    player_type="batter",
+                    stat_json={"avg": 0.200},
+                ),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.270}, season=2025),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stats": ["avg"],
+                "versions": {"marcel": "v1", "statcast-gbm": "v1"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # Only marcel v1 (avg=0.280) used, not "old" (avg=0.200)
+        assert pred["avg"] == pytest.approx(0.280 * 0.6 + 0.270 * 0.4)

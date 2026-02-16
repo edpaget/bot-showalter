@@ -42,11 +42,15 @@ class EnsembleModel:
         season: int = params["season"]
         stats: Sequence[str] | None = params.get("stats")
         pt_stat: str = params.get("pt_stat", "pa")
+        versions: dict[str, str] = params.get("versions", {})
 
         # Fetch projections for each component system
         system_projections: dict[str, list[Projection]] = {}
         for system in components:
-            system_projections[system] = self._projection_repo.get_by_season(season, system=system)
+            if system in versions:
+                system_projections[system] = self._projection_repo.get_by_system_version(system, versions[system])
+            else:
+                system_projections[system] = self._projection_repo.get_by_season(season, system=system)
 
         # Group by (player_id, player_type)
         grouped: dict[tuple[int, str], dict[str, Projection]] = defaultdict(dict)
