@@ -98,6 +98,8 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
 class EvalContext:
     conn: sqlite3.Connection
     evaluator: ProjectionEvaluator
+    player_repo: SqlitePlayerRepo
+    batting_repo: SqliteBattingStatsRepo
 
 
 @contextmanager
@@ -105,12 +107,18 @@ def build_eval_context(data_dir: str) -> Iterator[EvalContext]:
     """Composition-root context manager for eval/compare commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
+        batting_repo = SqliteBattingStatsRepo(conn)
         evaluator = ProjectionEvaluator(
             SqliteProjectionRepo(conn),
-            SqliteBattingStatsRepo(conn),
+            batting_repo,
             SqlitePitchingStatsRepo(conn),
         )
-        yield EvalContext(conn=conn, evaluator=evaluator)
+        yield EvalContext(
+            conn=conn,
+            evaluator=evaluator,
+            player_repo=SqlitePlayerRepo(conn),
+            batting_repo=batting_repo,
+        )
     finally:
         conn.close()
 

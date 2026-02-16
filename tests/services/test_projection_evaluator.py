@@ -6,6 +6,7 @@ from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from fantasy_baseball_manager.domain.evaluation import StratifiedComparisonResult
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 
 
@@ -388,3 +389,69 @@ class TestCompareComposedSystems:
         assert "marcel" in system_names
         assert "steamer" in system_names
         assert "ensemble" in system_names
+
+
+class TestEvaluateStratified:
+    def test_evaluate_stratified_splits_by_cohort(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2, 3):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
+        _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310)
+        _seed_batting_actuals(batting_repo, 3, hr=18, avg=0.240)
+
+        cohorts = {1: "young", 2: "young", 3: "veteran"}
+        result = evaluator.evaluate_stratified("steamer", "2025.1", 2025, cohort_assignments=cohorts)
+
+        assert "young" in result
+        assert "veteran" in result
+        assert result["young"].metrics["hr"].n == 2
+        assert result["veteran"].metrics["hr"].n == 1
+
+    def test_evaluate_stratified_excludes_unassigned(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310)
+
+        # Only player 1 is assigned
+        cohorts = {1: "young"}
+        result = evaluator.evaluate_stratified("steamer", "2025.1", 2025, cohort_assignments=cohorts)
+
+        assert "young" in result
+        assert result["young"].metrics["hr"].n == 1
+
+
+class TestCompareStratified:
+    def test_compare_stratified_returns_per_cohort(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, system="steamer", version="2025.1")
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300, system="steamer", version="2025.1")
+        _seed_batter_projection(proj_repo, 1, hr=32, avg=0.275, system="zips", version="2025.1")
+        _seed_batter_projection(proj_repo, 2, hr=22, avg=0.295, system="zips", version="2025.1")
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310)
+
+        cohorts = {1: "young", 2: "veteran"}
+        result = evaluator.compare_stratified(
+            [("steamer", "2025.1"), ("zips", "2025.1")],
+            season=2025,
+            cohort_assignments=cohorts,
+            dimension="age",
+        )
+
+        assert isinstance(result, StratifiedComparisonResult)
+        assert result.dimension == "age"
+        assert result.season == 2025
+        assert "young" in result.cohorts
+        assert "veteran" in result.cohorts
+        assert len(result.cohorts["young"].systems) == 2
+        assert len(result.cohorts["veteran"].systems) == 2

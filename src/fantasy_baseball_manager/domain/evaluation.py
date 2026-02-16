@@ -29,6 +29,14 @@ class ComparisonResult:
     systems: list[SystemMetrics]
 
 
+@dataclass(frozen=True)
+class StratifiedComparisonResult:
+    dimension: str
+    season: int
+    stats: list[str]
+    cohorts: dict[str, ComparisonResult]
+
+
 def compute_stat_metrics(
     comparisons: list[ProjectionComparison],
     stats: list[str] | None = None,

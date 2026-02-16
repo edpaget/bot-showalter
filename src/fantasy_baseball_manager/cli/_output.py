@@ -5,7 +5,7 @@ from collections import defaultdict
 from rich.console import Console
 from rich.table import Table
 
-from fantasy_baseball_manager.domain.evaluation import ComparisonResult, SystemMetrics
+from fantasy_baseball_manager.domain.evaluation import ComparisonResult, StratifiedComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
@@ -97,6 +97,28 @@ def print_comparison_result(result: ComparisonResult) -> None:
             values.append(f"{m.rmse:.4f}" if m else "—")
         table.add_row(stat_name, *values)
     console.print(table)
+
+
+def print_stratified_comparison_result(result: StratifiedComparisonResult) -> None:
+    """Print comparison tables per cohort."""
+    console.print(
+        f"Stratified comparison — season [bold]{result.season}[/bold], dimension [bold]{result.dimension}[/bold]"
+    )
+    console.print()
+    for label, comp in result.cohorts.items():
+        console.print(f"  [bold]{label}[/bold]")
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Stat")
+        for sys_metrics in comp.systems:
+            table.add_column(f"{sys_metrics.system}/{sys_metrics.version}", justify="right")
+        for stat_name in comp.stats:
+            values: list[str] = []
+            for sys_metrics in comp.systems:
+                m = sys_metrics.metrics.get(stat_name)
+                values.append(f"{m.mae:.4f}" if m else "—")
+            table.add_row(stat_name, *values)
+        console.print(table)
+        console.print()
 
 
 def print_run_list(records: list[ModelRunRecord]) -> None:

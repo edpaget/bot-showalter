@@ -21,6 +21,7 @@ from fantasy_baseball_manager.cli._output import (
     print_prepare_result,
     print_run_detail,
     print_run_list,
+    print_stratified_comparison_result,
     print_system_metrics,
     print_performance_report,
     print_system_summaries,
@@ -40,8 +41,14 @@ from fantasy_baseball_manager.cli.factory import (
     build_runs_context,
     create_model,
 )
-from fantasy_baseball_manager.domain.evaluation import SystemMetrics
+from fantasy_baseball_manager.cli.factory import EvalContext
 from fantasy_baseball_manager.config import load_config
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
+from fantasy_baseball_manager.services.cohort import (
+    assign_age_cohorts,
+    assign_experience_cohorts,
+    assign_top300_cohorts,
+)
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.ingest.column_maps import (
@@ -380,6 +387,29 @@ def import_cmd(
     print_import_result(log)
 
 
+def _build_cohort_assignments(ctx: EvalContext, dimension: str, season: int) -> dict[int, str]:
+    """Build cohort assignment dict for the given stratification dimension."""
+    if dimension == "age":
+        players = ctx.player_repo.all()
+        players_by_id = {p.id: p for p in players if p.id is not None}
+        return assign_age_cohorts(players_by_id, season)
+    if dimension == "experience":
+        batting_actuals = ctx.batting_repo.get_by_season(season, source="fangraphs")
+        player_ids = {a.player_id for a in batting_actuals}
+        prior_batting = []
+        for yr in range(season - 20, season):
+            prior_batting.extend(ctx.batting_repo.get_by_season(yr, source="fangraphs"))
+        return assign_experience_cohorts(prior_batting, player_ids)
+    if dimension == "top300":
+        batting_actuals = ctx.batting_repo.get_by_season(season, source="fangraphs")
+        return assign_top300_cohorts(batting_actuals)
+    msg = f"unknown dimension: {dimension}"
+    raise ValueError(msg)
+
+
+_STRATIFY_CHOICES = ["age", "experience", "top300"]
+
+
 @app.command("compare")
 def compare_cmd(
     systems: Annotated[list[str], typer.Argument(help="Systems to compare (format: system/version)")],
@@ -387,8 +417,13 @@ def compare_cmd(
     stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to compare")] = None,
     data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
     top: _TopOpt = None,
+    stratify: Annotated[str | None, typer.Option("--stratify", help="Stratify by: age, experience, top300")] = None,
 ) -> None:
     """Compare multiple projection systems against actuals."""
+    if stratify is not None and stratify not in _STRATIFY_CHOICES:
+        print_error(f"invalid stratify dimension '{stratify}', expected one of: {', '.join(_STRATIFY_CHOICES)}")
+        raise typer.Exit(code=1)
+
     parsed: list[tuple[str, str]] = []
     for s in systems:
         parts = s.split("/", 1)
@@ -398,8 +433,20 @@ def compare_cmd(
         parsed.append((parts[0], parts[1]))
 
     with build_eval_context(data_dir) as ctx:
-        result = ctx.evaluator.compare(parsed, season, stats=stat, top=top)
-    print_comparison_result(result)
+        if stratify is None:
+            result = ctx.evaluator.compare(parsed, season, stats=stat, top=top)
+            print_comparison_result(result)
+        else:
+            cohort_assignments = _build_cohort_assignments(ctx, stratify, season)
+            strat_result = ctx.evaluator.compare_stratified(
+                parsed,
+                season,
+                cohort_assignments,
+                dimension=stratify,
+                stats=stat,
+                top=top,
+            )
+            print_stratified_comparison_result(strat_result)
 
 
 # --- runs subcommand group ---
