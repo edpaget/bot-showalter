@@ -16,7 +16,7 @@ from fantasy_baseball_manager.features.types import (
     TransformFeature,
 )
 
-_BATTER_LAG_STATS = ("pa", "hr", "h", "2b", "3b", "bb", "so", "sb")
+_BATTER_LAG_STATS = ("pa", "hr", "h", "doubles", "triples", "bb", "so", "sb")
 _PITCHER_LAG_STATS = ("ip", "so", "bb", "hr", "era", "fip")
 
 
