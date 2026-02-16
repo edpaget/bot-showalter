@@ -75,7 +75,7 @@ def plate_discipline_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
 PLATE_DISCIPLINE = TransformFeature(
     name="plate_discipline",
     source=Source.STATCAST,
-    columns=("zone", "description", "plate_x", "plate_z"),
+    columns=("zone", "description"),
     group_by=("player_id", "season"),
     transform=plate_discipline_profile,
     outputs=(

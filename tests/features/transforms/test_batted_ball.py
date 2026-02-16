@@ -72,6 +72,14 @@ class TestBattedBallProfile:
         assert result["hard_hit_pct"] == pytest.approx(100.0)
         assert result["barrel_pct"] == pytest.approx(100.0)
 
+    def test_non_one_barrel_not_counted(self) -> None:
+        rows = [
+            {"launch_speed": 100.0, "launch_angle": 25.0, "barrel": 2},
+            {"launch_speed": 95.0, "launch_angle": 15.0, "barrel": 1},
+        ]
+        result = batted_ball_profile(rows)
+        assert result["barrel_pct"] == pytest.approx(50.0)
+
     def test_no_hard_hit(self) -> None:
         rows = [
             {"launch_speed": 80.0, "launch_angle": 5.0, "barrel": 0},
