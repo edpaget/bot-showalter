@@ -13,4 +13,4 @@ marcel = 0.6
 
 [models.ensemble.params.versions]
 marcel = "latest"
-"statcast-gbm" = "v1"
+"statcast-gbm" = "latest"
