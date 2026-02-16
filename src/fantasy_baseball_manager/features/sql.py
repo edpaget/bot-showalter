@@ -162,7 +162,7 @@ def _rolling_subquery(
     upper = lag
     func = _AGG_FUNCTIONS[agg]
     parts = [
-        f"(SELECT {func}({col}) FROM {table}",
+        f"(SELECT {func}([{col}]) FROM {table}",
         " WHERE player_id = spine.player_id",
         f" AND season BETWEEN spine.season - {lower} AND spine.season - {upper}",
     ]
@@ -187,7 +187,7 @@ def _raw_expr(
         lag = 0 if feature.source == Source.PLAYER else feature.lag
         dist_key = (feature.source, lag, feature.system, feature.version, feature.column)
         dist_join = dist_joins_dict[dist_key]
-        return f"{dist_join.alias}.{feature.distribution_column}", []
+        return f"{dist_join.alias}.[{feature.distribution_column}]", []
 
     # Computed age
     if feature.computed == "age":
@@ -234,12 +234,12 @@ def _raw_expr(
     # Rate stat (denominator, no aggregate)
     if feature.denominator is not None:
         return (
-            f"CAST({alias}.{feature.column} AS REAL) / NULLIF({alias}.{feature.denominator}, 0)",
+            f"CAST({alias}.[{feature.column}] AS REAL) / NULLIF({alias}.[{feature.denominator}], 0)",
             [],
         )
 
     # Direct column
-    return f"{alias}.{feature.column}", []
+    return f"{alias}.[{feature.column}]", []
 
 
 def _select_expr(
@@ -252,11 +252,11 @@ def _select_expr(
     if isinstance(feature, DeltaFeature):
         left_sql, left_params = _raw_expr(feature.left, joins_dict, source_filter, dist_joins_dict=dist_joins_dict)
         right_sql, right_params = _raw_expr(feature.right, joins_dict, source_filter, dist_joins_dict=dist_joins_dict)
-        return f"({left_sql} - {right_sql}) AS {feature.name}", left_params + right_params
+        return f"({left_sql} - {right_sql}) AS [{feature.name}]", left_params + right_params
 
     assert isinstance(feature, Feature)
     expr, params = _raw_expr(feature, joins_dict, source_filter, dist_joins_dict=dist_joins_dict)
-    return f"{expr} AS {feature.name}", params
+    return f"{expr} AS [{feature.name}]", params
 
 
 def _infer_spine_table(feature_set: FeatureSet) -> str:

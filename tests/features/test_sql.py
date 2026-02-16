@@ -224,19 +224,19 @@ class TestSelectExprDirect:
     def test_batting_direct(self) -> None:
         f = Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1)
         sql, params = _select_expr(f, self._joins_dict(), None)
-        assert sql == "b1.hr AS hr_1"
+        assert sql == "b1.[hr] AS [hr_1]"
         assert params == []
 
     def test_pitching_direct(self) -> None:
         f = Feature(name="so_0", source=Source.PITCHING, column="so", lag=0)
         sql, params = _select_expr(f, self._joins_dict(), None)
-        assert sql == "pi0.so AS so_0"
+        assert sql == "pi0.[so] AS [so_0]"
         assert params == []
 
     def test_player_direct(self) -> None:
         f = Feature(name="bats", source=Source.PLAYER, column="bats")
         sql, params = _select_expr(f, self._joins_dict(), None)
-        assert sql == "p.bats AS bats"
+        assert sql == "p.[bats] AS [bats]"
         assert params == []
 
     def test_il_stint_direct(self) -> None:
@@ -245,7 +245,7 @@ class TestSelectExprDirect:
         }
         f = Feature(name="il_days_1", source=Source.IL_STINT, column="days", lag=1)
         sql, params = _select_expr(f, joins_dict, None)
-        assert sql == "ils1.days AS il_days_1"
+        assert sql == "ils1.[days] AS [il_days_1]"
         assert params == []
 
 
@@ -256,7 +256,7 @@ class TestSelectExprAge:
         }
         f = Feature(name="age", source=Source.PLAYER, column="", computed="age")
         sql, params = _select_expr(f, joins_dict, None)
-        assert sql == "spine.season - CAST(SUBSTR(p.birth_date, 1, 4) AS INTEGER) AS age"
+        assert sql == "spine.season - CAST(SUBSTR(p.birth_date, 1, 4) AS INTEGER) AS [age]"
         assert params == []
 
 
@@ -272,7 +272,7 @@ class TestSelectExprPositions:
         assert "spine.player_id" in sql
         assert "spine.season - 1" in sql
         assert "ORDER BY games DESC" in sql
-        assert sql.endswith("AS position")
+        assert sql.endswith("AS [position]")
         assert params == []
 
 
@@ -283,7 +283,7 @@ class TestSelectExprRate:
         }
         f = Feature(name="hr_rate", source=Source.BATTING, column="hr", lag=1, denominator="pa")
         sql, params = _select_expr(f, joins_dict, None)
-        assert sql == "CAST(b1.hr AS REAL) / NULLIF(b1.pa, 0) AS hr_rate"
+        assert sql == "CAST(b1.[hr] AS REAL) / NULLIF(b1.[pa], 0) AS [hr_rate]"
         assert params == []
 
 
@@ -299,9 +299,9 @@ class TestSelectExprRolling:
         )
         sql, params = _select_expr(f, {}, None)
         assert sql == (
-            "(SELECT AVG(hr) FROM batting_stats"
+            "(SELECT AVG([hr]) FROM batting_stats"
             " WHERE player_id = spine.player_id"
-            " AND season BETWEEN spine.season - 3 AND spine.season - 1) AS hr_3yr"
+            " AND season BETWEEN spine.season - 3 AND spine.season - 1) AS [hr_3yr]"
         )
         assert params == []
 
@@ -316,9 +316,9 @@ class TestSelectExprRolling:
         )
         sql, params = _select_expr(f, {}, None)
         assert sql == (
-            "(SELECT SUM(hr) FROM batting_stats"
+            "(SELECT SUM([hr]) FROM batting_stats"
             " WHERE player_id = spine.player_id"
-            " AND season BETWEEN spine.season - 5 AND spine.season - 1) AS hr_5yr"
+            " AND season BETWEEN spine.season - 5 AND spine.season - 1) AS [hr_5yr]"
         )
         assert params == []
 
@@ -386,11 +386,11 @@ class TestSelectExprRollingRate:
         )
         sql, params = _select_expr(f, {}, None)
         assert "CAST(" in sql
-        assert "SUM(hr)" in sql
-        assert "SUM(pa)" in sql
+        assert "SUM([hr])" in sql
+        assert "SUM([pa])" in sql
         assert "NULLIF(" in sql
         assert "BETWEEN spine.season - 3 AND spine.season - 1" in sql
-        assert sql.endswith("AS hr_rate_3yr")
+        assert sql.endswith("AS [hr_rate_3yr]")
         assert params == []
 
     def test_rolling_rate_with_source_filter(self) -> None:
@@ -521,7 +521,7 @@ class TestSelectExprDistribution:
             ),
         }
         sql, params = _select_expr(f, joins_dict, None, dist_joins_dict=dist_joins_dict)
-        assert sql == "pd0.p90 AS steamer_hr_p90"
+        assert sql == "pd0.[p90] AS [steamer_hr_p90]"
         assert params == []
 
     def test_distribution_std_expr(self) -> None:
@@ -549,7 +549,7 @@ class TestSelectExprDistribution:
             ),
         }
         sql, params = _select_expr(f, joins_dict, None, dist_joins_dict=dist_joins_dict)
-        assert sql == "pd0.std AS steamer_hr_std"
+        assert sql == "pd0.[std] AS [steamer_hr_std]"
         assert params == []
 
 
@@ -580,7 +580,7 @@ class TestSelectExprProjection:
         }
         f = Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer")
         sql, params = _select_expr(f, joins_dict, None)
-        assert sql == "pr0.hr AS steamer_hr"
+        assert sql == "pr0.[hr] AS [steamer_hr]"
         assert params == []
 
     def test_projection_rate(self) -> None:
@@ -591,7 +591,7 @@ class TestSelectExprProjection:
         }
         f = Feature(name="steamer_hr_rate", source=Source.PROJECTION, column="hr", system="steamer", denominator="pa")
         sql, params = _select_expr(f, joins_dict, None)
-        assert sql == "CAST(pr0.hr AS REAL) / NULLIF(pr0.pa, 0) AS steamer_hr_rate"
+        assert sql == "CAST(pr0.[hr] AS REAL) / NULLIF(pr0.[pa], 0) AS [steamer_hr_rate]"
         assert params == []
 
 
@@ -602,7 +602,7 @@ class TestRawExpr:
         }
         f = Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1)
         expr, params = _raw_expr(f, joins_dict, None)
-        assert expr == "b1.hr"
+        assert expr == "b1.[hr]"
         assert params == []
 
 
@@ -618,7 +618,7 @@ class TestSelectExprDelta:
             ),
         }
         sql, params = _select_expr(delta, joins_dict, None)
-        assert sql == "(b0.hr - pr0.hr) AS hr_error"
+        assert sql == "(b0.[hr] - pr0.[hr]) AS [hr_error]"
         assert params == []
 
 
@@ -838,7 +838,7 @@ class TestGenerateSql:
         assert "WITH spine AS" in sql
         assert "spine.player_id" in sql
         assert "spine.season" in sql
-        assert "b1.hr AS hr_1" in sql
+        assert "b1.[hr] AS [hr_1]" in sql
         assert "LEFT JOIN batting_stats b1" in sql
         # Params: spine seasons + spine source_filter + join source_filter
         assert params == [2022, "fangraphs", "fangraphs"]
@@ -856,8 +856,8 @@ class TestGenerateSql:
         sql, _ = generate_sql(fs)
         # Should be only one LEFT JOIN for batting lag 1
         assert sql.count("LEFT JOIN batting_stats b1") == 1
-        assert "b1.hr AS hr_1" in sql
-        assert "b1.pa AS pa_1" in sql
+        assert "b1.[hr] AS [hr_1]" in sql
+        assert "b1.[pa] AS [pa_1]" in sql
 
     def test_mixed_sources_and_types(self) -> None:
         fs = FeatureSet(
@@ -878,9 +878,9 @@ class TestGenerateSql:
             spine_filter=SpineFilter(player_type="batter"),
         )
         sql, _ = generate_sql(fs)
-        assert "b1.hr AS hr_1" in sql
-        assert "AS age" in sql
-        assert "AVG(hr)" in sql
+        assert "b1.[hr] AS [hr_1]" in sql
+        assert "AS [age]" in sql
+        assert "AVG([hr])" in sql
         assert "LEFT JOIN batting_stats b1" in sql
         assert "LEFT JOIN player p" in sql
 
