@@ -664,6 +664,86 @@ class TestTransformFeature:
         fs2 = FeatureSet(name="test", features=(tf2,), seasons=(2023,))
         assert fs1.version != fs2.version
 
+    def test_lag_defaults_to_zero(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        assert tf.lag == 0
+
+    def test_lag_field(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+            lag=1,
+        )
+        assert tf.lag == 1
+
+    def test_with_lag_returns_new_instance(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        lagged = tf.with_lag(1)
+        assert lagged is not tf
+        assert lagged.lag == 1
+        assert tf.lag == 0  # original unchanged
+
+    def test_with_lag_preserves_other_fields(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type", "release_speed"),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a", "out_b"),
+            version="v1",
+        )
+        lagged = tf.with_lag(2)
+        assert lagged.name == tf.name
+        assert lagged.source == tf.source
+        assert lagged.columns == tf.columns
+        assert lagged.group_by == tf.group_by
+        assert lagged.transform is tf.transform
+        assert lagged.outputs == tf.outputs
+        assert lagged.version == tf.version
+        assert lagged.lag == 2
+
+    def test_lag_affects_feature_set_version(self) -> None:
+        tf0 = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+            lag=0,
+        )
+        tf1 = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+            lag=1,
+        )
+        fs0 = FeatureSet(name="test", features=(tf0,), seasons=(2023,))
+        fs1 = FeatureSet(name="test", features=(tf1,), seasons=(2023,))
+        assert fs0.version != fs1.version
+
 
 class TestDerivedTransformFeature:
     def test_construction(self) -> None:

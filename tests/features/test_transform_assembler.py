@@ -91,6 +91,55 @@ class TestTransformOnly:
             assert row["out_a"] == pytest.approx(1.0)
 
 
+class TestLaggedStatcastTransform:
+    """Test lagged TransformFeature joins statcast data from prior season."""
+
+    def test_lag_1_joins_prior_season(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """With lag=1, a 2023 row should get 2022 statcast data."""
+        lagged_batted_ball = BATTED_BALL.with_lag(1)
+        fs = FeatureSet(
+            name="test_lagged_statcast",
+            features=(lagged_batted_ball,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        # 2 players in season 2023, should get 2022 statcast data
+        assert len(rows) == 2
+        by_player = {r["player_id"]: r for r in rows}
+        # Player 1 in 2023: should have 2022 batted ball data
+        # Player 1 2022 batted balls: exit velos 100, 90, 105, 80 → avg 93.75
+        p1 = by_player[1]
+        assert p1["avg_exit_velo"] == pytest.approx((100 + 90 + 105 + 80) / 4)
+
+    def test_lag_0_joins_same_season(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """With lag=0 (default), a 2022 row should get 2022 statcast data."""
+        fs = FeatureSet(
+            name="test_unlagged_statcast",
+            features=(BATTED_BALL,),
+            seasons=(2022,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        by_player = {r["player_id"]: r for r in rows}
+        p1 = by_player[1]
+        assert p1["avg_exit_velo"] == pytest.approx((100 + 90 + 105 + 80) / 4)
+
+
 class TestStatcastIntegration:
     """Integration tests with ATTACH for statcast DB."""
 

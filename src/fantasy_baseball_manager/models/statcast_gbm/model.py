@@ -16,11 +16,17 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.statcast_gbm.features import (
     batter_feature_columns,
+    batter_preseason_feature_columns,
     build_batter_feature_set,
+    build_batter_preseason_set,
+    build_batter_preseason_training_set,
     build_batter_training_set,
     build_pitcher_feature_set,
+    build_pitcher_preseason_set,
+    build_pitcher_preseason_training_set,
     build_pitcher_training_set,
     pitcher_feature_columns,
+    pitcher_preseason_feature_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
@@ -65,10 +71,18 @@ class StatcastGBMModel:
         pitcher_fs = build_pitcher_feature_set([])
         return batter_fs.features + pitcher_fs.features
 
+    def _is_preseason(self, config: ModelConfig) -> bool:
+        return config.model_params.get("mode") == "preseason"
+
     def prepare(self, config: ModelConfig) -> PrepareResult:
         assert self._assembler is not None, "assembler is required for prepare"
-        batter_fs = build_batter_feature_set(config.seasons)
-        pitcher_fs = build_pitcher_feature_set(config.seasons)
+        preseason = self._is_preseason(config)
+        batter_fs = (
+            build_batter_preseason_set(config.seasons) if preseason else build_batter_feature_set(config.seasons)
+        )
+        pitcher_fs = (
+            build_pitcher_preseason_set(config.seasons) if preseason else build_pitcher_feature_set(config.seasons)
+        )
 
         bat_handle = self._assembler.get_or_materialize(batter_fs)
         pitch_handle = self._assembler.get_or_materialize(pitcher_fs)
@@ -85,19 +99,26 @@ class StatcastGBMModel:
             msg = f"train requires at least 2 seasons (got {len(config.seasons)})"
             raise ValueError(msg)
 
+        preseason = self._is_preseason(config)
         train_seasons = config.seasons[:-1]
         holdout_seasons = [config.seasons[-1]]
         metrics: dict[str, float] = {}
         artifact_path = self._artifact_path(config)
+        if preseason:
+            artifact_path = artifact_path / "preseason"
         artifact_path.mkdir(parents=True, exist_ok=True)
 
         # --- Batter training ---
-        bat_fs = build_batter_training_set(config.seasons)
+        bat_fs = (
+            build_batter_preseason_training_set(config.seasons)
+            if preseason
+            else build_batter_training_set(config.seasons)
+        )
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=holdout_seasons)
 
         bat_train_rows = self._assembler.read(bat_splits.train)
-        bat_feature_cols = batter_feature_columns()
+        bat_feature_cols = batter_preseason_feature_columns() if preseason else batter_feature_columns()
         bat_targets = list(BATTER_TARGETS)
 
         bat_X_train = extract_features(bat_train_rows, bat_feature_cols)
@@ -115,12 +136,16 @@ class StatcastGBMModel:
         save_models(bat_models, artifact_path / "batter_models.joblib")
 
         # --- Pitcher training ---
-        pit_fs = build_pitcher_training_set(config.seasons)
+        pit_fs = (
+            build_pitcher_preseason_training_set(config.seasons)
+            if preseason
+            else build_pitcher_training_set(config.seasons)
+        )
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=holdout_seasons)
 
         pit_train_rows = self._assembler.read(pit_splits.train)
-        pit_feature_cols = pitcher_feature_columns()
+        pit_feature_cols = pitcher_preseason_feature_columns() if preseason else pitcher_feature_columns()
         pit_targets = list(PITCHER_TARGETS)
 
         pit_X_train = extract_features(pit_train_rows, pit_feature_cols)
@@ -152,15 +177,18 @@ class StatcastGBMModel:
     def predict(self, config: ModelConfig) -> PredictResult:
         assert self._assembler is not None, "assembler is required for predict"
 
+        preseason = self._is_preseason(config)
         artifact_path = self._artifact_path(config)
+        if preseason:
+            artifact_path = artifact_path / "preseason"
         predictions_by_row: list[dict[str, Any]] = []
 
         # --- Batter predictions ---
-        bat_fs = build_batter_feature_set(config.seasons)
+        bat_fs = build_batter_preseason_set(config.seasons) if preseason else build_batter_feature_set(config.seasons)
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_rows = self._assembler.read(bat_handle)
         bat_models = load_models(artifact_path / "batter_models.joblib")
-        bat_feature_cols = batter_feature_columns()
+        bat_feature_cols = batter_preseason_feature_columns() if preseason else batter_feature_columns()
         bat_X = extract_features(bat_rows, bat_feature_cols)
 
         bat_target_preds: dict[str, list[float]] = {}
@@ -178,11 +206,11 @@ class StatcastGBMModel:
             predictions_by_row.append(pred)
 
         # --- Pitcher predictions ---
-        pit_fs = build_pitcher_feature_set(config.seasons)
+        pit_fs = build_pitcher_preseason_set(config.seasons) if preseason else build_pitcher_feature_set(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_rows = self._assembler.read(pit_handle)
         pit_models = load_models(artifact_path / "pitcher_models.joblib")
-        pit_feature_cols = pitcher_feature_columns()
+        pit_feature_cols = pitcher_preseason_feature_columns() if preseason else pitcher_feature_columns()
         pit_X = extract_features(pit_rows, pit_feature_cols)
 
         pit_target_preds: dict[str, list[float]] = {}

@@ -59,6 +59,20 @@ class TransformFeature:
     transform: RowTransform
     outputs: tuple[str, ...]
     version: str | None = None
+    lag: int = 0
+
+    def with_lag(self, n: int) -> TransformFeature:
+        """Return a copy with the lag set to *n*."""
+        return TransformFeature(
+            name=self.name,
+            source=self.source,
+            columns=self.columns,
+            group_by=self.group_by,
+            transform=self.transform,
+            outputs=self.outputs,
+            version=self.version,
+            lag=n,
+        )
 
 
 @dataclass(frozen=True)
@@ -183,6 +197,7 @@ def _transform_feature_to_dict(f: TransformFeature) -> dict[str, object]:
         "group_by": list(f.group_by),
         "outputs": list(f.outputs),
         "transform_identity": identity,
+        "lag": f.lag,
     }
 
 

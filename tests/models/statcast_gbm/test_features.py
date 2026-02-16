@@ -1,11 +1,17 @@
 from fantasy_baseball_manager.features.types import Feature, FeatureSet, SpineFilter, TransformFeature
 from fantasy_baseball_manager.models.statcast_gbm.features import (
     batter_feature_columns,
+    batter_preseason_feature_columns,
     build_batter_feature_set,
+    build_batter_preseason_set,
+    build_batter_preseason_training_set,
     build_batter_training_set,
     build_pitcher_feature_set,
+    build_pitcher_preseason_set,
+    build_pitcher_preseason_training_set,
     build_pitcher_training_set,
     pitcher_feature_columns,
+    pitcher_preseason_feature_columns,
 )
 
 
@@ -175,3 +181,145 @@ class TestPitcherFeatureColumns:
         assert "avg_spin_rate" in columns
         assert "ff_pct" in columns
         assert "chase_rate" in columns
+
+
+class TestBatterPreseasonSet:
+    def test_returns_feature_set(self) -> None:
+        fs = build_batter_preseason_set([2023])
+        assert isinstance(fs, FeatureSet)
+
+    def test_name(self) -> None:
+        fs = build_batter_preseason_set([2023])
+        assert fs.name == "statcast_gbm_batting_preseason"
+
+    def test_has_batter_spine_filter(self) -> None:
+        fs = build_batter_preseason_set([2023])
+        assert fs.spine_filter == SpineFilter(player_type="batter")
+
+    def test_includes_age(self) -> None:
+        fs = build_batter_preseason_set([2023])
+        names = [f.name for f in fs.features]
+        assert "age" in names
+
+    def test_includes_batting_lags(self) -> None:
+        fs = build_batter_preseason_set([2023])
+        names = [f.name for f in fs.features]
+        assert "pa_1" in names
+        assert "pa_2" in names
+
+    def test_statcast_transforms_are_lagged(self) -> None:
+        fs = build_batter_preseason_set([2023])
+        transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
+        assert len(transforms) > 0
+        for tf in transforms:
+            assert tf.lag == 1, f"{tf.name} should have lag=1 but has lag={tf.lag}"
+
+    def test_statcast_transform_names(self) -> None:
+        fs = build_batter_preseason_set([2023])
+        transform_names = [f.name for f in fs.features if isinstance(f, TransformFeature)]
+        assert "batted_ball" in transform_names
+        assert "plate_discipline" in transform_names
+        assert "expected_stats" in transform_names
+
+    def test_different_version_from_true_talent(self) -> None:
+        tt = build_batter_feature_set([2023])
+        ps = build_batter_preseason_set([2023])
+        assert tt.version != ps.version
+
+
+class TestBatterPreseasonTrainingSet:
+    def test_includes_targets(self) -> None:
+        fs = build_batter_preseason_training_set([2023])
+        names = [f.name for f in fs.features if isinstance(f, Feature)]
+        assert "target_avg" in names
+        assert "target_obp" in names
+        assert "target_slg" in names
+
+    def test_name(self) -> None:
+        fs = build_batter_preseason_training_set([2023])
+        assert fs.name == "statcast_gbm_batting_preseason_train"
+
+    def test_statcast_transforms_are_lagged(self) -> None:
+        fs = build_batter_preseason_training_set([2023])
+        transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
+        for tf in transforms:
+            assert tf.lag == 1
+
+
+class TestBatterPreseasonFeatureColumns:
+    def test_returns_list_of_strings(self) -> None:
+        columns = batter_preseason_feature_columns()
+        assert isinstance(columns, list)
+        assert all(isinstance(c, str) for c in columns)
+
+    def test_no_target_columns(self) -> None:
+        columns = batter_preseason_feature_columns()
+        assert not any(c.startswith("target_") for c in columns)
+
+    def test_same_output_columns_as_true_talent(self) -> None:
+        """Preseason uses same output names (same transform outputs)."""
+        tt_cols = batter_feature_columns()
+        ps_cols = batter_preseason_feature_columns()
+        assert tt_cols == ps_cols
+
+
+class TestPitcherPreseasonSet:
+    def test_returns_feature_set(self) -> None:
+        fs = build_pitcher_preseason_set([2023])
+        assert isinstance(fs, FeatureSet)
+
+    def test_name(self) -> None:
+        fs = build_pitcher_preseason_set([2023])
+        assert fs.name == "statcast_gbm_pitching_preseason"
+
+    def test_has_pitcher_spine_filter(self) -> None:
+        fs = build_pitcher_preseason_set([2023])
+        assert fs.spine_filter == SpineFilter(player_type="pitcher")
+
+    def test_statcast_transforms_are_lagged(self) -> None:
+        fs = build_pitcher_preseason_set([2023])
+        transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
+        assert len(transforms) > 0
+        for tf in transforms:
+            assert tf.lag == 1
+
+    def test_statcast_transform_names(self) -> None:
+        fs = build_pitcher_preseason_set([2023])
+        transform_names = [f.name for f in fs.features if isinstance(f, TransformFeature)]
+        assert "pitch_mix" in transform_names
+        assert "spin_profile" in transform_names
+        assert "plate_discipline" in transform_names
+
+
+class TestPitcherPreseasonTrainingSet:
+    def test_includes_targets(self) -> None:
+        fs = build_pitcher_preseason_training_set([2023])
+        names = [f.name for f in fs.features if isinstance(f, Feature)]
+        assert "target_era" in names
+        assert "target_fip" in names
+
+    def test_name(self) -> None:
+        fs = build_pitcher_preseason_training_set([2023])
+        assert fs.name == "statcast_gbm_pitching_preseason_train"
+
+    def test_statcast_transforms_are_lagged(self) -> None:
+        fs = build_pitcher_preseason_training_set([2023])
+        transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
+        for tf in transforms:
+            assert tf.lag == 1
+
+
+class TestPitcherPreseasonFeatureColumns:
+    def test_returns_list_of_strings(self) -> None:
+        columns = pitcher_preseason_feature_columns()
+        assert isinstance(columns, list)
+        assert all(isinstance(c, str) for c in columns)
+
+    def test_no_target_columns(self) -> None:
+        columns = pitcher_preseason_feature_columns()
+        assert not any(c.startswith("target_") for c in columns)
+
+    def test_same_output_columns_as_true_talent(self) -> None:
+        tt_cols = pitcher_feature_columns()
+        ps_cols = pitcher_preseason_feature_columns()
+        assert tt_cols == ps_cols

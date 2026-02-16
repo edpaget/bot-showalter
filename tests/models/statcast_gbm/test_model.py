@@ -20,12 +20,19 @@ from fantasy_baseball_manager.models.protocols import (
     Trainable,
     TrainResult,
 )
-from fantasy_baseball_manager.models.statcast_gbm.features import batter_feature_columns, pitcher_feature_columns
+from fantasy_baseball_manager.models.statcast_gbm.features import (
+    batter_feature_columns,
+    batter_preseason_feature_columns,
+    pitcher_feature_columns,
+    pitcher_preseason_feature_columns,
+)
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 
 _FEATURE_COLUMNS = batter_feature_columns()
 _PITCHER_FEATURE_COLUMNS = pitcher_feature_columns()
+_PRESEASON_FEATURE_COLUMNS = batter_preseason_feature_columns()
+_PRESEASON_PITCHER_FEATURE_COLUMNS = pitcher_preseason_feature_columns()
 
 
 def _make_row(player_id: str, season: int) -> dict[str, Any]:
@@ -457,3 +464,130 @@ class TestStatcastGBMSeasonValidation:
         config = ModelConfig(seasons=[2023])
         with pytest.raises(ValueError, match="ablate requires at least 2 seasons"):
             model.ablate(config)
+
+
+def _make_preseason_row(player_id: str, season: int) -> dict[str, Any]:
+    row: dict[str, Any] = {"player_id": player_id, "season": season}
+    for col in _PRESEASON_FEATURE_COLUMNS:
+        row[col] = 1.0
+    row["target_avg"] = 0.275
+    row["target_obp"] = 0.350
+    row["target_slg"] = 0.450
+    row["target_woba"] = 0.340
+    row["target_h"] = 150
+    row["target_hr"] = 25
+    row["target_ab"] = 500
+    row["target_so"] = 100
+    row["target_sf"] = 5
+    return row
+
+
+def _make_preseason_pitcher_row(player_id: str, season: int) -> dict[str, Any]:
+    row: dict[str, Any] = {"player_id": player_id, "season": season}
+    for col in _PRESEASON_PITCHER_FEATURE_COLUMNS:
+        row[col] = 1.0
+    row["target_era"] = 3.50
+    row["target_fip"] = 3.40
+    row["target_k_per_9"] = 9.0
+    row["target_bb_per_9"] = 3.0
+    row["target_whip"] = 1.20
+    row["target_h"] = 150
+    row["target_hr"] = 20
+    row["target_ip"] = 180.0
+    row["target_so"] = 160
+    return row
+
+
+class TestPreseasonModeTrain:
+    def test_train_preseason_returns_metrics(self, tmp_path: Path) -> None:
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"mode": "preseason"},
+        )
+        result = model.train(config)
+        assert isinstance(result, TrainResult)
+        for target in BATTER_TARGETS:
+            assert f"batter_rmse_{target}" in result.metrics
+
+    def test_train_preseason_saves_artifacts(self, tmp_path: Path) -> None:
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"mode": "preseason"},
+        )
+        model.train(config)
+        # Preseason artifacts stored under preseason/ subdir
+        batter_path = tmp_path / "statcast-gbm" / "latest" / "preseason" / "batter_models.joblib"
+        pitcher_path = tmp_path / "statcast-gbm" / "latest" / "preseason" / "pitcher_models.joblib"
+        assert batter_path.exists()
+        assert pitcher_path.exists()
+
+
+class TestPreseasonModePredict:
+    def test_predict_preseason(self, tmp_path: Path) -> None:
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"mode": "preseason"},
+        )
+        model.train(config)
+        result = model.predict(config)
+        assert isinstance(result, PredictResult)
+        assert len(result.predictions) > 0
+
+
+class TestDefaultModeIsTrueTalent:
+    def test_no_mode_param_uses_true_talent(self, tmp_path: Path) -> None:
+        """Without mode param, model behaves identically to before (true_talent)."""
+        rows_by_season = {
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
+        }
+        pitcher_rows = {
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.train(config)
+        # Should save under the standard path, not preseason/
+        batter_path = tmp_path / "statcast-gbm" / "latest" / "batter_models.joblib"
+        assert batter_path.exists()
+        preseason_path = tmp_path / "statcast-gbm" / "latest" / "preseason" / "batter_models.joblib"
+        assert not preseason_path.exists()
+        assert isinstance(result, TrainResult)

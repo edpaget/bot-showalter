@@ -108,15 +108,16 @@ class SqliteDatasetAssembler:
             self._attach_statcast()
             sc_join_col = "pitcher_id" if player_type == "pitcher" else "batter_id"
             select_cols = ", ".join(f"sc.[{c}]" for c in tf.columns)
+            season_expr = "d.season" if tf.lag == 0 else f"d.season - {tf.lag}"
             sql = (
                 f"SELECT d.player_id, "
-                f"CAST(SUBSTR(sc.game_date, 1, 4) AS INTEGER) AS season, "
+                f"d.season AS season, "
                 f"{select_cols} "
                 f"FROM [{table_name}] d "
                 f"JOIN player p ON p.id = d.player_id "
                 f"JOIN [statcast].statcast_pitch sc "
                 f"ON sc.{sc_join_col} = p.mlbam_id "
-                f"AND CAST(SUBSTR(sc.game_date, 1, 4) AS INTEGER) = d.season"
+                f"AND CAST(SUBSTR(sc.game_date, 1, 4) AS INTEGER) = {season_expr}"
             )
             return sql, []
 
