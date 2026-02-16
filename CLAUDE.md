@@ -48,3 +48,4 @@ When executing a plan (after plan-mode approval):
 - Keep commit subjects under 72 characters. Use the body for additional detail when needed.
 - Keep history linear — no merge commits. Rebase feature branches onto `main` before merging with `git merge --ff-only`.
 - **Always run `uv run ty check src tests` before committing** and fix any type errors. Do not commit code that introduces new type-check failures.
+- **Always combine `git add` and `git commit` in a single chained command** (e.g., `git add file1 file2 && git commit -m "…"`). Never stage files in a separate step from committing — this avoids conflicts with manually staged files across concurrent agents.
