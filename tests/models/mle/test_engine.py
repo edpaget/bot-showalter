@@ -6,7 +6,10 @@ from fantasy_baseball_manager.domain.minor_league_batting_stats import (
     MinorLeagueBattingStats,
 )
 from fantasy_baseball_manager.models.mle.engine import (
+    apply_recency_weights,
+    combine_translated_lines,
     compute_competition_factor,
+    regress_to_mlb,
     translate_batting_line,
     translate_rates,
 )
@@ -534,3 +537,158 @@ class TestAgeAdjustedTranslation:
         assert result.hr >= 0
         assert result.bb >= 0
         assert result.so >= 0
+
+
+def _translated_line(
+    *,
+    player_id: int = 1,
+    season: int = 2025,
+    source_level: str = "AA",
+    pa: int = 300,
+    ab: int = 270,
+    h: int = 70,
+    doubles: int = 15,
+    triples: int = 2,
+    hr: int = 10,
+    bb: int = 25,
+    so: int = 75,
+    hbp: int = 3,
+    sf: int = 2,
+    avg: float = 0.259,
+    obp: float = 0.327,
+    slg: float = 0.430,
+    k_pct: float = 0.250,
+    bb_pct: float = 0.083,
+    iso: float = 0.171,
+    babip: float = 0.300,
+) -> TranslatedBattingLine:
+    return TranslatedBattingLine(
+        player_id=player_id,
+        season=season,
+        source_level=source_level,
+        pa=pa,
+        ab=ab,
+        h=h,
+        doubles=doubles,
+        triples=triples,
+        hr=hr,
+        bb=bb,
+        so=so,
+        hbp=hbp,
+        sf=sf,
+        avg=avg,
+        obp=obp,
+        slg=slg,
+        k_pct=k_pct,
+        bb_pct=bb_pct,
+        iso=iso,
+        babip=babip,
+    )
+
+
+class TestCombineTranslatedLines:
+    def test_combine_single_line(self) -> None:
+        line = _translated_line()
+        result = combine_translated_lines([line])
+        assert result == line
+
+    def test_combine_multi_level_pa_weights_rates(self) -> None:
+        line_aa = _translated_line(pa=200, ab=180, k_pct=0.300, bb_pct=0.070, iso=0.150, babip=0.280)
+        line_aaa = _translated_line(
+            pa=300, ab=270, k_pct=0.200, bb_pct=0.090, iso=0.190, babip=0.310, source_level="AAA"
+        )
+        result = combine_translated_lines([line_aa, line_aaa])
+
+        # PA-weighted: (200*0.300 + 300*0.200)/500 = 0.240
+        assert result.k_pct == pytest.approx(0.240, abs=1e-6)
+        # PA-weighted: (200*0.070 + 300*0.090)/500 = 0.082
+        assert result.bb_pct == pytest.approx(0.082, abs=1e-6)
+        # PA-weighted ISO: (200*0.150 + 300*0.190)/500 = 0.174
+        assert result.iso == pytest.approx(0.174, abs=1e-6)
+        # PA-weighted BABIP: (200*0.280 + 300*0.310)/500 = 0.298
+        assert result.babip == pytest.approx(0.298, abs=1e-6)
+
+    def test_combine_sums_counting_stats(self) -> None:
+        line1 = _translated_line(pa=200, ab=180, h=50, doubles=10, triples=1, hr=5, bb=15, so=50, hbp=3, sf=2)
+        line2 = _translated_line(pa=300, ab=270, h=70, doubles=15, triples=2, hr=8, bb=25, so=60, hbp=3, sf=2)
+        result = combine_translated_lines([line1, line2])
+
+        assert result.pa == 500
+        assert result.ab == 450
+        assert result.h == 120
+        assert result.doubles == 25
+        assert result.triples == 3
+        assert result.hr == 13
+        assert result.bb == 40
+        assert result.so == 110
+        assert result.hbp == 6
+        assert result.sf == 4
+
+    def test_combine_derives_rates_from_totals(self) -> None:
+        line1 = _translated_line(pa=200, ab=180, h=50, doubles=10, triples=1, hr=5, bb=15, so=50, hbp=3, sf=2)
+        line2 = _translated_line(pa=300, ab=270, h=70, doubles=15, triples=2, hr=8, bb=25, so=60, hbp=3, sf=2)
+        result = combine_translated_lines([line1, line2])
+
+        # avg = 120/450
+        assert result.avg == pytest.approx(120 / 450, abs=1e-6)
+        # obp = (120+40+6) / (450+40+6+4)
+        assert result.obp == pytest.approx(166 / 500, abs=1e-6)
+        # slg = (120 + 25 + 3*2 + 13*3) / 450
+        tb = 120 + 25 + 3 * 2 + 13 * 3
+        assert result.slg == pytest.approx(tb / 450, abs=1e-6)
+
+
+class TestApplyRecencyWeights:
+    def test_recency_single_season(self) -> None:
+        line = _translated_line(k_pct=0.250, bb_pct=0.080, iso=0.170, babip=0.300)
+        result = apply_recency_weights([(line, 5.0)])
+        assert result.k_pct == pytest.approx(0.250, abs=1e-6)
+        assert result.bb_pct == pytest.approx(0.080, abs=1e-6)
+
+    def test_recency_recent_season_weighted_higher(self) -> None:
+        recent = _translated_line(pa=400, ab=360, k_pct=0.200, bb_pct=0.090, iso=0.190, babip=0.310)
+        older = _translated_line(pa=400, ab=360, k_pct=0.300, bb_pct=0.060, iso=0.140, babip=0.280)
+        result = apply_recency_weights([(recent, 5.0), (older, 3.0)])
+
+        # With equal PA, rates should be closer to recent line
+        # weighted_k = (400*5*0.200 + 400*3*0.300) / (400*5 + 400*3) = 0.2375
+        expected_k = (400 * 5 * 0.200 + 400 * 3 * 0.300) / (400 * 5 + 400 * 3)
+        assert result.k_pct == pytest.approx(expected_k, abs=1e-6)
+        assert result.k_pct < 0.250  # Closer to 0.200 than 0.300
+
+    def test_recency_zero_weight_season_ignored(self) -> None:
+        active = _translated_line(pa=400, ab=360, k_pct=0.220, bb_pct=0.085, iso=0.175, babip=0.305)
+        ignored = _translated_line(pa=400, ab=360, k_pct=0.350, bb_pct=0.040, iso=0.100, babip=0.250)
+        result = apply_recency_weights([(active, 5.0), (ignored, 0.0)])
+
+        assert result.k_pct == pytest.approx(0.220, abs=1e-6)
+        assert result.bb_pct == pytest.approx(0.085, abs=1e-6)
+
+
+class TestRegressToMlb:
+    def test_regress_high_pa_retains_rates(self) -> None:
+        rates = {"k_pct": 0.200, "bb_pct": 0.100, "iso": 0.200, "babip": 0.320}
+        mlb_rates = {"k_pct": 0.230, "bb_pct": 0.083, "iso": 0.160, "babip": 0.300}
+        result = regress_to_mlb(rates, mlb_rates, effective_pa=600.0, regression_pa=1200.0)
+
+        # (0.200*600 + 0.230*1200) / 1800 ≈ 0.220
+        assert result["k_pct"] == pytest.approx((0.200 * 600 + 0.230 * 1200) / 1800, abs=1e-6)
+        # Player rate has 1/3 weight, so result is between player and league
+        assert 0.200 < result["k_pct"] < 0.230
+
+    def test_regress_low_pa_moves_toward_league(self) -> None:
+        rates = {"k_pct": 0.200, "bb_pct": 0.100}
+        mlb_rates = {"k_pct": 0.230, "bb_pct": 0.083}
+        result = regress_to_mlb(rates, mlb_rates, effective_pa=100.0, regression_pa=1200.0)
+
+        # With 100 effective PA vs 1200 regression, result is mostly league avg
+        assert result["k_pct"] > 0.225  # Very close to 0.230
+
+    def test_regress_zero_pa_equals_league(self) -> None:
+        rates = {"k_pct": 0.200, "bb_pct": 0.100, "iso": 0.200}
+        mlb_rates = {"k_pct": 0.230, "bb_pct": 0.083, "iso": 0.160}
+        result = regress_to_mlb(rates, mlb_rates, effective_pa=0.0, regression_pa=1200.0)
+
+        assert result["k_pct"] == pytest.approx(0.230, abs=1e-6)
+        assert result["bb_pct"] == pytest.approx(0.083, abs=1e-6)
+        assert result["iso"] == pytest.approx(0.160, abs=1e-6)

@@ -1,4 +1,5 @@
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
@@ -189,3 +190,184 @@ def translate_batting_line(
         iso=derived_iso,
         babip=babip_out,
     )
+
+
+def _derive_rates(
+    *,
+    pa: int,
+    ab: int,
+    h: int,
+    doubles: int,
+    triples: int,
+    hr: int,
+    bb: int,
+    so: int,
+    hbp: int,
+    sf: int,
+) -> dict[str, float]:
+    """Derive rate stats from counting stats."""
+    avg = h / ab if ab > 0 else 0.0
+    obp_denom = ab + bb + hbp + sf
+    obp = (h + bb + hbp) / obp_denom if obp_denom > 0 else 0.0
+    tb = h + doubles + triples * 2 + hr * 3
+    slg = tb / ab if ab > 0 else 0.0
+    iso = slg - avg
+    k_pct = so / pa if pa > 0 else 0.0
+    bb_pct = bb / pa if pa > 0 else 0.0
+    bip = ab - so - hr + sf
+    babip = (h - hr) / bip if bip > 0 else 0.0
+    return {
+        "avg": avg,
+        "obp": obp,
+        "slg": slg,
+        "iso": iso,
+        "k_pct": k_pct,
+        "bb_pct": bb_pct,
+        "babip": babip,
+    }
+
+
+def combine_translated_lines(lines: Sequence[TranslatedBattingLine]) -> TranslatedBattingLine:
+    """PA-weight rate stats and sum counting stats across multiple translated lines."""
+    if len(lines) == 1:
+        return lines[0]
+
+    total_pa = sum(line.pa for line in lines)
+    total_ab = sum(line.ab for line in lines)
+    total_h = sum(line.h for line in lines)
+    total_doubles = sum(line.doubles for line in lines)
+    total_triples = sum(line.triples for line in lines)
+    total_hr = sum(line.hr for line in lines)
+    total_bb = sum(line.bb for line in lines)
+    total_so = sum(line.so for line in lines)
+    total_hbp = sum(line.hbp for line in lines)
+    total_sf = sum(line.sf for line in lines)
+
+    rates = _derive_rates(
+        pa=total_pa,
+        ab=total_ab,
+        h=total_h,
+        doubles=total_doubles,
+        triples=total_triples,
+        hr=total_hr,
+        bb=total_bb,
+        so=total_so,
+        hbp=total_hbp,
+        sf=total_sf,
+    )
+
+    # PA-weight the rate stats that can't be derived from counting stats alone
+    k_pct = sum(line.k_pct * line.pa for line in lines) / total_pa
+    bb_pct = sum(line.bb_pct * line.pa for line in lines) / total_pa
+    iso = sum(line.iso * line.pa for line in lines) / total_pa
+    babip = sum(line.babip * line.pa for line in lines) / total_pa
+
+    return TranslatedBattingLine(
+        player_id=lines[0].player_id,
+        season=lines[0].season,
+        source_level=lines[0].source_level,
+        pa=total_pa,
+        ab=total_ab,
+        h=total_h,
+        doubles=total_doubles,
+        triples=total_triples,
+        hr=total_hr,
+        bb=total_bb,
+        so=total_so,
+        hbp=total_hbp,
+        sf=total_sf,
+        avg=rates["avg"],
+        obp=rates["obp"],
+        slg=rates["slg"],
+        k_pct=k_pct,
+        bb_pct=bb_pct,
+        iso=iso,
+        babip=babip,
+    )
+
+
+def apply_recency_weights(
+    season_lines: Sequence[tuple[TranslatedBattingLine, float]],
+) -> TranslatedBattingLine:
+    """Apply Marcel-style recency weights across seasons.
+
+    Each tuple is (translated_line, weight). Produces a single composite line
+    with rates weighted by pa * recency_weight.
+    """
+    if len(season_lines) == 1:
+        return season_lines[0][0]
+
+    # Filter out zero-weight seasons
+    active = [(line, w) for line, w in season_lines if w > 0]
+    if len(active) == 1:
+        return active[0][0]
+
+    weighted_pa = sum(line.pa * w for line, w in active)
+
+    # PA-weight rate stats by recency
+    k_pct = sum(line.k_pct * line.pa * w for line, w in active) / weighted_pa
+    bb_pct = sum(line.bb_pct * line.pa * w for line, w in active) / weighted_pa
+    iso = sum(line.iso * line.pa * w for line, w in active) / weighted_pa
+    babip = sum(line.babip * line.pa * w for line, w in active) / weighted_pa
+
+    # Weighted counting stats
+    total_pa = round(weighted_pa)
+    total_ab = round(sum(line.ab * w for line, w in active))
+    total_h = round(sum(line.h * w for line, w in active))
+    total_doubles = round(sum(line.doubles * w for line, w in active))
+    total_triples = round(sum(line.triples * w for line, w in active))
+    total_hr = round(sum(line.hr * w for line, w in active))
+    total_bb = round(sum(line.bb * w for line, w in active))
+    total_so = round(sum(line.so * w for line, w in active))
+    total_hbp = round(sum(line.hbp * w for line, w in active))
+    total_sf = round(sum(line.sf * w for line, w in active))
+
+    rates = _derive_rates(
+        pa=total_pa,
+        ab=total_ab,
+        h=total_h,
+        doubles=total_doubles,
+        triples=total_triples,
+        hr=total_hr,
+        bb=total_bb,
+        so=total_so,
+        hbp=total_hbp,
+        sf=total_sf,
+    )
+
+    return TranslatedBattingLine(
+        player_id=active[0][0].player_id,
+        season=active[0][0].season,
+        source_level=active[0][0].source_level,
+        pa=total_pa,
+        ab=total_ab,
+        h=total_h,
+        doubles=total_doubles,
+        triples=total_triples,
+        hr=total_hr,
+        bb=total_bb,
+        so=total_so,
+        hbp=total_hbp,
+        sf=total_sf,
+        avg=rates["avg"],
+        obp=rates["obp"],
+        slg=rates["slg"],
+        k_pct=k_pct,
+        bb_pct=bb_pct,
+        iso=iso,
+        babip=babip,
+    )
+
+
+def regress_to_mlb(
+    rates: dict[str, float],
+    mlb_rates: dict[str, float],
+    effective_pa: float,
+    regression_pa: float,
+) -> dict[str, float]:
+    """Regress rates toward MLB league average.
+
+    Formula: (rate * effective_pa + mlb_rate * regression_pa) / (effective_pa + regression_pa)
+    """
+    denominator = effective_pa + regression_pa
+    return {stat: (rate * effective_pa + mlb_rates[stat] * regression_pa) / denominator for stat, rate in rates.items()}

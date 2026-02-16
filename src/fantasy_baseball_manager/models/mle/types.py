@@ -8,6 +8,8 @@ class MLEConfig:
     min_pa: int = 100
     discount_factor: float = 0.55
     babip_stabilization_bip: float = 820.0
+    season_weights: tuple[float, ...] = (5.0, 4.0, 3.0)
+    regression_pa: float = 1200.0
 
 
 DEFAULT_AGE_BENCHMARKS: dict[str, float] = {
