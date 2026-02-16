@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from fantasy_baseball_manager.features.transforms.expected_stats import (
@@ -24,7 +26,7 @@ class TestExpectedStatsProfile:
 
     def test_empty_rows(self) -> None:
         result = expected_stats_profile([])
-        assert all(v == pytest.approx(0.0) for v in result.values())
+        assert all(math.isnan(v) for v in result.values())
         assert len(result) == 3
 
     def test_filters_null_xba(self) -> None:
@@ -41,7 +43,7 @@ class TestExpectedStatsProfile:
             {"estimated_ba_using_speedangle": None, "estimated_woba_using_speedangle": None},
         ]
         result = expected_stats_profile(rows)
-        assert all(v == pytest.approx(0.0) for v in result.values())
+        assert all(math.isnan(v) for v in result.values())
 
     def test_single_row(self) -> None:
         rows = [

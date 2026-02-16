@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from fantasy_baseball_manager.features.transforms.spin_profile import (
@@ -27,7 +29,7 @@ class TestSpinProfileMetrics:
 
     def test_empty_rows(self) -> None:
         result = spin_profile_metrics([])
-        assert all(v == pytest.approx(0.0) for v in result.values())
+        assert all(math.isnan(v) for v in result.values())
         assert len(result) == 6
 
     def test_missing_spin_rate_rows_filtered(self) -> None:
@@ -49,14 +51,14 @@ class TestSpinProfileMetrics:
         assert result["avg_spin_rate"] == pytest.approx(2500.0)
         # Only FF has pitch-specific spin
         assert result["ff_spin"] == pytest.approx(2600.0)
-        assert result["sl_spin"] == pytest.approx(0.0)
+        assert math.isnan(result["sl_spin"])
 
     def test_no_ff_pitches(self) -> None:
         rows = [
             {"release_spin_rate": 2800.0, "pitch_type": "SL", "pfx_x": 3.0, "pfx_z": -2.0},
         ]
         result = spin_profile_metrics(rows)
-        assert result["ff_spin"] == pytest.approx(0.0)
+        assert math.isnan(result["ff_spin"])
         assert result["sl_spin"] == pytest.approx(2800.0)
 
     def test_break_with_missing_pfx(self) -> None:
@@ -86,8 +88,8 @@ class TestSpinProfileMetrics:
             {"release_spin_rate": None, "pitch_type": "FF", "pfx_x": -5.0, "pfx_z": 12.0},
         ]
         result = spin_profile_metrics(rows)
-        assert result["avg_spin_rate"] == pytest.approx(0.0)
-        assert result["ff_spin"] == pytest.approx(0.0)
+        assert math.isnan(result["avg_spin_rate"])
+        assert math.isnan(result["ff_spin"])
 
 
 class TestSpinProfileTransformFeature:

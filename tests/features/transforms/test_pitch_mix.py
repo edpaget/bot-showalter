@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from fantasy_baseball_manager.features.transforms.pitch_mix import (
@@ -35,17 +37,17 @@ class TestPitchMixProfile:
         assert result["ff_velo"] == pytest.approx(96.0)
         assert result["sl_velo"] == pytest.approx(85.0)
 
-    def test_unused_pitch_type_zero_velo(self) -> None:
+    def test_unused_pitch_type_nan_velo(self) -> None:
         rows = [
             {"pitch_type": "FF", "release_speed": 95.0},
         ]
         result = pitch_mix_profile(rows)
-        assert result["sl_velo"] == pytest.approx(0.0)
-        assert result["ch_velo"] == pytest.approx(0.0)
+        assert math.isnan(result["sl_velo"])
+        assert math.isnan(result["ch_velo"])
 
     def test_empty_rows(self) -> None:
         result = pitch_mix_profile([])
-        assert all(v == pytest.approx(0.0) for v in result.values())
+        assert all(math.isnan(v) for v in result.values())
         assert len(result) == 12
 
     def test_missing_pitch_type_ignored(self) -> None:

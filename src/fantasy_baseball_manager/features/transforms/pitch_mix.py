@@ -28,8 +28,8 @@ def pitch_mix_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for pt in _PITCH_TYPES:
         key = pt.lower()
-        result[f"{key}_pct"] = (counts[pt] / total * 100.0) if total > 0 else 0.0
-        result[f"{key}_velo"] = (velo_sums[pt] / velo_counts[pt]) if velo_counts[pt] > 0 else 0.0
+        result[f"{key}_pct"] = (counts[pt] / total * 100.0) if total > 0 else float("nan")
+        result[f"{key}_velo"] = (velo_sums[pt] / velo_counts[pt]) if velo_counts[pt] > 0 else float("nan")
     return result
 
 

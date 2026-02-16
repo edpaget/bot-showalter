@@ -158,7 +158,7 @@ class SqliteDatasetAssembler:
 
             for group_key, group_rows in groups.items():
                 result = tf.transform(group_rows)
-                values = [result.get(o, 0.0) for o in tf.outputs]
+                values = [result.get(o, float("nan")) for o in tf.outputs]
                 self._conn.execute(update_sql, [*values, *group_key])
 
             self._conn.commit()
@@ -187,7 +187,7 @@ class SqliteDatasetAssembler:
 
             for group_key, group_rows in groups.items():
                 result = tf.transform(group_rows)
-                values = [result.get(o, 0.0) for o in tf.outputs]
+                values = [result.get(o, float("nan")) for o in tf.outputs]
                 self._conn.execute(update_sql, [*values, *group_key])
 
             self._conn.commit()

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from fantasy_baseball_manager.features.transforms.batted_ball import (
@@ -39,7 +41,7 @@ class TestBattedBallProfile:
 
     def test_empty_rows(self) -> None:
         result = batted_ball_profile([])
-        assert all(v == pytest.approx(0.0) for v in result.values())
+        assert all(math.isnan(v) for v in result.values())
         assert len(result) == 5
 
     def test_no_batted_ball_events(self) -> None:
@@ -48,7 +50,7 @@ class TestBattedBallProfile:
             {"launch_speed": None, "launch_angle": None, "barrel": None},
         ]
         result = batted_ball_profile(rows)
-        assert all(v == pytest.approx(0.0) for v in result.values())
+        assert all(math.isnan(v) for v in result.values())
 
     def test_output_keys(self) -> None:
         result = batted_ball_profile([])

@@ -11,11 +11,11 @@ def batted_ball_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
     n = len(batted)
     if n == 0:
         return {
-            "avg_exit_velo": 0.0,
-            "max_exit_velo": 0.0,
-            "avg_launch_angle": 0.0,
-            "barrel_pct": 0.0,
-            "hard_hit_pct": 0.0,
+            "avg_exit_velo": float("nan"),
+            "max_exit_velo": float("nan"),
+            "avg_launch_angle": float("nan"),
+            "barrel_pct": float("nan"),
+            "hard_hit_pct": float("nan"),
         }
 
     total_velo = sum(r["launch_speed"] for r in batted)

@@ -35,15 +35,15 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
             break_count += 1
 
     result: dict[str, Any] = {
-        "avg_spin_rate": (total_spin / spin_count) if spin_count > 0 else 0.0,
+        "avg_spin_rate": (total_spin / spin_count) if spin_count > 0 else float("nan"),
     }
     for pt in _TRACKED_PITCH_TYPES:
         key = pt.lower()
         count = type_spin_counts[pt]
-        result[f"{key}_spin"] = (type_spin_sums[pt] / count) if count > 0 else 0.0
+        result[f"{key}_spin"] = (type_spin_sums[pt] / count) if count > 0 else float("nan")
 
-    result["avg_h_break"] = (total_h_break / break_count) if break_count > 0 else 0.0
-    result["avg_v_break"] = (total_v_break / break_count) if break_count > 0 else 0.0
+    result["avg_h_break"] = (total_h_break / break_count) if break_count > 0 else float("nan")
+    result["avg_v_break"] = (total_v_break / break_count) if break_count > 0 else float("nan")
 
     return result
 

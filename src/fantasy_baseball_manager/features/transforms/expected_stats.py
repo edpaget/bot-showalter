@@ -18,7 +18,7 @@ def expected_stats_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
     ]
     n = len(valid)
     if n == 0:
-        return {"xba": 0.0, "xwoba": 0.0, "xslg": 0.0}
+        return {"xba": float("nan"), "xwoba": float("nan"), "xslg": float("nan")}
 
     total_xba = sum(r["estimated_ba_using_speedangle"] for r in valid)
     total_xwoba = sum(r["estimated_woba_using_speedangle"] for r in valid)

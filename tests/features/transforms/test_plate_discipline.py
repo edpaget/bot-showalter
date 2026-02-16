@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from fantasy_baseball_manager.features.transforms.plate_discipline import (
@@ -38,7 +40,7 @@ class TestPlateDisciplineProfile:
 
     def test_empty_rows(self) -> None:
         result = plate_discipline_profile([])
-        assert all(v == pytest.approx(0.0) for v in result.values())
+        assert all(math.isnan(v) for v in result.values())
         assert len(result) == 5
 
     def test_all_in_zone_called_strikes(self) -> None:
@@ -47,9 +49,9 @@ class TestPlateDisciplineProfile:
             {"zone": 2, "description": "called_strike", "plate_x": 0.3, "plate_z": 3.0},
         ]
         result = plate_discipline_profile(rows)
-        assert result["chase_rate"] == pytest.approx(0.0)
-        assert result["zone_contact_pct"] == pytest.approx(0.0)
-        assert result["whiff_rate"] == pytest.approx(0.0)
+        assert math.isnan(result["chase_rate"])
+        assert math.isnan(result["zone_contact_pct"])
+        assert math.isnan(result["whiff_rate"])
         assert result["swinging_strike_pct"] == pytest.approx(0.0)
         assert result["called_strike_pct"] == pytest.approx(100.0)
 
@@ -60,8 +62,8 @@ class TestPlateDisciplineProfile:
         ]
         result = plate_discipline_profile(rows)
         assert result["chase_rate"] == pytest.approx(0.0)
-        assert result["zone_contact_pct"] == pytest.approx(0.0)
-        assert result["whiff_rate"] == pytest.approx(0.0)
+        assert math.isnan(result["zone_contact_pct"])
+        assert math.isnan(result["whiff_rate"])
 
     def test_all_chases(self) -> None:
         rows = [
