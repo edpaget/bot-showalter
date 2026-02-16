@@ -1,3 +1,10 @@
+from fantasy_baseball_manager.features.groups import (
+    FeatureGroup,
+    compose_feature_set,
+    get_group,
+    list_groups,
+    register_group,
+)
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import (
     AnyFeature,
@@ -36,6 +43,7 @@ __all__ = [
     "DerivedTransformFeature",
     "Feature",
     "FeatureBuilder",
+    "FeatureGroup",
     "FeatureSet",
     "RowTransform",
     "Source",
@@ -43,10 +51,14 @@ __all__ = [
     "SpineFilter",
     "TransformFeature",
     "batting",
+    "compose_feature_set",
     "delta",
+    "get_group",
     "il_stint",
+    "list_groups",
     "pitching",
     "player",
     "projection",
+    "register_group",
     "statcast",
 ]
