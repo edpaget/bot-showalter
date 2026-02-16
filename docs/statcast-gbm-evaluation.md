@@ -16,29 +16,28 @@ The model is built on scikit-learn's `HistGradientBoostingRegressor` with separa
 models for each target stat. Batter and pitcher pipelines are fully independent
 with different feature sets tailored to each player type.
 
-### True-talent estimator, not a pre-season projection
+### Two operating modes
 
-The model uses **same-season Statcast features** — it trains on 2023 exit velocity
-to predict 2023 AVG, then at prediction time uses 2025 Statcast data to predict
-2025 rates. This makes it a **true-talent estimator**: given what a player actually
-did in the Statcast data, what are his expected rate stats?
+The model supports two modes via the `mode` config param:
 
-This is different from a pre-season projection system like Marcel or Steamer, which
-predict the upcoming season using only prior-year data. For pre-season use, the
-Statcast transform features would need to be lagged (use 2024 exit velo to predict
-2025 AVG). The lag stats (PA, HR, etc.) already use prior seasons, but the Statcast
-transforms (batted ball, plate discipline, expected stats, pitch mix, spin) use the
-prediction season.
+- **`true_talent`** (default): Uses **same-season Statcast features** — trains on
+  2023 exit velocity to predict 2023 AVG, then uses 2025 Statcast data to predict
+  2025 rates. This is a true-talent estimator: given what a player actually did in
+  the Statcast data, what are his expected rate stats?
 
-**Implications:**
-- The model requires Statcast data from the season being predicted, so it cannot
-  generate projections before a season starts.
-- It can be used for in-season updates once Statcast data accumulates.
-- The evaluation numbers below reflect same-season Statcast input, so they represent
-  a ceiling for how well the model can estimate true talent — not how well it would
-  do as a blind pre-season forecast.
-- When used in an ensemble with Marcel (a pre-season system), the blend inherits
-  some of this same-season advantage.
+- **`preseason`**: Uses **prior-season Statcast features** (lag=1) — trains on 2022
+  exit velocity to predict 2023 AVG, then uses 2024 Statcast data to predict 2025
+  rates. This enables genuine pre-season projections comparable to Marcel/Steamer.
+  Preseason artifacts are stored under a `preseason/` subdirectory.
+
+The evaluation numbers below reflect the true-talent mode (same-season Statcast
+input), so they represent a ceiling for how well the model can estimate true
+talent — not how well the preseason mode would perform as a blind forecast.
+
+Additionally, the model's true-talent estimates can be blended into Marcel's inputs
+via statcast-adjusted Marcel (`statcast_augment = true` in Marcel config), and
+compared against actuals via the `fbm report talent-delta` command for in-season
+buy-low/sell-high analysis.
 
 ## What It Predicts
 
@@ -211,12 +210,13 @@ batted-ball events, new pitch types). No imputation heuristics needed.
 
 ## Weaknesses
 
-### 1. Requires same-season Statcast data
+### 1. Preseason mode is untested
 
-The model cannot generate pre-season projections. It needs Statcast pitch-level
-data from the season being predicted. This limits its use to in-season updates
-and retrospective analysis. To function as a true pre-season projection, the
-Statcast transform features would need to be lagged to use prior-year data.
+The true-talent mode (default) requires same-season Statcast data and cannot
+produce pre-season projections. The preseason mode uses prior-year Statcast
+features via lagged transforms, but it has not yet been trained or evaluated.
+Until the preseason model is trained and compared against Marcel/Steamer on a
+holdout season, its accuracy relative to other pre-season systems is unknown.
 
 ### 2. No counting stats or playing time
 
@@ -269,9 +269,10 @@ legitimate reasons to limit the lookback window.
 
 ### Where to be skeptical
 
-- **Pre-season drafts**: The model requires same-season Statcast data and cannot
-  produce projections before the season starts. Use Marcel or Steamer for draft
-  day; use statcast-gbm for in-season roster adjustments.
+- **Pre-season drafts**: The true-talent mode requires same-season data. The
+  preseason mode (`mode: "preseason"`) can produce pre-season projections using
+  prior-year Statcast data, but it has not yet been evaluated — use Marcel or
+  Steamer until preseason accuracy is validated.
 - **Counting-stat-dependent formats**: Roto leagues need HR, RBI, SB projections
   that this model doesn't provide. Use the ensemble or Marcel directly.
 - **Rookie/prospect projections**: No Statcast data = no projection. Use a system
@@ -304,17 +305,22 @@ through at that system's value.
 
 ## Next Steps
 
-1. **Lag Statcast features for pre-season mode** — use prior-year Statcast data
-   to predict the upcoming season, enabling true pre-season projections. This
-   would allow a fair apples-to-apples comparison with Marcel and Steamer.
-2. **Tune ensemble weights** — the 60/40 split was a starting point. A
+1. ~~**Lag Statcast features for pre-season mode**~~ — Done. The preseason mode
+   (`mode: "preseason"`) uses prior-year Statcast data via `TransformFeature.with_lag(1)`.
+   **Next: train and evaluate the preseason model** to measure how much signal
+   degrades with lag, and compare against Marcel and Steamer.
+2. ~~**In-season talent-delta monitor**~~ — Done. `fbm report talent-delta`
+   compares true-talent estimates to actuals for buy-low/sell-high analysis.
+3. ~~**Statcast-adjusted Marcel**~~ — Done. Marcel can blend statcast-gbm
+   true-talent rates into its inputs via `statcast_augment = true`.
+4. **Tune ensemble weights** — the 60/40 split was a starting point. A
    stat-specific weighting (e.g., 80% statcast-gbm for SLG, 80% Marcel for ERA)
    could improve results.
-3. **Add more training seasons** — extending to 2020-2024 (skipping 2020's
+5. **Add more training seasons** — extending to 2020-2024 (skipping 2020's
    shortened season) could help.
-4. **Hyperparameter tuning** — the model uses default scikit-learn params.
+6. **Hyperparameter tuning** — the model uses default scikit-learn params.
    Cross-validated grid search could improve accuracy.
-5. **Feature engineering** — adding sprint speed, catch probability, or park
+7. **Feature engineering** — adding sprint speed, catch probability, or park
    factors could address the top-200 pitcher weakness.
-6. **Prune noisy features** — ablation shows `avg_v_break`, `cu_velo`, `si_pct`,
+8. **Prune noisy features** — ablation shows `avg_v_break`, `cu_velo`, `si_pct`,
    and all batter lag stats add negligible or negative value.
