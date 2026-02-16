@@ -39,6 +39,7 @@ from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositi
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from fantasy_baseball_manager.services.dataset_catalog import DatasetCatalogService
 from fantasy_baseball_manager.services.league_environment_service import LeagueEnvironmentService
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
@@ -123,6 +124,22 @@ def build_runs_context(data_dir: str) -> Iterator[RunsContext]:
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
         yield RunsContext(conn=conn, repo=SqliteModelRunRepo(conn))
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class DatasetsContext:
+    conn: sqlite3.Connection
+    catalog: DatasetCatalogService
+
+
+@contextmanager
+def build_datasets_context(data_dir: str) -> Iterator[DatasetsContext]:
+    """Composition-root context manager for datasets subcommands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield DatasetsContext(conn=conn, catalog=DatasetCatalogService(conn))
     finally:
         conn.close()
 

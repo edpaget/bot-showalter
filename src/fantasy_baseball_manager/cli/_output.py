@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
+from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
@@ -241,4 +242,31 @@ def print_system_summaries(summaries: list[SystemSummary]) -> None:
     for s in summaries:
         total = s.batter_count + s.pitcher_count
         table.add_row(s.system, s.version, s.source_type, str(s.batter_count), str(s.pitcher_count), str(total))
+    console.print(table)
+
+
+def print_dataset_list(datasets: list[DatasetInfo]) -> None:
+    """Print a table of cached datasets."""
+    if not datasets:
+        console.print("No cached datasets found.")
+        return
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Feature Set")
+    table.add_column("Version")
+    table.add_column("Split")
+    table.add_column("Table")
+    table.add_column("Rows", justify="right")
+    table.add_column("Seasons")
+    table.add_column("Created")
+    for d in datasets:
+        seasons_str = ", ".join(str(s) for s in d.seasons) if d.seasons else ""
+        table.add_row(
+            d.feature_set_name,
+            d.feature_set_version,
+            d.split or "—",
+            d.table_name,
+            str(d.row_count),
+            seasons_str,
+            d.created_at,
+        )
     console.print(table)

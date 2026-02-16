@@ -11,6 +11,7 @@ from fantasy_baseball_manager.cli._output import (
     console,
     print_ablation_result,
     print_comparison_result,
+    print_dataset_list,
     print_error,
     print_features,
     print_import_result,
@@ -28,6 +29,7 @@ from fantasy_baseball_manager.cli._output import (
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
     build_compute_container,
+    build_datasets_context,
     build_eval_context,
     build_import_context,
     build_ingest_container,
@@ -469,6 +471,93 @@ def runs_delete(
         mgr.delete_run(system, version, operation)
         ctx.conn.commit()
         console.print(f"[bold green]Deleted[/bold green] run '{run}'")
+
+
+# --- datasets subcommand group ---
+
+datasets_app = typer.Typer(name="datasets", help="Manage cached feature-set datasets")
+app.add_typer(datasets_app, name="datasets")
+
+
+@datasets_app.command("list")
+def datasets_list(
+    name: Annotated[str | None, typer.Option("--name", help="Filter by feature set name")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show all materialized feature sets and their datasets."""
+    with build_datasets_context(data_dir) as ctx:
+        if name:
+            datasets = ctx.catalog.list_by_feature_set_name(name)
+        else:
+            datasets = ctx.catalog.list_all()
+    print_dataset_list(datasets)
+
+
+@datasets_app.command("drop")
+def datasets_drop(
+    name: Annotated[str | None, typer.Option("--name", help="Feature set name to drop")] = None,
+    all_: Annotated[bool, typer.Option("--all", help="Drop all cached datasets")] = False,
+    yes: Annotated[bool, typer.Option("--yes", help="Skip confirmation")] = False,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Drop cached datasets."""
+    if not name and not all_:
+        print_error("provide --name or --all")
+        raise typer.Exit(code=1)
+
+    with build_datasets_context(data_dir) as ctx:
+        if not yes:
+            target = f"feature set '{name}'" if name else "ALL cached datasets"
+            typer.confirm(f"Drop {target}?", abort=True)
+
+        if all_:
+            count = ctx.catalog.drop_all()
+        else:
+            assert name is not None
+            count = ctx.catalog.drop_by_feature_set_name(name)
+
+        ctx.conn.commit()
+
+    if count == 0:
+        console.print("No datasets found to drop.")
+    else:
+        console.print(f"[bold green]Dropped[/bold green] {count} dataset(s)")
+
+
+@datasets_app.command("rebuild")
+def datasets_rebuild(
+    model: _ModelArg,
+    season: _SeasonOpt = None,
+    yes: Annotated[bool, typer.Option("--yes", help="Skip confirmation")] = False,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Drop a model's cached datasets, then re-materialize via prepare."""
+    prefix = model.replace("-", "_") + "_"
+
+    with build_datasets_context(data_dir) as ctx:
+        datasets = ctx.catalog.list_all()
+        matching = [d for d in datasets if d.feature_set_name.startswith(prefix)]
+
+        if not matching:
+            console.print(f"No cached datasets found for model '{model}'.")
+        else:
+            if not yes:
+                typer.confirm(f"Drop {len(matching)} dataset(s) for model '{model}'?", abort=True)
+            count = ctx.catalog.drop_by_name_prefix(prefix)
+            ctx.conn.commit()
+            console.print(f"[bold green]Dropped[/bold green] {count} dataset(s)")
+
+    config = load_config(model_name=model, seasons=season)
+    with build_model_context(model, config) as ctx:
+        try:
+            result = dispatch("prepare", ctx.model, config)
+        except UnsupportedOperation as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from None
+
+    match result:
+        case PrepareResult():
+            print_prepare_result(result)
 
 
 # --- projections subcommand group ---
