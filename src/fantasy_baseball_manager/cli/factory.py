@@ -66,7 +66,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
     """Composition-root context manager: opens DB, wires assembler + model, yields context, closes DB."""
     conn = create_connection(Path(config.data_dir) / "fbm.db")
     try:
-        assembler = SqliteDatasetAssembler(conn)
+        assembler = SqliteDatasetAssembler(conn, statcast_path=Path(config.data_dir) / "statcast.db")
         evaluator = ProjectionEvaluator(
             SqliteProjectionRepo(conn),
             SqliteBattingStatsRepo(conn),
