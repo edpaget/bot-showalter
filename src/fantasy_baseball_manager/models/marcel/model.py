@@ -11,6 +11,7 @@ from fantasy_baseball_manager.models.marcel.convert import (
 )
 from fantasy_baseball_manager.models.marcel.engine import project_all
 from fantasy_baseball_manager.models.marcel.mle_augment import augment_inputs_with_mle
+from fantasy_baseball_manager.models.marcel.statcast_augment import augment_inputs_with_statcast
 from fantasy_baseball_manager.repos.protocols import ProjectionRepo
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_features,
@@ -184,6 +185,26 @@ class MarcelModel:
                     categories=marcel_config.batting_categories,
                     league_rates=lg_rates,
                     discount_factor=mle_discount,
+                )
+
+        use_statcast = config.model_params.get("statcast_augment", False)
+        if use_statcast and self._projection_repo is not None:
+            sc_system = str(config.model_params.get("statcast_system", "statcast-gbm"))
+            sc_version = str(config.model_params.get("statcast_version", "latest"))
+            sc_weight = float(config.model_params.get("statcast_weight", 0.3))
+            sc_season = projected_season - 1
+            sc_projections = self._projection_repo.get_by_system_version(sc_system, sc_version)
+            sc_projections = [p for p in sc_projections if p.season == sc_season]
+            if sc_projections:
+                bat_inputs = augment_inputs_with_statcast(
+                    inputs=bat_inputs,
+                    statcast_projections=[p for p in sc_projections if p.player_type == "batter"],
+                    blend_weight=sc_weight,
+                )
+                pitch_inputs = augment_inputs_with_statcast(
+                    inputs=pitch_inputs,
+                    statcast_projections=[p for p in sc_projections if p.player_type == "pitcher"],
+                    blend_weight=sc_weight,
                 )
 
         bat_pt_lookup: dict[int, float] | None = None

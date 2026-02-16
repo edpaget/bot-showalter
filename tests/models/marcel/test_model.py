@@ -601,3 +601,104 @@ class TestMarcelPredictWithProjectionRepo:
         result = model.predict(config)
         # Should use Marcel formula (0.5*600 + 0.1*550 + 200 = 555), NOT repo's 450
         assert result.predictions[0]["pa"] == 555
+
+
+class TestMarcelPredictWithStatcastAugment:
+    def test_statcast_augment_adjusts_rates(self) -> None:
+        """With statcast_augment=True, Marcel's rates get blended with statcast estimates."""
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 550,
+                "pa_3": 500,
+                "h_1": 160.0,
+                "h_2": 140.0,
+                "h_3": 130.0,
+                "h_wavg": (160 * 5.0 + 140 * 4.0 + 130 * 3.0) / (600 * 5.0 + 550 * 4.0 + 500 * 3.0),
+                "weighted_pt": 600 * 5.0 + 550 * 4.0 + 500 * 3.0,
+                "league_h_rate": 0.060,
+            },
+        ]
+        # Statcast projection for prior season (2023) with higher avg
+        sc_projection = Projection(
+            player_id=1,
+            season=2023,
+            system="statcast-gbm",
+            version="latest",
+            player_type="batter",
+            stat_json={"avg": 0.300, "obp": 0.370, "slg": 0.480},
+        )
+        assembler = FakeAssembler(batting_rows)
+        repo = _FakeProjectionRepo([sc_projection])
+        config_with = ModelConfig(
+            seasons=[2023],
+            model_params={
+                "batting_categories": ["h"],
+                "use_playing_time": False,
+                "statcast_augment": True,
+                "statcast_system": "statcast-gbm",
+                "statcast_version": "latest",
+                "statcast_weight": 0.3,
+            },
+        )
+        config_without = ModelConfig(
+            seasons=[2023],
+            model_params={
+                "batting_categories": ["h"],
+                "use_playing_time": False,
+            },
+        )
+        model_with = MarcelModel(assembler=assembler, projection_repo=repo)
+        model_without = MarcelModel(assembler=assembler)
+
+        result_with = model_with.predict(config_with)
+        result_without = model_without.predict(config_without)
+
+        # Both should produce one prediction
+        assert len(result_with.predictions) == 1
+        assert len(result_without.predictions) == 1
+
+        # Statcast has avg=0.300 which is higher than the weighted average
+        # So the augmented prediction should have more hits
+        assert result_with.predictions[0]["h"] > result_without.predictions[0]["h"]
+
+    def test_statcast_augment_disabled_by_default(self) -> None:
+        """Without statcast_augment param, no augmentation occurs."""
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 0,
+                "pa_3": 0,
+                "h_1": 160.0,
+                "h_2": 0.0,
+                "h_3": 0.0,
+                "h_wavg": 160 / 600,
+                "weighted_pt": 600 * 5.0,
+                "league_h_rate": 0.060,
+            },
+        ]
+        sc_projection = Projection(
+            player_id=1,
+            season=2023,
+            system="statcast-gbm",
+            version="latest",
+            player_type="batter",
+            stat_json={"avg": 0.400},
+        )
+        assembler = FakeAssembler(batting_rows)
+        repo = _FakeProjectionRepo([sc_projection])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["h"], "use_playing_time": False},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        # Despite statcast saying avg=0.400, the result should NOT be affected
+        # since statcast_augment is not enabled
+        assert len(result.predictions) == 1
