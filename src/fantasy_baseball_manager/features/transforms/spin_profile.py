@@ -4,7 +4,7 @@ from typing import Any
 
 from fantasy_baseball_manager.features.types import Source, TransformFeature
 
-_TRACKED_PITCH_TYPES = ("FF", "SL", "CU")
+_TRACKED_PITCH_TYPES = ("FF", "SL", "CU", "CH")
 
 
 def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -16,6 +16,9 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     total_h_break = 0.0
     total_v_break = 0.0
     break_count = 0
+    type_h_break_sums: dict[str, float] = {pt: 0.0 for pt in _TRACKED_PITCH_TYPES}
+    type_v_break_sums: dict[str, float] = {pt: 0.0 for pt in _TRACKED_PITCH_TYPES}
+    type_break_counts: dict[str, int] = {pt: 0 for pt in _TRACKED_PITCH_TYPES}
 
     for row in rows:
         spin = row.get("release_spin_rate")
@@ -33,6 +36,11 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
             total_h_break += pfx_x
             total_v_break += pfx_z
             break_count += 1
+            pt = row.get("pitch_type")
+            if pt in type_h_break_sums:
+                type_h_break_sums[pt] += pfx_x
+                type_v_break_sums[pt] += pfx_z
+                type_break_counts[pt] += 1
 
     result: dict[str, Any] = {
         "avg_spin_rate": (total_spin / spin_count) if spin_count > 0 else float("nan"),
@@ -44,6 +52,12 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     result["avg_h_break"] = (total_h_break / break_count) if break_count > 0 else float("nan")
     result["avg_v_break"] = (total_v_break / break_count) if break_count > 0 else float("nan")
+
+    for pt in _TRACKED_PITCH_TYPES:
+        key = pt.lower()
+        count = type_break_counts[pt]
+        result[f"{key}_h_break"] = (type_h_break_sums[pt] / count) if count > 0 else float("nan")
+        result[f"{key}_v_break"] = (type_v_break_sums[pt] / count) if count > 0 else float("nan")
 
     return result
 
@@ -59,7 +73,16 @@ SPIN_PROFILE = TransformFeature(
         "ff_spin",
         "sl_spin",
         "cu_spin",
+        "ch_spin",
         "avg_h_break",
         "avg_v_break",
+        "ff_h_break",
+        "ff_v_break",
+        "sl_h_break",
+        "sl_v_break",
+        "cu_h_break",
+        "cu_v_break",
+        "ch_h_break",
+        "ch_v_break",
     ),
 )
