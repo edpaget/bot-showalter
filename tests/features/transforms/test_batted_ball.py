@@ -88,6 +88,17 @@ class TestBattedBallProfile:
         result = batted_ball_profile(rows)
         assert result["hard_hit_pct"] == pytest.approx(0.0)
 
+    def test_null_launch_angle_with_valid_speed(self) -> None:
+        rows = [
+            {"launch_speed": 100.0, "launch_angle": 25.0, "barrel": 1},
+            {"launch_speed": 95.0, "launch_angle": None, "barrel": 0},
+        ]
+        result = batted_ball_profile(rows)
+        # Both count for exit velo (n=2)
+        assert result["avg_exit_velo"] == pytest.approx(97.5)
+        # Only one has launch_angle
+        assert result["avg_launch_angle"] == pytest.approx(25.0)
+
 
 class TestBattedBallTransformFeature:
     def test_is_transform_feature(self) -> None:

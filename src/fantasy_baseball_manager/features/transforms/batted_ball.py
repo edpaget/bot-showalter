@@ -20,14 +20,16 @@ def batted_ball_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     total_velo = sum(r["launch_speed"] for r in batted)
     max_velo = max(r["launch_speed"] for r in batted)
-    total_angle = sum(r["launch_angle"] for r in batted)
+    with_angle = [r for r in batted if r.get("launch_angle") is not None]
     barrels = sum(1 for r in batted if r.get("barrel") == 1)
     hard_hits = sum(1 for r in batted if r["launch_speed"] >= 95.0)
+
+    avg_angle = sum(r["launch_angle"] for r in with_angle) / len(with_angle) if with_angle else float("nan")
 
     return {
         "avg_exit_velo": total_velo / n,
         "max_exit_velo": max_velo,
-        "avg_launch_angle": total_angle / n,
+        "avg_launch_angle": avg_angle,
         "barrel_pct": barrels / n * 100.0,
         "hard_hit_pct": hard_hits / n * 100.0,
     }
