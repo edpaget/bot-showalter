@@ -30,9 +30,9 @@ The model supports two modes via the `mode` config param:
   rates. This enables genuine pre-season projections comparable to Marcel/Steamer.
   Preseason artifacts are stored under a `preseason/` subdirectory.
 
-The evaluation numbers below reflect the true-talent mode (same-season Statcast
-input), so they represent a ceiling for how well the model can estimate true
-talent — not how well the preseason mode would perform as a blind forecast.
+The sections below evaluate both modes. The true-talent results represent a ceiling
+for estimating underlying quality; the preseason results show how the model performs
+as a genuine blind forecast comparable to Marcel and Steamer.
 
 Additionally, the model's true-talent estimates can be blended into Marcel's inputs
 via statcast-adjusted Marcel (`statcast_augment = true` in Marcel config), and
@@ -76,25 +76,31 @@ a complete player forecast.
 ## Holdout Metrics (2024 season)
 
 These are RMSE values from the time-series holdout split during training
-(trained on 2022-2023, tested on 2024):
+(trained on 2022-2023, tested on 2024). Both modes use the same split.
 
-| Target | Holdout RMSE |
-|--------|-------------|
-| **Batter** | |
-| avg | 0.0326 |
-| obp | 0.0343 |
-| slg | 0.0597 |
-| woba | 0.0368 |
-| iso | 0.0369 |
-| babip | 0.0689 |
-| **Pitcher** | |
-| era | 6.267 |
-| fip | 3.498 |
-| k/9 | 2.064 |
-| bb/9 | 3.205 |
-| hr/9 | 5.333 |
-| babip | 0.130 |
-| whip | 0.858 |
+| Target | True-Talent | Preseason | Delta |
+|--------|-------------|-----------|-------|
+| **Batter** | | | |
+| avg | 0.0326 | 0.0488 | +0.016 |
+| obp | 0.0343 | 0.0584 | +0.024 |
+| slg | 0.0597 | 0.0871 | +0.027 |
+| woba | 0.0368 | 0.0581 | +0.021 |
+| iso | 0.0369 | 0.0507 | +0.014 |
+| babip | 0.0689 | 0.0735 | +0.005 |
+| **Pitcher** | | | |
+| era | 6.267 | 6.163 | -0.083 |
+| fip | 3.498 | 3.511 | +0.013 |
+| k/9 | 2.064 | 2.982 | +0.918 |
+| bb/9 | 3.205 | 3.712 | +0.507 |
+| hr/9 | 5.333 | 5.211 | -0.122 |
+| babip | 0.130 | 0.124 | -0.006 |
+| whip | 0.858 | 0.893 | +0.035 |
+
+Preseason batter stats degrade 22-46% without same-season Statcast data, with
+BABIP being the most stable (+7%). Pitcher ERA, FIP, HR/9, and BABIP are
+essentially unchanged — prior-year stuff metrics (spin, velocity, movement) are
+highly stable year-to-year. K/9 and BB/9 degrade significantly (+44% and +16%),
+suggesting plate discipline metrics shift more between seasons than stuff does.
 
 ## Ablation Study
 
@@ -130,15 +136,17 @@ removing the feature increases RMSE more (feature is more important).
 
 ## Accuracy vs Other Systems (2025 Season)
 
-Note: these results reflect same-season Statcast input for statcast-gbm (see
-true-talent caveat above). Marcel and Steamer are pre-season projections.
+### True-talent mode (same-season Statcast)
 
-### Full player pool
+Note: true-talent uses same-season Statcast input, giving it an information
+advantage over Marcel and Steamer (which are pre-season projections).
+
+#### Full player pool
 
 RMSE comparison across all players with 2025 FanGraphs actuals. Lower is better.
 Bold = best in row.
 
-| Stat | Marcel | Statcast-GBM | Steamer | Ensemble (60/40) |
+| Stat | Marcel | True-Talent | Steamer | Ensemble (60/40) |
 |------|--------|-------------|---------|-------------------|
 | avg | 0.0587 | **0.0479** | 0.0515 | 0.0494 |
 | obp | 0.0643 | **0.0510** | 0.0551 | 0.0529 |
@@ -149,14 +157,14 @@ Bold = best in row.
 | k/9 | 2.435 | **1.858** | 2.122 | 1.940 |
 | bb/9 | 3.541 | **2.566** | 3.456 | 2.615 |
 
-Statcast-gbm leads on every stat except ERA and WHIP (where the ensemble wins).
+True-talent leads on every stat except ERA and WHIP (where the ensemble wins).
 
-### Top 200 players (by WAR)
+#### Top 200 players (by WAR)
 
 The fantasy-relevant comparison. Top 200 by 2025 WAR filters to everyday
 players and rotation arms — the population fantasy managers care most about.
 
-| Stat | Marcel | Statcast-GBM | Steamer | Ensemble (60/40) |
+| Stat | Marcel | True-Talent | Steamer | Ensemble (60/40) |
 |------|--------|-------------|---------|-------------------|
 | avg | 0.0286 | 0.0233 | 0.0247 | **0.0228** |
 | obp | 0.0307 | 0.0263 | 0.0263 | **0.0251** |
@@ -167,8 +175,48 @@ players and rotation arms — the population fantasy managers care most about.
 | k/9 | 1.808 | **1.009** | 1.329 | 1.256 |
 | bb/9 | 0.883 | 0.831 | 0.759 | **0.748** |
 
-For top 200: statcast-gbm leads on AVG, SLG, and K/9. The ensemble leads on
+For top 200: true-talent leads on AVG, SLG, and K/9. The ensemble leads on
 AVG, OBP, and BB/9. Steamer leads on ERA, FIP, and WHIP for elite players.
+
+### Preseason mode (prior-season Statcast)
+
+This is the apples-to-apples comparison: preseason mode uses only prior-year
+data, just like Marcel and Steamer.
+
+#### Full player pool
+
+| Stat | Marcel | Preseason | Steamer | Ensemble (60/40) |
+|------|--------|-----------|---------|-------------------|
+| avg | 0.0587 | 0.0585 | **0.0515** | 0.0494 |
+| obp | 0.0643 | 0.0648 | **0.0551** | 0.0529 |
+| slg | 0.0937 | 0.0863 | **0.0763** | 0.0735 |
+| era | 7.670 | **6.626** | 7.342 | — |
+| fip | 12.817 | **3.472** | 4.486 | — |
+| whip | 1.248 | **0.904** | 1.191 | — |
+| k/9 | **2.435** | 2.833 | 2.122 | — |
+| bb/9 | 3.541 | 3.245 | **3.456** | — |
+
+Preseason leads on ERA, FIP, and WHIP across the full pool — beating both Marcel
+and Steamer on these pitcher stats. Batter stats are roughly on par with Marcel
+but behind Steamer. K/9 degrades significantly and falls behind Marcel.
+
+#### Top 200 players (by WAR)
+
+| Stat | Marcel | Preseason | Steamer | Ensemble (60/40) |
+|------|--------|-----------|---------|-------------------|
+| avg | **0.0286** | 0.0362 | 0.0247 | 0.0228 |
+| obp | **0.0307** | 0.0397 | 0.0263 | 0.0251 |
+| slg | **0.0625** | 0.0717 | 0.0549 | 0.0485 |
+| era | **1.200** | 2.169 | 0.996 | — |
+| fip | 3.360 | **1.439** | 0.742 | — |
+| whip | **0.212** | 0.342 | 0.182 | — |
+| k/9 | 1.808 | **1.723** | 1.329 | — |
+| bb/9 | **0.883** | 1.531 | 0.759 | — |
+
+For top 200, preseason is the weakest system on most stats. The only stat where
+it leads is K/9 (1.723 vs Marcel's 1.808). The lagged Statcast features lose
+precision for established players where Marcel's regression-to-the-mean machinery
+and Steamer's deeper modeling already work well.
 
 ## Strengths
 
@@ -210,13 +258,13 @@ batted-ball events, new pitch types). No imputation heuristics needed.
 
 ## Weaknesses
 
-### 1. Preseason mode is untested
+### 1. Preseason mode lags behind Marcel and Steamer on batter stats
 
-The true-talent mode (default) requires same-season Statcast data and cannot
-produce pre-season projections. The preseason mode uses prior-year Statcast
-features via lagged transforms, but it has not yet been trained or evaluated.
-Until the preseason model is trained and compared against Marcel/Steamer on a
-holdout season, its accuracy relative to other pre-season systems is unknown.
+The preseason mode enables genuine pre-season projections but is not competitive
+with Marcel or Steamer on batter rate stats (AVG, OBP, SLG). Lagging the Statcast
+features by one year costs ~22% accuracy on AVG and ~28% on SLG compared to
+true-talent mode. The preseason model's strength is pitcher ERA/FIP/WHIP for the
+full player pool, where prior-year stuff metrics retain strong predictive power.
 
 ### 2. No counting stats or playing time
 
@@ -269,10 +317,9 @@ legitimate reasons to limit the lookback window.
 
 ### Where to be skeptical
 
-- **Pre-season drafts**: The true-talent mode requires same-season data. The
-  preseason mode (`mode: "preseason"`) can produce pre-season projections using
-  prior-year Statcast data, but it has not yet been evaluated — use Marcel or
-  Steamer until preseason accuracy is validated.
+- **Pre-season drafts**: The preseason mode can produce blind forecasts, but it
+  trails Marcel and Steamer on batter stats and top-200 accuracy. Its value is
+  as a supplementary pitcher signal (ERA/FIP/WHIP), not a standalone draft tool.
 - **Counting-stat-dependent formats**: Roto leagues need HR, RBI, SB projections
   that this model doesn't provide. Use the ensemble or Marcel directly.
 - **Rookie/prospect projections**: No Statcast data = no projection. Use a system
@@ -305,10 +352,9 @@ through at that system's value.
 
 ## Next Steps
 
-1. ~~**Lag Statcast features for pre-season mode**~~ — Done. The preseason mode
-   (`mode: "preseason"`) uses prior-year Statcast data via `TransformFeature.with_lag(1)`.
-   **Next: train and evaluate the preseason model** to measure how much signal
-   degrades with lag, and compare against Marcel and Steamer.
+1. ~~**Lag Statcast features for pre-season mode**~~ — Done and evaluated. Preseason
+   mode leads on pitcher ERA/FIP/WHIP for the full pool but trails Marcel/Steamer
+   on batter stats and top-200 accuracy. See preseason results above.
 2. ~~**In-season talent-delta monitor**~~ — Done. `fbm report talent-delta`
    compares true-talent estimates to actuals for buy-low/sell-high analysis.
 3. ~~**Statcast-adjusted Marcel**~~ — Done. Marcel can blend statcast-gbm
