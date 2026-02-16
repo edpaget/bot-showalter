@@ -307,6 +307,7 @@ def statcast_pitch_mapper(row: pd.Series) -> StatcastPitch | None:
         barrel=_to_optional_int_stat(row.get("barrel")),
         estimated_ba_using_speedangle=_to_optional_float(row.get("estimated_ba_using_speedangle")),
         estimated_woba_using_speedangle=_to_optional_float(row.get("estimated_woba_using_speedangle")),
+        estimated_slg_using_speedangle=_to_optional_float(row.get("estimated_slg_using_speedangle")),
     )
 
 

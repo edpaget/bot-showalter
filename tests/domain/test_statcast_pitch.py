@@ -46,6 +46,7 @@ class TestStatcastPitch:
         assert pitch.barrel is None
         assert pitch.estimated_ba_using_speedangle is None
         assert pitch.estimated_woba_using_speedangle is None
+        assert pitch.estimated_slg_using_speedangle is None
         assert pitch.loaded_at is None
 
     def test_construct_with_all_fields(self) -> None:
@@ -73,6 +74,7 @@ class TestStatcastPitch:
             barrel=1,
             estimated_ba_using_speedangle=0.620,
             estimated_woba_using_speedangle=0.850,
+            estimated_slg_using_speedangle=0.750,
             loaded_at="2024-06-16T00:00:00+00:00",
         )
         assert pitch.id == 1

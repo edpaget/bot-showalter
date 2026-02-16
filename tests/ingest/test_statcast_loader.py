@@ -41,6 +41,7 @@ def _statcast_df(*overrides: dict[str, Any]) -> pd.DataFrame:
         "barrel": 1,
         "estimated_ba_using_speedangle": 0.620,
         "estimated_woba_using_speedangle": 0.850,
+        "estimated_slg_using_speedangle": 0.750,
     }
     return pd.DataFrame([{**defaults, **o} for o in overrides])
 

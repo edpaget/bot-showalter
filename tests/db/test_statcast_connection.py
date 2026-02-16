@@ -49,6 +49,7 @@ class TestCreateStatcastConnection:
             "barrel",
             "estimated_ba_using_speedangle",
             "estimated_woba_using_speedangle",
+            "estimated_slg_using_speedangle",
             "loaded_at",
         }
         assert expected.issubset(columns)
@@ -85,7 +86,7 @@ class TestCreateStatcastConnection:
 
     def test_schema_version_is_set(self) -> None:
         conn = create_statcast_connection(":memory:")
-        assert get_schema_version(conn) == 1
+        assert get_schema_version(conn) == 2
         conn.close()
 
     def test_stats_tables_absent(self) -> None:

@@ -26,4 +26,5 @@ class StatcastPitch:
     barrel: int | None = None
     estimated_ba_using_speedangle: float | None = None
     estimated_woba_using_speedangle: float | None = None
+    estimated_slg_using_speedangle: float | None = None
     loaded_at: str | None = None
