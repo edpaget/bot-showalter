@@ -10,7 +10,12 @@ from fantasy_baseball_manager.models.mle.engine import (
     translate_batting_line,
     translate_rates,
 )
-from fantasy_baseball_manager.models.mle.types import MLEConfig, TranslatedBattingLine
+from fantasy_baseball_manager.models.mle.types import (
+    AgeAdjustmentConfig,
+    DEFAULT_AGE_BENCHMARKS,
+    MLEConfig,
+    TranslatedBattingLine,
+)
 
 
 class TestComputeCompetitionFactor:
@@ -155,6 +160,7 @@ def _aa_stats(
     so: int = 100,
     hbp: int | None = 5,
     sf: int | None = 5,
+    age: float = 22.0,
 ) -> MinorLeagueBattingStats:
     return MinorLeagueBattingStats(
         player_id=1,
@@ -178,7 +184,7 @@ def _aa_stats(
         avg=h / ab if ab else 0.0,
         obp=0.340,
         slg=0.520,
-        age=22.0,
+        age=age,
         hbp=hbp,
         sf=sf,
     )
@@ -427,3 +433,104 @@ class TestLevelOrderingAndInvariants:
         assert result.so >= 0
         assert result.hbp >= 0
         assert result.sf >= 0
+
+
+def _age_config() -> AgeAdjustmentConfig:
+    return AgeAdjustmentConfig(benchmarks=DEFAULT_AGE_BENCHMARKS)
+
+
+class TestAgeAdjustedTranslation:
+    def test_age_adjusted_young_player_better_than_old(self) -> None:
+        young_stats = _aa_stats(age=20.0)
+        old_stats = _aa_stats(age=25.0)
+        age_config = _age_config()
+
+        young_result = translate_batting_line(
+            stats=young_stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+            age_config=age_config,
+        )
+        old_result = translate_batting_line(
+            stats=old_stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+            age_config=age_config,
+        )
+        assert young_result.avg > old_result.avg
+        assert young_result.obp > old_result.obp
+        assert young_result.slg > old_result.slg
+
+    def test_age_adjustment_none_matches_unadjusted(self) -> None:
+        stats = _aa_stats()
+        unadjusted = translate_batting_line(
+            stats=stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+        )
+        explicit_none = translate_batting_line(
+            stats=stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+            age_config=None,
+        )
+        assert unadjusted == explicit_none
+
+    def test_age_adjustment_dampened_on_k_pct(self) -> None:
+        # K% proportional change should be less than BABIP proportional change
+        young_stats = _aa_stats(age=20.0)
+        age_config = _age_config()
+
+        adjusted = translate_batting_line(
+            stats=young_stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+            age_config=age_config,
+        )
+        unadjusted = translate_batting_line(
+            stats=young_stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+        )
+        # BABIP gets full adjustment, K% gets dampened (half-strength)
+        # Compare relative changes: BABIP relative change > K% relative change
+        babip_relative = abs(adjusted.babip - unadjusted.babip) / unadjusted.babip
+        k_relative = abs(adjusted.k_pct - unadjusted.k_pct) / unadjusted.k_pct
+        assert babip_relative > k_relative
+
+    def test_age_adjusted_line_preserves_invariants(self) -> None:
+        stats = _aa_stats(age=20.0)
+        age_config = _age_config()
+        result = translate_batting_line(
+            stats=stats,
+            league_env=_milb_env(),
+            mlb_env=_mlb_env(),
+            level_factor=_aa_level_factor(),
+            config=MLEConfig(),
+            age_config=age_config,
+        )
+        # PA identity
+        assert result.pa == result.ab + result.bb + result.hbp + result.sf
+        # H >= XBH
+        assert result.h >= result.doubles + result.triples + result.hr
+        # No negative stats
+        assert result.pa >= 0
+        assert result.ab >= 0
+        assert result.h >= 0
+        assert result.doubles >= 0
+        assert result.triples >= 0
+        assert result.hr >= 0
+        assert result.bb >= 0
+        assert result.so >= 0

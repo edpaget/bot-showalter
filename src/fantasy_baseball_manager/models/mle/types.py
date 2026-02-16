@@ -10,6 +10,26 @@ class MLEConfig:
     babip_stabilization_bip: float = 820.0
 
 
+DEFAULT_AGE_BENCHMARKS: dict[str, float] = {
+    "ROK": 18.0,
+    "A": 19.0,
+    "A+": 20.0,
+    "AA": 21.0,
+    "AAA": 22.0,
+}
+
+
+@dataclass(frozen=True)
+class AgeAdjustmentConfig:
+    benchmarks: dict[str, float]
+    young_bonus_per_year: float = 0.025
+    old_penalty_per_year: float = 0.010
+    peak_age: float = 27.0
+    development_rate_per_year: float = 0.006
+    min_multiplier: float = 0.85
+    max_multiplier: float = 1.25
+
+
 @dataclass(frozen=True)
 class TranslatedBattingLine:
     player_id: int

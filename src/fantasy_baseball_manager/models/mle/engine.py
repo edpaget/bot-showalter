@@ -6,7 +6,12 @@ from fantasy_baseball_manager.domain.level_factor import LevelFactor
 from fantasy_baseball_manager.domain.minor_league_batting_stats import (
     MinorLeagueBattingStats,
 )
-from fantasy_baseball_manager.models.mle.types import MLEConfig, TranslatedBattingLine
+from fantasy_baseball_manager.models.mle.age_adjustment import compute_age_adjustment
+from fantasy_baseball_manager.models.mle.types import (
+    AgeAdjustmentConfig,
+    MLEConfig,
+    TranslatedBattingLine,
+)
 
 
 @dataclass(frozen=True)
@@ -78,6 +83,7 @@ def translate_batting_line(
     mlb_env: LeagueEnvironment,
     level_factor: LevelFactor,
     config: MLEConfig,
+    age_config: AgeAdjustmentConfig | None = None,
 ) -> TranslatedBattingLine:
     """Translate a minor league batting line to an MLB-equivalent line."""
     if stats.pa < config.min_pa:
@@ -116,6 +122,17 @@ def translate_batting_line(
         mlb_babip=mlb_env.babip,
         config=config,
     )
+
+    # 3b. Apply age adjustment to translated rates
+    if age_config is not None:
+        full_adj = compute_age_adjustment(age=stats.age, level=stats.level, config=age_config)
+        dampened_adj = 1.0 + (full_adj - 1.0) * 0.5
+        rates = TranslatedRates(
+            k_pct=rates.k_pct * (1.0 / dampened_adj),
+            bb_pct=rates.bb_pct * dampened_adj,
+            iso=rates.iso * full_adj,
+            babip=rates.babip * full_adj,
+        )
 
     # 4. Reconstruct counting stats (PA preserved)
     pa = stats.pa
