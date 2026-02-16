@@ -102,6 +102,88 @@ register_group(
 )
 
 
+register_group(
+    FeatureGroup(
+        name="mle_batter_rates",
+        description="MLE-translated minor league batting rates",
+        player_type="batter",
+        features=(
+            projection.col("avg").system("mle").lag(0).alias("mle_avg"),
+            projection.col("obp").system("mle").lag(0).alias("mle_obp"),
+            projection.col("slg").system("mle").lag(0).alias("mle_slg"),
+            projection.col("iso").system("mle").lag(0).alias("mle_iso"),
+            projection.col("k_pct").system("mle").lag(0).alias("mle_k_pct"),
+            projection.col("bb_pct").system("mle").lag(0).alias("mle_bb_pct"),
+            projection.col("babip").system("mle").lag(0).alias("mle_babip"),
+            projection.col("pa").system("mle").lag(0).alias("mle_pa"),
+        ),
+    )
+)
+
+register_group(
+    FeatureGroup(
+        name="statcast_gbm_batter_rates",
+        description="Statcast-GBM true-talent batter rate estimates",
+        player_type="batter",
+        features=(
+            projection.col("avg").system("statcast-gbm").lag(1).alias("sc_gbm_avg"),
+            projection.col("obp").system("statcast-gbm").lag(1).alias("sc_gbm_obp"),
+            projection.col("slg").system("statcast-gbm").lag(1).alias("sc_gbm_slg"),
+            projection.col("woba").system("statcast-gbm").lag(1).alias("sc_gbm_woba"),
+            projection.col("iso").system("statcast-gbm").lag(1).alias("sc_gbm_iso"),
+            projection.col("babip").system("statcast-gbm").lag(1).alias("sc_gbm_babip"),
+        ),
+    )
+)
+
+register_group(
+    FeatureGroup(
+        name="statcast_gbm_pitcher_rates",
+        description="Statcast-GBM true-talent pitcher rate estimates",
+        player_type="pitcher",
+        features=(
+            projection.col("era").system("statcast-gbm").lag(1).alias("sc_gbm_era"),
+            projection.col("fip").system("statcast-gbm").lag(1).alias("sc_gbm_fip"),
+            projection.col("k_per_9").system("statcast-gbm").lag(1).alias("sc_gbm_k_per_9"),
+            projection.col("bb_per_9").system("statcast-gbm").lag(1).alias("sc_gbm_bb_per_9"),
+            projection.col("hr_per_9").system("statcast-gbm").lag(1).alias("sc_gbm_hr_per_9"),
+            projection.col("babip").system("statcast-gbm").lag(1).alias("sc_gbm_babip"),
+            projection.col("whip").system("statcast-gbm").lag(1).alias("sc_gbm_whip"),
+        ),
+    )
+)
+
+register_group(
+    FeatureGroup(
+        name="marcel_batter_rates",
+        description="Marcel batter rate projections",
+        player_type="batter",
+        features=(
+            projection.col("avg").system("marcel").lag(0).alias("marcel_avg"),
+            projection.col("obp").system("marcel").lag(0).alias("marcel_obp"),
+            projection.col("slg").system("marcel").lag(0).alias("marcel_slg"),
+            projection.col("ops").system("marcel").lag(0).alias("marcel_ops"),
+            projection.col("pa").system("marcel").lag(0).alias("marcel_pa"),
+        ),
+    )
+)
+
+register_group(
+    FeatureGroup(
+        name="marcel_pitcher_rates",
+        description="Marcel pitcher rate projections",
+        player_type="pitcher",
+        features=(
+            projection.col("era").system("marcel").lag(0).alias("marcel_era"),
+            projection.col("whip").system("marcel").lag(0).alias("marcel_whip"),
+            projection.col("k_per_9").system("marcel").lag(0).alias("marcel_k_per_9"),
+            projection.col("bb_per_9").system("marcel").lag(0).alias("marcel_bb_per_9"),
+            projection.col("ip").system("marcel").lag(0).alias("marcel_ip"),
+        ),
+    )
+)
+
+
 # ---------------------------------------------------------------------------
 # Factory functions for parameterized groups (not registered)
 # ---------------------------------------------------------------------------

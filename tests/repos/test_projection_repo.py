@@ -334,3 +334,25 @@ class TestProjectionDistributions:
         results = repo.get_by_player_season(player_id, 2025)
         assert len(results) == 1
         assert results[0].distributions is None
+
+
+class TestPctStatsRoundTrip:
+    def test_k_pct_bb_pct_round_trip(self, conn: sqlite3.Connection) -> None:
+        player_id = _seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        stats = {"k_pct": 0.235, "bb_pct": 0.105, "avg": 0.280}
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="mle",
+                version="v1",
+                player_type="batter",
+                stat_json=stats,
+            )
+        )
+        results = repo.get_by_player_season(player_id, 2025, system="mle")
+        assert len(results) == 1
+        assert results[0].stat_json["k_pct"] == 0.235
+        assert results[0].stat_json["bb_pct"] == 0.105
+        assert results[0].stat_json["avg"] == 0.280

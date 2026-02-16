@@ -143,6 +143,73 @@ def seed_il_stint_data(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def seed_mle_projection(conn: sqlite3.Connection) -> None:
+    """Insert MLE projection data for player 1 only (season 2023)."""
+    conn.execute(
+        "INSERT INTO projection"
+        " (player_id, season, system, version, player_type, avg, obp, slg, iso, k_pct, bb_pct, babip, pa)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (1, 2023, "mle", "2023.1", "batter", 0.270, 0.340, 0.450, 0.180, 0.220, 0.095, 0.310, 450),
+    )
+    conn.commit()
+
+
+def seed_statcast_gbm_projection(conn: sqlite3.Connection) -> None:
+    """Insert statcast-gbm projection data for both players (season 2022, used with lag=1 from 2023)."""
+    rows = [
+        # Batter projections
+        (1, 2022, "statcast-gbm", "2022.1", "batter", 0.275, 0.350, 0.470, None, 0.185, 0.300),
+        (2, 2022, "statcast-gbm", "2022.1", "batter", 0.290, 0.360, 0.440, None, 0.170, 0.315),
+    ]
+    for pid, season, system, version, ptype, avg, obp, slg, woba, iso, babip in rows:
+        conn.execute(
+            "INSERT INTO projection"
+            " (player_id, season, system, version, player_type, avg, obp, slg, woba, iso, babip)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, avg, obp, slg, woba, iso, babip),
+        )
+    # Pitcher projections
+    pitcher_rows = [
+        (3, 2022, "statcast-gbm", "2022.1", "pitcher", 3.20, 3.10, 9.5, 2.8, 1.0, 0.290, 1.15),
+        (4, 2022, "statcast-gbm", "2022.1", "pitcher", 3.80, 3.60, 8.2, 3.3, 1.2, 0.300, 1.25),
+    ]
+    for pid, season, system, version, ptype, era, fip, k_per_9, bb_per_9, hr_per_9, babip, whip in pitcher_rows:
+        conn.execute(
+            "INSERT INTO projection"
+            " (player_id, season, system, version, player_type, era, fip, k_per_9, bb_per_9, hr_per_9, babip, whip)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, era, fip, k_per_9, bb_per_9, hr_per_9, babip, whip),
+        )
+    conn.commit()
+
+
+def seed_marcel_projection(conn: sqlite3.Connection) -> None:
+    """Insert Marcel projection data for both players (season 2023)."""
+    batter_rows = [
+        (1, 2023, "marcel", "2023.1", "batter", 0.280, 0.355, 0.460, 0.840, 580),
+        (2, 2023, "marcel", "2023.1", "batter", 0.285, 0.345, 0.430, 0.775, 560),
+    ]
+    for pid, season, system, version, ptype, avg, obp, slg, ops, pa in batter_rows:
+        conn.execute(
+            "INSERT INTO projection"
+            " (player_id, season, system, version, player_type, avg, obp, slg, ops, pa)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, avg, obp, slg, ops, pa),
+        )
+    pitcher_rows = [
+        (3, 2023, "marcel", "2023.1", "pitcher", 3.40, 1.18, 9.0, 2.9, 190.0),
+        (4, 2023, "marcel", "2023.1", "pitcher", 3.90, 1.22, 8.5, 3.1, 170.0),
+    ]
+    for pid, season, system, version, ptype, era, whip, k_per_9, bb_per_9, ip in pitcher_rows:
+        conn.execute(
+            "INSERT INTO projection"
+            " (player_id, season, system, version, player_type, era, whip, k_per_9, bb_per_9, ip)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, season, system, version, ptype, era, whip, k_per_9, bb_per_9, ip),
+        )
+    conn.commit()
+
+
 @pytest.fixture
 def seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
     """Connection with 2 players x 4 seasons of batting data pre-loaded."""
