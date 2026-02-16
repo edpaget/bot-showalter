@@ -1,8 +1,10 @@
 from typing import Any
 
+import numpy as np
 import pytest
 
 from fantasy_baseball_manager.models.sampling import (
+    holdout_metrics,
     season_kfold,
     temporal_holdout_split,
 )
@@ -20,6 +22,39 @@ def _make_rows(
 ) -> list[dict[str, Any]]:
     """Create rows across multiple seasons."""
     return [_make_row(p, s, season_column) for s in seasons for p in range(players_per_season)]
+
+
+class TestHoldoutMetrics:
+    def test_perfect_predictions(self) -> None:
+        y = np.array([1.0, 2.0, 3.0])
+        result = holdout_metrics(y, y)
+
+        assert result["r_squared"] == pytest.approx(1.0)
+        assert result["rmse"] == pytest.approx(0.0)
+        assert result["n"] == 3
+
+    def test_known_values(self) -> None:
+        y_actual = np.array([3.0, -0.5, 2.0, 7.0])
+        y_pred = np.array([2.5, 0.0, 2.0, 8.0])
+
+        ss_res = 0.5**2 + 0.5**2 + 0.0**2 + 1.0**2  # 1.5
+        mean_actual = (3.0 + -0.5 + 2.0 + 7.0) / 4  # 2.875
+        ss_tot = sum((v - mean_actual) ** 2 for v in [3.0, -0.5, 2.0, 7.0])
+        expected_r2 = 1.0 - ss_res / ss_tot
+        expected_rmse = (ss_res / 4) ** 0.5
+
+        result = holdout_metrics(y_actual, y_pred)
+
+        assert result["r_squared"] == pytest.approx(expected_r2)
+        assert result["rmse"] == pytest.approx(expected_rmse)
+        assert result["n"] == 4
+
+    def test_empty_arrays(self) -> None:
+        result = holdout_metrics(np.array([]), np.array([]))
+
+        assert result["r_squared"] == 0.0
+        assert result["rmse"] == 0.0
+        assert result["n"] == 0
 
 
 class TestTemporalHoldoutSplit:

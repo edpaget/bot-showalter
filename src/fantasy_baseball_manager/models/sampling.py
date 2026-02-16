@@ -1,7 +1,30 @@
-"""Shared splitting utilities for model training and evaluation."""
+"""Shared splitting and evaluation utilities for model training."""
 
 from collections.abc import Iterator
 from typing import Any
+
+import numpy as np
+from numpy.typing import NDArray
+
+
+def holdout_metrics(
+    y_actual: NDArray[np.floating],
+    y_pred: NDArray[np.floating],
+) -> dict[str, float]:
+    """Compute R², RMSE, and sample count for holdout evaluation.
+
+    Returns a dict with keys ``r_squared``, ``rmse``, and ``n``.
+    Empty arrays return all-zero values.
+    """
+    n = len(y_actual)
+    if n == 0:
+        return {"r_squared": 0.0, "rmse": 0.0, "n": 0}
+
+    ss_res = float(np.sum((y_actual - y_pred) ** 2))
+    ss_tot = float(np.sum((y_actual - np.mean(y_actual)) ** 2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0.0 else 0.0
+    rmse = float(np.sqrt(ss_res / n))
+    return {"r_squared": r_squared, "rmse": rmse, "n": n}
 
 
 def temporal_holdout_split(
