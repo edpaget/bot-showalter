@@ -540,3 +540,48 @@ class TestAblationStudy:
         result = ablation_study(train, holdout, groups, "target", "batter")
         assert len(result) == 1
         assert result[0]["group"] == "only"
+
+    def test_auto_alpha_selects_per_step(self) -> None:
+        rng = random.Random(77)
+        train: list[dict[str, float]] = []
+        for s in [2020, 2021, 2022]:
+            for _ in range(20):
+                x1 = rng.gauss(50, 20)
+                x2 = rng.gauss(0, 10)
+                target = 2.0 * x1 + 0.5 * x2 + 10.0 + rng.gauss(0, 5.0)
+                train.append({"x1": x1, "x2": x2, "season": float(s), "target": target})
+        holdout: list[dict[str, float]] = []
+        for _ in range(15):
+            x1 = rng.gauss(50, 20)
+            x2 = rng.gauss(0, 10)
+            target = 2.0 * x1 + 0.5 * x2 + 10.0 + rng.gauss(0, 5.0)
+            holdout.append({"x1": x1, "x2": x2, "season": 2023.0, "target": target})
+        groups = [("base", ["x1"]), ("extra", ["x2"])]
+        result = ablation_study(train, holdout, groups, "target", "batter", auto_alpha=True)
+        assert len(result) == 2
+        # Each step should have an alpha key
+        for entry in result:
+            assert "alpha" in entry
+
+    def test_auto_alpha_may_differ_across_groups(self) -> None:
+        """With auto_alpha, different steps can pick different alphas."""
+        rng = random.Random(88)
+        train: list[dict[str, float]] = []
+        for s in [2020, 2021, 2022]:
+            for _ in range(20):
+                x1 = rng.gauss(50, 20)
+                x2 = rng.gauss(0, 10)
+                target = 2.0 * x1 + 0.5 * x2 + 10.0 + rng.gauss(0, 5.0)
+                train.append({"x1": x1, "x2": x2, "season": float(s), "target": target})
+        holdout: list[dict[str, float]] = []
+        for _ in range(15):
+            x1 = rng.gauss(50, 20)
+            x2 = rng.gauss(0, 10)
+            target = 2.0 * x1 + 0.5 * x2 + 10.0 + rng.gauss(0, 5.0)
+            holdout.append({"x1": x1, "x2": x2, "season": 2023.0, "target": target})
+        groups = [("base", ["x1"]), ("extra", ["x2"])]
+        result = ablation_study(train, holdout, groups, "target", "batter", auto_alpha=True)
+        # Alpha values should be valid floats
+        for entry in result:
+            assert isinstance(entry["alpha"], float)
+            assert entry["alpha"] > 0

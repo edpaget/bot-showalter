@@ -265,25 +265,32 @@ def ablation_study(
     target_column: str,
     player_type: str,
     alpha: float = 0.0,
+    auto_alpha: bool = False,
 ) -> list[dict[str, Any]]:
-    """Cumulatively add feature groups, evaluate each on holdout data."""
+    """Cumulatively add feature groups, evaluate each on holdout data.
+
+    When auto_alpha is True, select_alpha is called independently at each
+    cumulative step instead of using the fixed alpha value.
+    """
     results: list[dict[str, Any]] = []
     cumulative_features: list[str] = []
 
     for group_name, group_features in feature_groups:
         cumulative_features = cumulative_features + group_features
+        step_alpha = select_alpha(train_rows, cumulative_features, target_column, player_type) if auto_alpha else alpha
         holdout_metrics = evaluate_holdout(
-            train_rows, holdout_rows, cumulative_features, target_column, player_type, alpha=alpha
+            train_rows, holdout_rows, cumulative_features, target_column, player_type, alpha=step_alpha
         )
-        results.append(
-            {
-                "group": group_name,
-                "features": list(cumulative_features),
-                "feature_count": len(cumulative_features),
-                "rmse": holdout_metrics["rmse"],
-                "r_squared": holdout_metrics["r_squared"],
-            }
-        )
+        entry: dict[str, Any] = {
+            "group": group_name,
+            "features": list(cumulative_features),
+            "feature_count": len(cumulative_features),
+            "rmse": holdout_metrics["rmse"],
+            "r_squared": holdout_metrics["r_squared"],
+        }
+        if auto_alpha:
+            entry["alpha"] = step_alpha
+        results.append(entry)
 
     return results
 

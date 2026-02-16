@@ -308,20 +308,28 @@ class TestBattingFeatureColumns:
 
     def test_feature_columns_includes_derived_outputs(self) -> None:
         columns = batting_pt_feature_columns()
-        assert "il_days_3yr" in columns
-        assert "il_recurrence" in columns
         assert "pt_trend" in columns
+        assert "war_trend" in columns
 
     def test_feature_columns_includes_new_derived_outputs(self) -> None:
         columns = batting_pt_feature_columns()
         assert "war_above_2" in columns
         assert "war_above_4" in columns
         assert "war_below_0" in columns
-        assert "il_minor" in columns
-        assert "il_moderate" in columns
-        assert "il_severe" in columns
         assert "war_trend" in columns
-        assert "age_il_interact" in columns
+
+    def test_feature_columns_excludes_il(self) -> None:
+        columns = batting_pt_feature_columns()
+        for col in [
+            "il_days_1",
+            "il_stints_1",
+            "il_days_3yr",
+            "il_recurrence",
+            "il_minor",
+            "il_severe",
+            "age_il_interact",
+        ]:
+            assert col not in columns
 
     def test_feature_columns_includes_base_features(self) -> None:
         columns = batting_pt_feature_columns()
@@ -341,21 +349,29 @@ class TestPitchingFeatureColumns:
 
     def test_feature_columns_includes_derived_outputs(self) -> None:
         columns = pitching_pt_feature_columns()
-        assert "il_days_3yr" in columns
-        assert "il_recurrence" in columns
         assert "pt_trend" in columns
+        assert "war_trend" in columns
 
     def test_feature_columns_includes_new_derived_outputs(self) -> None:
         columns = pitching_pt_feature_columns()
         assert "war_above_2" in columns
         assert "war_above_4" in columns
         assert "war_below_0" in columns
-        assert "il_minor" in columns
-        assert "il_moderate" in columns
-        assert "il_severe" in columns
         assert "starter_ratio" in columns
         assert "war_trend" in columns
-        assert "age_il_interact" in columns
+
+    def test_feature_columns_excludes_il(self) -> None:
+        columns = pitching_pt_feature_columns()
+        for col in [
+            "il_days_1",
+            "il_stints_1",
+            "il_days_3yr",
+            "il_recurrence",
+            "il_minor",
+            "il_severe",
+            "age_il_interact",
+        ]:
+            assert col not in columns
 
     def test_feature_columns_includes_base_features(self) -> None:
         columns = pitching_pt_feature_columns()

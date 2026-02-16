@@ -176,15 +176,33 @@ def _collect_feature_names(features: list[AnyFeature]) -> list[str]:
     return columns
 
 
+# IL columns are gathered for residual bucketing but excluded from regression.
+_IL_COLUMNS = frozenset(
+    {
+        "il_days_1",
+        "il_days_2",
+        "il_days_3",
+        "il_stints_1",
+        "il_stints_2",
+        "il_days_3yr",
+        "il_recurrence",
+        "il_minor",
+        "il_moderate",
+        "il_severe",
+        "age_il_interact",
+    }
+)
+
+
 def batting_pt_feature_columns(lags: int = 3) -> list[str]:
     """Return ordered list of feature column names for batting PT model."""
     features: list[AnyFeature] = list(build_batting_pt_features(lags))
     features.extend(build_batting_pt_derived_transforms(lags))
-    return _collect_feature_names(features)
+    return [c for c in _collect_feature_names(features) if c not in _IL_COLUMNS]
 
 
 def pitching_pt_feature_columns(lags: int = 3) -> list[str]:
     """Return ordered list of feature column names for pitching PT model."""
     features: list[AnyFeature] = list(build_pitching_pt_features(lags))
     features.extend(build_pitching_pt_derived_transforms(lags))
-    return _collect_feature_names(features)
+    return [c for c in _collect_feature_names(features) if c not in _IL_COLUMNS]

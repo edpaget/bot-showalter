@@ -395,41 +395,33 @@ class PlayingTimeModel:
         batting_groups: list[tuple[str, list[str]]] = [
             ("base", ["age", "pa_1", "pa_2", "pa_3"]),
             ("war", ["war_1", "war_2"]),
-            (
-                "il",
-                ["il_days_1", "il_days_2", "il_days_3", "il_stints_1", "il_stints_2", "il_days_3yr", "il_recurrence"],
-            ),
             ("war_thresholds", ["war_above_2", "war_above_4", "war_below_0"]),
-            ("il_severity", ["il_minor", "il_moderate", "il_severe"]),
-            ("interactions", ["war_trend", "age_il_interact", "pt_trend"]),
+            ("interactions", ["war_trend", "pt_trend"]),
             ("aging", ["age_pt_factor"]),
         ]
 
         pitching_groups: list[tuple[str, list[str]]] = [
             ("base", ["age", "ip_1", "ip_2", "ip_3", "g_1", "g_2", "g_3", "gs_1"]),
             ("war", ["war_1", "war_2"]),
-            (
-                "il",
-                ["il_days_1", "il_days_2", "il_days_3", "il_stints_1", "il_stints_2", "il_days_3yr", "il_recurrence"],
-            ),
             ("war_thresholds", ["war_above_2", "war_above_4", "war_below_0"]),
-            ("il_severity", ["il_minor", "il_moderate", "il_severe"]),
-            ("interactions", ["war_trend", "age_il_interact", "pt_trend"]),
+            ("interactions", ["war_trend", "pt_trend"]),
             ("aging", ["age_pt_factor"]),
             ("starter_ratio", ["starter_ratio"]),
         ]
 
         feature_impacts: dict[str, float] = {}
+        use_auto_alpha = alpha_override is None
 
         if bat_train and bat_holdout:
-            bat_alpha = (
-                alpha_override
-                if alpha_override is not None
-                else select_alpha(
-                    bat_train, batting_pt_feature_columns(lags) + ["age_pt_factor"], "target_pa", "batter"
-                )
+            bat_results = ablation_study(
+                bat_train,
+                bat_holdout,
+                batting_groups,
+                "target_pa",
+                "batter",
+                alpha=alpha_override or 0.0,
+                auto_alpha=use_auto_alpha,
             )
-            bat_results = ablation_study(bat_train, bat_holdout, batting_groups, "target_pa", "batter", alpha=bat_alpha)
             for i, entry in enumerate(bat_results):
                 if i == 0:
                     delta = entry["rmse"]
@@ -438,15 +430,14 @@ class PlayingTimeModel:
                 feature_impacts[f"batter:{entry['group']}"] = delta
 
         if pitch_train and pitch_holdout:
-            pitch_alpha = (
-                alpha_override
-                if alpha_override is not None
-                else select_alpha(
-                    pitch_train, pitching_pt_feature_columns(lags) + ["age_pt_factor"], "target_ip", "pitcher"
-                )
-            )
             pitch_results = ablation_study(
-                pitch_train, pitch_holdout, pitching_groups, "target_ip", "pitcher", alpha=pitch_alpha
+                pitch_train,
+                pitch_holdout,
+                pitching_groups,
+                "target_ip",
+                "pitcher",
+                alpha=alpha_override or 0.0,
+                auto_alpha=use_auto_alpha,
             )
             for i, entry in enumerate(pitch_results):
                 if i == 0:
