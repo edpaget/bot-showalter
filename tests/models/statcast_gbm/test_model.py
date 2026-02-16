@@ -408,6 +408,45 @@ class TestStatcastGBMAblate:
         assert len(pitcher_keys) > 0
 
 
+class TestPreseasonModeAblate:
+    def _build_model_and_config(self) -> tuple[StatcastGBMModel, ModelConfig]:
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(30)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(30)],
+        }
+        pitcher_rows_by_season = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(30)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(30)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(seasons=[2022, 2023], model_params={"mode": "preseason"})
+        return model, config
+
+    def test_ablate_preseason_returns_result(self) -> None:
+        model, config = self._build_model_and_config()
+        result = model.ablate(config)
+        assert isinstance(result, AblationResult)
+        assert result.model_name == "statcast-gbm"
+
+    def test_ablate_preseason_returns_nonempty_impacts(self) -> None:
+        model, config = self._build_model_and_config()
+        result = model.ablate(config)
+        assert len(result.feature_impacts) > 0
+
+    def test_ablate_preseason_includes_batter_features(self) -> None:
+        model, config = self._build_model_and_config()
+        result = model.ablate(config)
+        batter_keys = [k for k in result.feature_impacts if k.startswith("batter:")]
+        assert len(batter_keys) > 0
+
+    def test_ablate_preseason_includes_pitcher_features(self) -> None:
+        model, config = self._build_model_and_config()
+        result = model.ablate(config)
+        pitcher_keys = [k for k in result.feature_impacts if k.startswith("pitcher:")]
+        assert len(pitcher_keys) > 0
+
+
 class TestStatcastGBMTrainWithMissingTargets:
     def test_train_handles_missing_target_columns(self, tmp_path: Path) -> None:
         # Build batter rows where some are missing target_slg (breaks iso but not avg)

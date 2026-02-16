@@ -239,17 +239,22 @@ class StatcastGBMModel:
             msg = f"ablate requires at least 2 seasons (got {len(config.seasons)})"
             raise ValueError(msg)
 
+        preseason = self._is_preseason(config)
         train_seasons = config.seasons[:-1]
         holdout_seasons = [config.seasons[-1]]
         feature_impacts: dict[str, float] = {}
 
         # --- Batter ablation ---
-        bat_fs = build_batter_training_set(config.seasons)
+        bat_fs = (
+            build_batter_preseason_training_set(config.seasons)
+            if preseason
+            else build_batter_training_set(config.seasons)
+        )
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=holdout_seasons)
 
         bat_train_rows = self._assembler.read(bat_splits.train)
-        bat_feature_cols = batter_feature_columns()
+        bat_feature_cols = batter_preseason_feature_columns() if preseason else batter_feature_columns()
         bat_targets = list(BATTER_TARGETS)
 
         bat_X_train = extract_features(bat_train_rows, bat_feature_cols)
@@ -270,12 +275,16 @@ class StatcastGBMModel:
                 feature_impacts[f"batter:{col}"] = impact
 
         # --- Pitcher ablation ---
-        pit_fs = build_pitcher_training_set(config.seasons)
+        pit_fs = (
+            build_pitcher_preseason_training_set(config.seasons)
+            if preseason
+            else build_pitcher_training_set(config.seasons)
+        )
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=holdout_seasons)
 
         pit_train_rows = self._assembler.read(pit_splits.train)
-        pit_feature_cols = pitcher_feature_columns()
+        pit_feature_cols = pitcher_preseason_feature_columns() if preseason else pitcher_feature_columns()
         pit_targets = list(PITCHER_TARGETS)
 
         pit_X_train = extract_features(pit_train_rows, pit_feature_cols)
