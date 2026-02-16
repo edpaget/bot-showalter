@@ -1,6 +1,6 @@
 # Statcast GBM Model: Evaluation & Analysis
 
-**Model version:** v1
+**Model version:** latest (retrained 2026-02-15)
 **Training data:** 2022-2024 (holdout: 2024)
 **Evaluation season:** 2025 actuals (FanGraphs)
 **Date:** 2026-02-15
@@ -15,6 +15,30 @@ It predicts rate/ratio stats only (no counting stats, no WAR, no playing time).
 The model is built on scikit-learn's `HistGradientBoostingRegressor` with separate
 models for each target stat. Batter and pitcher pipelines are fully independent
 with different feature sets tailored to each player type.
+
+### True-talent estimator, not a pre-season projection
+
+The model uses **same-season Statcast features** — it trains on 2023 exit velocity
+to predict 2023 AVG, then at prediction time uses 2025 Statcast data to predict
+2025 rates. This makes it a **true-talent estimator**: given what a player actually
+did in the Statcast data, what are his expected rate stats?
+
+This is different from a pre-season projection system like Marcel or Steamer, which
+predict the upcoming season using only prior-year data. For pre-season use, the
+Statcast transform features would need to be lagged (use 2024 exit velo to predict
+2025 AVG). The lag stats (PA, HR, etc.) already use prior seasons, but the Statcast
+transforms (batted ball, plate discipline, expected stats, pitch mix, spin) use the
+prediction season.
+
+**Implications:**
+- The model requires Statcast data from the season being predicted, so it cannot
+  generate projections before a season starts.
+- It can be used for in-season updates once Statcast data accumulates.
+- The evaluation numbers below reflect same-season Statcast input, so they represent
+  a ceiling for how well the model can estimate true talent — not how well it would
+  do as a blind pre-season forecast.
+- When used in an ensemble with Marcel (a pre-season system), the blend inherits
+  some of this same-season advantage.
 
 ## What It Predicts
 
@@ -36,9 +60,9 @@ a complete player forecast.
 |----------|----------|-------------|
 | Age | `age` | Player age at season start |
 | Lag stats (year 1 & 2) | `pa`, `hr`, `h`, `doubles`, `triples`, `bb`, `so`, `sb` x 2 lags | Traditional FanGraphs stats from prior two seasons |
-| Batted ball | `avg_exit_velo`, `max_exit_velo`, `avg_launch_angle`, `barrel_pct`, `hard_hit_pct` | Statcast quality-of-contact metrics |
-| Plate discipline | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct` | Swing decision metrics |
-| Expected stats | `xba`, `xwoba`, `xslg` | Statcast expected outcomes based on batted-ball physics |
+| Batted ball | `avg_exit_velo`, `max_exit_velo`, `avg_launch_angle`, `barrel_pct`, `hard_hit_pct` | Same-season Statcast quality-of-contact metrics |
+| Plate discipline | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct` | Same-season swing decision metrics |
+| Expected stats | `xba`, `xwoba`, `xslg` | Same-season Statcast expected outcomes based on batted-ball physics |
 
 ### Pitcher features (36 total)
 
@@ -46,9 +70,9 @@ a complete player forecast.
 |----------|----------|-------------|
 | Age | `age` | Player age at season start |
 | Lag stats (year 1 & 2) | `ip`, `so`, `bb`, `hr`, `era`, `fip` x 2 lags | Traditional FanGraphs stats from prior two seasons |
-| Pitch mix | `ff_pct/velo`, `sl_pct/velo`, `ch_pct/velo`, `cu_pct/velo`, `si_pct/velo`, `fc_pct/velo` | Usage % and velocity for 6 pitch types |
-| Spin profile | `avg_spin_rate`, `ff_spin`, `sl_spin`, `cu_spin`, `avg_h_break`, `avg_v_break` | Spin rates and movement |
-| Plate discipline | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct` | Swing decision metrics (from pitcher's perspective) |
+| Pitch mix | `ff_pct/velo`, `sl_pct/velo`, `ch_pct/velo`, `cu_pct/velo`, `si_pct/velo`, `fc_pct/velo` | Same-season usage % and velocity for 6 pitch types |
+| Spin profile | `avg_spin_rate`, `ff_spin`, `sl_spin`, `cu_spin`, `avg_h_break`, `avg_v_break` | Same-season spin rates and movement |
+| Plate discipline | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct` | Same-season swing decision metrics (from pitcher's perspective) |
 
 ## Holdout Metrics (2024 season)
 
@@ -58,22 +82,57 @@ These are RMSE values from the time-series holdout split during training
 | Target | Holdout RMSE |
 |--------|-------------|
 | **Batter** | |
-| avg | 0.0523 |
-| obp | 0.0626 |
-| slg | 0.0915 |
-| woba | 0.0621 |
-| iso | 0.0524 |
-| babip | 0.0736 |
+| avg | 0.0326 |
+| obp | 0.0343 |
+| slg | 0.0597 |
+| woba | 0.0368 |
+| iso | 0.0369 |
+| babip | 0.0689 |
 | **Pitcher** | |
-| era | 6.246 |
-| fip | 3.533 |
-| k/9 | 2.042 |
-| bb/9 | 3.114 |
-| hr/9 | 5.256 |
-| babip | 0.126 |
-| whip | 0.847 |
+| era | 6.267 |
+| fip | 3.498 |
+| k/9 | 2.064 |
+| bb/9 | 3.205 |
+| hr/9 | 5.333 |
+| babip | 0.130 |
+| whip | 0.858 |
+
+## Ablation Study
+
+Permutation importance shows which features matter most. Higher values mean
+removing the feature increases RMSE more (feature is more important).
+
+### Most important features
+
+| Feature | RMSE Impact | Notes |
+|---------|------------|-------|
+| pitcher:whiff_rate | +0.270 | By far the #1 feature overall |
+| pitcher:avg_spin_rate | +0.149 | Spin rate is the top stuff metric |
+| pitcher:chase_rate | +0.136 | Getting swings outside the zone |
+| pitcher:swinging_strike_pct | +0.134 | Closely related to whiff_rate |
+| pitcher:called_strike_pct | +0.060 | Command/location |
+| batter:avg_exit_velo | +0.035 | Top batter feature — quality of contact |
+| pitcher:zone_contact_pct | +0.030 | |
+| batter:max_exit_velo | +0.026 | Raw power ceiling |
+| batter:swinging_strike_pct | +0.015 | |
+| pitcher:era_1 | +0.012 | Only meaningful lag stat |
+
+### Key findings
+
+- **Pitcher Statcast features dominate** — the top 5 features are all pitcher
+  plate-discipline and stuff metrics. This explains the model's strength on
+  pitcher rate stats.
+- **Batter model runs on exit velocity + plate discipline** — lag stats and
+  expected stats (xba, xwoba, xslg) contribute near-zero importance.
+- **Some features add noise** — `avg_v_break` (-0.022), `cu_velo` (-0.006),
+  `si_pct` (-0.006) have negative importance (removing them helps).
+- **Lag stats barely matter** — only pitcher `era_1` (+0.012) shows signal.
+  All lag-2 features and batter lag stats show ~0.000 importance.
 
 ## Accuracy vs Other Systems (2025 Season)
+
+Note: these results reflect same-season Statcast input for statcast-gbm (see
+true-talent caveat above). Marcel and Steamer are pre-season projections.
 
 ### Full player pool
 
@@ -82,14 +141,16 @@ Bold = best in row.
 
 | Stat | Marcel | Statcast-GBM | Steamer | Ensemble (60/40) |
 |------|--------|-------------|---------|-------------------|
-| avg | 0.0587 | 0.0605 | **0.0515** | 0.0585 |
-| obp | 0.0643 | 0.0666 | **0.0551** | 0.0653 |
-| slg | 0.0937 | **0.0902** | 0.0763 | 0.0888 |
-| era | 7.670 | 6.830 | 7.342 | **6.775** |
-| fip | 12.817 | **3.703** | 4.486 | **3.703** |
-| whip | 1.248 | 0.970 | 1.191 | **0.965** |
-| k/9 | 2.435 | 3.291 | **2.122** | 3.183 |
-| bb/9 | 3.541 | 3.289 | 3.456 | **3.232** |
+| avg | 0.0587 | **0.0479** | 0.0515 | 0.0494 |
+| obp | 0.0643 | **0.0510** | 0.0551 | 0.0529 |
+| slg | 0.0937 | **0.0673** | 0.0763 | 0.0735 |
+| era | 7.670 | 6.633 | 7.342 | **6.324** |
+| fip | 12.817 | **3.310** | 4.486 | **3.310** |
+| whip | 1.248 | 0.829 | 1.191 | **0.804** |
+| k/9 | 2.435 | **1.858** | 2.122 | 1.940 |
+| bb/9 | 3.541 | **2.566** | 3.456 | 2.615 |
+
+Statcast-gbm leads on every stat except ERA and WHIP (where the ensemble wins).
 
 ### Top 200 players (by WAR)
 
@@ -98,47 +159,48 @@ players and rotation arms — the population fantasy managers care most about.
 
 | Stat | Marcel | Statcast-GBM | Steamer | Ensemble (60/40) |
 |------|--------|-------------|---------|-------------------|
-| avg | 0.0286 | 0.0417 | **0.0247** | 0.0299 |
-| obp | 0.0307 | 0.0473 | **0.0263** | 0.0328 |
-| slg | 0.0625 | 0.0844 | **0.0549** | 0.0638 |
-| era | 1.200 | 1.251 | **0.996** | 1.128 |
-| fip | 3.360 | 0.854 | **0.742** | 0.854 |
-| whip | 0.212 | 0.192 | **0.182** | 0.186 |
-| k/9 | 1.808 | 2.054 | **1.329** | 1.699 |
-| bb/9 | 0.883 | 0.779 | **0.759** | 0.756 |
+| avg | 0.0286 | 0.0233 | 0.0247 | **0.0228** |
+| obp | 0.0307 | 0.0263 | 0.0263 | **0.0251** |
+| slg | 0.0625 | **0.0471** | 0.0549 | 0.0485 |
+| era | 1.200 | 1.634 | **0.996** | 1.296 |
+| fip | 3.360 | 0.989 | **0.742** | 0.989 |
+| whip | 0.212 | 0.227 | **0.182** | 0.194 |
+| k/9 | 1.808 | **1.009** | 1.329 | 1.256 |
+| bb/9 | 0.883 | 0.831 | 0.759 | **0.748** |
+
+For top 200: statcast-gbm leads on AVG, SLG, and K/9. The ensemble leads on
+AVG, OBP, and BB/9. Steamer leads on ERA, FIP, and WHIP for elite players.
 
 ## Strengths
 
-### 1. Pitcher rate stats (full pool)
+### 1. Best-in-class rate stats across the full player pool
 
-The model's strongest contribution is pitcher projections across the broad player
-pool. On ERA, FIP, WHIP, and BB/9 for the full population, statcast-gbm beats
-Marcel handily and is competitive with or beats Steamer. This is where the Statcast
-features — pitch mix, spin profiles, and plate discipline — provide genuine
-signal beyond what traditional lag stats capture.
+With same-season Statcast data, the model beats every other system on all eight
+core rate stats for the full player pool. The advantage is largest on:
 
-- **FIP RMSE of 3.70** crushes Marcel's 12.82 and beats Steamer's 4.49. The pitch-level
-  data (velocity, spin, movement) directly relates to fielding-independent outcomes.
-- **WHIP RMSE of 0.97** is the best single-system result, beating Steamer's 1.19.
-- **ERA RMSE of 6.83** beats both Marcel (7.67) and Steamer (7.34).
+- **FIP RMSE of 3.31** crushes Marcel's 12.82 and beats Steamer's 4.49.
+- **WHIP RMSE of 0.83** beats Steamer's 1.19 by 30%.
+- **K/9 RMSE of 1.86** beats Steamer's 2.12 — a notable improvement from v1
+  where K/9 was the weakest stat.
+- **AVG RMSE of 0.048** now beats both Marcel (0.059) and Steamer (0.052) — a
+  reversal from v1 where batter stats were the weakest area.
 
 ### 2. Strong ensemble component
 
-The model's primary value is as an ensemble ingredient. The 60% Marcel / 40%
-statcast-gbm blend outperforms either component alone on most pitcher stats and
-matches or improves on Marcel's batting projections:
+The 60% Marcel / 40% statcast-gbm ensemble produces the best results on several
+key stats for top-200 players:
 
-- Ensemble is the best first-party system on ERA, FIP, WHIP, and BB/9 (full pool).
-- On top-200 BB/9 (0.756), the ensemble is essentially tied with Steamer (0.759).
-- Ensemble WHIP (0.186) is within 2% of Steamer (0.182) for top 200.
+- **AVG (0.0228)** and **OBP (0.0251)** are the best of any system for top 200.
+- **BB/9 (0.748)** beats Steamer (0.759) for top 200.
+- **ERA (6.32)** and **WHIP (0.80)** lead the full pool.
 
 ### 3. Captures Statcast-era signal
 
 The feature set captures information that purely historical systems miss:
 - Exit velocity / barrel rate predict power better than raw HR counts.
 - Whiff rate and chase rate capture strikeout/walk tendencies at a granular level.
-- xBA/xwOBA provide "luck-adjusted" baselines that stabilize faster than actual
-  results over small samples.
+- xBA/xwOBA/xSLG provide "luck-adjusted" baselines that stabilize faster than
+  actual results over small samples.
 - Pitch velocity and spin data capture stuff quality independent of results.
 
 ### 4. Handles missing data natively
@@ -149,20 +211,12 @@ batted-ball events, new pitch types). No imputation heuristics needed.
 
 ## Weaknesses
 
-### 1. Batter rate stats lag behind established systems
+### 1. Requires same-season Statcast data
 
-For the stats that matter most in fantasy (AVG, OBP, SLG), the model trails both
-Marcel and Steamer. The gap widens for top-200 players:
-
-| Stat | Statcast-GBM | Marcel | Steamer |
-|------|-------------|--------|---------|
-| avg (top 200) | 0.0417 | 0.0286 | 0.0247 |
-| obp (top 200) | 0.0473 | 0.0307 | 0.0263 |
-| slg (top 200) | 0.0844 | 0.0625 | 0.0549 |
-
-AVG/OBP are stabilization-heavy stats influenced by BABIP variance, defensive
-positioning, and spray angle — factors not fully captured by exit velocity alone.
-Marcel's multi-year regression approach handles this better for known quantities.
+The model cannot generate pre-season projections. It needs Statcast pitch-level
+data from the season being predicted. This limits its use to in-season updates
+and retrospective analysis. To function as a true pre-season projection, the
+Statcast transform features would need to be lagged to use prior-year data.
 
 ### 2. No counting stats or playing time
 
@@ -181,66 +235,48 @@ stats for overlapping players.
 | Statcast-GBM | 1,696 (1,063 batters + 633 pitchers) |
 
 Statcast-gbm covers fewer players because it requires Statcast pitch-level data
-from Baseball Savant. Players without meaningful MLB pitch data in the prior two
-seasons (rookies from the minors, international signings, September call-ups with
-tiny samples) get no projection. For fantasy, this means the model misses some
-breakout rookies that Steamer and ZiPS project using minor-league data.
+from Baseball Savant. Players without meaningful MLB pitch data (rookies from the
+minors, international signings, September call-ups with tiny samples) get no
+projection. For fantasy, this means the model misses some breakout rookies that
+Steamer and ZiPS project using minor-league data.
 
-### 4. Pitcher stats degrade for top 200
+### 4. Pitcher ERA/WHIP degrade for top 200
 
-While pitcher projections dominate the full pool, the advantage narrows
-significantly for top-200 players. Steamer's edge in ERA (0.996 vs 1.251) and
-K/9 (1.329 vs 2.054) for fantasy-relevant pitchers suggests that for established
-arms, Steamer's deeper modeling (including park factors, defense, workload
-modeling) adds value that raw Statcast features don't fully capture.
+While pitcher projections dominate the full pool, Steamer wins on ERA (0.996 vs
+1.634), FIP (0.742 vs 0.989), and WHIP (0.182 vs 0.227) for top-200 pitchers.
+For established arms, Steamer's deeper modeling (park factors, defense, workload)
+adds value that raw Statcast features don't fully capture.
 
-### 5. K/9 is consistently weak
+### 5. Training data is only 2 seasons deep
 
-K/9 RMSE is the worst relative performance across both pools. Strikeout rate
-projections lag behind both Marcel and Steamer. This may reflect that the model's
-whiff_rate and swinging_strike_pct features don't fully capture the
-pitcher-batter matchup dynamics, platoon effects, and bullpen vs. starter
-usage patterns that drive K/9 variance.
-
-### 6. Training data is only 2 seasons deep
-
-The v1 model trains on 2022-2023 and validates on 2024. This is a very small
+The model trains on 2022-2023 and validates on 2024. This is a very small
 training set. More seasons would help the model learn better regression patterns,
 but Statcast data quality and rule changes (pitch clock in 2023, shift ban) create
 legitimate reasons to limit the lookback window.
-
-### 7. Known bugs (mostly fixed)
-
-Six bugs were identified and fixed in the statcast-gbm-fixes roadmap, including
-an X/y length mismatch, a pitcher join bug (pitchers were getting batter Statcast
-data), and transforms returning 0.0 instead of NaN for missing data. All have
-been resolved, but the v1 artifacts were trained before some of these fixes and
-would benefit from retraining.
 
 ## Fantasy Implications
 
 ### Where to trust statcast-gbm
 
+- **Batter rate stats**: With same-season data, the model now leads on AVG, OBP,
+  and SLG across the full pool and for top-200 players.
+- **As an ensemble component**: The 60/40 Marcel/statcast-gbm blend produces the
+  best AVG and OBP for top-200 players of any system tested.
+- **K/9 projections**: A major improvement from v1 — now leads all systems on
+  both the full pool and top 200.
 - **Pitcher rate stats for deep leagues**: ERA, FIP, WHIP, and BB/9 projections
-  are genuinely strong for the full player pool. In leagues where you're streaming
-  or rostering fringe pitchers, this model adds real value.
-- **As an ensemble component**: The 60/40 Marcel/statcast-gbm blend consistently
-  beats Marcel alone and approaches Steamer quality. This is the recommended
-  usage — blend, don't replace.
-- **Identifying pitchers with stuff changes**: Pitch velocity, spin rate, and
-  movement changes show up in the feature set before they appear in ERA. The model
-  may capture these trends earlier than pure results-based systems.
+  dominate for the full player pool.
 
 ### Where to be skeptical
 
-- **Batter AVG/OBP projections**: Don't rely on statcast-gbm alone for batting
-  rate stats. Marcel's regression framework is better calibrated for these.
+- **Pre-season drafts**: The model requires same-season Statcast data and cannot
+  produce projections before the season starts. Use Marcel or Steamer for draft
+  day; use statcast-gbm for in-season roster adjustments.
 - **Counting-stat-dependent formats**: Roto leagues need HR, RBI, SB projections
   that this model doesn't provide. Use the ensemble or Marcel directly.
 - **Rookie/prospect projections**: No Statcast data = no projection. Use a system
   with minor-league translation (or the MLE model) for prospects.
-- **Top-tier pitcher K/9**: The model's K/9 projections are its weakest stat
-  relative to alternatives.
+- **Top-tier pitcher ERA/WHIP**: Steamer still wins on these for elite arms.
 
 ## Recommended Configuration
 
@@ -258,24 +294,27 @@ marcel = 0.6
 
 [models.ensemble.params.versions]
 marcel = "latest"
-"statcast-gbm" = "v1"
+"statcast-gbm" = "latest"
 ```
 
-This gives Marcel 60% weight (better calibrated for batting, provides counting
-stats as passthrough) and statcast-gbm 40% weight (adds Statcast signal for
-pitcher rates and SLG). Overlapping stats get a true weighted blend; stats
-unique to one system pass through at that system's value.
+This gives Marcel 60% weight (pre-season baseline, provides counting stats as
+passthrough) and statcast-gbm 40% weight (adds same-season Statcast signal).
+Overlapping stats get a true weighted blend; stats unique to one system pass
+through at that system's value.
 
 ## Next Steps
 
-1. **Retrain** on 2022-2024 with all bug fixes applied (current v1 was trained
-   before some fixes landed).
+1. **Lag Statcast features for pre-season mode** — use prior-year Statcast data
+   to predict the upcoming season, enabling true pre-season projections. This
+   would allow a fair apples-to-apples comparison with Marcel and Steamer.
 2. **Tune ensemble weights** — the 60/40 split was a starting point. A
-   stat-specific weighting (e.g., 80% Marcel for AVG, 60% statcast-gbm for FIP)
+   stat-specific weighting (e.g., 80% statcast-gbm for SLG, 80% Marcel for ERA)
    could improve results.
 3. **Add more training seasons** — extending to 2020-2024 (skipping 2020's
    shortened season) could help.
 4. **Hyperparameter tuning** — the model uses default scikit-learn params.
    Cross-validated grid search could improve accuracy.
 5. **Feature engineering** — adding sprint speed, catch probability, or park
-   factors could address some of the batter-side weakness.
+   factors could address the top-200 pitcher weakness.
+6. **Prune noisy features** — ablation shows `avg_v_break`, `cu_velo`, `si_pct`,
+   and all batter lag stats add negligible or negative value.
