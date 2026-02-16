@@ -24,6 +24,7 @@ from fantasy_baseball_manager.cli._output import (
     print_system_metrics,
     print_performance_report,
     print_system_summaries,
+    print_talent_delta_report,
     print_train_result,
 )
 from fantasy_baseball_manager.cli.factory import (
@@ -957,3 +958,36 @@ def report_underperformers(
     if top is not None:
         underperformers = underperformers[:top]
     print_performance_report("Underperformers", underperformers)
+
+
+@report_app.command("talent-delta")
+def report_talent_delta(
+    system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")],
+    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to include")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N per direction per stat")] = None,
+    min_pa: Annotated[int | None, typer.Option("--min-pa", help="Minimum PA (batters) or IP (pitchers)")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show talent-delta report: regression candidates and buy-low targets."""
+    parts = system.split("/", 1)
+    if len(parts) != 2:
+        print_error(f"invalid system format '{system}', expected 'system/version'")
+        raise typer.Exit(code=1)
+    sys_name, version = parts
+
+    with build_report_context(data_dir) as ctx:
+        deltas = ctx.report_service.compute_deltas(
+            sys_name,
+            version,
+            season,
+            player_type,
+            stats=stat,
+            min_pa=min_pa,
+        )
+
+    pa_label = "IP" if player_type == "pitcher" else "PA"
+    min_pa_str = f", min {min_pa} {pa_label}" if min_pa else ""
+    title = f"Talent Delta — {system} vs {season} actuals ({player_type}s{min_pa_str})"
+    print_talent_delta_report(title, deltas, top=top)

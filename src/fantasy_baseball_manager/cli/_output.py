@@ -1,5 +1,7 @@
 import json
 
+from collections import defaultdict
+
 from rich.console import Console
 from rich.table import Table
 
@@ -225,6 +227,75 @@ def print_performance_report(title: str, deltas: list[PlayerStatDelta]) -> None:
             f"{d.percentile:.0f}",
         )
     console.print(table)
+
+
+def print_talent_delta_report(
+    title: str,
+    deltas: list[PlayerStatDelta],
+    *,
+    top: int | None = None,
+    console: Console = console,
+) -> None:
+    """Print a talent-delta report grouped by stat with regression/buy-low sections."""
+    if not deltas:
+        console.print("No results found.")
+        return
+
+    console.print(f"[bold]{title}[/bold]")
+    console.print()
+
+    by_stat: dict[str, list[PlayerStatDelta]] = defaultdict(list)
+    for d in deltas:
+        by_stat[d.stat_name].append(d)
+
+    for stat_name, stat_deltas in by_stat.items():
+        regression = [d for d in stat_deltas if d.performance_delta > 0]
+        buylow = [d for d in stat_deltas if d.performance_delta < 0]
+
+        regression.sort(key=lambda d: d.performance_delta, reverse=True)
+        buylow.sort(key=lambda d: d.performance_delta)
+
+        if top is not None:
+            regression = regression[:top]
+            buylow = buylow[:top]
+
+        if regression:
+            console.print(f"[bold]{stat_name}[/bold] — Regression Candidates (actual > true talent)")
+            table = Table(show_edge=False, pad_edge=False)
+            table.add_column("Player")
+            table.add_column("Actual", justify="right")
+            table.add_column("Talent", justify="right")
+            table.add_column("Delta", justify="right")
+            table.add_column("Pctile", justify="right")
+            for d in regression:
+                table.add_row(
+                    d.player_name,
+                    f"{d.actual:.3f}",
+                    f"{d.expected:.3f}",
+                    f"[red]{d.delta:+.3f}[/red]" if d.delta < 0 else f"[green]{d.delta:+.3f}[/green]",
+                    f"{d.percentile:.0f}",
+                )
+            console.print(table)
+            console.print()
+
+        if buylow:
+            console.print(f"[bold]{stat_name}[/bold] — Buy-Low Targets (actual < true talent)")
+            table = Table(show_edge=False, pad_edge=False)
+            table.add_column("Player")
+            table.add_column("Actual", justify="right")
+            table.add_column("Talent", justify="right")
+            table.add_column("Delta", justify="right")
+            table.add_column("Pctile", justify="right")
+            for d in buylow:
+                table.add_row(
+                    d.player_name,
+                    f"{d.actual:.3f}",
+                    f"{d.expected:.3f}",
+                    f"[red]{d.delta:+.3f}[/red]" if d.delta < 0 else f"[green]{d.delta:+.3f}[/green]",
+                    f"{d.percentile:.0f}",
+                )
+            console.print(table)
+            console.print()
 
 
 def print_system_summaries(summaries: list[SystemSummary]) -> None:

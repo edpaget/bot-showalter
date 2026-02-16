@@ -75,6 +75,7 @@ class PerformanceReportService:
         player_type: str,
         stats: list[str] | None = None,
         actuals_source: str = "fangraphs",
+        min_pa: int | None = None,
     ) -> list[PlayerStatDelta]:
         projections = self._projection_repo.get_by_system_version(system, version)
         projections = [p for p in projections if p.season == season and p.player_type == player_type]
@@ -100,6 +101,20 @@ class PerformanceReportService:
         else:
             bat_actuals_list = self._batting_repo.get_by_season(season, source=actuals_source)
             actuals_by_player = {a.player_id: a for a in bat_actuals_list}
+
+        if min_pa is not None:
+            if player_type == "pitcher":
+                actuals_by_player = {
+                    pid: a
+                    for pid, a in actuals_by_player.items()
+                    if isinstance(a, PitchingStats) and a.ip is not None and a.ip >= min_pa
+                }
+            else:
+                actuals_by_player = {
+                    pid: a
+                    for pid, a in actuals_by_player.items()
+                    if isinstance(a, BattingStats) and a.pa is not None and a.pa >= min_pa
+                }
 
         raw_deltas: dict[str, list[tuple[int, str, float, float, float]]] = {}
 

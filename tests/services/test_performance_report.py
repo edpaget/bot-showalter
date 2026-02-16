@@ -405,3 +405,80 @@ class TestComputeDeltasFiltersByStat:
         deltas = service.compute_deltas("test", "v1", 2025, "pitcher", stats=["era"])
         assert len(deltas) == 1
         assert deltas[0].stat_name == "era"
+
+
+class TestMinPaFiltersBatters:
+    def test_min_pa_filters_low_pa_batters(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, _, batting_repo, _ = _make_service(conn)
+        for pid in (1, 2):
+            _seed_player(conn, pid)
+
+        for pid in (1, 2):
+            proj_repo.upsert(
+                Projection(
+                    player_id=pid,
+                    season=2025,
+                    system="test",
+                    version="v1",
+                    player_type="batter",
+                    stat_json={"avg": 0.280},
+                )
+            )
+        batting_repo.upsert(BattingStats(player_id=1, season=2025, source="fangraphs", pa=400, avg=0.290))
+        batting_repo.upsert(BattingStats(player_id=2, season=2025, source="fangraphs", pa=50, avg=0.310))
+        conn.commit()
+
+        deltas = service.compute_deltas("test", "v1", 2025, "batter", stats=["avg"], min_pa=100)
+        assert len(deltas) == 1
+        assert deltas[0].player_id == 1
+
+
+class TestMinPaFiltersLowIpPitchers:
+    def test_min_pa_filters_low_ip_pitchers(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, _, _, pitching_repo = _make_service(conn)
+        for pid in (10, 11):
+            _seed_player(conn, pid)
+
+        for pid in (10, 11):
+            proj_repo.upsert(
+                Projection(
+                    player_id=pid,
+                    season=2025,
+                    system="test",
+                    version="v1",
+                    player_type="pitcher",
+                    stat_json={"era": 3.50},
+                )
+            )
+        pitching_repo.upsert(PitchingStats(player_id=10, season=2025, source="fangraphs", ip=150.0, era=3.20))
+        pitching_repo.upsert(PitchingStats(player_id=11, season=2025, source="fangraphs", ip=20.0, era=5.00))
+        conn.commit()
+
+        deltas = service.compute_deltas("test", "v1", 2025, "pitcher", stats=["era"], min_pa=50)
+        assert len(deltas) == 1
+        assert deltas[0].player_id == 10
+
+
+class TestMinPaNoneIncludesAll:
+    def test_min_pa_none_includes_all(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, _, batting_repo, _ = _make_service(conn)
+        for pid in (1, 2):
+            _seed_player(conn, pid)
+
+        for pid in (1, 2):
+            proj_repo.upsert(
+                Projection(
+                    player_id=pid,
+                    season=2025,
+                    system="test",
+                    version="v1",
+                    player_type="batter",
+                    stat_json={"avg": 0.280},
+                )
+            )
+        batting_repo.upsert(BattingStats(player_id=1, season=2025, source="fangraphs", pa=400, avg=0.290))
+        batting_repo.upsert(BattingStats(player_id=2, season=2025, source="fangraphs", pa=50, avg=0.310))
+        conn.commit()
+
+        deltas = service.compute_deltas("test", "v1", 2025, "batter", stats=["avg"], min_pa=None)
+        assert len(deltas) == 2
