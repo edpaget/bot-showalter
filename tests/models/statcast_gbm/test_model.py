@@ -368,82 +368,70 @@ class TestStatcastGBMEvaluate:
         assert evaluator.called_with["season"] == 2023
 
 
+@pytest.fixture(scope="class")
+def ablation_result() -> AblationResult:
+    rows_by_season = {
+        2022: _make_rows(30, 2022),
+        2023: _make_rows(30, 2023),
+    }
+    pitcher_rows_by_season = {
+        2022: _make_pitcher_rows(30, 2022),
+        2023: _make_pitcher_rows(30, 2023),
+    }
+    assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+    model = StatcastGBMModel(assembler=assembler)
+    config = ModelConfig(seasons=[2022, 2023])
+    return model.ablate(config)
+
+
 class TestStatcastGBMAblate:
-    def _build_model_and_config(self) -> tuple[StatcastGBMModel, ModelConfig]:
-        rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
-        }
-        pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
-        }
-        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
-        config = ModelConfig(seasons=[2022, 2023])
-        return model, config
+    def test_ablate_returns_result(self, ablation_result: AblationResult) -> None:
+        assert isinstance(ablation_result, AblationResult)
+        assert ablation_result.model_name == "statcast-gbm"
+        assert isinstance(ablation_result.feature_impacts, dict)
 
-    def test_ablate_returns_result(self) -> None:
-        model, config = self._build_model_and_config()
-        result = model.ablate(config)
-        assert isinstance(result, AblationResult)
-        assert result.model_name == "statcast-gbm"
-        assert isinstance(result.feature_impacts, dict)
+    def test_ablate_returns_nonempty_impacts(self, ablation_result: AblationResult) -> None:
+        assert len(ablation_result.feature_impacts) > 0
 
-    def test_ablate_returns_nonempty_impacts(self) -> None:
-        model, config = self._build_model_and_config()
-        result = model.ablate(config)
-        assert len(result.feature_impacts) > 0
-
-    def test_ablate_impacts_include_batter_features(self) -> None:
-        model, config = self._build_model_and_config()
-        result = model.ablate(config)
-        batter_keys = [k for k in result.feature_impacts if k.startswith("batter:")]
+    def test_ablate_impacts_include_batter_features(self, ablation_result: AblationResult) -> None:
+        batter_keys = [k for k in ablation_result.feature_impacts if k.startswith("batter:")]
         assert len(batter_keys) > 0
 
-    def test_ablate_impacts_include_pitcher_features(self) -> None:
-        model, config = self._build_model_and_config()
-        result = model.ablate(config)
-        pitcher_keys = [k for k in result.feature_impacts if k.startswith("pitcher:")]
+    def test_ablate_impacts_include_pitcher_features(self, ablation_result: AblationResult) -> None:
+        pitcher_keys = [k for k in ablation_result.feature_impacts if k.startswith("pitcher:")]
         assert len(pitcher_keys) > 0
 
 
+@pytest.fixture(scope="class")
+def preseason_ablation_result() -> AblationResult:
+    rows_by_season = {
+        2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(30)],
+        2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(30)],
+    }
+    pitcher_rows_by_season = {
+        2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(30)],
+        2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(30)],
+    }
+    assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+    model = StatcastGBMModel(assembler=assembler)
+    config = ModelConfig(seasons=[2022, 2023], model_params={"mode": "preseason"})
+    return model.ablate(config)
+
+
 class TestPreseasonModeAblate:
-    def _build_model_and_config(self) -> tuple[StatcastGBMModel, ModelConfig]:
-        rows_by_season = {
-            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(30)],
-            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(30)],
-        }
-        pitcher_rows_by_season = {
-            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(30)],
-            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(30)],
-        }
-        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
-        config = ModelConfig(seasons=[2022, 2023], model_params={"mode": "preseason"})
-        return model, config
+    def test_ablate_preseason_returns_result(self, preseason_ablation_result: AblationResult) -> None:
+        assert isinstance(preseason_ablation_result, AblationResult)
+        assert preseason_ablation_result.model_name == "statcast-gbm"
 
-    def test_ablate_preseason_returns_result(self) -> None:
-        model, config = self._build_model_and_config()
-        result = model.ablate(config)
-        assert isinstance(result, AblationResult)
-        assert result.model_name == "statcast-gbm"
+    def test_ablate_preseason_returns_nonempty_impacts(self, preseason_ablation_result: AblationResult) -> None:
+        assert len(preseason_ablation_result.feature_impacts) > 0
 
-    def test_ablate_preseason_returns_nonempty_impacts(self) -> None:
-        model, config = self._build_model_and_config()
-        result = model.ablate(config)
-        assert len(result.feature_impacts) > 0
-
-    def test_ablate_preseason_includes_batter_features(self) -> None:
-        model, config = self._build_model_and_config()
-        result = model.ablate(config)
-        batter_keys = [k for k in result.feature_impacts if k.startswith("batter:")]
+    def test_ablate_preseason_includes_batter_features(self, preseason_ablation_result: AblationResult) -> None:
+        batter_keys = [k for k in preseason_ablation_result.feature_impacts if k.startswith("batter:")]
         assert len(batter_keys) > 0
 
-    def test_ablate_preseason_includes_pitcher_features(self) -> None:
-        model, config = self._build_model_and_config()
-        result = model.ablate(config)
-        pitcher_keys = [k for k in result.feature_impacts if k.startswith("pitcher:")]
+    def test_ablate_preseason_includes_pitcher_features(self, preseason_ablation_result: AblationResult) -> None:
+        pitcher_keys = [k for k in preseason_ablation_result.feature_impacts if k.startswith("pitcher:")]
         assert len(pitcher_keys) > 0
 
 
