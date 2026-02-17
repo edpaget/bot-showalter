@@ -14,7 +14,6 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     type_spin_sums: dict[str, float] = {pt: 0.0 for pt in _TRACKED_PITCH_TYPES}
     type_spin_counts: dict[str, int] = {pt: 0 for pt in _TRACKED_PITCH_TYPES}
     total_h_break = 0.0
-    total_v_break = 0.0
     break_count = 0
     type_h_break_sums: dict[str, float] = {pt: 0.0 for pt in _TRACKED_PITCH_TYPES}
     type_v_break_sums: dict[str, float] = {pt: 0.0 for pt in _TRACKED_PITCH_TYPES}
@@ -38,7 +37,6 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         pfx_z = row.get("pfx_z")
         if pfx_x is not None and pfx_z is not None:
             total_h_break += pfx_x
-            total_v_break += pfx_z
             break_count += 1
             pt = row.get("pitch_type")
             if pt in type_h_break_sums:
@@ -63,7 +61,6 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         result[f"{key}_spin"] = (type_spin_sums[pt] / count) if count > 0 else float("nan")
 
     result["avg_h_break"] = (total_h_break / break_count) if break_count > 0 else float("nan")
-    result["avg_v_break"] = (total_v_break / break_count) if break_count > 0 else float("nan")
 
     for pt in _TRACKED_PITCH_TYPES:
         key = pt.lower()
@@ -90,7 +87,6 @@ SPIN_PROFILE = TransformFeature(
         "cu_spin",
         "ch_spin",
         "avg_h_break",
-        "avg_v_break",
         "ff_h_break",
         "ff_v_break",
         "sl_h_break",

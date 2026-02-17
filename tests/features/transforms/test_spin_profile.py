@@ -25,7 +25,6 @@ class TestSpinProfileMetrics:
         assert result["sl_spin"] == pytest.approx(2800.0)
         assert result["cu_spin"] == pytest.approx(2900.0)
         assert result["avg_h_break"] == pytest.approx(-1.0)  # mean of -5, -6, 3, 4
-        assert result["avg_v_break"] == pytest.approx(3.75)  # mean of 12, 13, -2, -8
         assert result["avg_extension"] == pytest.approx(6.225)  # mean of 6.5, 6.3, 6.1, 6.0
         assert result["ff_extension"] == pytest.approx(6.4)  # mean of 6.5, 6.3
 
@@ -67,7 +66,7 @@ class TestSpinProfileMetrics:
     def test_empty_rows(self) -> None:
         result = spin_profile_metrics([])
         assert all(math.isnan(v) for v in result.values())
-        assert len(result) == 17
+        assert len(result) == 16
 
     def test_missing_spin_rate_rows_filtered(self) -> None:
         rows = [
@@ -106,7 +105,6 @@ class TestSpinProfileMetrics:
         result = spin_profile_metrics(rows)
         # Only the non-null pfx row contributes to break averages
         assert result["avg_h_break"] == pytest.approx(-5.0)
-        assert result["avg_v_break"] == pytest.approx(12.0)
 
     def test_output_keys(self) -> None:
         result = spin_profile_metrics([])
@@ -117,7 +115,6 @@ class TestSpinProfileMetrics:
             "cu_spin",
             "ch_spin",
             "avg_h_break",
-            "avg_v_break",
             "ff_h_break",
             "ff_v_break",
             "sl_h_break",
@@ -166,7 +163,7 @@ class TestSpinProfileTransformFeature:
         assert SPIN_PROFILE.source == Source.STATCAST
 
     def test_outputs_count(self) -> None:
-        assert len(SPIN_PROFILE.outputs) == 17
+        assert len(SPIN_PROFILE.outputs) == 16
 
     def test_transform_callable(self) -> None:
         assert SPIN_PROFILE.transform is spin_profile_metrics
