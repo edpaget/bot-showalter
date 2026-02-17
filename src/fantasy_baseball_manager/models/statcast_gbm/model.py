@@ -30,7 +30,7 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
-from fantasy_baseball_manager.models.statcast_gbm.training import (
+from fantasy_baseball_manager.models.gbm_training import (
     compute_permutation_importance,
     extract_features,
     extract_targets,

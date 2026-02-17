@@ -1,7 +1,7 @@
 import math
 import random
 
-from fantasy_baseball_manager.models.statcast_gbm.training import (
+from fantasy_baseball_manager.models.gbm_training import (
     TargetVector,
     compute_permutation_importance,
     extract_features,
