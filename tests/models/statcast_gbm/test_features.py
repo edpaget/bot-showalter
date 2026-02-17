@@ -39,6 +39,7 @@ class TestBatterFeatureSet:
         assert "batted_ball" in transform_names
         assert "plate_discipline" in transform_names
         assert "expected_stats" in transform_names
+        assert "spray_angle" in transform_names
 
     def test_includes_batting_lags(self) -> None:
         fs = build_batter_feature_set([2023])
@@ -108,6 +109,7 @@ class TestBatterFeatureColumns:
         assert "avg_exit_velo" in columns
         assert "chase_rate" in columns
         assert "xba" in columns
+        assert "pull_pct" in columns
 
 
 class TestPitcherFeatureSet:
@@ -240,6 +242,7 @@ class TestBatterPreseasonSet:
         assert "batted_ball" in transform_names
         assert "plate_discipline" in transform_names
         assert "expected_stats" in transform_names
+        assert "spray_angle" in transform_names
 
     def test_different_version_from_true_talent(self) -> None:
         tt = build_batter_feature_set([2023])
