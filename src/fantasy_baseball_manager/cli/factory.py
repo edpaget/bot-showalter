@@ -44,6 +44,7 @@ from fantasy_baseball_manager.services.dataset_catalog import DatasetCatalogServ
 from fantasy_baseball_manager.services.league_environment_service import LeagueEnvironmentService
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
+from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
@@ -317,6 +318,7 @@ def build_projections_context(data_dir: str) -> Iterator[ProjectionsContext]:
 class ReportContext:
     conn: sqlite3.Connection
     report_service: PerformanceReportService
+    talent_evaluator: TrueTalentEvaluator
 
 
 @contextmanager
@@ -324,13 +326,17 @@ def build_report_context(data_dir: str) -> Iterator[ReportContext]:
     """Composition-root context manager for report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
+        proj_repo = SqliteProjectionRepo(conn)
+        batting_repo = SqliteBattingStatsRepo(conn)
+        pitching_repo = SqlitePitchingStatsRepo(conn)
         report_service = PerformanceReportService(
-            SqliteProjectionRepo(conn),
+            proj_repo,
             SqlitePlayerRepo(conn),
-            SqliteBattingStatsRepo(conn),
-            SqlitePitchingStatsRepo(conn),
+            batting_repo,
+            pitching_repo,
         )
-        yield ReportContext(conn=conn, report_service=report_service)
+        talent_evaluator = TrueTalentEvaluator(proj_repo, batting_repo, pitching_repo)
+        yield ReportContext(conn=conn, report_service=report_service, talent_evaluator=talent_evaluator)
     finally:
         conn.close()
 

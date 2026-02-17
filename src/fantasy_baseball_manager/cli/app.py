@@ -27,7 +27,9 @@ from fantasy_baseball_manager.cli._output import (
     print_performance_report,
     print_system_summaries,
     print_talent_delta_report,
+    print_talent_quality_report,
     print_train_result,
+    print_tune_result,
     print_valuation_eval_result,
     print_valuation_rankings,
 )
@@ -84,6 +86,7 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
     Model,
     TrainResult,
+    TuneResult,
 )
 from fantasy_baseball_manager.models.registry import list_models
 from fantasy_baseball_manager.models.run_manager import RunManager
@@ -326,6 +329,28 @@ def ablate(
     match result:
         case AblationResult():
             print_ablation_result(result)
+
+
+@app.command()
+def tune(
+    model: _ModelArg,
+    output_dir: _OutputDirOpt = None,
+    season: _SeasonOpt = None,
+    param: _ParamOpt = None,
+) -> None:
+    """Tune hyperparameters for a projection model."""
+    params = _parse_params(param)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
+    with build_model_context(model, config) as ctx:
+        try:
+            result = dispatch("tune", ctx.model, config)
+        except UnsupportedOperation as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from None
+
+    match result:
+        case TuneResult():
+            print_tune_result(result)
 
 
 @app.command("list")
@@ -1129,3 +1154,37 @@ def report_talent_delta(
     min_pa_str = f", min {min_pa} {pa_label}" if min_pa else ""
     title = f"Talent Delta — {system} vs {season} actuals ({player_type}s{min_pa_str})"
     print_talent_delta_report(title, deltas, top=top)
+
+
+@report_app.command("talent-quality")
+def report_talent_quality(
+    system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
+    season: Annotated[list[int], typer.Option("--season", help="Two seasons (N and N+1)")],
+    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Evaluate true-talent estimation quality across consecutive seasons."""
+    if len(season) != 2:
+        print_error("exactly two --season values required (N and N+1)")
+        raise typer.Exit(code=1)
+
+    parts = system.split("/", 1)
+    if len(parts) != 2:
+        print_error(f"invalid system format '{system}', expected 'system/version'")
+        raise typer.Exit(code=1)
+    sys_name, version = parts
+
+    season_n, season_n1 = sorted(season)
+
+    with build_report_context(data_dir) as ctx:
+        reports = []
+        for player_type in ("batter", "pitcher"):
+            report = ctx.talent_evaluator.evaluate(sys_name, version, season_n, season_n1, player_type, stats=stat)
+            if report.stat_metrics:
+                reports.append(report)
+
+    if not reports:
+        console.print("No projections found for either player type.")
+        raise typer.Exit(code=1)
+
+    print_talent_quality_report(reports)

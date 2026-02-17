@@ -8,6 +8,7 @@ from rich.table import Table
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, StratifiedComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
+from fantasy_baseball_manager.domain.talent_quality import TrueTalentQualityReport
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
@@ -18,6 +19,7 @@ from fantasy_baseball_manager.models.protocols import (
     PredictResult,
     PrepareResult,
     TrainResult,
+    TuneResult,
 )
 
 console = Console(highlight=False)
@@ -53,6 +55,50 @@ def print_ablation_result(result: AblationResult) -> None:
         for feature, impact in sorted(result.feature_impacts.items(), key=lambda x: -abs(x[1])):
             color = "green" if impact > 0 else "red"
             console.print(f"  {feature}: [{color}]{impact:+.4f}[/{color}]")
+
+
+def print_tune_result(result: TuneResult) -> None:
+    """Print tuning results with best params in TOML-ready format."""
+    console.print(f"[bold green]Tuning complete[/bold green] for model [bold]'{result.model_name}'[/bold]")
+    console.print()
+
+    # Batter results
+    console.print("[bold]Batter best params:[/bold]")
+    for key, value in sorted(result.batter_params.items()):
+        console.print(f"  {key} = {value!r}")
+    console.print("[bold]Batter CV RMSE:[/bold]")
+    for target, rmse in sorted(result.batter_cv_rmse.items()):
+        console.print(f"  {target}: {rmse:.4f}")
+    console.print()
+
+    # Pitcher results
+    console.print("[bold]Pitcher best params:[/bold]")
+    for key, value in sorted(result.pitcher_params.items()):
+        console.print(f"  {key} = {value!r}")
+    console.print("[bold]Pitcher CV RMSE:[/bold]")
+    for target, rmse in sorted(result.pitcher_cv_rmse.items()):
+        console.print(f"  {target}: {rmse:.4f}")
+    console.print()
+
+    # TOML snippet
+    console.print("[bold]TOML snippet (copy into fbm.toml):[/bold]")
+    console.print("[dim]# Batter params[/dim]")
+    for key, value in sorted(result.batter_params.items()):
+        if value is None:
+            console.print(f'# {key} = "None"  # unlimited')
+        elif isinstance(value, float):
+            console.print(f"{key} = {value}")
+        else:
+            console.print(f"{key} = {value}")
+    console.print()
+    console.print("[dim]# Pitcher params[/dim]")
+    for key, value in sorted(result.pitcher_params.items()):
+        if value is None:
+            console.print(f'# {key} = "None"  # unlimited')
+        elif isinstance(value, float):
+            console.print(f"{key} = {value}")
+        else:
+            console.print(f"{key} = {value}")
 
 
 def print_import_result(log: LoadLog) -> None:
@@ -466,3 +512,76 @@ def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = N
             str(p.actual_rank),
         )
     console.print(table)
+
+
+def print_talent_quality_report(reports: list[TrueTalentQualityReport]) -> None:
+    """Print true-talent quality evaluation reports."""
+    if not reports:
+        console.print("No results found.")
+        return
+
+    for report in reports:
+        console.print(
+            f"[bold]True-Talent Quality[/bold] — {report.system}/{report.version}"
+            f" ({report.season_n} -> {report.season_n1}, {report.player_type}s)"
+        )
+        console.print()
+
+        s = report.summary
+
+        def _pass_label(passes: int, total: int) -> str:
+            ratio = passes / total if total > 0 else 0
+            color = "green" if ratio >= 0.5 else "red"
+            return f"[{color}]{passes}/{total}[/{color}]"
+
+        console.print("[bold]Summary:[/bold]")
+        console.print(
+            f"  Predictive validity:      {_pass_label(s.predictive_validity_passes, s.predictive_validity_total)}"
+            " pass (model > raw)"
+        )
+        console.print(
+            f"  Residual non-persistence: {_pass_label(s.residual_non_persistence_passes, s.residual_non_persistence_total)}"
+            " pass (|corr| < 0.15)"
+        )
+        console.print(
+            f"  Shrinkage quality:        {_pass_label(s.shrinkage_passes, s.shrinkage_total)} pass (ratio < 0.9)"
+        )
+        console.print(
+            f"  R-squared:                {_pass_label(s.r_squared_passes, s.r_squared_total)} pass (R² > 0.7)"
+        )
+        console.print(
+            f"  Regression rate:          {_pass_label(s.regression_rate_passes, s.regression_rate_total)}"
+            " pass (rate > 0.80)"
+        )
+        console.print()
+
+        if report.stat_metrics:
+            table = Table(show_edge=False, pad_edge=False)
+            table.add_column("Stat")
+            table.add_column("Model->N+1", justify="right")
+            table.add_column("Raw->N+1", justify="right")
+            table.add_column("Res.Corr", justify="right")
+            table.add_column("Shrink", justify="right")
+            table.add_column("R²", justify="right")
+            table.add_column("Regr.Rate", justify="right")
+            table.add_column("N", justify="right")
+            table.add_column("Ret", justify="right")
+            for m in report.stat_metrics:
+                model_color = "green" if m.predictive_validity_pass else "red"
+                res_color = "green" if m.residual_non_persistence_pass else "red"
+                shrink_color = "green" if m.shrinkage_pass else "red"
+                r2_color = "green" if m.r_squared_pass else "red"
+                regr_color = "green" if m.regression_rate_pass else "red"
+                table.add_row(
+                    m.stat_name,
+                    f"[{model_color}]{m.model_next_season_corr:.3f}[/{model_color}]",
+                    f"{m.raw_next_season_corr:.3f}",
+                    f"[{res_color}]{m.residual_yoy_corr:.3f}[/{res_color}]",
+                    f"[{shrink_color}]{m.shrinkage_ratio:.2f}[/{shrink_color}]",
+                    f"[{r2_color}]{m.r_squared:.3f}[/{r2_color}]",
+                    f"[{regr_color}]{m.regression_rate:.3f}[/{regr_color}]",
+                    str(m.n_season_n),
+                    str(m.n_returning),
+                )
+            console.print(table)
+        console.print()
