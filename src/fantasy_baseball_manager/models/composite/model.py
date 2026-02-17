@@ -52,12 +52,13 @@ def _build_marcel_config(model_params: dict[str, Any]) -> MarcelConfig:
 
 @register("composite")
 class CompositeModel:
-    def __init__(self, assembler: DatasetAssembler | None = None) -> None:
+    def __init__(self, assembler: DatasetAssembler | None = None, model_name: str = "composite") -> None:
         self._assembler = assembler
+        self._model_name = model_name
 
     @property
     def name(self) -> str:
-        return "composite"
+        return self._model_name
 
     @property
     def description(self) -> str:
@@ -83,14 +84,15 @@ class CompositeModel:
             marcel_config.pitching_categories, marcel_config.pitching_weights
         )
 
+        prefix = self._model_name.replace("-", "_")
         batting_fs = FeatureSet(
-            name="composite_batting",
+            name=f"{prefix}_batting",
             features=tuple(batting_features),
             seasons=tuple(seasons),
             source_filter="fangraphs",
         )
         pitching_fs = FeatureSet(
-            name="composite_pitching",
+            name=f"{prefix}_pitching",
             features=tuple(pitching_features),
             seasons=tuple(seasons),
             source_filter="fangraphs",

@@ -63,6 +63,26 @@ class _WithArgModel:
         return PrepareResult(model_name="witharg", rows_processed=0, artifacts_path="")
 
 
+class _WithModelNameModel:
+    def __init__(self, model_name: str = "default") -> None:
+        self.model_name_value = model_name
+
+    @property
+    def name(self) -> str:
+        return self.model_name_value
+
+    @property
+    def description(self) -> str:
+        return "Model that accepts model_name"
+
+    @property
+    def supported_operations(self) -> frozenset[str]:
+        return frozenset({"prepare"})
+
+    def prepare(self, config: ModelConfig) -> PrepareResult:
+        return PrepareResult(model_name=self.model_name_value, rows_processed=0, artifacts_path="")
+
+
 @pytest.fixture(autouse=True)
 def _clean_registry() -> None:
     _clear()
@@ -79,6 +99,17 @@ class TestCreateModel:
     def test_create_model_filters_non_matching_kwargs(self) -> None:
         register("noarg")(_NoArgModel)
         model = create_model("noarg", assembler=object(), extra=42)
+        assert isinstance(model, _NoArgModel)
+
+    def test_create_model_passes_model_name(self) -> None:
+        register("custom-variant")(_WithModelNameModel)
+        model = create_model("custom-variant")
+        assert isinstance(model, _WithModelNameModel)
+        assert model.model_name_value == "custom-variant"
+
+    def test_create_model_does_not_pass_model_name_when_not_accepted(self) -> None:
+        register("noarg")(_NoArgModel)
+        model = create_model("noarg")
         assert isinstance(model, _NoArgModel)
 
     def test_create_model_unknown_name_raises(self) -> None:

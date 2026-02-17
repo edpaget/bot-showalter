@@ -17,6 +17,15 @@ def register(name: str) -> Callable[[type], type]:
     return decorator
 
 
+def register_alias(name: str, target: str) -> None:
+    """Register name as an alias for an existing model."""
+    if name in _REGISTRY:
+        raise ValueError(f"Model '{name}' is already registered")
+    if target not in _REGISTRY:
+        raise KeyError(f"'{target}': no model registered with this name")
+    _REGISTRY[name] = _REGISTRY[target]
+
+
 def get(name: str) -> Callable[..., Model]:
     """Return the registered model class (not an instance)."""
     if name not in _REGISTRY:

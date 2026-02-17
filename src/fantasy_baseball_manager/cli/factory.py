@@ -51,6 +51,8 @@ def create_model(name: str, **kwargs: Any) -> Model:
     cls = get(name)
     sig = inspect.signature(cls)
     filtered = {k: v for k, v in kwargs.items() if k in sig.parameters}
+    if "model_name" in sig.parameters:
+        filtered["model_name"] = name
     return cls(**filtered)
 
 

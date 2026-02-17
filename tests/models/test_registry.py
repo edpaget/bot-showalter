@@ -1,6 +1,6 @@
 import pytest
 
-from fantasy_baseball_manager.models.registry import get, list_models, register, _clear
+from fantasy_baseball_manager.models.registry import get, list_models, register, register_alias, _clear
 
 
 class _DummyModel:
@@ -44,6 +44,28 @@ class TestRegister:
     def test_get_missing_model_raises(self) -> None:
         with pytest.raises(KeyError, match="no model registered"):
             get("nonexistent")
+
+
+class TestRegisterAlias:
+    def test_register_alias_resolves_to_same_class(self) -> None:
+        register("foo")(_DummyModel)
+        register_alias("bar", "foo")
+        assert get("bar") is _DummyModel
+
+    def test_register_alias_duplicate_name_raises(self) -> None:
+        register("foo")(_DummyModel)
+        with pytest.raises(ValueError, match="already registered"):
+            register_alias("foo", "foo")
+
+    def test_register_alias_missing_target_raises(self) -> None:
+        with pytest.raises(KeyError, match="no model registered"):
+            register_alias("bar", "nonexistent")
+
+    def test_list_models_includes_aliases(self) -> None:
+        register("foo")(_DummyModel)
+        register_alias("bar", "foo")
+        assert "bar" in list_models()
+        assert "foo" in list_models()
 
 
 class TestListModels:

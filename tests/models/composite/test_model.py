@@ -1,7 +1,9 @@
 from typing import Any
 
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
+import fantasy_baseball_manager.models.composite  # noqa: F401 — trigger alias registration
 from fantasy_baseball_manager.models.composite.model import CompositeModel
+from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
     FineTunable,
@@ -34,6 +36,9 @@ class TestCompositeModelProtocol:
 
     def test_name(self) -> None:
         assert CompositeModel().name == "composite"
+
+    def test_name_uses_model_name_param(self) -> None:
+        assert CompositeModel(model_name="composite-mle").name == "composite-mle"
 
     def test_supported_operations(self) -> None:
         assert CompositeModel().supported_operations == frozenset({"prepare", "predict"})
@@ -81,6 +86,12 @@ class FakeAssembler:
         if "pitching" in handle.table_name:
             return self._pitching_rows
         return self._batting_rows
+
+
+class TestCompositeAliases:
+    def test_aliases_registered(self) -> None:
+        for alias in ("composite-mle", "composite-statcast", "composite-full"):
+            assert get(alias) is CompositeModel
 
 
 class TestCompositePredict:
@@ -212,6 +223,27 @@ class TestCompositePredict:
         pred = result.predictions[0]
         # rates dict should be present in the raw prediction data
         assert pred["rates"]["hr"] * 600 == pred["hr"]
+
+    def test_predict_uses_model_name(self) -> None:
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "proj_pa": 555,
+                "pa_1": 600,
+                "pa_2": 550,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
+            },
+        ]
+        assembler = FakeAssembler(batting_rows)
+        config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
+        result = CompositeModel(assembler=assembler, model_name="composite-mle").predict(config)
+        assert result.model_name == "composite-mle"
 
     def test_predict_projected_season(self) -> None:
         batting_rows = [
