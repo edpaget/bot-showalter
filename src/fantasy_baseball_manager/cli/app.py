@@ -28,6 +28,7 @@ from fantasy_baseball_manager.cli._output import (
     print_system_summaries,
     print_talent_delta_report,
     print_train_result,
+    print_valuation_eval_result,
     print_valuation_rankings,
 )
 from fantasy_baseball_manager.cli.factory import (
@@ -41,11 +42,13 @@ from fantasy_baseball_manager.cli.factory import (
     build_projections_context,
     build_report_context,
     build_runs_context,
+    build_valuation_eval_context,
     build_valuations_context,
     create_model,
 )
 from fantasy_baseball_manager.cli.factory import EvalContext
 from fantasy_baseball_manager.config import load_config
+from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.projection_accuracy import BATTING_RATE_STATS, PITCHING_RATE_STATS
 from fantasy_baseball_manager.domain.pt_normalization import build_consensus_lookup
@@ -706,6 +709,22 @@ def valuations_rankings(
             season, system=system, player_type=player_type, position=position, top=top
         )
     print_valuation_rankings(results)
+
+
+@valuations_app.command("evaluate")
+def valuations_evaluate(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = "1.0",
+    top: Annotated[int | None, typer.Option("--top", help="Show top N mispricings")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Evaluate valuation accuracy against end-of-season actuals."""
+    league = load_league(league_name, Path.cwd())
+    with build_valuation_eval_context(data_dir) as ctx:
+        result = ctx.evaluator.evaluate(system or "zar", version or "1.0", season, league)
+    print_valuation_eval_result(result, top=top)
 
 
 # --- ingest subcommand group ---

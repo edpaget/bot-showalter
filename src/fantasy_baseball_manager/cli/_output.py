@@ -10,7 +10,7 @@ from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
-from fantasy_baseball_manager.domain.valuation import PlayerValuation
+from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
 from fantasy_baseball_manager.models.protocols import (
@@ -416,4 +416,44 @@ def print_valuation_rankings(rankings: list[PlayerValuation]) -> None:
             z = val.category_scores.get(cat, 0.0)
             row.append(f"{z:.2f}")
         table.add_row(*row)
+    console.print(table)
+
+
+def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = None) -> None:
+    """Print valuation evaluation results with metrics and per-player breakdown."""
+    if result.n == 0:
+        console.print("No matched players found.")
+        return
+
+    console.print(
+        f"Valuation evaluation: [bold]{result.system}[/bold] v{result.version}"
+        f" — season {result.season} ({result.n} matched players)"
+    )
+    console.print(f"  Value MAE: [bold]{result.value_mae:.2f}[/bold]")
+    console.print(f"  Spearman rank correlation: [bold]{result.rank_correlation:.4f}[/bold]")
+    console.print()
+
+    players = result.players
+    if top is not None:
+        players = players[:top]
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Player")
+    table.add_column("Type")
+    table.add_column("Predicted$", justify="right")
+    table.add_column("Actual$", justify="right")
+    table.add_column("Surplus$", justify="right")
+    table.add_column("PredRank", justify="right")
+    table.add_column("ActRank", justify="right")
+    for p in players:
+        surplus_str = f"{p.surplus:+.1f}"
+        table.add_row(
+            p.player_name,
+            p.player_type,
+            f"${p.predicted_value:.1f}",
+            f"${p.actual_value:.1f}",
+            surplus_str,
+            str(p.predicted_rank),
+            str(p.actual_rank),
+        )
     console.print(table)

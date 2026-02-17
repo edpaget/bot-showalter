@@ -1,0 +1,244 @@
+import dataclasses
+from typing import Any
+
+from scipy.stats import spearmanr
+
+from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+from fantasy_baseball_manager.domain.valuation import (
+    ValuationAccuracy,
+    ValuationEvalResult,
+)
+from fantasy_baseball_manager.models.zar.engine import (
+    compute_replacement_level,
+    compute_var,
+    compute_z_scores,
+    convert_rate_stats,
+    var_to_dollars,
+)
+from fantasy_baseball_manager.models.zar.positions import build_position_map
+from fantasy_baseball_manager.repos.protocols import (
+    BattingStatsRepo,
+    PitchingStatsRepo,
+    PlayerRepo,
+    PositionAppearanceRepo,
+    ValuationRepo,
+)
+
+_METADATA_FIELDS = frozenset({"id", "player_id", "season", "source", "team_id", "loaded_at"})
+
+
+def _stats_to_dict(obj: object) -> dict[str, float]:
+    """Extract all numeric fields from a BattingStats or PitchingStats instance."""
+    result: dict[str, float] = {}
+    for field in dataclasses.fields(obj):  # type: ignore[arg-type]
+        if field.name in _METADATA_FIELDS:
+            continue
+        value = getattr(obj, field.name)
+        if isinstance(value, int | float) and value is not None:
+            result[field.name] = float(value)
+    return result
+
+
+class ValuationEvaluator:
+    def __init__(
+        self,
+        valuation_repo: ValuationRepo,
+        batting_repo: BattingStatsRepo,
+        pitching_repo: PitchingStatsRepo,
+        position_repo: PositionAppearanceRepo,
+        player_repo: PlayerRepo,
+    ) -> None:
+        self._valuation_repo = valuation_repo
+        self._batting_repo = batting_repo
+        self._pitching_repo = pitching_repo
+        self._position_repo = position_repo
+        self._player_repo = player_repo
+
+    def evaluate(
+        self,
+        system: str,
+        version: str,
+        season: int,
+        league: LeagueSettings,
+        actuals_source: str = "fangraphs",
+    ) -> ValuationEvalResult:
+        # 1. Fetch predicted valuations, filter by version
+        all_valuations = self._valuation_repo.get_by_season(season, system=system)
+        predicted = [v for v in all_valuations if v.version == version]
+
+        if not predicted:
+            return ValuationEvalResult(
+                system=system,
+                version=version,
+                season=season,
+                value_mae=0.0,
+                rank_correlation=0.0,
+                n=0,
+                players=[],
+            )
+
+        # 2. Fetch actual stats
+        batting_actuals = self._batting_repo.get_by_season(season, source=actuals_source)
+        pitching_actuals = self._pitching_repo.get_by_season(season, source=actuals_source)
+
+        # 3. Convert actual stats to float dicts
+        batter_stats: dict[int, dict[str, float]] = {}
+        for bs in batting_actuals:
+            batter_stats[bs.player_id] = _stats_to_dict(bs)
+
+        pitcher_stats: dict[int, dict[str, float]] = {}
+        for ps in pitching_actuals:
+            pitcher_stats[ps.player_id] = _stats_to_dict(ps)
+
+        # 4. Fetch positions
+        appearances = self._position_repo.get_by_season(season)
+        position_map = build_position_map(appearances, league)
+
+        # 5. Run ZAR pipeline on actuals — same split/budget/pipeline as ZarModel.predict
+        actual_batter_ids = list(batter_stats.keys())
+        actual_pitcher_ids = list(pitcher_stats.keys())
+
+        n_bat_cats = len(league.batting_categories)
+        n_pitch_cats = len(league.pitching_categories)
+        total_cats = n_bat_cats + n_pitch_cats
+        total_league_budget = league.budget * league.teams
+        batter_budget = total_league_budget * n_bat_cats / total_cats if total_cats else 0.0
+        pitcher_budget = total_league_budget * n_pitch_cats / total_cats if total_cats else 0.0
+
+        # Value batters
+        actual_batter_values = self._value_pool(
+            player_ids=actual_batter_ids,
+            stats_map=batter_stats,
+            categories=list(league.batting_categories),
+            position_map=position_map,
+            league=league,
+            budget=batter_budget,
+        )
+
+        # Value pitchers
+        pitcher_position_map: dict[int, list[str]] = {pid: ["p"] for pid in actual_pitcher_ids}
+        actual_pitcher_values = self._value_pool(
+            player_ids=actual_pitcher_ids,
+            stats_map=pitcher_stats,
+            categories=list(league.pitching_categories),
+            position_map=pitcher_position_map,
+            league=league,
+            budget=pitcher_budget,
+            pitcher_roster_spots={"p": league.roster_pitchers},
+        )
+
+        # Combine and rank
+        all_actual: dict[int, float] = {}
+        all_actual.update(actual_batter_values)
+        all_actual.update(actual_pitcher_values)
+
+        # Rank actuals by value descending
+        actual_ranked = sorted(all_actual.items(), key=lambda x: x[1], reverse=True)
+        actual_rank_map: dict[int, int] = {pid: rank for rank, (pid, _) in enumerate(actual_ranked, 1)}
+
+        # 6. Match predicted vs actual by player_id
+        predicted_map = {v.player_id: v for v in predicted}
+        # Build player name lookup
+        player_name_map = self._build_player_name_map()
+
+        matched: list[ValuationAccuracy] = []
+        for player_id, pred_val in predicted_map.items():
+            if player_id not in all_actual:
+                continue
+            actual_value = all_actual[player_id]
+            actual_rank = actual_rank_map[player_id]
+            surplus = round(pred_val.value - actual_value, 2)
+            name = player_name_map.get(player_id, f"Player {player_id}")
+            matched.append(
+                ValuationAccuracy(
+                    player_id=player_id,
+                    player_name=name,
+                    player_type=pred_val.player_type,
+                    position=pred_val.position,
+                    predicted_value=pred_val.value,
+                    actual_value=round(actual_value, 2),
+                    surplus=surplus,
+                    predicted_rank=pred_val.rank,
+                    actual_rank=actual_rank,
+                )
+            )
+
+        if not matched:
+            return ValuationEvalResult(
+                system=system,
+                version=version,
+                season=season,
+                value_mae=0.0,
+                rank_correlation=0.0,
+                n=0,
+                players=[],
+            )
+
+        # 7. Compute metrics
+        value_mae = sum(abs(p.predicted_value - p.actual_value) for p in matched) / len(matched)
+        predicted_ranks = [p.predicted_rank for p in matched]
+        actual_ranks = [p.actual_rank for p in matched]
+
+        if len(matched) >= 3:
+            corr, _ = spearmanr(predicted_ranks, actual_ranks)
+            rank_correlation = float(corr)
+        else:
+            rank_correlation = 0.0
+
+        # 8. Sort by absolute surplus descending
+        matched.sort(key=lambda p: abs(p.surplus), reverse=True)
+
+        return ValuationEvalResult(
+            system=system,
+            version=version,
+            season=season,
+            value_mae=round(value_mae, 2),
+            rank_correlation=round(rank_correlation, 4),
+            n=len(matched),
+            players=matched,
+        )
+
+    def _value_pool(
+        self,
+        player_ids: list[int],
+        stats_map: dict[int, dict[str, float]],
+        categories: list[Any],
+        position_map: dict[int, list[str]],
+        league: LeagueSettings,
+        budget: float,
+        *,
+        pitcher_roster_spots: dict[str, int] | None = None,
+    ) -> dict[int, float]:
+        """Run ZAR pipeline on a player pool and return {player_id: dollar_value}."""
+        if not player_ids:
+            return {}
+
+        stats_list = [stats_map[pid] for pid in player_ids]
+        category_keys = [c.key for c in categories]
+
+        converted = convert_rate_stats(stats_list, categories)
+        z_scores = compute_z_scores(converted, category_keys)
+
+        player_positions = [position_map.get(pid, ["util"]) for pid in player_ids]
+
+        if pitcher_roster_spots is not None:
+            roster_spots = pitcher_roster_spots
+        else:
+            roster_spots = dict(league.positions)
+            if league.roster_util > 0:
+                roster_spots["util"] = league.roster_util
+
+        replacement = compute_replacement_level(z_scores, player_positions, roster_spots, league.teams)
+        var_values = compute_var(z_scores, replacement, player_positions)
+        dollar_values = var_to_dollars(var_values, budget)
+
+        return dict(zip(player_ids, dollar_values))
+
+    def _build_player_name_map(self) -> dict[int, str]:
+        """Build a mapping of player_id to display name."""
+        players = self._player_repo.all()
+        result: dict[int, str] = {}
+        for p in players:
+            if p.id is not None:
+                result[p.id] = f"{p.name_first} {p.name_last}"
+        return result

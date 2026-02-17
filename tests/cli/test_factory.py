@@ -10,6 +10,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_ingest_container,
     build_model_context,
     build_runs_context,
+    build_valuation_eval_context,
     build_valuations_context,
     create_model,
 )
@@ -25,6 +26,7 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
+from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
 
@@ -421,6 +423,26 @@ class TestBuildValuationsContext:
             lambda path: create_connection(":memory:"),
         )
         with build_valuations_context("./data") as ctx:
+            conn = ctx.conn
+        with pytest.raises(ProgrammingError):
+            conn.execute("SELECT 1")
+
+
+class TestBuildValuationEvalContext:
+    def test_yields_valuation_eval_context_with_evaluator(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_valuation_eval_context("./data") as ctx:
+            assert isinstance(ctx.evaluator, ValuationEvaluator)
+
+    def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_valuation_eval_context("./data") as ctx:
             conn = ctx.conn
         with pytest.raises(ProgrammingError):
             conn.execute("SELECT 1")

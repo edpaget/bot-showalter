@@ -7,10 +7,11 @@ from fantasy_baseball_manager.cli._output import (
     print_features,
     print_player_projections,
     print_player_valuations,
+    print_valuation_eval_result,
     print_valuation_rankings,
 )
 from fantasy_baseball_manager.domain.projection import PlayerProjection
-from fantasy_baseball_manager.domain.valuation import PlayerValuation
+from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationAccuracy, ValuationEvalResult
 from fantasy_baseball_manager.features.types import (
     DeltaFeature,
     Feature,
@@ -258,3 +259,67 @@ class TestPrintValuationRankings:
         assert "Aaron Judge" in captured.out
         assert "42.5" in captured.out
         assert "1" in captured.out
+
+
+def _make_eval_result(
+    n: int = 2,
+    players: list[ValuationAccuracy] | None = None,
+) -> ValuationEvalResult:
+    if players is None and n > 0:
+        players = [
+            ValuationAccuracy(
+                player_id=1,
+                player_name="Mike Trout",
+                player_type="batter",
+                position="of",
+                predicted_value=40.0,
+                actual_value=35.0,
+                surplus=5.0,
+                predicted_rank=1,
+                actual_rank=2,
+            ),
+            ValuationAccuracy(
+                player_id=2,
+                player_name="Aaron Judge",
+                player_type="batter",
+                position="util",
+                predicted_value=30.0,
+                actual_value=38.0,
+                surplus=-8.0,
+                predicted_rank=2,
+                actual_rank=1,
+            ),
+        ]
+    return ValuationEvalResult(
+        system="zar",
+        version="1.0",
+        season=2025,
+        value_mae=6.5,
+        rank_correlation=0.85,
+        n=n,
+        players=players or [],
+    )
+
+
+class TestPrintValuationEvalResult:
+    def test_empty_eval_result(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = _make_eval_result(n=0, players=[])
+        print_valuation_eval_result(result)
+        captured = capsys.readouterr()
+        assert "No matched players found" in captured.out
+
+    def test_eval_result_shows_metrics(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = _make_eval_result()
+        print_valuation_eval_result(result)
+        captured = capsys.readouterr()
+        assert "6.5" in captured.out
+        assert "0.85" in captured.out
+
+    def test_eval_result_shows_player_table(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = _make_eval_result()
+        print_valuation_eval_result(result)
+        captured = capsys.readouterr()
+        assert "Mike Trout" in captured.out
+        assert "Aaron Judge" in captured.out
+        assert "40.0" in captured.out
+        assert "35.0" in captured.out
