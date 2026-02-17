@@ -603,9 +603,51 @@ class TestMarcelPredictWithProjectionRepo:
         assert result.predictions[0]["pa"] == 555
 
 
-class TestMarcelPredictWithStatcastAugment:
-    def test_statcast_augment_adjusts_rates(self) -> None:
-        """With statcast_augment=True, Marcel's rates get blended with statcast estimates."""
+class TestMarcelAugmentParamsIgnored:
+    """After Phase 5, augmentation params are silently ignored — Marcel stays pure."""
+
+    def test_use_mle_param_ignored(self) -> None:
+        """use_mle=True with a ProjectionRepo produces same output as without."""
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "pa_1": 600,
+                "pa_2": 550,
+                "pa_3": 500,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_3": 20.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
+            },
+        ]
+        mle_projection = Projection(
+            player_id=1,
+            season=2024,
+            system="mle",
+            version="latest",
+            player_type="batter",
+            stat_json={"pa": 400, "hr": 20.0, "age": 29},
+        )
+        assembler = FakeAssembler(batting_rows)
+        repo = _FakeProjectionRepo([mle_projection])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "use_mle": True, "use_playing_time": False},
+        )
+        config_without = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "use_playing_time": False},
+        )
+        result_with = MarcelModel(assembler=assembler, projection_repo=repo).predict(config)
+        result_without = MarcelModel(assembler=assembler).predict(config_without)
+        assert result_with.predictions[0]["hr"] == result_without.predictions[0]["hr"]
+
+    def test_statcast_augment_param_ignored(self) -> None:
+        """statcast_augment=True with a ProjectionRepo produces same output as without."""
         batting_rows = [
             {
                 "player_id": 1,
@@ -622,18 +664,17 @@ class TestMarcelPredictWithStatcastAugment:
                 "league_h_rate": 0.060,
             },
         ]
-        # Statcast projection for prior season (2023) with higher avg
         sc_projection = Projection(
             player_id=1,
             season=2023,
             system="statcast-gbm",
             version="latest",
             player_type="batter",
-            stat_json={"avg": 0.300, "obp": 0.370, "slg": 0.480},
+            stat_json={"avg": 0.300, "obp": 0.370},
         )
         assembler = FakeAssembler(batting_rows)
         repo = _FakeProjectionRepo([sc_projection])
-        config_with = ModelConfig(
+        config = ModelConfig(
             seasons=[2023],
             model_params={
                 "batting_categories": ["h"],
@@ -646,59 +687,185 @@ class TestMarcelPredictWithStatcastAugment:
         )
         config_without = ModelConfig(
             seasons=[2023],
-            model_params={
-                "batting_categories": ["h"],
-                "use_playing_time": False,
-            },
+            model_params={"batting_categories": ["h"], "use_playing_time": False},
         )
-        model_with = MarcelModel(assembler=assembler, projection_repo=repo)
-        model_without = MarcelModel(assembler=assembler)
+        result_with = MarcelModel(assembler=assembler, projection_repo=repo).predict(config)
+        result_without = MarcelModel(assembler=assembler).predict(config_without)
+        assert result_with.predictions[0]["h"] == result_without.predictions[0]["h"]
 
-        result_with = model_with.predict(config_with)
-        result_without = model_without.predict(config_without)
 
-        # Both should produce one prediction
-        assert len(result_with.predictions) == 1
-        assert len(result_without.predictions) == 1
+class TestMarcelConsensusPT:
+    """Phase 4: Marcel uses consensus (Steamer/ZiPS average) PT when configured."""
 
-        # Statcast has avg=0.300 which is higher than the weighted average
-        # So the augmented prediction should have more hits
-        assert result_with.predictions[0]["h"] > result_without.predictions[0]["h"]
-
-    def test_statcast_augment_disabled_by_default(self) -> None:
-        """Without statcast_augment param, no augmentation occurs."""
-        batting_rows = [
+    def _batter_rows(self) -> list[dict[str, object]]:
+        return [
             {
                 "player_id": 1,
                 "season": 2023,
                 "age": 29,
                 "pa_1": 600,
-                "pa_2": 0,
-                "pa_3": 0,
-                "h_1": 160.0,
-                "h_2": 0.0,
-                "h_3": 0.0,
-                "h_wavg": 160 / 600,
-                "weighted_pt": 600 * 5.0,
-                "league_h_rate": 0.060,
+                "pa_2": 550,
+                "pa_3": 500,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_3": 20.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
             },
         ]
-        sc_projection = Projection(
+
+    def test_consensus_uses_averaged_steamer_zips_pa(self) -> None:
+        """playing_time='consensus' averages Steamer and ZiPS PA."""
+        steamer = Projection(
             player_id=1,
-            season=2023,
-            system="statcast-gbm",
-            version="latest",
+            season=2024,
+            system="steamer",
+            version="2024-pre",
             player_type="batter",
-            stat_json={"avg": 0.400},
+            stat_json={"pa": 600},
         )
-        assembler = FakeAssembler(batting_rows)
-        repo = _FakeProjectionRepo([sc_projection])
+        zips = Projection(
+            player_id=1,
+            season=2024,
+            system="zips",
+            version="2024-pre",
+            player_type="batter",
+            stat_json={"pa": 500},
+        )
+        repo = _FakeProjectionRepo([steamer, zips])
+        assembler = FakeAssembler(self._batter_rows())
         config = ModelConfig(
             seasons=[2023],
-            model_params={"batting_categories": ["h"], "use_playing_time": False},
+            model_params={"batting_categories": ["hr"], "playing_time": "consensus"},
         )
         model = MarcelModel(assembler=assembler, projection_repo=repo)
         result = model.predict(config)
-        # Despite statcast saying avg=0.400, the result should NOT be affected
-        # since statcast_augment is not enabled
-        assert len(result.predictions) == 1
+        # Average of 600 and 500 = 550
+        assert result.predictions[0]["pa"] == 550
+
+    def test_consensus_falls_back_to_native_for_uncovered(self) -> None:
+        """Player not in Steamer/ZiPS falls back to Marcel native formula."""
+        # No Steamer/ZiPS projections for player 1
+        repo = _FakeProjectionRepo([])
+        assembler = FakeAssembler(self._batter_rows())
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "consensus"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        # Native formula: 0.5*600 + 0.1*550 + 200 = 555
+        assert result.predictions[0]["pa"] == 555
+
+    def test_consensus_single_system_fallback(self) -> None:
+        """When only Steamer is available, uses that system's PA."""
+        steamer = Projection(
+            player_id=1,
+            season=2024,
+            system="steamer",
+            version="2024-pre",
+            player_type="batter",
+            stat_json={"pa": 580},
+        )
+        repo = _FakeProjectionRepo([steamer])
+        assembler = FakeAssembler(self._batter_rows())
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "consensus"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        assert result.predictions[0]["pa"] == 580
+
+    def test_native_mode_uses_marcel_formula(self) -> None:
+        """playing_time='native' always uses Marcel's built-in formula."""
+        steamer = Projection(
+            player_id=1,
+            season=2024,
+            system="steamer",
+            version="2024-pre",
+            player_type="batter",
+            stat_json={"pa": 600},
+        )
+        repo = _FakeProjectionRepo([steamer])
+        assembler = FakeAssembler(self._batter_rows())
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "native"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        # Native formula: 0.5*600 + 0.1*550 + 200 = 555
+        assert result.predictions[0]["pa"] == 555
+
+    def test_playing_time_model_uses_pt_system(self) -> None:
+        """playing_time='playing-time-model' fetches from system='playing_time'."""
+        pt_proj = Projection(
+            player_id=1,
+            season=2024,
+            system="playing_time",
+            version="latest",
+            player_type="batter",
+            stat_json={"pa": 450},
+        )
+        repo = _FakeProjectionRepo([pt_proj])
+        assembler = FakeAssembler(self._batter_rows())
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "playing-time-model"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        assert result.predictions[0]["pa"] == 450
+
+    def test_consensus_pitcher_uses_averaged_ip(self) -> None:
+        """Consensus mode averages Steamer and ZiPS IP for pitchers."""
+        pitching_rows = [_pitcher_row(10, "P")]
+        steamer = Projection(
+            player_id=10,
+            season=2024,
+            system="steamer",
+            version="2024-pre",
+            player_type="pitcher",
+            stat_json={"ip": 180},
+        )
+        zips = Projection(
+            player_id=10,
+            season=2024,
+            system="zips",
+            version="2024-pre",
+            player_type="pitcher",
+            stat_json={"ip": 160},
+        )
+        repo = _FakeProjectionRepo([steamer, zips])
+        assembler = FakeAssembler([], pitching_rows)
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"pitching_categories": ["so"], "playing_time": "consensus"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        pitcher_preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
+        assert pitcher_preds[0]["ip"] == 170.0
+
+    def test_default_playing_time_is_backward_compatible(self) -> None:
+        """Without playing_time param, old use_playing_time=True still works."""
+        pt_proj = Projection(
+            player_id=1,
+            season=2024,
+            system="playing_time",
+            version="latest",
+            player_type="batter",
+            stat_json={"pa": 450},
+        )
+        repo = _FakeProjectionRepo([pt_proj])
+        assembler = FakeAssembler(self._batter_rows())
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"]},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        # Default should use playing-time-model (backward compat)
+        assert result.predictions[0]["pa"] == 450
