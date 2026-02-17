@@ -82,6 +82,41 @@ class TestBlendRates:
         assert result == {}
 
 
+class TestBlendRatesWithConsensusPT:
+    def test_consensus_pt_overrides_averaged_pt(self) -> None:
+        projections = [
+            ({"avg": 0.300, "obp": 0.400, "pa": 600.0}, 0.6),
+            ({"avg": 0.250, "obp": 0.350, "pa": 500.0}, 0.4),
+        ]
+        result = blend_rates(projections, rate_stats=["avg", "obp"], pt_stat="pa", consensus_pt=550.0)
+        assert result["pa"] == 550.0
+        # Rates still weight-averaged
+        expected_avg = (0.300 * 0.6 + 0.250 * 0.4) / (0.6 + 0.4)
+        expected_obp = (0.400 * 0.6 + 0.350 * 0.4) / (0.6 + 0.4)
+        assert result["avg"] == expected_avg
+        assert result["obp"] == expected_obp
+
+    def test_consensus_pt_none_preserves_current_behavior(self) -> None:
+        projections = [
+            ({"avg": 0.300, "obp": 0.400, "pa": 600.0}, 0.6),
+            ({"avg": 0.250, "obp": 0.350, "pa": 500.0}, 0.4),
+        ]
+        result = blend_rates(projections, rate_stats=["avg", "obp"], pt_stat="pa", consensus_pt=None)
+        expected_pa = (600.0 * 0.6 + 500.0 * 0.4) / (0.6 + 0.4)
+        assert result["pa"] == expected_pa
+
+    def test_consensus_pt_with_pitcher_ip(self) -> None:
+        projections = [
+            ({"era": 3.50, "whip": 1.20, "ip": 180.0}, 0.5),
+            ({"era": 3.80, "whip": 1.25, "ip": 160.0}, 0.5),
+        ]
+        result = blend_rates(projections, rate_stats=["era", "whip"], pt_stat="ip", consensus_pt=170.0)
+        assert result["ip"] == 170.0
+        # Rates still averaged
+        assert result["era"] == (3.50 * 0.5 + 3.80 * 0.5) / 1.0
+        assert result["whip"] == (1.20 * 0.5 + 1.25 * 0.5) / 1.0
+
+
 class TestWeightedSpread:
     def test_two_systems_equal_weights(self) -> None:
         projections = [

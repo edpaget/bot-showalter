@@ -6,6 +6,7 @@ from typing import Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.pt_normalization import ConsensusLookup, build_consensus_lookup
 from fantasy_baseball_manager.models.ensemble.engine import blend_rates, weighted_average, weighted_spread
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
@@ -43,6 +44,7 @@ class EnsembleModel:
         stats: Sequence[str] | None = params.get("stats")
         pt_stat: str = params.get("pt_stat", "pa")
         versions: dict[str, str] = params.get("versions", {})
+        pt_mode: str = params.get("playing_time", "native")
 
         # Fetch projections for each component system
         system_projections: dict[str, list[Projection]] = {}
@@ -51,6 +53,13 @@ class EnsembleModel:
                 system_projections[system] = self._projection_repo.get_by_system_version(system, versions[system])
             else:
                 system_projections[system] = self._projection_repo.get_by_season(season, system=system)
+
+        # Build consensus PT lookup when requested
+        consensus: ConsensusLookup | None = None
+        if pt_mode == "consensus":
+            steamer_projs = self._projection_repo.get_by_season(season, system="steamer")
+            zips_projs = self._projection_repo.get_by_season(season, system="zips")
+            consensus = build_consensus_lookup(steamer_projs, zips_projs)
 
         # Group by (player_id, player_type)
         grouped: dict[tuple[int, str], dict[str, Projection]] = defaultdict(dict)
@@ -80,11 +89,20 @@ class EnsembleModel:
                     all_keys.update(stat_json.keys())
                 effective_stats = sorted(all_keys)
 
+            # Resolve consensus PT for this player
+            cpt: float | None = None
+            cpt_key: str = pt_stat
+            if consensus is not None:
+                cpt_key = "ip" if player_type == "pitcher" else "pa"
+                cpt = (consensus.pitching_pt if player_type == "pitcher" else consensus.batting_pt).get(player_id)
+
             # Apply engine function
             if mode == "blend_rates":
-                result_stats = blend_rates(pairs, rate_stats=list(effective_stats), pt_stat=pt_stat)
+                result_stats = blend_rates(pairs, rate_stats=list(effective_stats), pt_stat=cpt_key, consensus_pt=cpt)
             else:
                 result_stats = weighted_average(pairs, stats=effective_stats)
+                if cpt is not None and result_stats:
+                    result_stats[cpt_key] = cpt
 
             if result_stats:
                 predictions.append(

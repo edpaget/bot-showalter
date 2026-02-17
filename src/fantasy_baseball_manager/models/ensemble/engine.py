@@ -123,15 +123,22 @@ def blend_rates(
     projections: Sequence[tuple[dict[str, Any], float]],
     rate_stats: Sequence[str],
     pt_stat: str,
+    consensus_pt: float | None = None,
 ) -> dict[str, float]:
     """Average rates across systems (weighted), average PT, return both.
 
-    Rates are weight-averaged directly. The playing-time stat (pt_stat) is
-    also weight-averaged. Systems missing a rate stat are excluded from
-    that stat's average.
+    Rates are weight-averaged directly. When *consensus_pt* is ``None``
+    (the default), the playing-time stat is also weight-averaged.  When a
+    consensus value is provided, rates are weight-averaged but the PT stat
+    is set to the consensus value directly.
     """
     if not projections:
         return {}
+
+    if consensus_pt is not None:
+        result = weighted_average(projections, stats=rate_stats)
+        result[pt_stat] = consensus_pt
+        return result
 
     all_stats = [*rate_stats, pt_stat]
     return weighted_average(projections, stats=all_stats)

@@ -400,6 +400,208 @@ class TestEnsemblePredict:
             assert required_keys <= set(dist.keys())
 
 
+class TestEnsembleConsensusPT:
+    def test_consensus_pt_substitutes_pa_for_batters(self) -> None:
+        """Consensus PT replaces weight-averaged PA for batters."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.260, "pa": 500.0}),
+                # steamer/zips for consensus lookup
+                _make_projection(1, "steamer", "batter", {"pa": 550.0}),
+                _make_projection(1, "zips", "batter", {"pa": 500.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg"],
+                "pt_stat": "pa",
+                "playing_time": "consensus",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # Consensus PA = avg(550, 500) = 525
+        assert pred["pa"] == 525.0
+
+    def test_consensus_pt_substitutes_ip_for_pitchers(self) -> None:
+        """Consensus PT replaces weight-averaged IP for pitchers."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "pitcher", {"era": 3.50, "ip": 180.0}),
+                _make_projection(1, "statcast-gbm", "pitcher", {"era": 3.80, "ip": 160.0}),
+                _make_projection(1, "steamer", "pitcher", {"ip": 190.0}),
+                _make_projection(1, "zips", "pitcher", {"ip": 170.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["era"],
+                "pt_stat": "ip",
+                "playing_time": "consensus",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # Consensus IP = avg(190, 170) = 180
+        assert pred["ip"] == 180.0
+
+    def test_consensus_pt_rates_still_blended(self) -> None:
+        """Rate stats are still weight-averaged even when consensus PT is used."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.300, "obp": 0.400, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.250, "obp": 0.350, "pa": 500.0}),
+                _make_projection(1, "steamer", "batter", {"pa": 550.0}),
+                _make_projection(1, "zips", "batter", {"pa": 520.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg", "obp"],
+                "pt_stat": "pa",
+                "playing_time": "consensus",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        expected_avg = (0.300 * 0.6 + 0.250 * 0.4) / (0.6 + 0.4)
+        expected_obp = (0.400 * 0.6 + 0.350 * 0.4) / (0.6 + 0.4)
+        assert pred["avg"] == pytest.approx(expected_avg)
+        assert pred["obp"] == pytest.approx(expected_obp)
+        # PA is consensus, not weight-averaged
+        assert pred["pa"] == 535.0  # avg(550, 520)
+
+    def test_consensus_pt_fallback_for_uncovered_player(self) -> None:
+        """Player not in steamer/zips falls back to weight-averaged PT."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.260, "pa": 500.0}),
+                # No steamer/zips for player 1
+                _make_projection(2, "steamer", "batter", {"pa": 400.0}),
+                _make_projection(2, "zips", "batter", {"pa": 380.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg"],
+                "pt_stat": "pa",
+                "playing_time": "consensus",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # Player 1 not in consensus lookup → falls back to weight-averaged PA
+        expected_pa = (600.0 * 0.6 + 500.0 * 0.4) / (0.6 + 0.4)
+        assert pred["pa"] == expected_pa
+
+    def test_consensus_pt_mixed_batters_and_pitchers(self) -> None:
+        """Each player type gets correct PT stat from consensus."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.270, "pa": 550.0}),
+                _make_projection(2, "marcel", "pitcher", {"era": 3.50, "ip": 180.0}),
+                _make_projection(2, "statcast-gbm", "pitcher", {"era": 3.80, "ip": 160.0}),
+                # Consensus sources
+                _make_projection(1, "steamer", "batter", {"pa": 580.0}),
+                _make_projection(1, "zips", "batter", {"pa": 560.0}),
+                _make_projection(2, "steamer", "pitcher", {"ip": 175.0}),
+                _make_projection(2, "zips", "pitcher", {"ip": 165.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg", "era"],
+                "pt_stat": "pa",
+                "playing_time": "consensus",
+            },
+        )
+        result = model.predict(config)
+        preds = {(p["player_id"], p["player_type"]): p for p in result.predictions}
+        # Batter gets consensus PA
+        assert preds[(1, "batter")]["pa"] == 570.0  # avg(580, 560)
+        # Pitcher gets consensus IP
+        assert preds[(2, "pitcher")]["ip"] == 170.0  # avg(175, 165)
+
+    def test_consensus_pt_weighted_average_mode(self) -> None:
+        """Consensus PT works in weighted_average mode too."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.260, "pa": 500.0}),
+                _make_projection(1, "steamer", "batter", {"pa": 550.0}),
+                _make_projection(1, "zips", "batter", {"pa": 520.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stats": ["avg", "pa"],
+                "playing_time": "consensus",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # PA substituted with consensus value
+        assert pred["pa"] == 535.0  # avg(550, 520)
+        # AVG still weight-averaged
+        expected_avg = (0.280 * 0.6 + 0.260 * 0.4) / (0.6 + 0.4)
+        assert pred["avg"] == pytest.approx(expected_avg)
+
+    def test_native_pt_mode_is_default(self) -> None:
+        """When playing_time not specified, behavior unchanged (PT weight-averaged)."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.260, "pa": 500.0}),
+                # steamer/zips present but shouldn't be used
+                _make_projection(1, "steamer", "batter", {"pa": 550.0}),
+                _make_projection(1, "zips", "batter", {"pa": 520.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg"],
+                "pt_stat": "pa",
+                # no "playing_time" key
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # PA is weight-averaged, not consensus
+        expected_pa = (600.0 * 0.6 + 500.0 * 0.4) / (0.6 + 0.4)
+        assert pred["pa"] == expected_pa
+
+
 class TestEnsembleStatcastGBMIntegration:
     """Integration tests: statcast-gbm blends correctly with Marcel."""
 
