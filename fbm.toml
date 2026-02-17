@@ -15,6 +15,19 @@ marcel = 0.6
 marcel = "latest"
 "statcast-gbm" = "latest"
 
+[models.statcast-gbm.params.pitcher]
+learning_rate = 0.05
+max_iter = 100
+max_leaf_nodes = 15
+min_samples_leaf = 50
+
+[models.statcast-gbm-preseason.params.pitcher]
+learning_rate = 0.01
+max_depth = 3
+max_iter = 200
+max_leaf_nodes = 15
+min_samples_leaf = 50
+
 [models.composite-mle.params]
 feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "mle_batter_rates"]
 
