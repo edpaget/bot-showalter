@@ -19,6 +19,10 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     type_h_break_sums: dict[str, float] = {pt: 0.0 for pt in _TRACKED_PITCH_TYPES}
     type_v_break_sums: dict[str, float] = {pt: 0.0 for pt in _TRACKED_PITCH_TYPES}
     type_break_counts: dict[str, int] = {pt: 0 for pt in _TRACKED_PITCH_TYPES}
+    total_extension = 0.0
+    extension_count = 0
+    ff_extension_sum = 0.0
+    ff_extension_count = 0
 
     for row in rows:
         spin = row.get("release_spin_rate")
@@ -42,6 +46,14 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 type_v_break_sums[pt] += pfx_z
                 type_break_counts[pt] += 1
 
+        ext = row.get("release_extension")
+        if ext is not None:
+            total_extension += ext
+            extension_count += 1
+            if row.get("pitch_type") == "FF":
+                ff_extension_sum += ext
+                ff_extension_count += 1
+
     result: dict[str, Any] = {
         "avg_spin_rate": (total_spin / spin_count) if spin_count > 0 else float("nan"),
     }
@@ -59,13 +71,16 @@ def spin_profile_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         result[f"{key}_h_break"] = (type_h_break_sums[pt] / count) if count > 0 else float("nan")
         result[f"{key}_v_break"] = (type_v_break_sums[pt] / count) if count > 0 else float("nan")
 
+    result["avg_extension"] = (total_extension / extension_count) if extension_count > 0 else float("nan")
+    result["ff_extension"] = (ff_extension_sum / ff_extension_count) if ff_extension_count > 0 else float("nan")
+
     return result
 
 
 SPIN_PROFILE = TransformFeature(
     name="spin_profile",
     source=Source.STATCAST,
-    columns=("release_spin_rate", "pitch_type", "pfx_x", "pfx_z"),
+    columns=("release_spin_rate", "pitch_type", "pfx_x", "pfx_z", "release_extension"),
     group_by=("player_id", "season"),
     transform=spin_profile_metrics,
     outputs=(
@@ -84,5 +99,7 @@ SPIN_PROFILE = TransformFeature(
         "cu_v_break",
         "ch_h_break",
         "ch_v_break",
+        "avg_extension",
+        "ff_extension",
     ),
 )

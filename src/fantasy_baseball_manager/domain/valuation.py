@@ -16,3 +16,17 @@ class Valuation:
     category_scores: dict[str, float]
     id: int | None = None
     loaded_at: str | None = None
+
+
+@dataclass(frozen=True)
+class PlayerValuation:
+    player_name: str
+    system: str
+    version: str
+    projection_system: str
+    projection_version: str
+    player_type: str
+    position: str
+    value: float
+    rank: int
+    category_scores: dict[str, float]

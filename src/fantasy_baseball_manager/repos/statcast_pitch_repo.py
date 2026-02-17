@@ -18,8 +18,10 @@ class SqliteStatcastPitchRepo:
                     launch_speed, launch_angle, hit_distance_sc,
                     barrel, estimated_ba_using_speedangle,
                     estimated_woba_using_speedangle,
-                    estimated_slg_using_speedangle, loaded_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    estimated_slg_using_speedangle,
+                    hc_x, hc_y, stand, release_extension,
+                    loaded_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(game_pk, at_bat_number, pitch_number) DO UPDATE SET
                    game_date=excluded.game_date,
                    batter_id=excluded.batter_id,
@@ -38,6 +40,9 @@ class SqliteStatcastPitchRepo:
                    estimated_ba_using_speedangle=excluded.estimated_ba_using_speedangle,
                    estimated_woba_using_speedangle=excluded.estimated_woba_using_speedangle,
                    estimated_slg_using_speedangle=excluded.estimated_slg_using_speedangle,
+                   hc_x=excluded.hc_x, hc_y=excluded.hc_y,
+                   stand=excluded.stand,
+                   release_extension=excluded.release_extension,
                    loaded_at=excluded.loaded_at""",
             (
                 pitch.game_pk,
@@ -63,6 +68,10 @@ class SqliteStatcastPitchRepo:
                 pitch.estimated_ba_using_speedangle,
                 pitch.estimated_woba_using_speedangle,
                 pitch.estimated_slg_using_speedangle,
+                pitch.hc_x,
+                pitch.hc_y,
+                pitch.stand,
+                pitch.release_extension,
                 pitch.loaded_at,
             ),
         )
@@ -120,5 +129,9 @@ class SqliteStatcastPitchRepo:
             estimated_ba_using_speedangle=row["estimated_ba_using_speedangle"],
             estimated_woba_using_speedangle=row["estimated_woba_using_speedangle"],
             estimated_slg_using_speedangle=row["estimated_slg_using_speedangle"],
+            hc_x=row["hc_x"],
+            hc_y=row["hc_y"],
+            stand=row["stand"],
+            release_extension=row["release_extension"],
             loaded_at=row["loaded_at"],
         )

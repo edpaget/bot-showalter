@@ -17,6 +17,7 @@ from fantasy_baseball_manager.cli._output import (
     print_import_result,
     print_ingest_result,
     print_player_projections,
+    print_player_valuations,
     print_predict_result,
     print_prepare_result,
     print_run_detail,
@@ -27,6 +28,7 @@ from fantasy_baseball_manager.cli._output import (
     print_system_summaries,
     print_talent_delta_report,
     print_train_result,
+    print_valuation_rankings,
 )
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
@@ -39,6 +41,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_projections_context,
     build_report_context,
     build_runs_context,
+    build_valuations_context,
     create_model,
 )
 from fantasy_baseball_manager.cli.factory import EvalContext
@@ -654,6 +657,42 @@ def projections_systems(
     with build_projections_context(data_dir) as ctx:
         summaries = ctx.lookup_service.list_systems(season)
     print_system_summaries(summaries)
+
+
+# --- valuations subcommand group ---
+
+valuations_app = typer.Typer(name="valuations", help="Look up and explore player valuations")
+app.add_typer(valuations_app, name="valuations")
+
+
+@valuations_app.command("lookup")
+def valuations_lookup(
+    player_name: Annotated[str, typer.Argument(help="Player name ('Last' or 'Last, First')")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str | None, typer.Option("--system", help="Filter by valuation system")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Look up a player's valuations across systems."""
+    with build_valuations_context(data_dir) as ctx:
+        results = ctx.lookup_service.lookup(player_name, season, system=system)
+    print_player_valuations(results)
+
+
+@valuations_app.command("rankings")
+def valuations_rankings(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str | None, typer.Option("--system", help="Filter by valuation system")] = None,
+    player_type: Annotated[str | None, typer.Option("--player-type", help="Filter by player type")] = None,
+    position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show valuation rankings as a leaderboard."""
+    with build_valuations_context(data_dir) as ctx:
+        results = ctx.lookup_service.rankings(
+            season, system=system, player_type=player_type, position=position, top=top
+        )
+    print_valuation_rankings(results)
 
 
 # --- ingest subcommand group ---

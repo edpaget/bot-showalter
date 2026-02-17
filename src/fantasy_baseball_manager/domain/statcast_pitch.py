@@ -27,4 +27,8 @@ class StatcastPitch:
     estimated_ba_using_speedangle: float | None = None
     estimated_woba_using_speedangle: float | None = None
     estimated_slg_using_speedangle: float | None = None
+    hc_x: float | None = None
+    hc_y: float | None = None
+    stand: str | None = None
+    release_extension: float | None = None
     loaded_at: str | None = None

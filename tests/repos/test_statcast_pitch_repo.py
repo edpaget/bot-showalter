@@ -80,3 +80,25 @@ class TestSqliteStatcastPitchRepo:
         assert id1 == id2
         results = repo.get_by_game(718001)
         assert results[0].id == id1
+
+    def test_new_columns_round_trip(self, statcast_conn: sqlite3.Connection) -> None:
+        repo = SqliteStatcastPitchRepo(statcast_conn)
+        pitch = StatcastPitch(
+            game_pk=718001,
+            game_date="2024-06-15",
+            batter_id=545361,
+            pitcher_id=477132,
+            at_bat_number=1,
+            pitch_number=1,
+            hc_x=105.3,
+            hc_y=160.2,
+            stand="R",
+            release_extension=6.3,
+        )
+        repo.upsert(pitch)
+        results = repo.get_by_game(718001)
+        assert len(results) == 1
+        assert results[0].hc_x == 105.3
+        assert results[0].hc_y == 160.2
+        assert results[0].stand == "R"
+        assert results[0].release_extension == 6.3

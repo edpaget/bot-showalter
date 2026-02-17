@@ -28,6 +28,10 @@ def _make_row(**overrides) -> pd.Series:
         "estimated_ba_using_speedangle": 0.620,
         "estimated_woba_using_speedangle": 0.850,
         "estimated_slg_using_speedangle": 0.750,
+        "hc_x": 105.3,
+        "hc_y": 160.2,
+        "stand": "R",
+        "release_extension": 6.3,
     }
     return pd.Series({**defaults, **overrides})
 
@@ -59,6 +63,10 @@ class TestStatcastPitchMapper:
         assert result.estimated_ba_using_speedangle == 0.620
         assert result.estimated_woba_using_speedangle == 0.850
         assert result.estimated_slg_using_speedangle == 0.750
+        assert result.hc_x == 105.3
+        assert result.hc_y == 160.2
+        assert result.stand == "R"
+        assert result.release_extension == 6.3
 
     def test_nan_optional_fields_become_none(self) -> None:
         result = statcast_pitch_mapper(

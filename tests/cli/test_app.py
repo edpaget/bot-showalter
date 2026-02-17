@@ -11,6 +11,7 @@ from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, TrainResult
 from fantasy_baseball_manager.models.registry import _clear, register
@@ -18,6 +19,7 @@ from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStats
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 
 runner = CliRunner()
 
@@ -902,3 +904,113 @@ class TestParseParams:
 
     def test_parse_params_none_returns_none(self) -> None:
         assert _parse_params(None) is None
+
+
+def _seed_valuation_data(
+    conn: sqlite3.Connection,
+    system: str = "zar",
+    version: str = "1.0",
+    player_type: str = "batter",
+) -> None:
+    """Seed player and valuation data for valuations commands."""
+    player_repo = SqlitePlayerRepo(conn)
+    val_repo = SqliteValuationRepo(conn)
+    pid1 = player_repo.upsert(Player(name_first="Juan", name_last="Soto", mlbam_id=665742))
+    pid2 = player_repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))
+    val_repo.upsert(
+        Valuation(
+            player_id=pid1,
+            season=2025,
+            system=system,
+            version=version,
+            projection_system="steamer",
+            projection_version="2025.1",
+            player_type=player_type,
+            position="OF",
+            value=42.5,
+            rank=1,
+            category_scores={"hr": 2.1, "sb": 0.5},
+        )
+    )
+    val_repo.upsert(
+        Valuation(
+            player_id=pid2,
+            season=2025,
+            system=system,
+            version=version,
+            projection_system="steamer",
+            projection_version="2025.1",
+            player_type=player_type,
+            position="DH",
+            value=38.0,
+            rank=2,
+            category_scores={"hr": 2.8, "sb": -0.3},
+        )
+    )
+    conn.commit()
+
+
+class TestValuationsLookupCommand:
+    def test_lookup_returns_breakdown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_valuation_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["valuations", "lookup", "Soto", "--season", "2025", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+        assert "Juan Soto" in result.output
+        assert "42.5" in result.output
+
+    def test_lookup_system_filter(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_valuation_data(db_conn, system="zar")
+        _seed_valuation_data(db_conn, system="auction")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["valuations", "lookup", "Soto", "--season", "2025", "--system", "zar", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "zar" in result.output
+        assert "auction" not in result.output
+
+    def test_lookup_no_results(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["valuations", "lookup", "Nobody", "--season", "2025", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+        assert "No valuations found" in result.output
+
+
+class TestValuationsRankingsCommand:
+    def test_rankings_shows_leaderboard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_valuation_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["valuations", "rankings", "--season", "2025", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+        assert "Juan Soto" in result.output
+        assert "Aaron Judge" in result.output
+
+    def test_rankings_filter_by_player_type(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_valuation_data(db_conn, player_type="batter")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["valuations", "rankings", "--season", "2025", "--player-type", "pitcher", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "No valuations found" in result.output
+
+    def test_rankings_empty_season(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(app, ["valuations", "rankings", "--season", "2099", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+        assert "No valuations found" in result.output

@@ -14,10 +14,10 @@ from fantasy_baseball_manager.features.types import Source, TransformFeature
 class TestSpinProfileMetrics:
     def test_basic_metrics(self) -> None:
         rows = [
-            {"release_spin_rate": 2400.0, "pitch_type": "FF", "pfx_x": -5.0, "pfx_z": 12.0},
-            {"release_spin_rate": 2600.0, "pitch_type": "FF", "pfx_x": -6.0, "pfx_z": 13.0},
-            {"release_spin_rate": 2800.0, "pitch_type": "SL", "pfx_x": 3.0, "pfx_z": -2.0},
-            {"release_spin_rate": 2900.0, "pitch_type": "CU", "pfx_x": 4.0, "pfx_z": -8.0},
+            {"release_spin_rate": 2400.0, "pitch_type": "FF", "pfx_x": -5.0, "pfx_z": 12.0, "release_extension": 6.5},
+            {"release_spin_rate": 2600.0, "pitch_type": "FF", "pfx_x": -6.0, "pfx_z": 13.0, "release_extension": 6.3},
+            {"release_spin_rate": 2800.0, "pitch_type": "SL", "pfx_x": 3.0, "pfx_z": -2.0, "release_extension": 6.1},
+            {"release_spin_rate": 2900.0, "pitch_type": "CU", "pfx_x": 4.0, "pfx_z": -8.0, "release_extension": 6.0},
         ]
         result = spin_profile_metrics(rows)
         assert result["avg_spin_rate"] == pytest.approx(2675.0)
@@ -26,6 +26,8 @@ class TestSpinProfileMetrics:
         assert result["cu_spin"] == pytest.approx(2900.0)
         assert result["avg_h_break"] == pytest.approx(-1.0)  # mean of -5, -6, 3, 4
         assert result["avg_v_break"] == pytest.approx(3.75)  # mean of 12, 13, -2, -8
+        assert result["avg_extension"] == pytest.approx(6.225)  # mean of 6.5, 6.3, 6.1, 6.0
+        assert result["ff_extension"] == pytest.approx(6.4)  # mean of 6.5, 6.3
 
     def test_per_pitch_type_break(self) -> None:
         rows = [
@@ -65,7 +67,7 @@ class TestSpinProfileMetrics:
     def test_empty_rows(self) -> None:
         result = spin_profile_metrics([])
         assert all(math.isnan(v) for v in result.values())
-        assert len(result) == 15
+        assert len(result) == 17
 
     def test_missing_spin_rate_rows_filtered(self) -> None:
         rows = [
@@ -124,8 +126,28 @@ class TestSpinProfileMetrics:
             "cu_v_break",
             "ch_h_break",
             "ch_v_break",
+            "avg_extension",
+            "ff_extension",
         }
         assert set(result.keys()) == expected_keys
+
+    def test_extension_null_excluded(self) -> None:
+        rows = [
+            {"release_spin_rate": 2400.0, "pitch_type": "FF", "pfx_x": -5.0, "pfx_z": 12.0, "release_extension": None},
+            {"release_spin_rate": 2600.0, "pitch_type": "FF", "pfx_x": -6.0, "pfx_z": 13.0, "release_extension": 6.5},
+        ]
+        result = spin_profile_metrics(rows)
+        assert result["avg_extension"] == pytest.approx(6.5)
+        assert result["ff_extension"] == pytest.approx(6.5)
+
+    def test_ff_extension_only_ff_pitches(self) -> None:
+        rows = [
+            {"release_spin_rate": 2400.0, "pitch_type": "FF", "pfx_x": -5.0, "pfx_z": 12.0, "release_extension": 6.5},
+            {"release_spin_rate": 2800.0, "pitch_type": "SL", "pfx_x": 3.0, "pfx_z": -2.0, "release_extension": 5.8},
+        ]
+        result = spin_profile_metrics(rows)
+        assert result["avg_extension"] == pytest.approx(6.15)  # mean of 6.5, 5.8
+        assert result["ff_extension"] == pytest.approx(6.5)  # only FF pitch
 
     def test_all_null_spin_rates(self) -> None:
         rows = [
@@ -144,7 +166,7 @@ class TestSpinProfileTransformFeature:
         assert SPIN_PROFILE.source == Source.STATCAST
 
     def test_outputs_count(self) -> None:
-        assert len(SPIN_PROFILE.outputs) == 15
+        assert len(SPIN_PROFILE.outputs) == 17
 
     def test_transform_callable(self) -> None:
         assert SPIN_PROFILE.transform is spin_profile_metrics

@@ -45,6 +45,7 @@ from fantasy_baseball_manager.services.league_environment_service import LeagueE
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
+from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
 
 def create_model(name: str, **kwargs: Any) -> Model:
@@ -369,5 +370,25 @@ def build_compute_container(data_dir: str) -> Iterator[ComputeContainer]:
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
         yield ComputeContainer(conn)
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class ValuationsContext:
+    conn: sqlite3.Connection
+    lookup_service: ValuationLookupService
+
+
+@contextmanager
+def build_valuations_context(data_dir: str) -> Iterator[ValuationsContext]:
+    """Composition-root context manager for valuations commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        lookup_service = ValuationLookupService(
+            SqlitePlayerRepo(conn),
+            SqliteValuationRepo(conn),
+        )
+        yield ValuationsContext(conn=conn, lookup_service=lookup_service)
     finally:
         conn.close()

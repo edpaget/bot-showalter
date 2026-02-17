@@ -2,8 +2,15 @@ from typing import Any
 
 import pytest
 
-from fantasy_baseball_manager.cli._output import print_error, print_features, print_player_projections
+from fantasy_baseball_manager.cli._output import (
+    print_error,
+    print_features,
+    print_player_projections,
+    print_player_valuations,
+    print_valuation_rankings,
+)
 from fantasy_baseball_manager.domain.projection import PlayerProjection
+from fantasy_baseball_manager.domain.valuation import PlayerValuation
 from fantasy_baseball_manager.features.types import (
     DeltaFeature,
     Feature,
@@ -189,3 +196,65 @@ class TestPrintPlayerProjectionsLineage:
         captured = capsys.readouterr()
         assert "Sources:" not in captured.out
         assert "PT source:" not in captured.out
+
+
+def _make_player_valuation(
+    player_name: str = "Juan Soto",
+    system: str = "zar",
+    version: str = "1.0",
+    projection_system: str = "steamer",
+    projection_version: str = "2025.1",
+    player_type: str = "batter",
+    position: str = "OF",
+    value: float = 42.5,
+    rank: int = 1,
+    category_scores: dict[str, float] | None = None,
+) -> PlayerValuation:
+    return PlayerValuation(
+        player_name=player_name,
+        system=system,
+        version=version,
+        projection_system=projection_system,
+        projection_version=projection_version,
+        player_type=player_type,
+        position=position,
+        value=value,
+        rank=rank,
+        category_scores=category_scores or {"hr": 2.1, "sb": 0.5},
+    )
+
+
+class TestPrintPlayerValuations:
+    def test_empty_valuations(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_player_valuations([])
+        captured = capsys.readouterr()
+        assert "No valuations found" in captured.out
+
+    def test_single_valuation_shows_breakdown(self, capsys: pytest.CaptureFixture[str]) -> None:
+        val = _make_player_valuation()
+        print_player_valuations([val])
+        captured = capsys.readouterr()
+        assert "Juan Soto" in captured.out
+        assert "zar" in captured.out
+        assert "42.5" in captured.out
+        assert "hr" in captured.out
+        assert "2.1" in captured.out
+
+
+class TestPrintValuationRankings:
+    def test_empty_rankings(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_valuation_rankings([])
+        captured = capsys.readouterr()
+        assert "No valuations found" in captured.out
+
+    def test_rankings_table(self, capsys: pytest.CaptureFixture[str]) -> None:
+        vals = [
+            _make_player_valuation(player_name="Juan Soto", rank=1, value=42.5),
+            _make_player_valuation(player_name="Aaron Judge", rank=2, value=38.0),
+        ]
+        print_valuation_rankings(vals)
+        captured = capsys.readouterr()
+        assert "Juan Soto" in captured.out
+        assert "Aaron Judge" in captured.out
+        assert "42.5" in captured.out
+        assert "1" in captured.out

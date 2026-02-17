@@ -136,6 +136,59 @@ BATTED_BALL = TransformFeature(
     ),
 )
 
+_SPRAY_EMPTY_RESULT: dict[str, Any] = {
+    "pull_pct": _NAN,
+    "oppo_pct": _NAN,
+    "center_pct": _NAN,
+}
+
+_SPRAY_THRESHOLD = 15.0
+
+
+def spray_angle_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute spray angle profile metrics from statcast hit coordinate data."""
+    valid = [r for r in rows if r.get("hc_x") is not None and r.get("hc_y") is not None and r.get("stand") is not None]
+    n = len(valid)
+    if n == 0:
+        return dict(_SPRAY_EMPTY_RESULT)
+
+    pull = 0
+    oppo = 0
+    center = 0
+    for r in valid:
+        angle = math.atan2(r["hc_x"] - 125.42, 198.27 - r["hc_y"]) * 180.0 / math.pi
+        stand = r["stand"]
+        if stand == "R":
+            if angle < -_SPRAY_THRESHOLD:
+                pull += 1
+            elif angle > _SPRAY_THRESHOLD:
+                oppo += 1
+            else:
+                center += 1
+        else:  # L
+            if angle > _SPRAY_THRESHOLD:
+                pull += 1
+            elif angle < -_SPRAY_THRESHOLD:
+                oppo += 1
+            else:
+                center += 1
+
+    return {
+        "pull_pct": pull / n * 100.0,
+        "oppo_pct": oppo / n * 100.0,
+        "center_pct": center / n * 100.0,
+    }
+
+
+SPRAY_ANGLE = TransformFeature(
+    name="spray_angle",
+    source=Source.STATCAST,
+    columns=("hc_x", "hc_y", "stand"),
+    group_by=("player_id", "season"),
+    transform=spray_angle_profile,
+    outputs=("pull_pct", "oppo_pct", "center_pct"),
+)
+
 BATTED_BALL_AGAINST = TransformFeature(
     name="batted_ball_against",
     source=Source.STATCAST,

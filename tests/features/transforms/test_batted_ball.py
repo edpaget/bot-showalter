@@ -7,8 +7,10 @@ import pytest
 from fantasy_baseball_manager.features.transforms.batted_ball import (
     BATTED_BALL,
     BATTED_BALL_AGAINST,
+    SPRAY_ANGLE,
     batted_ball_against_profile,
     batted_ball_profile,
+    spray_angle_profile,
 )
 from fantasy_baseball_manager.features.types import Source, TransformFeature
 
@@ -264,3 +266,78 @@ class TestBattedBallAgainstTransformFeature:
 
     def test_name(self) -> None:
         assert BATTED_BALL_AGAINST.name == "batted_ball_against"
+
+
+class TestSprayAngleProfile:
+    def test_basic_metrics(self) -> None:
+        # R batter: pull = left field (angle < -15), oppo = right field (angle > 15)
+        # L batter: pull = right field (angle > 15), oppo = left field (angle < -15)
+        # hc_x=125.42, hc_y=198.27 is dead center (angle=0)
+        # Far left (low hc_x) → negative angle → pull for R
+        # Far right (high hc_x) → positive angle → pull for L
+        rows = [
+            {"hc_x": 80.0, "hc_y": 150.0, "stand": "R"},  # left field → pull for R
+            {"hc_x": 170.0, "hc_y": 150.0, "stand": "R"},  # right field → oppo for R
+            {"hc_x": 125.42, "hc_y": 150.0, "stand": "R"},  # center
+            {"hc_x": 170.0, "hc_y": 150.0, "stand": "L"},  # right field → pull for L
+        ]
+        result = spray_angle_profile(rows)
+        # 4 batted balls: R-pull, R-oppo, R-center, L-pull
+        # pull: 2/4 = 50%, oppo: 1/4 = 25%, center: 1/4 = 25%
+        assert result["pull_pct"] == pytest.approx(50.0)
+        assert result["oppo_pct"] == pytest.approx(25.0)
+        assert result["center_pct"] == pytest.approx(25.0)
+
+    def test_empty_rows(self) -> None:
+        result = spray_angle_profile([])
+        assert all(math.isnan(v) for v in result.values())
+        assert len(result) == 3
+
+    def test_all_pull(self) -> None:
+        # All R batters hitting to left field (low hc_x)
+        rows = [
+            {"hc_x": 60.0, "hc_y": 150.0, "stand": "R"},
+            {"hc_x": 70.0, "hc_y": 150.0, "stand": "R"},
+        ]
+        result = spray_angle_profile(rows)
+        assert result["pull_pct"] == pytest.approx(100.0)
+        assert result["oppo_pct"] == pytest.approx(0.0)
+        assert result["center_pct"] == pytest.approx(0.0)
+
+    def test_null_coordinates_excluded(self) -> None:
+        rows = [
+            {"hc_x": None, "hc_y": 150.0, "stand": "R"},
+            {"hc_x": 60.0, "hc_y": None, "stand": "R"},
+            {"hc_x": 60.0, "hc_y": 150.0, "stand": "R"},  # only valid row → pull
+        ]
+        result = spray_angle_profile(rows)
+        assert result["pull_pct"] == pytest.approx(100.0)
+
+    def test_null_stand_excluded(self) -> None:
+        rows = [
+            {"hc_x": 60.0, "hc_y": 150.0, "stand": None},
+            {"hc_x": 60.0, "hc_y": 150.0, "stand": "R"},  # only valid row → pull
+        ]
+        result = spray_angle_profile(rows)
+        assert result["pull_pct"] == pytest.approx(100.0)
+
+    def test_output_keys(self) -> None:
+        result = spray_angle_profile([])
+        assert set(result.keys()) == {"pull_pct", "oppo_pct", "center_pct"}
+
+
+class TestSprayAngleTransformFeature:
+    def test_is_transform_feature(self) -> None:
+        assert isinstance(SPRAY_ANGLE, TransformFeature)
+
+    def test_source_is_statcast(self) -> None:
+        assert SPRAY_ANGLE.source == Source.STATCAST
+
+    def test_outputs_count(self) -> None:
+        assert len(SPRAY_ANGLE.outputs) == 3
+
+    def test_columns(self) -> None:
+        assert SPRAY_ANGLE.columns == ("hc_x", "hc_y", "stand")
+
+    def test_name(self) -> None:
+        assert SPRAY_ANGLE.name == "spray_angle"

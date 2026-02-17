@@ -9,6 +9,7 @@ from fantasy_baseball_manager.features.transforms import (
     PITCH_MIX,
     PLATE_DISCIPLINE,
     SPIN_PROFILE,
+    SPRAY_ANGLE,
 )
 from fantasy_baseball_manager.features.types import (
     AnyFeature,
@@ -42,7 +43,7 @@ def _pitcher_lag_features() -> list[Feature]:
 def build_batter_feature_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = [player.age()]
     features.extend(_batter_lag_features())
-    features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS])
+    features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
     return FeatureSet(
         name="statcast_gbm_batting",
         features=tuple(features),
@@ -66,7 +67,7 @@ def _batter_target_features() -> list[Feature]:
 def build_batter_training_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = [player.age()]
     features.extend(_batter_lag_features())
-    features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS])
+    features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
     features.extend(_batter_target_features())
     return FeatureSet(
         name="statcast_gbm_batting_train",
@@ -148,6 +149,7 @@ def build_batter_preseason_set(seasons: Sequence[int]) -> FeatureSet:
             BATTED_BALL.with_lag(1),
             PLATE_DISCIPLINE.with_lag(1),
             EXPECTED_STATS.with_lag(1),
+            SPRAY_ANGLE.with_lag(1),
         ]
     )
     return FeatureSet(
@@ -167,6 +169,7 @@ def build_batter_preseason_training_set(seasons: Sequence[int]) -> FeatureSet:
             BATTED_BALL.with_lag(1),
             PLATE_DISCIPLINE.with_lag(1),
             EXPECTED_STATS.with_lag(1),
+            SPRAY_ANGLE.with_lag(1),
         ]
     )
     features.extend(_batter_target_features())

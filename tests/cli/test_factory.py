@@ -10,6 +10,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_ingest_container,
     build_model_context,
     build_runs_context,
+    build_valuations_context,
     create_model,
 )
 from fantasy_baseball_manager.db.connection import create_connection
@@ -24,6 +25,7 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
+from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
 
 class _NoArgModel:
@@ -402,3 +404,23 @@ class TestBuildIngestContainer:
             conn.execute("SELECT 1")
         with pytest.raises(ProgrammingError):
             statcast_conn.execute("SELECT 1")
+
+
+class TestBuildValuationsContext:
+    def test_yields_valuations_context_with_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_valuations_context("./data") as ctx:
+            assert isinstance(ctx.lookup_service, ValuationLookupService)
+
+    def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_valuations_context("./data") as ctx:
+            conn = ctx.conn
+        with pytest.raises(ProgrammingError):
+            conn.execute("SELECT 1")
