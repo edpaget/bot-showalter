@@ -24,6 +24,7 @@ from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, TrainResult
 from fantasy_baseball_manager.models.registry import _clear, register
+from fantasy_baseball_manager.models.zar.model import ZarModel
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
@@ -932,6 +933,66 @@ class TestParseParams:
 
     def test_parse_params_none_returns_none(self) -> None:
         assert _parse_params(None) is None
+
+
+class TestPredictLeagueResolution:
+    def test_predict_resolves_league_param_to_league_settings(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The predict command should resolve a league string param via load_league."""
+        captured_config: list[ModelConfig] = []
+
+        def fake_predict(self: object, config: ModelConfig) -> PredictResult:
+            captured_config.append(config)
+            return PredictResult(model_name="zar", predictions=[], output_path="")
+
+        _clear()
+        register("zar")(ZarModel)
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.load_league",
+            lambda name, path: _eval_league(),
+        )
+        monkeypatch.setattr(ZarModel, "predict", fake_predict)
+
+        result = runner.invoke(
+            app,
+            ["predict", "zar", "--season", "2025", "--param", "league=h2h", "--param", "projection_system=steamer"],
+        )
+        assert result.exit_code == 0, result.output
+        assert len(captured_config) == 1
+        league = captured_config[0].model_params["league"]
+        assert isinstance(league, LeagueSettings)
+        assert league.name == "Test League"
+
+    def test_predict_without_league_param_does_not_call_load_league(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When no league param is provided, load_league should not be called."""
+        _ensure_marcel_registered()
+        seeded_conn = create_connection(":memory:")
+        _seed_batting_data(seeded_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: seeded_conn,
+        )
+
+        def load_league_should_not_be_called(name: str, path: Path) -> LeagueSettings:
+            raise AssertionError("load_league should not be called when no league param is set")
+
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", load_league_should_not_be_called)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.app.load_config",
+            lambda **kwargs: ModelConfig(
+                seasons=[2023],
+                model_params={
+                    "batting_categories": ["hr", "bb", "h"],
+                    "pitching_categories": ["so"],
+                },
+            ),
+        )
+        result = runner.invoke(app, ["predict", "marcel", "--season", "2023"])
+        assert result.exit_code == 0, result.output
 
 
 def _seed_valuation_data(

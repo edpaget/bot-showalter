@@ -378,3 +378,114 @@ class TestZarModelPredict:
         model.predict(config)
         assert len(val_repo.upserted) == 1
         assert val_repo.upserted[0].position == "util"
+
+    def test_predict_filters_by_projection_version(self) -> None:
+        """When projection_version is set, only that version's projections are used."""
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+            ),
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v2",
+                player_type="batter",
+                stat_json={"hr": 35.0, "r": 90.0, "h": 150.0, "ab": 530.0},
+            ),
+            Projection(
+                player_id=4,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"w": 15.0, "sv": 0.0},
+            ),
+            Projection(
+                player_id=4,
+                season=2025,
+                system="steamer",
+                version="v2",
+                player_type="pitcher",
+                stat_json={"w": 12.0, "sv": 5.0},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "projection_version": "v1",
+            },
+            version="1.0",
+        )
+        model.predict(config)
+        player_ids = {v.player_id for v in val_repo.upserted}
+        assert player_ids == {1, 4}
+        assert all(v.projection_version == "v1" for v in val_repo.upserted)
+
+    def test_predict_without_projection_version_uses_all(self) -> None:
+        """Without projection_version, all versions for the system are loaded."""
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+            ),
+            Projection(
+                player_id=2,
+                season=2025,
+                system="steamer",
+                version="v2",
+                player_type="batter",
+                stat_json={"hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections, appearances=[])
+        config = _standard_config()
+        model.predict(config)
+        player_ids = {v.player_id for v in val_repo.upserted}
+        assert player_ids == {1, 2}
+
+    def test_predict_projection_version_filters_by_season(self) -> None:
+        """projection_version + season filter: only matching season is used."""
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+            ),
+            Projection(
+                player_id=2,
+                season=2024,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections, appearances=[])
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "projection_version": "v1",
+            },
+            version="1.0",
+        )
+        model.predict(config)
+        player_ids = {v.player_id for v in val_repo.upserted}
+        assert player_ids == {1}

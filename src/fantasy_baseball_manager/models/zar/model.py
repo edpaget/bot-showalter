@@ -71,11 +71,16 @@ class ZarModel:
 
         league: LeagueSettings = config.model_params["league"]
         proj_system: str = config.model_params["projection_system"]
+        proj_version: str | None = config.model_params.get("projection_version")
         season = config.seasons[0] if config.seasons else 2025
         version = config.version or "1.0"
 
         # 1. Read projections and positions
-        projections = self._projection_repo.get_by_season(season, system=proj_system)
+        if proj_version is not None:
+            projections = self._projection_repo.get_by_system_version(proj_system, proj_version)
+            projections = [p for p in projections if p.season == season]
+        else:
+            projections = self._projection_repo.get_by_season(season, system=proj_system)
         appearances = self._position_repo.get_by_season(season)
         position_map = build_position_map(appearances, league)
 

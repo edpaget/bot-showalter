@@ -244,6 +244,8 @@ def predict(
     """Generate predictions from a projection model."""
     tags = _parse_tags(tag)
     params = _parse_params(param)
+    if params and "league" in params and isinstance(params["league"], str):
+        params["league"] = load_league(params["league"], Path.cwd())
     config = load_config(
         model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
     )
@@ -960,11 +962,11 @@ class _PreloadedSource:
 
     @property
     def source_type(self) -> str:
-        return self._source_type  # type: ignore[return-value]
+        return self._source_type
 
     @property
     def source_detail(self) -> str:
-        return self._source_detail  # type: ignore[return-value]
+        return self._source_detail
 
     def fetch(self, **params: Any) -> pd.DataFrame:
         return self._df

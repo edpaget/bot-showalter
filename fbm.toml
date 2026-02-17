@@ -23,3 +23,87 @@ feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batti
 
 [models.composite-full.params]
 feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "mle_batter_rates", "statcast_gbm_batter_rates", "statcast_gbm_pitcher_rates", "statcast_batted_ball", "statcast_plate_discipline"]
+
+# --- League configurations ---
+
+[leagues.h2h]
+format = "h2h_categories"
+teams = 12
+budget = 260
+roster_batters = 9
+roster_pitchers = 8
+roster_util = 1
+
+[leagues.h2h.positions]
+c = 1
+"1b" = 1
+"2b" = 1
+"3b" = 1
+ss = 1
+of = 3
+
+[[leagues.h2h.batting_categories]]
+key = "hr"
+name = "Home Runs"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.h2h.batting_categories]]
+key = "r"
+name = "Runs"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.h2h.batting_categories]]
+key = "rbi"
+name = "RBI"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.h2h.batting_categories]]
+key = "obp"
+name = "On-Base Percentage"
+stat_type = "rate"
+direction = "higher"
+numerator = "h+bb+hbp"
+denominator = "pa"
+
+[[leagues.h2h.batting_categories]]
+key = "sb"
+name = "Stolen Bases"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.h2h.pitching_categories]]
+key = "era"
+name = "ERA"
+stat_type = "rate"
+direction = "lower"
+numerator = "er"
+denominator = "ip"
+
+[[leagues.h2h.pitching_categories]]
+key = "whip"
+name = "WHIP"
+stat_type = "rate"
+direction = "lower"
+numerator = "bb+h"
+denominator = "ip"
+
+[[leagues.h2h.pitching_categories]]
+key = "so"
+name = "Strikeouts"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.h2h.pitching_categories]]
+key = "w"
+name = "Wins"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.h2h.pitching_categories]]
+key = "sv+hld"
+name = "Net Saves + Holds"
+stat_type = "counting"
+direction = "higher"
