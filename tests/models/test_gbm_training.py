@@ -334,3 +334,20 @@ class TestGridSearchCV:
         assert isinstance(entry["mean_rmse"], float)
         assert entry["mean_rmse"] >= 0
         assert "y" in entry["per_target_rmse"]
+
+    def test_parallel_matches_sequential(self) -> None:
+        folds = _make_cv_folds()
+        param_grid = {"max_iter": [50, 100], "max_depth": [3, 5]}
+        sequential = grid_search_cv(folds, param_grid, max_workers=1)
+        parallel = grid_search_cv(folds, param_grid, max_workers=2)
+        assert sequential.best_params == parallel.best_params
+        assert len(sequential.all_results) == len(parallel.all_results)
+        for seq_entry, par_entry in zip(sequential.all_results, parallel.all_results):
+            assert seq_entry["params"] == par_entry["params"]
+            assert math.isclose(seq_entry["mean_rmse"], par_entry["mean_rmse"], rel_tol=1e-9)
+
+    def test_max_workers_defaults_to_none(self) -> None:
+        folds = _make_cv_folds()
+        result = grid_search_cv(folds, {"max_iter": [100]})
+        assert isinstance(result, GridSearchResult)
+        assert result.best_mean_rmse >= 0

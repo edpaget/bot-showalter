@@ -1,5 +1,7 @@
 import itertools
+import os
 import random
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
@@ -193,26 +195,39 @@ def _evaluate_combination(folds: list[CVFold], params: dict[str, Any]) -> dict[s
 def grid_search_cv(
     folds: list[CVFold],
     param_grid: dict[str, list[Any]],
+    *,
+    max_workers: int | None = None,
 ) -> GridSearchResult:
     """Exhaustive grid search with pre-computed CV folds.
 
     For each parameter combination, trains models on each fold's training data,
     scores on each fold's test data, and averages RMSE across folds. Returns
     the combination with the lowest mean RMSE across all targets and folds.
+
+    Args:
+        folds: Pre-computed CV folds.
+        param_grid: Parameter names mapped to lists of values to try.
+        max_workers: Maximum number of parallel worker processes. Defaults to
+            the number of CPUs. Set to 1 to disable parallelism.
     """
     param_names = list(param_grid.keys())
     param_values = list(param_grid.values())
+    combos = [dict(zip(param_names, combo)) for combo in itertools.product(*param_values)]
 
-    all_results: list[dict[str, Any]] = []
+    effective_workers = min(max_workers or os.cpu_count() or 1, len(combos))
+
+    if effective_workers <= 1:
+        all_results = [_evaluate_combination(folds, params) for params in combos]
+    else:
+        with ProcessPoolExecutor(max_workers=effective_workers) as executor:
+            futures = [executor.submit(_evaluate_combination, folds, params) for params in combos]
+            all_results = [f.result() for f in futures]
+
     best_mean_rmse = float("inf")
     best_params: dict[str, Any] = {}
     best_per_target: dict[str, float] = {}
 
-    for combo in itertools.product(*param_values):
-        params = dict(zip(param_names, combo))
-        entry = _evaluate_combination(folds, params)
-        all_results.append(entry)
-
+    for entry in all_results:
         if entry["mean_rmse"] < best_mean_rmse:
             best_mean_rmse = entry["mean_rmse"]
             best_params = entry["params"]
