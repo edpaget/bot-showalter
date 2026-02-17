@@ -263,42 +263,55 @@ class _StatcastGBMBase:
         cv_splits = list(temporal_expanding_cv(config.seasons))
 
         # --- Batter CV folds ---
-        bat_folds: list[CVFold] = []
+        # Materialize once, read all rows, split by season in Python
+        bat_fs = self._batter_training_set_builder(config.seasons)
+        bat_handle = self._assembler.get_or_materialize(bat_fs)
+        bat_all_rows = self._assembler.read(bat_handle)
         bat_feature_cols = self._batter_columns
         bat_targets = list(BATTER_TARGETS)
+
+        bat_rows_by_season: dict[int, list[dict[str, Any]]] = {}
+        for row in bat_all_rows:
+            s = row["season"]
+            bat_rows_by_season.setdefault(s, []).append(row)
+
+        bat_folds: list[CVFold] = []
         for train_seasons, test_season in cv_splits:
-            bat_fs = self._batter_training_set_builder(train_seasons + [test_season])
-            bat_handle = self._assembler.get_or_materialize(bat_fs)
-            bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=[test_season])
-            train_rows = self._assembler.read(bat_splits.train)
-            holdout_rows = self._assembler.read(bat_splits.holdout) if bat_splits.holdout else []
+            train_rows = [r for s in train_seasons for r in bat_rows_by_season.get(s, [])]
+            test_rows = bat_rows_by_season.get(test_season, [])
             bat_folds.append(
                 CVFold(
                     X_train=extract_features(train_rows, bat_feature_cols),
                     y_train=extract_targets(train_rows, bat_targets),
-                    X_test=extract_features(holdout_rows, bat_feature_cols),
-                    y_test=extract_targets(holdout_rows, bat_targets),
+                    X_test=extract_features(test_rows, bat_feature_cols),
+                    y_test=extract_targets(test_rows, bat_targets),
                 )
             )
 
         bat_result = grid_search_cv(bat_folds, param_grid)
 
         # --- Pitcher CV folds ---
-        pit_folds: list[CVFold] = []
+        pit_fs = self._pitcher_training_set_builder(config.seasons)
+        pit_handle = self._assembler.get_or_materialize(pit_fs)
+        pit_all_rows = self._assembler.read(pit_handle)
         pit_feature_cols = self._pitcher_columns
         pit_targets = list(PITCHER_TARGETS)
+
+        pit_rows_by_season: dict[int, list[dict[str, Any]]] = {}
+        for row in pit_all_rows:
+            s = row["season"]
+            pit_rows_by_season.setdefault(s, []).append(row)
+
+        pit_folds: list[CVFold] = []
         for train_seasons, test_season in cv_splits:
-            pit_fs = self._pitcher_training_set_builder(train_seasons + [test_season])
-            pit_handle = self._assembler.get_or_materialize(pit_fs)
-            pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=[test_season])
-            train_rows = self._assembler.read(pit_splits.train)
-            holdout_rows = self._assembler.read(pit_splits.holdout) if pit_splits.holdout else []
+            train_rows = [r for s in train_seasons for r in pit_rows_by_season.get(s, [])]
+            test_rows = pit_rows_by_season.get(test_season, [])
             pit_folds.append(
                 CVFold(
                     X_train=extract_features(train_rows, pit_feature_cols),
                     y_train=extract_targets(train_rows, pit_targets),
-                    X_test=extract_features(holdout_rows, pit_feature_cols),
-                    y_test=extract_targets(holdout_rows, pit_targets),
+                    X_test=extract_features(test_rows, pit_feature_cols),
+                    y_test=extract_targets(test_rows, pit_targets),
                 )
             )
 
