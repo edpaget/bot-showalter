@@ -1,6 +1,6 @@
 ---
 name: fbm
-description: Run fantasy baseball projection commands — predict, evaluate, compare systems, look up player projections, and manage cached datasets. Use this when the user asks to run projections, compare systems, evaluate accuracy, look up a player, or manage/rebuild cached datasets.
+description: Run fantasy baseball projection commands — predict, evaluate, compare systems, look up player projections/valuations, and manage cached datasets. Use this when the user asks to run projections, compare systems, evaluate accuracy, look up a player, check valuations, or manage/rebuild cached datasets.
 allowed-tools: Bash(uv run fbm *)
 argument-hint: <command> [args...]
 ---
@@ -43,6 +43,27 @@ Example: `uv run fbm projections lookup "Soto" --season 2025`
 uv run fbm projections systems --season <year>
 ```
 
+### Look up a player's valuations
+```
+uv run fbm valuations lookup "<player name>" --season <year> [--system <system>]
+```
+Example: `uv run fbm valuations lookup "Soto" --season 2025`
+
+### Show valuation rankings
+```
+uv run fbm valuations rankings --season <year> [--system <system>] [--player-type <type>] [--position <pos>] [--top <N>]
+```
+Example: `uv run fbm valuations rankings --season 2025 --top 20`
+
+### Evaluate valuation accuracy
+Compare predicted auction dollar values against end-of-season actuals. Reports value MAE and Spearman rank correlation.
+```
+uv run fbm valuations evaluate --season <year> --league <league-name> [--system <system>] [--version <version>] [--top <N>]
+```
+Example: `uv run fbm valuations evaluate --season 2025 --league default`
+
+The `--league` flag refers to a named league defined in `fbm.toml` under `[leagues.<name>]`. The `--system` defaults to `zar` and `--version` defaults to `1.0`.
+
 ### Manage cached datasets
 
 List all cached feature-set datasets:
@@ -76,6 +97,10 @@ When the user says something like:
 - "list datasets" → `uv run fbm datasets list`
 - "rebuild statcast-gbm features" → `uv run fbm datasets rebuild statcast-gbm --yes`
 - "drop all cached datasets" → `uv run fbm datasets drop --all --yes`
+- "what's Soto's auction value" → `uv run fbm valuations lookup "Soto" --season 2025`
+- "show top 20 valuations" → `uv run fbm valuations rankings --season 2025 --top 20`
+- "top pitcher valuations" → `uv run fbm valuations rankings --season 2025 --player-type pitcher --top 20`
+- "how accurate were the valuations" → `uv run fbm valuations evaluate --season 2025 --league default`
 
 For third-party systems (steamer, zips, atc), the version is typically the season year (e.g. `steamer/2025`).
 For first-party models (marcel), the version is typically `latest`.
