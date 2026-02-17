@@ -206,27 +206,58 @@ work. The current evaluation uses standard RMSE-vs-actuals as a pragmatic baseli
 These are RMSE values from the time-series holdout split during training
 (trained on 2022-2024, holdout on 2025).
 
-| Target | Live (pruned) | Preseason (unpruned) |
-|--------|---------------|----------------------|
+| Target | Live (tuned) | Preseason (unpruned) |
+|--------|--------------|----------------------|
 | **Batter** | | |
-| avg | 0.0311 | 0.0492 |
-| obp | 0.0336 | 0.0589 |
-| slg | 0.0595 | 0.0873 |
-| woba | 0.0358 | 0.0583 |
-| iso | 0.0357 | 0.0512 |
-| babip | 0.0683 | 0.0744 |
+| avg | 0.0522 | 0.0492 |
+| obp | 0.0534 | 0.0589 |
+| slg | 0.0692 | 0.0873 |
+| woba | 0.0507 | 0.0583 |
+| iso | 0.0347 | 0.0512 |
+| babip | 0.0881 | 0.0744 |
 | **Pitcher** | | |
-| era | 6.153 | 6.268 |
-| fip | 3.404 | 3.467 |
-| k/9 | 1.981 | 2.980 |
-| bb/9 | 2.710 | 3.757 |
-| hr/9 | 5.264 | 5.216 |
-| babip | 0.125 | 0.123 |
-| whip | 0.850 | 0.923 |
+| era | 5.866 | 6.268 |
+| fip | 3.040 | 3.467 |
+| k/9 | 1.698 | 2.980 |
+| bb/9 | 2.397 | 3.757 |
+| hr/9 | 3.920 | 5.216 |
+| babip | 0.095 | 0.123 |
+| whip | 0.774 | 0.923 |
 
-The live model's pruned features improved holdout RMSE on all 8 primary targets
-(8/8 GO at the Phase 1 gate). Preseason pruning was reverted after failing the
-go/no-go gate (only 2/8 targets improved).
+The live model uses **per-player-type hyperparameters**: pitcher models use
+tuned params from Phase 2 grid search, while batter models use sklearn defaults.
+Phase 1 pruning was applied to the live model (8/8 GO). Preseason pruning was
+reverted after failing the go/no-go gate (only 2/8 targets improved).
+
+### Phase 2 hyperparameter tuning (2026-02-17)
+
+Grid search over 1,024 parameter combinations using `temporal_expanding_cv`
+(train=[2022], test=2023 → train=[2022,2023], test=2024) found different optimal
+params for batter and pitcher models.
+
+**Batter tuning: NO-GO.** The CV-optimal batter params (`learning_rate=0.01,
+max_depth=7, max_iter=500, max_leaf_nodes=31, min_samples_leaf=50`) improved
+5/6 holdout targets but degraded SLG by 13.6%, exceeding the 5% per-target
+degradation threshold. Investigation showed the SLG degradation worsened with
+both deeper trees (`max_depth=None`) and shallower constraints, suggesting the
+batter targets have conflicting regularization needs. Batters keep sklearn defaults.
+
+**Pitcher tuning: GO.** The tuned pitcher params consistently improved holdout
+RMSE across the board. Applied as per-player-type params via `[models.statcast-gbm.params.pitcher]`:
+
+| Param | Default | Tuned |
+|-------|---------|-------|
+| learning_rate | 0.1 | 0.05 |
+| max_iter | 100 | 100 |
+| max_depth | None | None |
+| max_leaf_nodes | 31 | 15 |
+| min_samples_leaf | 20 | 50 |
+
+The key changes are halved learning rate, smaller trees (15 vs 31 leaf nodes),
+and more regularized leaves (50 vs 20 min samples). This matches the intuition
+that pitcher rate stats benefit from stronger regularization — the pitcher
+feature space (spin, velocity, movement) is noisier than the batter feature
+space (exit velocity, barrel rate).
 
 ## Ablation Study
 
@@ -529,11 +560,12 @@ through at that system's value.
    feature sets.
 5. ~~**Prune noisy features (Phase 1)**~~ — Done for live model (GO: 8/8 holdout
    targets improved). Reverted for preseason model (NO-GO: only 2/8 improved).
-6. ~~**Hyperparameter tuning (Phase 1)**~~ — Done. Temporal expanding CV +
-   exhaustive grid search over 1024 combinations. Pitcher tuning: GO (4/5
-   targets improved, mean RMSE ~4.4% better). Batter tuning: NO-GO (AVG
-   degraded 12.9%). Pitcher-only tuned params committed. See
-   [Weakness #6](#6-no-player-level-persistence--regression-toward-population-mean).
+6. ~~**Hyperparameter tuning**~~ — Done for both models. Temporal expanding CV +
+   exhaustive grid search over 1,024 combinations. Both models: pitcher tuning
+   GO, batter tuning NO-GO. Per-player-type params applied via
+   `[models.<name>.params.pitcher]` in `fbm.toml`. Batter tuning failed due to
+   SLG degradation (13.6%) despite improving 5/6 other batter targets. See
+   [Phase 2 hyperparameter tuning](#phase-2-hyperparameter-tuning-2026-02-17).
 7. **Implement true-talent evaluation suite** — next-season predictive validity,
    residual non-persistence, shrinkage quality metrics. See
    [Evaluation Methodology](#evaluation-methodology-for-true-talent-estimator).
