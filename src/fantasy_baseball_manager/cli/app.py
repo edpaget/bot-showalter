@@ -7,6 +7,7 @@ import typer
 
 import fantasy_baseball_manager.models  # noqa: F401 — trigger model registration
 from fantasy_baseball_manager.cli._dispatcher import UnsupportedOperation, dispatch
+from fantasy_baseball_manager.cli._logging import configure_logging
 from fantasy_baseball_manager.cli._output import (
     console,
     print_ablation_result,
@@ -27,6 +28,7 @@ from fantasy_baseball_manager.cli._output import (
     print_performance_report,
     print_system_summaries,
     print_talent_delta_report,
+    print_residual_persistence_report,
     print_talent_quality_report,
     print_train_result,
     print_tune_result,
@@ -92,6 +94,18 @@ from fantasy_baseball_manager.models.registry import list_models
 from fantasy_baseball_manager.models.run_manager import RunManager
 
 app = typer.Typer(name="fbm", help="Fantasy Baseball Manager — projection model CLI")
+
+
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable DEBUG logging")] = False,
+) -> None:
+    """Fantasy Baseball Manager — projection model CLI."""
+    configure_logging(verbose=verbose)
+    if ctx.invoked_subcommand is None:
+        raise typer.Exit()
+
 
 _ModelArg = Annotated[str, typer.Argument(help="Name of the projection model")]
 _OutputDirOpt = Annotated[str | None, typer.Option("--output-dir", help="Output directory for artifacts")]
@@ -1198,3 +1212,33 @@ def report_talent_quality(
         raise typer.Exit(code=1)
 
     print_talent_quality_report(reports)
+
+
+@report_app.command("residual-persistence")
+def report_residual_persistence(
+    system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
+    season: Annotated[list[int], typer.Option("--season", help="Two seasons (N and N+1)")],
+    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Diagnose residual persistence for batter projections across consecutive seasons."""
+    if len(season) != 2:
+        print_error("exactly two --season values required (N and N+1)")
+        raise typer.Exit(code=1)
+
+    parts = system.split("/", 1)
+    if len(parts) != 2:
+        print_error(f"invalid system format '{system}', expected 'system/version'")
+        raise typer.Exit(code=1)
+    sys_name, version = parts
+
+    season_n, season_n1 = sorted(season)
+
+    with build_report_context(data_dir) as ctx:
+        report = ctx.residual_diagnostic.diagnose(sys_name, version, season_n, season_n1, stats=stat)
+
+    if not report.stat_metrics:
+        console.print("No batter projections found.")
+        raise typer.Exit(code=1)
+
+    print_residual_persistence_report(report)

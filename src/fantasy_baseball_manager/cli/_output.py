@@ -8,6 +8,7 @@ from rich.table import Table
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, StratifiedComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
+from fantasy_baseball_manager.domain.residual_persistence import ResidualPersistenceReport
 from fantasy_baseball_manager.domain.talent_quality import TrueTalentQualityReport
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
@@ -539,10 +540,8 @@ def print_talent_quality_report(reports: list[TrueTalentQualityReport]) -> None:
             f"  Predictive validity:      {_pass_label(s.predictive_validity_passes, s.predictive_validity_total)}"
             " pass (model > raw)"
         )
-        console.print(
-            f"  Residual non-persistence: {_pass_label(s.residual_non_persistence_passes, s.residual_non_persistence_total)}"
-            " pass (|corr| < 0.15)"
-        )
+        res_label = _pass_label(s.residual_non_persistence_passes, s.residual_non_persistence_total)
+        console.print(f"  Residual non-persistence: {res_label} pass (|corr| < 0.15)")
         console.print(
             f"  Shrinkage quality:        {_pass_label(s.shrinkage_passes, s.shrinkage_total)} pass (ratio < 0.9)"
         )
@@ -585,3 +584,94 @@ def print_talent_quality_report(reports: list[TrueTalentQualityReport]) -> None:
                 )
             console.print(table)
         console.print()
+
+
+def print_residual_persistence_report(report: ResidualPersistenceReport) -> None:
+    """Print residual persistence diagnostic report."""
+    console.print(
+        f"[bold]Residual Persistence Diagnostic[/bold] — {report.system}/{report.version}"
+        f" ({report.season_n} -> {report.season_n1}, batters)"
+    )
+    console.print()
+
+    # Correlation table
+    if report.stat_metrics:
+        corr_table = Table(show_edge=False, pad_edge=False)
+        corr_table.add_column("Stat")
+        corr_table.add_column("Overall r", justify="right")
+        corr_table.add_column("<200 PA", justify="right")
+        corr_table.add_column("200-400", justify="right")
+        corr_table.add_column("400+", justify="right")
+        corr_table.add_column("N Ret", justify="right")
+        for m in report.stat_metrics:
+            color = "green" if m.persistence_pass else "red"
+            lt200 = f"{m.residual_corr_by_bucket.get('<200', 0.0):.3f}"
+            mid = f"{m.residual_corr_by_bucket.get('200-400', 0.0):.3f}"
+            gt400 = f"{m.residual_corr_by_bucket.get('400+', 0.0):.3f}"
+            corr_table.add_row(
+                m.stat_name,
+                f"[{color}]{m.residual_corr_overall:.3f}[/{color}]",
+                lt200,
+                mid,
+                gt400,
+                str(m.n_returning),
+            )
+        console.print("[bold]Residual Correlation (year-over-year):[/bold]")
+        console.print(corr_table)
+        console.print()
+
+        # RMSE ceiling table
+        rmse_table = Table(show_edge=False, pad_edge=False)
+        rmse_table.add_column("Stat")
+        rmse_table.add_column("RMSE Base", justify="right")
+        rmse_table.add_column("RMSE Corr", justify="right")
+        rmse_table.add_column("Improv %", justify="right")
+        for m in report.stat_metrics:
+            color = "green" if m.ceiling_pass else "red"
+            rmse_table.add_row(
+                m.stat_name,
+                f"{m.rmse_baseline:.4f}",
+                f"{m.rmse_corrected:.4f}",
+                f"[{color}]{m.rmse_improvement_pct:.1f}%[/{color}]",
+            )
+        console.print("[bold]RMSE Improvement Ceiling:[/bold]")
+        console.print(rmse_table)
+        console.print()
+
+        # Chronic performers
+        for m in report.stat_metrics:
+            if m.chronic_overperformers or m.chronic_underperformers:
+                console.print(f"[bold]Chronic Performers — {m.stat_name}:[/bold]")
+                if m.chronic_overperformers:
+                    console.print("  [green]Overperformers:[/green]")
+                    for p in m.chronic_overperformers:
+                        console.print(
+                            f"    {p.player_name}: res_N={p.residual_n:+.4f}"
+                            f" res_N+1={p.residual_n1:+.4f}"
+                            f" mean={p.mean_residual:+.4f}"
+                            f" PA={p.pa_n:.0f}/{p.pa_n1:.0f}"
+                        )
+                if m.chronic_underperformers:
+                    console.print("  [red]Underperformers:[/red]")
+                    for p in m.chronic_underperformers:
+                        console.print(
+                            f"    {p.player_name}: res_N={p.residual_n:+.4f}"
+                            f" res_N+1={p.residual_n1:+.4f}"
+                            f" mean={p.mean_residual:+.4f}"
+                            f" PA={p.pa_n:.0f}/{p.pa_n1:.0f}"
+                        )
+                console.print()
+
+    # Go/No-Go summary
+    s = report.summary
+    console.print("[bold]Go/No-Go Summary:[/bold]")
+    p_color = "green" if s.persistence_passes >= 3 else "red"
+    c_color = "green" if s.ceiling_passes >= 2 else "red"
+    go_color = "green" if s.go else "red"
+    console.print(
+        f"  Persistence passes: [{p_color}]{s.persistence_passes}/{s.persistence_total}[/{p_color}] (need 3+)"
+    )
+    console.print(f"  Ceiling passes:     [{c_color}]{s.ceiling_passes}/{s.ceiling_total}[/{c_color}] (need 2+)")
+    verdict = "GO" if s.go else "NO-GO"
+    console.print(f"  Verdict: [{go_color}][bold]{verdict}[/bold][/{go_color}]")
+    console.print()

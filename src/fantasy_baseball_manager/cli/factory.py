@@ -44,6 +44,7 @@ from fantasy_baseball_manager.services.dataset_catalog import DatasetCatalogServ
 from fantasy_baseball_manager.services.league_environment_service import LeagueEnvironmentService
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
+from fantasy_baseball_manager.services.residual_persistence_diagnostic import ResidualPersistenceDiagnostic
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
@@ -319,6 +320,7 @@ class ReportContext:
     conn: sqlite3.Connection
     report_service: PerformanceReportService
     talent_evaluator: TrueTalentEvaluator
+    residual_diagnostic: ResidualPersistenceDiagnostic
 
 
 @contextmanager
@@ -329,14 +331,21 @@ def build_report_context(data_dir: str) -> Iterator[ReportContext]:
         proj_repo = SqliteProjectionRepo(conn)
         batting_repo = SqliteBattingStatsRepo(conn)
         pitching_repo = SqlitePitchingStatsRepo(conn)
+        player_repo = SqlitePlayerRepo(conn)
         report_service = PerformanceReportService(
             proj_repo,
-            SqlitePlayerRepo(conn),
+            player_repo,
             batting_repo,
             pitching_repo,
         )
         talent_evaluator = TrueTalentEvaluator(proj_repo, batting_repo, pitching_repo)
-        yield ReportContext(conn=conn, report_service=report_service, talent_evaluator=talent_evaluator)
+        residual_diagnostic = ResidualPersistenceDiagnostic(proj_repo, batting_repo, player_repo)
+        yield ReportContext(
+            conn=conn,
+            report_service=report_service,
+            talent_evaluator=talent_evaluator,
+            residual_diagnostic=residual_diagnostic,
+        )
     finally:
         conn.close()
 
