@@ -417,6 +417,59 @@ class TestVarToDollars:
         assert result[0] == pytest.approx(11.6)
         assert result[1] == pytest.approx(8.4)
 
+    def test_roster_spots_total_limits_draftable(self) -> None:
+        # 4 players with VAR [10, 5, 2, -1], roster_spots_total=2, budget=100
+        # Top 2 positive-VAR players are draftable (VAR 10 and 5)
+        # n_draftable=2, surplus = 100 - 2*1 = 98, sum_draftable=15
+        # Player 0: 1 + (10/15)*98 = 1 + 65.333 = 66.333
+        # Player 1: 1 + (5/15)*98 = 1 + 32.667 = 33.667
+        # Players 2, 3: 0.0
+        result = var_to_dollars([10.0, 5.0, 2.0, -1.0], total_budget=100.0, roster_spots_total=2)
+        assert result[0] == pytest.approx(66.333, abs=0.01)
+        assert result[1] == pytest.approx(33.667, abs=0.01)
+
+    def test_roster_spots_total_non_draftable_get_zero(self) -> None:
+        result = var_to_dollars([10.0, 5.0, 2.0, -1.0], total_budget=100.0, roster_spots_total=2)
+        assert result[2] == 0.0
+        assert result[3] == 0.0
+
+    def test_roster_spots_total_draftable_sum_to_budget(self) -> None:
+        # 5 players, roster_spots_total=3
+        var_values = [10.0, 8.0, 5.0, 2.0, -1.0]
+        budget = 200.0
+        result = var_to_dollars(var_values, total_budget=budget, roster_spots_total=3)
+        draftable_sum = sum(d for d in result if d > 0.0)
+        assert draftable_sum == pytest.approx(budget)
+
+    def test_roster_spots_total_exceeds_positive_var_players(self) -> None:
+        # roster_spots_total=10 but only 3 players have positive VAR
+        var_values = [10.0, 5.0, 2.0, 0.0, -1.0, -3.0]
+        result = var_to_dollars(var_values, total_budget=100.0, roster_spots_total=10)
+        # All 3 positive-VAR players are draftable; the rest get $0
+        assert result[0] > 0.0
+        assert result[1] > 0.0
+        assert result[2] > 0.0
+        assert result[3] == 0.0
+        assert result[4] == 0.0
+        assert result[5] == 0.0
+
+    def test_roster_spots_total_preserves_input_order(self) -> None:
+        # Input not sorted by VAR; output must match original input order
+        var_values = [2.0, 10.0, -1.0, 5.0]
+        result = var_to_dollars(var_values, total_budget=100.0, roster_spots_total=2)
+        # Top 2 by VAR: index 1 (10.0) and index 3 (5.0) are draftable
+        # n_draftable=2, surplus = 100 - 2 = 98, sum_draftable=15
+        assert result[0] == 0.0  # VAR=2.0, not in top 2
+        assert result[1] == pytest.approx(1.0 + (10.0 / 15.0) * 98.0)  # draftable
+        assert result[2] == 0.0  # VAR=-1.0
+        assert result[3] == pytest.approx(1.0 + (5.0 / 15.0) * 98.0)  # draftable
+
+    def test_roster_spots_total_none_preserves_current_behavior(self) -> None:
+        # Explicitly pass roster_spots_total=None, same result as before
+        result_none = var_to_dollars([6.0, 4.0], total_budget=20.0, roster_spots_total=None)
+        result_default = var_to_dollars([6.0, 4.0], total_budget=20.0)
+        assert result_none == result_default
+
 
 def _league(
     batting_categories: tuple[CategoryConfig, ...] = (),
@@ -483,12 +536,14 @@ class TestRunZarPipeline:
         assert result.dollar_values == []
 
     def test_dollar_values_sum_to_budget(self) -> None:
+        # 3 players all at "of", 3 roster spots, 1 team → all draftable
         stats = [{"hr": 30.0}, {"hr": 20.0}, {"hr": 10.0}]
         categories = [_counting("hr")]
         positions = [["of"], ["of"], ["of"]]
-        roster_spots = {"of": 1}
+        roster_spots = {"of": 3}
         result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=90.0)
-        assert sum(result.dollar_values) == pytest.approx(90.0)
+        draftable_sum = sum(d for d in result.dollar_values if d > 0.0)
+        assert draftable_sum == pytest.approx(90.0)
 
     def test_z_scores_length_matches_input(self) -> None:
         stats = [{"hr": 30.0}, {"hr": 20.0}]
@@ -514,8 +569,9 @@ class TestRunZarPipeline:
         # z-scores: mean=25, pstdev=5 → z_A=1.0, z_B=-1.0
         # Replacement for "of" with 1 spot, 1 team: draftable=1, repl = z at index 1 = -1.0
         # VAR: A=1.0-(-1.0)=2.0, B=-1.0-(-1.0)=0.0
-        # var_to_dollars: budget=20, n=2, surplus=20-2=18, sum_positive=2.0
-        # A: 1 + (2.0/2.0)*18 = 19.0, B: 1.0 (no positive VAR)
+        # var_to_dollars (draftable-only): roster_spots_total=1, budget=20
+        # Only Player A has positive VAR (2.0), Player B has VAR=0.0 → non-draftable
+        # n_draftable=1, surplus=20-1=19, A: 1 + (2.0/2.0)*19 = 20.0, B: 0.0
         stats = [{"hr": 30.0}, {"hr": 20.0}]
         categories = [_counting("hr")]
         positions = [["of"], ["of"]]
@@ -524,5 +580,5 @@ class TestRunZarPipeline:
         assert result.z_scores[0].composite_z == pytest.approx(1.0)
         assert result.z_scores[1].composite_z == pytest.approx(-1.0)
         assert result.replacement["of"] == pytest.approx(-1.0)
-        assert result.dollar_values[0] == pytest.approx(19.0)
-        assert result.dollar_values[1] == pytest.approx(1.0)
+        assert result.dollar_values[0] == pytest.approx(20.0)
+        assert result.dollar_values[1] == pytest.approx(0.0)

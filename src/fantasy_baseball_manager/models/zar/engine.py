@@ -158,19 +158,50 @@ def var_to_dollars(
     var_values: list[float],
     total_budget: float,
     min_bid: float = 1.0,
+    *,
+    roster_spots_total: int | None = None,
 ) -> list[float]:
-    """Convert VAR to auction dollar values."""
+    """Convert VAR to auction dollar values.
+
+    When *roster_spots_total* is given, only the top N positive-VAR players
+    (where N = min(roster_spots_total, count of positive-VAR players)) share
+    the budget.  Non-draftable players receive $0.
+    """
     if not var_values:
         return []
 
-    n = len(var_values)
-    surplus = total_budget - n * min_bid
-    sum_positive = sum(v for v in var_values if v > 0.0)
+    if roster_spots_total is None:
+        # Legacy behaviour: every player shares the budget.
+        n = len(var_values)
+        surplus = total_budget - n * min_bid
+        sum_positive = sum(v for v in var_values if v > 0.0)
 
-    if sum_positive <= 0.0 or surplus <= 0.0:
-        return [min_bid] * n
+        if sum_positive <= 0.0 or surplus <= 0.0:
+            return [min_bid] * n
 
-    return [min_bid + (v / sum_positive) * surplus if v > 0.0 else min_bid for v in var_values]
+        return [min_bid + (v / sum_positive) * surplus if v > 0.0 else min_bid for v in var_values]
+
+    # Draftable-only mode: rank players by VAR descending, pick top N positive.
+    indexed = sorted(enumerate(var_values), key=lambda iv: iv[1], reverse=True)
+    draftable_indices: set[int] = set()
+    for idx, var in indexed:
+        if var <= 0.0:
+            break
+        if len(draftable_indices) >= roster_spots_total:
+            break
+        draftable_indices.add(idx)
+
+    n_draftable = len(draftable_indices)
+    if n_draftable == 0:
+        return [0.0] * len(var_values)
+
+    sum_draftable_var = sum(var_values[i] for i in draftable_indices)
+    surplus = total_budget - n_draftable * min_bid
+
+    result = [0.0] * len(var_values)
+    for i in draftable_indices:
+        result[i] = min_bid + (var_values[i] / sum_draftable_var) * surplus
+    return result
 
 
 @dataclass(frozen=True)
@@ -196,7 +227,8 @@ def run_zar_pipeline(
     z_scores = compute_z_scores(converted, category_keys)
     replacement = compute_replacement_level(z_scores, player_positions, roster_spots, num_teams)
     var_values = compute_var(z_scores, replacement, player_positions)
-    dollar_values = var_to_dollars(var_values, budget)
+    roster_spots_total = sum(spots * num_teams for spots in roster_spots.values())
+    dollar_values = var_to_dollars(var_values, budget, roster_spots_total=roster_spots_total)
     return ZarPipelineResult(z_scores=z_scores, replacement=replacement, dollar_values=dollar_values)
 
 
