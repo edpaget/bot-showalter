@@ -3,12 +3,21 @@ from typing import Any
 import pytest
 
 from fantasy_baseball_manager.cli._output import (
+    print_comparison_result,
     print_error,
     print_features,
     print_player_projections,
     print_player_valuations,
+    print_stratified_comparison_result,
+    print_system_metrics,
     print_valuation_eval_result,
     print_valuation_rankings,
+)
+from fantasy_baseball_manager.domain.evaluation import (
+    ComparisonResult,
+    StatMetrics,
+    StratifiedComparisonResult,
+    SystemMetrics,
 )
 from fantasy_baseball_manager.domain.projection import PlayerProjection
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationAccuracy, ValuationEvalResult
@@ -323,3 +332,60 @@ class TestPrintValuationEvalResult:
         assert "Aaron Judge" in captured.out
         assert "40.0" in captured.out
         assert "35.0" in captured.out
+
+
+def _make_stat_metrics(
+    rmse: float = 0.05,
+    mae: float = 0.04,
+    correlation: float = 0.9,
+    r_squared: float = 0.75,
+    n: int = 100,
+) -> StatMetrics:
+    return StatMetrics(rmse=rmse, mae=mae, correlation=correlation, r_squared=r_squared, n=n)
+
+
+def _make_system_metrics(
+    system: str = "steamer",
+    version: str = "2025",
+    source_type: str = "third_party",
+    stats: dict[str, StatMetrics] | None = None,
+) -> SystemMetrics:
+    if stats is None:
+        stats = {"hr": _make_stat_metrics(), "avg": _make_stat_metrics(r_squared=0.65)}
+    return SystemMetrics(system=system, version=version, source_type=source_type, metrics=stats)
+
+
+class TestPrintSystemMetrics:
+    def test_r_squared_header_in_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_system_metrics(_make_system_metrics())
+        captured = capsys.readouterr()
+        assert "R²" in captured.out
+
+    def test_r_squared_value_in_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_system_metrics(_make_system_metrics())
+        captured = capsys.readouterr()
+        assert "0.7500" in captured.out
+        assert "0.6500" in captured.out
+
+
+class TestPrintComparisonResult:
+    def test_comparison_shows_r_squared(self, capsys: pytest.CaptureFixture[str]) -> None:
+        sys_a = _make_system_metrics(system="steamer", version="2025", stats={"hr": _make_stat_metrics(r_squared=0.60)})
+        sys_b = _make_system_metrics(system="zips", version="2025", stats={"hr": _make_stat_metrics(r_squared=0.45)})
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "R²" in captured.out
+        assert "0.6000" in captured.out
+        assert "0.4500" in captured.out
+
+
+class TestPrintStratifiedComparisonResult:
+    def test_stratified_shows_r_squared(self, capsys: pytest.CaptureFixture[str]) -> None:
+        sys_a = _make_system_metrics(system="steamer", version="2025", stats={"hr": _make_stat_metrics(r_squared=0.55)})
+        cohort = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a])
+        result = StratifiedComparisonResult(dimension="pa_bucket", season=2024, stats=["hr"], cohorts={"top": cohort})
+        print_stratified_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "R²" in captured.out
+        assert "0.5500" in captured.out

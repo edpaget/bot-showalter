@@ -48,6 +48,47 @@ class TestComputeStatMetricsBasic:
         assert result["hr"].rmse == 0.0
         assert result["hr"].mae == 0.0
 
+    def test_r_squared_perfect_predictions(self) -> None:
+        comparisons = [
+            ProjectionComparison(stat_name="hr", projected=30.0, actual=30.0, error=0.0),
+            ProjectionComparison(stat_name="hr", projected=25.0, actual=25.0, error=0.0),
+            ProjectionComparison(stat_name="hr", projected=15.0, actual=15.0, error=0.0),
+        ]
+        result = compute_stat_metrics(comparisons)
+        assert result["hr"].r_squared == pytest.approx(1.0)
+
+    def test_r_squared_zero_when_predictions_equal_mean(self) -> None:
+        # All predictions = mean of actuals (22.0) → SS_res == SS_tot → R² = 0
+        comparisons = [
+            ProjectionComparison(stat_name="hr", projected=22.0, actual=30.0, error=-8.0),
+            ProjectionComparison(stat_name="hr", projected=22.0, actual=25.0, error=-3.0),
+            ProjectionComparison(stat_name="hr", projected=22.0, actual=11.0, error=11.0),
+        ]
+        result = compute_stat_metrics(comparisons)
+        assert result["hr"].r_squared == pytest.approx(0.0)
+
+    def test_r_squared_negative_when_worse_than_mean(self) -> None:
+        # Predictions that are further from actuals than the mean would be
+        comparisons = [
+            ProjectionComparison(stat_name="hr", projected=10.0, actual=30.0, error=-20.0),
+            ProjectionComparison(stat_name="hr", projected=40.0, actual=20.0, error=20.0),
+            ProjectionComparison(stat_name="hr", projected=5.0, actual=25.0, error=-20.0),
+        ]
+        result = compute_stat_metrics(comparisons)
+        assert result["hr"].r_squared < 0.0
+
+    def test_r_squared_known_values(self) -> None:
+        # actuals = [2, 4, 6], mean = 4
+        # projected = [3, 4, 5], errors = [1, 0, -1]
+        # SS_res = 1+0+1 = 2, SS_tot = 4+0+4 = 8, R² = 1 - 2/8 = 0.75
+        comparisons = [
+            ProjectionComparison(stat_name="hr", projected=3.0, actual=2.0, error=1.0),
+            ProjectionComparison(stat_name="hr", projected=4.0, actual=4.0, error=0.0),
+            ProjectionComparison(stat_name="hr", projected=5.0, actual=6.0, error=-1.0),
+        ]
+        result = compute_stat_metrics(comparisons)
+        assert result["hr"].r_squared == pytest.approx(0.75)
+
     def test_filters_requested_stats(self) -> None:
         comparisons = [
             ProjectionComparison(stat_name="hr", projected=30.0, actual=28.0, error=2.0),

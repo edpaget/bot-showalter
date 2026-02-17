@@ -345,7 +345,7 @@ class TestMarcelEvaluate:
             system="marcel",
             version="latest",
             source_type="first_party",
-            metrics={"hr": StatMetrics(rmse=0.1, mae=0.05, correlation=0.9, n=100)},
+            metrics={"hr": StatMetrics(rmse=0.1, mae=0.05, correlation=0.9, r_squared=0.81, n=100)},
         )
         evaluator = _FakeEvaluator(metrics)
         model = MarcelModel(evaluator=evaluator)

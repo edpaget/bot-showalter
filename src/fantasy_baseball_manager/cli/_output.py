@@ -77,10 +77,13 @@ def print_system_metrics(metrics: SystemMetrics) -> None:
     table.add_column("RMSE", justify="right")
     table.add_column("MAE", justify="right")
     table.add_column("r", justify="right")
+    table.add_column("R²", justify="right")
     table.add_column("N", justify="right")
     for stat_name in sorted(metrics.metrics):
         m = metrics.metrics[stat_name]
-        table.add_row(stat_name, f"{m.rmse:.4f}", f"{m.mae:.4f}", f"{m.correlation:.4f}", str(m.n))
+        table.add_row(
+            stat_name, f"{m.rmse:.4f}", f"{m.mae:.4f}", f"{m.correlation:.4f}", f"{m.r_squared:.4f}", str(m.n)
+        )
     console.print(table)
 
 
@@ -90,12 +93,15 @@ def print_comparison_result(result: ComparisonResult) -> None:
     table = Table(show_edge=False, pad_edge=False)
     table.add_column("Stat")
     for sys_metrics in result.systems:
-        table.add_column(f"{sys_metrics.system}/{sys_metrics.version}", justify="right")
+        label = f"{sys_metrics.system}/{sys_metrics.version}"
+        table.add_column(f"{label} RMSE", justify="right")
+        table.add_column(f"{label} R²", justify="right")
     for stat_name in result.stats:
         values: list[str] = []
         for sys_metrics in result.systems:
             m = sys_metrics.metrics.get(stat_name)
             values.append(f"{m.rmse:.4f}" if m else "—")
+            values.append(f"{m.r_squared:.4f}" if m else "—")
         table.add_row(stat_name, *values)
     console.print(table)
 
@@ -111,12 +117,15 @@ def print_stratified_comparison_result(result: StratifiedComparisonResult) -> No
         table = Table(show_edge=False, pad_edge=False)
         table.add_column("Stat")
         for sys_metrics in comp.systems:
-            table.add_column(f"{sys_metrics.system}/{sys_metrics.version}", justify="right")
+            label = f"{sys_metrics.system}/{sys_metrics.version}"
+            table.add_column(f"{label} MAE", justify="right")
+            table.add_column(f"{label} R²", justify="right")
         for stat_name in comp.stats:
             values: list[str] = []
             for sys_metrics in comp.systems:
                 m = sys_metrics.metrics.get(stat_name)
                 values.append(f"{m.mae:.4f}" if m else "—")
+                values.append(f"{m.r_squared:.4f}" if m else "—")
             table.add_row(stat_name, *values)
         console.print(table)
         console.print()

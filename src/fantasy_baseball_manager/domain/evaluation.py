@@ -11,6 +11,7 @@ class StatMetrics:
     rmse: float
     mae: float
     correlation: float
+    r_squared: float
     n: int
 
 
@@ -65,6 +66,11 @@ def compute_stat_metrics(
             except statistics.StatisticsError:
                 correlation = 0.0
 
-        result[stat_name] = StatMetrics(rmse=rmse, mae=mae, correlation=correlation, n=n)
+        ss_res = sum(e * e for e in errors)
+        mean_actual = sum(c.actual for c in comps) / n
+        ss_tot = sum((c.actual - mean_actual) ** 2 for c in comps)
+        r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+
+        result[stat_name] = StatMetrics(rmse=rmse, mae=mae, correlation=correlation, r_squared=r_squared, n=n)
 
     return result
