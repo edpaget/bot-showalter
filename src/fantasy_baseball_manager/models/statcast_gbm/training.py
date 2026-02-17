@@ -1,4 +1,3 @@
-import copy
 import random
 from typing import Any, NamedTuple
 
@@ -136,7 +135,7 @@ def compute_permutation_importance(
     for j, col_name in enumerate(feature_columns):
         repeat_increases: list[float] = []
         for _ in range(n_repeats):
-            X_permuted = copy.deepcopy(X)
+            X_permuted = [row[:] for row in X]
             perm = list(range(n_rows))
             rng.shuffle(perm)
             for i in range(n_rows):
