@@ -137,6 +137,9 @@ class _StatcastGBMBase:
         artifact_path = self._artifact_path(config)
         artifact_path.mkdir(parents=True, exist_ok=True)
 
+        batter_params = config.model_params.get("batter", config.model_params)
+        pitcher_params = config.model_params.get("pitcher", config.model_params)
+
         # --- Batter training ---
         bat_fs = self._batter_training_set_builder(config.seasons)
         bat_handle = self._assembler.get_or_materialize(bat_fs)
@@ -148,7 +151,7 @@ class _StatcastGBMBase:
 
         bat_X_train = extract_features(bat_train_rows, bat_feature_cols)
         bat_y_train = extract_targets(bat_train_rows, bat_targets)
-        bat_models = fit_models(bat_X_train, bat_y_train, config.model_params)
+        bat_models = fit_models(bat_X_train, bat_y_train, batter_params)
 
         if bat_splits.holdout is not None:
             bat_holdout_rows = self._assembler.read(bat_splits.holdout)
@@ -171,7 +174,7 @@ class _StatcastGBMBase:
 
         pit_X_train = extract_features(pit_train_rows, pit_feature_cols)
         pit_y_train = extract_targets(pit_train_rows, pit_targets)
-        pit_models = fit_models(pit_X_train, pit_y_train, config.model_params)
+        pit_models = fit_models(pit_X_train, pit_y_train, pitcher_params)
 
         if pit_splits.holdout is not None:
             pit_holdout_rows = self._assembler.read(pit_splits.holdout)

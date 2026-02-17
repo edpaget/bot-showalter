@@ -1,43 +1,68 @@
 # Statcast GBM Model: Evaluation & Analysis
 
-**Model version:** latest (retrained 2026-02-15)
-**Training data:** 2022-2024 (holdout: 2024)
+**Model version:** latest (retrained 2026-02-17)
+**Training data:** 2022-2024 (holdout: 2025)
 **Evaluation season:** 2025 actuals (FanGraphs)
-**Date:** 2026-02-15
+**Date:** 2026-02-17
 
 ## Overview
 
-The statcast-gbm model is a gradient-boosted regression model that uses Statcast
-pitch-level data (exit velocity, spin rates, plate discipline metrics, expected stats)
-alongside traditional lag statistics to project rate stats for batters and pitchers.
-It predicts rate/ratio stats only (no counting stats, no WAR, no playing time).
+The statcast-gbm family consists of two gradient-boosted regression models that use
+Statcast pitch-level data (exit velocity, spin rates, plate discipline metrics,
+expected stats) alongside traditional lag statistics to estimate rate stats for
+batters and pitchers. They predict rate/ratio stats only (no counting stats, no WAR,
+no playing time).
 
-The model is built on scikit-learn's `HistGradientBoostingRegressor` with separate
-models for each target stat. Batter and pitcher pipelines are fully independent
+Both models are built on scikit-learn's `HistGradientBoostingRegressor` with separate
+sub-models for each target stat. Batter and pitcher pipelines are fully independent
 with different feature sets tailored to each player type.
 
-### Two operating modes
+### Architecture: Two registered models
 
-The model supports two modes via the `mode` config param:
+The family is implemented as two separate registered model classes sharing a common
+base (`_StatcastGBMBase`):
 
-- **`true_talent`** (default): Uses **same-season Statcast features** — trains on
-  2023 exit velocity to predict 2023 AVG, then uses 2025 Statcast data to predict
-  2025 rates. This is a true-talent estimator: given what a player actually did in
-  the Statcast data, what are his expected rate stats?
+- **`statcast-gbm`** (`StatcastGBMModel`): A **true-talent estimator** that uses
+  **same-season Statcast features**. It trains on historical season data (e.g., 2023
+  exit velocity → 2023 AVG) and then applies the learned relationship to the current
+  season's Statcast data to estimate what a player's rate stats *should* be given
+  their underlying quality of contact, plate discipline, and stuff metrics. The
+  difference between a player's actual stats and the model's estimate reveals
+  over/underperformance — useful for in-season buy-low/sell-high analysis.
 
-- **`preseason`**: Uses **prior-season Statcast features** (lag=1) — trains on 2022
-  exit velocity to predict 2023 AVG, then uses 2024 Statcast data to predict 2025
-  rates. This enables genuine pre-season projections comparable to Marcel/Steamer.
-  Preseason artifacts are stored under a `preseason/` subdirectory.
+  **Important:** This is NOT a projection model. It does not predict the future. It
+  estimates current true talent from current-season Statcast data. See
+  [Evaluation Methodology](#evaluation-methodology-for-true-talent-estimator) below
+  for how to properly evaluate a true-talent estimator.
 
-The sections below evaluate both modes. The true-talent results represent a ceiling
-for estimating underlying quality; the preseason results show how the model performs
-as a genuine blind forecast comparable to Marcel and Steamer.
+- **`statcast-gbm-preseason`** (`StatcastGBMPreseasonModel`): A **projection model**
+  that uses **prior-season Statcast features** (lag=1). It trains on historical data
+  (e.g., 2022 exit velocity → 2023 AVG) and uses prior-year Statcast data to make
+  genuine pre-season projections comparable to Marcel/Steamer.
 
-Additionally, the model's true-talent estimates can be blended into Marcel's inputs
+Each model is independently registered in the model registry and has its own feature
+set, curated column list, and artifact directory. They are invoked separately via CLI:
+
+```bash
+fbm train statcast-gbm --season 2022 --season 2023 --season 2024 --season 2025
+fbm train statcast-gbm-preseason --season 2022 --season 2023 --season 2024 --season 2025
+```
+
+The true-talent estimates from `statcast-gbm` can be blended into Marcel's inputs
 via statcast-adjusted Marcel (`statcast_augment = true` in Marcel config), and
 compared against actuals via the `fbm report talent-delta` command for in-season
 buy-low/sell-high analysis.
+
+### Phase 1 feature pruning (2026-02-17)
+
+The live model (`statcast-gbm`) uses **curated (pruned) feature sets** based on an
+ablation study. Features with zero or negative permutation importance were removed:
+- Batter: 14 features removed (all lag stats except `so_1`, `age`, `ld_pct`)
+- Pitcher: 20 features removed (most pitch-mix and movement features, `age`, several lag stats)
+
+The preseason model (`statcast-gbm-preseason`) retains its **full unpruned feature
+sets** after a no-go gate result on pruning (pruning degraded preseason batter
+accuracy).
 
 ## What It Predicts
 
@@ -53,54 +78,155 @@ a complete player forecast.
 
 ## Features
 
-### Batter features (30 total)
+### Live model (`statcast-gbm`) — curated features
+
+After Phase 1 pruning, the live model uses a reduced feature set focused on the
+features with positive permutation importance.
+
+#### Batter features (21 total)
+
+| Category | Features | Description |
+|----------|----------|-------------|
+| Lag stats | `so_1` | Only strikeouts from prior season (all other lag stats pruned) |
+| Batted ball | `avg_exit_velo`, `max_exit_velo`, `barrel_pct`, `hard_hit_pct`, `sweet_spot_pct`, `gb_pct`, `fb_pct` | Same-season Statcast quality-of-contact metrics |
+| Plate discipline | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct`, `k_pct_1`, `bb_pct_1` | Same-season swing decision metrics |
+| Expected stats | `xba`, `xwoba`, `xslg` | Same-season Statcast expected outcomes |
+| Spray angle | `pull_pct`, `center_pct`, `oppo_pct` | Same-season spray distribution |
+
+#### Pitcher features (26 total)
+
+| Category | Features | Description |
+|----------|----------|-------------|
+| Lag stats | `ip_1`, `era_1`, `fip_1` | Key prior-season stats (most lag stats pruned) |
+| Pitch velocity | `ff_velo`, `ch_velo`, `cu_velo`, `fc_velo` | Same-season fastball, change, curve, cutter velocity |
+| Pitch mix | `ch_pct`, `cu_pct`, `fc_pct` | Same-season usage % for 3 pitch types |
+| Spin profile | `avg_spin_rate`, `ff_spin`, `ch_spin`, `ff_h_break`, `avg_v_break` | Same-season spin and movement |
+| Extensions | `avg_extension` | Release point extension |
+| Plate discipline | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct`, `first_pitch_strike_pct` | Same-season swing decision metrics |
+| Batted ball | `fb_pct_against`, `gb_pct_against`, `hard_hit_pct_against` | Same-season batted-ball quality against |
+
+### Preseason model (`statcast-gbm-preseason`) — full features
+
+The preseason model retains its full unpruned feature set (pruning failed the
+go/no-go gate for this model).
+
+#### Batter features (35 total)
 
 | Category | Features | Description |
 |----------|----------|-------------|
 | Age | `age` | Player age at season start |
-| Lag stats (year 1 & 2) | `pa`, `hr`, `h`, `doubles`, `triples`, `bb`, `so`, `sb` x 2 lags | Traditional FanGraphs stats from prior two seasons |
-| Batted ball | `avg_exit_velo`, `max_exit_velo`, `avg_launch_angle`, `barrel_pct`, `hard_hit_pct` | Same-season Statcast quality-of-contact metrics |
-| Plate discipline | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct` | Same-season swing decision metrics |
-| Expected stats | `xba`, `xwoba`, `xslg` | Same-season Statcast expected outcomes based on batted-ball physics |
+| Lag stats (year 1) | `pa`, `hr`, `h`, `doubles`, `triples`, `bb`, `so`, `sb`, `avg`, `obp`, `slg` | Traditional FanGraphs stats from prior season |
+| Batted ball (lag 1) | `avg_exit_velo`, `max_exit_velo`, `avg_launch_angle`, `barrel_pct`, `hard_hit_pct`, `sweet_spot_pct`, `gb_pct`, `fb_pct`, `ld_pct` | Prior-season Statcast quality-of-contact |
+| Plate discipline (lag 1) | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct` | Prior-season swing decision metrics |
+| Expected stats (lag 1) | `xba`, `xwoba`, `xslg` | Prior-season expected outcomes |
+| Spray angle (lag 1) | `pull_pct`, `center_pct`, `oppo_pct` | Prior-season spray distribution |
+| Rate stats (lag 1) | `k_pct_1`, `bb_pct_1` | Prior-season K% and BB% |
 
-### Pitcher features (36 total)
+#### Pitcher features (46 total)
 
 | Category | Features | Description |
 |----------|----------|-------------|
 | Age | `age` | Player age at season start |
-| Lag stats (year 1 & 2) | `ip`, `so`, `bb`, `hr`, `era`, `fip` x 2 lags | Traditional FanGraphs stats from prior two seasons |
-| Pitch mix | `ff_pct/velo`, `sl_pct/velo`, `ch_pct/velo`, `cu_pct/velo`, `si_pct/velo`, `fc_pct/velo` | Same-season usage % and velocity for 6 pitch types |
-| Spin profile | `avg_spin_rate`, `ff_spin`, `sl_spin`, `cu_spin`, `avg_h_break`, `avg_v_break` | Same-season spin rates and movement |
-| Plate discipline | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct` | Same-season swing decision metrics (from pitcher's perspective) |
+| Lag stats (year 1) | `ip`, `so`, `bb`, `hr`, `era`, `fip` | Traditional FanGraphs stats from prior season |
+| Pitch velocity (lag 1) | `ff_velo`, `sl_velo`, `ch_velo`, `cu_velo`, `si_velo`, `fc_velo` | Prior-season pitch velocities |
+| Pitch mix (lag 1) | `ff_pct`, `sl_pct`, `ch_pct`, `cu_pct`, `si_pct`, `fc_pct` | Prior-season usage percentages |
+| Spin profile (lag 1) | `avg_spin_rate`, `ff_spin`, `sl_spin`, `ch_spin`, `cu_spin` | Prior-season spin rates |
+| Movement (lag 1) | `ff_h_break`, `sl_h_break`, `avg_v_break`, `sl_v_break`, `ch_h_break`, `ch_v_break`, `cu_h_break`, `cu_v_break` | Prior-season pitch movement |
+| Extensions (lag 1) | `avg_extension` | Prior-season release extension |
+| Plate discipline (lag 1) | `chase_rate`, `zone_contact_pct`, `whiff_rate`, `swinging_strike_pct`, `called_strike_pct`, `first_pitch_strike_pct` | Prior-season swing decision metrics |
+| Batted ball (lag 1) | `fb_pct_against`, `gb_pct_against`, `hard_hit_pct_against` | Prior-season batted-ball quality against |
 
-## Holdout Metrics (2024 season)
+## Evaluation Methodology for True-Talent Estimator
+
+The live model (`statcast-gbm`) is a **true-talent estimator**, not a projection
+model. This distinction affects how it should be trained, used, and evaluated.
+
+### How it works
+
+The model learns the mapping: *same-season Statcast features → same-season rate
+stats*. For example, it learns "a batter with 90 mph avg exit velo, 12% barrel
+rate, and 8% whiff rate typically posts a .270 AVG." It then applies this learned
+relationship to a new season's Statcast data to estimate what a player's stats
+*should* be given their underlying skill indicators.
+
+The **residual** (actual stat - model estimate) reveals over/underperformance:
+- Positive residual = player outperformed their Statcast indicators (luck, sequencing)
+- Negative residual = player underperformed (bad luck, could be a buy-low candidate)
+
+### Training approach
+
+The model trains on **prior completed seasons** (e.g., 2022-2024) and predicts the
+**current season** (2025) using same-season Statcast inputs. It does NOT train on
+the prediction season, because:
+
+1. **During the season**: Full-season targets aren't available yet, so you can't
+   include the current season in training.
+2. **After the season** (for evaluation): Including the prediction season in training
+   would be in-sample evaluation, giving unrealistically optimistic metrics.
+
+The training data teaches the general Statcast → rate stat relationship across
+multiple seasons. This relationship transfers to new seasons because the physics
+of batted balls and swing mechanics don't change year-to-year (barring rule changes).
+
+### Proper evaluation approaches
+
+Standard RMSE-vs-actuals is a useful but incomplete metric for true-talent estimators.
+Better approaches include:
+
+1. **Next-season predictive validity**: If the model correctly estimates true talent,
+   then its 2024 estimates should predict 2025 actuals better than 2024 raw stats
+   predict 2025 actuals. This tests whether the model's "de-noising" of raw stats
+   actually improves signal quality.
+
+2. **Residual non-persistence**: If residuals (actual - estimate) truly represent
+   noise rather than skill, they should not persist year-to-year. Measure the
+   correlation between 2024 residuals and 2025 residuals — it should be near zero.
+   High correlation would suggest the model is systematically mis-estimating certain
+   player types.
+
+3. **Shrinkage quality**: Compare the model's estimates to raw stats. The estimates
+   should be "shrunk" toward the mean (less extreme than raw stats). Good shrinkage
+   means the estimates have lower variance but similar or better correlation with
+   next-season stats compared to raw stats.
+
+4. **R-squared decomposition**: What fraction of within-season variance does the
+   model explain? A good true-talent estimator should have high R² with residuals
+   that are genuinely random (no pattern by player type, sample size, or park).
+
+5. **Residual regression to estimate**: If the model is right, players who
+   outperformed their true-talent estimate in year N should regress toward the
+   estimate in year N+1. Measure how much of the residual "corrects" — a well-
+   calibrated model should see ~100% regression of residuals.
+
+These approaches require multi-season data and are planned for future evaluation
+work. The current evaluation uses standard RMSE-vs-actuals as a pragmatic baseline.
+
+## Holdout Metrics (2025 season)
 
 These are RMSE values from the time-series holdout split during training
-(trained on 2022-2023, tested on 2024). Both modes use the same split.
+(trained on 2022-2024, holdout on 2025).
 
-| Target | True-Talent | Preseason | Delta |
-|--------|-------------|-----------|-------|
-| **Batter** | | | |
-| avg | 0.0326 | 0.0488 | +0.016 |
-| obp | 0.0343 | 0.0584 | +0.024 |
-| slg | 0.0597 | 0.0871 | +0.027 |
-| woba | 0.0368 | 0.0581 | +0.021 |
-| iso | 0.0369 | 0.0507 | +0.014 |
-| babip | 0.0689 | 0.0735 | +0.005 |
-| **Pitcher** | | | |
-| era | 6.267 | 6.163 | -0.083 |
-| fip | 3.498 | 3.511 | +0.013 |
-| k/9 | 2.064 | 2.982 | +0.918 |
-| bb/9 | 3.205 | 3.712 | +0.507 |
-| hr/9 | 5.333 | 5.211 | -0.122 |
-| babip | 0.130 | 0.124 | -0.006 |
-| whip | 0.858 | 0.893 | +0.035 |
+| Target | Live (pruned) | Preseason (unpruned) |
+|--------|---------------|----------------------|
+| **Batter** | | |
+| avg | 0.0311 | 0.0492 |
+| obp | 0.0336 | 0.0589 |
+| slg | 0.0595 | 0.0873 |
+| woba | 0.0358 | 0.0583 |
+| iso | 0.0357 | 0.0512 |
+| babip | 0.0683 | 0.0744 |
+| **Pitcher** | | |
+| era | 6.153 | 6.268 |
+| fip | 3.404 | 3.467 |
+| k/9 | 1.981 | 2.980 |
+| bb/9 | 2.710 | 3.757 |
+| hr/9 | 5.264 | 5.216 |
+| babip | 0.125 | 0.123 |
+| whip | 0.850 | 0.923 |
 
-Preseason batter stats degrade 22-46% without same-season Statcast data, with
-BABIP being the most stable (+7%). Pitcher ERA, FIP, HR/9, and BABIP are
-essentially unchanged — prior-year stuff metrics (spin, velocity, movement) are
-highly stable year-to-year. K/9 and BB/9 degrade significantly (+44% and +16%),
-suggesting plate discipline metrics shift more between seasons than stuff does.
+The live model's pruned features improved holdout RMSE on all 8 primary targets
+(8/8 GO at the Phase 1 gate). Preseason pruning was reverted after failing the
+go/no-go gate (only 2/8 targets improved).
 
 ## Ablation Study
 
@@ -136,17 +262,18 @@ removing the feature increases RMSE more (feature is more important).
 
 ## Accuracy vs Other Systems (2025 Season)
 
-### True-talent mode (same-season Statcast)
+### `statcast-gbm` — live model (same-season Statcast)
 
-Note: true-talent uses same-season Statcast input, giving it an information
-advantage over Marcel and Steamer (which are pre-season projections).
+Note: the live model uses same-season Statcast input, giving it an information
+advantage over Marcel and Steamer (which are pre-season projections). This is
+by design — it's a true-talent estimator, not a projection system.
 
 #### Full player pool
 
 RMSE comparison across all players with 2025 FanGraphs actuals. Lower is better.
 Bold = best in row.
 
-| Stat | Marcel | True-Talent | Steamer | Ensemble (60/40) |
+| Stat | Marcel | Live | Steamer | Ensemble (60/40) |
 |------|--------|-------------|---------|-------------------|
 | avg | 0.0587 | **0.0479** | 0.0515 | 0.0494 |
 | obp | 0.0643 | **0.0510** | 0.0551 | 0.0529 |
@@ -157,14 +284,14 @@ Bold = best in row.
 | k/9 | 2.435 | **1.858** | 2.122 | 1.940 |
 | bb/9 | 3.541 | **2.566** | 3.456 | 2.615 |
 
-True-talent leads on every stat except ERA and WHIP (where the ensemble wins).
+The live model leads on every stat except ERA and WHIP (where the ensemble wins).
 
 #### Top 200 players (by WAR)
 
 The fantasy-relevant comparison. Top 200 by 2025 WAR filters to everyday
 players and rotation arms — the population fantasy managers care most about.
 
-| Stat | Marcel | True-Talent | Steamer | Ensemble (60/40) |
+| Stat | Marcel | Live | Steamer | Ensemble (60/40) |
 |------|--------|-------------|---------|-------------------|
 | avg | 0.0286 | 0.0233 | 0.0247 | **0.0228** |
 | obp | 0.0307 | 0.0263 | 0.0263 | **0.0251** |
@@ -175,12 +302,12 @@ players and rotation arms — the population fantasy managers care most about.
 | k/9 | 1.808 | **1.009** | 1.329 | 1.256 |
 | bb/9 | 0.883 | 0.831 | 0.759 | **0.748** |
 
-For top 200: true-talent leads on AVG, SLG, and K/9. The ensemble leads on
+For top 200: the live model leads on AVG, SLG, and K/9. The ensemble leads on
 AVG, OBP, and BB/9. Steamer leads on ERA, FIP, and WHIP for elite players.
 
-### Preseason mode (prior-season Statcast)
+### `statcast-gbm-preseason` — preseason model (prior-season Statcast)
 
-This is the apples-to-apples comparison: preseason mode uses only prior-year
+This is the apples-to-apples comparison: the preseason model uses only prior-year
 data, just like Marcel and Steamer.
 
 #### Full player pool
@@ -258,13 +385,13 @@ batted-ball events, new pitch types). No imputation heuristics needed.
 
 ## Weaknesses
 
-### 1. Preseason mode lags behind Marcel and Steamer on batter stats
+### 1. Preseason model lags behind Marcel and Steamer on batter stats
 
-The preseason mode enables genuine pre-season projections but is not competitive
+The preseason model enables genuine pre-season projections but is not competitive
 with Marcel or Steamer on batter rate stats (AVG, OBP, SLG). Lagging the Statcast
-features by one year costs ~22% accuracy on AVG and ~28% on SLG compared to
-true-talent mode. The preseason model's strength is pitcher ERA/FIP/WHIP for the
-full player pool, where prior-year stuff metrics retain strong predictive power.
+features by one year costs ~22% accuracy on AVG and ~28% on SLG compared to the
+live model. The preseason model's strength is pitcher ERA/FIP/WHIP for the full
+player pool, where prior-year stuff metrics retain strong predictive power.
 
 ### 2. No counting stats or playing time
 
@@ -295,12 +422,50 @@ While pitcher projections dominate the full pool, Steamer wins on ERA (0.996 vs
 For established arms, Steamer's deeper modeling (park factors, defense, workload)
 adds value that raw Statcast features don't fully capture.
 
-### 5. Training data is only 2 seasons deep
+### 5. Training data is only 3 seasons deep
 
-The model trains on 2022-2023 and validates on 2024. This is a very small
-training set. More seasons would help the model learn better regression patterns,
-but Statcast data quality and rule changes (pitch clock in 2023, shift ban) create
+The model trains on 2022-2024 and validates on 2025. This is a small training
+set. More seasons would help the model learn better regression patterns, but
+Statcast data quality and rule changes (pitch clock in 2023, shift ban) create
 legitimate reasons to limit the lookback window.
+
+### 6. No player-level persistence — regression toward population mean
+
+The model uses a flat `HistGradientBoostingRegressor` per target stat with no
+player-level random effects or hierarchical structure. Each (player, season)
+row is treated independently. Player identity is captured **only** through that
+season's observed Statcast metrics — there are no player-specific intercepts,
+no multi-year memory, and most lag-1 stats were pruned as noisy.
+
+This architecture creates an asymmetry between batter and pitcher predictions:
+
+**Pitchers**: Stuff metrics (whiff_rate, spin_rate, chase_rate) are tight
+mechanical proxies for skill. A pitcher with elite spin and whiff rates will
+miss bats regardless of who they are. The Statcast → outcome mapping is strong,
+and stronger regularization helps the model learn the stable relationship
+without overfitting to in-season noise (strand rate, BABIP-against, HR/FB
+variance). This is why pitcher hyperparameter tuning improved accuracy.
+
+**Batters**: Exit velocity and plate discipline are noisier predictors of
+traditional rate stats. Two batters with identical exit velocity profiles can
+have very different AVGs because of BABIP variance (speed, spray quality,
+opponent defense, luck), approach consistency (elite batters make mid-season
+adjustments that don't show up in aggregate Statcast distributions), and
+selection effects (facing different pitch mixes). The best batters consistently
+outperform their Statcast profile — a 10-year veteran with a career .300 AVG
+is treated the same as a rookie with identical single-season Statcast numbers.
+Stronger regularization pushes predictions toward the population mean, which
+actively hurts predictions for these consistent overperformers.
+
+**Phase 1 tuning result**: Pitcher tuning was a GO (4/5 targets improved, mean
+RMSE improved ~4.4%). Batter tuning was a NO-GO (AVG degraded 12.9%, far
+exceeding the 5% limit). Only pitcher-tuned params were kept.
+
+**Potential improvements**: Multi-year rolling features (2-3 year weighted
+averages of prior Statcast metrics), player-level intercepts via mixed-effects
+models (e.g., MERF), historical consistency features (year-to-year variance,
+persistent xBA-AVG gap), or career-length priors that reduce regression for
+established players.
 
 ## Fantasy Implications
 
@@ -317,7 +482,7 @@ legitimate reasons to limit the lookback window.
 
 ### Where to be skeptical
 
-- **Pre-season drafts**: The preseason mode can produce blind forecasts, but it
+- **Pre-season drafts**: The preseason model can produce blind forecasts, but it
   trails Marcel and Steamer on batter stats and top-200 accuracy. Its value is
   as a supplementary pitcher signal (ERA/FIP/WHIP), not a standalone draft tool.
 - **Counting-stat-dependent formats**: Roto leagues need HR, RBI, SB projections
@@ -353,20 +518,32 @@ through at that system's value.
 ## Next Steps
 
 1. ~~**Lag Statcast features for pre-season mode**~~ — Done and evaluated. Preseason
-   mode leads on pitcher ERA/FIP/WHIP for the full pool but trails Marcel/Steamer
+   model leads on pitcher ERA/FIP/WHIP for the full pool but trails Marcel/Steamer
    on batter stats and top-200 accuracy. See preseason results above.
 2. ~~**In-season talent-delta monitor**~~ — Done. `fbm report talent-delta`
    compares true-talent estimates to actuals for buy-low/sell-high analysis.
 3. ~~**Statcast-adjusted Marcel**~~ — Done. Marcel can blend statcast-gbm
    true-talent rates into its inputs via `statcast_augment = true`.
-4. **Tune ensemble weights** — the 60/40 split was a starting point. A
+4. ~~**Split into two models**~~ — Done (2026-02-17). `statcast-gbm` and
+   `statcast-gbm-preseason` are now separate registered models with independent
+   feature sets.
+5. ~~**Prune noisy features (Phase 1)**~~ — Done for live model (GO: 8/8 holdout
+   targets improved). Reverted for preseason model (NO-GO: only 2/8 improved).
+6. ~~**Hyperparameter tuning (Phase 1)**~~ — Done. Temporal expanding CV +
+   exhaustive grid search over 1024 combinations. Pitcher tuning: GO (4/5
+   targets improved, mean RMSE ~4.4% better). Batter tuning: NO-GO (AVG
+   degraded 12.9%). Pitcher-only tuned params committed. See
+   [Weakness #6](#6-no-player-level-persistence--regression-toward-population-mean).
+7. **Implement true-talent evaluation suite** — next-season predictive validity,
+   residual non-persistence, shrinkage quality metrics. See
+   [Evaluation Methodology](#evaluation-methodology-for-true-talent-estimator).
+8. **Player-level persistence for batters** — multi-year rolling features,
+   mixed-effects models, or career-length priors to address the batter
+   regression-to-mean problem identified during hyperparameter tuning.
+9. **Tune ensemble weights** — the 60/40 split was a starting point. A
    stat-specific weighting (e.g., 80% statcast-gbm for SLG, 80% Marcel for ERA)
    could improve results.
-5. **Add more training seasons** — extending to 2020-2024 (skipping 2020's
-   shortened season) could help.
-6. **Hyperparameter tuning** — the model uses default scikit-learn params.
-   Cross-validated grid search could improve accuracy.
-7. **Feature engineering** — adding sprint speed, catch probability, or park
-   factors could address the top-200 pitcher weakness.
-8. **Prune noisy features** — ablation shows `avg_v_break`, `cu_velo`, `si_pct`,
-   and all batter lag stats add negligible or negative value.
+10. **Add more training seasons** — extending to 2021-2024 (skipping 2020's
+    shortened season) could help.
+11. **Feature engineering** — adding sprint speed, catch probability, or park
+    factors could address the top-200 pitcher weakness.

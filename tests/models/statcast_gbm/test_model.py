@@ -28,6 +28,7 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     live_pitcher_curated_columns,
     pitcher_preseason_feature_columns,
 )
+from fantasy_baseball_manager.models.statcast_gbm import model as statcast_gbm_model_mod
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel, StatcastGBMPreseasonModel
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 
@@ -690,6 +691,75 @@ class TestStatcastGBMPreseasonTune:
     def test_supported_operations_includes_tune(self) -> None:
         ops = StatcastGBMPreseasonModel().supported_operations
         assert "tune" in ops
+
+
+class TestStatcastGBMTrainPerTypeParams:
+    def test_train_routes_per_type_params(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_params: list[dict[str, Any]] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any]) -> Any:
+            captured_params.append(params)
+            return original_fit(X, y, params)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={
+                "batter": {"max_iter": 50, "min_samples_leaf": 10},
+                "pitcher": {"max_iter": 80, "learning_rate": 0.05},
+            },
+        )
+        result = model.train(config)
+        assert isinstance(result, TrainResult)
+        # First call is batter, second is pitcher
+        assert len(captured_params) == 2
+        assert captured_params[0] == {"max_iter": 50, "min_samples_leaf": 10}
+        assert captured_params[1] == {"max_iter": 80, "learning_rate": 0.05}
+
+    def test_train_falls_back_to_top_level_params(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_params: list[dict[str, Any]] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any]) -> Any:
+            captured_params.append(params)
+            return original_fit(X, y, params)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"max_iter": 50},
+        )
+        result = model.train(config)
+        assert isinstance(result, TrainResult)
+        # Both batter and pitcher get the same top-level params
+        assert len(captured_params) == 2
+        assert captured_params[0] == {"max_iter": 50}
+        assert captured_params[1] == {"max_iter": 50}
 
 
 class TestDefaultModeIsTrueTalent:
