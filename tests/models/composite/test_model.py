@@ -1,10 +1,9 @@
-import importlib
 from typing import Any
 
 import pytest
 
-import fantasy_baseball_manager.features.group_library
-from fantasy_baseball_manager.features.groups import list_groups
+import fantasy_baseball_manager.features.group_library  # noqa: F401 — trigger registration
+from fantasy_baseball_manager.features.groups import FeatureGroup, get_group, list_groups
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 import fantasy_baseball_manager.models.composite  # noqa: F401 — trigger alias registration
 from fantasy_baseball_manager.models.composite.model import (
@@ -29,12 +28,15 @@ from fantasy_baseball_manager.models.protocols import (
     Trainable,
 )
 
+# Snapshot groups at import time — before any test can clear the global registry.
+_GROUPS: dict[str, FeatureGroup] = {name: get_group(name) for name in list_groups()}
 
-@pytest.fixture(autouse=True)
-def _ensure_groups_registered() -> None:
-    """Re-register static feature groups if a prior test cleared the registry."""
-    if not list_groups():
-        importlib.reload(fantasy_baseball_manager.features.group_library)
+
+def _test_lookup(name: str) -> FeatureGroup:
+    """Local group lookup isolated from global registry mutations."""
+    if name not in _GROUPS:
+        raise KeyError(f"'{name}': no feature group in test snapshot")
+    return _GROUPS[name]
 
 
 class TestCompositeModelProtocol:
@@ -113,13 +115,13 @@ class FakeAssembler:
 class TestResolveGroup:
     def test_resolve_group_static(self) -> None:
         config = MarcelConfig()
-        group = _resolve_group("age", config)
+        group = _resolve_group("age", config, lookup=_test_lookup)
         assert group.name == "age"
         assert group.player_type == "both"
 
     def test_resolve_group_batting_counting_lags(self) -> None:
         config = MarcelConfig(batting_categories=("hr", "rbi"), batting_weights=(5.0, 4.0))
-        group = _resolve_group("batting_counting_lags", config)
+        group = _resolve_group("batting_counting_lags", config, lookup=_test_lookup)
         assert group.name == "batting_counting_lags"
         assert group.player_type == "batter"
         # 2 lags × (pa + hr + rbi) = 6 features
@@ -127,7 +129,7 @@ class TestResolveGroup:
 
     def test_resolve_group_pitching_counting_lags(self) -> None:
         config = MarcelConfig(pitching_categories=("so", "bb"), pitching_weights=(5.0, 4.0))
-        group = _resolve_group("pitching_counting_lags", config)
+        group = _resolve_group("pitching_counting_lags", config, lookup=_test_lookup)
         assert group.name == "pitching_counting_lags"
         assert group.player_type == "pitcher"
         # 2 lags × (ip + g + gs + so + bb) = 10 features
@@ -136,7 +138,7 @@ class TestResolveGroup:
     def test_resolve_group_unknown_raises(self) -> None:
         config = MarcelConfig()
         with pytest.raises(KeyError):
-            _resolve_group("nonexistent_group_xyz", config)
+            _resolve_group("nonexistent_group_xyz", config, lookup=_test_lookup)
 
     def test_default_groups_constant(self) -> None:
         assert DEFAULT_GROUPS == (
@@ -152,7 +154,7 @@ class TestBuildFeatureSets:
     def test_build_feature_sets_default_groups(self) -> None:
         """With no feature_groups in config, batting FeatureSet contains age, proj_pa, counting lags, transforms."""
         assembler = FakeAssembler(batting_rows=[], pitching_rows=[])
-        model = CompositeModel(assembler=assembler)
+        model = CompositeModel(assembler=assembler, group_lookup=_test_lookup)
         config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
         batting_fs, pitching_fs = model._build_feature_sets(_build_marcel_config(config.model_params), config)
         bat_names = {f.name for f in batting_fs.features}
@@ -167,7 +169,7 @@ class TestBuildFeatureSets:
     def test_build_feature_sets_with_mle_groups(self) -> None:
         """With feature_groups including mle_batter_rates, batting FeatureSet contains MLE features."""
         assembler = FakeAssembler(batting_rows=[], pitching_rows=[])
-        model = CompositeModel(assembler=assembler)
+        model = CompositeModel(assembler=assembler, group_lookup=_test_lookup)
         config = ModelConfig(
             seasons=[2023],
             model_params={
@@ -191,7 +193,7 @@ class TestBuildFeatureSets:
     def test_build_feature_sets_naming(self) -> None:
         """Feature set names contain batting/pitching for FakeAssembler routing."""
         assembler = FakeAssembler(batting_rows=[], pitching_rows=[])
-        model = CompositeModel(assembler=assembler)
+        model = CompositeModel(assembler=assembler, group_lookup=_test_lookup)
         config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
         batting_fs, pitching_fs = model._build_feature_sets(_build_marcel_config(config.model_params), config)
         assert "batting" in batting_fs.name
@@ -204,7 +206,7 @@ class TestDefaultGroupsRegression:
     def test_default_batting_features_match_inline(self) -> None:
         marcel_config = MarcelConfig(batting_categories=("hr", "rbi", "sb"))
         config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr", "rbi", "sb"]})
-        model = CompositeModel(assembler=FakeAssembler([]))
+        model = CompositeModel(assembler=FakeAssembler([]), group_lookup=_test_lookup)
         batting_fs, _ = model._build_feature_sets(marcel_config, config)
         new_names = {f.name for f in batting_fs.features}
 
@@ -215,7 +217,7 @@ class TestDefaultGroupsRegression:
     def test_default_pitching_features_match_inline(self) -> None:
         marcel_config = MarcelConfig(pitching_categories=("so", "bb", "era"))
         config = ModelConfig(seasons=[2023], model_params={"pitching_categories": ["so", "bb", "era"]})
-        model = CompositeModel(assembler=FakeAssembler([]))
+        model = CompositeModel(assembler=FakeAssembler([]), group_lookup=_test_lookup)
         _, pitching_fs = model._build_feature_sets(marcel_config, config)
         new_names = {f.name for f in pitching_fs.features}
 
@@ -258,7 +260,7 @@ class TestCompositePredict:
             seasons=[2023],
             model_params={"batting_categories": ["hr"]},
         )
-        result = CompositeModel(assembler=assembler).predict(config)
+        result = CompositeModel(assembler=assembler, group_lookup=_test_lookup).predict(config)
         assert result.model_name == "composite"
         assert len(result.predictions) == 1
         pred = result.predictions[0]
@@ -287,7 +289,7 @@ class TestCompositePredict:
             seasons=[2023],
             model_params={"batting_categories": ["hr"]},
         )
-        result = CompositeModel(assembler=assembler).predict(config)
+        result = CompositeModel(assembler=assembler, group_lookup=_test_lookup).predict(config)
         pred = result.predictions[0]
         # Internal PT would be 200 + 0.5*600 + 0.1*550 = 555
         # But we should use proj_pa=400
@@ -324,7 +326,7 @@ class TestCompositePredict:
                 "pitching_categories": ["so"],
             },
         )
-        result = CompositeModel(assembler=assembler).predict(config)
+        result = CompositeModel(assembler=assembler, group_lookup=_test_lookup).predict(config)
         pitcher_preds = [p for p in result.predictions if p.get("player_type") == "pitcher"]
         assert len(pitcher_preds) == 1
         assert pitcher_preds[0]["ip"] == 150.0
@@ -335,7 +337,7 @@ class TestCompositePredict:
             seasons=[2023],
             model_params={"batting_categories": ["hr"]},
         )
-        result = CompositeModel(assembler=assembler).predict(config)
+        result = CompositeModel(assembler=assembler, group_lookup=_test_lookup).predict(config)
         assert result.model_name == "composite"
         assert len(result.predictions) == 0
 
@@ -361,7 +363,7 @@ class TestCompositePredict:
             seasons=[2023],
             model_params={"batting_categories": ["hr"]},
         )
-        result = CompositeModel(assembler=assembler).predict(config)
+        result = CompositeModel(assembler=assembler, group_lookup=_test_lookup).predict(config)
         pred = result.predictions[0]
         # rates dict should be present in the raw prediction data
         assert pred["rates"]["hr"] * 600 == pred["hr"]
@@ -384,7 +386,9 @@ class TestCompositePredict:
         ]
         assembler = FakeAssembler(batting_rows)
         config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
-        result = CompositeModel(assembler=assembler, model_name="composite-mle").predict(config)
+        result = CompositeModel(assembler=assembler, model_name="composite-mle", group_lookup=_test_lookup).predict(
+            config
+        )
         assert result.model_name == "composite-mle"
 
     def test_predict_projected_season(self) -> None:
@@ -405,5 +409,5 @@ class TestCompositePredict:
         ]
         assembler = FakeAssembler(batting_rows)
         config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
-        result = CompositeModel(assembler=assembler).predict(config)
+        result = CompositeModel(assembler=assembler, group_lookup=_test_lookup).predict(config)
         assert result.predictions[0]["season"] == 2024

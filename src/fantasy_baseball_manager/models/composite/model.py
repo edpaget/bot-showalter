@@ -1,5 +1,6 @@
 """Composite model — rate projection using external playing-time model."""
 
+from collections.abc import Callable
 from typing import Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
@@ -40,7 +41,11 @@ DEFAULT_GROUPS: tuple[str, ...] = (
 )
 
 
-def _resolve_group(name: str, marcel_config: MarcelConfig) -> FeatureGroup:
+def _resolve_group(
+    name: str,
+    marcel_config: MarcelConfig,
+    lookup: Callable[[str], FeatureGroup] = get_group,
+) -> FeatureGroup:
     """Resolve a feature group by name — static from registry, parameterized from factory."""
     if name == "batting_counting_lags":
         lags = list(range(1, len(marcel_config.batting_weights) + 1))
@@ -51,7 +56,7 @@ def _resolve_group(name: str, marcel_config: MarcelConfig) -> FeatureGroup:
     if name == "batting_rate_lags":
         lags = list(range(1, len(marcel_config.batting_weights) + 1))
         return make_batting_rate_lags(("avg", "obp", "slg", "woba"), lags)
-    return get_group(name)
+    return lookup(name)
 
 
 def _build_marcel_config(model_params: dict[str, Any]) -> MarcelConfig:
@@ -82,9 +87,15 @@ def _build_marcel_config(model_params: dict[str, Any]) -> MarcelConfig:
 
 @register("composite")
 class CompositeModel:
-    def __init__(self, assembler: DatasetAssembler | None = None, model_name: str = "composite") -> None:
+    def __init__(
+        self,
+        assembler: DatasetAssembler | None = None,
+        model_name: str = "composite",
+        group_lookup: Callable[[str], FeatureGroup] = get_group,
+    ) -> None:
         self._assembler = assembler
         self._model_name = model_name
+        self._get_group = group_lookup
 
     @property
     def name(self) -> str:
@@ -108,7 +119,7 @@ class CompositeModel:
         config: ModelConfig,
     ) -> tuple[FeatureSet, FeatureSet]:
         group_names: tuple[str, ...] = tuple(config.model_params.get("feature_groups", DEFAULT_GROUPS))
-        groups = [_resolve_group(name, marcel_config) for name in group_names]
+        groups = [_resolve_group(name, marcel_config, self._get_group) for name in group_names]
 
         batter_groups = [g for g in groups if g.player_type in ("batter", "both")]
         pitcher_groups = [g for g in groups if g.player_type in ("pitcher", "both")]
