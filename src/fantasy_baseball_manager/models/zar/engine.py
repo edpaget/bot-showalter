@@ -52,7 +52,7 @@ def convert_rate_stats(
         row: dict[str, float] = {}
         for cat in categories:
             if cat.stat_type is StatType.COUNTING:
-                value = stats.get(cat.key, 0.0)
+                value = resolve_numerator(cat.key, stats)
                 row[cat.key] = -value if cat.direction is Direction.LOWER else value
             elif cat.numerator and cat.denominator:
                 denom = stats.get(cat.denominator, 0.0)

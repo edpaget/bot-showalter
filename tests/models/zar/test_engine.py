@@ -156,6 +156,26 @@ class TestConvertRateStats:
         assert result[0]["er"] == -60.0
         assert result[1]["er"] == -40.0
 
+    def test_counting_composite_key_sums_components(self) -> None:
+        stats = [{"sv": 30.0, "hld": 20.0}, {"sv": 10.0, "hld": 15.0}]
+        categories = [_counting("sv+hld")]
+        result = convert_rate_stats(stats, categories)
+        assert result[0]["sv+hld"] == 50.0
+        assert result[1]["sv+hld"] == 25.0
+
+    def test_counting_composite_missing_component_defaults_zero(self) -> None:
+        stats = [{"sv": 30.0}, {"sv": 10.0, "hld": 15.0}]
+        categories = [_counting("sv+hld")]
+        result = convert_rate_stats(stats, categories)
+        assert result[0]["sv+hld"] == 30.0
+        assert result[1]["sv+hld"] == 25.0
+
+    def test_counting_composite_lower_negated(self) -> None:
+        stats = [{"sv": 30.0, "hld": 20.0}]
+        categories = [_counting("sv+hld", Direction.LOWER)]
+        result = convert_rate_stats(stats, categories)
+        assert result[0]["sv+hld"] == -50.0
+
     def test_does_not_mutate_input(self) -> None:
         original = {"hr": 30.0, "h": 150.0, "ab": 500.0}
         stats = [original.copy()]
