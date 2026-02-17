@@ -1,5 +1,6 @@
 from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature, Source
 from fantasy_baseball_manager.models.playing_time.features import (
+    _EXCLUDED_COLUMNS,
     batting_pt_feature_columns,
     build_batting_pt_derived_transforms,
     build_batting_pt_features,
@@ -19,7 +20,9 @@ class TestBattingPtFeatures:
 
     def test_includes_lagged_pa(self) -> None:
         features = build_batting_pt_features()
-        pa_features = [f for f in features if isinstance(f, Feature) and f.column == "pa"]
+        pa_features = [
+            f for f in features if isinstance(f, Feature) and f.column == "pa" and f.source == Source.BATTING
+        ]
         assert len(pa_features) == 3
         lags = sorted(f.lag for f in pa_features)
         assert lags == [1, 2, 3]
@@ -52,7 +55,9 @@ class TestBattingPtFeatures:
 
     def test_custom_lags(self) -> None:
         features = build_batting_pt_features(lags=4)
-        pa_features = [f for f in features if isinstance(f, Feature) and f.column == "pa"]
+        pa_features = [
+            f for f in features if isinstance(f, Feature) and f.column == "pa" and f.source == Source.BATTING
+        ]
         assert len(pa_features) == 4
 
     def test_custom_lags_affects_il_days(self) -> None:
@@ -62,8 +67,22 @@ class TestBattingPtFeatures:
 
     def test_feature_source_is_batting(self) -> None:
         features = build_batting_pt_features()
-        pa_features = [f for f in features if isinstance(f, Feature) and f.column == "pa"]
+        pa_features = [
+            f for f in features if isinstance(f, Feature) and f.column == "pa" and f.source == Source.BATTING
+        ]
         assert all(f.source == Source.BATTING for f in pa_features)
+
+    def test_includes_steamer_pa(self) -> None:
+        features = build_batting_pt_features()
+        steamer = [f for f in features if isinstance(f, Feature) and f.name == "steamer_pa"]
+        assert len(steamer) == 1
+        assert steamer[0].source == Source.PROJECTION
+
+    def test_includes_zips_pa(self) -> None:
+        features = build_batting_pt_features()
+        zips = [f for f in features if isinstance(f, Feature) and f.name == "zips_pa"]
+        assert len(zips) == 1
+        assert zips[0].source == Source.PROJECTION
 
 
 class TestPitchingPtFeatures:
@@ -74,7 +93,9 @@ class TestPitchingPtFeatures:
 
     def test_includes_lagged_ip(self) -> None:
         features = build_pitching_pt_features()
-        ip_features = [f for f in features if isinstance(f, Feature) and f.column == "ip"]
+        ip_features = [
+            f for f in features if isinstance(f, Feature) and f.column == "ip" and f.source == Source.PITCHING
+        ]
         assert len(ip_features) == 3
 
     def test_includes_lagged_g(self) -> None:
@@ -112,19 +133,35 @@ class TestPitchingPtFeatures:
 
     def test_custom_lags(self) -> None:
         features = build_pitching_pt_features(lags=4)
-        ip_features = [f for f in features if isinstance(f, Feature) and f.column == "ip"]
+        ip_features = [
+            f for f in features if isinstance(f, Feature) and f.column == "ip" and f.source == Source.PITCHING
+        ]
         assert len(ip_features) == 4
 
     def test_feature_source_is_pitching(self) -> None:
         features = build_pitching_pt_features()
-        ip_features = [f for f in features if isinstance(f, Feature) and f.column == "ip"]
+        ip_features = [
+            f for f in features if isinstance(f, Feature) and f.column == "ip" and f.source == Source.PITCHING
+        ]
         assert all(f.source == Source.PITCHING for f in ip_features)
+
+    def test_includes_steamer_ip(self) -> None:
+        features = build_pitching_pt_features()
+        steamer = [f for f in features if isinstance(f, Feature) and f.name == "steamer_ip"]
+        assert len(steamer) == 1
+        assert steamer[0].source == Source.PROJECTION
+
+    def test_includes_zips_ip(self) -> None:
+        features = build_pitching_pt_features()
+        zips = [f for f in features if isinstance(f, Feature) and f.name == "zips_ip"]
+        assert len(zips) == 1
+        assert zips[0].source == Source.PROJECTION
 
 
 class TestBattingDerivedTransforms:
-    def test_produces_five_transforms(self) -> None:
+    def test_produces_six_transforms(self) -> None:
         transforms = build_batting_pt_derived_transforms()
-        assert len(transforms) == 5
+        assert len(transforms) == 6
 
     def test_il_summary_outputs(self) -> None:
         transforms = build_batting_pt_derived_transforms()
@@ -170,9 +207,15 @@ class TestBattingDerivedTransforms:
         assert "age" in pi.inputs
         assert "il_recurrence" in pi.inputs
 
-    def test_pt_interaction_is_last(self) -> None:
+    def test_consensus_pa_transform(self) -> None:
         transforms = build_batting_pt_derived_transforms()
-        assert transforms[-1].name == "pt_interaction"
+        consensus = next(t for t in transforms if t.name == "consensus_pa")
+        assert "consensus_pa" in consensus.outputs
+
+    def test_pt_interaction_before_consensus(self) -> None:
+        transforms = build_batting_pt_derived_transforms()
+        names = [t.name for t in transforms]
+        assert names.index("pt_interaction") < names.index("consensus_pa")
 
     def test_all_are_derived_transform_features(self) -> None:
         transforms = build_batting_pt_derived_transforms()
@@ -180,9 +223,9 @@ class TestBattingDerivedTransforms:
 
 
 class TestPitchingDerivedTransforms:
-    def test_produces_six_transforms(self) -> None:
+    def test_produces_seven_transforms(self) -> None:
         transforms = build_pitching_pt_derived_transforms()
-        assert len(transforms) == 6
+        assert len(transforms) == 7
 
     def test_il_summary_outputs(self) -> None:
         transforms = build_pitching_pt_derived_transforms()
@@ -221,9 +264,15 @@ class TestPitchingDerivedTransforms:
         pi = next(t for t in transforms if t.name == "pt_interaction")
         assert set(pi.outputs) == {"war_trend", "age_il_interact"}
 
-    def test_pt_interaction_is_last(self) -> None:
+    def test_consensus_ip_transform(self) -> None:
         transforms = build_pitching_pt_derived_transforms()
-        assert transforms[-1].name == "pt_interaction"
+        consensus = next(t for t in transforms if t.name == "consensus_ip")
+        assert "consensus_ip" in consensus.outputs
+
+    def test_pt_interaction_before_consensus(self) -> None:
+        transforms = build_pitching_pt_derived_transforms()
+        names = [t.name for t in transforms]
+        assert names.index("pt_interaction") < names.index("consensus_ip")
 
     def test_all_are_derived_transform_features(self) -> None:
         transforms = build_pitching_pt_derived_transforms()
@@ -275,6 +324,7 @@ class TestBattingTrainingFeatures:
         assert "war_threshold" in names
         assert "il_severity" in names
         assert "pt_interaction" in names
+        assert "consensus_pa" in names
 
 
 class TestPitchingTrainingFeatures:
@@ -299,6 +349,7 @@ class TestPitchingTrainingFeatures:
         assert "il_severity" in names
         assert "starter_ratio" in names
         assert "pt_interaction" in names
+        assert "consensus_ip" in names
 
 
 class TestBattingFeatureColumns:
@@ -330,6 +381,15 @@ class TestBattingFeatureColumns:
             "age_il_interact",
         ]:
             assert col not in columns
+
+    def test_feature_columns_includes_consensus_pa(self) -> None:
+        columns = batting_pt_feature_columns()
+        assert "consensus_pa" in columns
+
+    def test_feature_columns_excludes_projection_intermediates(self) -> None:
+        columns = batting_pt_feature_columns()
+        assert "steamer_pa" not in columns
+        assert "zips_pa" not in columns
 
     def test_feature_columns_includes_base_features(self) -> None:
         columns = batting_pt_feature_columns()
@@ -373,6 +433,15 @@ class TestPitchingFeatureColumns:
         ]:
             assert col not in columns
 
+    def test_feature_columns_includes_consensus_ip(self) -> None:
+        columns = pitching_pt_feature_columns()
+        assert "consensus_ip" in columns
+
+    def test_feature_columns_excludes_projection_intermediates(self) -> None:
+        columns = pitching_pt_feature_columns()
+        assert "steamer_ip" not in columns
+        assert "zips_ip" not in columns
+
     def test_feature_columns_includes_base_features(self) -> None:
         columns = pitching_pt_feature_columns()
         assert "age" in columns
@@ -382,3 +451,15 @@ class TestPitchingFeatureColumns:
         columns = pitching_pt_feature_columns()
         assert "player_id" not in columns
         assert "season" not in columns
+
+
+class TestExcludedColumns:
+    def test_excludes_projection_intermediates(self) -> None:
+        assert "steamer_pa" in _EXCLUDED_COLUMNS
+        assert "zips_pa" in _EXCLUDED_COLUMNS
+        assert "steamer_ip" in _EXCLUDED_COLUMNS
+        assert "zips_ip" in _EXCLUDED_COLUMNS
+
+    def test_excludes_il_columns(self) -> None:
+        assert "il_days_1" in _EXCLUDED_COLUMNS
+        assert "il_recurrence" in _EXCLUDED_COLUMNS

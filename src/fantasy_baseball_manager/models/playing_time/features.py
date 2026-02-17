@@ -1,4 +1,12 @@
 from fantasy_baseball_manager.features import batting, il_stint, pitching, player
+from fantasy_baseball_manager.features.consensus_pt import (
+    CONSENSUS_IP,
+    CONSENSUS_PA,
+    steamer_ip,
+    steamer_pa,
+    zips_ip,
+    zips_pa,
+)
 from fantasy_baseball_manager.features.transforms.playing_time import (
     make_il_severity_transform,
     make_il_summary_transform,
@@ -23,6 +31,8 @@ def build_batting_pt_features(lags: int = 3) -> list[Feature]:
         features.append(il_stint.col("days").lag(lag_n).alias(f"il_days_{lag_n}"))
     for lag_n in range(1, min(lags, 2) + 1):
         features.append(il_stint.col("stint_count").lag(lag_n).alias(f"il_stints_{lag_n}"))
+    features.append(steamer_pa)
+    features.append(zips_pa)
     return features
 
 
@@ -41,6 +51,8 @@ def build_pitching_pt_features(lags: int = 3) -> list[Feature]:
         features.append(il_stint.col("days").lag(lag_n).alias(f"il_days_{lag_n}"))
     for lag_n in range(1, min(lags, 2) + 1):
         features.append(il_stint.col("stint_count").lag(lag_n).alias(f"il_stints_{lag_n}"))
+    features.append(steamer_ip)
+    features.append(zips_ip)
     return features
 
 
@@ -90,6 +102,7 @@ def build_batting_pt_derived_transforms(lags: int = 3) -> list[DerivedTransformF
             transform=make_pt_interaction_transform(),
             outputs=("war_trend", "age_il_interact"),
         ),
+        CONSENSUS_PA,
     ]
 
 
@@ -146,6 +159,7 @@ def build_pitching_pt_derived_transforms(lags: int = 3) -> list[DerivedTransform
             transform=make_pt_interaction_transform(),
             outputs=("war_trend", "age_il_interact"),
         ),
+        CONSENSUS_IP,
     ]
 
 
@@ -176,8 +190,8 @@ def _collect_feature_names(features: list[AnyFeature]) -> list[str]:
     return columns
 
 
-# IL columns are gathered for residual bucketing but excluded from regression.
-_IL_COLUMNS = frozenset(
+# Columns gathered as inputs to derived transforms but excluded from regression.
+_EXCLUDED_COLUMNS = frozenset(
     {
         "il_days_1",
         "il_days_2",
@@ -190,6 +204,10 @@ _IL_COLUMNS = frozenset(
         "il_moderate",
         "il_severe",
         "age_il_interact",
+        "steamer_pa",
+        "zips_pa",
+        "steamer_ip",
+        "zips_ip",
     }
 )
 
@@ -198,11 +216,11 @@ def batting_pt_feature_columns(lags: int = 3) -> list[str]:
     """Return ordered list of feature column names for batting PT model."""
     features: list[AnyFeature] = list(build_batting_pt_features(lags))
     features.extend(build_batting_pt_derived_transforms(lags))
-    return [c for c in _collect_feature_names(features) if c not in _IL_COLUMNS]
+    return [c for c in _collect_feature_names(features) if c not in _EXCLUDED_COLUMNS]
 
 
 def pitching_pt_feature_columns(lags: int = 3) -> list[str]:
     """Return ordered list of feature column names for pitching PT model."""
     features: list[AnyFeature] = list(build_pitching_pt_features(lags))
     features.extend(build_pitching_pt_derived_transforms(lags))
-    return [c for c in _collect_feature_names(features) if c not in _IL_COLUMNS]
+    return [c for c in _collect_feature_names(features) if c not in _EXCLUDED_COLUMNS]

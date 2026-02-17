@@ -393,6 +393,7 @@ class PlayingTimeModel:
             ("war_thresholds", ["war_above_2", "war_above_4", "war_below_0"]),
             ("interactions", ["war_trend", "pt_trend"]),
             ("aging", ["age_pt_factor"]),
+            ("consensus_pt", ["consensus_pa"]),
         ]
 
         pitching_groups: list[tuple[str, list[str]]] = [
@@ -402,6 +403,7 @@ class PlayingTimeModel:
             ("interactions", ["war_trend", "pt_trend"]),
             ("aging", ["age_pt_factor"]),
             ("starter_ratio", ["starter_ratio"]),
+            ("consensus_pt", ["consensus_ip"]),
         ]
 
         feature_impacts: dict[str, float] = {}

@@ -96,6 +96,10 @@ def _make_batting_row(player_id: int, season: int, pa_1: float = 500.0) -> dict[
         "il_severe": 0.0,
         "war_trend": 0.5,
         "age_il_interact": 0.0,
+        # Consensus playing time:
+        "steamer_pa": 620.0,
+        "zips_pa": 580.0,
+        "consensus_pa": 600.0,
         # Training target:
         "target_pa": pa_1 + 20.0,
     }
@@ -134,6 +138,10 @@ def _make_pitching_row(player_id: int, season: int, ip_1: float = 180.0) -> dict
         "war_trend": 0.5,
         "age_il_interact": 0.0,
         "starter_ratio": 1.0,
+        # Consensus playing time:
+        "steamer_ip": 200.0,
+        "zips_ip": 190.0,
+        "consensus_ip": 195.0,
         # Training target:
         "target_ip": ip_1 + 5.0,
     }
@@ -290,8 +298,9 @@ def _save_test_coefficients(tmp_path: Path) -> None:
             "il_recurrence",
             "pt_trend",
             "age_pt_factor",
+            "consensus_pa",
         ),
-        coefficients=(0.0, 0.8, 0.1, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0),
+        coefficients=(0.0, 0.8, 0.1, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0),
         intercept=50.0,
         r_squared=0.9,
         player_type="batter",
@@ -317,8 +326,30 @@ def _save_test_coefficients(tmp_path: Path) -> None:
             "il_recurrence",
             "pt_trend",
             "age_pt_factor",
+            "consensus_ip",
         ),
-        coefficients=(0.0, 0.7, 0.15, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        coefficients=(
+            0.0,
+            0.7,
+            0.15,
+            0.05,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ),
         intercept=20.0,
         r_squared=0.85,
         player_type="pitcher",
@@ -628,3 +659,32 @@ class TestPlayingTimeAblate:
 
     def test_model_is_ablatable(self) -> None:
         assert isinstance(PlayingTimeModel(), Ablatable)
+
+    def test_ablate_includes_consensus_pt_group(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = _multi_season_train_config(tmp_path, seasons)
+        result = model.ablate(config)
+        assert "batter:consensus_pt" in result.feature_impacts
+        assert "pitcher:consensus_pt" in result.feature_impacts
+
+    def test_train_with_missing_consensus_values(self, tmp_path: Path) -> None:
+        """Model handles None consensus columns gracefully (treated as 0.0)."""
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        for row in batting_rows:
+            row["consensus_pa"] = None
+            row["steamer_pa"] = None
+            row["zips_pa"] = None
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        for row in pitching_rows:
+            row["consensus_ip"] = None
+            row["steamer_ip"] = None
+            row["zips_ip"] = None
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        result = model.train(_train_config(tmp_path))
+        assert result.metrics["r_squared_batter"] >= 0.0
+        assert result.metrics["r_squared_pitcher"] >= 0.0
