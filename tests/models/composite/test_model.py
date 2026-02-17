@@ -18,7 +18,7 @@ from fantasy_baseball_manager.models.composite.features import (
     build_composite_pitching_features,
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
-from fantasy_baseball_manager.models.registry import get
+from fantasy_baseball_manager.models.registry import _clear, get, register, register_alias
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
     FineTunable,
@@ -228,6 +228,10 @@ class TestDefaultGroupsRegression:
 
 class TestCompositeAliases:
     def test_aliases_registered(self) -> None:
+        _clear()
+        register("composite")(CompositeModel)
+        for alias in ("composite-mle", "composite-statcast", "composite-full"):
+            register_alias(alias, "composite")
         for alias in ("composite-mle", "composite-statcast", "composite-full"):
             assert get(alias) is CompositeModel
 

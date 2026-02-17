@@ -7,6 +7,7 @@ from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStats
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.domain.evaluation import StratifiedComparisonResult
+from fantasy_baseball_manager.domain.pt_normalization import ConsensusLookup
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 
 
@@ -455,3 +456,85 @@ class TestCompareStratified:
         assert "veteran" in result.cohorts
         assert len(result.cohorts["young"].systems) == 2
         assert len(result.cohorts["veteran"].systems) == 2
+
+
+class TestEvaluateWithNormalizePt:
+    def test_evaluate_with_normalize_pt_rescales_counting(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        _seed_player(conn, 1)
+        proj_repo.upsert(
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 30, "pa": 600, "avg": 0.280},
+                source_type="third_party",
+            )
+        )
+        _seed_batting_actuals(batting_repo, 1, hr=25, avg=0.280)
+
+        lookup = ConsensusLookup(batting_pt={1: 500}, pitching_pt={})
+        result = evaluator.evaluate("steamer", "2025.1", 2025, normalize_pt=lookup)
+        # HR should be rescaled: 30 * (500/600) = 25.0 → error = 0
+        assert result.metrics["hr"].mae == 0.0
+
+    def test_evaluate_normalize_pt_none_is_noop(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        _seed_player(conn, 1)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+
+        result_with = evaluator.evaluate("steamer", "2025.1", 2025, normalize_pt=None)
+        result_without = evaluator.evaluate("steamer", "2025.1", 2025)
+        assert result_with.metrics["hr"].mae == result_without.metrics["hr"].mae
+
+    def test_evaluate_normalize_pt_skips_uncovered_player(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        _seed_player(conn, 1)
+        proj_repo.upsert(
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="2025.1",
+                player_type="batter",
+                stat_json={"hr": 30, "pa": 600, "avg": 0.280},
+                source_type="third_party",
+            )
+        )
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+
+        # Lookup doesn't include player 1
+        lookup = ConsensusLookup(batting_pt={}, pitching_pt={})
+        result = evaluator.evaluate("steamer", "2025.1", 2025, normalize_pt=lookup)
+        # Should use original HR=30 → error=2
+        assert result.metrics["hr"].mae == 2.0
+
+    def test_compare_passes_normalize_pt_through(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1,):
+            _seed_player(conn, pid)
+        for system in ("steamer", "zips"):
+            proj_repo.upsert(
+                Projection(
+                    player_id=1,
+                    season=2025,
+                    system=system,
+                    version="2025.1",
+                    player_type="batter",
+                    stat_json={"hr": 30, "pa": 600, "avg": 0.280},
+                    source_type="third_party",
+                )
+            )
+        _seed_batting_actuals(batting_repo, 1, hr=25, avg=0.280)
+
+        lookup = ConsensusLookup(batting_pt={1: 500}, pitching_pt={})
+        result = evaluator.compare(
+            [("steamer", "2025.1"), ("zips", "2025.1")],
+            season=2025,
+            normalize_pt=lookup,
+        )
+        for sys_metrics in result.systems:
+            assert sys_metrics.metrics["hr"].mae == 0.0

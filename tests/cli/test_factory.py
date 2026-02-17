@@ -222,6 +222,14 @@ class TestBuildEvalContext:
         with build_eval_context("./data") as ctx:
             assert isinstance(ctx.evaluator, ProjectionEvaluator)
 
+    def test_eval_context_has_projection_repo(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_eval_context("./data") as ctx:
+            assert isinstance(ctx.projection_repo, SqliteProjectionRepo)
+
     def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.factory.create_connection",

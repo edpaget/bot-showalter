@@ -4,7 +4,13 @@ from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.projection_accuracy import (
+    BATTING_COUNTING_STATS,
+    BATTING_RATE_STATS,
+    PITCHING_COUNTING_STATS,
+    PITCHING_RATE_STATS,
     ProjectionComparison,
+    _BATTING_STAT_FIELDS,
+    _PITCHING_STAT_FIELDS,
     compare_to_batting_actuals,
     compare_to_pitching_actuals,
     missing_batting_comparisons,
@@ -199,3 +205,31 @@ class TestMissingPitchingComparisons:
         stat_names = {c.stat_name for c in comparisons}
         assert "so" not in stat_names
         assert "era" in stat_names
+
+
+class TestBattingStatConstants:
+    def test_rate_stats_are_subset_of_stat_fields(self) -> None:
+        assert set(BATTING_RATE_STATS) <= set(_BATTING_STAT_FIELDS)
+
+    def test_counting_stats_are_subset_of_stat_fields(self) -> None:
+        assert set(BATTING_COUNTING_STATS) <= set(_BATTING_STAT_FIELDS)
+
+    def test_no_overlap_between_rate_and_counting(self) -> None:
+        assert set(BATTING_RATE_STATS) & set(BATTING_COUNTING_STATS) == set()
+
+    def test_union_equals_stat_fields(self) -> None:
+        assert set(BATTING_RATE_STATS) | set(BATTING_COUNTING_STATS) | {"war"} == set(_BATTING_STAT_FIELDS)
+
+
+class TestPitchingStatConstants:
+    def test_rate_stats_are_subset_of_stat_fields(self) -> None:
+        assert set(PITCHING_RATE_STATS) <= set(_PITCHING_STAT_FIELDS)
+
+    def test_counting_stats_are_subset_of_stat_fields(self) -> None:
+        assert set(PITCHING_COUNTING_STATS) <= set(_PITCHING_STAT_FIELDS)
+
+    def test_no_overlap_between_rate_and_counting(self) -> None:
+        assert set(PITCHING_RATE_STATS) & set(PITCHING_COUNTING_STATS) == set()
+
+    def test_union_equals_stat_fields(self) -> None:
+        assert set(PITCHING_RATE_STATS) | set(PITCHING_COUNTING_STATS) | {"war"} == set(_PITCHING_STAT_FIELDS)

@@ -44,6 +44,8 @@ from fantasy_baseball_manager.cli.factory import (
 from fantasy_baseball_manager.cli.factory import EvalContext
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
+from fantasy_baseball_manager.domain.projection_accuracy import BATTING_RATE_STATS, PITCHING_RATE_STATS
+from fantasy_baseball_manager.domain.pt_normalization import build_consensus_lookup
 from fantasy_baseball_manager.services.cohort import (
     assign_age_cohorts,
     assign_experience_cohorts,
@@ -418,10 +420,16 @@ def compare_cmd(
     data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
     top: _TopOpt = None,
     stratify: Annotated[str | None, typer.Option("--stratify", help="Stratify by: age, experience, top300")] = None,
+    normalize_pt: Annotated[str | None, typer.Option("--normalize-pt", help="PT source: consensus")] = None,
+    rate_only: Annotated[bool, typer.Option("--rate-only", help="Evaluate rate stats only")] = False,
 ) -> None:
     """Compare multiple projection systems against actuals."""
     if stratify is not None and stratify not in _STRATIFY_CHOICES:
         print_error(f"invalid stratify dimension '{stratify}', expected one of: {', '.join(_STRATIFY_CHOICES)}")
+        raise typer.Exit(code=1)
+
+    if normalize_pt is not None and normalize_pt != "consensus":
+        print_error(f"invalid --normalize-pt value '{normalize_pt}', expected 'consensus'")
         raise typer.Exit(code=1)
 
     parsed: list[tuple[str, str]] = []
@@ -432,9 +440,18 @@ def compare_cmd(
             raise typer.Exit(code=1)
         parsed.append((parts[0], parts[1]))
 
+    if rate_only and stat is None:
+        stat = list(BATTING_RATE_STATS + PITCHING_RATE_STATS)
+
     with build_eval_context(data_dir) as ctx:
+        consensus = None
+        if normalize_pt == "consensus":
+            steamer_projs = ctx.projection_repo.get_by_season(season, system="steamer")
+            zips_projs = ctx.projection_repo.get_by_season(season, system="zips")
+            consensus = build_consensus_lookup(steamer_projs, zips_projs)
+
         if stratify is None:
-            result = ctx.evaluator.compare(parsed, season, stats=stat, top=top)
+            result = ctx.evaluator.compare(parsed, season, stats=stat, top=top, normalize_pt=consensus)
             print_comparison_result(result)
         else:
             cohort_assignments = _build_cohort_assignments(ctx, stratify, season)
@@ -445,6 +462,7 @@ def compare_cmd(
                 dimension=stratify,
                 stats=stat,
                 top=top,
+                normalize_pt=consensus,
             )
             print_stratified_comparison_result(strat_result)
 

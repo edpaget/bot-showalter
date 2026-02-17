@@ -18,6 +18,10 @@ from fantasy_baseball_manager.domain.projection_accuracy import (
     missing_batting_comparisons,
     missing_pitching_comparisons,
 )
+from fantasy_baseball_manager.domain.pt_normalization import (
+    ConsensusLookup,
+    normalize_projection_pt,
+)
 from fantasy_baseball_manager.repos.protocols import (
     BattingStatsRepo,
     PitchingStatsRepo,
@@ -50,6 +54,7 @@ class ProjectionEvaluator:
         stats: list[str] | None = None,
         actuals_source: str = "fangraphs",
         top: int | None = None,
+        normalize_pt: ConsensusLookup | None = None,
     ) -> SystemMetrics:
         projections = self._projection_repo.get_by_system_version(system, version)
         projections = [p for p in projections if p.season == season]
@@ -65,6 +70,20 @@ class ProjectionEvaluator:
                 batter_projs[proj.player_id] = proj
             elif proj.player_type == "pitcher":
                 pitcher_projs[proj.player_id] = proj
+
+        if normalize_pt is not None:
+            batter_projs = {
+                pid: normalize_projection_pt(proj, normalize_pt.batting_pt[pid])
+                if pid in normalize_pt.batting_pt
+                else proj
+                for pid, proj in batter_projs.items()
+            }
+            pitcher_projs = {
+                pid: normalize_projection_pt(proj, normalize_pt.pitching_pt[pid])
+                if pid in normalize_pt.pitching_pt
+                else proj
+                for pid, proj in pitcher_projs.items()
+            }
 
         batting_actuals = self._batting_repo.get_by_season(season, source=actuals_source)
         if top is not None:
@@ -119,12 +138,21 @@ class ProjectionEvaluator:
         stats: list[str] | None = None,
         actuals_source: str = "fangraphs",
         top: int | None = None,
+        normalize_pt: ConsensusLookup | None = None,
     ) -> ComparisonResult:
         system_metrics: list[SystemMetrics] = []
         all_stat_names: set[str] = set()
 
         for system, version in systems:
-            metrics = self.evaluate(system, version, season, stats, actuals_source, top=top)
+            metrics = self.evaluate(
+                system,
+                version,
+                season,
+                stats,
+                actuals_source,
+                top=top,
+                normalize_pt=normalize_pt,
+            )
             system_metrics.append(metrics)
             all_stat_names.update(metrics.metrics.keys())
 
@@ -143,6 +171,7 @@ class ProjectionEvaluator:
         stats: list[str] | None = None,
         actuals_source: str = "fangraphs",
         top: int | None = None,
+        normalize_pt: ConsensusLookup | None = None,
     ) -> dict[str, SystemMetrics]:
         projections = self._projection_repo.get_by_system_version(system, version)
         projections = [p for p in projections if p.season == season]
@@ -158,6 +187,20 @@ class ProjectionEvaluator:
                 batter_projs[proj.player_id] = proj
             elif proj.player_type == "pitcher":
                 pitcher_projs[proj.player_id] = proj
+
+        if normalize_pt is not None:
+            batter_projs = {
+                pid: normalize_projection_pt(proj, normalize_pt.batting_pt[pid])
+                if pid in normalize_pt.batting_pt
+                else proj
+                for pid, proj in batter_projs.items()
+            }
+            pitcher_projs = {
+                pid: normalize_projection_pt(proj, normalize_pt.pitching_pt[pid])
+                if pid in normalize_pt.pitching_pt
+                else proj
+                for pid, proj in pitcher_projs.items()
+            }
 
         batting_actuals = self._batting_repo.get_by_season(season, source=actuals_source)
         if top is not None:
@@ -207,6 +250,7 @@ class ProjectionEvaluator:
         stats: list[str] | None = None,
         actuals_source: str = "fangraphs",
         top: int | None = None,
+        normalize_pt: ConsensusLookup | None = None,
     ) -> StratifiedComparisonResult:
         # Collect per-cohort metrics for each system
         all_cohort_labels: set[str] = set()
@@ -221,6 +265,7 @@ class ProjectionEvaluator:
                 stats,
                 actuals_source,
                 top=top,
+                normalize_pt=normalize_pt,
             )
             per_system.append(cohort_metrics)
             all_cohort_labels.update(cohort_metrics.keys())

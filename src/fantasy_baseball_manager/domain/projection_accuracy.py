@@ -55,6 +55,43 @@ _PITCHING_STAT_FIELDS: tuple[str, ...] = (
 )
 
 
+BATTING_RATE_STATS: tuple[str, ...] = ("avg", "obp", "slg", "ops", "woba", "wrc_plus")
+BATTING_COUNTING_STATS: tuple[str, ...] = (
+    "pa",
+    "ab",
+    "h",
+    "doubles",
+    "triples",
+    "hr",
+    "rbi",
+    "r",
+    "sb",
+    "cs",
+    "bb",
+    "so",
+    "hbp",
+    "sf",
+    "sh",
+    "gdp",
+    "ibb",
+)
+PITCHING_RATE_STATS: tuple[str, ...] = ("era", "whip", "k_per_9", "bb_per_9", "fip", "xfip")
+PITCHING_COUNTING_STATS: tuple[str, ...] = (
+    "w",
+    "l",
+    "g",
+    "gs",
+    "sv",
+    "hld",
+    "ip",
+    "h",
+    "er",
+    "hr",
+    "bb",
+    "so",
+)
+
+
 @dataclass(frozen=True)
 class ProjectionComparison:
     stat_name: str
