@@ -2,6 +2,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel.convert import (
+    extract_pt_from_rows,
     projection_to_domain,
     rows_to_marcel_inputs,
     rows_to_player_seasons,
@@ -376,3 +377,51 @@ class TestProjectionToDomain:
         assert "whip" not in domain.stat_json
         assert "k_per_9" not in domain.stat_json
         assert "bb_per_9" not in domain.stat_json
+
+
+class TestExtractPtFromRows:
+    def test_extracts_column_value(self) -> None:
+        rows = [{"player_id": 1, "season": 2023, "proj_pa": 500}]
+        result = extract_pt_from_rows(rows, "proj_pa")
+        assert result == {1: 500.0}
+
+    def test_uses_most_recent_row_per_player(self) -> None:
+        rows = [
+            {"player_id": 1, "season": 2022, "proj_pa": 400},
+            {"player_id": 1, "season": 2023, "proj_pa": 550},
+        ]
+        result = extract_pt_from_rows(rows, "proj_pa")
+        assert result == {1: 550.0}
+
+    def test_multiple_players(self) -> None:
+        rows = [
+            {"player_id": 1, "season": 2023, "consensus_pa": 500},
+            {"player_id": 2, "season": 2023, "consensus_pa": 600},
+        ]
+        result = extract_pt_from_rows(rows, "consensus_pa")
+        assert result == {1: 500.0, 2: 600.0}
+
+    def test_missing_column_excluded(self) -> None:
+        rows = [{"player_id": 1, "season": 2023}]
+        result = extract_pt_from_rows(rows, "proj_pa")
+        assert result == {}
+
+    def test_zero_value_excluded(self) -> None:
+        rows = [{"player_id": 1, "season": 2023, "proj_pa": 0}]
+        result = extract_pt_from_rows(rows, "proj_pa")
+        assert result == {}
+
+    def test_nan_value_excluded(self) -> None:
+        rows = [{"player_id": 1, "season": 2023, "consensus_pa": float("nan")}]
+        result = extract_pt_from_rows(rows, "consensus_pa")
+        assert result == {}
+
+    def test_none_value_excluded(self) -> None:
+        rows = [{"player_id": 1, "season": 2023, "proj_pa": None}]
+        result = extract_pt_from_rows(rows, "proj_pa")
+        assert result == {}
+
+    def test_pitcher_ip_column(self) -> None:
+        rows = [{"player_id": 10, "season": 2023, "proj_ip": 180.0}]
+        result = extract_pt_from_rows(rows, "proj_ip")
+        assert result == {10: 180.0}

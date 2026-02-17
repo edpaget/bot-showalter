@@ -1,7 +1,30 @@
+import math
 from collections.abc import Sequence
 
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel.types import MarcelInput, MarcelProjection, SeasonLine
+
+
+def extract_pt_from_rows(rows: list[dict], col: str) -> dict[int, float]:
+    """Extract playing-time values from assembler rows by column name.
+
+    Returns {player_id: pt_value} for players with valid non-zero PT.
+    Players with missing, zero, or NaN PT are excluded so the caller
+    can fall back to Marcel's native formula.
+    """
+    best_rows: dict[int, dict] = {}
+    for row in rows:
+        pid = int(row["player_id"])
+        if pid not in best_rows or row["season"] > best_rows[pid]["season"]:
+            best_rows[pid] = row
+    result: dict[int, float] = {}
+    for pid, row in best_rows.items():
+        val = row.get(col)
+        if val is not None:
+            fval = float(val)
+            if not math.isnan(fval) and fval > 0:
+                result[pid] = fval
+    return result
 
 
 def rows_to_player_seasons(

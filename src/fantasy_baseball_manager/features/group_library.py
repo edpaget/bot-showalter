@@ -6,6 +6,7 @@ Import this module to register all static groups in the feature group registry.
 from collections.abc import Sequence
 
 from fantasy_baseball_manager.features import batting, pitching, player, projection
+from fantasy_baseball_manager.features.consensus_pt import batting_consensus_features, pitching_consensus_features
 from fantasy_baseball_manager.features.groups import FeatureGroup, register_group
 from fantasy_baseball_manager.features.library import (
     STATCAST_BATTED_BALL,
@@ -101,6 +102,24 @@ register_group(
     )
 )
 
+
+register_group(
+    FeatureGroup(
+        name="consensus_batting_pt",
+        description="Consensus batting playing time (average of Steamer and ZiPS PA)",
+        player_type="batter",
+        features=tuple(batting_consensus_features()),
+    )
+)
+
+register_group(
+    FeatureGroup(
+        name="consensus_pitching_pt",
+        description="Consensus pitching playing time (average of Steamer and ZiPS IP)",
+        player_type="pitcher",
+        features=tuple(pitching_consensus_features()),
+    )
+)
 
 register_group(
     FeatureGroup(

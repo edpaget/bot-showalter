@@ -1,17 +1,18 @@
 from collections.abc import Sequence
 from typing import Any
 
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.model_run import ArtifactType
+from fantasy_baseball_manager.features import projection
+from fantasy_baseball_manager.features.consensus_pt import batting_consensus_features, pitching_consensus_features
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
-from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.models.marcel.convert import (
+    extract_pt_from_rows,
     projection_to_domain,
     rows_to_marcel_inputs,
 )
 from fantasy_baseball_manager.models.marcel.engine import project_all
-from fantasy_baseball_manager.domain.pt_normalization import build_consensus_lookup
-from fantasy_baseball_manager.repos.protocols import ProjectionRepo
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_features,
     build_batting_league_averages,
@@ -28,6 +29,37 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
 )
 from fantasy_baseball_manager.models.registry import register
+
+
+_PROJ_PA = projection.col("pa").system("playing_time").lag(0).alias("proj_pa")
+_PROJ_IP = projection.col("ip").system("playing_time").lag(0).alias("proj_ip")
+
+_PT_COL: dict[str, tuple[str, str]] = {
+    "playing-time-model": ("proj_pa", "proj_ip"),
+    "consensus": ("consensus_pa", "consensus_ip"),
+}
+
+
+def _resolve_pt_mode(config: ModelConfig) -> str:
+    """Resolve the playing-time mode from config params.
+
+    Supports the ``playing_time`` param ("native", "consensus",
+    "playing-time-model") and the legacy ``use_playing_time`` bool.
+    """
+    explicit = config.model_params.get("playing_time")
+    if explicit is not None:
+        return str(explicit)
+    use_pt = config.model_params.get("use_playing_time", True)
+    return "playing-time-model" if use_pt else "native"
+
+
+def _pt_features(pt_mode: str) -> tuple[tuple[AnyFeature, ...], tuple[AnyFeature, ...]]:
+    """Return (batting_pt_features, pitching_pt_features) for the given PT mode."""
+    if pt_mode == "playing-time-model":
+        return (_PROJ_PA,), (_PROJ_IP,)
+    if pt_mode == "consensus":
+        return tuple(batting_consensus_features()), tuple(pitching_consensus_features())
+    return (), ()
 
 
 def _is_batter(row: dict[str, Any]) -> bool:
@@ -78,6 +110,7 @@ def _build_feature_sets(
     marcel_config: MarcelConfig,
     seasons: Sequence[int],
     name_prefix: str,
+    pt_mode: str = "native",
 ) -> tuple[FeatureSet, FeatureSet]:
     """Build batting and pitching FeatureSets from MarcelConfig."""
     batting_base = build_batting_features(marcel_config.batting_categories)
@@ -88,15 +121,17 @@ def _build_feature_sets(
     pitching_weighted = build_pitching_weighted_rates(marcel_config.pitching_categories, marcel_config.pitching_weights)
     pitching_league = build_pitching_league_averages(marcel_config.pitching_categories)
 
+    bat_pt, pitch_pt = _pt_features(pt_mode)
+
     batting_fs = FeatureSet(
         name=f"{name_prefix}_batting",
-        features=(*batting_base, batting_weighted, batting_league),
+        features=(*batting_base, batting_weighted, batting_league, *bat_pt),
         seasons=tuple(seasons),
         source_filter="fangraphs",
     )
     pitching_fs = FeatureSet(
         name=f"{name_prefix}_pitching",
-        features=(*pitching_base, pitching_weighted, pitching_league),
+        features=(*pitching_base, pitching_weighted, pitching_league, *pitch_pt),
         seasons=tuple(seasons),
         source_filter="fangraphs",
     )
@@ -109,11 +144,9 @@ class MarcelModel:
         self,
         assembler: DatasetAssembler | None = None,
         evaluator: Evaluator | None = None,
-        projection_repo: ProjectionRepo | None = None,
     ) -> None:
         self._assembler = assembler
         self._evaluator = evaluator
-        self._projection_repo = projection_repo
 
     @property
     def name(self) -> str:
@@ -140,7 +173,8 @@ class MarcelModel:
     def prepare(self, config: ModelConfig) -> PrepareResult:
         assert self._assembler is not None, "assembler is required for prepare"
         marcel_config = _build_marcel_config(config.model_params)
-        batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name)
+        pt_mode = _resolve_pt_mode(config)
+        batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name, pt_mode=pt_mode)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -154,7 +188,8 @@ class MarcelModel:
     def predict(self, config: ModelConfig) -> PredictResult:
         assert self._assembler is not None, "assembler is required for predict"
         marcel_config = _build_marcel_config(config.model_params)
-        batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name)
+        pt_mode = _resolve_pt_mode(config)
+        batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name, pt_mode=pt_mode)
         lags = len(marcel_config.batting_weights)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
@@ -173,11 +208,10 @@ class MarcelModel:
         bat_pt_lookup: dict[int, float] | None = None
         pitch_pt_lookup: dict[int, float] | None = None
 
-        pt_mode = self._resolve_pt_mode(config)
-        if pt_mode == "playing-time-model" and self._projection_repo is not None:
-            bat_pt_lookup, pitch_pt_lookup = self._load_pt_model_projections(projected_season)
-        elif pt_mode == "consensus" and self._projection_repo is not None:
-            bat_pt_lookup, pitch_pt_lookup = self._load_consensus_pt(projected_season)
+        if pt_mode in _PT_COL:
+            bat_col, pitch_col = _PT_COL[pt_mode]
+            bat_pt_lookup = extract_pt_from_rows(bat_rows, bat_col) or None
+            pitch_pt_lookup = extract_pt_from_rows(pitch_rows, pitch_col) or None
 
         bat_projections = project_all(bat_inputs, projected_season, marcel_config, projected_pts=bat_pt_lookup)
         pitch_projections = project_all(pitch_inputs, projected_season, marcel_config, projected_pts=pitch_pt_lookup)
@@ -211,48 +245,6 @@ class MarcelModel:
             predictions=predictions,
             output_path=config.output_dir or config.artifacts_dir,
         )
-
-    @staticmethod
-    def _resolve_pt_mode(config: ModelConfig) -> str:
-        """Resolve the playing-time mode from config params.
-
-        Supports the new ``playing_time`` param ("native", "consensus",
-        "playing-time-model") and the legacy ``use_playing_time`` bool.
-        """
-        explicit = config.model_params.get("playing_time")
-        if explicit is not None:
-            return str(explicit)
-        # Legacy: use_playing_time defaults to True → "playing-time-model"
-        use_pt = config.model_params.get("use_playing_time", True)
-        return "playing-time-model" if use_pt else "native"
-
-    def _load_pt_model_projections(
-        self,
-        season: int,
-    ) -> tuple[dict[int, float] | None, dict[int, float] | None]:
-        """Fetch playing-time-model projections and return (bat, pitch) lookups."""
-        assert self._projection_repo is not None
-        pt_projections = self._projection_repo.get_by_season(season, system="playing_time")
-        bat_pt_map: dict[int, float] = {}
-        pitch_pt_map: dict[int, float] = {}
-        for proj in pt_projections:
-            stat = proj.stat_json
-            if proj.player_type == "batter" and "pa" in stat:
-                bat_pt_map[proj.player_id] = float(stat["pa"])
-            elif proj.player_type == "pitcher" and "ip" in stat:
-                pitch_pt_map[proj.player_id] = float(stat["ip"])
-        return bat_pt_map or None, pitch_pt_map or None
-
-    def _load_consensus_pt(
-        self,
-        season: int,
-    ) -> tuple[dict[int, float] | None, dict[int, float] | None]:
-        """Fetch Steamer/ZiPS projections, average PA/IP, return lookups."""
-        assert self._projection_repo is not None
-        steamer = self._projection_repo.get_by_season(season, system="steamer")
-        zips = self._projection_repo.get_by_season(season, system="zips")
-        lookup = build_consensus_lookup(steamer, zips)
-        return lookup.batting_pt or None, lookup.pitching_pt or None
 
     def evaluate(self, config: ModelConfig) -> SystemMetrics:
         assert self._evaluator is not None, "evaluator is required for evaluate"
