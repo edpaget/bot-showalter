@@ -127,6 +127,28 @@ class TestSqlitePlayerRepo:
         results = repo.get_by_last_name("Nobody")
         assert len(results) == 0
 
+    def test_get_by_ids(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        id1 = repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271))
+        id3 = repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))
+        results = repo.get_by_ids([id1, id3])
+        assert len(results) == 2
+        result_ids = {r.id for r in results}
+        assert result_ids == {id1, id3}
+
+    def test_get_by_ids_empty_list(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        results = repo.get_by_ids([])
+        assert results == []
+
+    def test_get_by_ids_missing_ids_ignored(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        id1 = repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        results = repo.get_by_ids([id1, 9999])
+        assert len(results) == 1
+        assert results[0].id == id1
+
     def test_upsert_update_raises_conflict_on_secondary_key_change(self, conn: sqlite3.Connection) -> None:
         repo = SqlitePlayerRepo(conn)
         repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))

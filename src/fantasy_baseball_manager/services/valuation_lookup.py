@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.valuation import PlayerValuation
 from fantasy_baseball_manager.repos.protocols import PlayerRepo, ValuationRepo
 
@@ -64,9 +65,13 @@ class ValuationLookupService:
         if top is not None:
             valuations = valuations[:top]
 
+        player_ids = [val.player_id for val in valuations]
+        players = self._player_repo.get_by_ids(player_ids)
+        player_map: dict[int, Player] = {p.id: p for p in players if p.id is not None}
+
         results: list[PlayerValuation] = []
         for val in valuations:
-            player = self._player_repo.get_by_id(val.player_id)
+            player = player_map.get(val.player_id)
             player_display = f"{player.name_first} {player.name_last}" if player else f"Unknown ({val.player_id})"
             results.append(
                 PlayerValuation(

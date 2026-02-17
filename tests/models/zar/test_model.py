@@ -67,6 +67,9 @@ class FakePlayerRepo:
     def get_by_id(self, player_id: int) -> Player | None:
         return next((p for p in self._players if p.id == player_id), None)
 
+    def get_by_ids(self, player_ids: list[int]) -> list[Player]:
+        return [p for p in self._players if p.id in player_ids]
+
     def get_by_mlbam_id(self, mlbam_id: int) -> Player | None:
         return None
 

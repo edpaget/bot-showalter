@@ -72,6 +72,16 @@ class SqlitePlayerRepo:
         row = self._conn.execute("SELECT * FROM player WHERE id = ?", (player_id,)).fetchone()
         return self._row_to_player(row) if row else None
 
+    def get_by_ids(self, player_ids: list[int]) -> list[Player]:
+        if not player_ids:
+            return []
+        placeholders = ",".join("?" * len(player_ids))
+        rows = self._conn.execute(
+            f"SELECT * FROM player WHERE id IN ({placeholders})",
+            player_ids,
+        ).fetchall()
+        return [self._row_to_player(row) for row in rows]
+
     def get_by_mlbam_id(self, mlbam_id: int) -> Player | None:
         row = self._conn.execute("SELECT * FROM player WHERE mlbam_id = ?", (mlbam_id,)).fetchone()
         return self._row_to_player(row) if row else None
