@@ -1,4 +1,6 @@
+import itertools
 import random
+from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -146,3 +148,75 @@ def compute_permutation_importance(
         importances[col_name] = sum(repeat_increases) / n_repeats
 
     return importances
+
+
+@dataclass(frozen=True)
+class CVFold:
+    X_train: list[list[float]]
+    y_train: dict[str, TargetVector]
+    X_test: list[list[float]]
+    y_test: dict[str, TargetVector]
+
+
+@dataclass(frozen=True)
+class GridSearchResult:
+    best_params: dict[str, Any]
+    best_mean_rmse: float
+    per_target_rmse: dict[str, float]
+    all_results: list[dict[str, Any]]
+
+
+def grid_search_cv(
+    folds: list[CVFold],
+    param_grid: dict[str, list[Any]],
+) -> GridSearchResult:
+    """Exhaustive grid search with pre-computed CV folds.
+
+    For each parameter combination, trains models on each fold's training data,
+    scores on each fold's test data, and averages RMSE across folds. Returns
+    the combination with the lowest mean RMSE across all targets and folds.
+    """
+    param_names = list(param_grid.keys())
+    param_values = list(param_grid.values())
+
+    all_results: list[dict[str, Any]] = []
+    best_mean_rmse = float("inf")
+    best_params: dict[str, Any] = {}
+    best_per_target: dict[str, float] = {}
+
+    for combo in itertools.product(*param_values):
+        params = dict(zip(param_names, combo))
+
+        # Collect per-target RMSE sums across folds
+        target_rmse_sums: dict[str, float] = {}
+        n_folds = len(folds)
+
+        for fold in folds:
+            models = fit_models(fold.X_train, fold.y_train, params)
+            metrics = score_predictions(models, fold.X_test, fold.y_test)
+            for key, value in metrics.items():
+                # key is "rmse_<target>"
+                target_name = key.removeprefix("rmse_")
+                target_rmse_sums[target_name] = target_rmse_sums.get(target_name, 0.0) + value
+
+        per_target_rmse = {t: v / n_folds for t, v in target_rmse_sums.items()}
+        mean_rmse = sum(per_target_rmse.values()) / len(per_target_rmse) if per_target_rmse else 0.0
+
+        entry: dict[str, Any] = {
+            "params": params,
+            "mean_rmse": mean_rmse,
+            "per_target_rmse": per_target_rmse,
+        }
+        all_results.append(entry)
+
+        if mean_rmse < best_mean_rmse:
+            best_mean_rmse = mean_rmse
+            best_params = params
+            best_per_target = per_target_rmse
+
+    return GridSearchResult(
+        best_params=best_params,
+        best_mean_rmse=best_mean_rmse,
+        per_target_rmse=best_per_target,
+        all_results=all_results,
+    )

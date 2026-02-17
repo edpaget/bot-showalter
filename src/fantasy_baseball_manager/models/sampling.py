@@ -49,6 +49,30 @@ def temporal_holdout_split(
     return train, holdout
 
 
+def temporal_expanding_cv(
+    seasons: list[int],
+) -> Iterator[tuple[list[int], int]]:
+    """Yield (train_seasons, test_season) with expanding training window.
+
+    For seasons [2022, 2023, 2024]:
+      Fold 0: train=[2022], test=2023
+      Fold 1: train=[2022, 2023], test=2024
+
+    Requires at least 3 seasons (to get at least 1 fold, leaving final season
+    for holdout). Raises ValueError otherwise.
+    """
+    if len(seasons) < 3:
+        msg = f"temporal_expanding_cv requires at least 3 seasons (got {len(seasons)})"
+        raise ValueError(msg)
+
+    sorted_seasons = sorted(seasons)
+    # Last season is reserved for holdout; iterate up to second-to-last
+    for i in range(1, len(sorted_seasons) - 1):
+        train_seasons = sorted_seasons[:i]
+        test_season = sorted_seasons[i]
+        yield train_seasons, test_season
+
+
 def season_kfold(
     rows: list[dict[str, Any]],
     n_folds: int = 5,

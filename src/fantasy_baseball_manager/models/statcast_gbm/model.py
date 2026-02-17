@@ -7,10 +7,12 @@ from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
 from fantasy_baseball_manager.models.gbm_training import (
+    CVFold,
     compute_permutation_importance,
     extract_features,
     extract_targets,
     fit_models,
+    grid_search_cv,
     score_predictions,
 )
 from fantasy_baseball_manager.models.protocols import (
@@ -20,7 +22,9 @@ from fantasy_baseball_manager.models.protocols import (
     PredictResult,
     PrepareResult,
     TrainResult,
+    TuneResult,
 )
+from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.statcast_gbm.features import (
     batter_preseason_feature_columns,
@@ -43,6 +47,14 @@ from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS,
 
 _FeatureSetBuilder = Callable[[Sequence[int]], FeatureSet]
 
+DEFAULT_PARAM_GRID: dict[str, list[Any]] = {
+    "max_iter": [100, 200, 500, 1000],
+    "max_depth": [3, 5, 7, None],
+    "learning_rate": [0.01, 0.05, 0.1, 0.2],
+    "min_samples_leaf": [5, 10, 20, 50],
+    "max_leaf_nodes": [15, 31, 63, None],
+}
+
 
 class _StatcastGBMBase:
     def __init__(
@@ -63,7 +75,7 @@ class _StatcastGBMBase:
 
     @property
     def supported_operations(self) -> frozenset[str]:
-        return frozenset({"prepare", "train", "evaluate", "predict", "ablate"})
+        return frozenset({"prepare", "train", "evaluate", "predict", "ablate", "tune"})
 
     @property
     def artifact_type(self) -> str:
@@ -237,6 +249,67 @@ class _StatcastGBMBase:
             model_name=self.name,
             predictions=predictions_by_row,
             output_path=config.output_dir or config.artifacts_dir,
+        )
+
+    def tune(self, config: ModelConfig) -> TuneResult:
+        assert self._assembler is not None, "assembler is required for tune"
+        if len(config.seasons) < 3:
+            msg = f"tune requires at least 3 seasons (got {len(config.seasons)})"
+            raise ValueError(msg)
+
+        param_grid = config.model_params.get("param_grid", DEFAULT_PARAM_GRID)
+
+        # temporal_expanding_cv reserves the last season for holdout internally
+        cv_splits = list(temporal_expanding_cv(config.seasons))
+
+        # --- Batter CV folds ---
+        bat_folds: list[CVFold] = []
+        bat_feature_cols = self._batter_columns
+        bat_targets = list(BATTER_TARGETS)
+        for train_seasons, test_season in cv_splits:
+            bat_fs = self._batter_training_set_builder(train_seasons + [test_season])
+            bat_handle = self._assembler.get_or_materialize(bat_fs)
+            bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=[test_season])
+            train_rows = self._assembler.read(bat_splits.train)
+            holdout_rows = self._assembler.read(bat_splits.holdout) if bat_splits.holdout else []
+            bat_folds.append(
+                CVFold(
+                    X_train=extract_features(train_rows, bat_feature_cols),
+                    y_train=extract_targets(train_rows, bat_targets),
+                    X_test=extract_features(holdout_rows, bat_feature_cols),
+                    y_test=extract_targets(holdout_rows, bat_targets),
+                )
+            )
+
+        bat_result = grid_search_cv(bat_folds, param_grid)
+
+        # --- Pitcher CV folds ---
+        pit_folds: list[CVFold] = []
+        pit_feature_cols = self._pitcher_columns
+        pit_targets = list(PITCHER_TARGETS)
+        for train_seasons, test_season in cv_splits:
+            pit_fs = self._pitcher_training_set_builder(train_seasons + [test_season])
+            pit_handle = self._assembler.get_or_materialize(pit_fs)
+            pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=[test_season])
+            train_rows = self._assembler.read(pit_splits.train)
+            holdout_rows = self._assembler.read(pit_splits.holdout) if pit_splits.holdout else []
+            pit_folds.append(
+                CVFold(
+                    X_train=extract_features(train_rows, pit_feature_cols),
+                    y_train=extract_targets(train_rows, pit_targets),
+                    X_test=extract_features(holdout_rows, pit_feature_cols),
+                    y_test=extract_targets(holdout_rows, pit_targets),
+                )
+            )
+
+        pit_result = grid_search_cv(pit_folds, param_grid)
+
+        return TuneResult(
+            model_name=self.name,
+            batter_params=bat_result.best_params,
+            pitcher_params=pit_result.best_params,
+            batter_cv_rmse=bat_result.per_target_rmse,
+            pitcher_cv_rmse=pit_result.per_target_rmse,
         )
 
     def ablate(self, config: ModelConfig) -> AblationResult:

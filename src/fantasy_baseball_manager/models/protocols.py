@@ -100,6 +100,20 @@ class Ablatable(Protocol):
     def ablate(self, config: ModelConfig) -> AblationResult: ...
 
 
+@dataclass(frozen=True)
+class TuneResult:
+    model_name: str
+    batter_params: dict[str, Any]
+    pitcher_params: dict[str, Any]
+    batter_cv_rmse: dict[str, float]
+    pitcher_cv_rmse: dict[str, float]
+
+
+@runtime_checkable
+class Tunable(Protocol):
+    def tune(self, config: ModelConfig) -> TuneResult: ...
+
+
 @runtime_checkable
 class FeatureIntrospectable(Protocol):
     @property

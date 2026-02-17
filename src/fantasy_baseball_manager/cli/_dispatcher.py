@@ -14,6 +14,8 @@ from fantasy_baseball_manager.models.protocols import (
     Model,
     Trainable,
     TrainResult,
+    Tunable,
+    TuneResult,
 )
 from fantasy_baseball_manager.models.run_manager import RunManager
 
@@ -29,9 +31,10 @@ _OPERATION_MAP: dict[str, tuple[type, str]] = {
     "predict": (Predictable, "predict"),
     "finetune": (FineTunable, "finetune"),
     "ablate": (Ablatable, "ablate"),
+    "tune": (Tunable, "tune"),
 }
 
-type _AnyResult = PrepareResult | TrainResult | SystemMetrics | PredictResult | AblationResult
+type _AnyResult = PrepareResult | TrainResult | SystemMetrics | PredictResult | AblationResult | TuneResult
 
 
 def dispatch(

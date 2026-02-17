@@ -2,11 +2,14 @@ import math
 import random
 
 from fantasy_baseball_manager.models.gbm_training import (
+    CVFold,
+    GridSearchResult,
     TargetVector,
     compute_permutation_importance,
     extract_features,
     extract_targets,
     fit_models,
+    grid_search_cv,
     score_predictions,
 )
 
@@ -248,3 +251,76 @@ class TestEndToEndWithMissingTargets:
         assert "rmse_avg" in metrics
         assert "rmse_iso" in metrics
         assert all(isinstance(v, float) for v in metrics.values())
+
+
+def _make_cv_folds() -> list[CVFold]:
+    """Build 2 simple CV folds with linear signal in feat_a."""
+    gen = random.Random(42)
+    # 3 seasons of data: train on expanding window, test on next
+    season_data: dict[int, tuple[list[list[float]], list[float]]] = {}
+    for s in [2020, 2021, 2022]:
+        X = [[float(i + s * 10), gen.random()] for i in range(20)]
+        y = [float(i + s * 10) for i in range(20)]
+        season_data[s] = (X, y)
+
+    # Fold 0: train=2020, test=2021
+    fold0_X_train, fold0_y_train_vals = season_data[2020]
+    fold0_X_test, fold0_y_test_vals = season_data[2021]
+    fold0 = CVFold(
+        X_train=fold0_X_train,
+        y_train={"y": TargetVector(list(range(len(fold0_y_train_vals))), fold0_y_train_vals)},
+        X_test=fold0_X_test,
+        y_test={"y": TargetVector(list(range(len(fold0_y_test_vals))), fold0_y_test_vals)},
+    )
+
+    # Fold 1: train=2020+2021, test=2022
+    fold1_X_train = season_data[2020][0] + season_data[2021][0]
+    fold1_y_train_vals = season_data[2020][1] + season_data[2021][1]
+    fold1_X_test, fold1_y_test_vals = season_data[2022]
+    fold1 = CVFold(
+        X_train=fold1_X_train,
+        y_train={"y": TargetVector(list(range(len(fold1_y_train_vals))), fold1_y_train_vals)},
+        X_test=fold1_X_test,
+        y_test={"y": TargetVector(list(range(len(fold1_y_test_vals))), fold1_y_test_vals)},
+    )
+
+    return [fold0, fold1]
+
+
+class TestGridSearchCV:
+    def test_single_param_returns_better_option(self) -> None:
+        folds = _make_cv_folds()
+        # More iterations should generally do at least as well
+        result = grid_search_cv(folds, {"max_iter": [50, 100]})
+        assert result.best_params["max_iter"] in [50, 100]
+
+    def test_best_params_contains_all_grid_keys(self) -> None:
+        folds = _make_cv_folds()
+        result = grid_search_cv(folds, {"max_iter": [100], "max_depth": [3, 5]})
+        assert "max_iter" in result.best_params
+        assert "max_depth" in result.best_params
+
+    def test_per_target_rmse_has_one_entry_per_target(self) -> None:
+        folds = _make_cv_folds()
+        result = grid_search_cv(folds, {"max_iter": [100]})
+        assert "y" in result.per_target_rmse
+        assert len(result.per_target_rmse) == 1
+
+    def test_all_results_has_one_entry_per_combination(self) -> None:
+        folds = _make_cv_folds()
+        result = grid_search_cv(folds, {"max_iter": [50, 100], "max_depth": [3, 5]})
+        # 2 * 2 = 4 combinations
+        assert len(result.all_results) == 4
+
+    def test_trivial_single_combination(self) -> None:
+        folds = _make_cv_folds()
+        result = grid_search_cv(folds, {"max_iter": [100]})
+        assert result.best_params == {"max_iter": 100}
+        assert len(result.all_results) == 1
+
+    def test_result_is_grid_search_result(self) -> None:
+        folds = _make_cv_folds()
+        result = grid_search_cv(folds, {"max_iter": [100]})
+        assert isinstance(result, GridSearchResult)
+        assert isinstance(result.best_mean_rmse, float)
+        assert result.best_mean_rmse >= 0

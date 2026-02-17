@@ -19,6 +19,8 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
     Trainable,
     TrainResult,
+    Tunable,
+    TuneResult,
 )
 from fantasy_baseball_manager.models.statcast_gbm.features import (
     batter_preseason_feature_columns,
@@ -215,7 +217,7 @@ class TestStatcastGBMProtocol:
 
     def test_supported_operations(self) -> None:
         ops = StatcastGBMModel().supported_operations
-        assert ops == frozenset({"prepare", "train", "evaluate", "predict", "ablate"})
+        assert ops == frozenset({"prepare", "train", "evaluate", "predict", "ablate", "tune"})
 
     def test_declared_features_not_empty(self) -> None:
         features = StatcastGBMModel().declared_features
@@ -252,7 +254,7 @@ class TestStatcastGBMPreseasonProtocol:
 
     def test_supported_operations(self) -> None:
         ops = StatcastGBMPreseasonModel().supported_operations
-        assert ops == frozenset({"prepare", "train", "evaluate", "predict", "ablate"})
+        assert ops == frozenset({"prepare", "train", "evaluate", "predict", "ablate", "tune"})
 
     def test_declared_features_not_empty(self) -> None:
         features = StatcastGBMPreseasonModel().declared_features
@@ -625,6 +627,69 @@ class TestStatcastGBMPreseasonPredict:
         result = model.predict(config)
         assert isinstance(result, PredictResult)
         assert len(result.predictions) > 0
+
+
+class TestStatcastGBMPreseasonTune:
+    @pytest.fixture()
+    def tune_result(self) -> TuneResult:
+        rows_by_season = {
+            2021: [_make_preseason_row(f"p_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows_by_season = {
+            2021: [_make_preseason_pitcher_row(f"pit_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMPreseasonModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            model_params={"param_grid": {"max_iter": [50, 100]}},
+        )
+        return model.tune(config)
+
+    def test_tune_returns_tune_result(self, tune_result: TuneResult) -> None:
+        assert isinstance(tune_result, TuneResult)
+        assert tune_result.model_name == "statcast-gbm-preseason"
+
+    def test_batter_params_nonempty(self, tune_result: TuneResult) -> None:
+        assert isinstance(tune_result.batter_params, dict)
+        assert len(tune_result.batter_params) > 0
+
+    def test_pitcher_params_nonempty(self, tune_result: TuneResult) -> None:
+        assert isinstance(tune_result.pitcher_params, dict)
+        assert len(tune_result.pitcher_params) > 0
+
+    def test_batter_cv_rmse_has_entries_for_all_targets(self, tune_result: TuneResult) -> None:
+        for target in BATTER_TARGETS:
+            assert target in tune_result.batter_cv_rmse
+
+    def test_pitcher_cv_rmse_has_entries_for_all_targets(self, tune_result: TuneResult) -> None:
+        for target in PITCHER_TARGETS:
+            assert target in tune_result.pitcher_cv_rmse
+
+    def test_tune_raises_with_fewer_than_3_seasons(self) -> None:
+        assembler = FakeAssembler()
+        model = StatcastGBMPreseasonModel(assembler=assembler)
+        config = ModelConfig(seasons=[2022, 2023])
+        with pytest.raises(ValueError, match="at least 3 seasons"):
+            model.tune(config)
+
+    def test_tune_raises_with_single_season(self) -> None:
+        assembler = FakeAssembler()
+        model = StatcastGBMPreseasonModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023])
+        with pytest.raises(ValueError, match="at least 3 seasons"):
+            model.tune(config)
+
+    def test_is_tunable_protocol(self) -> None:
+        assert isinstance(StatcastGBMPreseasonModel(), Tunable)
+
+    def test_supported_operations_includes_tune(self) -> None:
+        ops = StatcastGBMPreseasonModel().supported_operations
+        assert "tune" in ops
 
 
 class TestDefaultModeIsTrueTalent:

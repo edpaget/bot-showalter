@@ -6,6 +6,7 @@ import pytest
 from fantasy_baseball_manager.models.sampling import (
     holdout_metrics,
     season_kfold,
+    temporal_expanding_cv,
     temporal_holdout_split,
 )
 
@@ -86,6 +87,47 @@ class TestTemporalHoldoutSplit:
 
         assert all(r["year"] == 2022 for r in holdout)
         assert all(r["year"] == 2021 for r in train)
+
+
+class TestTemporalExpandingCV:
+    def test_yields_correct_number_of_folds(self) -> None:
+        # [2020, 2021, 2022, 2023] -> 2 folds (last season reserved for holdout)
+        folds = list(temporal_expanding_cv([2020, 2021, 2022, 2023]))
+        assert len(folds) == 2
+
+    def test_train_always_before_test(self) -> None:
+        folds = list(temporal_expanding_cv([2020, 2021, 2022, 2023]))
+        for train_seasons, test_season in folds:
+            assert all(s < test_season for s in train_seasons)
+
+    def test_expanding_train_window(self) -> None:
+        folds = list(temporal_expanding_cv([2020, 2021, 2022, 2023]))
+        # Fold 0: train=[2020], test=2021
+        assert folds[0] == ([2020], 2021)
+        # Fold 1: train=[2020, 2021], test=2022
+        assert folds[1] == ([2020, 2021], 2022)
+
+    def test_raises_on_fewer_than_3_seasons(self) -> None:
+        with pytest.raises(ValueError, match="at least 3 seasons"):
+            list(temporal_expanding_cv([2022, 2023]))
+
+    def test_raises_on_single_season(self) -> None:
+        with pytest.raises(ValueError, match="at least 3 seasons"):
+            list(temporal_expanding_cv([2022]))
+
+    def test_raises_on_empty(self) -> None:
+        with pytest.raises(ValueError, match="at least 3 seasons"):
+            list(temporal_expanding_cv([]))
+
+    def test_three_seasons_yields_one_fold(self) -> None:
+        folds = list(temporal_expanding_cv([2021, 2022, 2023]))
+        assert len(folds) == 1
+        assert folds[0] == ([2021], 2022)
+
+    def test_unsorted_input_still_respects_temporal_order(self) -> None:
+        folds = list(temporal_expanding_cv([2023, 2020, 2022, 2021]))
+        assert folds[0] == ([2020], 2021)
+        assert folds[1] == ([2020, 2021], 2022)
 
 
 class TestSeasonKFold:
