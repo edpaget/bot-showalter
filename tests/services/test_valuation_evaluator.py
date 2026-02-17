@@ -236,16 +236,16 @@ def _standard_valuations() -> list[Valuation]:
 
 def _standard_batting_actuals() -> list[BattingStats]:
     return [
-        BattingStats(player_id=1, season=2025, source="fangraphs", hr=35, r=100),
-        BattingStats(player_id=2, season=2025, source="fangraphs", hr=45, r=110),
-        BattingStats(player_id=3, season=2025, source="fangraphs", hr=20, r=80),
+        BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=35, r=100),
+        BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=45, r=110),
+        BattingStats(player_id=3, season=2025, source="fangraphs", pa=500, hr=20, r=80),
     ]
 
 
 def _standard_pitching_actuals() -> list[PitchingStats]:
     return [
-        PitchingStats(player_id=4, season=2025, source="fangraphs", w=15, sv=0),
-        PitchingStats(player_id=5, season=2025, source="fangraphs", w=5, sv=30),
+        PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0),
+        PitchingStats(player_id=5, season=2025, source="fangraphs", ip=70.0, w=5, sv=30),
     ]
 
 
@@ -346,9 +346,9 @@ class TestValuationEvaluator:
         ]
         # Actuals: player 1 best, player 3 worst (inverted)
         batting = [
-            BattingStats(player_id=1, season=2025, source="fangraphs", hr=50, r=120),
-            BattingStats(player_id=2, season=2025, source="fangraphs", hr=25, r=80),
-            BattingStats(player_id=3, season=2025, source="fangraphs", hr=5, r=40),
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=50, r=120),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=25, r=80),
+            BattingStats(player_id=3, season=2025, source="fangraphs", pa=500, hr=5, r=40),
         ]
         evaluator = _build_evaluator(valuations=valuations, batting=batting, pitching=[])
         result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
@@ -358,8 +358,8 @@ class TestValuationEvaluator:
         """A player with a valuation but no actual stats should be excluded."""
         # Player 3 has valuation but no actuals
         batting = [
-            BattingStats(player_id=1, season=2025, source="fangraphs", hr=35, r=100),
-            BattingStats(player_id=2, season=2025, source="fangraphs", hr=45, r=110),
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=35, r=100),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=45, r=110),
         ]
         evaluator = _build_evaluator(batting=batting)
         result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
@@ -410,6 +410,29 @@ class TestValuationEvaluator:
         names = {p.player_name for p in result.players}
         assert "Mike Trout" in names
         assert "Aaron Judge" in names
+
+    def test_zero_pa_batters_excluded_from_actuals(self) -> None:
+        """Batters with pa=0 in actuals should be excluded from the valuation pool."""
+        batting = [
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=35, r=100),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=500, hr=45, r=110),
+            BattingStats(player_id=3, season=2025, source="fangraphs", pa=0, hr=0, r=0),
+        ]
+        evaluator = _build_evaluator(batting=batting)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        actual_player_ids = {p.player_id for p in result.players}
+        assert 3 not in actual_player_ids
+
+    def test_zero_ip_pitchers_excluded_from_actuals(self) -> None:
+        """Pitchers with ip=0 in actuals should be excluded from the valuation pool."""
+        pitching = [
+            PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0),
+            PitchingStats(player_id=5, season=2025, source="fangraphs", ip=0.0, w=0, sv=0),
+        ]
+        evaluator = _build_evaluator(pitching=pitching)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        actual_player_ids = {p.player_id for p in result.players}
+        assert 5 not in actual_player_ids
 
     def test_version_filter(self) -> None:
         """Two versions of valuations, filter returns correct one."""

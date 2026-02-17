@@ -85,8 +85,8 @@ class ZarModel:
         position_map = build_position_map(appearances, league)
 
         # 2. Split into batters and pitchers
-        batter_projs = [p for p in projections if p.player_type == "batter"]
-        pitcher_projs = [p for p in projections if p.player_type == "pitcher"]
+        batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) > 0]
+        pitcher_projs = [p for p in projections if p.player_type == "pitcher" and p.stat_json.get("ip", 0) > 0]
 
         # 3. Budget split proportional to category count
         n_bat_cats = len(league.batting_categories)

@@ -95,8 +95,8 @@ class ValuationEvaluator:
         position_map = build_position_map(appearances, league)
 
         # 5. Run ZAR pipeline on actuals — same split/budget/pipeline as ZarModel.predict
-        actual_batter_ids = list(batter_stats.keys())
-        actual_pitcher_ids = list(pitcher_stats.keys())
+        actual_batter_ids = [pid for pid in batter_stats if batter_stats[pid].get("pa", 0) > 0]
+        actual_pitcher_ids = [pid for pid in pitcher_stats if pitcher_stats[pid].get("ip", 0) > 0]
 
         n_bat_cats = len(league.batting_categories)
         n_pitch_cats = len(league.pitching_categories)

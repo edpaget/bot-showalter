@@ -1165,9 +1165,9 @@ def _seed_valuation_eval_data(conn: sqlite3.Connection) -> None:
     )
 
     # Actual stats
-    batting_repo.upsert(BattingStats(player_id=pid1, season=2025, source="fangraphs", hr=35, r=100))
-    batting_repo.upsert(BattingStats(player_id=pid2, season=2025, source="fangraphs", hr=45, r=110))
-    pitching_repo.upsert(PitchingStats(player_id=pid3, season=2025, source="fangraphs", w=15, sv=0))
+    batting_repo.upsert(BattingStats(player_id=pid1, season=2025, source="fangraphs", pa=600, hr=35, r=100))
+    batting_repo.upsert(BattingStats(player_id=pid2, season=2025, source="fangraphs", pa=550, hr=45, r=110))
+    pitching_repo.upsert(PitchingStats(player_id=pid3, season=2025, source="fangraphs", ip=200.0, w=15, sv=0))
 
     # Position appearances
     position_repo.upsert(PositionAppearance(player_id=pid1, season=2025, position="OF", games=150))

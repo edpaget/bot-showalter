@@ -163,7 +163,7 @@ def _build_projections() -> list[Projection]:
             system="steamer",
             version="v1",
             player_type="batter",
-            stat_json={"hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0, "avg": 0.291},
+            stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0, "avg": 0.291},
         ),
         Projection(
             player_id=2,
@@ -171,7 +171,7 @@ def _build_projections() -> list[Projection]:
             system="steamer",
             version="v1",
             player_type="batter",
-            stat_json={"hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0, "avg": 0.280},
+            stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0, "avg": 0.280},
         ),
         Projection(
             player_id=3,
@@ -179,7 +179,7 @@ def _build_projections() -> list[Projection]:
             system="steamer",
             version="v1",
             player_type="batter",
-            stat_json={"hr": 10.0, "r": 50.0, "h": 130.0, "ab": 520.0, "avg": 0.250},
+            stat_json={"pa": 570, "hr": 10.0, "r": 50.0, "h": 130.0, "ab": 520.0, "avg": 0.250},
         ),
         Projection(
             player_id=4,
@@ -187,7 +187,7 @@ def _build_projections() -> list[Projection]:
             system="steamer",
             version="v1",
             player_type="pitcher",
-            stat_json={"w": 15.0, "sv": 0.0},
+            stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
         ),
         Projection(
             player_id=5,
@@ -195,7 +195,7 @@ def _build_projections() -> list[Projection]:
             system="steamer",
             version="v1",
             player_type="pitcher",
-            stat_json={"w": 8.0, "sv": 30.0},
+            stat_json={"ip": 70, "w": 8.0, "sv": 30.0},
         ),
     ]
 
@@ -370,7 +370,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v1",
                 player_type="batter",
-                stat_json={"hr": 25.0, "r": 80.0, "h": 150.0, "ab": 500.0},
+                stat_json={"pa": 550, "hr": 25.0, "r": 80.0, "h": 150.0, "ab": 500.0},
             ),
         ]
         model, val_repo = _build_model(projections=projections, appearances=[])
@@ -388,7 +388,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v1",
                 player_type="batter",
-                stat_json={"hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+                stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
                 player_id=1,
@@ -396,7 +396,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v2",
                 player_type="batter",
-                stat_json={"hr": 35.0, "r": 90.0, "h": 150.0, "ab": 530.0},
+                stat_json={"pa": 580, "hr": 35.0, "r": 90.0, "h": 150.0, "ab": 530.0},
             ),
             Projection(
                 player_id=4,
@@ -404,7 +404,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v1",
                 player_type="pitcher",
-                stat_json={"w": 15.0, "sv": 0.0},
+                stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
             ),
             Projection(
                 player_id=4,
@@ -412,7 +412,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v2",
                 player_type="pitcher",
-                stat_json={"w": 12.0, "sv": 5.0},
+                stat_json={"ip": 180, "w": 12.0, "sv": 5.0},
             ),
         ]
         model, val_repo = _build_model(projections=projections)
@@ -439,7 +439,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v1",
                 player_type="batter",
-                stat_json={"hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+                stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
                 player_id=2,
@@ -447,7 +447,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v2",
                 player_type="batter",
-                stat_json={"hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0},
+                stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0},
             ),
         ]
         model, val_repo = _build_model(projections=projections, appearances=[])
@@ -455,6 +455,74 @@ class TestZarModelPredict:
         model.predict(config)
         player_ids = {v.player_id for v in val_repo.upserted}
         assert player_ids == {1, 2}
+
+    def test_predict_excludes_zero_pa_batters(self) -> None:
+        """Batters with pa=0 should be excluded from the valuation pool."""
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+            ),
+            Projection(
+                player_id=2,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 0, "hr": 0.0, "r": 0.0, "h": 0.0, "ab": 0.0},
+            ),
+            Projection(
+                player_id=4,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections, appearances=[])
+        model.predict(_standard_config())
+        player_ids = {v.player_id for v in val_repo.upserted}
+        assert 2 not in player_ids
+        assert 1 in player_ids
+
+    def test_predict_excludes_zero_ip_pitchers(self) -> None:
+        """Pitchers with ip=0 should be excluded from the valuation pool."""
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+            ),
+            Projection(
+                player_id=4,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
+            ),
+            Projection(
+                player_id=5,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 0, "w": 0.0, "sv": 0.0},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections, appearances=[])
+        model.predict(_standard_config())
+        player_ids = {v.player_id for v in val_repo.upserted}
+        assert 5 not in player_ids
+        assert 4 in player_ids
 
     def test_predict_projection_version_filters_by_season(self) -> None:
         """projection_version + season filter: only matching season is used."""
@@ -465,7 +533,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v1",
                 player_type="batter",
-                stat_json={"hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+                stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
                 player_id=2,
@@ -473,7 +541,7 @@ class TestZarModelPredict:
                 system="steamer",
                 version="v1",
                 player_type="batter",
-                stat_json={"hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0},
+                stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0},
             ),
         ]
         model, val_repo = _build_model(projections=projections, appearances=[])
