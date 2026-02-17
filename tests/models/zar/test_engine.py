@@ -3,15 +3,20 @@ import pytest
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
+    LeagueFormat,
+    LeagueSettings,
     StatType,
 )
 from fantasy_baseball_manager.models.zar.engine import (
     PlayerZScores,
+    ZarPipelineResult,
+    compute_budget_split,
     compute_replacement_level,
     compute_var,
     compute_z_scores,
     convert_rate_stats,
     resolve_numerator,
+    run_zar_pipeline,
     var_to_dollars,
 )
 
@@ -411,3 +416,113 @@ class TestVarToDollars:
         result = var_to_dollars([6.0, 4.0], total_budget=20.0, min_bid=2.0)
         assert result[0] == pytest.approx(11.6)
         assert result[1] == pytest.approx(8.4)
+
+
+def _league(
+    batting_categories: tuple[CategoryConfig, ...] = (),
+    pitching_categories: tuple[CategoryConfig, ...] = (),
+    teams: int = 2,
+    budget: int = 260,
+) -> LeagueSettings:
+    return LeagueSettings(
+        name="Test",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=teams,
+        budget=budget,
+        roster_batters=3,
+        roster_pitchers=2,
+        batting_categories=batting_categories,
+        pitching_categories=pitching_categories,
+    )
+
+
+class TestComputeBudgetSplit:
+    def test_equal_categories_50_50(self) -> None:
+        league = _league(
+            batting_categories=(_counting("hr"), _counting("r")),
+            pitching_categories=(_counting("w"), _counting("sv")),
+            teams=1,
+            budget=100,
+        )
+        bat_budget, pitch_budget = compute_budget_split(league)
+        assert bat_budget == pytest.approx(50.0)
+        assert pitch_budget == pytest.approx(50.0)
+
+    def test_unequal_categories_proportional(self) -> None:
+        league = _league(
+            batting_categories=(_counting("hr"), _counting("r"), _counting("rbi")),
+            pitching_categories=(_counting("w"),),
+            teams=2,
+            budget=260,
+        )
+        bat_budget, pitch_budget = compute_budget_split(league)
+        total = 260 * 2
+        assert bat_budget == pytest.approx(total * 3 / 4)
+        assert pitch_budget == pytest.approx(total * 1 / 4)
+
+    def test_zero_total_categories(self) -> None:
+        league = _league()
+        bat_budget, pitch_budget = compute_budget_split(league)
+        assert bat_budget == 0.0
+        assert pitch_budget == 0.0
+
+
+class TestRunZarPipeline:
+    def test_returns_pipeline_result(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        categories = [_counting("hr")]
+        positions = [["of"], ["of"]]
+        roster_spots = {"of": 1}
+        result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
+        assert isinstance(result, ZarPipelineResult)
+
+    def test_empty_input(self) -> None:
+        result = run_zar_pipeline([], [_counting("hr")], [], {}, num_teams=1, budget=100.0)
+        assert result.z_scores == []
+        assert result.replacement == {}
+        assert result.dollar_values == []
+
+    def test_dollar_values_sum_to_budget(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}, {"hr": 10.0}]
+        categories = [_counting("hr")]
+        positions = [["of"], ["of"], ["of"]]
+        roster_spots = {"of": 1}
+        result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=90.0)
+        assert sum(result.dollar_values) == pytest.approx(90.0)
+
+    def test_z_scores_length_matches_input(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        categories = [_counting("hr")]
+        positions = [["of"], ["of"]]
+        roster_spots = {"of": 1}
+        result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
+        assert len(result.z_scores) == 2
+        assert len(result.dollar_values) == 2
+
+    def test_replacement_keys_match_roster_spots(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        categories = [_counting("hr")]
+        positions = [["c", "of"], ["of"]]
+        roster_spots = {"c": 1, "of": 1}
+        result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
+        assert set(result.replacement.keys()) == {"c", "of"}
+
+    def test_known_value_regression(self) -> None:
+        # 2 players, 1 counting category (hr)
+        # Player A: hr=30, Player B: hr=20
+        # After convert_rate_stats: [30.0, 20.0] (counting, higher)
+        # z-scores: mean=25, pstdev=5 → z_A=1.0, z_B=-1.0
+        # Replacement for "of" with 1 spot, 1 team: draftable=1, repl = z at index 1 = -1.0
+        # VAR: A=1.0-(-1.0)=2.0, B=-1.0-(-1.0)=0.0
+        # var_to_dollars: budget=20, n=2, surplus=20-2=18, sum_positive=2.0
+        # A: 1 + (2.0/2.0)*18 = 19.0, B: 1.0 (no positive VAR)
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        categories = [_counting("hr")]
+        positions = [["of"], ["of"]]
+        roster_spots = {"of": 1}
+        result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=20.0)
+        assert result.z_scores[0].composite_z == pytest.approx(1.0)
+        assert result.z_scores[1].composite_z == pytest.approx(-1.0)
+        assert result.replacement["of"] == pytest.approx(-1.0)
+        assert result.dollar_values[0] == pytest.approx(19.0)
+        assert result.dollar_values[1] == pytest.approx(1.0)

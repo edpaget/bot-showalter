@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
+    LeagueSettings,
     StatType,
 )
 
@@ -170,3 +171,41 @@ def var_to_dollars(
         return [min_bid] * n
 
     return [min_bid + (v / sum_positive) * surplus if v > 0.0 else min_bid for v in var_values]
+
+
+@dataclass(frozen=True)
+class ZarPipelineResult:
+    z_scores: list[PlayerZScores]
+    replacement: dict[str, float]
+    dollar_values: list[float]
+
+
+def run_zar_pipeline(
+    stats_list: list[dict[str, float]],
+    categories: list[CategoryConfig],
+    player_positions: list[list[str]],
+    roster_spots: dict[str, int],
+    num_teams: int,
+    budget: float,
+) -> ZarPipelineResult:
+    """Run the full ZAR pipeline: convert → z-score → replacement → VAR → dollars."""
+    if not stats_list:
+        return ZarPipelineResult(z_scores=[], replacement={}, dollar_values=[])
+    category_keys = [c.key for c in categories]
+    converted = convert_rate_stats(stats_list, categories)
+    z_scores = compute_z_scores(converted, category_keys)
+    replacement = compute_replacement_level(z_scores, player_positions, roster_spots, num_teams)
+    var_values = compute_var(z_scores, replacement, player_positions)
+    dollar_values = var_to_dollars(var_values, budget)
+    return ZarPipelineResult(z_scores=z_scores, replacement=replacement, dollar_values=dollar_values)
+
+
+def compute_budget_split(league: LeagueSettings) -> tuple[float, float]:
+    """Split total league budget proportionally between batting and pitching categories."""
+    n_bat = len(league.batting_categories)
+    n_pitch = len(league.pitching_categories)
+    total = n_bat + n_pitch
+    total_budget = league.budget * league.teams
+    if total == 0:
+        return 0.0, 0.0
+    return total_budget * n_bat / total, total_budget * n_pitch / total

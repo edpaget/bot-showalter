@@ -42,6 +42,20 @@ def build_position_map(
     return result
 
 
+def build_roster_spots(
+    league: LeagueSettings,
+    *,
+    pitcher_roster_spots: dict[str, int] | None = None,
+) -> dict[str, int]:
+    """Build the roster-spots dict from league settings, with optional pitcher override."""
+    if pitcher_roster_spots is not None:
+        return pitcher_roster_spots
+    roster_spots = dict(league.positions)
+    if league.roster_util > 0:
+        roster_spots["util"] = league.roster_util
+    return roster_spots
+
+
 def best_position(eligible: list[str], replacement: dict[str, float]) -> str:
     """Pick the position with the lowest replacement level (highest VAR)."""
     if not eligible:

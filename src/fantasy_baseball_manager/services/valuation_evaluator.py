@@ -9,13 +9,10 @@ from fantasy_baseball_manager.domain.valuation import (
     ValuationEvalResult,
 )
 from fantasy_baseball_manager.models.zar.engine import (
-    compute_replacement_level,
-    compute_var,
-    compute_z_scores,
-    convert_rate_stats,
-    var_to_dollars,
+    compute_budget_split,
+    run_zar_pipeline,
 )
-from fantasy_baseball_manager.models.zar.positions import build_position_map
+from fantasy_baseball_manager.models.zar.positions import build_position_map, build_roster_spots
 from fantasy_baseball_manager.repos.protocols import (
     BattingStatsRepo,
     PitchingStatsRepo,
@@ -98,12 +95,7 @@ class ValuationEvaluator:
         actual_batter_ids = [pid for pid in batter_stats if batter_stats[pid].get("pa", 0) > 0]
         actual_pitcher_ids = [pid for pid in pitcher_stats if pitcher_stats[pid].get("ip", 0) > 0]
 
-        n_bat_cats = len(league.batting_categories)
-        n_pitch_cats = len(league.pitching_categories)
-        total_cats = n_bat_cats + n_pitch_cats
-        total_league_budget = league.budget * league.teams
-        batter_budget = total_league_budget * n_bat_cats / total_cats if total_cats else 0.0
-        pitcher_budget = total_league_budget * n_pitch_cats / total_cats if total_cats else 0.0
+        batter_budget, pitcher_budget = compute_budget_split(league)
 
         # Value batters
         actual_batter_values = self._value_pool(
@@ -214,25 +206,12 @@ class ValuationEvaluator:
             return {}
 
         stats_list = [stats_map[pid] for pid in player_ids]
-        category_keys = [c.key for c in categories]
-
-        converted = convert_rate_stats(stats_list, categories)
-        z_scores = compute_z_scores(converted, category_keys)
-
         player_positions = [position_map.get(pid, ["util"]) for pid in player_ids]
+        roster_spots = build_roster_spots(league, pitcher_roster_spots=pitcher_roster_spots)
 
-        if pitcher_roster_spots is not None:
-            roster_spots = pitcher_roster_spots
-        else:
-            roster_spots = dict(league.positions)
-            if league.roster_util > 0:
-                roster_spots["util"] = league.roster_util
+        result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
 
-        replacement = compute_replacement_level(z_scores, player_positions, roster_spots, league.teams)
-        var_values = compute_var(z_scores, replacement, player_positions)
-        dollar_values = var_to_dollars(var_values, budget)
-
-        return dict(zip(player_ids, dollar_values))
+        return dict(zip(player_ids, result.dollar_values))
 
     def _build_player_name_map(self) -> dict[int, str]:
         """Build a mapping of player_id to display name."""

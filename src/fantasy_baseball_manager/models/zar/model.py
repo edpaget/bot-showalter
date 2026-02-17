@@ -8,13 +8,14 @@ from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.zar.engine import (
-    compute_replacement_level,
-    compute_var,
-    compute_z_scores,
-    convert_rate_stats,
-    var_to_dollars,
+    compute_budget_split,
+    run_zar_pipeline,
 )
-from fantasy_baseball_manager.models.zar.positions import best_position, build_position_map
+from fantasy_baseball_manager.models.zar.positions import (
+    best_position,
+    build_position_map,
+    build_roster_spots,
+)
 from fantasy_baseball_manager.repos.protocols import (
     PlayerRepo,
     PositionAppearanceRepo,
@@ -89,12 +90,7 @@ class ZarModel:
         pitcher_projs = [p for p in projections if p.player_type == "pitcher" and p.stat_json.get("ip", 0) > 0]
 
         # 3. Budget split proportional to category count
-        n_bat_cats = len(league.batting_categories)
-        n_pitch_cats = len(league.pitching_categories)
-        total_cats = n_bat_cats + n_pitch_cats
-        total_league_budget = league.budget * league.teams
-        batter_budget = total_league_budget * n_bat_cats / total_cats if total_cats else 0.0
-        pitcher_budget = total_league_budget * n_pitch_cats / total_cats if total_cats else 0.0
+        batter_budget, pitcher_budget = compute_budget_split(league)
 
         # 4. Run ZAR for batters
         batter_valuations = self._value_pool(
@@ -174,34 +170,15 @@ class ZarModel:
             return []
 
         stats_list = _extract_stats(projections)
-        category_keys = [c.key for c in categories]
-
-        # Convert rate stats to marginal contributions
-        converted = convert_rate_stats(stats_list, categories)
-
-        # Compute z-scores
-        z_scores = compute_z_scores(converted, category_keys)
-
-        # Build per-player position lists (in same order as projections)
         player_positions = [position_map.get(p.player_id, ["util"]) for p in projections]
+        roster_spots = build_roster_spots(league, pitcher_roster_spots=pitcher_roster_spots)
 
-        # Roster spots
-        if pitcher_roster_spots is not None:
-            roster_spots = pitcher_roster_spots
-        else:
-            roster_spots = dict(league.positions)
-            if league.roster_util > 0:
-                roster_spots["util"] = league.roster_util
-
-        # Replacement level and VAR
-        replacement = compute_replacement_level(z_scores, player_positions, roster_spots, league.teams)
-        var_values = compute_var(z_scores, replacement, player_positions)
-        dollar_values = var_to_dollars(var_values, budget)
+        result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
 
         # Build Valuation objects (rank=0 placeholder, filled later)
         valuations: list[Valuation] = []
         for i, proj in enumerate(projections):
-            best_pos = best_position(player_positions[i], replacement)
+            best_pos = best_position(player_positions[i], result.replacement)
             valuations.append(
                 Valuation(
                     player_id=proj.player_id,
@@ -212,9 +189,9 @@ class ZarModel:
                     projection_version=proj.version,
                     player_type=player_type,
                     position=best_pos,
-                    value=round(dollar_values[i], 2),
+                    value=round(result.dollar_values[i], 2),
                     rank=0,
-                    category_scores=dict(z_scores[i].category_z),
+                    category_scores=dict(result.z_scores[i].category_z),
                 )
             )
         return valuations
