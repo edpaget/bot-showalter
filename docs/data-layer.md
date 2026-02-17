@@ -286,10 +286,16 @@ features/
     sql.py               # SQL generation from feature declarations
     assembler.py         # SqliteDatasetAssembler (two-pass materialization)
     library.py           # Reusable feature bundles
+    groups.py            # FeatureGroup registry and compose_feature_set
+    group_library.py     # Static group registrations + factory functions
     transforms/          # Python-based transform functions
         pitch_mix.py     # Pitch-type usage and velocity profiles
         batted_ball.py   # Exit velocity and launch angle metrics
 ```
+
+### Feature groups
+
+Feature groups are named, composable collections of features. Models select groups by name in their TOML config, and `compose_feature_set()` merges them into a single `FeatureSet`. See [composite-model.md](composite-model.md) for the full architecture.
 
 ### Feature types
 
