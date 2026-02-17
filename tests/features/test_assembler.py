@@ -348,6 +348,17 @@ class TestSplitTrainOnly:
         assert splits.holdout is None
 
 
+class TestSplitIdempotent:
+    def test_split_twice_does_not_raise(self, seeded_conn: sqlite3.Connection) -> None:
+        assembler = SqliteDatasetAssembler(seeded_conn)
+        handle = assembler.materialize(_multi_season_feature_set())
+        assembler.split(handle, train=[2022], holdout=[2023])
+        splits = assembler.split(handle, train=[2022], holdout=[2023])
+        assert splits.train.row_count == 2
+        assert splits.holdout is not None
+        assert splits.holdout.row_count == 2
+
+
 class TestIntegrationFullWorkflow:
     def test_end_to_end(self, seeded_conn: sqlite3.Connection) -> None:
         assembler = SqliteDatasetAssembler(seeded_conn)

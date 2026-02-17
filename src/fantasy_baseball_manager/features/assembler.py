@@ -256,6 +256,7 @@ class SqliteDatasetAssembler:
         suffix = {"train": "train", "val": "val", "holdout": "holdout"}[split_name]
         split_table = f"{handle.table_name}_{suffix}"
         placeholders = ", ".join("?" for _ in seasons)
+        self._conn.execute(f"DROP TABLE IF EXISTS [{split_table}]")
         self._conn.execute(
             f"CREATE TABLE [{split_table}] AS SELECT * FROM [{handle.table_name}] WHERE season IN ({placeholders})",
             seasons,
