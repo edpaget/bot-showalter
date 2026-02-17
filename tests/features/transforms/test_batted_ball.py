@@ -6,6 +6,8 @@ import pytest
 
 from fantasy_baseball_manager.features.transforms.batted_ball import (
     BATTED_BALL,
+    BATTED_BALL_AGAINST,
+    batted_ball_against_profile,
     batted_ball_profile,
 )
 from fantasy_baseball_manager.features.types import Source, TransformFeature
@@ -171,3 +173,94 @@ class TestBattedBallTransformFeature:
 
     def test_transform_callable(self) -> None:
         assert BATTED_BALL.transform is batted_ball_profile
+
+
+class TestBattedBallAgainstProfile:
+    def test_basic_metrics(self) -> None:
+        rows = [
+            {"launch_speed": 100.0, "launch_angle": 25.0, "barrel": 1},
+            {"launch_speed": 90.0, "launch_angle": 5.0, "barrel": 0},
+            {"launch_speed": 95.0, "launch_angle": 15.0, "barrel": 0},
+            {"launch_speed": 105.0, "launch_angle": 30.0, "barrel": 1},
+        ]
+        result = batted_ball_against_profile(rows)
+        # avg_exit_velo_against: mean(100, 90, 95, 105) = 97.5
+        assert result["avg_exit_velo_against"] == pytest.approx(97.5)
+        # barrel_pct_against: 2/4 = 50%
+        assert result["barrel_pct_against"] == pytest.approx(50.0)
+        # gb_pct_against: angle < 10 → 1/4 (5)
+        assert result["gb_pct_against"] == pytest.approx(25.0)
+        # fb_pct_against: 25 <= angle < 50 → 2/4 (25, 30)
+        assert result["fb_pct_against"] == pytest.approx(50.0)
+
+    def test_empty_rows(self) -> None:
+        result = batted_ball_against_profile([])
+        assert all(math.isnan(v) for v in result.values())
+        assert len(result) == 4
+
+    def test_no_batted_ball_events(self) -> None:
+        rows = [
+            {"launch_speed": None, "launch_angle": None, "barrel": None},
+        ]
+        result = batted_ball_against_profile(rows)
+        assert all(math.isnan(v) for v in result.values())
+
+    def test_filters_null_launch_speed(self) -> None:
+        rows = [
+            {"launch_speed": 100.0, "launch_angle": 25.0, "barrel": 1},
+            {"launch_speed": None, "launch_angle": None, "barrel": None},
+        ]
+        result = batted_ball_against_profile(rows)
+        assert result["avg_exit_velo_against"] == pytest.approx(100.0)
+        assert result["barrel_pct_against"] == pytest.approx(100.0)
+
+    def test_null_angle_excluded_from_gb_fb(self) -> None:
+        rows = [
+            {"launch_speed": 100.0, "launch_angle": 5.0, "barrel": 0},
+            {"launch_speed": 95.0, "launch_angle": None, "barrel": 0},
+        ]
+        result = batted_ball_against_profile(rows)
+        # Only 1 row with angle; angle=5 → gb
+        assert result["gb_pct_against"] == pytest.approx(100.0)
+        assert result["fb_pct_against"] == pytest.approx(0.0)
+        # avg_exit_velo uses all batted balls
+        assert result["avg_exit_velo_against"] == pytest.approx(97.5)
+
+    def test_output_keys(self) -> None:
+        result = batted_ball_against_profile([])
+        expected_keys = {
+            "gb_pct_against",
+            "fb_pct_against",
+            "avg_exit_velo_against",
+            "barrel_pct_against",
+        }
+        assert set(result.keys()) == expected_keys
+
+    def test_ground_ball_pitcher(self) -> None:
+        rows = [
+            {"launch_speed": 88.0, "launch_angle": -3.0, "barrel": 0},
+            {"launch_speed": 90.0, "launch_angle": 5.0, "barrel": 0},
+            {"launch_speed": 92.0, "launch_angle": 8.0, "barrel": 0},
+        ]
+        result = batted_ball_against_profile(rows)
+        # All 3 angles < 10 → 100% gb
+        assert result["gb_pct_against"] == pytest.approx(100.0)
+        assert result["fb_pct_against"] == pytest.approx(0.0)
+        assert result["barrel_pct_against"] == pytest.approx(0.0)
+
+
+class TestBattedBallAgainstTransformFeature:
+    def test_is_transform_feature(self) -> None:
+        assert isinstance(BATTED_BALL_AGAINST, TransformFeature)
+
+    def test_source_is_statcast(self) -> None:
+        assert BATTED_BALL_AGAINST.source == Source.STATCAST
+
+    def test_outputs_count(self) -> None:
+        assert len(BATTED_BALL_AGAINST.outputs) == 4
+
+    def test_transform_callable(self) -> None:
+        assert BATTED_BALL_AGAINST.transform is batted_ball_against_profile
+
+    def test_name(self) -> None:
+        assert BATTED_BALL_AGAINST.name == "batted_ball_against"

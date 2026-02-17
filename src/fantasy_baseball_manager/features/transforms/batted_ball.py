@@ -80,6 +80,42 @@ def batted_ball_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+_EMPTY_AGAINST_RESULT: dict[str, Any] = {
+    "gb_pct_against": _NAN,
+    "fb_pct_against": _NAN,
+    "avg_exit_velo_against": _NAN,
+    "barrel_pct_against": _NAN,
+}
+
+
+def batted_ball_against_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute batted-ball-against metrics for pitchers from statcast pitch data."""
+    batted = [r for r in rows if r.get("launch_speed") is not None]
+    n = len(batted)
+    if n == 0:
+        return dict(_EMPTY_AGAINST_RESULT)
+
+    total_velo = sum(r["launch_speed"] for r in batted)
+    barrels = sum(1 for r in batted if r.get("barrel") == 1)
+
+    with_angle = [r for r in batted if r.get("launch_angle") is not None]
+    n_angle = len(with_angle)
+    if n_angle > 0:
+        gb = sum(1 for r in with_angle if r["launch_angle"] < 10.0)
+        fb = sum(1 for r in with_angle if 25.0 <= r["launch_angle"] < 50.0)
+        gb_pct = gb / n_angle * 100.0
+        fb_pct = fb / n_angle * 100.0
+    else:
+        gb_pct = fb_pct = _NAN
+
+    return {
+        "gb_pct_against": gb_pct,
+        "fb_pct_against": fb_pct,
+        "avg_exit_velo_against": total_velo / n,
+        "barrel_pct_against": barrels / n * 100.0,
+    }
+
+
 BATTED_BALL = TransformFeature(
     name="batted_ball",
     source=Source.STATCAST,
@@ -97,5 +133,19 @@ BATTED_BALL = TransformFeature(
         "ld_pct",
         "sweet_spot_pct",
         "exit_velo_p90",
+    ),
+)
+
+BATTED_BALL_AGAINST = TransformFeature(
+    name="batted_ball_against",
+    source=Source.STATCAST,
+    columns=("launch_speed", "launch_angle", "barrel"),
+    group_by=("player_id", "season"),
+    transform=batted_ball_against_profile,
+    outputs=(
+        "gb_pct_against",
+        "fb_pct_against",
+        "avg_exit_velo_against",
+        "barrel_pct_against",
     ),
 )

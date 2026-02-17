@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from fantasy_baseball_manager.features import batting, pitching, player
 from fantasy_baseball_manager.features.transforms import (
     BATTED_BALL,
+    BATTED_BALL_AGAINST,
     EXPECTED_STATS,
     PITCH_MIX,
     PLATE_DISCIPLINE,
@@ -88,7 +89,7 @@ def batter_feature_columns() -> list[str]:
 def build_pitcher_feature_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = [player.age()]
     features.extend(_pitcher_lag_features())
-    features.extend([PITCH_MIX, SPIN_PROFILE, PLATE_DISCIPLINE])
+    features.extend([PITCH_MIX, SPIN_PROFILE, PLATE_DISCIPLINE, BATTED_BALL_AGAINST])
     return FeatureSet(
         name="statcast_gbm_pitching",
         features=tuple(features),
@@ -112,7 +113,7 @@ def _pitcher_target_features() -> list[Feature]:
 def build_pitcher_training_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = [player.age()]
     features.extend(_pitcher_lag_features())
-    features.extend([PITCH_MIX, SPIN_PROFILE, PLATE_DISCIPLINE])
+    features.extend([PITCH_MIX, SPIN_PROFILE, PLATE_DISCIPLINE, BATTED_BALL_AGAINST])
     features.extend(_pitcher_target_features())
     return FeatureSet(
         name="statcast_gbm_pitching_train",
@@ -195,6 +196,7 @@ def build_pitcher_preseason_set(seasons: Sequence[int]) -> FeatureSet:
             PITCH_MIX.with_lag(1),
             SPIN_PROFILE.with_lag(1),
             PLATE_DISCIPLINE.with_lag(1),
+            BATTED_BALL_AGAINST.with_lag(1),
         ]
     )
     return FeatureSet(
@@ -214,6 +216,7 @@ def build_pitcher_preseason_training_set(seasons: Sequence[int]) -> FeatureSet:
             PITCH_MIX.with_lag(1),
             SPIN_PROFILE.with_lag(1),
             PLATE_DISCIPLINE.with_lag(1),
+            BATTED_BALL_AGAINST.with_lag(1),
         ]
     )
     features.extend(_pitcher_target_features())

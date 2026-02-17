@@ -121,6 +121,7 @@ class TestPitcherFeatureSet:
         assert "pitch_mix" in transform_names
         assert "spin_profile" in transform_names
         assert "plate_discipline" in transform_names
+        assert "batted_ball_against" in transform_names
 
     def test_includes_pitching_lags(self) -> None:
         fs = build_pitcher_feature_set([2023])
@@ -181,6 +182,9 @@ class TestPitcherFeatureColumns:
         assert "avg_spin_rate" in columns
         assert "ff_pct" in columns
         assert "chase_rate" in columns
+        # Batted-ball-against outputs
+        assert "gb_pct_against" in columns
+        assert "barrel_pct_against" in columns
 
 
 class TestBatterPreseasonSet:
@@ -289,6 +293,7 @@ class TestPitcherPreseasonSet:
         assert "pitch_mix" in transform_names
         assert "spin_profile" in transform_names
         assert "plate_discipline" in transform_names
+        assert "batted_ball_against" in transform_names
 
 
 class TestPitcherPreseasonTrainingSet:
