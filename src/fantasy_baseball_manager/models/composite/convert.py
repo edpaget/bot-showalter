@@ -1,6 +1,7 @@
 from typing import Any
 
 from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.models.marcel.convert import _compute_batter_rates, _compute_pitcher_rates
 
 
 def extract_projected_pt(rows: list[dict[str, Any]], pitcher: bool = False) -> dict[int, float]:
@@ -34,9 +35,11 @@ def composite_projection_to_domain(
 
     if pitcher:
         stat_json["ip"] = pt
+        stat_json.update(_compute_pitcher_rates(stats, pt))
         player_type = "pitcher"
     else:
         stat_json["pa"] = int(pt)
+        stat_json.update(_compute_batter_rates(stats, int(pt)))
         player_type = "batter"
 
     return Projection(

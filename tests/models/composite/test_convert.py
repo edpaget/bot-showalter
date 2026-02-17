@@ -109,3 +109,77 @@ class TestCompositeProjectionToDomain:
             version="v1",
         )
         assert proj.stat_json["_pt_system"] == "playing_time"
+
+    def test_batter_rate_stats(self) -> None:
+        stats = {
+            "h": 150.0,
+            "doubles": 30.0,
+            "triples": 3.0,
+            "hr": 25.0,
+            "bb": 60.0,
+            "hbp": 5.0,
+            "sf": 5.0,
+        }
+        pa = 600
+        proj = composite_projection_to_domain(
+            player_id=1,
+            projected_season=2025,
+            stats=stats,
+            rates={},
+            pt=pa,
+            pitcher=False,
+            version="v1",
+        )
+        sj = proj.stat_json
+        ab = pa - 60 - 5 - 5  # 530
+        assert sj["ab"] == ab
+        assert sj["avg"] == 150 / ab
+        assert sj["obp"] == (150 + 60 + 5) / (ab + 60 + 5 + 5)
+        singles = 150 - 30 - 3 - 25  # 92
+        slg = (singles + 2 * 30 + 3 * 3 + 4 * 25) / ab
+        assert sj["slg"] == slg
+        assert sj["ops"] == sj["obp"] + sj["slg"]
+
+    def test_pitcher_rate_stats(self) -> None:
+        stats = {"er": 60.0, "h": 150.0, "bb": 50.0, "so": 180.0}
+        ip = 180.0
+        proj = composite_projection_to_domain(
+            player_id=10,
+            projected_season=2025,
+            stats=stats,
+            rates={},
+            pt=ip,
+            pitcher=True,
+            version="v1",
+        )
+        sj = proj.stat_json
+        assert sj["era"] == 60 * 9 / 180
+        assert sj["whip"] == (150 + 50) / 180
+        assert sj["k_per_9"] == 180 * 9 / 180
+        assert sj["bb_per_9"] == 50 * 9 / 180
+
+    def test_batter_zero_pa_no_rate_stats(self) -> None:
+        proj = composite_projection_to_domain(
+            player_id=1,
+            projected_season=2025,
+            stats={"h": 0.0, "hr": 0.0},
+            rates={},
+            pt=0,
+            pitcher=False,
+            version="v1",
+        )
+        for key in ("avg", "obp", "slg", "ops", "ab"):
+            assert key not in proj.stat_json
+
+    def test_pitcher_zero_ip_no_rate_stats(self) -> None:
+        proj = composite_projection_to_domain(
+            player_id=10,
+            projected_season=2025,
+            stats={"er": 0.0, "so": 0.0},
+            rates={},
+            pt=0.0,
+            pitcher=True,
+            version="v1",
+        )
+        for key in ("era", "whip", "k_per_9", "bb_per_9"):
+            assert key not in proj.stat_json
