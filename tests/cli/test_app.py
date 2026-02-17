@@ -150,6 +150,23 @@ class TestActionCommands:
         result = runner.invoke(app, ["ablate", "marcel"])
         assert result.exit_code != 0
 
+    def test_ablate_passes_param_to_config(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _ensure_marcel_registered()
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        captured: dict[str, object] = {}
+        original_load = __import__("fantasy_baseball_manager.config", fromlist=["load_config"]).load_config
+
+        def spy_load(**kwargs: object) -> object:
+            captured.update(kwargs)
+            return original_load(**kwargs)
+
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_config", spy_load)
+        runner.invoke(app, ["ablate", "marcel", "--param", "mode=preseason"])
+        assert captured.get("model_params") == {"mode": "preseason"}
+
     def test_train_marcel_with_output_dir_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_marcel_registered()
         monkeypatch.setattr(

@@ -305,9 +305,22 @@ def finetune(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _Season
 
 
 @app.command()
-def ablate(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None) -> None:
+def ablate(
+    model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None, param: _ParamOpt = None
+) -> None:
     """Run ablation study on a projection model."""
-    _run_action("ablate", model, output_dir, season)
+    params = _parse_params(param)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
+    with build_model_context(model, config) as ctx:
+        try:
+            result = dispatch("ablate", ctx.model, config)
+        except UnsupportedOperation as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from None
+
+    match result:
+        case AblationResult():
+            print_ablation_result(result)
 
 
 @app.command("list")

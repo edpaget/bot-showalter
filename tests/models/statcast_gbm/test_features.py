@@ -39,29 +39,21 @@ class TestBatterFeatureSet:
         assert "batted_ball" in transform_names
         assert "plate_discipline" in transform_names
         assert "expected_stats" in transform_names
-        assert "spray_angle" in transform_names
 
     def test_includes_batting_lags(self) -> None:
         fs = build_batter_feature_set([2023])
         names = [f.name for f in fs.features]
         assert "pa_1" in names
-        assert "pa_2" in names
         assert "hr_1" in names
-        assert "hr_2" in names
 
     def test_includes_batting_rate_lags(self) -> None:
         fs = build_batter_feature_set([2023])
         names = [f.name for f in fs.features]
         assert "avg_1" in names
-        assert "avg_2" in names
         assert "obp_1" in names
-        assert "obp_2" in names
         assert "slg_1" in names
-        assert "slg_2" in names
         assert "k_pct_1" in names
-        assert "k_pct_2" in names
         assert "bb_pct_1" in names
-        assert "bb_pct_2" in names
 
 
 class TestBatterTrainingSet:
@@ -116,7 +108,6 @@ class TestBatterFeatureColumns:
         assert "avg_exit_velo" in columns
         assert "chase_rate" in columns
         assert "xba" in columns
-        assert "pull_pct" in columns
 
 
 class TestPitcherFeatureSet:
@@ -150,9 +141,7 @@ class TestPitcherFeatureSet:
         fs = build_pitcher_feature_set([2023])
         names = [f.name for f in fs.features]
         assert "ip_1" in names
-        assert "ip_2" in names
         assert "so_1" in names
-        assert "so_2" in names
 
 
 class TestPitcherTrainingSet:
@@ -235,7 +224,6 @@ class TestBatterPreseasonSet:
         fs = build_batter_preseason_set([2023])
         names = [f.name for f in fs.features]
         assert "pa_1" in names
-        assert "pa_2" in names
         assert "avg_1" in names
         assert "k_pct_1" in names
 
@@ -252,7 +240,6 @@ class TestBatterPreseasonSet:
         assert "batted_ball" in transform_names
         assert "plate_discipline" in transform_names
         assert "expected_stats" in transform_names
-        assert "spray_angle" in transform_names
 
     def test_different_version_from_true_talent(self) -> None:
         tt = build_batter_feature_set([2023])
