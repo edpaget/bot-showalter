@@ -14,3 +14,12 @@ marcel = 0.6
 [models.ensemble.params.versions]
 marcel = "latest"
 "statcast-gbm" = "latest"
+
+[models.composite-mle.params]
+feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "mle_batter_rates"]
+
+[models.composite-statcast.params]
+feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "statcast_gbm_batter_rates", "statcast_gbm_pitcher_rates", "statcast_batted_ball"]
+
+[models.composite-full.params]
+feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "mle_batter_rates", "statcast_gbm_batter_rates", "statcast_gbm_pitcher_rates", "statcast_batted_ball", "statcast_plate_discipline"]

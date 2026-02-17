@@ -3,15 +3,23 @@
 from typing import Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
+from fantasy_baseball_manager.features.group_library import (
+    make_batting_counting_lags,
+    make_batting_rate_lags,
+    make_pitching_counting_lags,
+)
+from fantasy_baseball_manager.features.groups import FeatureGroup, compose_feature_set, get_group
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import FeatureSet
 from fantasy_baseball_manager.models.composite.convert import (
     composite_projection_to_domain,
     extract_projected_pt,
 )
-from fantasy_baseball_manager.models.composite.features import (
-    build_composite_batting_features,
-    build_composite_pitching_features,
+from fantasy_baseball_manager.models.marcel.features import (
+    build_batting_league_averages,
+    build_batting_weighted_rates,
+    build_pitching_league_averages,
+    build_pitching_weighted_rates,
 )
 from fantasy_baseball_manager.models.marcel.convert import rows_to_marcel_inputs
 from fantasy_baseball_manager.models.marcel.engine import age_adjust, regress_to_mean
@@ -22,6 +30,28 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
 )
 from fantasy_baseball_manager.models.registry import register
+
+DEFAULT_GROUPS: tuple[str, ...] = (
+    "age",
+    "projected_batting_pt",
+    "projected_pitching_pt",
+    "batting_counting_lags",
+    "pitching_counting_lags",
+)
+
+
+def _resolve_group(name: str, marcel_config: MarcelConfig) -> FeatureGroup:
+    """Resolve a feature group by name — static from registry, parameterized from factory."""
+    if name == "batting_counting_lags":
+        lags = list(range(1, len(marcel_config.batting_weights) + 1))
+        return make_batting_counting_lags(marcel_config.batting_categories, lags)
+    if name == "pitching_counting_lags":
+        lags = list(range(1, len(marcel_config.pitching_weights) + 1))
+        return make_pitching_counting_lags(marcel_config.pitching_categories, lags)
+    if name == "batting_rate_lags":
+        lags = list(range(1, len(marcel_config.batting_weights) + 1))
+        return make_batting_rate_lags(("avg", "obp", "slg", "woba"), lags)
+    return get_group(name)
 
 
 def _build_marcel_config(model_params: dict[str, Any]) -> MarcelConfig:
@@ -75,26 +105,57 @@ class CompositeModel:
     def _build_feature_sets(
         self,
         marcel_config: MarcelConfig,
-        seasons: list[int],
+        config: ModelConfig,
     ) -> tuple[FeatureSet, FeatureSet]:
-        batting_features = build_composite_batting_features(
-            marcel_config.batting_categories, marcel_config.batting_weights
-        )
-        pitching_features = build_composite_pitching_features(
-            marcel_config.pitching_categories, marcel_config.pitching_weights
-        )
+        group_names: tuple[str, ...] = tuple(config.model_params.get("feature_groups", DEFAULT_GROUPS))
+        groups = [_resolve_group(name, marcel_config) for name in group_names]
+
+        batter_groups = [g for g in groups if g.player_type in ("batter", "both")]
+        pitcher_groups = [g for g in groups if g.player_type in ("pitcher", "both")]
+
+        has_batting_lags = any(g.name == "batting_counting_lags" for g in groups)
+        has_pitching_lags = any(g.name == "pitching_counting_lags" for g in groups)
+
+        if has_batting_lags:
+            batter_groups.append(
+                FeatureGroup(
+                    name="batting_transforms",
+                    description="Marcel batting transforms (weighted rates + league averages)",
+                    player_type="batter",
+                    features=(
+                        build_batting_weighted_rates(marcel_config.batting_categories, marcel_config.batting_weights),
+                        build_batting_league_averages(marcel_config.batting_categories),
+                    ),
+                )
+            )
+
+        if has_pitching_lags:
+            pitcher_groups.append(
+                FeatureGroup(
+                    name="pitching_transforms",
+                    description="Marcel pitching transforms (weighted rates + league averages)",
+                    player_type="pitcher",
+                    features=(
+                        build_pitching_weighted_rates(
+                            marcel_config.pitching_categories, marcel_config.pitching_weights
+                        ),
+                        build_pitching_league_averages(marcel_config.pitching_categories),
+                    ),
+                )
+            )
 
         prefix = self._model_name.replace("-", "_")
-        batting_fs = FeatureSet(
+        seasons = tuple(config.seasons)
+        batting_fs = compose_feature_set(
             name=f"{prefix}_batting",
-            features=tuple(batting_features),
-            seasons=tuple(seasons),
+            groups=batter_groups,
+            seasons=seasons,
             source_filter="fangraphs",
         )
-        pitching_fs = FeatureSet(
+        pitching_fs = compose_feature_set(
             name=f"{prefix}_pitching",
-            features=tuple(pitching_features),
-            seasons=tuple(seasons),
+            groups=pitcher_groups,
+            seasons=seasons,
             source_filter="fangraphs",
         )
         return batting_fs, pitching_fs
@@ -102,7 +163,7 @@ class CompositeModel:
     def prepare(self, config: ModelConfig) -> PrepareResult:
         assert self._assembler is not None, "assembler is required for prepare"
         marcel_config = _build_marcel_config(config.model_params)
-        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config.seasons)
+        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -116,7 +177,7 @@ class CompositeModel:
     def predict(self, config: ModelConfig) -> PredictResult:
         assert self._assembler is not None, "assembler is required for predict"
         marcel_config = _build_marcel_config(config.model_params)
-        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config.seasons)
+        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -148,7 +209,14 @@ class CompositeModel:
             counting = {cat: adjusted[cat] * proj_pa for cat in adjusted}
 
             domain = composite_projection_to_domain(
-                pid, projected_season, counting, adjusted, proj_pa, pitcher=False, version=version
+                pid,
+                projected_season,
+                counting,
+                adjusted,
+                proj_pa,
+                pitcher=False,
+                version=version,
+                system=self._model_name,
             )
             predictions.append(
                 {
@@ -169,7 +237,14 @@ class CompositeModel:
             counting = {cat: adjusted[cat] * proj_ip for cat in adjusted}
 
             domain = composite_projection_to_domain(
-                pid, projected_season, counting, adjusted, proj_ip, pitcher=True, version=version
+                pid,
+                projected_season,
+                counting,
+                adjusted,
+                proj_ip,
+                pitcher=True,
+                version=version,
+                system=self._model_name,
             )
             predictions.append(
                 {

@@ -73,6 +73,31 @@ class TestCompositeProjectionToDomain:
         assert proj.stat_json["so"] == 200.0
         assert proj.stat_json["ip"] == 180.0
 
+    def test_batter_projection_custom_system(self) -> None:
+        proj = composite_projection_to_domain(
+            player_id=1,
+            projected_season=2025,
+            stats={"hr": 35.5},
+            rates={"hr": 0.06},
+            pt=600,
+            pitcher=False,
+            version="v1",
+            system="composite-mle",
+        )
+        assert proj.system == "composite-mle"
+
+    def test_system_defaults_to_composite(self) -> None:
+        proj = composite_projection_to_domain(
+            player_id=1,
+            projected_season=2025,
+            stats={"hr": 35.5},
+            rates={"hr": 0.06},
+            pt=600,
+            pitcher=False,
+            version="v1",
+        )
+        assert proj.system == "composite"
+
     def test_includes_pt_system_metadata(self) -> None:
         proj = composite_projection_to_domain(
             player_id=1,

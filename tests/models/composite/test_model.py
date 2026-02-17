@@ -1,8 +1,23 @@
+import importlib
 from typing import Any
 
+import pytest
+
+import fantasy_baseball_manager.features.group_library
+from fantasy_baseball_manager.features.groups import list_groups
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 import fantasy_baseball_manager.models.composite  # noqa: F401 — trigger alias registration
-from fantasy_baseball_manager.models.composite.model import CompositeModel
+from fantasy_baseball_manager.models.composite.model import (
+    DEFAULT_GROUPS,
+    CompositeModel,
+    _build_marcel_config,
+    _resolve_group,
+)
+from fantasy_baseball_manager.models.composite.features import (
+    build_composite_batting_features,
+    build_composite_pitching_features,
+)
+from fantasy_baseball_manager.models.marcel.types import MarcelConfig
 from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
@@ -13,6 +28,13 @@ from fantasy_baseball_manager.models.protocols import (
     Preparable,
     Trainable,
 )
+
+
+@pytest.fixture(autouse=True)
+def _ensure_groups_registered() -> None:
+    """Re-register static feature groups if a prior test cleared the registry."""
+    if not list_groups():
+        importlib.reload(fantasy_baseball_manager.features.group_library)
 
 
 class TestCompositeModelProtocol:
@@ -86,6 +108,122 @@ class FakeAssembler:
         if "pitching" in handle.table_name:
             return self._pitching_rows
         return self._batting_rows
+
+
+class TestResolveGroup:
+    def test_resolve_group_static(self) -> None:
+        config = MarcelConfig()
+        group = _resolve_group("age", config)
+        assert group.name == "age"
+        assert group.player_type == "both"
+
+    def test_resolve_group_batting_counting_lags(self) -> None:
+        config = MarcelConfig(batting_categories=("hr", "rbi"), batting_weights=(5.0, 4.0))
+        group = _resolve_group("batting_counting_lags", config)
+        assert group.name == "batting_counting_lags"
+        assert group.player_type == "batter"
+        # 2 lags × (pa + hr + rbi) = 6 features
+        assert len(group.features) == 6
+
+    def test_resolve_group_pitching_counting_lags(self) -> None:
+        config = MarcelConfig(pitching_categories=("so", "bb"), pitching_weights=(5.0, 4.0))
+        group = _resolve_group("pitching_counting_lags", config)
+        assert group.name == "pitching_counting_lags"
+        assert group.player_type == "pitcher"
+        # 2 lags × (ip + g + gs + so + bb) = 10 features
+        assert len(group.features) == 10
+
+    def test_resolve_group_unknown_raises(self) -> None:
+        config = MarcelConfig()
+        with pytest.raises(KeyError):
+            _resolve_group("nonexistent_group_xyz", config)
+
+    def test_default_groups_constant(self) -> None:
+        assert DEFAULT_GROUPS == (
+            "age",
+            "projected_batting_pt",
+            "projected_pitching_pt",
+            "batting_counting_lags",
+            "pitching_counting_lags",
+        )
+
+
+class TestBuildFeatureSets:
+    def test_build_feature_sets_default_groups(self) -> None:
+        """With no feature_groups in config, batting FeatureSet contains age, proj_pa, counting lags, transforms."""
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=[])
+        model = CompositeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
+        batting_fs, pitching_fs = model._build_feature_sets(_build_marcel_config(config.model_params), config)
+        bat_names = {f.name for f in batting_fs.features}
+        # Must include age, proj_pa, counting lags, weighted_rates, league_averages
+        assert "age" in bat_names
+        assert "proj_pa" in bat_names
+        assert "hr_1" in bat_names
+        assert "pa_1" in bat_names
+        assert "batting_weighted_rates" in bat_names
+        assert "batting_league_averages" in bat_names
+
+    def test_build_feature_sets_with_mle_groups(self) -> None:
+        """With feature_groups including mle_batter_rates, batting FeatureSet contains MLE features."""
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=[])
+        model = CompositeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={
+                "batting_categories": ["hr"],
+                "feature_groups": [
+                    "age",
+                    "projected_batting_pt",
+                    "projected_pitching_pt",
+                    "batting_counting_lags",
+                    "pitching_counting_lags",
+                    "mle_batter_rates",
+                ],
+            },
+        )
+        batting_fs, pitching_fs = model._build_feature_sets(_build_marcel_config(config.model_params), config)
+        bat_names = {f.name for f in batting_fs.features}
+        assert "mle_avg" in bat_names
+        assert "mle_obp" in bat_names
+        assert "mle_slg" in bat_names
+
+    def test_build_feature_sets_naming(self) -> None:
+        """Feature set names contain batting/pitching for FakeAssembler routing."""
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=[])
+        model = CompositeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
+        batting_fs, pitching_fs = model._build_feature_sets(_build_marcel_config(config.model_params), config)
+        assert "batting" in batting_fs.name
+        assert "pitching" in pitching_fs.name
+
+
+class TestDefaultGroupsRegression:
+    """Verify new group-based feature building produces the same features as the old inline builders."""
+
+    def test_default_batting_features_match_inline(self) -> None:
+        marcel_config = MarcelConfig(batting_categories=("hr", "rbi", "sb"))
+        config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr", "rbi", "sb"]})
+        model = CompositeModel(assembler=FakeAssembler([]))
+        batting_fs, _ = model._build_feature_sets(marcel_config, config)
+        new_names = {f.name for f in batting_fs.features}
+
+        old_features = build_composite_batting_features(marcel_config.batting_categories, marcel_config.batting_weights)
+        old_names = {f.name for f in old_features}
+        assert new_names == old_names
+
+    def test_default_pitching_features_match_inline(self) -> None:
+        marcel_config = MarcelConfig(pitching_categories=("so", "bb", "era"))
+        config = ModelConfig(seasons=[2023], model_params={"pitching_categories": ["so", "bb", "era"]})
+        model = CompositeModel(assembler=FakeAssembler([]))
+        _, pitching_fs = model._build_feature_sets(marcel_config, config)
+        new_names = {f.name for f in pitching_fs.features}
+
+        old_features = build_composite_pitching_features(
+            marcel_config.pitching_categories, marcel_config.pitching_weights
+        )
+        old_names = {f.name for f in old_features}
+        assert new_names == old_names
 
 
 class TestCompositeAliases:

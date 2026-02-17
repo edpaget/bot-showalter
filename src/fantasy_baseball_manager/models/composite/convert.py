@@ -25,6 +25,7 @@ def composite_projection_to_domain(
     pt: float,
     pitcher: bool,
     version: str,
+    system: str = "composite",
 ) -> Projection:
     """Convert composite projection data to a domain Projection."""
     stat_json: dict[str, object] = dict(stats)
@@ -41,7 +42,7 @@ def composite_projection_to_domain(
     return Projection(
         player_id=player_id,
         season=projected_season,
-        system="composite",
+        system=system,
         version=version,
         player_type=player_type,
         stat_json=stat_json,
