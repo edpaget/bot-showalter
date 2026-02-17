@@ -39,8 +39,8 @@ When executing a plan (after plan-mode approval):
 
 - Follow TDD: write the failing test first, then the minimum code to pass.
 - After each major step, run `uv run pytest` to verify.
-- When all steps are complete, run the full quality gate: `uv run pytest`, `uv run ruff check src tests`, `uv run ty check src tests`.
-- Fix any failures before committing.
+- When all steps are complete, commit. Pre-commit hooks run the full quality gate automatically (ruff format, ruff check, ty check, pytest).
+- Fix any failures before re-committing.
 - Commit with a conventional commit message referencing what was done.
 
 ## Git Conventions
@@ -48,5 +48,5 @@ When executing a plan (after plan-mode approval):
 - Write commits in the **Conventional Commits** style: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, etc.
 - Keep commit subjects under 72 characters. Use the body for additional detail when needed.
 - Keep history linear — no merge commits. Rebase feature branches onto `main` before merging with `git merge --ff-only`.
-- **Always run `uv run ty check src tests` before committing** and fix any type errors. Do not commit code that introduces new type-check failures.
+- Pre-commit hooks enforce the full quality gate (format, lint, type check, tests). Do not skip hooks with `--no-verify`.
 - **Always combine `git add` and `git commit` in a single chained command** (e.g., `git add file1 file2 && git commit -m "…"`). Never stage files in a separate step from committing — this avoids conflicts with manually staged files across concurrent agents.
