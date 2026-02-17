@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from fantasy_baseball_manager.cli.app import _parse_params, app
+from fantasy_baseball_manager.cli.app import _parse_params, _set_nested, app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.league_settings import (
@@ -910,6 +910,33 @@ class TestReportCommands:
         assert "Aaron Judge" in result.output or "Judge" in result.output
 
 
+class TestSetNested:
+    def test_flat_key(self) -> None:
+        target: dict[str, object] = {}
+        _set_nested(target, "alpha", 0.1)
+        assert target == {"alpha": 0.1}
+
+    def test_single_dot(self) -> None:
+        target: dict[str, object] = {}
+        _set_nested(target, "pitcher.learning_rate", 0.05)
+        assert target == {"pitcher": {"learning_rate": 0.05}}
+
+    def test_multiple_dots(self) -> None:
+        target: dict[str, object] = {}
+        _set_nested(target, "a.b.c", 42)
+        assert target == {"a": {"b": {"c": 42}}}
+
+    def test_preserves_siblings(self) -> None:
+        target: dict[str, object] = {"pitcher": {"n_estimators": 100}}
+        _set_nested(target, "pitcher.learning_rate", 0.05)
+        assert target == {"pitcher": {"n_estimators": 100, "learning_rate": 0.05}}
+
+    def test_overwrites_existing(self) -> None:
+        target: dict[str, object] = {"pitcher": {"learning_rate": 0.1}}
+        _set_nested(target, "pitcher.learning_rate", 0.05)
+        assert target == {"pitcher": {"learning_rate": 0.05}}
+
+
 class TestParseParams:
     def test_parse_params_coerces_bool(self) -> None:
         result = _parse_params(["use_playing_time=false"])
@@ -933,6 +960,18 @@ class TestParseParams:
 
     def test_parse_params_none_returns_none(self) -> None:
         assert _parse_params(None) is None
+
+    def test_parse_params_dotted_key(self) -> None:
+        result = _parse_params(["pitcher.learning_rate=0.05"])
+        assert result == {"pitcher": {"learning_rate": 0.05}}
+
+    def test_parse_params_multiple_same_prefix(self) -> None:
+        result = _parse_params(["pitcher.learning_rate=0.05", "pitcher.n_estimators=200"])
+        assert result == {"pitcher": {"learning_rate": 0.05, "n_estimators": 200}}
+
+    def test_parse_params_mixed_flat_and_dotted(self) -> None:
+        result = _parse_params(["mode=preseason", "pitcher.learning_rate=0.05"])
+        assert result == {"mode": "preseason", "pitcher": {"learning_rate": 0.05}}
 
 
 class TestPredictLeagueResolution:

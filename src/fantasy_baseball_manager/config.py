@@ -7,6 +7,17 @@ from fantasy_baseball_manager.models.protocols import ModelConfig
 _CONFIG_FILENAME = "fbm.toml"
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge override into base, with override winning on conflicts."""
+    result = dict(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def load_config(
     model_name: str,
     config_dir: Path | None = None,
@@ -22,7 +33,7 @@ def load_config(
     common: dict[str, Any] = toml_data.get("common", {})
     model_section: dict[str, Any] = toml_data.get("models", {}).get(model_name, {})
     toml_params: dict[str, Any] = model_section.get("params", {})
-    resolved_params = {**toml_params, **(model_params or {})}
+    resolved_params = _deep_merge(toml_params, model_params or {})
 
     toml_version: str | None = model_section.get("version")
     resolved_version = version if version is not None else toml_version

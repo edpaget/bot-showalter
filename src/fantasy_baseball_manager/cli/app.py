@@ -171,13 +171,23 @@ def _coerce_value(value: str) -> Any:
     return value
 
 
+def _set_nested(target: dict[str, Any], dotted_key: str, value: Any) -> None:
+    """Set a value in a nested dict using a dotted key like 'pitcher.learning_rate'."""
+    keys = dotted_key.split(".")
+    for key in keys[:-1]:
+        if key not in target or not isinstance(target[key], dict):
+            target[key] = {}
+        target = target[key]
+    target[keys[-1]] = value
+
+
 def _parse_params(raw_params: list[str] | None) -> dict[str, Any] | None:
     if not raw_params:
         return None
     parsed: dict[str, Any] = {}
     for param in raw_params:
         key, _, value = param.partition("=")
-        parsed[key] = _coerce_value(value)
+        _set_nested(parsed, key, _coerce_value(value))
     return parsed
 
 
