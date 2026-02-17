@@ -5,6 +5,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     CVFold,
     GridSearchResult,
     TargetVector,
+    _evaluate_combination,
     compute_permutation_importance,
     extract_features,
     extract_targets,
@@ -324,3 +325,12 @@ class TestGridSearchCV:
         assert isinstance(result, GridSearchResult)
         assert isinstance(result.best_mean_rmse, float)
         assert result.best_mean_rmse >= 0
+
+    def test_evaluate_combination_returns_valid_result(self) -> None:
+        folds = _make_cv_folds()
+        params = {"max_iter": 100}
+        entry = _evaluate_combination(folds, params)
+        assert entry["params"] == params
+        assert isinstance(entry["mean_rmse"], float)
+        assert entry["mean_rmse"] >= 0
+        assert "y" in entry["per_target_rmse"]

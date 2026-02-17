@@ -5,6 +5,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
+from threadpoolctl import threadpool_limits
 
 from fantasy_baseball_manager.models.sampling import holdout_metrics
 
@@ -166,6 +167,29 @@ class GridSearchResult:
     all_results: list[dict[str, Any]]
 
 
+def _evaluate_combination(folds: list[CVFold], params: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate a single parameter combination across all CV folds."""
+    with threadpool_limits(limits=1, user_api="openmp"):
+        target_rmse_sums: dict[str, float] = {}
+        n_folds = len(folds)
+
+        for fold in folds:
+            models = fit_models(fold.X_train, fold.y_train, params)
+            metrics = score_predictions(models, fold.X_test, fold.y_test)
+            for key, value in metrics.items():
+                target_name = key.removeprefix("rmse_")
+                target_rmse_sums[target_name] = target_rmse_sums.get(target_name, 0.0) + value
+
+        per_target_rmse = {t: v / n_folds for t, v in target_rmse_sums.items()}
+        mean_rmse = sum(per_target_rmse.values()) / len(per_target_rmse) if per_target_rmse else 0.0
+
+        return {
+            "params": params,
+            "mean_rmse": mean_rmse,
+            "per_target_rmse": per_target_rmse,
+        }
+
+
 def grid_search_cv(
     folds: list[CVFold],
     param_grid: dict[str, list[Any]],
@@ -186,33 +210,13 @@ def grid_search_cv(
 
     for combo in itertools.product(*param_values):
         params = dict(zip(param_names, combo))
-
-        # Collect per-target RMSE sums across folds
-        target_rmse_sums: dict[str, float] = {}
-        n_folds = len(folds)
-
-        for fold in folds:
-            models = fit_models(fold.X_train, fold.y_train, params)
-            metrics = score_predictions(models, fold.X_test, fold.y_test)
-            for key, value in metrics.items():
-                # key is "rmse_<target>"
-                target_name = key.removeprefix("rmse_")
-                target_rmse_sums[target_name] = target_rmse_sums.get(target_name, 0.0) + value
-
-        per_target_rmse = {t: v / n_folds for t, v in target_rmse_sums.items()}
-        mean_rmse = sum(per_target_rmse.values()) / len(per_target_rmse) if per_target_rmse else 0.0
-
-        entry: dict[str, Any] = {
-            "params": params,
-            "mean_rmse": mean_rmse,
-            "per_target_rmse": per_target_rmse,
-        }
+        entry = _evaluate_combination(folds, params)
         all_results.append(entry)
 
-        if mean_rmse < best_mean_rmse:
-            best_mean_rmse = mean_rmse
-            best_params = params
-            best_per_target = per_target_rmse
+        if entry["mean_rmse"] < best_mean_rmse:
+            best_mean_rmse = entry["mean_rmse"]
+            best_params = entry["params"]
+            best_per_target = entry["per_target_rmse"]
 
     return GridSearchResult(
         best_params=best_params,
