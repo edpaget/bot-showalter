@@ -434,6 +434,63 @@ class TestValuationEvaluator:
         actual_player_ids = {p.player_id for p in result.players}
         assert 5 not in actual_player_ids
 
+    def test_two_way_player_both_roles_matched(self) -> None:
+        """A two-way player (e.g. Ohtani) should appear in results as both batter and pitcher."""
+        players = _standard_players() + [
+            Player(id=6, name_first="Shohei", name_last="Ohtani"),
+        ]
+        valuations = _standard_valuations() + [
+            Valuation(
+                player_id=6,
+                season=2025,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="batter",
+                position="of",
+                value=45.0,
+                rank=1,
+                category_scores={"hr": 2.0, "r": 1.5},
+            ),
+            Valuation(
+                player_id=6,
+                season=2025,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="pitcher",
+                position="p",
+                value=20.0,
+                rank=6,
+                category_scores={"w": 0.5, "sv": 0.0},
+            ),
+        ]
+        batting = _standard_batting_actuals() + [
+            BattingStats(player_id=6, season=2025, source="fangraphs", pa=500, hr=40, r=90),
+        ]
+        pitching = _standard_pitching_actuals() + [
+            PitchingStats(player_id=6, season=2025, source="fangraphs", ip=150.0, w=12, sv=0),
+        ]
+        appearances = _standard_appearances() + [
+            PositionAppearance(player_id=6, season=2025, position="OF", games=120),
+        ]
+        evaluator = _build_evaluator(
+            valuations=valuations,
+            batting=batting,
+            pitching=pitching,
+            appearances=appearances,
+            players=players,
+        )
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+
+        # Player 6 should appear twice: once as batter, once as pitcher
+        ohtani_entries = [p for p in result.players if p.player_id == 6]
+        assert len(ohtani_entries) == 2
+        ohtani_types = {p.player_type for p in ohtani_entries}
+        assert ohtani_types == {"batter", "pitcher"}
+
     def test_version_filter(self) -> None:
         """Two versions of valuations, filter returns correct one."""
         v1_valuations = _standard_valuations()

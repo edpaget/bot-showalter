@@ -105,6 +105,7 @@ class ValuationEvaluator:
             position_map=position_map,
             league=league,
             budget=batter_budget,
+            player_type="batter",
         )
 
         # Value pitchers
@@ -116,29 +117,31 @@ class ValuationEvaluator:
             position_map=pitcher_position_map,
             league=league,
             budget=pitcher_budget,
+            player_type="pitcher",
             pitcher_roster_spots={"p": league.roster_pitchers},
         )
 
-        # Combine and rank
-        all_actual: dict[int, float] = {}
+        # Combine and rank — keyed by (player_id, player_type)
+        all_actual: dict[tuple[int, str], float] = {}
         all_actual.update(actual_batter_values)
         all_actual.update(actual_pitcher_values)
 
         # Rank actuals by value descending
         actual_ranked = sorted(all_actual.items(), key=lambda x: x[1], reverse=True)
-        actual_rank_map: dict[int, int] = {pid: rank for rank, (pid, _) in enumerate(actual_ranked, 1)}
+        actual_rank_map: dict[tuple[int, str], int] = {key: rank for rank, (key, _) in enumerate(actual_ranked, 1)}
 
-        # 6. Match predicted vs actual by player_id
-        predicted_map = {v.player_id: v for v in predicted}
+        # 6. Match predicted vs actual by (player_id, player_type)
+        predicted_map = {(v.player_id, v.player_type): v for v in predicted}
         # Build player name lookup
         player_name_map = self._build_player_name_map()
 
         matched: list[ValuationAccuracy] = []
-        for player_id, pred_val in predicted_map.items():
-            if player_id not in all_actual:
+        for (player_id, player_type), pred_val in predicted_map.items():
+            key = (player_id, player_type)
+            if key not in all_actual:
                 continue
-            actual_value = all_actual[player_id]
-            actual_rank = actual_rank_map[player_id]
+            actual_value = all_actual[key]
+            actual_rank = actual_rank_map[key]
             surplus = round(pred_val.value - actual_value, 2)
             name = player_name_map.get(player_id, f"Player {player_id}")
             matched.append(
@@ -199,9 +202,10 @@ class ValuationEvaluator:
         league: LeagueSettings,
         budget: float,
         *,
+        player_type: str,
         pitcher_roster_spots: dict[str, int] | None = None,
-    ) -> dict[int, float]:
-        """Run ZAR pipeline on a player pool and return {player_id: dollar_value}."""
+    ) -> dict[tuple[int, str], float]:
+        """Run ZAR pipeline on a player pool and return {(player_id, player_type): dollar_value}."""
         if not player_ids:
             return {}
 
@@ -211,7 +215,7 @@ class ValuationEvaluator:
 
         result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
 
-        return dict(zip(player_ids, result.dollar_values))
+        return {(pid, player_type): val for pid, val in zip(player_ids, result.dollar_values)}
 
     def _build_player_name_map(self) -> dict[int, str]:
         """Build a mapping of player_id to display name."""
