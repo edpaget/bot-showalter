@@ -1,5 +1,3 @@
-from typing import Any
-
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -7,10 +5,8 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.domain.projection import Projection
-from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
     FineTunable,
@@ -20,108 +16,12 @@ from fantasy_baseball_manager.models.protocols import (
     Trainable,
 )
 from fantasy_baseball_manager.models.zar.model import ZarModel
-
-
-# ---------------------------------------------------------------------------
-# Fakes
-# ---------------------------------------------------------------------------
-
-
-class FakeProjectionRepo:
-    def __init__(self, projections: list[Projection]) -> None:
-        self._projections = projections
-
-    def upsert(self, projection: Projection) -> int:
-        return 1
-
-    def get_by_player_season(
-        self, player_id: int, season: int, system: str | None = None, *, include_distributions: bool = False
-    ) -> list[Projection]:
-        return [p for p in self._projections if p.player_id == player_id and p.season == season]
-
-    def get_by_season(
-        self, season: int, system: str | None = None, *, include_distributions: bool = False
-    ) -> list[Projection]:
-        result = [p for p in self._projections if p.season == season]
-        if system is not None:
-            result = [p for p in result if p.system == system]
-        return result
-
-    def get_by_system_version(self, system: str, version: str) -> list[Projection]:
-        return [p for p in self._projections if p.system == system and p.version == version]
-
-    def upsert_distributions(self, projection_id: int, distributions: list[Any]) -> None:
-        pass
-
-    def get_distributions(self, projection_id: int) -> list[Any]:
-        return []
-
-
-class FakePlayerRepo:
-    def __init__(self, players: list[Player] | None = None) -> None:
-        self._players = players or []
-
-    def upsert(self, player: Player) -> int:
-        return 1
-
-    def get_by_id(self, player_id: int) -> Player | None:
-        return next((p for p in self._players if p.id == player_id), None)
-
-    def get_by_ids(self, player_ids: list[int]) -> list[Player]:
-        return [p for p in self._players if p.id in player_ids]
-
-    def get_by_mlbam_id(self, mlbam_id: int) -> Player | None:
-        return None
-
-    def get_by_bbref_id(self, bbref_id: str) -> Player | None:
-        return None
-
-    def search_by_name(self, name: str) -> list[Player]:
-        return []
-
-    def get_by_last_name(self, last_name: str) -> list[Player]:
-        return []
-
-    def all(self) -> list[Player]:
-        return list(self._players)
-
-
-class FakePositionAppearanceRepo:
-    def __init__(self, appearances: list[PositionAppearance]) -> None:
-        self._appearances = appearances
-
-    def upsert(self, appearance: PositionAppearance) -> int:
-        return 1
-
-    def get_by_player(self, player_id: int) -> list[PositionAppearance]:
-        return [a for a in self._appearances if a.player_id == player_id]
-
-    def get_by_player_season(self, player_id: int, season: int) -> list[PositionAppearance]:
-        return [a for a in self._appearances if a.player_id == player_id and a.season == season]
-
-    def get_by_season(self, season: int) -> list[PositionAppearance]:
-        return [a for a in self._appearances if a.season == season]
-
-
-class FakeValuationRepo:
-    def __init__(self) -> None:
-        self.upserted: list[Valuation] = []
-
-    def upsert(self, valuation: Valuation) -> int:
-        self.upserted.append(valuation)
-        return len(self.upserted)
-
-    def get_by_player_season(self, player_id: int, season: int, system: str | None = None) -> list[Valuation]:
-        result = [v for v in self.upserted if v.player_id == player_id and v.season == season]
-        if system is not None:
-            result = [v for v in result if v.system == system]
-        return result
-
-    def get_by_season(self, season: int, system: str | None = None) -> list[Valuation]:
-        result = [v for v in self.upserted if v.season == season]
-        if system is not None:
-            result = [v for v in result if v.system == system]
-        return result
+from tests.fakes.repos import (
+    FakePlayerRepo,
+    FakePositionAppearanceRepo,
+    FakeProjectionRepo,
+    FakeValuationRepo,
+)
 
 
 # ---------------------------------------------------------------------------

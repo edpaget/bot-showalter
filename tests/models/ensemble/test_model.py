@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.ensemble import EnsembleModel
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
@@ -14,39 +14,7 @@ from fantasy_baseball_manager.models.protocols import (
     Trainable,
 )
 from fantasy_baseball_manager.models.registry import _clear, get, register
-
-
-class FakeProjectionRepo:
-    """In-memory projection repo for testing EnsembleModel."""
-
-    def __init__(self, projections: list[Projection]) -> None:
-        self._projections = projections
-
-    def upsert(self, projection: Projection) -> int:
-        return 0
-
-    def get_by_player_season(
-        self, player_id: int, season: int, system: str | None = None, *, include_distributions: bool = False
-    ) -> list[Projection]:
-        return [
-            p
-            for p in self._projections
-            if p.player_id == player_id and p.season == season and (system is None or p.system == system)
-        ]
-
-    def get_by_season(
-        self, season: int, system: str | None = None, *, include_distributions: bool = False
-    ) -> list[Projection]:
-        return [p for p in self._projections if p.season == season and (system is None or p.system == system)]
-
-    def get_by_system_version(self, system: str, version: str) -> list[Projection]:
-        return [p for p in self._projections if p.system == system and p.version == version]
-
-    def upsert_distributions(self, projection_id: int, distributions: list[StatDistribution]) -> None:
-        pass
-
-    def get_distributions(self, projection_id: int) -> list[StatDistribution]:
-        return []
+from tests.fakes.repos import FakeProjectionRepo
 
 
 class TestEnsembleModelProtocol:
