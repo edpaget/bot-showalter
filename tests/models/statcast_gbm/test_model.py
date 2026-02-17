@@ -21,18 +21,18 @@ from fantasy_baseball_manager.models.protocols import (
     TrainResult,
 )
 from fantasy_baseball_manager.models.statcast_gbm.features import (
+    batter_preseason_feature_columns,
     live_batter_curated_columns,
     live_pitcher_curated_columns,
-    preseason_batter_curated_columns,
-    preseason_pitcher_curated_columns,
+    pitcher_preseason_feature_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel, StatcastGBMPreseasonModel
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 
 _FEATURE_COLUMNS = live_batter_curated_columns()
 _PITCHER_FEATURE_COLUMNS = live_pitcher_curated_columns()
-_PRESEASON_FEATURE_COLUMNS = preseason_batter_curated_columns()
-_PRESEASON_PITCHER_FEATURE_COLUMNS = preseason_pitcher_curated_columns()
+_PRESEASON_FEATURE_COLUMNS = batter_preseason_feature_columns()
+_PRESEASON_PITCHER_FEATURE_COLUMNS = pitcher_preseason_feature_columns()
 
 
 def _make_row(player_id: str, season: int) -> dict[str, Any]:
