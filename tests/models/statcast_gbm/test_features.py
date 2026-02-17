@@ -48,6 +48,20 @@ class TestBatterFeatureSet:
         assert "hr_1" in names
         assert "hr_2" in names
 
+    def test_includes_batting_rate_lags(self) -> None:
+        fs = build_batter_feature_set([2023])
+        names = [f.name for f in fs.features]
+        assert "avg_1" in names
+        assert "avg_2" in names
+        assert "obp_1" in names
+        assert "obp_2" in names
+        assert "slg_1" in names
+        assert "slg_2" in names
+        assert "k_pct_1" in names
+        assert "k_pct_2" in names
+        assert "bb_pct_1" in names
+        assert "bb_pct_2" in names
+
 
 class TestBatterTrainingSet:
     def test_includes_targets(self) -> None:
@@ -91,6 +105,12 @@ class TestBatterFeatureColumns:
         columns = batter_feature_columns()
         assert "age" in columns
         assert "pa_1" in columns
+        # Rate lag features
+        assert "avg_1" in columns
+        assert "obp_1" in columns
+        assert "slg_1" in columns
+        assert "k_pct_1" in columns
+        assert "bb_pct_1" in columns
         # TransformFeature outputs should be expanded
         assert "avg_exit_velo" in columns
         assert "chase_rate" in columns
@@ -122,6 +142,7 @@ class TestPitcherFeatureSet:
         assert "spin_profile" in transform_names
         assert "plate_discipline" in transform_names
         assert "batted_ball_against" in transform_names
+        assert "command" in transform_names
 
     def test_includes_pitching_lags(self) -> None:
         fs = build_pitcher_feature_set([2023])
@@ -182,6 +203,8 @@ class TestPitcherFeatureColumns:
         assert "avg_spin_rate" in columns
         assert "ff_pct" in columns
         assert "chase_rate" in columns
+        # Command outputs
+        assert "zone_rate" in columns
         # Batted-ball-against outputs
         assert "gb_pct_against" in columns
         assert "barrel_pct_against" in columns
@@ -210,6 +233,8 @@ class TestBatterPreseasonSet:
         names = [f.name for f in fs.features]
         assert "pa_1" in names
         assert "pa_2" in names
+        assert "avg_1" in names
+        assert "k_pct_1" in names
 
     def test_statcast_transforms_are_lagged(self) -> None:
         fs = build_batter_preseason_set([2023])
@@ -294,6 +319,7 @@ class TestPitcherPreseasonSet:
         assert "spin_profile" in transform_names
         assert "plate_discipline" in transform_names
         assert "batted_ball_against" in transform_names
+        assert "command" in transform_names
 
 
 class TestPitcherPreseasonTrainingSet:

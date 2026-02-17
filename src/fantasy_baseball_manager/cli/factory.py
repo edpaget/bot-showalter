@@ -39,6 +39,7 @@ from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositi
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from fantasy_baseball_manager.services.dataset_catalog import DatasetCatalogService
 from fantasy_baseball_manager.services.league_environment_service import LeagueEnvironmentService
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
@@ -83,6 +84,9 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             milb_repo=SqliteMinorLeagueBattingStatsRepo(conn),
             league_env_repo=SqliteLeagueEnvironmentRepo(conn),
             level_factor_repo=SqliteLevelFactorRepo(conn),
+            player_repo=SqlitePlayerRepo(conn),
+            position_repo=SqlitePositionAppearanceRepo(conn),
+            valuation_repo=SqliteValuationRepo(conn),
         )
 
         run_manager: RunManager | None = None
