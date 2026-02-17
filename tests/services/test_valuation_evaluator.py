@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
@@ -388,6 +390,19 @@ class TestValuationEvaluator:
         assert len(ohtani_entries) == 2
         ohtani_types = {p.player_type for p in ohtani_entries}
         assert ohtani_types == {"batter", "pitcher"}
+
+    def test_no_position_batter_with_roster_util_zero(self) -> None:
+        """With roster_util=0, batters without position data still appear in results."""
+        league = dataclasses.replace(_counting_league(), roster_util=0)
+        # Only players 1 and 2 have position appearances; player 3 has none
+        appearances = [
+            PositionAppearance(player_id=1, season=2025, position="OF", games=150),
+            PositionAppearance(player_id=2, season=2025, position="OF", games=140),
+        ]
+        evaluator = _build_evaluator(appearances=appearances)
+        result = evaluator.evaluate("zar", "1.0", 2025, league)
+        actual_player_ids = {p.player_id for p in result.players}
+        assert 3 in actual_player_ids
 
     def test_version_filter(self) -> None:
         """Two versions of valuations, filter returns correct one."""

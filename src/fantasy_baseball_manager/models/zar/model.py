@@ -170,7 +170,8 @@ class ZarModel:
             return []
 
         stats_list = _extract_stats(projections)
-        player_positions = [position_map.get(p.player_id, ["util"]) for p in projections]
+        no_pos: list[str] = ["util"] if league.roster_util > 0 else []
+        player_positions = [position_map.get(p.player_id, no_pos) for p in projections]
         roster_spots = build_roster_spots(league, pitcher_roster_spots=pitcher_roster_spots)
 
         result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)

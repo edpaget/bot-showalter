@@ -1,3 +1,5 @@
+import dataclasses
+
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -426,6 +428,37 @@ class TestZarModelPredict:
         player_ids = {v.player_id for v in val_repo.upserted}
         assert 5 not in player_ids
         assert 4 in player_ids
+
+    def test_predict_no_position_batter_with_roster_util_zero(self) -> None:
+        """With roster_util=0, batters without position data are penalized but still valued."""
+        league = dataclasses.replace(_standard_league(), roster_util=0)
+        # Players 1-3 from standard projections; player 99 has same stats as player 2 but no position
+        projections = _build_projections()[:3] + [
+            Projection(
+                player_id=99,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0, "avg": 0.280},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={"league": league, "projection_system": "steamer"},
+            version="1.0",
+        )
+        model.predict(config)
+
+        batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
+        player_ids = {v.player_id for v in batter_vals}
+        assert 99 in player_ids  # Still gets a valuation
+
+        # Player 2 has same stats but has OF position — should be valued higher
+        positioned = next(v for v in batter_vals if v.player_id == 2)
+        unpositioned = next(v for v in batter_vals if v.player_id == 99)
+        assert positioned.value > unpositioned.value
 
     def test_predict_projection_version_filters_by_season(self) -> None:
         """projection_version + season filter: only matching season is used."""

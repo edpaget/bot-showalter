@@ -31,7 +31,7 @@ def _stats_to_dict(obj: object) -> dict[str, float]:
         if field.name in _METADATA_FIELDS:
             continue
         value = getattr(obj, field.name)
-        if isinstance(value, int | float) and value is not None:
+        if isinstance(value, int | float):
             result[field.name] = float(value)
     return result
 
@@ -210,7 +210,8 @@ class ValuationEvaluator:
             return {}
 
         stats_list = [stats_map[pid] for pid in player_ids]
-        player_positions = [position_map.get(pid, ["util"]) for pid in player_ids]
+        no_pos: list[str] = ["util"] if league.roster_util > 0 else []
+        player_positions = [position_map.get(pid, no_pos) for pid in player_ids]
         roster_spots = build_roster_spots(league, pitcher_roster_spots=pitcher_roster_spots)
 
         result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
