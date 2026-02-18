@@ -6,7 +6,8 @@ import pandas as pd
 import typer
 
 import fantasy_baseball_manager.models  # noqa: F401 — trigger model registration
-from fantasy_baseball_manager.cli._dispatcher import UnsupportedOperation, dispatch
+from fantasy_baseball_manager.cli._dispatcher import dispatch
+from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.cli._logging import configure_logging
 from fantasy_baseball_manager.cli._output import (
     console,
@@ -115,23 +116,20 @@ _SeasonOpt = Annotated[list[int] | None, typer.Option("--season", help="Season y
 def _run_action(operation: str, model_name: str, output_dir: str | None, seasons: list[int] | None) -> None:
     config = load_config(model_name=model_name, output_dir=output_dir, seasons=seasons)
     with build_model_context(model_name, config) as ctx:
-        try:
-            result = dispatch(operation, ctx.model, config)
-        except UnsupportedOperation as e:
-            print_error(str(e))
-            raise typer.Exit(code=1) from None
-
-    match result:
-        case PrepareResult():
-            print_prepare_result(result)
-        case TrainResult():
-            print_train_result(result)
-        case SystemMetrics():
-            print_system_metrics(result)
-        case PredictResult():
-            print_predict_result(result)
-        case AblationResult():
-            print_ablation_result(result)
+        match dispatch(operation, ctx.model, config):
+            case Ok(PrepareResult() as r):
+                print_prepare_result(r)
+            case Ok(TrainResult() as r):
+                print_train_result(r)
+            case Ok(SystemMetrics() as r):
+                print_system_metrics(r)
+            case Ok(PredictResult() as r):
+                print_predict_result(r)
+            case Ok(AblationResult() as r):
+                print_ablation_result(r)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
 
 
 @app.command()
@@ -142,15 +140,12 @@ def prepare(
     params = _parse_params(param)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
     with build_model_context(model, config) as ctx:
-        try:
-            result = dispatch("prepare", ctx.model, config)
-        except UnsupportedOperation as e:
-            print_error(str(e))
-            raise typer.Exit(code=1) from None
-
-    match result:
-        case PrepareResult():
-            print_prepare_result(result)
+        match dispatch("prepare", ctx.model, config):
+            case Ok(PrepareResult() as r):
+                print_prepare_result(r)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
 
 
 _VersionOpt = Annotated[str | None, typer.Option("--version", help="Run version for tracking")]
@@ -222,17 +217,14 @@ def train(
     )
 
     with build_model_context(model, config) as ctx:
-        try:
-            result = dispatch("train", ctx.model, config, run_manager=ctx.run_manager)
-            if config.version is not None:
-                ctx.conn.commit()
-        except UnsupportedOperation as e:
-            print_error(str(e))
-            raise typer.Exit(code=1) from None
-
-    match result:
-        case TrainResult():
-            print_train_result(result)
+        match dispatch("train", ctx.model, config, run_manager=ctx.run_manager):
+            case Ok(TrainResult() as r):
+                if config.version is not None:
+                    ctx.conn.commit()
+                print_train_result(r)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
 
 
 _TopOpt = Annotated[int | None, typer.Option("--top", help="Top N players by WAR to include")]
@@ -248,15 +240,12 @@ def evaluate(
     """Evaluate a projection model."""
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, top=top)
     with build_model_context(model, config) as ctx:
-        try:
-            result = dispatch("evaluate", ctx.model, config)
-        except UnsupportedOperation as e:
-            print_error(str(e))
-            raise typer.Exit(code=1) from None
-
-    match result:
-        case SystemMetrics():
-            print_system_metrics(result)
+        match dispatch("evaluate", ctx.model, config):
+            case Ok(SystemMetrics() as r):
+                print_system_metrics(r)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
 
 
 @app.command()
@@ -278,56 +267,52 @@ def predict(
     )
 
     with build_model_context(model, config) as ctx:
-        try:
-            result = dispatch("predict", ctx.model, config, run_manager=ctx.run_manager)
-            if isinstance(result, PredictResult) and ctx.projection_repo is not None:
-                version = config.version or "latest"
-                projection_ids: dict[tuple[int, str], int] = {}
-                for pred in result.predictions:
-                    if "player_id" not in pred or "season" not in pred:
-                        continue
-                    stat_json = {k: v for k, v in pred.items() if k not in ("player_id", "season", "player_type")}
-                    proj = Projection(
-                        player_id=pred["player_id"],
-                        season=pred["season"],
-                        system=model,
-                        version=version,
-                        player_type=pred.get("player_type", "batter"),
-                        stat_json=stat_json,
-                    )
-                    proj_id = ctx.projection_repo.upsert(proj)
-                    projection_ids[(pred["player_id"], pred.get("player_type", "batter"))] = proj_id
-
-                if result.distributions is not None:
-                    # Group distributions by (player_id, player_type)
-                    grouped_dists: dict[tuple[int, str], list[StatDistribution]] = {}
-                    for dist_dict in result.distributions:
-                        key = (dist_dict["player_id"], dist_dict["player_type"])
-                        sd = StatDistribution(
-                            stat=dist_dict["stat"],
-                            p10=dist_dict["p10"],
-                            p25=dist_dict["p25"],
-                            p50=dist_dict["p50"],
-                            p75=dist_dict["p75"],
-                            p90=dist_dict["p90"],
-                            mean=dist_dict["mean"],
-                            std=dist_dict["std"],
+        match dispatch("predict", ctx.model, config, run_manager=ctx.run_manager):
+            case Ok(PredictResult() as result):
+                if ctx.projection_repo is not None:
+                    version = config.version or "latest"
+                    projection_ids: dict[tuple[int, str], int] = {}
+                    for pred in result.predictions:
+                        if "player_id" not in pred or "season" not in pred:
+                            continue
+                        stat_json = {k: v for k, v in pred.items() if k not in ("player_id", "season", "player_type")}
+                        proj = Projection(
+                            player_id=pred["player_id"],
+                            season=pred["season"],
+                            system=model,
+                            version=version,
+                            player_type=pred.get("player_type", "batter"),
+                            stat_json=stat_json,
                         )
-                        grouped_dists.setdefault(key, []).append(sd)
+                        proj_id = ctx.projection_repo.upsert(proj)
+                        projection_ids[(pred["player_id"], pred.get("player_type", "batter"))] = proj_id
 
-                    for key, dists in grouped_dists.items():
-                        proj_id = projection_ids.get(key)
-                        if proj_id is not None:
-                            ctx.projection_repo.upsert_distributions(proj_id, dists)
+                    if result.distributions is not None:
+                        grouped_dists: dict[tuple[int, str], list[StatDistribution]] = {}
+                        for dist_dict in result.distributions:
+                            key = (dist_dict["player_id"], dist_dict["player_type"])
+                            sd = StatDistribution(
+                                stat=dist_dict["stat"],
+                                p10=dist_dict["p10"],
+                                p25=dist_dict["p25"],
+                                p50=dist_dict["p50"],
+                                p75=dist_dict["p75"],
+                                p90=dist_dict["p90"],
+                                mean=dist_dict["mean"],
+                                std=dist_dict["std"],
+                            )
+                            grouped_dists.setdefault(key, []).append(sd)
 
-            ctx.conn.commit()
-        except UnsupportedOperation as e:
-            print_error(str(e))
-            raise typer.Exit(code=1) from None
+                        for key, dists in grouped_dists.items():
+                            proj_id = projection_ids.get(key)
+                            if proj_id is not None:
+                                ctx.projection_repo.upsert_distributions(proj_id, dists)
 
-    match result:
-        case PredictResult():
-            print_predict_result(result)
+                ctx.conn.commit()
+                print_predict_result(result)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
 
 
 @app.command()
@@ -344,15 +329,12 @@ def ablate(
     params = _parse_params(param)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
     with build_model_context(model, config) as ctx:
-        try:
-            result = dispatch("ablate", ctx.model, config)
-        except UnsupportedOperation as e:
-            print_error(str(e))
-            raise typer.Exit(code=1) from None
-
-    match result:
-        case AblationResult():
-            print_ablation_result(result)
+        match dispatch("ablate", ctx.model, config):
+            case Ok(AblationResult() as r):
+                print_ablation_result(r)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
 
 
 @app.command()
@@ -366,15 +348,12 @@ def tune(
     params = _parse_params(param)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
     with build_model_context(model, config) as ctx:
-        try:
-            result = dispatch("tune", ctx.model, config)
-        except UnsupportedOperation as e:
-            print_error(str(e))
-            raise typer.Exit(code=1) from None
-
-    match result:
-        case TuneResult():
-            print_tune_result(result)
+        match dispatch("tune", ctx.model, config):
+            case Ok(TuneResult() as r):
+                print_tune_result(r)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
 
 
 @app.command("list")
@@ -685,15 +664,12 @@ def datasets_rebuild(
 
     config = load_config(model_name=model, seasons=season)
     with build_model_context(model, config) as ctx:
-        try:
-            result = dispatch("prepare", ctx.model, config)
-        except UnsupportedOperation as e:
-            print_error(str(e))
-            raise typer.Exit(code=1) from None
-
-    match result:
-        case PrepareResult():
-            print_prepare_result(result)
+        match dispatch("prepare", ctx.model, config):
+            case Ok(PrepareResult() as r):
+                print_prepare_result(r)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
 
 
 # --- projections subcommand group ---

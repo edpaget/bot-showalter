@@ -1,4 +1,3 @@
-from fantasy_baseball_manager.cli._dispatcher import UnsupportedOperation
 from fantasy_baseball_manager.config_league import LeagueConfigError
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.exceptions import FbmException
@@ -24,10 +23,6 @@ class TestExceptionInheritance:
     def test_player_conflict_error_inherits_fbm_exception(self) -> None:
         assert issubclass(PlayerConflictError, FbmException)
         assert issubclass(PlayerConflictError, Exception)
-
-    def test_unsupported_operation_inherits_fbm_exception(self) -> None:
-        assert issubclass(UnsupportedOperation, FbmException)
-        assert issubclass(UnsupportedOperation, Exception)
 
     def test_league_config_error_still_caught_as_exception(self) -> None:
         try:

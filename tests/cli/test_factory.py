@@ -14,6 +14,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_valuations_context,
     create_model,
 )
+from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
@@ -198,9 +199,10 @@ class TestBuildModelContext:
         with build_model_context("custom", config) as ctx:
             result = dispatch("prepare", ctx.model, config, ctx.run_manager)
 
-        assert isinstance(result, PrepareResult)
-        assert result.model_name == "custom"
-        assert result.rows_processed == 42
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, PrepareResult)
+        assert result.value.model_name == "custom"
+        assert result.value.rows_processed == 42
 
     def test_connection_closed_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         register("witharg")(_WithArgModel)

@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 import time
 
+from fantasy_baseball_manager.domain.errors import DispatchError
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-from fantasy_baseball_manager.exceptions import FbmException
+from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -26,10 +27,6 @@ from fantasy_baseball_manager.models.run_manager import RunManager
 logger = logging.getLogger(__name__)
 
 
-class UnsupportedOperation(FbmException):
-    pass
-
-
 _OPERATION_MAP: dict[str, tuple[type, str]] = {
     "prepare": (Preparable, "prepare"),
     "train": (Trainable, "train"),
@@ -48,15 +45,27 @@ def dispatch(
     model: Model,
     config: ModelConfig,
     run_manager: RunManager | None = None,
-) -> _AnyResult:
+) -> Result[_AnyResult, DispatchError]:
     """Check capability and invoke the operation on a pre-built model instance."""
     if operation not in _OPERATION_MAP:
-        raise UnsupportedOperation(f"Model '{model.name}' does not support '{operation}'")
+        return Err(
+            DispatchError(
+                message=f"Model '{model.name}' does not support '{operation}'",
+                model_name=model.name,
+                operation=operation,
+            )
+        )
 
     protocol, method_name = _OPERATION_MAP[operation]
 
     if not isinstance(model, protocol):
-        raise UnsupportedOperation(f"Model '{model.name}' does not support '{operation}'")
+        return Err(
+            DispatchError(
+                message=f"Model '{model.name}' does not support '{operation}'",
+                model_name=model.name,
+                operation=operation,
+            )
+        )
 
     t0 = time.perf_counter()
     context = None
@@ -74,4 +83,4 @@ def dispatch(
     if context is not None and run_manager is not None:
         run_manager.finalize_run(context, config)
 
-    return result
+    return Ok(result)

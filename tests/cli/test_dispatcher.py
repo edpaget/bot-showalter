@@ -6,9 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from fantasy_baseball_manager.cli._dispatcher import dispatch, UnsupportedOperation
+from fantasy_baseball_manager.cli._dispatcher import dispatch
+from fantasy_baseball_manager.domain.errors import DispatchError
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
+from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
     PredictResult,
@@ -57,25 +59,35 @@ class _FakeFullModel(_FakePreparableOnly):
 class TestDispatch:
     def test_dispatch_prepare(self) -> None:
         result = dispatch("prepare", _FakePreparableOnly(), ModelConfig())
-        assert isinstance(result, PrepareResult)
-        assert result.rows_processed == 42
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, PrepareResult)
+        assert result.value.rows_processed == 42
 
     def test_dispatch_train(self) -> None:
         result = dispatch("train", _FakeFullModel(), ModelConfig())
-        assert isinstance(result, TrainResult)
-        assert result.metrics == {"rmse": 0.5}
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, TrainResult)
+        assert result.value.metrics == {"rmse": 0.5}
 
     def test_dispatch_evaluate(self) -> None:
         result = dispatch("evaluate", _FakeFullModel(), ModelConfig())
-        assert isinstance(result, SystemMetrics)
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, SystemMetrics)
 
-    def test_unsupported_operation_raises(self) -> None:
-        with pytest.raises(UnsupportedOperation, match="does not support 'train'"):
-            dispatch("train", _FakePreparableOnly(), ModelConfig())
+    def test_unsupported_operation_returns_err(self) -> None:
+        result = dispatch("train", _FakePreparableOnly(), ModelConfig())
+        assert isinstance(result, Err)
+        assert isinstance(result.error, DispatchError)
+        assert result.error.operation == "train"
+        assert result.error.model_name == "fake"
+        assert "does not support 'train'" in result.error.message
 
-    def test_unknown_operation_raises(self) -> None:
-        with pytest.raises(UnsupportedOperation, match="does not support 'bogus'"):
-            dispatch("bogus", _FakePreparableOnly(), ModelConfig())
+    def test_unknown_operation_returns_err(self) -> None:
+        result = dispatch("bogus", _FakePreparableOnly(), ModelConfig())
+        assert isinstance(result, Err)
+        assert isinstance(result.error, DispatchError)
+        assert result.error.operation == "bogus"
+        assert "does not support 'bogus'" in result.error.message
 
 
 class _FakeModelRunRepo:
@@ -113,7 +125,8 @@ class TestDispatchWithRunManager:
 
         result = dispatch("train", _FakeFullModel(), config, run_manager=mgr)
 
-        assert isinstance(result, TrainResult)
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, TrainResult)
         assert len(repo._records) == 1
         assert repo._records[0].system == "fake"
         assert repo._records[0].version == "v1"
@@ -148,7 +161,8 @@ class TestDispatchWithRunManager:
 
         result = dispatch("predict", _FakeFullModel(), config, run_manager=mgr)
 
-        assert isinstance(result, PredictResult)
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, PredictResult)
         assert len(repo._records) == 1
         assert repo._records[0].system == "fake"
         assert repo._records[0].version == "v1"
@@ -161,5 +175,6 @@ class TestDispatchWithRunManager:
 
         result = dispatch("evaluate", _FakeFullModel(), config, run_manager=mgr)
 
-        assert isinstance(result, SystemMetrics)
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, SystemMetrics)
         assert len(repo._records) == 0
