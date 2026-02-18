@@ -1,4 +1,6 @@
+import logging
 import sqlite3
+import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -10,6 +12,8 @@ from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.repos.protocols import LoadLogRepo, PlayerRepo, ProjectionRepo
+
+logger = logging.getLogger(__name__)
 
 
 class StatsLoader:
@@ -34,10 +38,13 @@ class StatsLoader:
 
     def load(self, **fetch_params: Any) -> LoadLog:
         started_at = datetime.now(timezone.utc).isoformat()
+        t0 = time.perf_counter()
+        logger.info("Loading %s from %s", self._target_table, self._source.source_detail)
 
         try:
             df = self._source.fetch(**fetch_params)
         except Exception as exc:
+            logger.error("Fetch failed for %s: %s", self._target_table, exc)
             finished_at = datetime.now(timezone.utc).isoformat()
             log = LoadLog(
                 source_type=self._source.source_type,
@@ -53,6 +60,8 @@ class StatsLoader:
             self._log_conn.commit()
             raise
 
+        logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
+
         rows_loaded = 0
         try:
             for _, row in df.iterrows():
@@ -62,6 +71,7 @@ class StatsLoader:
                     rows_loaded += 1
             self._conn.commit()
         except Exception as exc:
+            logger.error("Processing failed for %s after %d rows: %s", self._target_table, rows_loaded, exc)
             self._conn.rollback()
             finished_at = datetime.now(timezone.utc).isoformat()
             log = LoadLog(
@@ -90,6 +100,7 @@ class StatsLoader:
         )
         self._load_log_repo.insert(log)
         self._log_conn.commit()
+        logger.info("Loaded %d rows into %s in %.1fs", rows_loaded, self._target_table, time.perf_counter() - t0)
         return log
 
 
@@ -111,10 +122,13 @@ class PlayerLoader:
 
     def load(self, **fetch_params: Any) -> LoadLog:
         started_at = datetime.now(timezone.utc).isoformat()
+        t0 = time.perf_counter()
+        logger.info("Loading %s from %s", "player", self._source.source_detail)
 
         try:
             df = self._source.fetch(**fetch_params)
         except Exception as exc:
+            logger.error("Fetch failed for %s: %s", "player", exc)
             finished_at = datetime.now(timezone.utc).isoformat()
             log = LoadLog(
                 source_type=self._source.source_type,
@@ -130,6 +144,8 @@ class PlayerLoader:
             self._conn.commit()
             raise
 
+        logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
+
         rows_loaded = 0
         try:
             for _, row in df.iterrows():
@@ -139,6 +155,7 @@ class PlayerLoader:
                     rows_loaded += 1
             self._conn.commit()
         except Exception as exc:
+            logger.error("Processing failed for %s after %d rows: %s", "player", rows_loaded, exc)
             self._conn.rollback()
             finished_at = datetime.now(timezone.utc).isoformat()
             log = LoadLog(
@@ -167,6 +184,7 @@ class PlayerLoader:
         )
         self._load_log_repo.insert(log)
         self._conn.commit()
+        logger.info("Loaded %d rows into %s in %.1fs", rows_loaded, "player", time.perf_counter() - t0)
         return log
 
 
@@ -190,10 +208,13 @@ class ProjectionLoader:
 
     def load(self, **fetch_params: Any) -> LoadLog:
         started_at = datetime.now(timezone.utc).isoformat()
+        t0 = time.perf_counter()
+        logger.info("Loading %s from %s", "projection", self._source.source_detail)
 
         try:
             df = self._source.fetch(**fetch_params)
         except Exception as exc:
+            logger.error("Fetch failed for %s: %s", "projection", exc)
             finished_at = datetime.now(timezone.utc).isoformat()
             log = LoadLog(
                 source_type=self._source.source_type,
@@ -209,6 +230,8 @@ class ProjectionLoader:
             self._log_conn.commit()
             raise
 
+        logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
+
         rows_loaded = 0
         try:
             for _, row in df.iterrows():
@@ -221,6 +244,7 @@ class ProjectionLoader:
                 rows_loaded += 1
             self._conn.commit()
         except Exception as exc:
+            logger.error("Processing failed for %s after %d rows: %s", "projection", rows_loaded, exc)
             self._conn.rollback()
             finished_at = datetime.now(timezone.utc).isoformat()
             log = LoadLog(
@@ -249,4 +273,5 @@ class ProjectionLoader:
         )
         self._load_log_repo.insert(log)
         self._log_conn.commit()
+        logger.info("Loaded %d rows into %s in %.1fs", rows_loaded, "projection", time.perf_counter() - t0)
         return log

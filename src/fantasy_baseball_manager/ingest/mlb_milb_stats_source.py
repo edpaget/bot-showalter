@@ -1,7 +1,10 @@
+import logging
 from typing import Any
 
 import httpx
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://statsapi.mlb.com/api/v1/stats"
 
@@ -61,6 +64,7 @@ class MLBMinorLeagueBattingSource:
         level: str = params["level"]
         sport_id = _SPORT_IDS[level]
 
+        logger.debug("GET %s season=%d level=%s", _BASE_URL, season, level)
         response = self._client.get(
             _BASE_URL,
             params={
@@ -72,6 +76,7 @@ class MLBMinorLeagueBattingSource:
             },
         )
         response.raise_for_status()
+        logger.debug("MLB API responded %d", response.status_code)
         data = response.json()
 
         rows: list[dict[str, Any]] = []
@@ -117,4 +122,5 @@ class MLBMinorLeagueBattingSource:
 
         if not rows:
             return pd.DataFrame(columns=_COLUMNS)
+        logger.info("Fetched %d MiLB batting rows for %s %d", len(rows), level, season)
         return pd.DataFrame(rows)

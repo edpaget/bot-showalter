@@ -1,5 +1,8 @@
+import logging
 import re
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -38,6 +41,7 @@ def parse_il_transaction(description: str) -> ILParseResult | None:
         injury = _extract_injury(description)
         return ILParseResult(transaction_type="activation", il_type=il_type, injury_description=injury)
 
+    logger.debug("No IL pattern matched: %.120s", description)
     return None
 
 

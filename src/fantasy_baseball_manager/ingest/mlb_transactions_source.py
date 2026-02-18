@@ -1,7 +1,10 @@
+import logging
 from typing import Any
 
 import httpx
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://statsapi.mlb.com/api/v1/transactions"
 _COLUMNS = ["transaction_id", "mlbam_id", "date", "effective_date", "description"]
@@ -21,6 +24,7 @@ class MLBTransactionsSource:
 
     def fetch(self, **params: Any) -> pd.DataFrame:
         season: int = params["season"]
+        logger.debug("GET %s season=%d", _BASE_URL, season)
         response = self._client.get(
             _BASE_URL,
             params={
@@ -31,6 +35,7 @@ class MLBTransactionsSource:
             },
         )
         response.raise_for_status()
+        logger.debug("MLB API responded %d", response.status_code)
         data = response.json()
 
         rows: list[dict[str, Any]] = []
@@ -50,4 +55,5 @@ class MLBTransactionsSource:
 
         if not rows:
             return pd.DataFrame(columns=_COLUMNS)
+        logger.info("Fetched %d transaction rows for season %d", len(rows), season)
         return pd.DataFrame(rows)

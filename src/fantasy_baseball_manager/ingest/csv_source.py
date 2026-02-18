@@ -1,7 +1,10 @@
+import logging
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 class CsvSource:
@@ -17,4 +20,7 @@ class CsvSource:
         return str(self._path)
 
     def fetch(self, **params: Any) -> pd.DataFrame:
-        return pd.read_csv(self._path, **params)
+        logger.debug("Reading CSV %s", self._path)
+        df = pd.read_csv(self._path, **params)
+        logger.debug("Read %d rows from %s", len(df), self._path)
+        return df
