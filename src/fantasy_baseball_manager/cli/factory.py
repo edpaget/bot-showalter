@@ -1,3 +1,4 @@
+import functools
 import inspect
 import sqlite3
 from collections.abc import Iterator
@@ -217,26 +218,26 @@ class IngestContainer:
         assert self._statcast_conn is not None, "statcast_conn not configured"
         return self._statcast_conn
 
-    @property
+    @functools.cached_property
     def statcast_pitch_repo(self) -> SqliteStatcastPitchRepo:
         return SqliteStatcastPitchRepo(self.statcast_conn)
 
     def statcast_source(self) -> DataSource:
         return StatcastSource()
 
-    @property
+    @functools.cached_property
     def player_repo(self) -> SqlitePlayerRepo:
         return SqlitePlayerRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def batting_stats_repo(self) -> SqliteBattingStatsRepo:
         return SqliteBattingStatsRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def pitching_stats_repo(self) -> SqlitePitchingStatsRepo:
         return SqlitePitchingStatsRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def log_repo(self) -> SqliteLoadLogRepo:
         return SqliteLoadLogRepo(self._conn)
 
@@ -257,7 +258,7 @@ class IngestContainer:
             return BrefPitchingSource()
         raise ValueError(f"Unknown pitching source: {name!r}")
 
-    @property
+    @functools.cached_property
     def il_stint_repo(self) -> SqliteILStintRepo:
         return SqliteILStintRepo(self._conn)
 
@@ -267,19 +268,19 @@ class IngestContainer:
     def bio_source(self) -> DataSource:
         return LahmanPeopleSource()
 
-    @property
+    @functools.cached_property
     def position_appearance_repo(self) -> SqlitePositionAppearanceRepo:
         return SqlitePositionAppearanceRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def roster_stint_repo(self) -> SqliteRosterStintRepo:
         return SqliteRosterStintRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def team_repo(self) -> SqliteTeamRepo:
         return SqliteTeamRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def minor_league_batting_stats_repo(self) -> SqliteMinorLeagueBattingStatsRepo:
         return SqliteMinorLeagueBattingStatsRepo(self._conn)
 
@@ -370,19 +371,19 @@ class ComputeContainer:
     def conn(self) -> sqlite3.Connection:
         return self._conn
 
-    @property
+    @functools.cached_property
     def league_environment_repo(self) -> SqliteLeagueEnvironmentRepo:
         return SqliteLeagueEnvironmentRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def level_factor_repo(self) -> SqliteLevelFactorRepo:
         return SqliteLevelFactorRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def minor_league_batting_stats_repo(self) -> SqliteMinorLeagueBattingStatsRepo:
         return SqliteMinorLeagueBattingStatsRepo(self._conn)
 
-    @property
+    @functools.cached_property
     def league_environment_service(self) -> LeagueEnvironmentService:
         return LeagueEnvironmentService(
             self.minor_league_batting_stats_repo,
