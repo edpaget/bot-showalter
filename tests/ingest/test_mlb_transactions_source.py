@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 import httpx
+import pytest
 
 from fantasy_baseball_manager.ingest.mlb_transactions_source import MLBTransactionsSource
 
@@ -34,6 +35,25 @@ class FakeTransport(httpx.BaseTransport):
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         return self._response
+
+
+class FailNTransport(httpx.BaseTransport):
+    """Returns error responses for the first N requests, then succeeds."""
+
+    def __init__(self, fail_count: int, success_response: httpx.Response) -> None:
+        self._fail_count = fail_count
+        self._success_response = success_response
+        self._call_count = 0
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        self._call_count += 1
+        if self._call_count <= self._fail_count:
+            return httpx.Response(503, content=b"Service Unavailable")
+        return self._success_response
+
+    @property
+    def call_count(self) -> int:
+        return self._call_count
 
 
 class TestMLBTransactionsSource:
@@ -82,3 +102,27 @@ class TestMLBTransactionsSource:
 
         assert len(df) == 1
         assert df.iloc[0]["transaction_id"] == 2
+
+    def test_retry_on_503_then_success(self) -> None:
+        txns = [_make_transaction()]
+        success_response = _fake_response(txns)
+        transport = FailNTransport(fail_count=2, success_response=success_response)
+        client = httpx.Client(transport=transport)
+        source = MLBTransactionsSource(client=client)
+
+        df = source.fetch(season=2024)
+
+        assert len(df) == 1
+        assert transport.call_count == 3
+
+    def test_exhausted_retries_raises(self) -> None:
+        txns = [_make_transaction()]
+        success_response = _fake_response(txns)
+        transport = FailNTransport(fail_count=5, success_response=success_response)
+        client = httpx.Client(transport=transport)
+        source = MLBTransactionsSource(client=client)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            source.fetch(season=2024)
+
+        assert transport.call_count == 3

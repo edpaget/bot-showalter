@@ -10,6 +10,7 @@ dependencies = [
     "pybaseball>=2.2.0",
     "pylahman>=0.7.0",
     "scikit-learn>=1.6.0",
+    "tenacity>=9.0.0",
     "typer>=0.15.0",
 ]
 

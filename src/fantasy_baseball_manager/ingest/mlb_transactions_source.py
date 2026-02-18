@@ -3,8 +3,14 @@ from typing import Any
 
 import httpx
 import pandas as pd
+from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 logger = logging.getLogger(__name__)
+
+
+def _log_retry(retry_state: RetryCallState) -> None:
+    logger.warning("Retrying MLB API request (attempt %d): %s", retry_state.attempt_number, retry_state.outcome)
+
 
 _BASE_URL = "https://statsapi.mlb.com/api/v1/transactions"
 _COLUMNS = ["transaction_id", "mlbam_id", "date", "effective_date", "description"]
@@ -12,7 +18,7 @@ _COLUMNS = ["transaction_id", "mlbam_id", "date", "effective_date", "description
 
 class MLBTransactionsSource:
     def __init__(self, client: httpx.Client | None = None) -> None:
-        self._client = client or httpx.Client()
+        self._client = client or httpx.Client(timeout=httpx.Timeout(10.0, connect=5.0))
 
     @property
     def source_type(self) -> str:
@@ -22,19 +28,29 @@ class MLBTransactionsSource:
     def source_detail(self) -> str:
         return "transactions"
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential_jitter(initial=1, max=10),
+        retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+        before_sleep=_log_retry,
+        reraise=True,
+    )
+    def _fetch_with_retry(self, params: dict[str, Any]) -> httpx.Response:
+        response = self._client.get(_BASE_URL, params=params)
+        response.raise_for_status()
+        return response
+
     def fetch(self, **params: Any) -> pd.DataFrame:
         season: int = params["season"]
         logger.debug("GET %s season=%d", _BASE_URL, season)
-        response = self._client.get(
-            _BASE_URL,
-            params={
+        response = self._fetch_with_retry(
+            {
                 "startDate": f"{season}-01-01",
                 "endDate": f"{season}-12-31",
                 "sportId": 1,
                 "transactionTypes": "SC",
-            },
+            }
         )
-        response.raise_for_status()
         logger.debug("MLB API responded %d", response.status_code)
         data = response.json()
 

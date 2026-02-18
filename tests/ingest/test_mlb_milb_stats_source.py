@@ -16,6 +16,25 @@ class FakeTransport(httpx.BaseTransport):
         return self._response
 
 
+class FailNTransport(httpx.BaseTransport):
+    """Returns error responses for the first N requests, then succeeds."""
+
+    def __init__(self, fail_count: int, success_response: httpx.Response) -> None:
+        self._fail_count = fail_count
+        self._success_response = success_response
+        self._call_count = 0
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        self._call_count += 1
+        if self._call_count <= self._fail_count:
+            return httpx.Response(503, content=b"Service Unavailable")
+        return self._success_response
+
+    @property
+    def call_count(self) -> int:
+        return self._call_count
+
+
 def _make_player_stat(
     *,
     player_id: int = 545361,
@@ -126,3 +145,27 @@ class TestMLBMinorLeagueBattingSource:
 
         with pytest.raises(httpx.HTTPStatusError):
             source.fetch(season=2024, level="AAA")
+
+    def test_retry_on_503_then_success(self) -> None:
+        splits = [_make_player_stat()]
+        success_response = _fake_api_response(splits)
+        transport = FailNTransport(fail_count=2, success_response=success_response)
+        client = httpx.Client(transport=transport)
+        source = MLBMinorLeagueBattingSource(client=client)
+
+        df = source.fetch(season=2024, level="AAA")
+
+        assert len(df) == 1
+        assert transport.call_count == 3
+
+    def test_exhausted_retries_raises(self) -> None:
+        splits = [_make_player_stat()]
+        success_response = _fake_api_response(splits)
+        transport = FailNTransport(fail_count=5, success_response=success_response)
+        client = httpx.Client(transport=transport)
+        source = MLBMinorLeagueBattingSource(client=client)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            source.fetch(season=2024, level="AAA")
+
+        assert transport.call_count == 3
