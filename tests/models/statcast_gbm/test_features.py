@@ -396,6 +396,7 @@ class TestLiveBatterCuratedColumns:
             "oppo_pct",
             "center_pct",
             "sprint_speed",
+            "pitch_clock_era",
         ]
         assert columns == expected
 
@@ -423,7 +424,7 @@ class TestLiveBatterCuratedColumns:
     def test_subset_of_full_columns(self) -> None:
         curated = set(live_batter_curated_columns())
         full = set(batter_feature_columns())
-        # Some outputs are only in the live set (derived transforms, sprint speed)
+        # Some outputs are only in the live set (derived transforms, sprint speed, computed features)
         fs = build_live_batter_feature_set([])
         live_only_outputs: set[str] = set()
         for f in fs.features:
@@ -431,6 +432,8 @@ class TestLiveBatterCuratedColumns:
                 live_only_outputs.update(f.outputs)
             elif isinstance(f, TransformFeature) and set(f.outputs) - full:
                 live_only_outputs.update(f.outputs)
+            elif isinstance(f, Feature) and f.name not in full:
+                live_only_outputs.add(f.name)
         assert curated <= (full | live_only_outputs)
 
 
@@ -466,6 +469,7 @@ class TestLivePitcherCuratedColumns:
             "avg_exit_velo_against",
             "barrel_pct_against",
             "zone_rate",
+            "pitch_clock_era",
         ]
         assert columns == expected
 
@@ -501,7 +505,13 @@ class TestLivePitcherCuratedColumns:
     def test_subset_of_full_columns(self) -> None:
         curated = set(live_pitcher_curated_columns())
         full = set(pitcher_feature_columns())
-        assert curated <= full
+        # pitch_clock_era is a computed Feature only in the live set
+        fs = build_live_pitcher_feature_set([])
+        live_only_outputs: set[str] = set()
+        for f in fs.features:
+            if isinstance(f, Feature) and f.name not in full:
+                live_only_outputs.add(f.name)
+        assert curated <= (full | live_only_outputs)
 
 
 class TestPreseasonBatterCuratedColumns:
@@ -683,6 +693,11 @@ class TestLiveBatterCuratedFeatureSet:
         derived_names = [f.name for f in fs.features if isinstance(f, DerivedTransformFeature)]
         assert "batted_ball_interactions" in derived_names
 
+    def test_includes_pitch_clock_era(self) -> None:
+        fs = build_live_batter_feature_set([2023])
+        names = [f.name for f in fs.features]
+        assert "pitch_clock_era" in names
+
 
 class TestLiveBatterCuratedTrainingSet:
     def test_includes_targets(self) -> None:
@@ -733,6 +748,11 @@ class TestLivePitcherCuratedFeatureSet:
         assert "plate_discipline" in transform_names
         assert "batted_ball_against" in transform_names
         assert "command" in transform_names
+
+    def test_includes_pitch_clock_era(self) -> None:
+        fs = build_live_pitcher_feature_set([2023])
+        names = [f.name for f in fs.features]
+        assert "pitch_clock_era" in names
 
 
 class TestLivePitcherCuratedTrainingSet:

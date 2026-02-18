@@ -445,6 +445,7 @@ def live_batter_curated_columns() -> list[str]:
         "oppo_pct",
         "center_pct",
         "sprint_speed",
+        "pitch_clock_era",
     ]
 
 
@@ -473,6 +474,7 @@ def live_pitcher_curated_columns() -> list[str]:
         "avg_exit_velo_against",
         "barrel_pct_against",
         "zone_rate",
+        "pitch_clock_era",
     ]
 
 
@@ -581,7 +583,7 @@ def _curated_pitcher_lag_features(stats: tuple[str, ...]) -> list[Feature]:
 
 
 def build_live_batter_feature_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = []
+    features: list[AnyFeature] = [player.pitch_clock_era()]
     features.extend(_curated_batter_lag_features(_LIVE_BATTER_LAG_STATS))
     features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
     features.append(SPRINT_SPEED_TRANSFORM)
@@ -596,7 +598,7 @@ def build_live_batter_feature_set(seasons: Sequence[int]) -> FeatureSet:
 
 
 def build_live_batter_training_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = []
+    features: list[AnyFeature] = [player.pitch_clock_era()]
     features.extend(_curated_batter_lag_features(_LIVE_BATTER_LAG_STATS))
     features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
     features.append(SPRINT_SPEED_TRANSFORM)
@@ -612,7 +614,7 @@ def build_live_batter_training_set(seasons: Sequence[int]) -> FeatureSet:
 
 
 def build_live_pitcher_feature_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = []
+    features: list[AnyFeature] = [player.pitch_clock_era()]
     features.extend(_curated_pitcher_lag_features(_LIVE_PITCHER_LAG_STATS))
     features.extend([PITCH_MIX, SPIN_PROFILE, PLATE_DISCIPLINE, BATTED_BALL_AGAINST, COMMAND])
     return FeatureSet(
@@ -625,7 +627,7 @@ def build_live_pitcher_feature_set(seasons: Sequence[int]) -> FeatureSet:
 
 
 def build_live_pitcher_training_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = []
+    features: list[AnyFeature] = [player.pitch_clock_era()]
     features.extend(_curated_pitcher_lag_features(_LIVE_PITCHER_LAG_STATS))
     features.extend([PITCH_MIX, SPIN_PROFILE, PLATE_DISCIPLINE, BATTED_BALL_AGAINST, COMMAND])
     features.extend(_pitcher_target_features())
