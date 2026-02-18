@@ -15,7 +15,7 @@ from fantasy_baseball_manager.repos.protocols import ProjectionRepo
 
 @register("ensemble")
 class EnsembleModel:
-    def __init__(self, projection_repo: ProjectionRepo | None = None) -> None:
+    def __init__(self, projection_repo: ProjectionRepo) -> None:
         self._projection_repo = projection_repo
 
     @property
@@ -35,8 +35,6 @@ class EnsembleModel:
         return ArtifactType.NONE.value
 
     def predict(self, config: ModelConfig) -> PredictResult:
-        assert self._projection_repo is not None, "projection_repo is required for predict"
-
         params = config.model_params
         components: dict[str, float] = params["components"]
         mode: str = params.get("mode", "weighted_average")

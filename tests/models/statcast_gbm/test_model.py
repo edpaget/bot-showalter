@@ -185,87 +185,96 @@ class FakeEvaluator:
         )
 
 
+_NULL_ASSEMBLER = FakeAssembler()
+_NULL_EVALUATOR = FakeEvaluator()
+
+
 class TestStatcastGBMProtocol:
     def test_is_model(self) -> None:
-        assert isinstance(StatcastGBMModel(), Model)
+        assert isinstance(StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Model)
 
     def test_is_preparable(self) -> None:
-        assert isinstance(StatcastGBMModel(), Preparable)
+        assert isinstance(StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Preparable)
 
     def test_is_trainable(self) -> None:
-        assert isinstance(StatcastGBMModel(), Trainable)
+        assert isinstance(StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Trainable)
 
     def test_is_evaluable(self) -> None:
-        assert isinstance(StatcastGBMModel(), Evaluable)
+        assert isinstance(StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Evaluable)
 
     def test_is_predictable(self) -> None:
-        assert isinstance(StatcastGBMModel(), Predictable)
+        assert isinstance(StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Predictable)
 
     def test_is_ablatable(self) -> None:
-        assert isinstance(StatcastGBMModel(), Ablatable)
+        assert isinstance(StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Ablatable)
 
     def test_is_feature_introspectable(self) -> None:
-        assert isinstance(StatcastGBMModel(), FeatureIntrospectable)
+        assert isinstance(StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), FeatureIntrospectable)
 
     def test_is_not_finetuneable(self) -> None:
-        assert not isinstance(StatcastGBMModel(), FineTunable)
+        assert not isinstance(StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), FineTunable)
 
     def test_name(self) -> None:
-        assert StatcastGBMModel().name == "statcast-gbm"
+        assert StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).name == "statcast-gbm"
 
     def test_artifact_type(self) -> None:
-        assert StatcastGBMModel().artifact_type == "file"
+        assert StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).artifact_type == "file"
 
     def test_supported_operations(self) -> None:
-        ops = StatcastGBMModel().supported_operations
+        ops = StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).supported_operations
         assert ops == frozenset({"prepare", "train", "evaluate", "predict", "ablate", "tune"})
 
     def test_declared_features_not_empty(self) -> None:
-        features = StatcastGBMModel().declared_features
+        features = StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).declared_features
         assert len(features) > 0
 
 
 class TestStatcastGBMPreseasonProtocol:
     def test_is_model(self) -> None:
-        assert isinstance(StatcastGBMPreseasonModel(), Model)
+        assert isinstance(StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Model)
 
     def test_is_preparable(self) -> None:
-        assert isinstance(StatcastGBMPreseasonModel(), Preparable)
+        assert isinstance(StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Preparable)
 
     def test_is_trainable(self) -> None:
-        assert isinstance(StatcastGBMPreseasonModel(), Trainable)
+        assert isinstance(StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Trainable)
 
     def test_is_evaluable(self) -> None:
-        assert isinstance(StatcastGBMPreseasonModel(), Evaluable)
+        assert isinstance(StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Evaluable)
 
     def test_is_predictable(self) -> None:
-        assert isinstance(StatcastGBMPreseasonModel(), Predictable)
+        assert isinstance(StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Predictable)
 
     def test_is_ablatable(self) -> None:
-        assert isinstance(StatcastGBMPreseasonModel(), Ablatable)
+        assert isinstance(StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Ablatable)
 
     def test_is_feature_introspectable(self) -> None:
-        assert isinstance(StatcastGBMPreseasonModel(), FeatureIntrospectable)
+        assert isinstance(
+            StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), FeatureIntrospectable
+        )
 
     def test_name(self) -> None:
-        assert StatcastGBMPreseasonModel().name == "statcast-gbm-preseason"
+        assert (
+            StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).name
+            == "statcast-gbm-preseason"
+        )
 
     def test_artifact_type(self) -> None:
-        assert StatcastGBMPreseasonModel().artifact_type == "file"
+        assert StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).artifact_type == "file"
 
     def test_supported_operations(self) -> None:
-        ops = StatcastGBMPreseasonModel().supported_operations
+        ops = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).supported_operations
         assert ops == frozenset({"prepare", "train", "evaluate", "predict", "ablate", "tune"})
 
     def test_declared_features_not_empty(self) -> None:
-        features = StatcastGBMPreseasonModel().declared_features
+        features = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).declared_features
         assert len(features) > 0
 
 
 class TestStatcastGBMPrepare:
     def test_prepare_returns_result(self) -> None:
         assembler = FakeAssembler()
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(seasons=[2023])
         result = model.prepare(config)
         assert isinstance(result, PrepareResult)
@@ -283,7 +292,7 @@ class TestStatcastGBMTrain:
             2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -306,7 +315,7 @@ class TestStatcastGBMTrain:
             2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -330,7 +339,7 @@ class TestStatcastGBMPredict:
             2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -353,7 +362,7 @@ class TestStatcastGBMPredict:
             2023: _make_pitcher_rows(5, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -383,7 +392,7 @@ class TestStatcastGBMPredict:
             2023: _make_pitcher_rows(5, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -398,7 +407,7 @@ class TestStatcastGBMPredict:
 class TestStatcastGBMEvaluate:
     def test_evaluate_delegates_to_evaluator(self) -> None:
         evaluator = FakeEvaluator()
-        model = StatcastGBMModel(evaluator=evaluator)
+        model = StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=evaluator)
         config = ModelConfig(seasons=[2023], version="v1")
         result = model.evaluate(config)
         assert isinstance(result, SystemMetrics)
@@ -419,7 +428,7 @@ def ablation_result() -> AblationResult:
         2023: _make_pitcher_rows(30, 2023),
     }
     assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-    model = StatcastGBMModel(assembler=assembler)
+    model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
     config = ModelConfig(seasons=[2022, 2023])
     return model.ablate(config)
 
@@ -453,7 +462,7 @@ def preseason_ablation_result() -> AblationResult:
         2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(30)],
     }
     assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-    model = StatcastGBMPreseasonModel(assembler=assembler)
+    model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
     config = ModelConfig(seasons=[2022, 2023])
     return model.ablate(config)
 
@@ -496,7 +505,7 @@ class TestStatcastGBMTrainWithMissingTargets:
             2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -509,25 +518,25 @@ class TestStatcastGBMTrainWithMissingTargets:
 
 class TestStatcastGBMSeasonValidation:
     def test_train_empty_seasons(self) -> None:
-        model = StatcastGBMModel(assembler=FakeAssembler())
+        model = StatcastGBMModel(assembler=FakeAssembler(), evaluator=_NULL_EVALUATOR)
         config = ModelConfig(seasons=[])
         with pytest.raises(ValueError, match="train requires at least 2 seasons"):
             model.train(config)
 
     def test_train_single_season(self) -> None:
-        model = StatcastGBMModel(assembler=FakeAssembler())
+        model = StatcastGBMModel(assembler=FakeAssembler(), evaluator=_NULL_EVALUATOR)
         config = ModelConfig(seasons=[2023])
         with pytest.raises(ValueError, match="train requires at least 2 seasons"):
             model.train(config)
 
     def test_ablate_empty_seasons(self) -> None:
-        model = StatcastGBMModel(assembler=FakeAssembler())
+        model = StatcastGBMModel(assembler=FakeAssembler(), evaluator=_NULL_EVALUATOR)
         config = ModelConfig(seasons=[])
         with pytest.raises(ValueError, match="ablate requires at least 2 seasons"):
             model.ablate(config)
 
     def test_ablate_single_season(self) -> None:
-        model = StatcastGBMModel(assembler=FakeAssembler())
+        model = StatcastGBMModel(assembler=FakeAssembler(), evaluator=_NULL_EVALUATOR)
         config = ModelConfig(seasons=[2023])
         with pytest.raises(ValueError, match="ablate requires at least 2 seasons"):
             model.ablate(config)
@@ -576,7 +585,7 @@ class TestStatcastGBMPreseasonTrain:
             2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows)
-        model = StatcastGBMPreseasonModel(assembler=assembler)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -596,7 +605,7 @@ class TestStatcastGBMPreseasonTrain:
             2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows)
-        model = StatcastGBMPreseasonModel(assembler=assembler)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -619,7 +628,7 @@ class TestStatcastGBMPreseasonPredict:
             2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows)
-        model = StatcastGBMPreseasonModel(assembler=assembler)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -644,7 +653,7 @@ class TestStatcastGBMPreseasonTune:
             2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMPreseasonModel(assembler=assembler)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2021, 2022, 2023],
             model_params={"param_grid": {"max_iter": [50, 100]}},
@@ -673,23 +682,23 @@ class TestStatcastGBMPreseasonTune:
 
     def test_tune_raises_with_fewer_than_3_seasons(self) -> None:
         assembler = FakeAssembler()
-        model = StatcastGBMPreseasonModel(assembler=assembler)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(seasons=[2022, 2023])
         with pytest.raises(ValueError, match="at least 3 seasons"):
             model.tune(config)
 
     def test_tune_raises_with_single_season(self) -> None:
         assembler = FakeAssembler()
-        model = StatcastGBMPreseasonModel(assembler=assembler)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(seasons=[2023])
         with pytest.raises(ValueError, match="at least 3 seasons"):
             model.tune(config)
 
     def test_is_tunable_protocol(self) -> None:
-        assert isinstance(StatcastGBMPreseasonModel(), Tunable)
+        assert isinstance(StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR), Tunable)
 
     def test_supported_operations_includes_tune(self) -> None:
-        ops = StatcastGBMPreseasonModel().supported_operations
+        ops = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).supported_operations
         assert "tune" in ops
 
 
@@ -713,7 +722,7 @@ class TestStatcastGBMTrainPerTypeParams:
             2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -748,7 +757,7 @@ class TestStatcastGBMTrainPerTypeParams:
             2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
@@ -773,7 +782,7 @@ class TestDefaultModeIsTrueTalent:
             2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows)
-        model = StatcastGBMModel(assembler=assembler)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
         config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),

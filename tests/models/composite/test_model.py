@@ -39,38 +39,6 @@ def _test_lookup(name: str) -> FeatureGroup:
     return _GROUPS[name]
 
 
-class TestCompositeModelProtocol:
-    def test_is_model(self) -> None:
-        assert isinstance(CompositeModel(), Model)
-
-    def test_is_preparable(self) -> None:
-        assert isinstance(CompositeModel(), Preparable)
-
-    def test_is_predictable(self) -> None:
-        assert isinstance(CompositeModel(), Predictable)
-
-    def test_is_not_trainable(self) -> None:
-        assert not isinstance(CompositeModel(), Trainable)
-
-    def test_is_not_evaluable(self) -> None:
-        assert not isinstance(CompositeModel(), Evaluable)
-
-    def test_is_not_finetuneable(self) -> None:
-        assert not isinstance(CompositeModel(), FineTunable)
-
-    def test_name(self) -> None:
-        assert CompositeModel().name == "composite"
-
-    def test_name_uses_model_name_param(self) -> None:
-        assert CompositeModel(model_name="composite-mle").name == "composite-mle"
-
-    def test_supported_operations(self) -> None:
-        assert CompositeModel().supported_operations == frozenset({"prepare", "predict"})
-
-    def test_artifact_type(self) -> None:
-        assert CompositeModel().artifact_type == "none"
-
-
 class FakeAssembler:
     """In-memory assembler for testing predict()."""
 
@@ -110,6 +78,41 @@ class FakeAssembler:
         if "pitching" in handle.table_name:
             return self._pitching_rows
         return self._batting_rows
+
+
+_NULL_ASSEMBLER = FakeAssembler(batting_rows=[])
+
+
+class TestCompositeModelProtocol:
+    def test_is_model(self) -> None:
+        assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Model)
+
+    def test_is_preparable(self) -> None:
+        assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Preparable)
+
+    def test_is_predictable(self) -> None:
+        assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Predictable)
+
+    def test_is_not_trainable(self) -> None:
+        assert not isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Trainable)
+
+    def test_is_not_evaluable(self) -> None:
+        assert not isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Evaluable)
+
+    def test_is_not_finetuneable(self) -> None:
+        assert not isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), FineTunable)
+
+    def test_name(self) -> None:
+        assert CompositeModel(assembler=_NULL_ASSEMBLER).name == "composite"
+
+    def test_name_uses_model_name_param(self) -> None:
+        assert CompositeModel(assembler=_NULL_ASSEMBLER, model_name="composite-mle").name == "composite-mle"
+
+    def test_supported_operations(self) -> None:
+        assert CompositeModel(assembler=_NULL_ASSEMBLER).supported_operations == frozenset({"prepare", "predict"})
+
+    def test_artifact_type(self) -> None:
+        assert CompositeModel(assembler=_NULL_ASSEMBLER).artifact_type == "none"
 
 
 class TestResolveGroup:

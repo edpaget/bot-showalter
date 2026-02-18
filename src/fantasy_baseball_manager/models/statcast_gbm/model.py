@@ -59,8 +59,8 @@ DEFAULT_PARAM_GRID: dict[str, list[Any]] = {
 class _StatcastGBMBase:
     def __init__(
         self,
-        assembler: DatasetAssembler | None = None,
-        evaluator: Evaluator | None = None,
+        assembler: DatasetAssembler,
+        evaluator: Evaluator,
     ) -> None:
         self._assembler = assembler
         self._evaluator = evaluator
@@ -112,7 +112,6 @@ class _StatcastGBMBase:
         raise NotImplementedError
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
-        assert self._assembler is not None, "assembler is required for prepare"
         batter_fs = self._batter_feature_set_builder(config.seasons)
         pitcher_fs = self._pitcher_feature_set_builder(config.seasons)
 
@@ -126,7 +125,6 @@ class _StatcastGBMBase:
         )
 
     def train(self, config: ModelConfig) -> TrainResult:
-        assert self._assembler is not None, "assembler is required for train"
         if len(config.seasons) < 2:
             msg = f"train requires at least 2 seasons (got {len(config.seasons)})"
             raise ValueError(msg)
@@ -193,14 +191,11 @@ class _StatcastGBMBase:
         )
 
     def evaluate(self, config: ModelConfig) -> SystemMetrics:
-        assert self._evaluator is not None, "evaluator is required for evaluate"
         version = config.version or "latest"
         season = config.seasons[0]
         return self._evaluator.evaluate(self.name, version, season)
 
     def predict(self, config: ModelConfig) -> PredictResult:
-        assert self._assembler is not None, "assembler is required for predict"
-
         artifact_path = self._artifact_path(config)
         predictions_by_row: list[dict[str, Any]] = []
 
@@ -255,7 +250,6 @@ class _StatcastGBMBase:
         )
 
     def tune(self, config: ModelConfig) -> TuneResult:
-        assert self._assembler is not None, "assembler is required for tune"
         if len(config.seasons) < 3:
             msg = f"tune requires at least 3 seasons (got {len(config.seasons)})"
             raise ValueError(msg)
@@ -329,7 +323,6 @@ class _StatcastGBMBase:
         )
 
     def ablate(self, config: ModelConfig) -> AblationResult:
-        assert self._assembler is not None, "assembler is required for ablate"
         if len(config.seasons) < 2:
             msg = f"ablate requires at least 2 seasons (got {len(config.seasons)})"
             raise ValueError(msg)

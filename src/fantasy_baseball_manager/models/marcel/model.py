@@ -142,7 +142,7 @@ def _build_feature_sets(
 class MarcelModel:
     def __init__(
         self,
-        assembler: DatasetAssembler | None = None,
+        assembler: DatasetAssembler,
         evaluator: Evaluator | None = None,
     ) -> None:
         self._assembler = assembler
@@ -171,7 +171,6 @@ class MarcelModel:
         return batting_fs.features + pitching_fs.features
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
-        assert self._assembler is not None, "assembler is required for prepare"
         marcel_config = _build_marcel_config(config.model_params)
         pt_mode = _resolve_pt_mode(config)
         batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name, pt_mode=pt_mode)
@@ -186,7 +185,6 @@ class MarcelModel:
         )
 
     def predict(self, config: ModelConfig) -> PredictResult:
-        assert self._assembler is not None, "assembler is required for predict"
         marcel_config = _build_marcel_config(config.model_params)
         pt_mode = _resolve_pt_mode(config)
         batting_fs, pitching_fs = _build_feature_sets(marcel_config, config.seasons, self.name, pt_mode=pt_mode)
@@ -247,7 +245,9 @@ class MarcelModel:
         )
 
     def evaluate(self, config: ModelConfig) -> SystemMetrics:
-        assert self._evaluator is not None, "evaluator is required for evaluate"
+        if self._evaluator is None:
+            msg = "evaluator is required for evaluate"
+            raise TypeError(msg)
         version = config.version or "latest"
         season = config.seasons[0]
         return self._evaluator.evaluate(self.name, version, season, top=config.top)

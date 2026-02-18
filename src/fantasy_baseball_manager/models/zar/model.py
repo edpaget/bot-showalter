@@ -40,9 +40,9 @@ def _extract_stats(projections: list[Projection]) -> list[dict[str, float]]:
 class ZarModel:
     def __init__(
         self,
-        projection_repo: ProjectionRepo | None = None,
+        projection_repo: ProjectionRepo,
+        position_repo: PositionAppearanceRepo,
         player_repo: PlayerRepo | None = None,
-        position_repo: PositionAppearanceRepo | None = None,
         valuation_repo: ValuationRepo | None = None,
     ) -> None:
         self._projection_repo = projection_repo
@@ -67,9 +67,6 @@ class ZarModel:
         return ArtifactType.NONE.value
 
     def predict(self, config: ModelConfig) -> PredictResult:
-        assert self._projection_repo is not None, "projection_repo is required for predict"
-        assert self._position_repo is not None, "position_repo is required for predict"
-
         league: LeagueSettings = config.model_params["league"]
         proj_system: str = config.model_params["projection_system"]
         proj_version: str | None = config.model_params.get("projection_version")

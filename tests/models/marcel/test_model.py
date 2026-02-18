@@ -18,37 +18,37 @@ from fantasy_baseball_manager.models.protocols import (
 
 class TestMarcelModel:
     def test_is_model(self) -> None:
-        assert isinstance(MarcelModel(), Model)
+        assert isinstance(MarcelModel(assembler=_NULL_ASSEMBLER), Model)
 
     def test_is_preparable(self) -> None:
-        assert isinstance(MarcelModel(), Preparable)
+        assert isinstance(MarcelModel(assembler=_NULL_ASSEMBLER), Preparable)
 
     def test_is_not_trainable(self) -> None:
-        assert not isinstance(MarcelModel(), Trainable)
+        assert not isinstance(MarcelModel(assembler=_NULL_ASSEMBLER), Trainable)
 
     def test_is_evaluable(self) -> None:
-        assert isinstance(MarcelModel(), Evaluable)
+        assert isinstance(MarcelModel(assembler=_NULL_ASSEMBLER), Evaluable)
 
     def test_is_predictable(self) -> None:
-        assert isinstance(MarcelModel(), Predictable)
+        assert isinstance(MarcelModel(assembler=_NULL_ASSEMBLER), Predictable)
 
     def test_is_not_finetuneable(self) -> None:
-        assert not isinstance(MarcelModel(), FineTunable)
+        assert not isinstance(MarcelModel(assembler=_NULL_ASSEMBLER), FineTunable)
 
     def test_artifact_type(self) -> None:
-        assert MarcelModel().artifact_type == "none"
+        assert MarcelModel(assembler=_NULL_ASSEMBLER).artifact_type == "none"
 
     def test_name(self) -> None:
-        assert MarcelModel().name == "marcel"
+        assert MarcelModel(assembler=_NULL_ASSEMBLER).name == "marcel"
 
     def test_supported_operations(self) -> None:
-        ops = MarcelModel().supported_operations
+        ops = MarcelModel(assembler=_NULL_ASSEMBLER).supported_operations
         assert ops == frozenset({"prepare", "predict", "evaluate"})
 
     def test_is_evaluable_with_evaluator(self) -> None:
         metrics = SystemMetrics(system="marcel", version="latest", source_type="first_party", metrics={})
         evaluator = _FakeEvaluator(metrics)
-        model = MarcelModel(evaluator=evaluator)
+        model = MarcelModel(assembler=_NULL_ASSEMBLER, evaluator=evaluator)
         assert isinstance(model, Evaluable)
 
 
@@ -116,6 +116,9 @@ class FakeAssembler:
         if "pitching" in handle.table_name:
             return self._pitching_rows
         return self._batting_rows
+
+
+_NULL_ASSEMBLER = FakeAssembler(batting_rows=[])
 
 
 class TestMarcelPredict:
@@ -348,7 +351,7 @@ class TestMarcelEvaluate:
             metrics={"hr": StatMetrics(rmse=0.1, mae=0.05, correlation=0.9, r_squared=0.81, n=100)},
         )
         evaluator = _FakeEvaluator(metrics)
-        model = MarcelModel(evaluator=evaluator)
+        model = MarcelModel(assembler=_NULL_ASSEMBLER, evaluator=evaluator)
         config = ModelConfig(seasons=[2025])
         result = model.evaluate(config)
         assert result is metrics
@@ -362,7 +365,7 @@ class TestMarcelEvaluate:
             metrics={},
         )
         evaluator = _FakeEvaluator(metrics)
-        model = MarcelModel(evaluator=evaluator)
+        model = MarcelModel(assembler=_NULL_ASSEMBLER, evaluator=evaluator)
         config = ModelConfig(seasons=[2024], version="v2")
         result = model.evaluate(config)
         assert result is metrics
@@ -376,7 +379,7 @@ class TestMarcelEvaluate:
             metrics={},
         )
         evaluator = _FakeEvaluator(metrics)
-        model = MarcelModel(evaluator=evaluator)
+        model = MarcelModel(assembler=_NULL_ASSEMBLER, evaluator=evaluator)
         config = ModelConfig(seasons=[2025], top=300)
         result = model.evaluate(config)
         assert result is metrics

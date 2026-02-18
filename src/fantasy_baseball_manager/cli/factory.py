@@ -52,12 +52,22 @@ from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupSe
 
 
 def create_model(name: str, **kwargs: Any) -> Model:
-    """Look up a model class by name and instantiate it, forwarding matching kwargs."""
+    """Look up a model class by name and instantiate it, forwarding matching kwargs.
+
+    When called without all required deps (e.g. for ``info`` or ``features``
+    commands), missing required parameters are filled with ``None`` so that
+    metadata properties (name, description, supported_operations) still work.
+    """
     cls = get(name)
     sig = inspect.signature(cls)
     filtered = {k: v for k, v in kwargs.items() if k in sig.parameters}
     if "model_name" in sig.parameters:
         filtered["model_name"] = name
+    for param_name, param in sig.parameters.items():
+        if param_name == "self":
+            continue
+        if param_name not in filtered and param.default is inspect.Parameter.empty:
+            filtered[param_name] = None
     return cls(**filtered)
 
 

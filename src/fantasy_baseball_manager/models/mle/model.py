@@ -29,9 +29,9 @@ from fantasy_baseball_manager.repos.protocols import (
 class MLEModel:
     def __init__(
         self,
-        milb_repo: MinorLeagueBattingStatsRepo | None = None,
-        league_env_repo: LeagueEnvironmentRepo | None = None,
-        level_factor_repo: LevelFactorRepo | None = None,
+        milb_repo: MinorLeagueBattingStatsRepo,
+        league_env_repo: LeagueEnvironmentRepo,
+        level_factor_repo: LevelFactorRepo,
     ) -> None:
         self._milb_repo = milb_repo
         self._league_env_repo = league_env_repo
@@ -54,9 +54,6 @@ class MLEModel:
         return ArtifactType.NONE.value
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
-        assert self._milb_repo is not None, "milb_repo is required for prepare"
-        assert self._level_factor_repo is not None, "level_factor_repo is required for prepare"
-
         params = config.model_params
         season: int = params.get("season", config.seasons[0] if config.seasons else 0)
 
@@ -76,10 +73,6 @@ class MLEModel:
         )
 
     def predict(self, config: ModelConfig) -> PredictResult:
-        assert self._milb_repo is not None, "milb_repo is required for predict"
-        assert self._league_env_repo is not None, "league_env_repo is required for predict"
-        assert self._level_factor_repo is not None, "level_factor_repo is required for predict"
-
         params = config.model_params
         projected_season: int = params["season"]
         mle_seasons: list[int] = params.get("mle_seasons", config.seasons)
@@ -129,10 +122,6 @@ class MLEModel:
         player_season_lines: dict[int, dict[int, list[TranslatedBattingLine]]],
         player_ages: dict[int, float] | None = None,
     ) -> None:
-        assert self._milb_repo is not None
-        assert self._league_env_repo is not None
-        assert self._level_factor_repo is not None
-
         level_factors = self._level_factor_repo.get_by_season(season)
 
         # Get MLB environment for this season
@@ -174,8 +163,6 @@ class MLEModel:
         version: str,
         age: float | None = None,
     ) -> dict[str, Any] | None:
-        assert self._league_env_repo is not None
-
         # Combine multi-level lines within each season
         combined_by_season: list[tuple[TranslatedBattingLine, float]] = []
         for i, season in enumerate(sorted(mle_seasons, reverse=True)):

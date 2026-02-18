@@ -16,34 +16,36 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.registry import _clear, get, register
 from tests.fakes.repos import FakeProjectionRepo
 
+_NULL_PROJECTION_REPO = FakeProjectionRepo([])
+
 
 class TestEnsembleModelProtocol:
     def test_is_model(self) -> None:
-        assert isinstance(EnsembleModel(), Model)
+        assert isinstance(EnsembleModel(projection_repo=_NULL_PROJECTION_REPO), Model)
 
     def test_is_predictable(self) -> None:
-        assert isinstance(EnsembleModel(), Predictable)
+        assert isinstance(EnsembleModel(projection_repo=_NULL_PROJECTION_REPO), Predictable)
 
     def test_is_not_preparable(self) -> None:
-        assert not isinstance(EnsembleModel(), Preparable)
+        assert not isinstance(EnsembleModel(projection_repo=_NULL_PROJECTION_REPO), Preparable)
 
     def test_is_not_trainable(self) -> None:
-        assert not isinstance(EnsembleModel(), Trainable)
+        assert not isinstance(EnsembleModel(projection_repo=_NULL_PROJECTION_REPO), Trainable)
 
     def test_is_not_evaluable(self) -> None:
-        assert not isinstance(EnsembleModel(), Evaluable)
+        assert not isinstance(EnsembleModel(projection_repo=_NULL_PROJECTION_REPO), Evaluable)
 
     def test_is_not_finetuneable(self) -> None:
-        assert not isinstance(EnsembleModel(), FineTunable)
+        assert not isinstance(EnsembleModel(projection_repo=_NULL_PROJECTION_REPO), FineTunable)
 
     def test_name(self) -> None:
-        assert EnsembleModel().name == "ensemble"
+        assert EnsembleModel(projection_repo=_NULL_PROJECTION_REPO).name == "ensemble"
 
     def test_supported_operations(self) -> None:
-        assert EnsembleModel().supported_operations == frozenset({"predict"})
+        assert EnsembleModel(projection_repo=_NULL_PROJECTION_REPO).supported_operations == frozenset({"predict"})
 
     def test_artifact_type(self) -> None:
-        assert EnsembleModel().artifact_type == "none"
+        assert EnsembleModel(projection_repo=_NULL_PROJECTION_REPO).artifact_type == "none"
 
 
 class TestEnsembleRegistration:

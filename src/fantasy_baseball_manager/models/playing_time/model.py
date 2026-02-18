@@ -56,7 +56,7 @@ _RESIDUAL_BUCKETS_FILENAME = "pt_residual_buckets.joblib"
 
 @register("playing_time")
 class PlayingTimeModel:
-    def __init__(self, assembler: DatasetAssembler | None = None) -> None:
+    def __init__(self, assembler: DatasetAssembler) -> None:
         self._assembler = assembler
 
     @property
@@ -111,7 +111,7 @@ class PlayingTimeModel:
         return Path(config.artifacts_dir) / self.name / (config.version or "latest")
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
-        assert self._assembler is not None, "assembler is required for prepare"
+
         lags = config.model_params.get("lags", 3)
         batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags)
 
@@ -125,7 +125,7 @@ class PlayingTimeModel:
         )
 
     def train(self, config: ModelConfig) -> TrainResult:
-        assert self._assembler is not None, "assembler is required for train"
+
         lags = config.model_params.get("lags", 3)
         aging_min_samples: int = config.model_params.get("aging_min_samples", 30)
         batting_fs, pitching_fs = self._build_feature_sets(config.seasons, training=True, lags=lags)
@@ -233,7 +233,7 @@ class PlayingTimeModel:
         )
 
     def predict(self, config: ModelConfig) -> PredictResult:
-        assert self._assembler is not None, "assembler is required for predict"
+
         lags = config.model_params.get("lags", 3)
 
         artifact_path = self._artifact_path(config)
@@ -359,7 +359,7 @@ class PlayingTimeModel:
         )
 
     def ablate(self, config: ModelConfig) -> AblationResult:
-        assert self._assembler is not None, "assembler is required for ablate"
+
         lags = config.model_params.get("lags", 3)
         aging_min_samples: int = config.model_params.get("aging_min_samples", 30)
 

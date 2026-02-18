@@ -147,34 +147,37 @@ def _make_pitching_row(player_id: int, season: int, ip_1: float = 180.0) -> dict
     }
 
 
+_NULL_ASSEMBLER = FakeAssembler(batting_rows=[], pitching_rows=[])
+
+
 class TestPlayingTimeModelProtocol:
     def test_is_model(self) -> None:
-        assert isinstance(PlayingTimeModel(), Model)
+        assert isinstance(PlayingTimeModel(assembler=_NULL_ASSEMBLER), Model)
 
     def test_is_preparable(self) -> None:
-        assert isinstance(PlayingTimeModel(), Preparable)
+        assert isinstance(PlayingTimeModel(assembler=_NULL_ASSEMBLER), Preparable)
 
     def test_is_predictable(self) -> None:
-        assert isinstance(PlayingTimeModel(), Predictable)
+        assert isinstance(PlayingTimeModel(assembler=_NULL_ASSEMBLER), Predictable)
 
     def test_is_trainable(self) -> None:
-        assert isinstance(PlayingTimeModel(), Trainable)
+        assert isinstance(PlayingTimeModel(assembler=_NULL_ASSEMBLER), Trainable)
 
     def test_is_not_evaluable(self) -> None:
-        assert not isinstance(PlayingTimeModel(), Evaluable)
+        assert not isinstance(PlayingTimeModel(assembler=_NULL_ASSEMBLER), Evaluable)
 
     def test_is_not_finetuneable(self) -> None:
-        assert not isinstance(PlayingTimeModel(), FineTunable)
+        assert not isinstance(PlayingTimeModel(assembler=_NULL_ASSEMBLER), FineTunable)
 
     def test_name(self) -> None:
-        assert PlayingTimeModel().name == "playing_time"
+        assert PlayingTimeModel(assembler=_NULL_ASSEMBLER).name == "playing_time"
 
     def test_supported_operations_includes_train(self) -> None:
-        ops = PlayingTimeModel().supported_operations
+        ops = PlayingTimeModel(assembler=_NULL_ASSEMBLER).supported_operations
         assert ops == frozenset({"prepare", "train", "predict", "ablate"})
 
     def test_artifact_type_is_file(self) -> None:
-        assert PlayingTimeModel().artifact_type == "file"
+        assert PlayingTimeModel(assembler=_NULL_ASSEMBLER).artifact_type == "file"
 
 
 def _train_config(tmp_path: Path) -> ModelConfig:
@@ -658,7 +661,7 @@ class TestPlayingTimeAblate:
         assert len(result.feature_impacts) == 0
 
     def test_model_is_ablatable(self) -> None:
-        assert isinstance(PlayingTimeModel(), Ablatable)
+        assert isinstance(PlayingTimeModel(assembler=_NULL_ASSEMBLER), Ablatable)
 
     def test_ablate_includes_consensus_pt_group(self, tmp_path: Path) -> None:
         seasons = [2020, 2021, 2022, 2023]

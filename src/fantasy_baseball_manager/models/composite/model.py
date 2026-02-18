@@ -89,7 +89,7 @@ def _build_marcel_config(model_params: dict[str, Any]) -> MarcelConfig:
 class CompositeModel:
     def __init__(
         self,
-        assembler: DatasetAssembler | None = None,
+        assembler: DatasetAssembler,
         model_name: str = "composite",
         group_lookup: Callable[[str], FeatureGroup] = get_group,
     ) -> None:
@@ -172,7 +172,7 @@ class CompositeModel:
         return batting_fs, pitching_fs
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
-        assert self._assembler is not None, "assembler is required for prepare"
+
         marcel_config = _build_marcel_config(config.model_params)
         batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config)
 
@@ -186,7 +186,7 @@ class CompositeModel:
         )
 
     def predict(self, config: ModelConfig) -> PredictResult:
-        assert self._assembler is not None, "assembler is required for predict"
+
         marcel_config = _build_marcel_config(config.model_params)
         batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config)
 
