@@ -13,10 +13,10 @@ from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.ingest.mlb_milb_stats_source import MLBMinorLeagueBattingSource
 from fantasy_baseball_manager.ingest.mlb_transactions_source import MLBTransactionsSource
 from fantasy_baseball_manager.ingest.protocols import DataSource
+from fantasy_baseball_manager.ingest.chadwick_source import ChadwickRegisterSource
 from fantasy_baseball_manager.ingest.pybaseball_source import (
     BrefBattingSource,
     BrefPitchingSource,
-    ChadwickSource,
     FgBattingSource,
     FgPitchingSource,
     LahmanAppearancesSource,
@@ -252,7 +252,7 @@ class IngestContainer:
         return SqliteLoadLogRepo(self._conn)
 
     def player_source(self) -> DataSource:
-        return ChadwickSource()
+        return ChadwickRegisterSource()
 
     def batting_source(self, name: str) -> DataSource:
         if name == "fangraphs":

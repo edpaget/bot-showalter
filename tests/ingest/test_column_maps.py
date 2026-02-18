@@ -119,6 +119,25 @@ class TestChadwickRowToPlayer:
         row = _make_row(name_first=float("nan"), name_last=float("nan"))
         assert chadwick_row_to_player(row) is None
 
+    def test_string_valued_dict_from_csv_dictreader(self) -> None:
+        """csv.DictReader returns all-string values; mapper must handle this."""
+        row: dict[str, Any] = {
+            "key_mlbam": "545361",
+            "name_first": "Mike",
+            "name_last": "Trout",
+            "key_fangraphs": "10155",
+            "key_bbref": "troutmi01",
+            "key_retro": "troum001",
+        }
+        player = chadwick_row_to_player(row)
+        assert player is not None
+        assert player.mlbam_id == 545361
+        assert player.fangraphs_id == 10155
+        assert player.name_first == "Mike"
+        assert player.name_last == "Trout"
+        assert player.bbref_id == "troutmi01"
+        assert player.retro_id == "troum001"
+
 
 def _make_lahman_row(
     *,

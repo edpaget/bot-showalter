@@ -6,7 +6,6 @@ from typing import Any
 import requests
 from pybaseball import (
     batting_stats_bref,
-    chadwick_register,
     fg_batting_data,
     fg_pitching_data,
     pitching_stats_bref,
@@ -55,29 +54,6 @@ def _translate_fg_params(params: dict[str, Any]) -> dict[str, Any]:
         params.setdefault("end_season", yr)
     params.setdefault("qual", 0)
     return params
-
-
-class ChadwickSource:
-    @property
-    def source_type(self) -> str:
-        return "pybaseball"
-
-    @property
-    def source_detail(self) -> str:
-        return "chadwick_register"
-
-    @_network_retry
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        logger.debug("Calling %s(%s)", "chadwick_register", params)
-        t0 = time.perf_counter()
-        try:
-            df = chadwick_register()
-        except _NETWORK_ERRORS:
-            raise
-        except Exception as exc:
-            raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
-        logger.debug("%s returned %d rows in %.1fs", "chadwick_register", len(df), time.perf_counter() - t0)
-        return df.to_dict("records")
 
 
 class FgBattingSource:

@@ -176,7 +176,7 @@ class TestIngestPlayers:
     def test_ingest_players_loads_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
         conn = create_connection(":memory:")
         player_rows = _make_player_rows()
-        fake_source = _FakeSource(player_rows, "pybaseball", "chadwick_register")
+        fake_source = _FakeSource(player_rows, "chadwick_bureau", "chadwick_register")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",
@@ -201,7 +201,7 @@ class TestIngestPlayers:
     def test_ingest_players_custom_data_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
         conn = create_connection(":memory:")
         player_rows = _make_player_rows()
-        fake_source = _FakeSource(player_rows, "pybaseball", "chadwick_register")
+        fake_source = _FakeSource(player_rows, "chadwick_bureau", "chadwick_register")
 
         captured_data_dir: list[str] = []
 
@@ -447,7 +447,7 @@ class TestIngestBio:
         lahman_rows = _make_lahman_people_rows()
         fake_bio_source = _FakeSource(lahman_rows, "pybaseball", "lahman_people")
         # Player source not used here, but container needs one
-        fake_player_source = _FakeSource([], "pybaseball", "chadwick_register")
+        fake_player_source = _FakeSource([], "chadwick_bureau", "chadwick_register")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",
@@ -492,7 +492,7 @@ class TestIngestBio:
             },
         ]
         fake_bio_source = _FakeSource(lahman_rows, "pybaseball", "lahman_people")
-        fake_player_source = _FakeSource([], "pybaseball", "chadwick_register")
+        fake_player_source = _FakeSource([], "chadwick_bureau", "chadwick_register")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",
@@ -540,7 +540,7 @@ class TestIngestAppearances:
             "fantasy_baseball_manager.cli.app.build_ingest_container",
             lambda data_dir: _build_test_container(
                 conn,
-                _FakeSource([], "pybaseball", "chadwick_register"),
+                _FakeSource([], "chadwick_bureau", "chadwick_register"),
                 fake_appearances_source=fake_appearances,
             ),
         )
@@ -574,7 +574,7 @@ class TestIngestRoster:
             "fantasy_baseball_manager.cli.app.build_ingest_container",
             lambda data_dir: _build_test_container(
                 conn,
-                _FakeSource([], "pybaseball", "chadwick_register"),
+                _FakeSource([], "chadwick_bureau", "chadwick_register"),
                 fake_appearances_source=fake_appearances,
                 fake_teams_source=fake_teams,
             ),
@@ -648,7 +648,7 @@ class TestIngestMilbBatting:
             "fantasy_baseball_manager.cli.app.build_ingest_container",
             lambda data_dir: _build_test_container(
                 conn,
-                _FakeSource([], "pybaseball", "chadwick_register"),
+                _FakeSource([], "chadwick_bureau", "chadwick_register"),
                 fake_milb_batting_source=fake_milb,
             ),
         )
@@ -678,7 +678,7 @@ class TestIngestMilbBatting:
             "fantasy_baseball_manager.cli.app.build_ingest_container",
             lambda data_dir: _build_test_container(
                 conn,
-                _FakeSource([], "pybaseball", "chadwick_register"),
+                _FakeSource([], "chadwick_bureau", "chadwick_register"),
                 fake_milb_batting_source=fake_milb,
             ),
         )

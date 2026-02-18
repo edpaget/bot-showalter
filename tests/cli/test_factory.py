@@ -358,6 +358,7 @@ class TestIngestContainer:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)
         source = container.player_source()
+        assert source.source_type == "chadwick_bureau"
         assert source.source_detail == "chadwick_register"
         conn.close()
 
