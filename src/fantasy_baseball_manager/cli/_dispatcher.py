@@ -4,6 +4,7 @@ import logging
 import time
 
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
+from fantasy_baseball_manager.exceptions import FbmException
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -25,7 +26,7 @@ from fantasy_baseball_manager.models.run_manager import RunManager
 logger = logging.getLogger(__name__)
 
 
-class UnsupportedOperation(Exception):
+class UnsupportedOperation(FbmException):
     pass
 
 

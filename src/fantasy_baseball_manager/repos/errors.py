@@ -1,7 +1,8 @@
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.exceptions import FbmException
 
 
-class PlayerConflictError(Exception):
+class PlayerConflictError(FbmException):
     def __init__(self, new_player: Player, existing_player: Player, conflicting_column: str) -> None:
         self.new_player = new_player
         self.existing_player = existing_player

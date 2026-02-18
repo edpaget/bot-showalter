@@ -1,0 +1,2 @@
+class FbmException(Exception):
+    pass

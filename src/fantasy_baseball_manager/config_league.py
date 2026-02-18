@@ -2,6 +2,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from fantasy_baseball_manager.exceptions import FbmException
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -13,7 +14,7 @@ from fantasy_baseball_manager.domain.league_settings import (
 _CONFIG_FILENAME = "fbm.toml"
 
 
-class LeagueConfigError(Exception):
+class LeagueConfigError(FbmException):
     """Raised when league configuration is invalid or missing."""
 
 
