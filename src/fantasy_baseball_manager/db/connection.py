@@ -1,5 +1,8 @@
+import logging
 import sqlite3
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
@@ -11,6 +14,7 @@ def create_connection(
     migrations_dir: Path | None = None,
 ) -> sqlite3.Connection:
     """Open a SQLite connection with WAL mode, foreign keys, and pending migrations applied."""
+    logger.info("Opening database: %s", path)
     conn = sqlite3.connect(str(path), check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
     if str(path) != ":memory:":
@@ -44,6 +48,7 @@ def _run_migrations(conn: sqlite3.Connection, *, migrations_dir: Path | None = N
     )
 
     current_version = get_schema_version(conn)
+    logger.debug("Schema version: %d", current_version)
 
     effective_dir = migrations_dir if migrations_dir is not None else _MIGRATIONS_DIR
     migration_files = sorted(effective_dir.glob("*.sql"))
@@ -62,7 +67,9 @@ def _run_migrations(conn: sqlite3.Connection, *, migrations_dir: Path | None = N
                 conn.execute(statement)
             conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
             conn.execute("COMMIT")
+            logger.info("Applied migration %s", migration_file.name)
         except Exception:
+            logger.error("Migration %s failed, rolling back", migration_file.name)
             conn.execute("ROLLBACK")
             raise
         finally:

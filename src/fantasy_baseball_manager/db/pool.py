@@ -1,3 +1,4 @@
+import logging
 import queue
 import sqlite3
 from collections.abc import Generator
@@ -6,11 +7,14 @@ from pathlib import Path
 
 from fantasy_baseball_manager.db.connection import create_connection
 
+logger = logging.getLogger(__name__)
+
 
 class ConnectionPool:
     """Thread-safe pool of SQLite connections backed by a queue."""
 
     def __init__(self, path: str | Path, *, size: int = 5) -> None:
+        logger.debug("Creating connection pool: size=%d", size)
         self._closed = False
         self._all_conns: list[sqlite3.Connection] = []
         self._pool: queue.Queue[sqlite3.Connection] = queue.Queue(maxsize=size)
@@ -30,6 +34,7 @@ class ConnectionPool:
         try:
             return self._pool.get(timeout=timeout)
         except queue.Empty:
+            logger.warning("Connection pool exhausted")
             raise TimeoutError("No connection available in pool")
 
     def release(self, conn: sqlite3.Connection) -> None:
@@ -51,6 +56,7 @@ class ConnectionPool:
 
     def close_all(self) -> None:
         """Close all connections, including checked-out ones."""
+        logger.debug("Closing %d connections", len(self._all_conns))
         self._closed = True
         for conn in self._all_conns:
             conn.close()

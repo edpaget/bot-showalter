@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
+import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,6 +18,8 @@ from fantasy_baseball_manager.features.types import (
     Source,
     TransformFeature,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SqliteDatasetAssembler:
@@ -141,6 +145,7 @@ class SqliteDatasetAssembler:
     ) -> None:
         """Execute the transform pass: query raw rows, group, transform, update."""
         for tf in transforms:
+            logger.debug("Running transform: %s", tf.outputs)
             sql, params = self._build_raw_query(tf, table_name, player_type=player_type)
             cursor = self._conn.execute(sql, params)
             columns = [desc[0] for desc in cursor.description]
@@ -194,23 +199,30 @@ class SqliteDatasetAssembler:
             self._conn.commit()
 
     def materialize(self, feature_set: FeatureSet) -> DatasetHandle:
+        logger.info("Materializing feature set %s v%s", feature_set.name, feature_set.version)
+        t0 = time.perf_counter()
+
         # Pass 1: SQL materialization
         select_sql, params = generate_sql(feature_set)
         feature_set_id = self._ensure_feature_set(feature_set, select_sql)
         handle = self._create_dataset(feature_set_id, feature_set, select_sql, params)
+        logger.info("Pass 1 (SQL): %d rows", handle.row_count)
 
         # Pass 2: Transform pass
         transforms = self._get_transform_features(feature_set)
         if transforms:
             self._add_transform_columns(handle.table_name, transforms)
             self._run_transforms(handle.table_name, transforms, player_type=feature_set.spine_filter.player_type)
+            logger.info("Pass 2 (transforms): %d transforms applied", len(transforms))
 
         # Pass 3: Derived-transform pass
         derived = self._get_derived_transform_features(feature_set)
         if derived:
             self._add_transform_columns(handle.table_name, derived)
             self._run_derived_transforms(handle.table_name, derived)
+            logger.info("Pass 3 (derived): %d derived transforms applied", len(derived))
 
+        logger.info("Materialized %s in %.1fs", feature_set.name, time.perf_counter() - t0)
         return handle
 
     def get_or_materialize(self, feature_set: FeatureSet) -> DatasetHandle:
@@ -219,6 +231,7 @@ class SqliteDatasetAssembler:
             (feature_set.name, feature_set.version),
         ).fetchone()
         if row is None:
+            logger.debug("Cache miss for %s v%s", feature_set.name, feature_set.version)
             return self.materialize(feature_set)
 
         feature_set_id: int = row[0]
@@ -234,6 +247,7 @@ class SqliteDatasetAssembler:
                 (table_name,),
             ).fetchone()
             if table_exists is not None:
+                logger.debug("Cache hit for %s v%s", feature_set.name, feature_set.version)
                 return DatasetHandle(
                     dataset_id=ds_row[0],
                     feature_set_id=feature_set_id,
@@ -289,6 +303,7 @@ class SqliteDatasetAssembler:
         validation: list[int] | None = None,
         holdout: list[int] | None = None,
     ) -> DatasetSplits:
+        logger.info("Splitting: train=%s val=%s holdout=%s", list(train), validation, holdout)
         train_handle = self._create_split(handle, "train", list(train))
         val_handle = self._create_split(handle, "val", validation) if validation else None
         holdout_handle = self._create_split(handle, "holdout", holdout) if holdout else None
