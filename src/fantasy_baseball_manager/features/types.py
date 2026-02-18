@@ -15,6 +15,7 @@ class Source(enum.Enum):
     PROJECTION = "projection"
     STATCAST = "statcast"
     IL_STINT = "il_stint"
+    SPRINT_SPEED = "sprint_speed"
 
 
 @dataclass(frozen=True)

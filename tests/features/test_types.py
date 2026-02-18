@@ -47,6 +47,7 @@ class TestSource:
             Source.PROJECTION,
             Source.STATCAST,
             Source.IL_STINT,
+            Source.SPRINT_SPEED,
         }
 
 

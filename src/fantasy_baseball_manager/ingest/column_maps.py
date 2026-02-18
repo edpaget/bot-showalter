@@ -12,6 +12,7 @@ from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.domain.roster_stint import RosterStint
+from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 from fantasy_baseball_manager.ingest.il_parser import parse_il_transaction
 
@@ -748,6 +749,28 @@ def make_milb_batting_mapper(
             hbp=_to_optional_int_stat(row.get("hbp")),
             sf=_to_optional_int_stat(row.get("sf")),
             sh=_to_optional_int_stat(row.get("sh")),
+        )
+
+    return mapper
+
+
+def make_sprint_speed_mapper(
+    *,
+    season: int,
+) -> Callable[[pd.Series], SprintSpeed | None]:
+    def mapper(row: pd.Series) -> SprintSpeed | None:
+        raw_id = row.get("player_id")
+        if raw_id is None:
+            return None
+        if isinstance(raw_id, float) and math.isnan(raw_id):
+            return None
+        return SprintSpeed(
+            mlbam_id=int(raw_id),
+            season=season,
+            sprint_speed=_to_optional_float(row.get("sprint_speed")),
+            hp_to_1b=_to_optional_float(row.get("hp_to_1b")),
+            bolts=_to_optional_int_stat(row.get("bolts")),
+            competitive_runs=_to_optional_int_stat(row.get("competitive_runs")),
         )
 
     return mapper

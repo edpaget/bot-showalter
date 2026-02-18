@@ -23,6 +23,7 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     LahmanPeopleSource,
     LahmanTeamsSource,
     StatcastSource,
+    StatcastSprintSpeedSource,
 )
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
@@ -38,6 +39,7 @@ from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingSta
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
+from fantasy_baseball_manager.repos.sprint_speed_repo import SqliteSprintSpeedRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
@@ -283,6 +285,13 @@ class IngestContainer:
     @functools.cached_property
     def minor_league_batting_stats_repo(self) -> SqliteMinorLeagueBattingStatsRepo:
         return SqliteMinorLeagueBattingStatsRepo(self._conn)
+
+    @functools.cached_property
+    def sprint_speed_repo(self) -> SqliteSprintSpeedRepo:
+        return SqliteSprintSpeedRepo(self.statcast_conn)
+
+    def sprint_speed_source(self) -> DataSource:
+        return StatcastSprintSpeedSource()
 
     def milb_batting_source(self) -> DataSource:
         return MLBMinorLeagueBattingSource()

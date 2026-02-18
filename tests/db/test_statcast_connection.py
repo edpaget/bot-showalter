@@ -86,7 +86,7 @@ class TestCreateStatcastConnection:
 
     def test_schema_version_is_set(self) -> None:
         conn = create_statcast_connection(":memory:")
-        assert get_schema_version(conn) == 3
+        assert get_schema_version(conn) == 4
         conn.close()
 
     def test_stats_tables_absent(self) -> None:

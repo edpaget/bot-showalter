@@ -11,6 +11,7 @@ from fantasy_baseball_manager.features.transforms import (
     PLATE_DISCIPLINE,
     SPIN_PROFILE,
     SPRAY_ANGLE,
+    SPRINT_SPEED_TRANSFORM,
 )
 from fantasy_baseball_manager.features.types import (
     AnyFeature,
@@ -461,6 +462,7 @@ def live_batter_curated_columns() -> list[str]:
         "pull_pct",
         "oppo_pct",
         "center_pct",
+        "sprint_speed",
     ]
 
 
@@ -600,6 +602,7 @@ def build_live_batter_feature_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = []
     features.extend(_curated_batter_lag_features(_LIVE_BATTER_LAG_STATS))
     features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
+    features.append(SPRINT_SPEED_TRANSFORM)
     features.append(BATTED_BALL_INTERACTIONS)
     return FeatureSet(
         name="statcast_gbm_batting_live",
@@ -614,6 +617,7 @@ def build_live_batter_training_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = []
     features.extend(_curated_batter_lag_features(_LIVE_BATTER_LAG_STATS))
     features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
+    features.append(SPRINT_SPEED_TRANSFORM)
     features.append(BATTED_BALL_INTERACTIONS)
     features.extend(_batter_target_features())
     return FeatureSet(

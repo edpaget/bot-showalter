@@ -78,6 +78,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_milb_batting_mapper,
     make_position_appearance_mapper,
     make_roster_stint_mapper,
+    make_sprint_speed_mapper,
     statcast_pitch_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
@@ -892,6 +893,32 @@ def ingest_statcast(
                 log_conn=container.conn,
             )
             match loader.load(start_dt=start_dt, end_dt=end_dt):
+                case Ok(log):
+                    print_ingest_result(log)
+                case Err(e):
+                    print_error(e.message)
+                    continue
+
+
+@ingest_app.command("sprint-speed")
+def ingest_sprint_speed(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest Baseball Savant sprint speed data."""
+    with build_ingest_container(data_dir) as container:
+        for yr in season:
+            mapper = make_sprint_speed_mapper(season=yr)
+            loader = StatsLoader(
+                container.sprint_speed_source(),
+                container.sprint_speed_repo,
+                container.log_repo,
+                mapper,
+                "sprint_speed",
+                conn=container.statcast_conn,
+                log_conn=container.conn,
+            )
+            match loader.load(year=yr):
                 case Ok(log):
                     print_ingest_result(log)
                 case Err(e):

@@ -131,6 +131,24 @@ class SqliteDatasetAssembler:
             )
             return sql, []
 
+        if tf.source == Source.SPRINT_SPEED:
+            self._attach_statcast()
+            select_cols = ", ".join(f"ss.[{c}]" for c in tf.columns)
+            if tf.lags:
+                lag_exprs = ", ".join(f"d.season - {lag}" for lag in tf.lags)
+                season_clause = f"IN ({lag_exprs})"
+            else:
+                season_clause = "= d.season" if tf.lag == 0 else f"= d.season - {tf.lag}"
+            sql = (
+                f"SELECT d.player_id, d.season AS season, {select_cols} "
+                f"FROM [{table_name}] d "
+                f"JOIN player p ON p.id = d.player_id "
+                f"JOIN [statcast].sprint_speed ss "
+                f"ON ss.mlbam_id = p.mlbam_id "
+                f"AND ss.season {season_clause}"
+            )
+            return sql, []
+
         # Non-statcast source: query from tables in the main DB
         source_tables = {
             Source.BATTING: "batting_stats",

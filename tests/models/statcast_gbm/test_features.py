@@ -397,6 +397,7 @@ class TestLiveBatterCuratedColumns:
             "pull_pct",
             "oppo_pct",
             "center_pct",
+            "sprint_speed",
         ]
         assert columns == expected
 
@@ -424,13 +425,15 @@ class TestLiveBatterCuratedColumns:
     def test_subset_of_full_columns(self) -> None:
         curated = set(live_batter_curated_columns())
         full = set(batter_feature_columns())
-        # Derived transform outputs are only in the live set
+        # Some outputs are only in the live set (derived transforms, sprint speed)
         fs = build_live_batter_feature_set([])
-        derived_outputs: set[str] = set()
+        live_only_outputs: set[str] = set()
         for f in fs.features:
             if isinstance(f, DerivedTransformFeature):
-                derived_outputs.update(f.outputs)
-        assert curated <= (full | derived_outputs)
+                live_only_outputs.update(f.outputs)
+            elif isinstance(f, TransformFeature) and set(f.outputs) - full:
+                live_only_outputs.update(f.outputs)
+        assert curated <= (full | live_only_outputs)
 
 
 class TestLivePitcherCuratedColumns:
@@ -675,6 +678,7 @@ class TestLiveBatterCuratedFeatureSet:
         assert "plate_discipline" in transform_names
         assert "expected_stats" in transform_names
         assert "spray_angle" in transform_names
+        assert "sprint_speed" in transform_names
 
     def test_includes_derived_transforms(self) -> None:
         fs = build_live_batter_feature_set([2023])
