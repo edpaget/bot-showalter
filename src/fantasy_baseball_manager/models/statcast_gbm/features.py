@@ -251,6 +251,115 @@ def pitcher_preseason_feature_columns() -> list[str]:
     return columns
 
 
+# --- Averaged preseason (multi-year pooled Statcast) feature sets ---
+
+
+def build_batter_preseason_averaged_set(seasons: Sequence[int]) -> FeatureSet:
+    features: list[AnyFeature] = [player.age()]
+    features.extend(_batter_lag_features())
+    features.extend(
+        [
+            BATTED_BALL.with_avg_lag(1, 2),
+            PLATE_DISCIPLINE.with_avg_lag(1, 2),
+            EXPECTED_STATS.with_avg_lag(1, 2),
+            SPRAY_ANGLE.with_avg_lag(1, 2),
+        ]
+    )
+    return FeatureSet(
+        name="statcast_gbm_batting_preseason_avg",
+        features=tuple(features),
+        seasons=tuple(seasons),
+        source_filter="fangraphs",
+        spine_filter=SpineFilter(player_type="batter"),
+    )
+
+
+def build_batter_preseason_averaged_training_set(seasons: Sequence[int]) -> FeatureSet:
+    features: list[AnyFeature] = [player.age()]
+    features.extend(_batter_lag_features())
+    features.extend(
+        [
+            BATTED_BALL.with_avg_lag(1, 2),
+            PLATE_DISCIPLINE.with_avg_lag(1, 2),
+            EXPECTED_STATS.with_avg_lag(1, 2),
+            SPRAY_ANGLE.with_avg_lag(1, 2),
+        ]
+    )
+    features.extend(_batter_target_features())
+    return FeatureSet(
+        name="statcast_gbm_batting_preseason_avg_train",
+        features=tuple(features),
+        seasons=tuple(seasons),
+        source_filter="fangraphs",
+        spine_filter=SpineFilter(player_type="batter"),
+    )
+
+
+def batter_preseason_averaged_feature_columns() -> list[str]:
+    fs = build_batter_preseason_averaged_set([])
+    columns: list[str] = []
+    for f in fs.features:
+        if isinstance(f, TransformFeature):
+            columns.extend(f.outputs)
+        elif isinstance(f, Feature):
+            columns.append(f.name)
+    return columns
+
+
+def build_pitcher_preseason_averaged_set(seasons: Sequence[int]) -> FeatureSet:
+    features: list[AnyFeature] = [player.age()]
+    features.extend(_pitcher_lag_features())
+    features.extend(
+        [
+            PITCH_MIX.with_avg_lag(1, 2),
+            SPIN_PROFILE.with_avg_lag(1, 2),
+            PLATE_DISCIPLINE.with_avg_lag(1, 2),
+            BATTED_BALL_AGAINST.with_avg_lag(1, 2),
+            COMMAND.with_avg_lag(1, 2),
+        ]
+    )
+    return FeatureSet(
+        name="statcast_gbm_pitching_preseason_avg",
+        features=tuple(features),
+        seasons=tuple(seasons),
+        source_filter="fangraphs",
+        spine_filter=SpineFilter(player_type="pitcher"),
+    )
+
+
+def build_pitcher_preseason_averaged_training_set(seasons: Sequence[int]) -> FeatureSet:
+    features: list[AnyFeature] = [player.age()]
+    features.extend(_pitcher_lag_features())
+    features.extend(
+        [
+            PITCH_MIX.with_avg_lag(1, 2),
+            SPIN_PROFILE.with_avg_lag(1, 2),
+            PLATE_DISCIPLINE.with_avg_lag(1, 2),
+            BATTED_BALL_AGAINST.with_avg_lag(1, 2),
+            COMMAND.with_avg_lag(1, 2),
+        ]
+    )
+    features.extend(_pitcher_target_features())
+    return FeatureSet(
+        name="statcast_gbm_pitching_preseason_avg_train",
+        features=tuple(features),
+        seasons=tuple(seasons),
+        source_filter="fangraphs",
+        spine_filter=SpineFilter(player_type="pitcher"),
+    )
+
+
+def pitcher_preseason_averaged_feature_columns() -> list[str]:
+    fs = build_pitcher_preseason_averaged_set([])
+    columns: list[str] = []
+    for f in fs.features:
+        if isinstance(f, TransformFeature):
+            columns.extend(f.outputs)
+        elif isinstance(f, Feature):
+            columns.append(f.name)
+    return columns
+
+
 # --- Curated (pruned) column lists ---
 # Derived from ablation study (2026-02-16). Each list removes features
 # with zero or negative permutation importance for that mode.

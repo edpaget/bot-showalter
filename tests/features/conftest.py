@@ -254,11 +254,17 @@ def pitcher_seeded_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
 
 
 def seed_statcast_data(sc_conn: sqlite3.Connection) -> None:
-    """Insert statcast pitch data for 2 test players across 2022-2023."""
+    """Insert statcast pitch data for 2 test players across 2021-2023."""
     pitches = [
         # (game_pk, game_date, batter_id, pitcher_id, at_bat_number, pitch_number,
         #  pitch_type, release_speed, spin, pfx_x, pfx_z, plate_x,
         #  launch_speed, launch_angle, hit_distance, barrel)
+        # Player 1 (mlbam_id 545361), 2021 season — distinct exit velos for pooling tests
+        (900, "2021-05-01", 545361, 100001, 1, 1, "FF", 93.0, None, None, None, None, 110.0, 20.0, None, 1),
+        (900, "2021-05-01", 545361, 100001, 1, 2, "SL", 84.0, None, None, None, None, 70.0, 5.0, None, 0),
+        # Player 2 (mlbam_id 605141), 2021 season
+        (901, "2021-06-01", 605141, 100004, 1, 1, "FF", 90.0, None, None, None, None, 108.0, 22.0, None, 1),
+        (901, "2021-06-01", 605141, 100004, 1, 2, "CH", 79.0, None, None, None, None, 72.0, 6.0, None, 0),
         # Player 1 (mlbam_id 545361), 2022 season
         (1001, "2022-06-15", 545361, 100001, 1, 1, "FF", 95.0, None, None, None, None, 100.0, 25.0, None, 1),
         (1001, "2022-06-15", 545361, 100001, 1, 2, "FF", 97.0, None, None, None, None, None, None, None, None),

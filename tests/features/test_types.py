@@ -721,6 +721,87 @@ class TestTransformFeature:
         assert lagged.version == tf.version
         assert lagged.lag == 2
 
+    def test_with_lag_leaves_lags_empty(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        lagged = tf.with_lag(1)
+        assert lagged.lags == ()
+
+    def test_lags_defaults_to_empty_tuple(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        assert tf.lags == ()
+
+    def test_with_avg_lag_creates_new_instance(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        averaged = tf.with_avg_lag(1, 2)
+        assert averaged is not tf
+        assert averaged.lags == (1, 2)
+        assert averaged.lag == 1  # first value for backward compat
+
+    def test_with_avg_lag_preserves_other_fields(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type", "release_speed"),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a", "out_b"),
+            version="v1",
+        )
+        averaged = tf.with_avg_lag(1, 2)
+        assert averaged.name == tf.name
+        assert averaged.source == tf.source
+        assert averaged.columns == tf.columns
+        assert averaged.group_by == tf.group_by
+        assert averaged.transform is tf.transform
+        assert averaged.outputs == tf.outputs
+        assert averaged.version == tf.version
+
+    def test_with_avg_lag_no_args_raises(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        with pytest.raises(ValueError):
+            tf.with_avg_lag()
+
+    def test_with_avg_lag_version_differs_from_with_lag(self) -> None:
+        tf = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        fs_lag = FeatureSet(name="test", features=(tf.with_lag(1),), seasons=(2023,))
+        fs_avg = FeatureSet(name="test", features=(tf.with_avg_lag(1, 2),), seasons=(2023,))
+        assert fs_lag.version != fs_avg.version
+
     def test_lag_affects_feature_set_version(self) -> None:
         tf0 = TransformFeature(
             name="t",

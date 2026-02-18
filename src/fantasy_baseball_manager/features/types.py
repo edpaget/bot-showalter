@@ -60,6 +60,7 @@ class TransformFeature:
     outputs: tuple[str, ...]
     version: str | None = None
     lag: int = 0
+    lags: tuple[int, ...] = ()
 
     def with_lag(self, n: int) -> TransformFeature:
         """Return a copy with the lag set to *n*."""
@@ -72,6 +73,23 @@ class TransformFeature:
             outputs=self.outputs,
             version=self.version,
             lag=n,
+        )
+
+    def with_avg_lag(self, *lags: int) -> TransformFeature:
+        """Return a copy that pools raw data from multiple lagged seasons."""
+        if not lags:
+            msg = "with_avg_lag requires at least one lag value"
+            raise ValueError(msg)
+        return TransformFeature(
+            name=self.name,
+            source=self.source,
+            columns=self.columns,
+            group_by=self.group_by,
+            transform=self.transform,
+            outputs=self.outputs,
+            version=self.version,
+            lag=lags[0],
+            lags=lags,
         )
 
 
@@ -198,6 +216,7 @@ def _transform_feature_to_dict(f: TransformFeature) -> dict[str, object]:
         "outputs": list(f.outputs),
         "transform_identity": identity,
         "lag": f.lag,
+        "lags": list(f.lags),
     }
 
 

@@ -140,6 +140,111 @@ class TestLaggedStatcastTransform:
         assert p1["avg_exit_velo"] == pytest.approx((100 + 90 + 105 + 80) / 4)
 
 
+class TestAvgLagStatcastTransform:
+    """Test with_avg_lag pools raw data from multiple lagged seasons."""
+
+    def test_avg_lag_pools_two_seasons(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """with_avg_lag(1, 2) for season 2023 pools 2022 + 2021 statcast data."""
+        avg_batted_ball = BATTED_BALL.with_avg_lag(1, 2)
+        fs = FeatureSet(
+            name="test_avg_lag",
+            features=(avg_batted_ball,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        assert len(rows) == 2
+        by_player = {r["player_id"]: r for r in rows}
+        # Player 1: 2021 batted balls [110, 70], 2022 batted balls [100, 90, 105, 80]
+        # Pooled: [110, 70, 100, 90, 105, 80] → avg = 555/6 = 92.5
+        p1 = by_player[1]
+        assert p1["avg_exit_velo"] == pytest.approx((110 + 70 + 100 + 90 + 105 + 80) / 6)
+
+    def test_avg_lag_single_year_fallback(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """When only one lag year has data, transform still produces valid output."""
+        # Use with_avg_lag(1, 3) — lag-3 from season 2023 = 2020, no data exists
+        avg_batted_ball = BATTED_BALL.with_avg_lag(1, 3)
+        fs = FeatureSet(
+            name="test_avg_lag_fallback",
+            features=(avg_batted_ball,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        assert len(rows) == 2
+        by_player = {r["player_id"]: r for r in rows}
+        # Player 1: only 2022 data (lag-1), lag-3 = 2020 has no data
+        # 2022 batted balls: [100, 90, 105, 80] → avg = 93.75
+        p1 = by_player[1]
+        assert p1["avg_exit_velo"] == pytest.approx((100 + 90 + 105 + 80) / 4)
+
+    def test_avg_lag_barrel_pct_is_pooled(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """barrel_pct is computed over pooled BIP, not averaged across seasons."""
+        avg_batted_ball = BATTED_BALL.with_avg_lag(1, 2)
+        fs = FeatureSet(
+            name="test_avg_lag_barrel",
+            features=(avg_batted_ball,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        by_player = {r["player_id"]: r for r in rows}
+        # Player 1: 2021 barrels [1, 0], 2022 barrels [1, 0, 1, 0]
+        # Pooled: 3 barrels out of 6 BIP = 50.0%
+        # (Not avg of 2021=50% and 2022=50% — happens to match here, but
+        #  the mechanism is raw pooling)
+        p1 = by_player[1]
+        assert p1["barrel_pct"] == pytest.approx(3 / 6 * 100.0)
+
+    def test_avg_lag_same_columns_as_single_lag(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """Output column names identical to with_lag(1)."""
+        single = BATTED_BALL.with_lag(1)
+        avg = BATTED_BALL.with_avg_lag(1, 2)
+        fs_single = FeatureSet(
+            name="test_single",
+            features=(single,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        fs_avg = FeatureSet(
+            name="test_avg",
+            features=(avg,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        single_rows = assembler.read(assembler.materialize(fs_single))
+        avg_rows = assembler.read(assembler.materialize(fs_avg))
+        assert set(single_rows[0].keys()) == set(avg_rows[0].keys())
+
+
 class TestStatcastIntegration:
     """Integration tests with ATTACH for statcast DB."""
 
