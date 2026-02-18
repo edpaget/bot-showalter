@@ -139,7 +139,7 @@ class TestLahmanTeamsSource:
 
 class TestErrorWrapping:
     def test_non_network_error_wrapped_as_runtime_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        def fail(**kw):  # type: ignore[no-untyped-def]
+        def fail(**kw):
             raise ValueError("bad data")
 
         monkeypatch.setattr(
@@ -153,7 +153,7 @@ class TestErrorWrapping:
     def test_network_error_retried_then_raised(self, monkeypatch: pytest.MonkeyPatch) -> None:
         call_count = 0
 
-        def fail(**kw):  # type: ignore[no-untyped-def]
+        def fail(**kw):
             nonlocal call_count
             call_count += 1
             raise requests.ConnectionError("connection refused")
