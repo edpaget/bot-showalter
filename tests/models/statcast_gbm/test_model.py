@@ -26,8 +26,6 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     live_batter_curated_columns,
     live_pitcher_curated_columns,
     pitcher_preseason_feature_columns,
-    preseason_batter_curated_columns,
-    preseason_pitcher_curated_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm import model as statcast_gbm_model_mod
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel, StatcastGBMPreseasonModel
@@ -272,14 +270,6 @@ class TestStatcastGBMPreseasonProtocol:
     def test_declared_features_not_empty(self) -> None:
         features = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR).declared_features
         assert len(features) > 0
-
-    def test_batter_columns_returns_curated_list(self) -> None:
-        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
-        assert model._batter_columns == preseason_batter_curated_columns()
-
-    def test_pitcher_columns_returns_curated_list(self) -> None:
-        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
-        assert model._pitcher_columns == preseason_pitcher_curated_columns()
 
 
 class TestStatcastGBMPrepare:

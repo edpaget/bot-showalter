@@ -27,20 +27,20 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.statcast_gbm.features import (
+    batter_preseason_weighted_feature_columns,
     build_batter_feature_set,
+    build_batter_preseason_weighted_set,
+    build_batter_preseason_weighted_training_set,
     build_live_batter_feature_set,
     build_live_batter_training_set,
     build_live_pitcher_feature_set,
     build_live_pitcher_training_set,
     build_pitcher_feature_set,
-    build_preseason_batter_curated_set,
-    build_preseason_batter_curated_training_set,
-    build_preseason_pitcher_curated_set,
-    build_preseason_pitcher_curated_training_set,
+    build_pitcher_preseason_averaged_set,
+    build_pitcher_preseason_averaged_training_set,
     live_batter_curated_columns,
     live_pitcher_curated_columns,
-    preseason_batter_curated_columns,
-    preseason_pitcher_curated_columns,
+    pitcher_preseason_averaged_feature_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
@@ -445,24 +445,24 @@ class StatcastGBMPreseasonModel(_StatcastGBMBase):
 
     @property
     def _batter_feature_set_builder(self) -> _FeatureSetBuilder:
-        return build_preseason_batter_curated_set
+        return build_batter_preseason_weighted_set
 
     @property
     def _batter_training_set_builder(self) -> _FeatureSetBuilder:
-        return build_preseason_batter_curated_training_set
+        return build_batter_preseason_weighted_training_set
 
     @property
     def _batter_columns(self) -> list[str]:
-        return preseason_batter_curated_columns()
+        return batter_preseason_weighted_feature_columns()
 
     @property
     def _pitcher_feature_set_builder(self) -> _FeatureSetBuilder:
-        return build_preseason_pitcher_curated_set
+        return build_pitcher_preseason_averaged_set
 
     @property
     def _pitcher_training_set_builder(self) -> _FeatureSetBuilder:
-        return build_preseason_pitcher_curated_training_set
+        return build_pitcher_preseason_averaged_training_set
 
     @property
     def _pitcher_columns(self) -> list[str]:
-        return preseason_pitcher_curated_columns()
+        return pitcher_preseason_averaged_feature_columns()
