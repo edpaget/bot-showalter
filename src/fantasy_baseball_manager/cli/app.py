@@ -88,7 +88,6 @@ from fantasy_baseball_manager.models.protocols import (
     FeatureIntrospectable,
     PredictResult,
     PrepareResult,
-    Model,
     TrainResult,
     TuneResult,
 )
@@ -372,31 +371,28 @@ def list_cmd() -> None:
 @app.command()
 def info(model: _ModelArg) -> None:
     """Show metadata and supported operations for a model."""
-    try:
-        m: Model = create_model(model)
-    except KeyError as e:
-        print_error(str(e))
-        raise typer.Exit(code=1) from None
-
-    console.print(f"[bold]Model:[/bold] {m.name}")
-    console.print(f"[bold]Description:[/bold] {m.description}")
-    console.print(f"[bold]Operations:[/bold] {', '.join(sorted(m.supported_operations))}")
+    match create_model(model):
+        case Ok(m):
+            console.print(f"[bold]Model:[/bold] {m.name}")
+            console.print(f"[bold]Description:[/bold] {m.description}")
+            console.print(f"[bold]Operations:[/bold] {', '.join(sorted(m.supported_operations))}")
+        case Err(e):
+            print_error(e.message)
+            raise typer.Exit(code=1)
 
 
 @app.command()
 def features(model: _ModelArg) -> None:
     """List declared features for a model."""
-    try:
-        m: Model = create_model(model)
-    except KeyError as e:
-        print_error(str(e))
-        raise typer.Exit(code=1) from None
-
-    if not isinstance(m, FeatureIntrospectable):
-        print_error(f"model '{model}' does not expose features")
-        raise typer.Exit(code=1)
-
-    print_features(m.name, m.declared_features)
+    match create_model(model):
+        case Ok(m):
+            if not isinstance(m, FeatureIntrospectable):
+                print_error(f"model '{model}' does not expose features")
+                raise typer.Exit(code=1)
+            print_features(m.name, m.declared_features)
+        case Err(e):
+            print_error(e.message)
+            raise typer.Exit(code=1)
 
 
 @app.command("import")

@@ -25,6 +25,8 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     StatcastSource,
     StatcastSprintSpeedSource,
 )
+from fantasy_baseball_manager.domain.errors import ConfigError
+from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
@@ -54,14 +56,17 @@ from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvalu
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
 
-def create_model(name: str, **kwargs: Any) -> Model:
+def create_model(name: str, **kwargs: Any) -> Result[Model, ConfigError]:
     """Look up a model class by name and instantiate it, forwarding matching kwargs.
 
     When called without all required deps (e.g. for ``info`` or ``features``
     commands), missing required parameters are filled with ``None`` so that
     metadata properties (name, description, supported_operations) still work.
     """
-    cls = get(name)
+    try:
+        cls = get(name)
+    except KeyError:
+        return Err(ConfigError(message=f"'{name}': no model registered with this name"))
     sig = inspect.signature(cls)
     filtered = {k: v for k, v in kwargs.items() if k in sig.parameters}
     if "model_name" in sig.parameters:
@@ -71,7 +76,7 @@ def create_model(name: str, **kwargs: Any) -> Model:
             continue
         if param_name not in filtered and param.default is inspect.Parameter.empty:
             filtered[param_name] = None
-    return cls(**filtered)
+    return Ok(cls(**filtered))
 
 
 @dataclass(frozen=True)
@@ -93,7 +98,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             SqliteBattingStatsRepo(conn),
             SqlitePitchingStatsRepo(conn),
         )
-        model = create_model(
+        result = create_model(
             model_name,
             assembler=assembler,
             projection_repo=SqliteProjectionRepo(conn),
@@ -105,6 +110,9 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             position_repo=SqlitePositionAppearanceRepo(conn),
             valuation_repo=SqliteValuationRepo(conn),
         )
+        if isinstance(result, Err):
+            raise RuntimeError(result.error.message)
+        model = result.value
 
         run_manager: RunManager | None = None
         if config.version is not None:

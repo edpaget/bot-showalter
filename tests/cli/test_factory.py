@@ -14,7 +14,8 @@ from fantasy_baseball_manager.cli.factory import (
     build_valuations_context,
     create_model,
 )
-from fantasy_baseball_manager.domain.result import Ok
+from fantasy_baseball_manager.domain.errors import ConfigError
+from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
@@ -97,29 +98,35 @@ class TestCreateModel:
     def test_create_model_with_matching_kwargs(self) -> None:
         register("witharg")(_WithArgModel)
         sentinel = object()
-        model = create_model("witharg", assembler=sentinel)
-        assert isinstance(model, _WithArgModel)
-        assert model.assembler is sentinel
+        result = create_model("witharg", assembler=sentinel)
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, _WithArgModel)
+        assert result.value.assembler is sentinel
 
     def test_create_model_filters_non_matching_kwargs(self) -> None:
         register("noarg")(_NoArgModel)
-        model = create_model("noarg", assembler=object(), extra=42)
-        assert isinstance(model, _NoArgModel)
+        result = create_model("noarg", assembler=object(), extra=42)
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, _NoArgModel)
 
     def test_create_model_passes_model_name(self) -> None:
         register("custom-variant")(_WithModelNameModel)
-        model = create_model("custom-variant")
-        assert isinstance(model, _WithModelNameModel)
-        assert model.model_name_value == "custom-variant"
+        result = create_model("custom-variant")
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, _WithModelNameModel)
+        assert result.value.model_name_value == "custom-variant"
 
     def test_create_model_does_not_pass_model_name_when_not_accepted(self) -> None:
         register("noarg")(_NoArgModel)
-        model = create_model("noarg")
-        assert isinstance(model, _NoArgModel)
+        result = create_model("noarg")
+        assert isinstance(result, Ok)
+        assert isinstance(result.value, _NoArgModel)
 
-    def test_create_model_unknown_name_raises(self) -> None:
-        with pytest.raises(KeyError, match="no model registered"):
-            create_model("nonexistent")
+    def test_create_model_unknown_name_returns_err(self) -> None:
+        result = create_model("nonexistent")
+        assert isinstance(result, Err)
+        assert isinstance(result.error, ConfigError)
+        assert "nonexistent" in result.error.message
 
 
 class TestBuildModelContext:
