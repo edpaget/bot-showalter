@@ -480,7 +480,9 @@ def preseason_batter_curated_columns() -> list[str]:
     return [
         "age",
         "pa_1",
+        "h_1",
         "doubles_1",
+        "hr_1",
         "bb_1",
         "so_1",
         "avg_1",
@@ -490,14 +492,17 @@ def preseason_batter_curated_columns() -> list[str]:
         "bb_pct_1",
         "avg_exit_velo",
         "max_exit_velo",
-        "barrel_pct",
-        "gb_pct",
+        "avg_launch_angle",
         "fb_pct",
         "ld_pct",
         "exit_velo_p90",
+        "chase_rate",
         "zone_contact_pct",
+        "whiff_rate",
         "swinging_strike_pct",
+        "called_strike_pct",
         "xba",
+        "xwoba",
         "xslg",
         "pull_pct",
         "oppo_pct",
@@ -507,43 +512,33 @@ def preseason_batter_curated_columns() -> list[str]:
 
 def preseason_pitcher_curated_columns() -> list[str]:
     return [
-        "age",
         "ip_1",
         "so_1",
-        "bb_1",
+        "hr_1",
         "era_1",
         "fip_1",
         "ff_pct",
         "ff_velo",
         "sl_pct",
-        "ch_pct",
         "ch_velo",
-        "cu_pct",
-        "cu_velo",
         "si_pct",
+        "si_velo",
         "fc_pct",
         "fc_velo",
         "avg_spin_rate",
         "ff_spin",
-        "sl_spin",
-        "cu_spin",
         "ch_spin",
-        "avg_h_break",
         "ff_h_break",
-        "ff_v_break",
-        "cu_h_break",
+        "sl_h_break",
         "cu_v_break",
-        "ch_h_break",
-        "ch_v_break",
-        "ff_extension",
+        "avg_extension",
         "chase_rate",
         "zone_contact_pct",
         "whiff_rate",
         "called_strike_pct",
-        "gb_pct_against",
+        "fb_pct_against",
         "avg_exit_velo_against",
-        "barrel_pct_against",
-        "zone_rate",
+        "cu_velo",
         "first_pitch_strike_pct",
     ]
 
@@ -555,9 +550,9 @@ def preseason_pitcher_curated_columns() -> list[str]:
 
 _LIVE_BATTER_LAG_STATS: tuple[str, ...] = ()
 _LIVE_PITCHER_LAG_STATS: tuple[str, ...] = ()
-_PRESEASON_BATTER_LAG_STATS = ("pa", "doubles", "bb", "so")
+_PRESEASON_BATTER_LAG_STATS = ("pa", "h", "doubles", "hr", "bb", "so")
 _PRESEASON_BATTER_LAG_RATE_STATS = ("avg", "obp", "slg")
-_PRESEASON_PITCHER_LAG_STATS = ("ip", "so", "bb", "era", "fip")
+_PRESEASON_PITCHER_LAG_STATS = ("ip", "so", "hr", "era", "fip")
 
 
 def _curated_batter_lag_features(
@@ -649,10 +644,10 @@ def build_preseason_batter_curated_set(seasons: Sequence[int]) -> FeatureSet:
     )
     features.extend(
         [
-            BATTED_BALL.with_lag(1),
-            PLATE_DISCIPLINE.with_lag(1),
-            EXPECTED_STATS.with_lag(1),
-            SPRAY_ANGLE.with_lag(1),
+            BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3)),
+            PLATE_DISCIPLINE.with_weighted_lag((1, 2), (0.7, 0.3)),
+            EXPECTED_STATS.with_weighted_lag((1, 2), (0.7, 0.3)),
+            SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
         ]
     )
     return FeatureSet(
@@ -675,10 +670,10 @@ def build_preseason_batter_curated_training_set(seasons: Sequence[int]) -> Featu
     )
     features.extend(
         [
-            BATTED_BALL.with_lag(1),
-            PLATE_DISCIPLINE.with_lag(1),
-            EXPECTED_STATS.with_lag(1),
-            SPRAY_ANGLE.with_lag(1),
+            BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3)),
+            PLATE_DISCIPLINE.with_weighted_lag((1, 2), (0.7, 0.3)),
+            EXPECTED_STATS.with_weighted_lag((1, 2), (0.7, 0.3)),
+            SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
         ]
     )
     features.extend(_batter_target_features())
@@ -692,15 +687,15 @@ def build_preseason_batter_curated_training_set(seasons: Sequence[int]) -> Featu
 
 
 def build_preseason_pitcher_curated_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age()]
+    features: list[AnyFeature] = []
     features.extend(_curated_pitcher_lag_features(_PRESEASON_PITCHER_LAG_STATS))
     features.extend(
         [
-            PITCH_MIX.with_lag(1),
-            SPIN_PROFILE.with_lag(1),
-            PLATE_DISCIPLINE.with_lag(1),
-            BATTED_BALL_AGAINST.with_lag(1),
-            COMMAND.with_lag(1),
+            PITCH_MIX.with_avg_lag(1, 2),
+            SPIN_PROFILE.with_avg_lag(1, 2),
+            PLATE_DISCIPLINE.with_avg_lag(1, 2),
+            BATTED_BALL_AGAINST.with_avg_lag(1, 2),
+            COMMAND.with_avg_lag(1, 2),
         ]
     )
     return FeatureSet(
@@ -713,15 +708,15 @@ def build_preseason_pitcher_curated_set(seasons: Sequence[int]) -> FeatureSet:
 
 
 def build_preseason_pitcher_curated_training_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age()]
+    features: list[AnyFeature] = []
     features.extend(_curated_pitcher_lag_features(_PRESEASON_PITCHER_LAG_STATS))
     features.extend(
         [
-            PITCH_MIX.with_lag(1),
-            SPIN_PROFILE.with_lag(1),
-            PLATE_DISCIPLINE.with_lag(1),
-            BATTED_BALL_AGAINST.with_lag(1),
-            COMMAND.with_lag(1),
+            PITCH_MIX.with_avg_lag(1, 2),
+            SPIN_PROFILE.with_avg_lag(1, 2),
+            PLATE_DISCIPLINE.with_avg_lag(1, 2),
+            BATTED_BALL_AGAINST.with_avg_lag(1, 2),
+            COMMAND.with_avg_lag(1, 2),
         ]
     )
     features.extend(_pitcher_target_features())

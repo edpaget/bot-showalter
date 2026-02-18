@@ -515,7 +515,9 @@ class TestPreseasonBatterCuratedColumns:
         expected = [
             "age",
             "pa_1",
+            "h_1",
             "doubles_1",
+            "hr_1",
             "bb_1",
             "so_1",
             "avg_1",
@@ -525,14 +527,17 @@ class TestPreseasonBatterCuratedColumns:
             "bb_pct_1",
             "avg_exit_velo",
             "max_exit_velo",
-            "barrel_pct",
-            "gb_pct",
+            "avg_launch_angle",
             "fb_pct",
             "ld_pct",
             "exit_velo_p90",
+            "chase_rate",
             "zone_contact_pct",
+            "whiff_rate",
             "swinging_strike_pct",
+            "called_strike_pct",
             "xba",
+            "xwoba",
             "xslg",
             "pull_pct",
             "oppo_pct",
@@ -543,17 +548,13 @@ class TestPreseasonBatterCuratedColumns:
     def test_no_overlap_with_pruned(self) -> None:
         columns = set(preseason_batter_curated_columns())
         pruned = {
-            "chase_rate",
-            "h_1",
-            "xwoba",
-            "whiff_rate",
+            "gb_pct",
             "triples_1",
-            "hr_1",
             "sweet_spot_pct",
-            "sb_1",
-            "called_strike_pct",
             "hard_hit_pct",
-            "avg_launch_angle",
+            "sb_1",
+            "pitch_clock_era",
+            "barrel_pct",
         }
         assert columns & pruned == set()
 
@@ -572,43 +573,33 @@ class TestPreseasonPitcherCuratedColumns:
     def test_exact_columns(self) -> None:
         columns = preseason_pitcher_curated_columns()
         expected = [
-            "age",
             "ip_1",
             "so_1",
-            "bb_1",
+            "hr_1",
             "era_1",
             "fip_1",
             "ff_pct",
             "ff_velo",
             "sl_pct",
-            "ch_pct",
             "ch_velo",
-            "cu_pct",
-            "cu_velo",
             "si_pct",
+            "si_velo",
             "fc_pct",
             "fc_velo",
             "avg_spin_rate",
             "ff_spin",
-            "sl_spin",
-            "cu_spin",
             "ch_spin",
-            "avg_h_break",
             "ff_h_break",
-            "ff_v_break",
-            "cu_h_break",
+            "sl_h_break",
             "cu_v_break",
-            "ch_h_break",
-            "ch_v_break",
-            "ff_extension",
+            "avg_extension",
             "chase_rate",
             "zone_contact_pct",
             "whiff_rate",
             "called_strike_pct",
-            "gb_pct_against",
+            "fb_pct_against",
             "avg_exit_velo_against",
-            "barrel_pct_against",
-            "zone_rate",
+            "cu_velo",
             "first_pitch_strike_pct",
         ]
         assert columns == expected
@@ -616,14 +607,25 @@ class TestPreseasonPitcherCuratedColumns:
     def test_no_overlap_with_pruned(self) -> None:
         columns = set(preseason_pitcher_curated_columns())
         pruned = {
-            "sl_velo",
-            "avg_extension",
-            "sl_h_break",
-            "hr_1",
-            "si_velo",
-            "fb_pct_against",
-            "sl_v_break",
+            "age",
+            "bb_1",
+            "zone_rate",
+            "gb_pct_against",
             "swinging_strike_pct",
+            "avg_h_break",
+            "sl_spin",
+            "ff_extension",
+            "ch_v_break",
+            "cu_pct",
+            "ch_h_break",
+            "cu_spin",
+            "ch_pct",
+            "cu_h_break",
+            "ff_v_break",
+            "sl_velo",
+            "sl_v_break",
+            "pitch_clock_era",
+            "barrel_pct_against",
         }
         assert columns & pruned == set()
 
@@ -764,21 +766,29 @@ class TestPreseasonBatterCuratedFeatureSet:
     def test_excludes_pruned_lags(self) -> None:
         fs = build_preseason_batter_curated_set([2023])
         names = [f.name for f in fs.features]
-        for pruned in ("h_1", "triples_1", "hr_1", "sb_1"):
+        for pruned in ("triples_1", "sb_1"):
             assert pruned not in names
 
     def test_includes_kept_lags(self) -> None:
         fs = build_preseason_batter_curated_set([2023])
         names = [f.name for f in fs.features]
         assert "pa_1" in names
+        assert "h_1" in names
+        assert "hr_1" in names
         assert "so_1" in names
 
-    def test_transforms_are_lagged(self) -> None:
+    def test_excludes_pitch_clock_era(self) -> None:
+        fs = build_preseason_batter_curated_set([2023])
+        names = [f.name for f in fs.features]
+        assert "pitch_clock_era" not in names
+
+    def test_transforms_have_weighted_lags(self) -> None:
         fs = build_preseason_batter_curated_set([2023])
         transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
         assert len(transforms) > 0
         for tf in transforms:
-            assert tf.lag == 1
+            assert tf.weights == (0.7, 0.3), f"{tf.name} should have weights=(0.7, 0.3)"
+            assert tf.lags == (1, 2), f"{tf.name} should have lags=(1, 2)"
 
 
 class TestPreseasonBatterCuratedTrainingSet:
@@ -791,6 +801,13 @@ class TestPreseasonBatterCuratedTrainingSet:
         fs = build_preseason_batter_curated_training_set([2023])
         assert fs.name == "statcast_gbm_batting_preseason_curated_train"
 
+    def test_transforms_have_weighted_lags(self) -> None:
+        fs = build_preseason_batter_curated_training_set([2023])
+        transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
+        for tf in transforms:
+            assert tf.weights == (0.7, 0.3)
+            assert tf.lags == (1, 2)
+
 
 class TestPreseasonPitcherCuratedFeatureSet:
     def test_returns_feature_set(self) -> None:
@@ -801,29 +818,36 @@ class TestPreseasonPitcherCuratedFeatureSet:
         fs = build_preseason_pitcher_curated_set([2023])
         assert fs.name == "statcast_gbm_pitching_preseason_curated"
 
-    def test_includes_age(self) -> None:
+    def test_excludes_age(self) -> None:
         fs = build_preseason_pitcher_curated_set([2023])
         names = [f.name for f in fs.features]
-        assert "age" in names
+        assert "age" not in names
 
-    def test_excludes_hr_lag(self) -> None:
+    def test_excludes_pitch_clock_era(self) -> None:
         fs = build_preseason_pitcher_curated_set([2023])
         names = [f.name for f in fs.features]
-        assert "hr_1" not in names
+        assert "pitch_clock_era" not in names
+
+    def test_excludes_bb_lag(self) -> None:
+        fs = build_preseason_pitcher_curated_set([2023])
+        names = [f.name for f in fs.features]
+        assert "bb_1" not in names
 
     def test_includes_kept_lags(self) -> None:
         fs = build_preseason_pitcher_curated_set([2023])
         names = [f.name for f in fs.features]
         assert "ip_1" in names
         assert "so_1" in names
-        assert "bb_1" in names
+        assert "hr_1" in names
+        assert "era_1" in names
+        assert "fip_1" in names
 
-    def test_transforms_are_lagged(self) -> None:
+    def test_transforms_have_avg_lags(self) -> None:
         fs = build_preseason_pitcher_curated_set([2023])
         transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
         assert len(transforms) > 0
         for tf in transforms:
-            assert tf.lag == 1
+            assert tf.lags == (1, 2), f"{tf.name} should have lags=(1, 2)"
 
 
 class TestPreseasonPitcherCuratedTrainingSet:
@@ -836,6 +860,12 @@ class TestPreseasonPitcherCuratedTrainingSet:
     def test_name(self) -> None:
         fs = build_preseason_pitcher_curated_training_set([2023])
         assert fs.name == "statcast_gbm_pitching_preseason_curated_train"
+
+    def test_transforms_have_avg_lags(self) -> None:
+        fs = build_preseason_pitcher_curated_training_set([2023])
+        transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
+        for tf in transforms:
+            assert tf.lags == (1, 2)
 
 
 # --- Averaged preseason feature-set builder tests ---
