@@ -4,6 +4,7 @@ from typing import Any
 import pandas as pd
 
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_milb_batting_mapper
 from fantasy_baseball_manager.ingest.loader import StatsLoader
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
@@ -59,8 +60,10 @@ class TestMilbLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
 
-        log = loader.load(season=2024, level="AAA")
+        result = loader.load(season=2024, level="AAA")
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.target_table == "minor_league_batting_stats"
@@ -81,10 +84,11 @@ class TestMilbLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
 
-        log = loader.load(season=2024, level="AAA")
+        result = loader.load(season=2024, level="AAA")
 
-        assert log.status == "success"
-        assert log.rows_loaded == 0
+        assert isinstance(result, Ok)
+        assert result.value.status == "success"
+        assert result.value.rows_loaded == 0
 
     def test_multi_level_season(self, conn: sqlite3.Connection) -> None:
         player_id = _seed_player(conn)
@@ -100,8 +104,10 @@ class TestMilbLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
 
-        log = loader.load(season=2024, level="AAA")
+        result = loader.load(season=2024, level="AAA")
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 2
 

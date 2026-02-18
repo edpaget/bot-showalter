@@ -2,11 +2,11 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
-import pytest
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.column_maps import (
     make_bref_pitching_mapper,
     make_fg_batting_mapper,
@@ -73,8 +73,10 @@ class TestStatsLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.target_table == "batting_stats"
@@ -98,8 +100,10 @@ class TestStatsLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.rows_loaded == 1
 
     def test_error_during_fetch_writes_error_log_and_reraises(self, conn) -> None:
@@ -108,8 +112,10 @@ class TestStatsLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
-        with pytest.raises(RuntimeError, match="fetch failed"):
-            loader.load()
+        result = loader.load()
+
+        assert isinstance(result, Err)
+        assert "fetch failed" in result.error.message
 
         logs = log_repo.get_by_target_table("batting_stats")
         assert len(logs) == 1
@@ -123,8 +129,10 @@ class TestStatsLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 0
 
@@ -135,8 +143,10 @@ class TestStatsLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         started = datetime.fromisoformat(log.started_at)
         finished = datetime.fromisoformat(log.finished_at)
         assert started <= finished
@@ -149,8 +159,10 @@ class TestStatsLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _pitching_mapper, "pitching_stats", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.target_table == "pitching_stats"
@@ -173,8 +185,9 @@ class TestStatsLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
-        with pytest.raises(Exception):
-            loader.load()
+        result = loader.load()
+
+        assert isinstance(result, Err)
 
         # First row's upsert should be rolled back
         stats = repo.get_by_player_season(player_id, 2024)
@@ -230,8 +243,10 @@ class TestStatsLoaderIntegration:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
 
@@ -273,8 +288,10 @@ class TestStatsLoaderIntegration:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "pitching_stats", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
 
@@ -357,8 +374,10 @@ class TestStatsLoaderIntegration:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.rows_loaded == 1
         stats = repo.get_by_player_season(player_id, 2024, source="fangraphs")
         assert len(stats) == 1

@@ -1,8 +1,8 @@
 from datetime import datetime
 
 import pandas as pd
-import pytest
 
+from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.column_maps import chadwick_row_to_player
 from fantasy_baseball_manager.ingest.loader import PlayerLoader
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
@@ -31,8 +31,10 @@ class TestPlayerLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.source_type == "test"
@@ -55,8 +57,10 @@ class TestPlayerLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.rows_loaded == 1
         assert len(player_repo.all()) == 1
 
@@ -77,8 +81,10 @@ class TestPlayerLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
-        with pytest.raises(RuntimeError, match="fetch failed"):
-            loader.load()
+        result = loader.load()
+
+        assert isinstance(result, Err)
+        assert "fetch failed" in result.error.message
 
         logs = log_repo.get_by_target_table("player")
         assert len(logs) == 1
@@ -92,8 +98,10 @@ class TestPlayerLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         started = datetime.fromisoformat(log.started_at)
         finished = datetime.fromisoformat(log.finished_at)
         assert started <= finished
@@ -104,8 +112,10 @@ class TestPlayerLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 0
         assert len(player_repo.all()) == 0
@@ -134,7 +144,9 @@ class TestPlayerLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.rows_loaded == 2
         assert len(player_repo.all()) == 2

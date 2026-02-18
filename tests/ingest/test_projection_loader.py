@@ -11,6 +11,7 @@ from fantasy_baseball_manager.domain.projection_accuracy import (
     compare_to_batting_actuals,
     compare_to_pitching_actuals,
 )
+from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
@@ -71,8 +72,10 @@ class TestProjectionLoaderIntegration:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.target_table == "projection"
@@ -118,8 +121,10 @@ class TestProjectionLoaderIntegration:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
 
@@ -142,8 +147,10 @@ class TestProjectionLoaderIntegration:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.source_type == "csv"
@@ -168,8 +175,10 @@ class TestProjectionLoaderIntegration:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.rows_loaded == 1
 
     def test_upsert_deduplicates_on_reload(self, conn: sqlite3.Connection) -> None:
@@ -204,8 +213,10 @@ class TestProjectionLoaderIntegration:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
 
@@ -382,8 +393,10 @@ class TestProjectionLoaderIntegrationWithDistributions:
         log_repo = SqliteLoadLogRepo(conn)
         loader = ProjectionLoader(source, proj_repo, log_repo, mapper, conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.target_table == "projection"
@@ -411,8 +424,10 @@ class TestProjectionLoaderIntegrationWithDistributions:
         log_repo = SqliteLoadLogRepo(conn)
         loader = ProjectionLoader(source, proj_repo, log_repo, mapper, conn=conn)
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
 

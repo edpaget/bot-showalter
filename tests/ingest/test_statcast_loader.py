@@ -3,11 +3,11 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import pytest
 
 from fantasy_baseball_manager.db.connection import attach_database, create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 from fantasy_baseball_manager.ingest.column_maps import statcast_pitch_mapper
 from fantasy_baseball_manager.ingest.loader import StatsLoader
@@ -58,8 +58,10 @@ class TestStatcastLoaderIntegration:
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.target_table == "statcast_pitch"
@@ -81,9 +83,10 @@ class TestStatcastLoaderIntegration:
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
-        log = loader.load()
+        result = loader.load()
 
-        assert log.rows_loaded == 1
+        assert isinstance(result, Ok)
+        assert result.value.rows_loaded == 1
 
     def test_skips_rows_with_missing_required_fields(
         self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection
@@ -99,8 +102,10 @@ class TestStatcastLoaderIntegration:
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert pitch_repo.count() == 1
@@ -113,8 +118,10 @@ class TestStatcastLoaderIntegration:
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
-        log = loader.load()
+        result = loader.load()
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 0
         assert pitch_repo.count() == 0
@@ -127,8 +134,10 @@ class TestStatcastLoaderIntegration:
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
-        with pytest.raises(RuntimeError, match="fetch failed"):
-            loader.load()
+        result = loader.load()
+
+        assert isinstance(result, Err)
+        assert "fetch failed" in result.error.message
 
         logs = log_repo.get_by_target_table("statcast_pitch")
         assert len(logs) == 1

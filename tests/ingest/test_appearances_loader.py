@@ -3,6 +3,7 @@ import sqlite3
 import pandas as pd
 
 from fantasy_baseball_manager.domain.player import Player, Team
+from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import (
     make_position_appearance_mapper,
     make_roster_stint_mapper,
@@ -55,8 +56,10 @@ class TestPositionAppearanceLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
 
-        log = loader.load(season=2023)
+        result = loader.load(season=2023)
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 2
         assert log.target_table == "position_appearance"
@@ -78,10 +81,11 @@ class TestPositionAppearanceLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
 
-        log = loader.load(season=2023)
+        result = loader.load(season=2023)
 
-        assert log.status == "success"
-        assert log.rows_loaded == 0
+        assert isinstance(result, Ok)
+        assert result.value.status == "success"
+        assert result.value.rows_loaded == 0
 
     def test_upsert_idempotency(self, conn: sqlite3.Connection) -> None:
         player_id = _seed_player(conn)
@@ -113,8 +117,10 @@ class TestRosterStintLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
 
-        log = loader.load(season=2023)
+        result = loader.load(season=2023)
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 1
         assert log.target_table == "roster_stint"
@@ -137,10 +143,11 @@ class TestRosterStintLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
 
-        log = loader.load(season=2023)
+        result = loader.load(season=2023)
 
-        assert log.status == "success"
-        assert log.rows_loaded == 0
+        assert isinstance(result, Ok)
+        assert result.value.status == "success"
+        assert result.value.rows_loaded == 0
 
     def test_upsert_idempotency(self, conn: sqlite3.Connection) -> None:
         player_id = _seed_player(conn)

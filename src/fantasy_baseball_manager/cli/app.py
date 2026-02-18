@@ -434,8 +434,11 @@ def import_cmd(
 
         source = CsvSource(csv_path)
         loader = ProjectionLoader(source, ctx.proj_repo, ctx.log_repo, mapper, conn=ctx.conn)
-        log = loader.load(encoding="utf-8-sig")
-    print_import_result(log)
+        match loader.load(encoding="utf-8-sig"):
+            case Ok(log):
+                print_import_result(log)
+            case Err(e):
+                print_error(e.message)
 
 
 def _build_cohort_assignments(ctx: EvalContext, dimension: str, season: int) -> dict[int, str]:
@@ -774,8 +777,11 @@ def ingest_players(
             chadwick_row_to_player,
             conn=container.conn,
         )
-        log = loader.load()
-    print_ingest_result(log)
+        match loader.load():
+            case Ok(log):
+                print_ingest_result(log)
+            case Err(e):
+                print_error(e.message)
 
 
 @ingest_app.command("bio")
@@ -794,8 +800,11 @@ def ingest_bio(
             mapper,
             conn=container.conn,
         )
-        log = loader.load()
-    print_ingest_result(log)
+        match loader.load():
+            case Ok(log):
+                print_ingest_result(log)
+            case Err(e):
+                print_error(e.message)
 
 
 _SourceOpt = Annotated[str, typer.Option("--source", help="Data source: fangraphs or bbref")]
@@ -824,8 +833,12 @@ def ingest_batting(
                 "batting_stats",
                 conn=container.conn,
             )
-            log = loader.load(season=yr)
-            print_ingest_result(log)
+            match loader.load(season=yr):
+                case Ok(log):
+                    print_ingest_result(log)
+                case Err(e):
+                    print_error(e.message)
+                    continue
 
 
 @ingest_app.command("pitching")
@@ -851,8 +864,12 @@ def ingest_pitching(
                 "pitching_stats",
                 conn=container.conn,
             )
-            log = loader.load(season=yr)
-            print_ingest_result(log)
+            match loader.load(season=yr):
+                case Ok(log):
+                    print_ingest_result(log)
+                case Err(e):
+                    print_error(e.message)
+                    continue
 
 
 @ingest_app.command("statcast")
@@ -874,8 +891,12 @@ def ingest_statcast(
                 conn=container.statcast_conn,
                 log_conn=container.conn,
             )
-            log = loader.load(start_dt=start_dt, end_dt=end_dt)
-            print_ingest_result(log)
+            match loader.load(start_dt=start_dt, end_dt=end_dt):
+                case Ok(log):
+                    print_ingest_result(log)
+                case Err(e):
+                    print_error(e.message)
+                    continue
 
 
 @ingest_app.command("il")
@@ -897,8 +918,12 @@ def ingest_il(
                 "il_stint",
                 conn=container.conn,
             )
-            log = loader.load(season=yr)
-            print_ingest_result(log)
+            match loader.load(season=yr):
+                case Ok(log):
+                    print_ingest_result(log)
+                case Err(e):
+                    print_error(e.message)
+                    continue
 
 
 @ingest_app.command("appearances")
@@ -919,8 +944,12 @@ def ingest_appearances(
                 "position_appearance",
                 conn=container.conn,
             )
-            log = loader.load(season=yr)
-            print_ingest_result(log)
+            match loader.load(season=yr):
+                case Ok(log):
+                    print_ingest_result(log)
+                case Err(e):
+                    print_error(e.message)
+                    continue
 
 
 @ingest_app.command("roster")
@@ -952,8 +981,12 @@ def ingest_roster(
                 "roster_stint",
                 conn=container.conn,
             )
-            log = loader.load(season=yr)
-            print_ingest_result(log)
+            match loader.load(season=yr):
+                case Ok(log):
+                    print_ingest_result(log)
+                case Err(e):
+                    print_error(e.message)
+                    continue
 
 
 def _auto_register_players(df: pd.DataFrame, container: IngestContainer) -> None:
@@ -1024,8 +1057,12 @@ def ingest_milb_batting(
                     "minor_league_batting_stats",
                     conn=container.conn,
                 )
-                log = loader.load(season=yr, level=lvl)
-                print_ingest_result(log)
+                match loader.load(season=yr, level=lvl):
+                    case Ok(log):
+                        print_ingest_result(log)
+                    case Err(e):
+                        print_error(e.message)
+                        continue
 
 
 # --- compute subcommand group ---

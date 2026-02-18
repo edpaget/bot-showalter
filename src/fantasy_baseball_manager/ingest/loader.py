@@ -7,9 +7,11 @@ from typing import Any
 
 import pandas as pd
 
+from fantasy_baseball_manager.domain.errors import IngestError
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.repos.protocols import LoadLogRepo, PlayerRepo, ProjectionRepo
 
@@ -36,7 +38,7 @@ class StatsLoader:
         self._conn = conn
         self._log_conn = log_conn if log_conn is not None else conn
 
-    def load(self, **fetch_params: Any) -> LoadLog:
+    def load(self, **fetch_params: Any) -> Result[LoadLog, IngestError]:
         started_at = datetime.now(timezone.utc).isoformat()
         t0 = time.perf_counter()
         logger.info("Loading %s from %s", self._target_table, self._source.source_detail)
@@ -58,7 +60,14 @@ class StatsLoader:
             )
             self._load_log_repo.insert(log)
             self._log_conn.commit()
-            raise
+            return Err(
+                IngestError(
+                    message=str(exc),
+                    source_type=self._source.source_type,
+                    source_detail=self._source.source_detail,
+                    target_table=self._target_table,
+                )
+            )
 
         logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
 
@@ -86,7 +95,14 @@ class StatsLoader:
             )
             self._load_log_repo.insert(log)
             self._log_conn.commit()
-            raise
+            return Err(
+                IngestError(
+                    message=str(exc),
+                    source_type=self._source.source_type,
+                    source_detail=self._source.source_detail,
+                    target_table=self._target_table,
+                )
+            )
 
         finished_at = datetime.now(timezone.utc).isoformat()
         log = LoadLog(
@@ -101,7 +117,7 @@ class StatsLoader:
         self._load_log_repo.insert(log)
         self._log_conn.commit()
         logger.info("Loaded %d rows into %s in %.1fs", rows_loaded, self._target_table, time.perf_counter() - t0)
-        return log
+        return Ok(log)
 
 
 class PlayerLoader:
@@ -120,7 +136,7 @@ class PlayerLoader:
         self._row_mapper = row_mapper
         self._conn = conn
 
-    def load(self, **fetch_params: Any) -> LoadLog:
+    def load(self, **fetch_params: Any) -> Result[LoadLog, IngestError]:
         started_at = datetime.now(timezone.utc).isoformat()
         t0 = time.perf_counter()
         logger.info("Loading %s from %s", "player", self._source.source_detail)
@@ -142,7 +158,14 @@ class PlayerLoader:
             )
             self._load_log_repo.insert(log)
             self._conn.commit()
-            raise
+            return Err(
+                IngestError(
+                    message=str(exc),
+                    source_type=self._source.source_type,
+                    source_detail=self._source.source_detail,
+                    target_table="player",
+                )
+            )
 
         logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
 
@@ -170,7 +193,14 @@ class PlayerLoader:
             )
             self._load_log_repo.insert(log)
             self._conn.commit()
-            raise
+            return Err(
+                IngestError(
+                    message=str(exc),
+                    source_type=self._source.source_type,
+                    source_detail=self._source.source_detail,
+                    target_table="player",
+                )
+            )
 
         finished_at = datetime.now(timezone.utc).isoformat()
         log = LoadLog(
@@ -185,7 +215,7 @@ class PlayerLoader:
         self._load_log_repo.insert(log)
         self._conn.commit()
         logger.info("Loaded %d rows into %s in %.1fs", rows_loaded, "player", time.perf_counter() - t0)
-        return log
+        return Ok(log)
 
 
 class ProjectionLoader:
@@ -206,7 +236,7 @@ class ProjectionLoader:
         self._conn = conn
         self._log_conn = log_conn if log_conn is not None else conn
 
-    def load(self, **fetch_params: Any) -> LoadLog:
+    def load(self, **fetch_params: Any) -> Result[LoadLog, IngestError]:
         started_at = datetime.now(timezone.utc).isoformat()
         t0 = time.perf_counter()
         logger.info("Loading %s from %s", "projection", self._source.source_detail)
@@ -228,7 +258,14 @@ class ProjectionLoader:
             )
             self._load_log_repo.insert(log)
             self._log_conn.commit()
-            raise
+            return Err(
+                IngestError(
+                    message=str(exc),
+                    source_type=self._source.source_type,
+                    source_detail=self._source.source_detail,
+                    target_table="projection",
+                )
+            )
 
         logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
 
@@ -259,7 +296,14 @@ class ProjectionLoader:
             )
             self._load_log_repo.insert(log)
             self._log_conn.commit()
-            raise
+            return Err(
+                IngestError(
+                    message=str(exc),
+                    source_type=self._source.source_type,
+                    source_detail=self._source.source_detail,
+                    target_table="projection",
+                )
+            )
 
         finished_at = datetime.now(timezone.utc).isoformat()
         log = LoadLog(
@@ -274,4 +318,4 @@ class ProjectionLoader:
         self._load_log_repo.insert(log)
         self._log_conn.commit()
         logger.info("Loaded %d rows into %s in %.1fs", rows_loaded, "projection", time.perf_counter() - t0)
-        return log
+        return Ok(log)

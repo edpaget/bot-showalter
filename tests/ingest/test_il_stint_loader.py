@@ -3,6 +3,7 @@ from typing import Any
 import pandas as pd
 
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_il_stint_mapper
 from fantasy_baseball_manager.ingest.loader import StatsLoader
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
@@ -57,8 +58,10 @@ class TestILStintLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
 
-        log = loader.load(season=2024)
+        result = loader.load(season=2024)
 
+        assert isinstance(result, Ok)
+        log = result.value
         assert log.status == "success"
         assert log.rows_loaded == 2
         assert log.target_table == "il_stint"
@@ -97,10 +100,11 @@ class TestILStintLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
 
-        log = loader.load(season=2024)
+        result = loader.load(season=2024)
 
-        assert log.status == "success"
-        assert log.rows_loaded == 1
+        assert isinstance(result, Ok)
+        assert result.value.status == "success"
+        assert result.value.rows_loaded == 1
 
     def test_unknown_player_skipped(self, conn) -> None:
         _seed_player(conn, mlbam_id=545361)
@@ -123,10 +127,11 @@ class TestILStintLoader:
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
 
-        log = loader.load(season=2024)
+        result = loader.load(season=2024)
 
-        assert log.status == "success"
-        assert log.rows_loaded == 0
+        assert isinstance(result, Ok)
+        assert result.value.status == "success"
+        assert result.value.rows_loaded == 0
 
     def test_upsert_idempotency_via_loader(self, conn) -> None:
         player_id = _seed_player(conn)
