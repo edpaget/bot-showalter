@@ -1,4 +1,10 @@
-from fantasy_baseball_manager.features.types import Feature, FeatureSet, SpineFilter, TransformFeature
+from fantasy_baseball_manager.features.types import (
+    DerivedTransformFeature,
+    Feature,
+    FeatureSet,
+    SpineFilter,
+    TransformFeature,
+)
 from fantasy_baseball_manager.models.statcast_gbm.features import (
     batter_feature_columns,
     batter_preseason_averaged_feature_columns,
@@ -413,7 +419,13 @@ class TestLiveBatterCuratedColumns:
     def test_subset_of_full_columns(self) -> None:
         curated = set(live_batter_curated_columns())
         full = set(batter_feature_columns())
-        assert curated <= full
+        # Derived transform outputs are only in the live set
+        fs = build_live_batter_feature_set([])
+        derived_outputs: set[str] = set()
+        for f in fs.features:
+            if isinstance(f, DerivedTransformFeature):
+                derived_outputs.update(f.outputs)
+        assert curated <= (full | derived_outputs)
 
 
 class TestLivePitcherCuratedColumns:
@@ -658,6 +670,11 @@ class TestLiveBatterCuratedFeatureSet:
         assert "plate_discipline" in transform_names
         assert "expected_stats" in transform_names
         assert "spray_angle" in transform_names
+
+    def test_includes_derived_transforms(self) -> None:
+        fs = build_live_batter_feature_set([2023])
+        derived_names = [f.name for f in fs.features if isinstance(f, DerivedTransformFeature)]
+        assert "batted_ball_interactions" in derived_names
 
 
 class TestLiveBatterCuratedTrainingSet:

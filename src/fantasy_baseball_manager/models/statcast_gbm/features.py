@@ -4,6 +4,7 @@ from fantasy_baseball_manager.features import batting, pitching, player
 from fantasy_baseball_manager.features.transforms import (
     BATTED_BALL,
     BATTED_BALL_AGAINST,
+    BATTED_BALL_INTERACTIONS,
     COMMAND,
     EXPECTED_STATS,
     PITCH_MIX,
@@ -526,6 +527,7 @@ def build_live_batter_feature_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = []
     features.extend(_curated_batter_lag_features(_LIVE_BATTER_LAG_STATS))
     features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
+    features.append(BATTED_BALL_INTERACTIONS)
     return FeatureSet(
         name="statcast_gbm_batting_live",
         features=tuple(features),
@@ -539,6 +541,7 @@ def build_live_batter_training_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = []
     features.extend(_curated_batter_lag_features(_LIVE_BATTER_LAG_STATS))
     features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
+    features.append(BATTED_BALL_INTERACTIONS)
     features.extend(_batter_target_features())
     return FeatureSet(
         name="statcast_gbm_batting_live_train",
