@@ -117,9 +117,11 @@ class SqliteDatasetAssembler:
                 season_clause = f"IN ({lag_exprs})"
             else:
                 season_clause = "= d.season" if tf.lag == 0 else f"= d.season - {tf.lag}"
+            source_season_col = "CAST(SUBSTR(sc.game_date, 1, 4) AS INTEGER) AS source_season, " if tf.weights else ""
             sql = (
                 f"SELECT d.player_id, "
                 f"d.season AS season, "
+                f"{source_season_col}"
                 f"{select_cols} "
                 f"FROM [{table_name}] d "
                 f"JOIN player p ON p.id = d.player_id "
@@ -166,10 +168,33 @@ class SqliteDatasetAssembler:
             where_parts = " AND ".join(f"[{k}] = ?" for k in tf.group_by)
             update_sql = f"UPDATE [{table_name}] SET {output_cols} WHERE {where_parts}"
 
-            for group_key, group_rows in groups.items():
-                result = tf.transform(group_rows)
-                values = [result.get(o, float("nan")) for o in tf.outputs]
-                self._conn.execute(update_sql, [*values, *group_key])
+            if tf.weights:
+                lag_weight = dict(zip(tf.lags, tf.weights, strict=True))
+                for group_key, group_rows in groups.items():
+                    target_season = group_key[1]  # (player_id, season)
+                    by_lag: dict[int, list[dict[str, Any]]] = defaultdict(list)
+                    for row in group_rows:
+                        lag = target_season - row["source_season"]
+                        by_lag[lag].append(row)
+                    lag_results: dict[int, dict[str, Any]] = {}
+                    for lag_val, lag_rows in by_lag.items():
+                        lag_results[lag_val] = tf.transform(lag_rows)
+                    present_lags = [lag_v for lag_v in tf.lags if lag_v in lag_results]
+                    total_weight = sum(lag_weight[lag_v] for lag_v in present_lags)
+                    blended: dict[str, float] = {}
+                    for output in tf.outputs:
+                        val = (
+                            sum(lag_results[lag_v].get(output, 0.0) * lag_weight[lag_v] for lag_v in present_lags)
+                            / total_weight
+                        )
+                        blended[output] = val
+                    values = [blended.get(o, float("nan")) for o in tf.outputs]
+                    self._conn.execute(update_sql, [*values, *group_key])
+            else:
+                for group_key, group_rows in groups.items():
+                    result = tf.transform(group_rows)
+                    values = [result.get(o, float("nan")) for o in tf.outputs]
+                    self._conn.execute(update_sql, [*values, *group_key])
 
             self._conn.commit()
 

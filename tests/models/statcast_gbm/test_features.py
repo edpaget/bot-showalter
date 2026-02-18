@@ -9,11 +9,14 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     batter_feature_columns,
     batter_preseason_averaged_feature_columns,
     batter_preseason_feature_columns,
+    batter_preseason_weighted_feature_columns,
     build_batter_feature_set,
     build_batter_preseason_averaged_set,
     build_batter_preseason_averaged_training_set,
     build_batter_preseason_set,
     build_batter_preseason_training_set,
+    build_batter_preseason_weighted_set,
+    build_batter_preseason_weighted_training_set,
     build_batter_training_set,
     build_live_batter_feature_set,
     build_live_batter_training_set,
@@ -953,3 +956,74 @@ class TestPitcherPreseasonAveragedFeatureColumns:
         avg_cols = pitcher_preseason_averaged_feature_columns()
         single_cols = pitcher_preseason_feature_columns()
         assert avg_cols == single_cols
+
+
+# --- Weighted preseason batter feature-set builder tests ---
+
+
+class TestBatterPreseasonWeightedSet:
+    def test_returns_feature_set(self) -> None:
+        fs = build_batter_preseason_weighted_set([2023])
+        assert isinstance(fs, FeatureSet)
+
+    def test_name(self) -> None:
+        fs = build_batter_preseason_weighted_set([2023])
+        assert fs.name == "statcast_gbm_batting_preseason_weighted"
+
+    def test_has_batter_spine_filter(self) -> None:
+        fs = build_batter_preseason_weighted_set([2023])
+        assert fs.spine_filter == SpineFilter(player_type="batter")
+
+    def test_all_transforms_have_weights(self) -> None:
+        fs = build_batter_preseason_weighted_set([2023])
+        transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
+        assert len(transforms) > 0
+        for tf in transforms:
+            assert tf.weights == (0.7, 0.3), f"{tf.name} should have weights=(0.7, 0.3)"
+            assert tf.lags == (1, 2), f"{tf.name} should have lags=(1, 2)"
+
+    def test_version_differs_from_single_lag(self) -> None:
+        single = build_batter_preseason_set([2023])
+        weighted = build_batter_preseason_weighted_set([2023])
+        assert single.version != weighted.version
+
+    def test_version_differs_from_pooled(self) -> None:
+        pooled = build_batter_preseason_averaged_set([2023])
+        weighted = build_batter_preseason_weighted_set([2023])
+        assert pooled.version != weighted.version
+
+
+class TestBatterPreseasonWeightedTrainingSet:
+    def test_includes_targets(self) -> None:
+        fs = build_batter_preseason_weighted_training_set([2023])
+        names = [f.name for f in fs.features if isinstance(f, Feature)]
+        assert "target_avg" in names
+        assert "target_obp" in names
+        assert "target_slg" in names
+
+    def test_name(self) -> None:
+        fs = build_batter_preseason_weighted_training_set([2023])
+        assert fs.name == "statcast_gbm_batting_preseason_weighted_train"
+
+    def test_all_transforms_have_weights(self) -> None:
+        fs = build_batter_preseason_weighted_training_set([2023])
+        transforms = [f for f in fs.features if isinstance(f, TransformFeature)]
+        for tf in transforms:
+            assert tf.weights == (0.7, 0.3)
+            assert tf.lags == (1, 2)
+
+
+class TestBatterPreseasonWeightedFeatureColumns:
+    def test_returns_list_of_strings(self) -> None:
+        columns = batter_preseason_weighted_feature_columns()
+        assert isinstance(columns, list)
+        assert all(isinstance(c, str) for c in columns)
+
+    def test_no_target_columns(self) -> None:
+        columns = batter_preseason_weighted_feature_columns()
+        assert not any(c.startswith("target_") for c in columns)
+
+    def test_columns_match_single_lag(self) -> None:
+        weighted_cols = batter_preseason_weighted_feature_columns()
+        single_cols = batter_preseason_feature_columns()
+        assert weighted_cols == single_cols

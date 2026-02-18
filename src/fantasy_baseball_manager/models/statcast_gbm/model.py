@@ -27,10 +27,10 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.statcast_gbm.features import (
-    batter_preseason_feature_columns,
+    batter_preseason_weighted_feature_columns,
     build_batter_feature_set,
-    build_batter_preseason_set,
-    build_batter_preseason_training_set,
+    build_batter_preseason_weighted_set,
+    build_batter_preseason_weighted_training_set,
     build_live_batter_feature_set,
     build_live_batter_training_set,
     build_live_pitcher_feature_set,
@@ -193,7 +193,7 @@ class _StatcastGBMBase:
     def evaluate(self, config: ModelConfig) -> SystemMetrics:
         version = config.version or "latest"
         season = config.seasons[0]
-        return self._evaluator.evaluate(self.name, version, season)
+        return self._evaluator.evaluate(self.name, version, season, top=config.top)
 
     def predict(self, config: ModelConfig) -> PredictResult:
         artifact_path = self._artifact_path(config)
@@ -445,15 +445,15 @@ class StatcastGBMPreseasonModel(_StatcastGBMBase):
 
     @property
     def _batter_feature_set_builder(self) -> _FeatureSetBuilder:
-        return build_batter_preseason_set
+        return build_batter_preseason_weighted_set
 
     @property
     def _batter_training_set_builder(self) -> _FeatureSetBuilder:
-        return build_batter_preseason_training_set
+        return build_batter_preseason_weighted_training_set
 
     @property
     def _batter_columns(self) -> list[str]:
-        return batter_preseason_feature_columns()
+        return batter_preseason_weighted_feature_columns()
 
     @property
     def _pitcher_feature_set_builder(self) -> _FeatureSetBuilder:

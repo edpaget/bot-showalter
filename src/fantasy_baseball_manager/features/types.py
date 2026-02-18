@@ -61,6 +61,7 @@ class TransformFeature:
     version: str | None = None
     lag: int = 0
     lags: tuple[int, ...] = ()
+    weights: tuple[float, ...] = ()
 
     def with_lag(self, n: int) -> TransformFeature:
         """Return a copy with the lag set to *n*."""
@@ -90,6 +91,27 @@ class TransformFeature:
             version=self.version,
             lag=lags[0],
             lags=lags,
+        )
+
+    def with_weighted_lag(self, lags: tuple[int, ...], weights: tuple[float, ...]) -> TransformFeature:
+        """Return a copy that blends per-lag transform results with *weights*."""
+        if len(lags) != len(weights):
+            msg = f"lags and weights must have the same length (got {len(lags)} vs {len(weights)})"
+            raise ValueError(msg)
+        if abs(sum(weights) - 1.0) >= 0.01:
+            msg = f"weights must sum to 1.0 (got {sum(weights):.4f})"
+            raise ValueError(msg)
+        return TransformFeature(
+            name=self.name,
+            source=self.source,
+            columns=self.columns,
+            group_by=self.group_by,
+            transform=self.transform,
+            outputs=self.outputs,
+            version=self.version,
+            lag=lags[0],
+            lags=lags,
+            weights=weights,
         )
 
 
@@ -217,6 +239,7 @@ def _transform_feature_to_dict(f: TransformFeature) -> dict[str, object]:
         "transform_identity": identity,
         "lag": f.lag,
         "lags": list(f.lags),
+        "weights": list(f.weights),
     }
 
 

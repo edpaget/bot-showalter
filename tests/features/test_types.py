@@ -802,6 +802,89 @@ class TestTransformFeature:
         fs_avg = FeatureSet(name="test", features=(tf.with_avg_lag(1, 2),), seasons=(2023,))
         assert fs_lag.version != fs_avg.version
 
+    def test_with_weighted_lag_creates_instance(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        weighted = tf.with_weighted_lag((1, 2), (0.7, 0.3))
+        assert weighted is not tf
+        assert weighted.lags == (1, 2)
+        assert weighted.weights == (0.7, 0.3)
+        assert weighted.lag == 1  # first value for backward compat
+
+    def test_with_weighted_lag_preserves_other_fields(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type", "release_speed"),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a", "out_b"),
+            version="v1",
+        )
+        weighted = tf.with_weighted_lag((1, 2), (0.7, 0.3))
+        assert weighted.name == tf.name
+        assert weighted.source == tf.source
+        assert weighted.columns == tf.columns
+        assert weighted.group_by == tf.group_by
+        assert weighted.transform is tf.transform
+        assert weighted.outputs == tf.outputs
+        assert weighted.version == tf.version
+
+    def test_with_weighted_lag_mismatched_lengths_raises(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        with pytest.raises(ValueError, match="length"):
+            tf.with_weighted_lag((1, 2), (0.7,))
+
+    def test_with_weighted_lag_weights_not_summing_to_one_raises(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        with pytest.raises(ValueError, match="sum to 1"):
+            tf.with_weighted_lag((1, 2), (0.5, 0.3))
+
+    def test_with_avg_lag_leaves_weights_empty(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        averaged = tf.with_avg_lag(1, 2)
+        assert averaged.weights == ()
+
+    def test_weighted_lag_version_differs_from_avg_lag(self) -> None:
+        tf = TransformFeature(
+            name="t",
+            source=Source.STATCAST,
+            columns=("pitch_type",),
+            group_by=("player_id", "season"),
+            transform=_sample_transform,
+            outputs=("out_a",),
+        )
+        fs_avg = FeatureSet(name="test", features=(tf.with_avg_lag(1, 2),), seasons=(2023,))
+        fs_weighted = FeatureSet(name="test", features=(tf.with_weighted_lag((1, 2), (0.7, 0.3)),), seasons=(2023,))
+        assert fs_avg.version != fs_weighted.version
+
     def test_lag_affects_feature_set_version(self) -> None:
         tf0 = TransformFeature(
             name="t",

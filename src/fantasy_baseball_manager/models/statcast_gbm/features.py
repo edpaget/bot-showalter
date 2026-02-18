@@ -252,6 +252,61 @@ def pitcher_preseason_feature_columns() -> list[str]:
     return columns
 
 
+# --- Weighted preseason (recency-biased blended Statcast) feature sets ---
+
+
+def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
+    features: list[AnyFeature] = [player.age()]
+    features.extend(_batter_lag_features())
+    features.extend(
+        [
+            BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3)),
+            PLATE_DISCIPLINE.with_weighted_lag((1, 2), (0.7, 0.3)),
+            EXPECTED_STATS.with_weighted_lag((1, 2), (0.7, 0.3)),
+            SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
+        ]
+    )
+    return FeatureSet(
+        name="statcast_gbm_batting_preseason_weighted",
+        features=tuple(features),
+        seasons=tuple(seasons),
+        source_filter="fangraphs",
+        spine_filter=SpineFilter(player_type="batter"),
+    )
+
+
+def build_batter_preseason_weighted_training_set(seasons: Sequence[int]) -> FeatureSet:
+    features: list[AnyFeature] = [player.age()]
+    features.extend(_batter_lag_features())
+    features.extend(
+        [
+            BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3)),
+            PLATE_DISCIPLINE.with_weighted_lag((1, 2), (0.7, 0.3)),
+            EXPECTED_STATS.with_weighted_lag((1, 2), (0.7, 0.3)),
+            SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
+        ]
+    )
+    features.extend(_batter_target_features())
+    return FeatureSet(
+        name="statcast_gbm_batting_preseason_weighted_train",
+        features=tuple(features),
+        seasons=tuple(seasons),
+        source_filter="fangraphs",
+        spine_filter=SpineFilter(player_type="batter"),
+    )
+
+
+def batter_preseason_weighted_feature_columns() -> list[str]:
+    fs = build_batter_preseason_weighted_set([])
+    columns: list[str] = []
+    for f in fs.features:
+        if isinstance(f, TransformFeature):
+            columns.extend(f.outputs)
+        elif isinstance(f, Feature):
+            columns.append(f.name)
+    return columns
+
+
 # --- Averaged preseason (multi-year pooled Statcast) feature sets ---
 
 

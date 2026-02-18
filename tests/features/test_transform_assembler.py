@@ -245,6 +245,116 @@ class TestAvgLagStatcastTransform:
         assert set(single_rows[0].keys()) == set(avg_rows[0].keys())
 
 
+class TestWeightedLagStatcastTransform:
+    """Test with_weighted_lag blends per-lag transform results with weights."""
+
+    def test_weighted_lag_blends_two_seasons(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """with_weighted_lag((1, 2), (0.7, 0.3)) for 2023 gives weighted blend."""
+        weighted_bb = BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3))
+        fs = FeatureSet(
+            name="test_weighted_lag",
+            features=(weighted_bb,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        assert len(rows) == 2
+        by_player = {r["player_id"]: r for r in rows}
+        # Player 1: lag-1 (2022) avg_exit_velo = (100+90+105+80)/4 = 93.75
+        #           lag-2 (2021) avg_exit_velo = (110+70)/2 = 90.0
+        #           weighted = 0.7 * 93.75 + 0.3 * 90.0 = 92.625
+        p1 = by_player[1]
+        assert p1["avg_exit_velo"] == pytest.approx(0.7 * 93.75 + 0.3 * 90.0)
+
+    def test_weighted_lag_single_year_fallback(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """When only lag-1 has data, result equals single-lag transform."""
+        # lag-3 from 2023 = 2020, no data exists
+        weighted_bb = BATTED_BALL.with_weighted_lag((1, 3), (0.7, 0.3))
+        fs = FeatureSet(
+            name="test_weighted_fallback",
+            features=(weighted_bb,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        handle = assembler.materialize(fs)
+        rows = assembler.read(handle)
+        by_player = {r["player_id"]: r for r in rows}
+        # Only lag-1 exists, re-normalized to weight=1.0 → same as single lag
+        # Player 1: 2022 data → avg_exit_velo = (100+90+105+80)/4 = 93.75
+        p1 = by_player[1]
+        assert p1["avg_exit_velo"] == pytest.approx(93.75)
+
+    def test_weighted_lag_differs_from_pooled(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """Weighted result != pooled (with_avg_lag) result when sample sizes differ."""
+        weighted_bb = BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3))
+        pooled_bb = BATTED_BALL.with_avg_lag(1, 2)
+        fs_w = FeatureSet(
+            name="test_w",
+            features=(weighted_bb,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        fs_p = FeatureSet(
+            name="test_p",
+            features=(pooled_bb,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        w_rows = assembler.read(assembler.materialize(fs_w))
+        p_rows = assembler.read(assembler.materialize(fs_p))
+        w_by_player = {r["player_id"]: r for r in w_rows}
+        p_by_player = {r["player_id"]: r for r in p_rows}
+        # Player 1: weighted=92.625, pooled=92.5 — they differ
+        assert w_by_player[1]["avg_exit_velo"] != pytest.approx(p_by_player[1]["avg_exit_velo"])
+
+    def test_weighted_lag_same_columns_as_single_lag(
+        self,
+        seeded_conn: sqlite3.Connection,
+        statcast_db_path: Path,
+    ) -> None:
+        """Output column names identical to with_lag(1)."""
+        single = BATTED_BALL.with_lag(1)
+        weighted = BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3))
+        fs_single = FeatureSet(
+            name="test_single",
+            features=(single,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        fs_weighted = FeatureSet(
+            name="test_weighted",
+            features=(weighted,),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        single_rows = assembler.read(assembler.materialize(fs_single))
+        weighted_rows = assembler.read(assembler.materialize(fs_weighted))
+        assert set(single_rows[0].keys()) == set(weighted_rows[0].keys())
+
+
 class TestStatcastIntegration:
     """Integration tests with ATTACH for statcast DB."""
 
