@@ -1,5 +1,4 @@
 from fantasy_baseball_manager.features.types import (
-    DeltaFeature,
     DerivedTransformFeature,
     Feature,
     FeatureSet,
@@ -7,7 +6,6 @@ from fantasy_baseball_manager.features.types import (
     TransformFeature,
 )
 from fantasy_baseball_manager.models.statcast_gbm.features import (
-    _batter_trend_features,
     batter_feature_columns,
     batter_preseason_averaged_feature_columns,
     batter_preseason_feature_columns,
@@ -1029,89 +1027,7 @@ class TestBatterPreseasonWeightedFeatureColumns:
         columns = batter_preseason_weighted_feature_columns()
         assert not any(c.startswith("target_") for c in columns)
 
-    def test_columns_match_single_lag_plus_deltas(self) -> None:
+    def test_columns_match_single_lag(self) -> None:
         weighted_cols = batter_preseason_weighted_feature_columns()
         single_cols = batter_preseason_feature_columns()
-        delta_names = {"avg_delta", "obp_delta", "slg_delta", "k_pct_delta", "bb_pct_delta"}
-        assert set(weighted_cols) == set(single_cols) | delta_names
-
-    def test_includes_delta_columns(self) -> None:
-        columns = batter_preseason_weighted_feature_columns()
-        for name in ("avg_delta", "obp_delta", "slg_delta", "k_pct_delta", "bb_pct_delta"):
-            assert name in columns
-
-
-# --- Batter trend feature tests ---
-
-
-class TestBatterTrendFeatures:
-    def test_returns_five_delta_features(self) -> None:
-        features = _batter_trend_features()
-        assert len(features) == 5
-        assert all(isinstance(f, DeltaFeature) for f in features)
-
-    def test_names(self) -> None:
-        features = _batter_trend_features()
-        names = [f.name for f in features]
-        assert names == ["avg_delta", "obp_delta", "slg_delta", "k_pct_delta", "bb_pct_delta"]
-
-    def test_left_lag_is_1(self) -> None:
-        features = _batter_trend_features()
-        for f in features:
-            assert f.left.lag == 1, f"{f.name} left should have lag=1"
-
-    def test_right_lag_is_2(self) -> None:
-        features = _batter_trend_features()
-        for f in features:
-            assert f.right.lag == 2, f"{f.name} right should have lag=2"
-
-    def test_derived_rates_have_denominators(self) -> None:
-        features = _batter_trend_features()
-        by_name = {f.name: f for f in features}
-        k_pct = by_name["k_pct_delta"]
-        assert k_pct.left.denominator == "pa"
-        assert k_pct.right.denominator == "pa"
-        bb_pct = by_name["bb_pct_delta"]
-        assert bb_pct.left.denominator == "pa"
-        assert bb_pct.right.denominator == "pa"
-
-    def test_direct_rates_have_no_denominator(self) -> None:
-        features = _batter_trend_features()
-        by_name = {f.name: f for f in features}
-        for stat in ("avg_delta", "obp_delta", "slg_delta"):
-            assert by_name[stat].left.denominator is None
-            assert by_name[stat].right.denominator is None
-
-
-class TestBatterPreseasonWeightedSetWithTrends:
-    def test_includes_delta_features(self) -> None:
-        fs = build_batter_preseason_weighted_set([2023])
-        deltas = [f for f in fs.features if isinstance(f, DeltaFeature)]
-        assert len(deltas) == 5
-
-    def test_delta_names(self) -> None:
-        fs = build_batter_preseason_weighted_set([2023])
-        delta_names = [f.name for f in fs.features if isinstance(f, DeltaFeature)]
-        assert set(delta_names) == {"avg_delta", "obp_delta", "slg_delta", "k_pct_delta", "bb_pct_delta"}
-
-    def test_version_differs_from_non_trend_weighted(self) -> None:
-        """Prove delta features affect versioning by comparing to a set without them."""
-        weighted = build_batter_preseason_weighted_set([2023])
-        # The weighted set now includes deltas, so its version should differ
-        # from the preseason set (which has different transforms too)
-        preseason = build_batter_preseason_set([2023])
-        assert weighted.version != preseason.version
-
-
-class TestBatterPreseasonWeightedTrainingSetWithTrends:
-    def test_includes_delta_features(self) -> None:
-        fs = build_batter_preseason_weighted_training_set([2023])
-        deltas = [f for f in fs.features if isinstance(f, DeltaFeature)]
-        assert len(deltas) == 5
-
-    def test_includes_targets_alongside_deltas(self) -> None:
-        fs = build_batter_preseason_weighted_training_set([2023])
-        names = [f.name for f in fs.features if isinstance(f, Feature)]
-        assert "target_avg" in names
-        delta_names = [f.name for f in fs.features if isinstance(f, DeltaFeature)]
-        assert "avg_delta" in delta_names
+        assert weighted_cols == single_cols

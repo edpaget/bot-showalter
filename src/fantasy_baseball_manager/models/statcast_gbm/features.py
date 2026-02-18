@@ -15,7 +15,6 @@ from fantasy_baseball_manager.features.transforms import (
 )
 from fantasy_baseball_manager.features.types import (
     AnyFeature,
-    DeltaFeature,
     Feature,
     FeatureSet,
     SpineFilter,
@@ -37,19 +36,6 @@ def _batter_lag_features() -> list[Feature]:
         features.append(batting.col(stat).lag(1).alias(f"{stat}_1"))
     for name, numerator, denominator in _BATTER_LAG_DERIVED_RATES:
         features.append(batting.col(numerator).lag(1).per(denominator).alias(f"{name}_1"))
-    return features
-
-
-def _batter_trend_features() -> list[DeltaFeature]:
-    features: list[DeltaFeature] = []
-    for stat in _BATTER_LAG_RATE_STATS:
-        left = batting.col(stat).lag(1).alias(f"{stat}_1")
-        right = batting.col(stat).lag(2).alias(f"{stat}_2")
-        features.append(DeltaFeature(name=f"{stat}_delta", left=left, right=right))
-    for name, numerator, denominator in _BATTER_LAG_DERIVED_RATES:
-        left = batting.col(numerator).lag(1).per(denominator).alias(f"{name}_1")
-        right = batting.col(numerator).lag(2).per(denominator).alias(f"{name}_2")
-        features.append(DeltaFeature(name=f"{name}_delta", left=left, right=right))
     return features
 
 
@@ -281,7 +267,6 @@ def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
             SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
         ]
     )
-    features.extend(_batter_trend_features())
     return FeatureSet(
         name="statcast_gbm_batting_preseason_weighted",
         features=tuple(features),
@@ -302,7 +287,6 @@ def build_batter_preseason_weighted_training_set(seasons: Sequence[int]) -> Feat
             SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
         ]
     )
-    features.extend(_batter_trend_features())
     features.extend(_batter_target_features())
     return FeatureSet(
         name="statcast_gbm_batting_preseason_weighted_train",
@@ -319,8 +303,6 @@ def batter_preseason_weighted_feature_columns() -> list[str]:
     for f in fs.features:
         if isinstance(f, TransformFeature):
             columns.extend(f.outputs)
-        elif isinstance(f, DeltaFeature):
-            columns.append(f.name)
         elif isinstance(f, Feature):
             columns.append(f.name)
     return columns
