@@ -1,3 +1,6 @@
+import pytest
+import requests
+
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.pybaseball_source import (
     BrefBattingSource,
@@ -132,3 +135,35 @@ class TestLahmanTeamsSource:
 
     def test_source_detail(self) -> None:
         assert LahmanTeamsSource().source_detail == "teams"
+
+
+class TestErrorWrapping:
+    def test_non_network_error_wrapped_as_runtime_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fail(**kw):  # type: ignore[no-untyped-def]
+            raise ValueError("bad data")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.ingest.pybaseball_source.fg_batting_data",
+            fail,
+        )
+        source = FgBattingSource()
+        with pytest.raises(RuntimeError, match="pybaseball fetch failed"):
+            source.fetch(season=2024)
+
+    def test_network_error_retried_then_raised(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        call_count = 0
+
+        def fail(**kw):  # type: ignore[no-untyped-def]
+            nonlocal call_count
+            call_count += 1
+            raise requests.ConnectionError("connection refused")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.ingest.pybaseball_source.fg_batting_data",
+            fail,
+        )
+        source = FgBattingSource()
+        with pytest.raises(requests.ConnectionError):
+            source.fetch(season=2024)
+
+        assert call_count == 2
