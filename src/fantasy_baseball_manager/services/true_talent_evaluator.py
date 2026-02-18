@@ -1,3 +1,5 @@
+import logging
+
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.talent_quality import (
@@ -12,6 +14,8 @@ from fantasy_baseball_manager.domain.talent_quality import (
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.repos.protocols import BattingStatsRepo, PitchingStatsRepo, ProjectionRepo
 from fantasy_baseball_manager.services.performance_report import _get_batter_actual, _get_pitcher_actual
+
+logger = logging.getLogger(__name__)
 
 _BATTER_BUCKET_EDGES = (200.0, 400.0)
 _BATTER_BUCKET_LABELS = ("<200", "200-400", "400+")
@@ -40,6 +44,7 @@ class TrueTalentEvaluator:
         stats: list[str] | None = None,
         actuals_source: str = "fangraphs",
     ) -> TrueTalentQualityReport:
+        logger.info("Evaluating true-talent: %s/%s %d->%d (%s)", system, version, season_n, season_n1, player_type)
         projections = self._projection_repo.get_by_system_version(system, version)
 
         projs_n: dict[int, dict[str, float]] = {}
@@ -182,6 +187,7 @@ class TrueTalentEvaluator:
             regression_rate_total=len(stat_metrics_list),
         )
 
+        logger.debug("True-talent evaluation: %d stat metrics", len(stat_metrics_list))
         return TrueTalentQualityReport(
             system=system,
             version=version,

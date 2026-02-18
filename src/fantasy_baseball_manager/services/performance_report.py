@@ -1,3 +1,5 @@
+import logging
+
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
@@ -10,6 +12,8 @@ from fantasy_baseball_manager.repos.protocols import (
     PlayerRepo,
     ProjectionRepo,
 )
+
+logger = logging.getLogger(__name__)
 
 _INVERTED_STATS: frozenset[str] = frozenset({"era", "fip", "whip", "bb_per_9", "hr_per_9"})
 
@@ -77,6 +81,7 @@ class PerformanceReportService:
         actuals_source: str = "fangraphs",
         min_pa: int | None = None,
     ) -> list[PlayerStatDelta]:
+        logger.info("Computing deltas: %s/%s season=%d type=%s", system, version, season, player_type)
         projections = self._projection_repo.get_by_system_version(system, version)
         projections = [p for p in projections if p.season == season and p.player_type == player_type]
 
@@ -177,4 +182,5 @@ class PerformanceReportService:
                     )
                 )
 
+        logger.debug("Computed %d deltas", len(result))
         return result

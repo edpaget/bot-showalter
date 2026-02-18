@@ -1,7 +1,10 @@
+import logging
 from collections import defaultdict
 
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
 from fantasy_baseball_manager.repos.protocols import PlayerRepo, ProjectionRepo
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectionLookupService:
@@ -10,6 +13,7 @@ class ProjectionLookupService:
         self._projection_repo = projection_repo
 
     def lookup(self, player_name: str, season: int, system: str | None = None) -> list[PlayerProjection]:
+        logger.debug("Projection lookup: player=%s season=%d system=%s", player_name, season, system)
         if "," in player_name:
             last, _, first = player_name.partition(",")
             last = last.strip()
@@ -39,6 +43,7 @@ class ProjectionLookupService:
                     )
                 )
 
+        logger.debug("Projection lookup returned %d results", len(results))
         return results
 
     def list_systems(self, season: int) -> list[SystemSummary]:

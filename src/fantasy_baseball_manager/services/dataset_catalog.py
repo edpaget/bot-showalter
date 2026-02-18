@@ -1,6 +1,9 @@
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -63,8 +66,10 @@ class DatasetCatalogService:
         ).fetchall()
 
         if not rows:
+            logger.debug("No datasets matched for drop")
             return 0
 
+        logger.info("Dropping %d dataset(s)", len(rows))
         feature_set_ids: set[int] = set()
         for row in rows:
             table_name: str = row[1]

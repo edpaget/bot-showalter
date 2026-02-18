@@ -1,3 +1,4 @@
+import logging
 from typing import TypeVar
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
@@ -28,6 +29,8 @@ from fantasy_baseball_manager.repos.protocols import (
     ProjectionRepo,
 )
 
+logger = logging.getLogger(__name__)
+
 _T = TypeVar("_T", BattingStats, PitchingStats)
 
 
@@ -56,6 +59,7 @@ class ProjectionEvaluator:
         top: int | None = None,
         normalize_pt: ConsensusLookup | None = None,
     ) -> SystemMetrics:
+        logger.info("Evaluating %s/%s for season %d", system, version, season)
         projections = self._projection_repo.get_by_system_version(system, version)
         projections = [p for p in projections if p.season == season]
 
@@ -70,6 +74,8 @@ class ProjectionEvaluator:
                 batter_projs[proj.player_id] = proj
             elif proj.player_type == "pitcher":
                 pitcher_projs[proj.player_id] = proj
+
+        logger.debug("Projections: %d batters, %d pitchers", len(batter_projs), len(pitcher_projs))
 
         if normalize_pt is not None:
             batter_projs = {
@@ -101,6 +107,7 @@ class ProjectionEvaluator:
         )
 
         metrics = compute_stat_metrics(comparisons, stats)
+        logger.info("Evaluation complete: %d metrics", len(metrics))
 
         return SystemMetrics(
             system=system,
@@ -140,6 +147,7 @@ class ProjectionEvaluator:
         top: int | None = None,
         normalize_pt: ConsensusLookup | None = None,
     ) -> ComparisonResult:
+        logger.info("Comparing %d systems for season %d", len(systems), season)
         system_metrics: list[SystemMetrics] = []
         all_stat_names: set[str] = set()
 

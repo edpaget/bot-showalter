@@ -1,6 +1,10 @@
+import logging
+
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.valuation import PlayerValuation
 from fantasy_baseball_manager.repos.protocols import PlayerRepo, ValuationRepo
+
+logger = logging.getLogger(__name__)
 
 
 class ValuationLookupService:
@@ -9,6 +13,7 @@ class ValuationLookupService:
         self._valuation_repo = valuation_repo
 
     def lookup(self, player_name: str, season: int, system: str | None = None) -> list[PlayerValuation]:
+        logger.debug("Valuation lookup: player=%s season=%d system=%s", player_name, season, system)
         if "," in player_name:
             last, _, first = player_name.partition(",")
             last = last.strip()
@@ -42,6 +47,7 @@ class ValuationLookupService:
                     )
                 )
 
+        logger.debug("Valuation lookup returned %d results", len(results))
         return results
 
     def rankings(

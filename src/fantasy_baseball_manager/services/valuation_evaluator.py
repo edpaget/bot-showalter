@@ -1,4 +1,5 @@
 import dataclasses
+import logging
 from typing import Any
 
 from scipy.stats import spearmanr
@@ -20,6 +21,8 @@ from fantasy_baseball_manager.repos.protocols import (
     PositionAppearanceRepo,
     ValuationRepo,
 )
+
+logger = logging.getLogger(__name__)
 
 _METADATA_FIELDS = frozenset({"id", "player_id", "season", "source", "team_id", "loaded_at"})
 
@@ -59,6 +62,7 @@ class ValuationEvaluator:
         league: LeagueSettings,
         actuals_source: str = "fangraphs",
     ) -> ValuationEvalResult:
+        logger.info("Evaluating valuations: %s/%s season=%d", system, version, season)
         # 1. Fetch predicted valuations, filter by version
         all_valuations = self._valuation_repo.get_by_season(season, system=system)
         predicted = [v for v in all_valuations if v.version == version]
@@ -183,6 +187,7 @@ class ValuationEvaluator:
         # 8. Sort by absolute surplus descending
         matched.sort(key=lambda p: abs(p.surplus), reverse=True)
 
+        logger.debug("Valuation evaluation: %d matched players", len(matched))
         return ValuationEvalResult(
             system=system,
             version=version,

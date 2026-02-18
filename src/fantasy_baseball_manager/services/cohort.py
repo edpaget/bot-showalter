@@ -1,7 +1,10 @@
+import logging
 from collections import defaultdict
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.player import Player
+
+logger = logging.getLogger(__name__)
 
 
 def assign_age_cohorts(players: dict[int, Player], season: int) -> dict[int, str]:
@@ -22,6 +25,7 @@ def assign_age_cohorts(players: dict[int, Player], season: int) -> dict[int, str
             result[player_id] = "prime"
         else:
             result[player_id] = "veteran"
+    logger.debug("Assigned %d age cohorts", len(result))
     return result
 
 
@@ -41,6 +45,7 @@ def assign_experience_cohorts(prior_batting: list[BattingStats], player_ids: set
             result[pid] = "limited"
         else:
             result[pid] = "established"
+    logger.debug("Assigned %d experience cohorts", len(result))
     return result
 
 
@@ -51,4 +56,5 @@ def assign_top300_cohorts(actuals: list[BattingStats], top_n: int = 300) -> dict
     result: dict[int, str] = {}
     for a in actuals:
         result[a.player_id] = "top300" if a.player_id in top_ids else "rest"
+    logger.debug("Assigned %d top300 cohorts", len(result))
     return result
