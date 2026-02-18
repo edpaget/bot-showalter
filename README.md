@@ -130,3 +130,7 @@ uv run ty check src tests    # type check
 ```
 
 Pre-commit hooks run the full quality gate (format, lint, type check, tests) on every commit.
+
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
