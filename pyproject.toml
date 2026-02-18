@@ -23,6 +23,7 @@ dev = [
     "matplotlib>=3.10.0",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
     "pytest-randomly>=4.0.1",
     "pytest-xdist>=3.8.0",
     "ruff>=0.15.1",
@@ -39,5 +40,22 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "PLC0415"]
 
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@overload",
+]
+fail_under = 88
+
 [tool.pytest.ini_options]
 addopts = "-n auto -p randomly"
+markers = [
+    "slow: tests that train real ML models (deselect with -m 'not slow')",
+]

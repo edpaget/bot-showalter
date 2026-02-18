@@ -11,7 +11,10 @@ Fantasy baseball manager. Python 3.14+, uses `uv` for dependency management. Tes
 - **Lint:** `uv run ruff check src tests`
 - **Format:** `uv run ruff format src tests`
 - **Type check:** `uv run ty check src tests`
+- **Coverage report:** `uv run pytest --cov` (add `--cov-report=html` for HTML output in `htmlcov/`)
+- **Fast tests only:** `uv run pytest -m "not slow"` (skips ML model training tests)
 - **Install deps:** `uv sync`
+- **CI:** GitHub Actions runs the full quality gate (format, lint, type check, tests + coverage) on every push to main and on PRs.
 
 ## Code Style
 
@@ -42,6 +45,7 @@ When executing a plan (after plan-mode approval):
 - When all steps are complete, commit. Pre-commit hooks run the full quality gate automatically (ruff format, ruff check, ty check, pytest).
 - Fix any failures before re-committing.
 - Commit with a conventional commit message referencing what was done.
+- Coverage is enforced in CI via `fail_under`. Run `uv run pytest --cov` locally to check before pushing.
 
 ## Git Conventions
 

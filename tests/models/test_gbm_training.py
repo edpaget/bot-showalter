@@ -1,6 +1,7 @@
 import math
 import random
 
+import pytest
 from fantasy_baseball_manager.models.gbm_training import (
     CVFold,
     GridSearchResult,
@@ -13,6 +14,8 @@ from fantasy_baseball_manager.models.gbm_training import (
     grid_search_cv,
     score_predictions,
 )
+
+pytestmark = pytest.mark.slow
 
 
 class TestExtractTargets:

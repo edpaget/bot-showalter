@@ -17,6 +17,11 @@ build/
 # Jupyter
 .ipynb_checkpoints/
 
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
 # OS
 .DS_Store
 Thumbs.db

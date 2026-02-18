@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.protocols import (
@@ -31,6 +30,8 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
 from fantasy_baseball_manager.models.statcast_gbm import model as statcast_gbm_model_mod
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel, StatcastGBMPreseasonModel
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
+
+pytestmark = pytest.mark.slow
 
 _FEATURE_COLUMNS = live_batter_curated_columns()
 _PITCHER_FEATURE_COLUMNS = live_pitcher_curated_columns()

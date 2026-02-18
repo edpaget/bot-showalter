@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
 from fantasy_baseball_manager.models.playing_time.engine import (
@@ -25,6 +26,8 @@ from fantasy_baseball_manager.models.protocols import (
     Preparable,
     Trainable,
 )
+
+pytestmark = pytest.mark.slow
 
 
 class FakeAssembler:
