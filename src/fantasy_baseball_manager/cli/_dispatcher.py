@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+import time
+
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
@@ -18,6 +21,8 @@ from fantasy_baseball_manager.models.protocols import (
     TuneResult,
 )
 from fantasy_baseball_manager.models.run_manager import RunManager
+
+logger = logging.getLogger(__name__)
 
 
 class UnsupportedOperation(Exception):
@@ -52,12 +57,14 @@ def dispatch(
     if not isinstance(model, protocol):
         raise UnsupportedOperation(f"Model '{model.name}' does not support '{operation}'")
 
+    t0 = time.perf_counter()
     context = None
     if run_manager is not None and operation in {"train", "predict"}:
         context = run_manager.begin_run(model, config, operation=operation)
 
     method = getattr(model, method_name)
     result = method(config)
+    logger.info("Completed '%s' on '%s' in %.1fs", operation, model.name, time.perf_counter() - t0)
 
     if context is not None and isinstance(result, TrainResult):
         for key, value in result.metrics.items():

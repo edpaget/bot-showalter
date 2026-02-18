@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -9,6 +10,8 @@ from typing import Any
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.repos.protocols import ModelRunRepo
+
+logger = logging.getLogger(__name__)
 
 
 class RunContext:
@@ -54,6 +57,7 @@ class RunManager:
         self._artifacts_root = artifacts_root
 
     def begin_run(self, model: Model, config: ModelConfig, operation: str = "train") -> RunContext:
+        logger.info("Beginning %s run: %s v%s", operation, model.name, config.version)
         if config.version is None:
             raise ValueError("config.version is required to begin a model run")
 
@@ -95,9 +99,11 @@ class RunManager:
             metrics_json=metrics,
         )
 
+        logger.info("Finalized run: %s v%s (%d metrics)", context.system, context.version, len(context.metrics))
         return self._repo.upsert(record)
 
     def delete_run(self, system: str, version: str, operation: str = "train") -> None:
+        logger.info("Deleting run: %s v%s (%s)", system, version, operation)
         record = self._repo.get(system, version, operation)
         if record is not None and record.artifact_path is not None:
             artifact_path = Path(record.artifact_path)
@@ -116,6 +122,8 @@ class RunManager:
             )
             if result.returncode == 0:
                 return result.stdout.strip()
+            logger.debug("Could not capture git commit")
             return None
         except OSError:
+            logger.debug("Could not capture git commit")
             return None

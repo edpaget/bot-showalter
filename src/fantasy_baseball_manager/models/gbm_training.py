@@ -1,6 +1,8 @@
 import itertools
+import logging
 import os
 import random
+import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import Any, NamedTuple
@@ -10,6 +12,8 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from threadpoolctl import threadpool_limits
 
 from fantasy_baseball_manager.models.sampling import holdout_metrics
+
+logger = logging.getLogger(__name__)
 
 
 class TargetVector(NamedTuple):
@@ -73,6 +77,7 @@ def extract_targets(
                     continue
                 result[target].indices.append(i)
                 result[target].values.append(value)
+    logger.debug("Extracted targets: %s", {t: len(tv.values) for t, tv in result.items()})
     return result
 
 
@@ -90,6 +95,7 @@ def extract_features(
             else:
                 vector.append(float(value))
         matrix.append(vector)
+    logger.debug("Feature matrix: %d rows x %d cols", len(matrix), len(feature_columns))
     return matrix
 
 
@@ -100,11 +106,14 @@ def fit_models(
 ) -> dict[str, HistGradientBoostingRegressor]:
     allowed_params = {"max_iter", "max_depth", "learning_rate", "min_samples_leaf", "max_leaf_nodes"}
     filtered_params = {k: v for k, v in model_params.items() if k in allowed_params}
+    logger.info("Fitting %d targets with params %s", len(targets_dict), filtered_params)
+    t0 = time.perf_counter()
     models: dict[str, HistGradientBoostingRegressor] = {}
     for target_name, tv in targets_dict.items():
         model = HistGradientBoostingRegressor(**filtered_params)
         model.fit(_filter_X(X, tv.indices), tv.values)
         models[target_name] = model
+    logger.info("Fitted %d models in %.1fs", len(models), time.perf_counter() - t0)
     return models
 
 
@@ -215,6 +224,8 @@ def grid_search_cv(
     combos = [dict(zip(param_names, combo)) for combo in itertools.product(*param_values)]
 
     effective_workers = min(max_workers or os.cpu_count() or 1, len(combos))
+    logger.info("Grid search: %d combos, %d folds, %d workers", len(combos), len(folds), effective_workers)
+    t0 = time.perf_counter()
 
     if effective_workers <= 1:
         all_results = [_evaluate_combination(folds, params) for params in combos]
@@ -233,6 +244,9 @@ def grid_search_cv(
             best_params = entry["params"]
             best_per_target = entry["per_target_rmse"]
 
+    logger.info(
+        "Grid search done in %.1fs: best RMSE=%.4f params=%s", time.perf_counter() - t0, best_mean_rmse, best_params
+    )
     return GridSearchResult(
         best_params=best_params,
         best_mean_rmse=best_mean_rmse,
