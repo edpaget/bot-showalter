@@ -360,7 +360,6 @@ class TestLiveBatterCuratedColumns:
     def test_exact_columns(self) -> None:
         columns = live_batter_curated_columns()
         expected = [
-            "so_1",
             "avg_exit_velo",
             "max_exit_velo",
             "avg_launch_angle",
@@ -401,6 +400,7 @@ class TestLiveBatterCuratedColumns:
             "k_pct_1",
             "bb_pct_1",
             "doubles_1",
+            "so_1",
         }
         assert columns & pruned == set()
 
@@ -419,9 +419,6 @@ class TestLivePitcherCuratedColumns:
     def test_exact_columns(self) -> None:
         columns = live_pitcher_curated_columns()
         expected = [
-            "ip_1",
-            "era_1",
-            "fip_1",
             "ff_velo",
             "sl_velo",
             "ch_pct",
@@ -471,6 +468,9 @@ class TestLivePitcherCuratedColumns:
             "cu_spin",
             "ch_spin",
             "sl_v_break",
+            "ip_1",
+            "era_1",
+            "fip_1",
         }
         assert columns & pruned == set()
 
@@ -630,15 +630,19 @@ class TestLiveBatterCuratedFeatureSet:
         names = [f.name for f in fs.features]
         assert "age" not in names
 
-    def test_includes_so_lag(self) -> None:
+    def test_excludes_all_lags(self) -> None:
         fs = build_live_batter_feature_set([2023])
         names = [f.name for f in fs.features]
-        assert "so_1" in names
-
-    def test_excludes_pruned_lags(self) -> None:
-        fs = build_live_batter_feature_set([2023])
-        names = [f.name for f in fs.features]
-        for pruned in ("pa_1", "hr_1", "h_1", "doubles_1", "triples_1", "bb_1", "sb_1"):
+        for pruned in (
+            "pa_1",
+            "hr_1",
+            "h_1",
+            "doubles_1",
+            "triples_1",
+            "bb_1",
+            "sb_1",
+            "so_1",
+        ):
             assert pruned not in names
 
     def test_includes_transforms(self) -> None:
@@ -685,17 +689,10 @@ class TestLivePitcherCuratedFeatureSet:
         names = [f.name for f in fs.features]
         assert "age" not in names
 
-    def test_includes_kept_lags(self) -> None:
+    def test_excludes_all_lags(self) -> None:
         fs = build_live_pitcher_feature_set([2023])
         names = [f.name for f in fs.features]
-        assert "ip_1" in names
-        assert "era_1" in names
-        assert "fip_1" in names
-
-    def test_excludes_pruned_lags(self) -> None:
-        fs = build_live_pitcher_feature_set([2023])
-        names = [f.name for f in fs.features]
-        for pruned in ("so_1", "bb_1", "hr_1"):
+        for pruned in ("so_1", "bb_1", "hr_1", "ip_1", "era_1", "fip_1"):
             assert pruned not in names
 
     def test_includes_transforms(self) -> None:

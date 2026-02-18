@@ -258,7 +258,6 @@ def pitcher_preseason_feature_columns() -> list[str]:
 
 def live_batter_curated_columns() -> list[str]:
     return [
-        "so_1",
         "avg_exit_velo",
         "max_exit_velo",
         "avg_launch_angle",
@@ -284,9 +283,6 @@ def live_batter_curated_columns() -> list[str]:
 
 def live_pitcher_curated_columns() -> list[str]:
     return [
-        "ip_1",
-        "era_1",
-        "fip_1",
         "ff_velo",
         "sl_velo",
         "ch_pct",
@@ -390,8 +386,8 @@ def preseason_pitcher_curated_columns() -> list[str]:
 # TransformFeature objects still produce all their outputs; per-output
 # pruning is handled by column lists at training/prediction time.
 
-_LIVE_BATTER_LAG_STATS = ("so",)
-_LIVE_PITCHER_LAG_STATS = ("ip", "era", "fip")
+_LIVE_BATTER_LAG_STATS: tuple[str, ...] = ()
+_LIVE_PITCHER_LAG_STATS: tuple[str, ...] = ()
 _PRESEASON_BATTER_LAG_STATS = ("pa", "doubles", "bb", "so")
 _PRESEASON_BATTER_LAG_RATE_STATS = ("avg", "obp", "slg")
 _PRESEASON_PITCHER_LAG_STATS = ("ip", "so", "bb", "era", "fip")
