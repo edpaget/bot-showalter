@@ -314,6 +314,19 @@ class TestSourceRef:
         with pytest.raises(ValueError, match="positions.*player"):
             ref.positions()
 
+    def test_pitch_clock_era_returns_feature_for_player(self) -> None:
+        ref = SourceRef(Source.PLAYER)
+        feature = ref.pitch_clock_era()
+        assert isinstance(feature, Feature)
+        assert feature.name == "pitch_clock_era"
+        assert feature.source == Source.PLAYER
+        assert feature.computed == "pitch_clock_era"
+
+    def test_pitch_clock_era_raises_for_non_player_source(self) -> None:
+        ref = SourceRef(Source.BATTING)
+        with pytest.raises(ValueError, match="pitch_clock_era.*player"):
+            ref.pitch_clock_era()
+
     def test_source_attribute(self) -> None:
         ref = SourceRef(Source.BATTING)
         assert ref.source == Source.BATTING

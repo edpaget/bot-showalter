@@ -197,6 +197,13 @@ def _raw_expr(
             [],
         )
 
+    # Computed pitch_clock_era
+    if feature.computed == "pitch_clock_era":
+        return (
+            "CASE WHEN spine.season >= 2023 THEN 1 ELSE 0 END",
+            [],
+        )
+
     # Computed positions
     if feature.computed == "positions":
         return (

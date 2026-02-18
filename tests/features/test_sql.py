@@ -260,6 +260,23 @@ class TestSelectExprAge:
         assert params == []
 
 
+class TestSelectExprPitchClockEra:
+    def test_computed_pitch_clock_era(self) -> None:
+        joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {
+            (Source.PLAYER, 0, None, None): JoinSpec(source=Source.PLAYER, lag=0, alias="p", table="player"),
+        }
+        f = Feature(name="pitch_clock_era", source=Source.PLAYER, column="", computed="pitch_clock_era")
+        sql, params = _select_expr(f, joins_dict, None)
+        assert sql == "CASE WHEN spine.season >= 2023 THEN 1 ELSE 0 END AS [pitch_clock_era]"
+        assert params == []
+
+    def test_plan_joins_includes_player_join(self) -> None:
+        features = (Feature(name="pitch_clock_era", source=Source.PLAYER, column="", computed="pitch_clock_era"),)
+        joins = _plan_joins(features)
+        assert len(joins) == 1
+        assert joins[0].source == Source.PLAYER
+
+
 class TestSelectExprPositions:
     def test_computed_positions(self) -> None:
         joins_dict: dict[tuple[Source, int, str | None, str | None], JoinSpec] = {

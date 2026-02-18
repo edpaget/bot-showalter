@@ -218,6 +218,12 @@ class SourceRef:
             raise ValueError(msg)
         return Feature(name="age", source=self.source, column="", computed="age")
 
+    def pitch_clock_era(self) -> Feature:
+        if self.source != Source.PLAYER:
+            msg = "pitch_clock_era() is only available on the player source"
+            raise ValueError(msg)
+        return Feature(name="pitch_clock_era", source=self.source, column="", computed="pitch_clock_era")
+
     def positions(self) -> Feature:
         if self.source != Source.PLAYER:
             msg = "positions() is only available on the player source"

@@ -257,7 +257,7 @@ def pitcher_preseason_feature_columns() -> list[str]:
 
 
 def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age()]
+    features: list[AnyFeature] = [player.age(), player.pitch_clock_era()]
     features.extend(_batter_lag_features())
     features.extend(
         [
@@ -277,7 +277,7 @@ def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
 
 
 def build_batter_preseason_weighted_training_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age()]
+    features: list[AnyFeature] = [player.age(), player.pitch_clock_era()]
     features.extend(_batter_lag_features())
     features.extend(
         [
@@ -364,7 +364,7 @@ def batter_preseason_averaged_feature_columns() -> list[str]:
 
 
 def build_pitcher_preseason_averaged_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age()]
+    features: list[AnyFeature] = [player.age(), player.pitch_clock_era()]
     features.extend(_pitcher_lag_features())
     features.extend(
         [
@@ -385,7 +385,7 @@ def build_pitcher_preseason_averaged_set(seasons: Sequence[int]) -> FeatureSet:
 
 
 def build_pitcher_preseason_averaged_training_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age()]
+    features: list[AnyFeature] = [player.age(), player.pitch_clock_era()]
     features.extend(_pitcher_lag_features())
     features.extend(
         [

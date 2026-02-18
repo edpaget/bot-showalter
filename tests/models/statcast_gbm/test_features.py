@@ -922,6 +922,11 @@ class TestPitcherPreseasonAveragedSet:
         for tf in transforms:
             assert tf.lags == (1, 2), f"{tf.name} should have lags=(1, 2)"
 
+    def test_includes_pitch_clock_era(self) -> None:
+        fs = build_pitcher_preseason_averaged_set([2023])
+        names = [f.name for f in fs.features]
+        assert "pitch_clock_era" in names
+
     def test_version_differs_from_single_lag(self) -> None:
         single = build_pitcher_preseason_set([2023])
         avg = build_pitcher_preseason_averaged_set([2023])
@@ -956,10 +961,9 @@ class TestPitcherPreseasonAveragedFeatureColumns:
         columns = pitcher_preseason_averaged_feature_columns()
         assert not any(c.startswith("target_") for c in columns)
 
-    def test_columns_match_single_lag(self) -> None:
-        avg_cols = pitcher_preseason_averaged_feature_columns()
-        single_cols = pitcher_preseason_feature_columns()
-        assert avg_cols == single_cols
+    def test_includes_pitch_clock_era(self) -> None:
+        columns = pitcher_preseason_averaged_feature_columns()
+        assert "pitch_clock_era" in columns
 
 
 # --- Weighted preseason batter feature-set builder tests ---
@@ -990,6 +994,11 @@ class TestBatterPreseasonWeightedSet:
         single = build_batter_preseason_set([2023])
         weighted = build_batter_preseason_weighted_set([2023])
         assert single.version != weighted.version
+
+    def test_includes_pitch_clock_era(self) -> None:
+        fs = build_batter_preseason_weighted_set([2023])
+        names = [f.name for f in fs.features]
+        assert "pitch_clock_era" in names
 
     def test_version_differs_from_pooled(self) -> None:
         pooled = build_batter_preseason_averaged_set([2023])
@@ -1027,7 +1036,6 @@ class TestBatterPreseasonWeightedFeatureColumns:
         columns = batter_preseason_weighted_feature_columns()
         assert not any(c.startswith("target_") for c in columns)
 
-    def test_columns_match_single_lag(self) -> None:
-        weighted_cols = batter_preseason_weighted_feature_columns()
-        single_cols = batter_preseason_feature_columns()
-        assert weighted_cols == single_cols
+    def test_includes_pitch_clock_era(self) -> None:
+        columns = batter_preseason_weighted_feature_columns()
+        assert "pitch_clock_era" in columns
