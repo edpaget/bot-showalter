@@ -62,7 +62,7 @@ class TestMLBTransactionsSource:
         assert source.source_type == "mlb_api"
         assert source.source_detail == "transactions"
 
-    def test_valid_json_returns_correct_dataframe(self) -> None:
+    def test_valid_json_returns_list_of_dicts(self) -> None:
         txns = [
             _make_transaction(tx_id=1, person_id=545361, description="Placed on IL"),
             _make_transaction(tx_id=2, person_id=660271, description="Activated from IL"),
@@ -71,23 +71,22 @@ class TestMLBTransactionsSource:
         client = httpx.Client(transport=FakeTransport(response))
         source = MLBTransactionsSource(client=client)
 
-        df = source.fetch(season=2024)
+        result = source.fetch(season=2024)
 
-        assert len(df) == 2
-        assert list(df.columns) == ["transaction_id", "mlbam_id", "date", "effective_date", "description"]
-        assert df.iloc[0]["transaction_id"] == 1
-        assert df.iloc[0]["mlbam_id"] == 545361
-        assert df.iloc[1]["transaction_id"] == 2
+        assert len(result) == 2
+        assert list(result[0].keys()) == ["transaction_id", "mlbam_id", "date", "effective_date", "description"]
+        assert result[0]["transaction_id"] == 1
+        assert result[0]["mlbam_id"] == 545361
+        assert result[1]["transaction_id"] == 2
 
-    def test_empty_transactions_returns_empty_dataframe(self) -> None:
+    def test_empty_transactions_returns_empty_list(self) -> None:
         response = _fake_response([])
         client = httpx.Client(transport=FakeTransport(response))
         source = MLBTransactionsSource(client=client)
 
-        df = source.fetch(season=2024)
+        result = source.fetch(season=2024)
 
-        assert len(df) == 0
-        assert list(df.columns) == ["transaction_id", "mlbam_id", "date", "effective_date", "description"]
+        assert result == []
 
     def test_transaction_without_person_is_skipped(self) -> None:
         txns = [
@@ -98,10 +97,10 @@ class TestMLBTransactionsSource:
         client = httpx.Client(transport=FakeTransport(response))
         source = MLBTransactionsSource(client=client)
 
-        df = source.fetch(season=2024)
+        result = source.fetch(season=2024)
 
-        assert len(df) == 1
-        assert df.iloc[0]["transaction_id"] == 2
+        assert len(result) == 1
+        assert result[0]["transaction_id"] == 2
 
     def test_retry_on_503_then_success(self) -> None:
         txns = [_make_transaction()]
@@ -110,9 +109,9 @@ class TestMLBTransactionsSource:
         client = httpx.Client(transport=transport)
         source = MLBTransactionsSource(client=client)
 
-        df = source.fetch(season=2024)
+        result = source.fetch(season=2024)
 
-        assert len(df) == 1
+        assert len(result) == 1
         assert transport.call_count == 3
 
     def test_exhausted_retries_raises(self) -> None:

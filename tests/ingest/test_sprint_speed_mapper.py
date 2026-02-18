@@ -1,4 +1,4 @@
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 from fantasy_baseball_manager.ingest.column_maps import make_sprint_speed_mapper
@@ -7,15 +7,13 @@ from fantasy_baseball_manager.ingest.column_maps import make_sprint_speed_mapper
 class TestSprintSpeedMapper:
     def test_maps_valid_row(self) -> None:
         mapper = make_sprint_speed_mapper(season=2024)
-        row = pd.Series(
-            {
-                "player_id": 123456,
-                "sprint_speed": 28.5,
-                "hp_to_1b": 4.2,
-                "bolts": 3,
-                "competitive_runs": 50,
-            }
-        )
+        row: dict[str, Any] = {
+            "player_id": 123456,
+            "sprint_speed": 28.5,
+            "hp_to_1b": 4.2,
+            "bolts": 3,
+            "competitive_runs": 50,
+        }
         result = mapper(row)
         assert isinstance(result, SprintSpeed)
         assert result.mlbam_id == 123456
@@ -27,26 +25,22 @@ class TestSprintSpeedMapper:
 
     def test_missing_player_id_returns_none(self) -> None:
         mapper = make_sprint_speed_mapper(season=2024)
-        row = pd.Series(
-            {
-                "player_id": float("nan"),
-                "sprint_speed": 28.5,
-            }
-        )
+        row: dict[str, Any] = {
+            "player_id": float("nan"),
+            "sprint_speed": 28.5,
+        }
         result = mapper(row)
         assert result is None
 
     def test_nan_sprint_speed(self) -> None:
         mapper = make_sprint_speed_mapper(season=2024)
-        row = pd.Series(
-            {
-                "player_id": 123456,
-                "sprint_speed": float("nan"),
-                "hp_to_1b": float("nan"),
-                "bolts": float("nan"),
-                "competitive_runs": float("nan"),
-            }
-        )
+        row: dict[str, Any] = {
+            "player_id": 123456,
+            "sprint_speed": float("nan"),
+            "hp_to_1b": float("nan"),
+            "bolts": float("nan"),
+            "competitive_runs": float("nan"),
+        }
         result = mapper(row)
         assert result is not None
         assert result.sprint_speed is None
@@ -56,12 +50,10 @@ class TestSprintSpeedMapper:
 
     def test_season_from_closure(self) -> None:
         mapper = make_sprint_speed_mapper(season=2023)
-        row = pd.Series(
-            {
-                "player_id": 123456,
-                "sprint_speed": 27.0,
-            }
-        )
+        row: dict[str, Any] = {
+            "player_id": 123456,
+            "sprint_speed": 27.0,
+        }
         result = mapper(row)
         assert result is not None
         assert result.season == 2023

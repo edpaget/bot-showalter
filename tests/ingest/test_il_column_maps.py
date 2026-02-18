@@ -1,4 +1,4 @@
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.ingest.column_maps import make_il_stint_mapper
@@ -8,15 +8,15 @@ def _make_players(*, mlbam_id: int = 545361, player_id: int = 1) -> list[Player]
     return [Player(id=player_id, name_first="Mike", name_last="Trout", mlbam_id=mlbam_id)]
 
 
-def _make_row(**overrides) -> pd.Series:
-    defaults = {
+def _make_row(**overrides: Any) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
         "transaction_id": 1,
         "mlbam_id": 545361,
         "date": "2024-05-15T00:00:00",
         "effective_date": "2024-05-15T00:00:00",
         "description": "Los Angeles Angels placed CF Mike Trout on the 15-day injured list. Left knee surgery.",
     }
-    return pd.Series({**defaults, **overrides})
+    return {**defaults, **overrides}
 
 
 class TestMakeILStintMapper:

@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 import httpx
-import pandas as pd
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 logger = logging.getLogger(__name__)
@@ -13,7 +12,6 @@ def _log_retry(retry_state: RetryCallState) -> None:
 
 
 _BASE_URL = "https://statsapi.mlb.com/api/v1/transactions"
-_COLUMNS = ["transaction_id", "mlbam_id", "date", "effective_date", "description"]
 
 
 class MLBTransactionsSource:
@@ -40,7 +38,7 @@ class MLBTransactionsSource:
         response.raise_for_status()
         return response
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         season: int = params["season"]
         logger.debug("GET %s season=%d", _BASE_URL, season)
         response = self._fetch_with_retry(
@@ -70,6 +68,6 @@ class MLBTransactionsSource:
             )
 
         if not rows:
-            return pd.DataFrame(columns=_COLUMNS)
+            return []
         logger.info("Fetched %d transaction rows for season %d", len(rows), season)
-        return pd.DataFrame(rows)
+        return rows

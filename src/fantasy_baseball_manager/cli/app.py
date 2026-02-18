@@ -2,7 +2,6 @@ import math
 from pathlib import Path
 from typing import Annotated, Any
 
-import pandas as pd
 import typer
 
 import fantasy_baseball_manager.models  # noqa: F401 — trigger model registration
@@ -985,8 +984,8 @@ def ingest_roster(
         # Auto-upsert teams first
         teams_source = container.teams_source()
         for yr in season:
-            teams_df = teams_source.fetch(season=yr)
-            for _, row in teams_df.iterrows():
+            teams_rows = teams_source.fetch(season=yr)
+            for row in teams_rows:
                 team = lahman_team_row_to_team(row)
                 if team is not None:
                     container.team_repo.upsert(team)
@@ -1012,13 +1011,13 @@ def ingest_roster(
                     continue
 
 
-def _auto_register_players(df: pd.DataFrame, container: IngestContainer) -> None:
-    """Register any players in the DataFrame that aren't already in the player table."""
-    if df.empty:
+def _auto_register_players(rows: list[dict[str, Any]], container: IngestContainer) -> None:
+    """Register any players in the rows that aren't already in the player table."""
+    if not rows:
         return
     existing_mlbam_ids = {p.mlbam_id for p in container.player_repo.all() if p.mlbam_id is not None}
     registered = 0
-    for _, row in df.iterrows():
+    for row in rows:
         mlbam_id = row.get("mlbam_id")
         if mlbam_id is None or (isinstance(mlbam_id, float) and math.isnan(mlbam_id)):
             continue
@@ -1034,10 +1033,10 @@ def _auto_register_players(df: pd.DataFrame, container: IngestContainer) -> None
 
 
 class _PreloadedSource:
-    """Wraps a pre-fetched DataFrame so StatsLoader can use it without re-fetching."""
+    """Wraps pre-fetched rows so StatsLoader can use them without re-fetching."""
 
-    def __init__(self, df: pd.DataFrame, original: object) -> None:
-        self._df = df
+    def __init__(self, rows: list[dict[str, Any]], original: object) -> None:
+        self._rows = rows
         self._source_type = getattr(original, "source_type", "unknown")
         self._source_detail = getattr(original, "source_detail", "unknown")
 
@@ -1049,8 +1048,8 @@ class _PreloadedSource:
     def source_detail(self) -> str:
         return self._source_detail
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
-        return self._df
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+        return self._rows
 
 
 _MILB_LEVELS = ["AAA", "AA", "A+", "A", "ROK"]
@@ -1068,12 +1067,12 @@ def ingest_milb_batting(
         for yr in season:
             for lvl in levels:
                 source = container.milb_batting_source()
-                df = source.fetch(season=yr, level=lvl)
-                _auto_register_players(df, container)
+                rows = source.fetch(season=yr, level=lvl)
+                _auto_register_players(rows, container)
                 players = container.player_repo.all()
                 mapper = make_milb_batting_mapper(players)
                 loader = StatsLoader(
-                    _PreloadedSource(df, source),
+                    _PreloadedSource(rows, source),
                     container.minor_league_batting_stats_repo,
                     container.log_repo,
                     mapper,

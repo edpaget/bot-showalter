@@ -1,4 +1,4 @@
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.projection import StatDistribution
@@ -21,19 +21,17 @@ def _make_row(
     key_fangraphs: int | float = 10155,
     key_bbref: str | float = "troutmi01",
     key_retro: str | float = "troum001",
-) -> pd.Series:
-    return pd.Series(
-        {
-            "name_first": name_first,
-            "name_last": name_last,
-            "key_mlbam": key_mlbam,
-            "key_fangraphs": key_fangraphs,
-            "key_bbref": key_bbref,
-            "key_retro": key_retro,
-            "mlb_played_first": 2011.0,
-            "mlb_played_last": 2024.0,
-        }
-    )
+) -> dict[str, Any]:
+    return {
+        "name_first": name_first,
+        "name_last": name_last,
+        "key_mlbam": key_mlbam,
+        "key_fangraphs": key_fangraphs,
+        "key_bbref": key_bbref,
+        "key_retro": key_retro,
+        "mlb_played_first": 2011.0,
+        "mlb_played_last": 2024.0,
+    }
 
 
 class TestChadwickRowToPlayer:
@@ -130,18 +128,16 @@ def _make_lahman_row(
     birthDay: int | float = 7,
     bats: str | float = "R",
     throws: str | float = "R",
-) -> pd.Series:
-    return pd.Series(
-        {
-            "retroID": retroID,
-            "bbrefID": "troutmi01",
-            "birthYear": birthYear,
-            "birthMonth": birthMonth,
-            "birthDay": birthDay,
-            "bats": bats,
-            "throws": throws,
-        }
-    )
+) -> dict[str, Any]:
+    return {
+        "retroID": retroID,
+        "bbrefID": "troutmi01",
+        "birthYear": birthYear,
+        "birthMonth": birthMonth,
+        "birthDay": birthDay,
+        "bats": bats,
+        "throws": throws,
+    }
 
 
 _TROUT = Player(
@@ -241,17 +237,15 @@ class TestMakeLahmanBioMapper:
 
     def test_multiple_players_lookup(self) -> None:
         mapper = make_lahman_bio_mapper([_TROUT, _OHTANI])
-        row = pd.Series(
-            {
-                "retroID": "ohtas001",
-                "bbrefID": "ohtansh01",
-                "birthYear": 1994,
-                "birthMonth": 7,
-                "birthDay": 5,
-                "bats": "L",
-                "throws": "R",
-            }
-        )
+        row: dict[str, Any] = {
+            "retroID": "ohtas001",
+            "bbrefID": "ohtansh01",
+            "birthYear": 1994,
+            "birthMonth": 7,
+            "birthDay": 5,
+            "bats": "L",
+            "throws": "R",
+        }
         result = mapper(row)
         assert result is not None
         assert result.mlbam_id == 660271
@@ -263,63 +257,64 @@ class TestExtractDistributions:
     _COLUMN_MAP: dict[str, str] = {"HR": "hr", "AVG": "avg"}
 
     def test_extracts_single_stat(self) -> None:
-        row = pd.Series({"HR": 35, "HR_p10": 20.0, "HR_p25": 25.0, "HR_p50": 33.0, "HR_p75": 40.0, "HR_p90": 48.0})
+        row: dict[str, Any] = {"HR": 35, "HR_p10": 20.0, "HR_p25": 25.0, "HR_p50": 33.0, "HR_p75": 40.0, "HR_p90": 48.0}
         result = extract_distributions(row, {"HR": "hr"})
         assert len(result) == 1
         assert result[0] == StatDistribution(stat="hr", p10=20.0, p25=25.0, p50=33.0, p75=40.0, p90=48.0)
 
     def test_extracts_multiple_stats(self) -> None:
-        row = pd.Series(
-            {
-                "HR": 35,
-                "HR_p10": 20.0,
-                "HR_p25": 25.0,
-                "HR_p50": 33.0,
-                "HR_p75": 40.0,
-                "HR_p90": 48.0,
-                "AVG": 0.300,
-                "AVG_p10": 0.260,
-                "AVG_p25": 0.275,
-                "AVG_p50": 0.300,
-                "AVG_p75": 0.320,
-                "AVG_p90": 0.340,
-            }
-        )
+        row: dict[str, Any] = {
+            "HR": 35,
+            "HR_p10": 20.0,
+            "HR_p25": 25.0,
+            "HR_p50": 33.0,
+            "HR_p75": 40.0,
+            "HR_p90": 48.0,
+            "AVG": 0.300,
+            "AVG_p10": 0.260,
+            "AVG_p25": 0.275,
+            "AVG_p50": 0.300,
+            "AVG_p75": 0.320,
+            "AVG_p90": 0.340,
+        }
         result = extract_distributions(row, self._COLUMN_MAP)
         assert len(result) == 2
         stats = {d.stat for d in result}
         assert stats == {"hr", "avg"}
 
     def test_no_percentile_columns_returns_empty(self) -> None:
-        row = pd.Series({"HR": 35, "AVG": 0.300})
+        row: dict[str, Any] = {"HR": 35, "AVG": 0.300}
         result = extract_distributions(row, self._COLUMN_MAP)
         assert result == []
 
     def test_partial_percentiles_skipped(self) -> None:
-        row = pd.Series({"HR": 35, "HR_p10": 20.0, "HR_p90": 48.0})
+        row: dict[str, Any] = {"HR": 35, "HR_p10": 20.0, "HR_p90": 48.0}
         result = extract_distributions(row, {"HR": "hr"})
         assert result == []
 
     def test_nan_percentile_skipped(self) -> None:
-        row = pd.Series(
-            {"HR": 35, "HR_p10": 20.0, "HR_p25": float("nan"), "HR_p50": 33.0, "HR_p75": 40.0, "HR_p90": 48.0}
-        )
+        row: dict[str, Any] = {
+            "HR": 35,
+            "HR_p10": 20.0,
+            "HR_p25": float("nan"),
+            "HR_p50": 33.0,
+            "HR_p75": 40.0,
+            "HR_p90": 48.0,
+        }
         result = extract_distributions(row, {"HR": "hr"})
         assert result == []
 
     def test_optional_mean_and_std(self) -> None:
-        row = pd.Series(
-            {
-                "HR": 35,
-                "HR_p10": 20.0,
-                "HR_p25": 25.0,
-                "HR_p50": 33.0,
-                "HR_p75": 40.0,
-                "HR_p90": 48.0,
-                "HR_mean": 32.5,
-                "HR_std": 8.2,
-            }
-        )
+        row: dict[str, Any] = {
+            "HR": 35,
+            "HR_p10": 20.0,
+            "HR_p25": 25.0,
+            "HR_p50": 33.0,
+            "HR_p75": 40.0,
+            "HR_p90": 48.0,
+            "HR_mean": 32.5,
+            "HR_std": 8.2,
+        }
         result = extract_distributions(row, {"HR": "hr"})
         assert len(result) == 1
         assert result[0].mean == 32.5
@@ -349,9 +344,6 @@ class TestToOptionalFloat:
     def test_string_float(self) -> None:
         assert _to_optional_float("3.14") == 3.14
 
-    def test_pandas_na_returns_none(self) -> None:
-        assert _to_optional_float(pd.NA) is None
-
 
 def _make_appearance_row(
     *,
@@ -359,8 +351,8 @@ def _make_appearance_row(
     yearID: int = 2023,
     position: str = "CF",
     games: int = 120,
-) -> pd.Series:
-    return pd.Series({"playerID": playerID, "yearID": yearID, "teamID": "LAA", "position": position, "games": games})
+) -> dict[str, Any]:
+    return {"playerID": playerID, "yearID": yearID, "teamID": "LAA", "position": position, "games": games}
 
 
 class TestMakePositionAppearanceMapper:
@@ -398,8 +390,8 @@ def _make_roster_row(
     playerID: str | float = "troutmi01",
     yearID: int = 2023,
     teamID: str | float = "LAA",
-) -> pd.Series:
-    return pd.Series({"playerID": playerID, "yearID": yearID, "teamID": teamID})
+) -> dict[str, Any]:
+    return {"playerID": playerID, "yearID": yearID, "teamID": teamID}
 
 
 class TestMakeRosterStintMapper:
@@ -445,8 +437,8 @@ def _make_team_row(
     name: str | float = "Los Angeles Angels",
     lgID: str | float = "AL",
     divID: str | float = "W",
-) -> pd.Series:
-    return pd.Series({"teamID": teamID, "name": name, "lgID": lgID, "divID": divID, "yearID": 2023})
+) -> dict[str, Any]:
+    return {"teamID": teamID, "name": name, "lgID": lgID, "divID": divID, "yearID": 2023}
 
 
 class TestLahmanTeamRowToTeam:

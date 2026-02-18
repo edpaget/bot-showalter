@@ -2,8 +2,6 @@ import math
 from collections.abc import Callable
 from typing import Any
 
-import pandas as pd
-
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.domain.minor_league_batting_stats import MinorLeagueBattingStats
@@ -33,8 +31,6 @@ def _to_optional_float(value: Any) -> float | None:
         return None
     if isinstance(value, float) and math.isnan(value):
         return None
-    if pd.isna(value):
-        return None
     return float(value)
 
 
@@ -42,8 +38,6 @@ def _to_optional_str(value: Any) -> str | None:
     if value is None:
         return None
     if isinstance(value, float) and math.isnan(value):
-        return None
-    if pd.isna(value):
         return None
     s = str(value)
     if s == "":
@@ -57,8 +51,6 @@ def _to_optional_int_stat(value: Any) -> int | None:
         return None
     if isinstance(value, float) and math.isnan(value):
         return None
-    if pd.isna(value):
-        return None
     return int(value)
 
 
@@ -70,7 +62,7 @@ def _build_fg_lookup(players: list[Player]) -> dict[int, int]:
     return lookup
 
 
-def _resolve_fg_id(fg_lookup: dict[int, int], row: pd.Series) -> int | None:
+def _resolve_fg_id(fg_lookup: dict[int, int], row: dict[str, Any]) -> int | None:
     fg_id = row["IDfg"]
     if isinstance(fg_id, float) and math.isnan(fg_id):
         return None
@@ -79,10 +71,10 @@ def _resolve_fg_id(fg_lookup: dict[int, int], row: pd.Series) -> int | None:
 
 def make_fg_batting_mapper(
     players: list[Player],
-) -> Callable[[pd.Series], BattingStats | None]:
+) -> Callable[[dict[str, Any]], BattingStats | None]:
     fg_lookup = _build_fg_lookup(players)
 
-    def mapper(row: pd.Series) -> BattingStats | None:
+    def mapper(row: dict[str, Any]) -> BattingStats | None:
         player_id = _resolve_fg_id(fg_lookup, row)
         if player_id is None:
             return None
@@ -122,10 +114,10 @@ def make_fg_batting_mapper(
 
 def make_fg_pitching_mapper(
     players: list[Player],
-) -> Callable[[pd.Series], PitchingStats | None]:
+) -> Callable[[dict[str, Any]], PitchingStats | None]:
     fg_lookup = _build_fg_lookup(players)
 
-    def mapper(row: pd.Series) -> PitchingStats | None:
+    def mapper(row: dict[str, Any]) -> PitchingStats | None:
         player_id = _resolve_fg_id(fg_lookup, row)
         if player_id is None:
             return None
@@ -166,17 +158,17 @@ def _build_mlbam_lookup(players: list[Player]) -> dict[int, int]:
     return lookup
 
 
-def _resolve_mlbam_id(mlbam_lookup: dict[int, int], row: pd.Series) -> int | None:
+def _resolve_mlbam_id(mlbam_lookup: dict[int, int], row: dict[str, Any]) -> int | None:
     mlb_id = row["mlbID"]
     if isinstance(mlb_id, float) and math.isnan(mlb_id):
         return None
     return mlbam_lookup.get(int(mlb_id))
 
 
-def make_bref_batting_mapper(players: list[Player], *, season: int) -> Callable[[pd.Series], BattingStats | None]:
+def make_bref_batting_mapper(players: list[Player], *, season: int) -> Callable[[dict[str, Any]], BattingStats | None]:
     mlbam_lookup = _build_mlbam_lookup(players)
 
-    def mapper(row: pd.Series) -> BattingStats | None:
+    def mapper(row: dict[str, Any]) -> BattingStats | None:
         player_id = _resolve_mlbam_id(mlbam_lookup, row)
         if player_id is None:
             return None
@@ -211,10 +203,12 @@ def make_bref_batting_mapper(players: list[Player], *, season: int) -> Callable[
     return mapper
 
 
-def make_bref_pitching_mapper(players: list[Player], *, season: int) -> Callable[[pd.Series], PitchingStats | None]:
+def make_bref_pitching_mapper(
+    players: list[Player], *, season: int
+) -> Callable[[dict[str, Any]], PitchingStats | None]:
     mlbam_lookup = _build_mlbam_lookup(players)
 
-    def mapper(row: pd.Series) -> PitchingStats | None:
+    def mapper(row: dict[str, Any]) -> PitchingStats | None:
         player_id = _resolve_mlbam_id(mlbam_lookup, row)
         if player_id is None:
             return None
@@ -242,7 +236,7 @@ def make_bref_pitching_mapper(players: list[Player], *, season: int) -> Callable
     return mapper
 
 
-def chadwick_row_to_player(row: pd.Series) -> Player | None:
+def chadwick_row_to_player(row: dict[str, Any]) -> Player | None:
     mlbam_id = _to_optional_int(row["key_mlbam"])
     if mlbam_id is None:
         return None
@@ -271,7 +265,7 @@ def _to_required_int(value: Any) -> int | None:
     return int(value)
 
 
-def statcast_pitch_mapper(row: pd.Series) -> StatcastPitch | None:
+def statcast_pitch_mapper(row: dict[str, Any]) -> StatcastPitch | None:
     game_pk = _to_required_int(row.get("game_pk"))
     batter_id = _to_required_int(row.get("batter"))
     pitcher_id = _to_required_int(row.get("pitcher"))
@@ -334,10 +328,10 @@ def _build_birth_date(year: int | None, month: int | None, day: int | None) -> s
 
 def make_lahman_bio_mapper(
     players: list[Player],
-) -> Callable[[pd.Series], Player | None]:
+) -> Callable[[dict[str, Any]], Player | None]:
     retro_lookup = _build_retro_lookup(players)
 
-    def mapper(row: pd.Series) -> Player | None:
+    def mapper(row: dict[str, Any]) -> Player | None:
         retro_id = _to_optional_str(row["retroID"])
         if retro_id is None:
             return None
@@ -366,7 +360,7 @@ def make_lahman_bio_mapper(
     return mapper
 
 
-def _collect_stats(row: pd.Series, column_map: dict[str, str]) -> dict[str, Any]:
+def _collect_stats(row: dict[str, Any], column_map: dict[str, str]) -> dict[str, Any]:
     """Extract stats from a row, mapping CSV columns to canonical names, skipping NaN values."""
     stats: dict[str, Any] = {}
     for csv_col, stat_name in column_map.items():
@@ -383,7 +377,7 @@ _REQUIRED_PERCENTILES: tuple[int, ...] = (10, 25, 50, 75, 90)
 
 
 def extract_distributions(
-    row: pd.Series,
+    row: dict[str, Any],
     column_map: dict[str, str],
 ) -> list[StatDistribution]:
     distributions: list[StatDistribution] = []
@@ -498,7 +492,7 @@ _FG_PITCHING_PROJECTION_COLUMNS: dict[str, str] = {
 def _resolve_fg_projection_id(
     fg_lookup: dict[int, int],
     mlbam_lookup: dict[int, int],
-    row: pd.Series,
+    row: dict[str, Any],
 ) -> int | None:
     player_id: int | None = None
     fg_id = row.get("PlayerId")
@@ -529,11 +523,11 @@ def make_fg_projection_batting_mapper(
     system: str,
     version: str,
     source_type: str = "first_party",
-) -> Callable[[pd.Series], Projection | None]:
+) -> Callable[[dict[str, Any]], Projection | None]:
     fg_lookup = _build_fg_lookup(players)
     mlbam_lookup = _build_mlbam_lookup(players)
 
-    def mapper(row: pd.Series) -> Projection | None:
+    def mapper(row: dict[str, Any]) -> Projection | None:
         player_id = _resolve_fg_projection_id(fg_lookup, mlbam_lookup, row)
         if player_id is None:
             return None
@@ -562,11 +556,11 @@ def make_fg_projection_pitching_mapper(
     system: str,
     version: str,
     source_type: str = "first_party",
-) -> Callable[[pd.Series], Projection | None]:
+) -> Callable[[dict[str, Any]], Projection | None]:
     fg_lookup = _build_fg_lookup(players)
     mlbam_lookup = _build_mlbam_lookup(players)
 
-    def mapper(row: pd.Series) -> Projection | None:
+    def mapper(row: dict[str, Any]) -> Projection | None:
         player_id = _resolve_fg_projection_id(fg_lookup, mlbam_lookup, row)
         if player_id is None:
             return None
@@ -598,10 +592,10 @@ def make_il_stint_mapper(
     players: list[Player],
     *,
     season: int,
-) -> Callable[[pd.Series], ILStint | None]:
+) -> Callable[[dict[str, Any]], ILStint | None]:
     mlbam_lookup = _build_mlbam_lookup(players)
 
-    def mapper(row: pd.Series) -> ILStint | None:
+    def mapper(row: dict[str, Any]) -> ILStint | None:
         mlb_id = row.get("mlbam_id")
         if mlb_id is None:
             return None
@@ -649,10 +643,10 @@ def _build_team_abbrev_lookup(teams: list[Team]) -> dict[str, int]:
 
 def make_position_appearance_mapper(
     players: list[Player],
-) -> Callable[[pd.Series], PositionAppearance | None]:
+) -> Callable[[dict[str, Any]], PositionAppearance | None]:
     bbref_lookup = _build_bbref_lookup(players)
 
-    def mapper(row: pd.Series) -> PositionAppearance | None:
+    def mapper(row: dict[str, Any]) -> PositionAppearance | None:
         bbref_id = _to_optional_str(row.get("playerID"))
         if bbref_id is None:
             return None
@@ -672,11 +666,11 @@ def make_position_appearance_mapper(
 def make_roster_stint_mapper(
     players: list[Player],
     teams: list[Team],
-) -> Callable[[pd.Series], RosterStint | None]:
+) -> Callable[[dict[str, Any]], RosterStint | None]:
     bbref_lookup = _build_bbref_lookup(players)
     team_lookup = _build_team_abbrev_lookup(teams)
 
-    def mapper(row: pd.Series) -> RosterStint | None:
+    def mapper(row: dict[str, Any]) -> RosterStint | None:
         bbref_id = _to_optional_str(row.get("playerID"))
         if bbref_id is None:
             return None
@@ -700,7 +694,7 @@ def make_roster_stint_mapper(
     return mapper
 
 
-def lahman_team_row_to_team(row: pd.Series) -> Team | None:
+def lahman_team_row_to_team(row: dict[str, Any]) -> Team | None:
     abbrev = _to_optional_str(row.get("teamID"))
     name = _to_optional_str(row.get("name"))
     if abbrev is None or name is None:
@@ -712,10 +706,10 @@ def lahman_team_row_to_team(row: pd.Series) -> Team | None:
 
 def make_milb_batting_mapper(
     players: list[Player],
-) -> Callable[[pd.Series], MinorLeagueBattingStats | None]:
+) -> Callable[[dict[str, Any]], MinorLeagueBattingStats | None]:
     mlbam_lookup = _build_mlbam_lookup(players)
 
-    def mapper(row: pd.Series) -> MinorLeagueBattingStats | None:
+    def mapper(row: dict[str, Any]) -> MinorLeagueBattingStats | None:
         raw_id = row["mlbam_id"]
         if isinstance(raw_id, float) and math.isnan(raw_id):
             return None
@@ -757,8 +751,8 @@ def make_milb_batting_mapper(
 def make_sprint_speed_mapper(
     *,
     season: int,
-) -> Callable[[pd.Series], SprintSpeed | None]:
-    def mapper(row: pd.Series) -> SprintSpeed | None:
+) -> Callable[[dict[str, Any]], SprintSpeed | None]:
+    def mapper(row: dict[str, Any]) -> SprintSpeed | None:
         raw_id = row.get("player_id")
         if raw_id is None:
             return None

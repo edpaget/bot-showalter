@@ -1,4 +1,4 @@
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.ingest.column_maps import (
@@ -57,37 +57,35 @@ def _fg_batting_row(
     woba: float = 0.410,
     wrc_plus: float = 170.0,
     war: float = 8.5,
-) -> pd.Series:
-    return pd.Series(
-        {
-            "IDfg": idfg,
-            "Season": season,
-            "PA": pa,
-            "AB": ab,
-            "H": h,
-            "2B": doubles,
-            "3B": triples,
-            "HR": hr,
-            "RBI": rbi,
-            "R": r,
-            "SB": sb,
-            "CS": cs,
-            "BB": bb,
-            "SO": so,
-            "HBP": hbp,
-            "SF": sf,
-            "SH": sh,
-            "GDP": gdp,
-            "IBB": ibb,
-            "AVG": avg,
-            "OBP": obp,
-            "SLG": slg,
-            "OPS": ops,
-            "wOBA": woba,
-            "wRC+": wrc_plus,
-            "WAR": war,
-        }
-    )
+) -> dict[str, Any]:
+    return {
+        "IDfg": idfg,
+        "Season": season,
+        "PA": pa,
+        "AB": ab,
+        "H": h,
+        "2B": doubles,
+        "3B": triples,
+        "HR": hr,
+        "RBI": rbi,
+        "R": r,
+        "SB": sb,
+        "CS": cs,
+        "BB": bb,
+        "SO": so,
+        "HBP": hbp,
+        "SF": sf,
+        "SH": sh,
+        "GDP": gdp,
+        "IBB": ibb,
+        "AVG": avg,
+        "OBP": obp,
+        "SLG": slg,
+        "OPS": ops,
+        "wOBA": woba,
+        "wRC+": wrc_plus,
+        "WAR": war,
+    }
 
 
 class TestFgBattingMapper:
@@ -172,8 +170,8 @@ def _fg_pitching_row(
     xfip: float = 3.25,
     war: float = 6.0,
     include_hld: bool = True,
-) -> pd.Series:
-    data: dict = {
+) -> dict[str, Any]:
+    data: dict[str, Any] = {
         "IDfg": idfg,
         "Season": season,
         "W": w,
@@ -197,7 +195,7 @@ def _fg_pitching_row(
     }
     if include_hld:
         data["HLD"] = hld
-    return pd.Series(data)
+    return data
 
 
 class TestFgPitchingMapper:
@@ -271,33 +269,31 @@ def _bref_batting_row(
     obp: float = 0.395,
     slg: float = 0.575,
     ops: float = 0.970,
-) -> pd.Series:
-    return pd.Series(
-        {
-            "mlbID": mlb_id,
-            "PA": pa,
-            "AB": ab,
-            "H": h,
-            "2B": doubles,
-            "3B": triples,
-            "HR": hr,
-            "RBI": rbi,
-            "R": r,
-            "SB": sb,
-            "CS": cs,
-            "BB": bb,
-            "SO": so,
-            "HBP": hbp,
-            "SF": sf,
-            "SH": sh,
-            "GDP": gdp,
-            "IBB": ibb,
-            "BA": ba,
-            "OBP": obp,
-            "SLG": slg,
-            "OPS": ops,
-        }
-    )
+) -> dict[str, Any]:
+    return {
+        "mlbID": mlb_id,
+        "PA": pa,
+        "AB": ab,
+        "H": h,
+        "2B": doubles,
+        "3B": triples,
+        "HR": hr,
+        "RBI": rbi,
+        "R": r,
+        "SB": sb,
+        "CS": cs,
+        "BB": bb,
+        "SO": so,
+        "HBP": hbp,
+        "SF": sf,
+        "SH": sh,
+        "GDP": gdp,
+        "IBB": ibb,
+        "BA": ba,
+        "OBP": obp,
+        "SLG": slg,
+        "OPS": ops,
+    }
 
 
 class TestBrefBattingMapper:
@@ -373,26 +369,24 @@ def _bref_pitching_row(
     ip: float = 190.1,
     whip: float = 0.97,
     so9: float = 10.4,
-) -> pd.Series:
-    return pd.Series(
-        {
-            "mlbID": mlb_id,
-            "W": w,
-            "L": losses,
-            "G": g,
-            "GS": gs,
-            "SV": sv,
-            "H": h,
-            "ER": er,
-            "HR": hr,
-            "BB": bb,
-            "SO": so,
-            "ERA": era,
-            "IP": ip,
-            "WHIP": whip,
-            "SO9": so9,
-        }
-    )
+) -> dict[str, Any]:
+    return {
+        "mlbID": mlb_id,
+        "W": w,
+        "L": losses,
+        "G": g,
+        "GS": gs,
+        "SV": sv,
+        "H": h,
+        "ER": er,
+        "HR": hr,
+        "BB": bb,
+        "SO": so,
+        "ERA": era,
+        "IP": ip,
+        "WHIP": whip,
+        "SO9": so9,
+    }
 
 
 class TestBrefPitchingMapper:

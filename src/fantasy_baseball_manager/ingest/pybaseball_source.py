@@ -1,8 +1,8 @@
 import logging
+import math
 import time
 from typing import Any
 
-import pandas as pd
 import requests
 from pybaseball import (
     batting_stats_bref,
@@ -67,7 +67,7 @@ class ChadwickSource:
         return "chadwick_register"
 
     @_network_retry
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "chadwick_register", params)
         t0 = time.perf_counter()
         try:
@@ -77,7 +77,7 @@ class ChadwickSource:
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "chadwick_register", len(df), time.perf_counter() - t0)
-        return df
+        return df.to_dict("records")
 
 
 class FgBattingSource:
@@ -90,7 +90,7 @@ class FgBattingSource:
         return "fg_batting_data"
 
     @_network_retry
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         translated = _translate_fg_params(params)
         logger.debug("Calling %s(%s)", "fg_batting_data", translated)
         t0 = time.perf_counter()
@@ -101,7 +101,7 @@ class FgBattingSource:
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "fg_batting_data", len(df), time.perf_counter() - t0)
-        return df
+        return df.to_dict("records")
 
 
 class FgPitchingSource:
@@ -114,7 +114,7 @@ class FgPitchingSource:
         return "fg_pitching_data"
 
     @_network_retry
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         translated = _translate_fg_params(params)
         logger.debug("Calling %s(%s)", "fg_pitching_data", translated)
         t0 = time.perf_counter()
@@ -125,7 +125,7 @@ class FgPitchingSource:
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "fg_pitching_data", len(df), time.perf_counter() - t0)
-        return df
+        return df.to_dict("records")
 
 
 class BrefBattingSource:
@@ -138,7 +138,7 @@ class BrefBattingSource:
         return "batting_stats_bref"
 
     @_network_retry
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "batting_stats_bref", params)
         t0 = time.perf_counter()
         try:
@@ -148,7 +148,7 @@ class BrefBattingSource:
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "batting_stats_bref", len(df), time.perf_counter() - t0)
-        return df
+        return df.to_dict("records")
 
 
 class BrefPitchingSource:
@@ -161,7 +161,7 @@ class BrefPitchingSource:
         return "pitching_stats_bref"
 
     @_network_retry
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "pitching_stats_bref", params)
         t0 = time.perf_counter()
         try:
@@ -171,7 +171,7 @@ class BrefPitchingSource:
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "pitching_stats_bref", len(df), time.perf_counter() - t0)
-        return df
+        return df.to_dict("records")
 
 
 class LahmanPeopleSource:
@@ -183,7 +183,7 @@ class LahmanPeopleSource:
     def source_detail(self) -> str:
         return "lahman_people"
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "lahman_people", params)
         t0 = time.perf_counter()
         try:
@@ -191,7 +191,7 @@ class LahmanPeopleSource:
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "lahman_people", len(df), time.perf_counter() - t0)
-        return df
+        return df.to_dict("records")
 
 
 class StatcastSource:
@@ -204,7 +204,7 @@ class StatcastSource:
         return "statcast"
 
     @_network_retry
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "statcast", params)
         t0 = time.perf_counter()
         try:
@@ -214,7 +214,7 @@ class StatcastSource:
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "statcast", len(df), time.perf_counter() - t0)
-        return df
+        return df.to_dict("records")
 
 
 class LahmanAppearancesSource:
@@ -226,7 +226,7 @@ class LahmanAppearancesSource:
     def source_detail(self) -> str:
         return "appearances"
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "Appearances", params)
         t0 = time.perf_counter()
         try:
@@ -239,7 +239,7 @@ class LahmanAppearancesSource:
         for _, row in df.iterrows():
             for col, pos in _POSITION_COLUMNS.items():
                 games = row.get(col, 0)
-                if pd.notna(games) and int(games) > 0:
+                if games is not None and not (isinstance(games, float) and math.isnan(games)) and int(games) > 0:
                     records.append(
                         {
                             "playerID": row["playerID"],
@@ -249,9 +249,8 @@ class LahmanAppearancesSource:
                             "games": int(games),
                         }
                     )
-        result = pd.DataFrame(records)
-        logger.debug("%s returned %d rows in %.1fs", "Appearances", len(result), time.perf_counter() - t0)
-        return result
+        logger.debug("%s returned %d rows in %.1fs", "Appearances", len(records), time.perf_counter() - t0)
+        return records
 
 
 class LahmanTeamsSource:
@@ -263,17 +262,18 @@ class LahmanTeamsSource:
     def source_detail(self) -> str:
         return "teams"
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "Teams", params)
         t0 = time.perf_counter()
         try:
             df = Teams()
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
+        rows = df.to_dict("records")
         if "season" in params:
-            df = df[df["yearID"] == params["season"]]
-        logger.debug("%s returned %d rows in %.1fs", "Teams", len(df), time.perf_counter() - t0)
-        return df
+            rows = [r for r in rows if r.get("yearID") == params["season"]]
+        logger.debug("%s returned %d rows in %.1fs", "Teams", len(rows), time.perf_counter() - t0)
+        return rows
 
 
 class StatcastSprintSpeedSource:
@@ -286,7 +286,7 @@ class StatcastSprintSpeedSource:
         return "statcast_sprint_speed"
 
     @_network_retry
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         year = params["year"]
         min_opp = params.get("min_opp", 10)
         logger.debug("Calling %s(year=%d, min_opp=%d)", "statcast_sprint_speed", year, min_opp)
@@ -298,4 +298,4 @@ class StatcastSprintSpeedSource:
         except Exception as exc:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "statcast_sprint_speed", len(df), time.perf_counter() - t0)
-        return df
+        return df.to_dict("records")

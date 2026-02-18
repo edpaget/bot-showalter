@@ -1,6 +1,5 @@
 import sqlite3
-
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.result import Ok
@@ -28,21 +27,17 @@ def _seed_team(conn: sqlite3.Connection) -> int:
     return repo.upsert(Team(abbreviation="LAA", name="Los Angeles Angels", league="AL", division="W"))
 
 
-def _appearance_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 82},
-            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 25},
-        ]
-    )
+def _appearance_rows() -> list[dict[str, Any]]:
+    return [
+        {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 82},
+        {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "DH", "games": 25},
+    ]
 
 
-def _roster_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA"},
-        ]
-    )
+def _roster_rows() -> list[dict[str, Any]]:
+    return [
+        {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA"},
+    ]
 
 
 class TestPositionAppearanceLoader:
@@ -51,7 +46,7 @@ class TestPositionAppearanceLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_position_appearance_mapper(players)
 
-        source = FakeDataSource(_appearance_df())
+        source = FakeDataSource(_appearance_rows())
         repo = SqlitePositionAppearanceRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
@@ -75,8 +70,8 @@ class TestPositionAppearanceLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_position_appearance_mapper(players)
 
-        df = pd.DataFrame([{"playerID": "xxxxx999", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 50}])
-        source = FakeDataSource(df)
+        rows = [{"playerID": "xxxxx999", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 50}]
+        source = FakeDataSource(rows)
         repo = SqlitePositionAppearanceRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
@@ -92,7 +87,7 @@ class TestPositionAppearanceLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_position_appearance_mapper(players)
 
-        source = FakeDataSource(_appearance_df())
+        source = FakeDataSource(_appearance_rows())
         repo = SqlitePositionAppearanceRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
@@ -112,7 +107,7 @@ class TestRosterStintLoader:
         teams = SqliteTeamRepo(conn).all()
         mapper = make_roster_stint_mapper(players, teams)
 
-        source = FakeDataSource(_roster_df())
+        source = FakeDataSource(_roster_rows())
         repo = SqliteRosterStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
@@ -137,8 +132,8 @@ class TestRosterStintLoader:
         teams = SqliteTeamRepo(conn).all()
         mapper = make_roster_stint_mapper(players, teams)
 
-        df = pd.DataFrame([{"playerID": "troutmi01", "yearID": 2023, "teamID": "NYY"}])
-        source = FakeDataSource(df)
+        rows = [{"playerID": "troutmi01", "yearID": 2023, "teamID": "NYY"}]
+        source = FakeDataSource(rows)
         repo = SqliteRosterStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
@@ -156,7 +151,7 @@ class TestRosterStintLoader:
         teams = SqliteTeamRepo(conn).all()
         mapper = make_roster_stint_mapper(players, teams)
 
-        source = FakeDataSource(_roster_df())
+        source = FakeDataSource(_roster_rows())
         repo = SqliteRosterStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "roster_stint", conn=conn)

@@ -1,8 +1,6 @@
 import sqlite3
 from typing import Any
 
-import pandas as pd
-
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_milb_batting_mapper
@@ -18,7 +16,7 @@ def _seed_player(conn: sqlite3.Connection, *, mlbam_id: int = 545361) -> int:
     return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=mlbam_id))
 
 
-def _milb_df(*overrides: dict[str, Any]) -> pd.DataFrame:
+def _milb_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
     defaults: dict[str, Any] = {
         "mlbam_id": 545361,
         "season": 2024,
@@ -46,7 +44,7 @@ def _milb_df(*overrides: dict[str, Any]) -> pd.DataFrame:
         "sf": 4,
         "sh": 1,
     }
-    return pd.DataFrame([{**defaults, **o} for o in (overrides or [{}])])
+    return [{**defaults, **o} for o in (overrides or [{}])]
 
 
 class TestMilbLoader:
@@ -55,7 +53,7 @@ class TestMilbLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_milb_batting_mapper(players)
 
-        source = FakeDataSource(_milb_df())
+        source = FakeDataSource(_milb_rows())
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
@@ -78,8 +76,8 @@ class TestMilbLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_milb_batting_mapper(players)
 
-        df = _milb_df({"mlbam_id": 999999})
-        source = FakeDataSource(df)
+        rows = _milb_rows({"mlbam_id": 999999})
+        source = FakeDataSource(rows)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
@@ -95,11 +93,11 @@ class TestMilbLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_milb_batting_mapper(players)
 
-        df = _milb_df(
+        rows = _milb_rows(
             {"level": "AA", "team": "Binghamton Rumble Ponies"},
             {"level": "AAA", "team": "Syracuse Mets"},
         )
-        source = FakeDataSource(df)
+        source = FakeDataSource(rows)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)

@@ -2,8 +2,6 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
 from fantasy_baseball_manager.db.connection import attach_database, create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain.player import Player
@@ -17,7 +15,7 @@ from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPit
 from tests.ingest.conftest import ErrorDataSource, FakeDataSource
 
 
-def _statcast_df(*overrides: dict[str, Any]) -> pd.DataFrame:
+def _statcast_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
     defaults: dict[str, Any] = {
         "game_pk": 718001,
         "game_date": "2024-06-15",
@@ -43,15 +41,15 @@ def _statcast_df(*overrides: dict[str, Any]) -> pd.DataFrame:
         "estimated_woba_using_speedangle": 0.850,
         "estimated_slg_using_speedangle": 0.750,
     }
-    return pd.DataFrame([{**defaults, **o} for o in overrides])
+    return [{**defaults, **o} for o in overrides]
 
 
 class TestStatcastLoaderIntegration:
     def test_loads_statcast_pitches_via_stats_loader(
         self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection
     ) -> None:
-        df = _statcast_df({})
-        source = FakeDataSource(df)
+        rows = _statcast_rows({})
+        source = FakeDataSource(rows)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(
@@ -72,11 +70,11 @@ class TestStatcastLoaderIntegration:
         assert results[0].batter_id == 545361
 
     def test_skips_rows_with_nan_batter(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
-        df = _statcast_df(
+        rows = _statcast_rows(
             {},
             {"batter": float("nan"), "at_bat_number": 2, "pitch_number": 1},
         )
-        source = FakeDataSource(df)
+        source = FakeDataSource(rows)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(
@@ -91,11 +89,11 @@ class TestStatcastLoaderIntegration:
     def test_skips_rows_with_missing_required_fields(
         self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection
     ) -> None:
-        df = _statcast_df(
+        rows = _statcast_rows(
             {},
             {"game_pk": float("nan"), "at_bat_number": 2, "pitch_number": 1},
         )
-        source = FakeDataSource(df)
+        source = FakeDataSource(rows)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(
@@ -110,8 +108,8 @@ class TestStatcastLoaderIntegration:
         assert log.rows_loaded == 1
         assert pitch_repo.count() == 1
 
-    def test_empty_dataframe_loads_zero_rows(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
-        source = FakeDataSource(pd.DataFrame())
+    def test_empty_list_loads_zero_rows(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
+        source = FakeDataSource([])
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(
@@ -146,8 +144,8 @@ class TestStatcastLoaderIntegration:
         assert "fetch failed" in (logs[0].error_message or "")
 
     def test_upsert_deduplicates_on_reload(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
-        df = _statcast_df({})
-        source = FakeDataSource(df)
+        rows = _statcast_rows({})
+        source = FakeDataSource(rows)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(

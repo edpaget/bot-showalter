@@ -5,8 +5,6 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
-import pandas as pd
-
 from fantasy_baseball_manager.domain.errors import IngestError
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.player import Player
@@ -24,7 +22,7 @@ class StatsLoader:
         source: DataSource,
         repo: Any,
         load_log_repo: LoadLogRepo,
-        row_mapper: Callable[[pd.Series], Any | None],
+        row_mapper: Callable[[dict[str, Any]], Any | None],
         target_table: str,
         *,
         conn: sqlite3.Connection,
@@ -44,7 +42,7 @@ class StatsLoader:
         logger.info("Loading %s from %s", self._target_table, self._source.source_detail)
 
         try:
-            df = self._source.fetch(**fetch_params)
+            rows = self._source.fetch(**fetch_params)
         except Exception as exc:
             logger.error("Fetch failed for %s: %s", self._target_table, exc)
             finished_at = datetime.now(timezone.utc).isoformat()
@@ -69,11 +67,11 @@ class StatsLoader:
                 )
             )
 
-        logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
+        logger.debug("Fetched %d rows from %s", len(rows), self._source.source_detail)
 
         rows_loaded = 0
         try:
-            for _, row in df.iterrows():
+            for row in rows:
                 mapped = self._row_mapper(row)
                 if mapped is not None:
                     self._repo.upsert(mapped)
@@ -126,7 +124,7 @@ class PlayerLoader:
         source: DataSource,
         player_repo: PlayerRepo,
         load_log_repo: LoadLogRepo,
-        row_mapper: Callable[[pd.Series], Player | None],
+        row_mapper: Callable[[dict[str, Any]], Player | None],
         *,
         conn: sqlite3.Connection,
     ) -> None:
@@ -142,7 +140,7 @@ class PlayerLoader:
         logger.info("Loading %s from %s", "player", self._source.source_detail)
 
         try:
-            df = self._source.fetch(**fetch_params)
+            rows = self._source.fetch(**fetch_params)
         except Exception as exc:
             logger.error("Fetch failed for %s: %s", "player", exc)
             finished_at = datetime.now(timezone.utc).isoformat()
@@ -167,11 +165,11 @@ class PlayerLoader:
                 )
             )
 
-        logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
+        logger.debug("Fetched %d rows from %s", len(rows), self._source.source_detail)
 
         rows_loaded = 0
         try:
-            for _, row in df.iterrows():
+            for row in rows:
                 player = self._row_mapper(row)
                 if player is not None:
                     self._player_repo.upsert(player)
@@ -224,7 +222,7 @@ class ProjectionLoader:
         source: DataSource,
         repo: ProjectionRepo,
         load_log_repo: LoadLogRepo,
-        row_mapper: Callable[[pd.Series], Projection | None],
+        row_mapper: Callable[[dict[str, Any]], Projection | None],
         *,
         conn: sqlite3.Connection,
         log_conn: sqlite3.Connection | None = None,
@@ -242,7 +240,7 @@ class ProjectionLoader:
         logger.info("Loading %s from %s", "projection", self._source.source_detail)
 
         try:
-            df = self._source.fetch(**fetch_params)
+            rows = self._source.fetch(**fetch_params)
         except Exception as exc:
             logger.error("Fetch failed for %s: %s", "projection", exc)
             finished_at = datetime.now(timezone.utc).isoformat()
@@ -267,11 +265,11 @@ class ProjectionLoader:
                 )
             )
 
-        logger.debug("Fetched %d rows from %s", len(df), self._source.source_detail)
+        logger.debug("Fetched %d rows from %s", len(rows), self._source.source_detail)
 
         rows_loaded = 0
         try:
-            for _, row in df.iterrows():
+            for row in rows:
                 projection = self._row_mapper(row)
                 if projection is None:
                     continue

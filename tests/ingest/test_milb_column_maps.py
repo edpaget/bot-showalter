@@ -1,6 +1,5 @@
 import math
-
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.domain.minor_league_batting_stats import MinorLeagueBattingStats
 from fantasy_baseball_manager.domain.player import Player
@@ -11,7 +10,7 @@ def _make_player(*, player_id: int = 1, mlbam_id: int = 545361) -> Player:
     return Player(id=player_id, name_first="Mike", name_last="Trout", mlbam_id=mlbam_id)
 
 
-def _make_row(**overrides: object) -> pd.Series:
+def _make_row(**overrides: object) -> dict[str, Any]:
     defaults: dict[str, object] = {
         "mlbam_id": 545361,
         "season": 2024,
@@ -40,7 +39,7 @@ def _make_row(**overrides: object) -> pd.Series:
         "sh": 1,
     }
     defaults.update(overrides)
-    return pd.Series(defaults)
+    return dict(defaults)
 
 
 class TestMilbBattingMapper:

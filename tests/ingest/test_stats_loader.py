@@ -1,8 +1,6 @@
 from datetime import datetime
 from typing import Any
 
-import pandas as pd
-
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
@@ -38,9 +36,9 @@ def _seed_player(
     )
 
 
-def _batting_mapper(row: pd.Series) -> BattingStats | None:
+def _batting_mapper(row: dict[str, Any]) -> BattingStats | None:
     player_id = row.get("player_id")
-    if player_id is None or (isinstance(player_id, float) and pd.isna(player_id)):
+    if player_id is None:
         return None
     return BattingStats(
         player_id=int(player_id),
@@ -49,9 +47,9 @@ def _batting_mapper(row: pd.Series) -> BattingStats | None:
     )
 
 
-def _pitching_mapper(row: pd.Series) -> PitchingStats | None:
+def _pitching_mapper(row: dict[str, Any]) -> PitchingStats | None:
     player_id = row.get("player_id")
-    if player_id is None or (isinstance(player_id, float) and pd.isna(player_id)):
+    if player_id is None:
         return None
     return PitchingStats(
         player_id=int(player_id),
@@ -60,15 +58,15 @@ def _pitching_mapper(row: pd.Series) -> PitchingStats | None:
     )
 
 
-def _batting_df(*overrides: dict[str, Any]) -> pd.DataFrame:
+def _batting_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
     defaults: dict[str, Any] = {"player_id": 1, "season": 2024}
-    return pd.DataFrame([{**defaults, **o} for o in overrides])
+    return [{**defaults, **o} for o in overrides]
 
 
 class TestStatsLoader:
     def test_loads_batting_stats_and_writes_success_log(self, conn) -> None:
         player_id = _seed_player(conn)
-        source = FakeDataSource(_batting_df({"player_id": player_id}))
+        source = FakeDataSource(_batting_rows({"player_id": player_id}))
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
@@ -89,13 +87,11 @@ class TestStatsLoader:
 
     def test_skips_rows_where_mapper_returns_none(self, conn) -> None:
         player_id = _seed_player(conn)
-        df = pd.DataFrame(
-            [
-                {"player_id": player_id, "season": 2024},
-                {"season": 2024},  # missing player_id → mapper returns None
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {"player_id": player_id, "season": 2024},
+            {"season": 2024},  # missing player_id → mapper returns None
+        ]
+        source = FakeDataSource(rows)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
@@ -123,8 +119,8 @@ class TestStatsLoader:
         assert logs[0].rows_loaded == 0
         assert "fetch failed" in (logs[0].error_message or "")
 
-    def test_empty_dataframe_loads_zero_rows(self, conn) -> None:
-        source = FakeDataSource(pd.DataFrame())
+    def test_empty_list_loads_zero_rows(self, conn) -> None:
+        source = FakeDataSource([])
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
@@ -138,7 +134,7 @@ class TestStatsLoader:
 
     def test_timestamps_are_valid_iso_strings(self, conn) -> None:
         player_id = _seed_player(conn)
-        source = FakeDataSource(_batting_df({"player_id": player_id}))
+        source = FakeDataSource(_batting_rows({"player_id": player_id}))
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
@@ -153,8 +149,8 @@ class TestStatsLoader:
 
     def test_works_with_pitching_repo(self, conn) -> None:
         player_id = _seed_player(conn)
-        df = pd.DataFrame([{"player_id": player_id, "season": 2024}])
-        source = FakeDataSource(df)
+        rows = [{"player_id": player_id, "season": 2024}]
+        source = FakeDataSource(rows)
         repo = SqlitePitchingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _pitching_mapper, "pitching_stats", conn=conn)
@@ -174,13 +170,11 @@ class TestStatsLoader:
         player_id = _seed_player(conn)
         conn.commit()
         # First row valid, second row has nonexistent player_id causing FK violation
-        df = pd.DataFrame(
-            [
-                {"player_id": player_id, "season": 2024},
-                {"player_id": 99999, "season": 2024},
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {"player_id": player_id, "season": 2024},
+            {"player_id": 99999, "season": 2024},
+        ]
+        source = FakeDataSource(rows)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
@@ -206,39 +200,37 @@ class TestStatsLoaderIntegration:
         players = player_repo.all()
         mapper = make_fg_batting_mapper(players)
 
-        df = pd.DataFrame(
-            [
-                {
-                    "IDfg": 10155,
-                    "Season": 2024,
-                    "PA": 500,
-                    "AB": 450,
-                    "H": 140,
-                    "2B": 25,
-                    "3B": 3,
-                    "HR": 30,
-                    "RBI": 85,
-                    "R": 90,
-                    "SB": 10,
-                    "CS": 2,
-                    "BB": 45,
-                    "SO": 100,
-                    "HBP": 4,
-                    "SF": 3,
-                    "SH": 0,
-                    "GDP": 8,
-                    "IBB": 5,
-                    "AVG": 0.311,
-                    "OBP": 0.390,
-                    "SLG": 0.560,
-                    "OPS": 0.950,
-                    "wOBA": 0.400,
-                    "wRC+": 160.0,
-                    "WAR": 7.0,
-                }
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {
+                "IDfg": 10155,
+                "Season": 2024,
+                "PA": 500,
+                "AB": 450,
+                "H": 140,
+                "2B": 25,
+                "3B": 3,
+                "HR": 30,
+                "RBI": 85,
+                "R": 90,
+                "SB": 10,
+                "CS": 2,
+                "BB": 45,
+                "SO": 100,
+                "HBP": 4,
+                "SF": 3,
+                "SH": 0,
+                "GDP": 8,
+                "IBB": 5,
+                "AVG": 0.311,
+                "OBP": 0.390,
+                "SLG": 0.560,
+                "OPS": 0.950,
+                "wOBA": 0.400,
+                "wRC+": 160.0,
+                "WAR": 7.0,
+            }
+        ]
+        source = FakeDataSource(rows)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
@@ -262,28 +254,26 @@ class TestStatsLoaderIntegration:
         players = player_repo.all()
         mapper = make_bref_pitching_mapper(players, season=2024)
 
-        df = pd.DataFrame(
-            [
-                {
-                    "mlbID": 545361,
-                    "W": 12,
-                    "L": 6,
-                    "G": 30,
-                    "GS": 30,
-                    "SV": 0,
-                    "H": 130,
-                    "ER": 50,
-                    "HR": 15,
-                    "BB": 40,
-                    "SO": 200,
-                    "ERA": 2.65,
-                    "IP": 185.0,
-                    "WHIP": 0.92,
-                    "SO9": 9.7,
-                }
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {
+                "mlbID": 545361,
+                "W": 12,
+                "L": 6,
+                "G": 30,
+                "GS": 30,
+                "SV": 0,
+                "H": 130,
+                "ER": 50,
+                "HR": 15,
+                "BB": 40,
+                "SO": 200,
+                "ERA": 2.65,
+                "IP": 185.0,
+                "WHIP": 0.92,
+                "SO9": 9.7,
+            }
+        ]
+        source = FakeDataSource(rows)
         repo = SqlitePitchingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "pitching_stats", conn=conn)
@@ -309,67 +299,65 @@ class TestStatsLoaderIntegration:
         players = player_repo.all()
         mapper = make_fg_batting_mapper(players)
 
-        df = pd.DataFrame(
-            [
-                {
-                    "IDfg": 10155,
-                    "Season": 2024,
-                    "PA": 500,
-                    "AB": 450,
-                    "H": 140,
-                    "2B": 25,
-                    "3B": 3,
-                    "HR": 30,
-                    "RBI": 85,
-                    "R": 90,
-                    "SB": 10,
-                    "CS": 2,
-                    "BB": 45,
-                    "SO": 100,
-                    "HBP": 4,
-                    "SF": 3,
-                    "SH": 0,
-                    "GDP": 8,
-                    "IBB": 5,
-                    "AVG": 0.311,
-                    "OBP": 0.390,
-                    "SLG": 0.560,
-                    "OPS": 0.950,
-                    "wOBA": 0.400,
-                    "wRC+": 160.0,
-                    "WAR": 7.0,
-                },
-                {
-                    "IDfg": 99999,
-                    "Season": 2024,
-                    "PA": 400,
-                    "AB": 360,
-                    "H": 100,
-                    "2B": 20,
-                    "3B": 1,
-                    "HR": 15,
-                    "RBI": 50,
-                    "R": 60,
-                    "SB": 5,
-                    "CS": 1,
-                    "BB": 30,
-                    "SO": 80,
-                    "HBP": 2,
-                    "SF": 2,
-                    "SH": 0,
-                    "GDP": 6,
-                    "IBB": 3,
-                    "AVG": 0.278,
-                    "OBP": 0.340,
-                    "SLG": 0.450,
-                    "OPS": 0.790,
-                    "wOBA": 0.330,
-                    "wRC+": 110.0,
-                    "WAR": 3.0,
-                },
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {
+                "IDfg": 10155,
+                "Season": 2024,
+                "PA": 500,
+                "AB": 450,
+                "H": 140,
+                "2B": 25,
+                "3B": 3,
+                "HR": 30,
+                "RBI": 85,
+                "R": 90,
+                "SB": 10,
+                "CS": 2,
+                "BB": 45,
+                "SO": 100,
+                "HBP": 4,
+                "SF": 3,
+                "SH": 0,
+                "GDP": 8,
+                "IBB": 5,
+                "AVG": 0.311,
+                "OBP": 0.390,
+                "SLG": 0.560,
+                "OPS": 0.950,
+                "wOBA": 0.400,
+                "wRC+": 160.0,
+                "WAR": 7.0,
+            },
+            {
+                "IDfg": 99999,
+                "Season": 2024,
+                "PA": 400,
+                "AB": 360,
+                "H": 100,
+                "2B": 20,
+                "3B": 1,
+                "HR": 15,
+                "RBI": 50,
+                "R": 60,
+                "SB": 5,
+                "CS": 1,
+                "BB": 30,
+                "SO": 80,
+                "HBP": 2,
+                "SF": 2,
+                "SH": 0,
+                "GDP": 6,
+                "IBB": 3,
+                "AVG": 0.278,
+                "OBP": 0.340,
+                "SLG": 0.450,
+                "OPS": 0.790,
+                "wOBA": 0.330,
+                "wRC+": 110.0,
+                "WAR": 3.0,
+            },
+        ]
+        source = FakeDataSource(rows)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats", conn=conn)

@@ -1,6 +1,5 @@
 from datetime import datetime
-
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.column_maps import chadwick_row_to_player
@@ -10,8 +9,8 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from tests.ingest.conftest import ErrorDataSource, FakeDataSource
 
 
-def _chadwick_df(*rows: dict) -> pd.DataFrame:
-    defaults = {
+def _chadwick_rows(*rows: dict[str, Any]) -> list[dict[str, Any]]:
+    defaults: dict[str, Any] = {
         "name_first": "Mike",
         "name_last": "Trout",
         "key_mlbam": 545361,
@@ -21,12 +20,12 @@ def _chadwick_df(*rows: dict) -> pd.DataFrame:
         "mlb_played_first": 2011.0,
         "mlb_played_last": 2024.0,
     }
-    return pd.DataFrame([{**defaults, **r} for r in rows])
+    return [{**defaults, **r} for r in rows]
 
 
 class TestPlayerLoader:
     def test_loads_players_and_writes_success_log(self, conn) -> None:
-        source = FakeDataSource(_chadwick_df({}))
+        source = FakeDataSource(_chadwick_rows({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
@@ -48,11 +47,11 @@ class TestPlayerLoader:
         assert players[0].mlbam_id == 545361
 
     def test_skips_rows_where_mapper_returns_none(self, conn) -> None:
-        df = _chadwick_df(
+        rows = _chadwick_rows(
             {},
             {"name_first": "Nobody", "key_mlbam": float("nan")},
         )
-        source = FakeDataSource(df)
+        source = FakeDataSource(rows)
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
@@ -65,7 +64,7 @@ class TestPlayerLoader:
         assert len(player_repo.all()) == 1
 
     def test_upsert_is_idempotent(self, conn) -> None:
-        source = FakeDataSource(_chadwick_df({}))
+        source = FakeDataSource(_chadwick_rows({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
@@ -93,7 +92,7 @@ class TestPlayerLoader:
         assert "fetch failed" in (logs[0].error_message or "")
 
     def test_timestamps_are_valid_iso_strings(self, conn) -> None:
-        source = FakeDataSource(_chadwick_df({}))
+        source = FakeDataSource(_chadwick_rows({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
@@ -106,8 +105,8 @@ class TestPlayerLoader:
         finished = datetime.fromisoformat(log.finished_at)
         assert started <= finished
 
-    def test_empty_dataframe_loads_zero_rows(self, conn) -> None:
-        source = FakeDataSource(pd.DataFrame())
+    def test_empty_list_loads_zero_rows(self, conn) -> None:
+        source = FakeDataSource([])
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
@@ -121,7 +120,7 @@ class TestPlayerLoader:
         assert len(player_repo.all()) == 0
 
     def test_multiple_players(self, conn) -> None:
-        df = _chadwick_df(
+        rows = _chadwick_rows(
             {
                 "name_first": "Mike",
                 "name_last": "Trout",
@@ -139,7 +138,7 @@ class TestPlayerLoader:
                 "key_retro": "ohtas001",
             },
         )
-        source = FakeDataSource(df)
+        source = FakeDataSource(rows)
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)

@@ -2,7 +2,6 @@ import sqlite3
 from collections.abc import Generator
 from typing import Any
 
-import pandas as pd
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
@@ -10,8 +9,8 @@ from fantasy_baseball_manager.db.statcast_connection import create_statcast_conn
 
 
 class FakeDataSource:
-    def __init__(self, df: pd.DataFrame) -> None:
-        self._df = df
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self._rows = rows
 
     @property
     def source_type(self) -> str:
@@ -21,8 +20,8 @@ class FakeDataSource:
     def source_detail(self) -> str:
         return "fake"
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
-        return self._df
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+        return self._rows
 
 
 class ErrorDataSource:
@@ -34,7 +33,7 @@ class ErrorDataSource:
     def source_detail(self) -> str:
         return "error"
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         raise RuntimeError("fetch failed")
 
 

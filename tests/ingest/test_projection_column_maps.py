@@ -1,6 +1,5 @@
 from collections.abc import Callable
-
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
@@ -43,32 +42,30 @@ def _fg_projection_batting_row(
     woba: float = 0.410,
     wrc_plus: float = 170.0,
     war: float = 8.5,
-) -> pd.Series:
-    return pd.Series(
-        {
-            "PlayerId": idfg,
-            "MLBAMID": mlbamid,
-            "PA": pa,
-            "AB": ab,
-            "H": h,
-            "2B": doubles,
-            "3B": triples,
-            "HR": hr,
-            "RBI": rbi,
-            "R": r,
-            "SB": sb,
-            "CS": cs,
-            "BB": bb,
-            "SO": so,
-            "AVG": avg,
-            "OBP": obp,
-            "SLG": slg,
-            "OPS": ops,
-            "wOBA": woba,
-            "wRC+": wrc_plus,
-            "WAR": war,
-        }
-    )
+) -> dict[str, Any]:
+    return {
+        "PlayerId": idfg,
+        "MLBAMID": mlbamid,
+        "PA": pa,
+        "AB": ab,
+        "H": h,
+        "2B": doubles,
+        "3B": triples,
+        "HR": hr,
+        "RBI": rbi,
+        "R": r,
+        "SB": sb,
+        "CS": cs,
+        "BB": bb,
+        "SO": so,
+        "AVG": avg,
+        "OBP": obp,
+        "SLG": slg,
+        "OPS": ops,
+        "wOBA": woba,
+        "wRC+": wrc_plus,
+        "WAR": war,
+    }
 
 
 class TestFgProjectionBattingMapper:
@@ -166,30 +163,28 @@ def _fg_projection_pitching_row(
     bb_per_9: float = 2.1,
     fip: float = 3.10,
     war: float = 6.0,
-) -> pd.Series:
-    return pd.Series(
-        {
-            "PlayerId": idfg,
-            "MLBAMID": mlbamid,
-            "W": w,
-            "L": losses,
-            "G": g,
-            "GS": gs,
-            "SV": sv,
-            "H": h,
-            "ER": er,
-            "HR": hr,
-            "BB": bb,
-            "SO": so,
-            "ERA": era,
-            "IP": ip,
-            "WHIP": whip,
-            "K/9": k_per_9,
-            "BB/9": bb_per_9,
-            "FIP": fip,
-            "WAR": war,
-        }
-    )
+) -> dict[str, Any]:
+    return {
+        "PlayerId": idfg,
+        "MLBAMID": mlbamid,
+        "W": w,
+        "L": losses,
+        "G": g,
+        "GS": gs,
+        "SV": sv,
+        "H": h,
+        "ER": er,
+        "HR": hr,
+        "BB": bb,
+        "SO": so,
+        "ERA": era,
+        "IP": ip,
+        "WHIP": whip,
+        "K/9": k_per_9,
+        "BB/9": bb_per_9,
+        "FIP": fip,
+        "WAR": war,
+    }
 
 
 class TestFgProjectionPitchingMapper:
@@ -254,7 +249,7 @@ class TestFgProjectionPitchingMapper:
 
 
 class TestResolvePlayerIdFallback:
-    def _make_mapper(self) -> Callable[[pd.Series], Projection | None]:
+    def _make_mapper(self) -> Callable[[dict[str, Any]], Projection | None]:
         return make_fg_projection_batting_mapper([_trout()], season=2025, system="steamer", version="2025.1")
 
     def test_numeric_fg_id_resolves(self) -> None:

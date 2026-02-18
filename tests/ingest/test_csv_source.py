@@ -22,27 +22,27 @@ class TestCsvSource:
         csv_file.write_text("a,b\n1,2\n")
         assert CsvSource(csv_file).source_detail == str(csv_file)
 
-    def test_reads_csv_into_dataframe(self, tmp_path: Path) -> None:
+    def test_reads_csv_into_list_of_dicts(self, tmp_path: Path) -> None:
         csv_file = tmp_path / "test.csv"
         csv_file.write_text("name,age\nAlice,30\nBob,25\n")
         source = CsvSource(csv_file)
 
-        df = source.fetch()
+        rows = source.fetch()
 
-        assert list(df.columns) == ["name", "age"]
-        assert len(df) == 2
-        assert df.iloc[0]["name"] == "Alice"
-        assert df.iloc[1]["age"] == 25
+        assert len(rows) == 2
+        assert list(rows[0].keys()) == ["name", "age"]
+        assert rows[0]["name"] == "Alice"
+        assert rows[1]["age"] == "25"  # csv.DictReader returns strings
 
-    def test_passes_params_to_read_csv(self, tmp_path: Path) -> None:
+    def test_passes_params_to_reader(self, tmp_path: Path) -> None:
         csv_file = tmp_path / "test.tsv"
         csv_file.write_text("name\tage\nAlice\t30\n")
         source = CsvSource(csv_file)
 
-        df = source.fetch(sep="\t")
+        rows = source.fetch(sep="\t")
 
-        assert list(df.columns) == ["name", "age"]
-        assert len(df) == 1
+        assert list(rows[0].keys()) == ["name", "age"]
+        assert len(rows) == 1
 
     def test_nonexistent_file_raises(self) -> None:
         source = CsvSource("/nonexistent/file.csv")
@@ -54,5 +54,5 @@ class TestCsvSource:
         csv_file.write_text("a,b\n1,2\n")
         source = CsvSource(str(csv_file))
 
-        df = source.fetch()
-        assert len(df) == 1
+        rows = source.fetch()
+        assert len(rows) == 1

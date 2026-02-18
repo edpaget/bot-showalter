@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 import httpx
-import pandas as pd
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 logger = logging.getLogger(__name__)
@@ -21,36 +20,6 @@ _SPORT_IDS: dict[str, int] = {
     "A": 14,
     "ROK": 16,
 }
-
-_COLUMNS = [
-    "mlbam_id",
-    "season",
-    "level",
-    "league",
-    "team",
-    "g",
-    "pa",
-    "ab",
-    "h",
-    "doubles",
-    "triples",
-    "hr",
-    "r",
-    "rbi",
-    "bb",
-    "so",
-    "sb",
-    "cs",
-    "avg",
-    "obp",
-    "slg",
-    "age",
-    "hbp",
-    "sf",
-    "sh",
-    "first_name",
-    "last_name",
-]
 
 
 class MLBMinorLeagueBattingSource:
@@ -77,7 +46,7 @@ class MLBMinorLeagueBattingSource:
         response.raise_for_status()
         return response
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
         season: int = params["season"]
         level: str = params["level"]
         sport_id = _SPORT_IDS[level]
@@ -137,6 +106,6 @@ class MLBMinorLeagueBattingSource:
                 )
 
         if not rows:
-            return pd.DataFrame(columns=_COLUMNS)
+            return []
         logger.info("Fetched %d MiLB batting rows for %s %d", len(rows), level, season)
-        return pd.DataFrame(rows)
+        return rows

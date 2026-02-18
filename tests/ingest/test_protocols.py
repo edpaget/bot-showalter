@@ -1,7 +1,5 @@
 from typing import Any
 
-import pandas as pd
-
 from fantasy_baseball_manager.ingest.protocols import DataSource
 
 
@@ -14,8 +12,8 @@ class FakeSource:
     def source_detail(self) -> str:
         return "fake"
 
-    def fetch(self, **params: Any) -> pd.DataFrame:
-        return pd.DataFrame()
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+        return []
 
 
 class TestDataSourceProtocol:

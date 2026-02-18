@@ -1,7 +1,5 @@
 from typing import Any
 
-import pandas as pd
-
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_il_stint_mapper
@@ -17,7 +15,7 @@ def _seed_player(conn, *, mlbam_id: int = 545361) -> int:
     return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=mlbam_id))
 
 
-def _il_df(*overrides: dict[str, Any]) -> pd.DataFrame:
+def _il_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
     defaults: dict[str, Any] = {
         "transaction_id": 1,
         "mlbam_id": 545361,
@@ -25,7 +23,7 @@ def _il_df(*overrides: dict[str, Any]) -> pd.DataFrame:
         "effective_date": "2024-05-15T00:00:00",
         "description": "Los Angeles Angels placed CF Mike Trout on the 15-day injured list. Left knee meniscus tear.",
     }
-    return pd.DataFrame([{**defaults, **o} for o in (overrides or [{}])])
+    return [{**defaults, **o} for o in (overrides or [{}])]
 
 
 class TestILStintLoader:
@@ -34,26 +32,24 @@ class TestILStintLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
-        df = pd.DataFrame(
-            [
-                {
-                    "transaction_id": 1,
-                    "mlbam_id": 545361,
-                    "date": "2024-05-15T00:00:00",
-                    "effective_date": "2024-05-15T00:00:00",
-                    "description": "Los Angeles Angels placed CF Mike Trout on the 15-day injured list."
-                    " Left knee meniscus tear.",
-                },
-                {
-                    "transaction_id": 2,
-                    "mlbam_id": 545361,
-                    "date": "2024-06-01T00:00:00",
-                    "effective_date": "2024-06-01T00:00:00",
-                    "description": "Los Angeles Angels activated CF Mike Trout from the 15-day injured list.",
-                },
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {
+                "transaction_id": 1,
+                "mlbam_id": 545361,
+                "date": "2024-05-15T00:00:00",
+                "effective_date": "2024-05-15T00:00:00",
+                "description": "Los Angeles Angels placed CF Mike Trout on the 15-day injured list."
+                " Left knee meniscus tear.",
+            },
+            {
+                "transaction_id": 2,
+                "mlbam_id": 545361,
+                "date": "2024-06-01T00:00:00",
+                "effective_date": "2024-06-01T00:00:00",
+                "description": "Los Angeles Angels activated CF Mike Trout from the 15-day injured list.",
+            },
+        ]
+        source = FakeDataSource(rows)
         repo = SqliteILStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
@@ -76,26 +72,23 @@ class TestILStintLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
-        df = pd.DataFrame(
-            [
-                {
-                    "transaction_id": 1,
-                    "mlbam_id": 545361,
-                    "date": "2024-05-15T00:00:00",
-                    "effective_date": "2024-05-15T00:00:00",
-                    "description": "Los Angeles Angels placed CF Mike Trout on the paternity list.",
-                },
-                {
-                    "transaction_id": 2,
-                    "mlbam_id": 545361,
-                    "date": "2024-06-01T00:00:00",
-                    "effective_date": "2024-06-01T00:00:00",
-                    "description": "Los Angeles Angels placed CF Mike Trout on the 15-day injured list."
-                    " Left knee surgery.",
-                },
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {
+                "transaction_id": 1,
+                "mlbam_id": 545361,
+                "date": "2024-05-15T00:00:00",
+                "effective_date": "2024-05-15T00:00:00",
+                "description": "Los Angeles Angels placed CF Mike Trout on the paternity list.",
+            },
+            {
+                "transaction_id": 2,
+                "mlbam_id": 545361,
+                "date": "2024-06-01T00:00:00",
+                "effective_date": "2024-06-01T00:00:00",
+                "description": "Los Angeles Angels placed CF Mike Trout on the 15-day injured list. Left knee surgery.",
+            },
+        ]
+        source = FakeDataSource(rows)
         repo = SqliteILStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
@@ -111,18 +104,16 @@ class TestILStintLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
-        df = pd.DataFrame(
-            [
-                {
-                    "transaction_id": 1,
-                    "mlbam_id": 999999,
-                    "date": "2024-05-15T00:00:00",
-                    "effective_date": "2024-05-15T00:00:00",
-                    "description": "Team placed LHP Unknown Player on the 15-day injured list. Shoulder strain.",
-                },
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {
+                "transaction_id": 1,
+                "mlbam_id": 999999,
+                "date": "2024-05-15T00:00:00",
+                "effective_date": "2024-05-15T00:00:00",
+                "description": "Team placed LHP Unknown Player on the 15-day injured list. Shoulder strain.",
+            },
+        ]
+        source = FakeDataSource(rows)
         repo = SqliteILStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
@@ -138,8 +129,8 @@ class TestILStintLoader:
         players = SqlitePlayerRepo(conn).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
-        df = _il_df()
-        source = FakeDataSource(df)
+        rows = _il_rows()
+        source = FakeDataSource(rows)
         repo = SqliteILStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
 

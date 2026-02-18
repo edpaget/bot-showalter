@@ -1,10 +1,10 @@
-import pandas as pd
+from typing import Any
 
 from fantasy_baseball_manager.ingest.column_maps import statcast_pitch_mapper
 
 
-def _make_row(**overrides) -> pd.Series:
-    defaults = {
+def _make_row(**overrides: Any) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
         "game_pk": 718001,
         "game_date": "2024-06-15",
         "batter": 545361,
@@ -33,7 +33,7 @@ def _make_row(**overrides) -> pd.Series:
         "stand": "R",
         "release_extension": 6.3,
     }
-    return pd.Series({**defaults, **overrides})
+    return {**defaults, **overrides}
 
 
 class TestStatcastPitchMapper:
@@ -118,16 +118,14 @@ class TestStatcastPitchMapper:
         assert result.description == "hit_into_play"
 
     def test_missing_optional_columns(self) -> None:
-        row = pd.Series(
-            {
-                "game_pk": 718001,
-                "game_date": "2024-06-15",
-                "batter": 545361,
-                "pitcher": 477132,
-                "at_bat_number": 1,
-                "pitch_number": 1,
-            }
-        )
+        row: dict[str, Any] = {
+            "game_pk": 718001,
+            "game_date": "2024-06-15",
+            "batter": 545361,
+            "pitcher": 477132,
+            "at_bat_number": 1,
+            "pitch_number": 1,
+        }
         result = statcast_pitch_mapper(row)
         assert result is not None
         assert result.pitch_type is None

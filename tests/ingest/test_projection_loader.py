@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
+from typing import Any
 
-import pandas as pd
 import pytest
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
@@ -31,34 +31,32 @@ def _seed_player(conn: sqlite3.Connection) -> int:
     return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))
 
 
-def _batting_projection_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {
-                "PlayerId": 10155,
-                "MLBAMID": 545361,
-                "PA": 600,
-                "AB": 530,
-                "H": 160,
-                "2B": 30,
-                "3B": 5,
-                "HR": 35,
-                "RBI": 90,
-                "R": 100,
-                "SB": 15,
-                "CS": 3,
-                "BB": 60,
-                "SO": 120,
-                "AVG": 0.302,
-                "OBP": 0.395,
-                "SLG": 0.575,
-                "OPS": 0.970,
-                "wOBA": 0.410,
-                "wRC+": 170.0,
-                "WAR": 8.5,
-            }
-        ]
-    )
+def _batting_projection_rows() -> list[dict[str, Any]]:
+    return [
+        {
+            "PlayerId": 10155,
+            "MLBAMID": 545361,
+            "PA": 600,
+            "AB": 530,
+            "H": 160,
+            "2B": 30,
+            "3B": 5,
+            "HR": 35,
+            "RBI": 90,
+            "R": 100,
+            "SB": 15,
+            "CS": 3,
+            "BB": 60,
+            "SO": 120,
+            "AVG": 0.302,
+            "OBP": 0.395,
+            "SLG": 0.575,
+            "OPS": 0.970,
+            "wOBA": 0.410,
+            "wRC+": 170.0,
+            "WAR": 8.5,
+        }
+    ]
 
 
 class TestProjectionLoaderIntegration:
@@ -67,7 +65,7 @@ class TestProjectionLoaderIntegration:
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
-        source = FakeDataSource(_batting_projection_df())
+        source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
@@ -91,32 +89,30 @@ class TestProjectionLoaderIntegration:
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_pitching_mapper(players, season=2025, system="zips", version="2025.1")
-        df = pd.DataFrame(
-            [
-                {
-                    "PlayerId": 10155,
-                    "MLBAMID": 545361,
-                    "W": 12,
-                    "L": 6,
-                    "G": 30,
-                    "GS": 30,
-                    "SV": 0,
-                    "H": 130,
-                    "ER": 50,
-                    "HR": 15,
-                    "BB": 40,
-                    "SO": 200,
-                    "ERA": 2.65,
-                    "IP": 185.0,
-                    "WHIP": 0.92,
-                    "K/9": 9.7,
-                    "BB/9": 1.9,
-                    "FIP": 2.80,
-                    "WAR": 6.5,
-                }
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {
+                "PlayerId": 10155,
+                "MLBAMID": 545361,
+                "W": 12,
+                "L": 6,
+                "G": 30,
+                "GS": 30,
+                "SV": 0,
+                "H": 130,
+                "ER": 50,
+                "HR": 15,
+                "BB": 40,
+                "SO": 200,
+                "ERA": 2.65,
+                "IP": 185.0,
+                "WHIP": 0.92,
+                "K/9": 9.7,
+                "BB/9": 1.9,
+                "FIP": 2.80,
+                "WAR": 6.5,
+            }
+        ]
+        source = FakeDataSource(rows)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
@@ -164,13 +160,11 @@ class TestProjectionLoaderIntegration:
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
-        df = pd.DataFrame(
-            [
-                {"PlayerId": 10155, "MLBAMID": 545361, "HR": 35, "AVG": 0.302},
-                {"PlayerId": 99999, "MLBAMID": 999999, "HR": 20, "AVG": 0.250},
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {"PlayerId": 10155, "MLBAMID": 545361, "HR": 35, "AVG": 0.302},
+            {"PlayerId": 99999, "MLBAMID": 999999, "HR": 20, "AVG": 0.250},
+        ]
+        source = FakeDataSource(rows)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
@@ -186,7 +180,7 @@ class TestProjectionLoaderIntegration:
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
-        source = FakeDataSource(_batting_projection_df())
+        source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
@@ -208,7 +202,7 @@ class TestProjectionLoaderIntegration:
             version="2025.1",
             source_type="third_party",
         )
-        source = FakeDataSource(_batting_projection_df())
+        source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
@@ -233,7 +227,7 @@ class TestProjectionVsActuals:
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
-        source = FakeDataSource(_batting_projection_df())
+        source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
@@ -280,32 +274,30 @@ class TestProjectionVsActuals:
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_pitching_mapper(players, season=2025, system="steamer", version="2025.1")
-        df = pd.DataFrame(
-            [
-                {
-                    "PlayerId": 10155,
-                    "MLBAMID": 545361,
-                    "W": 12,
-                    "L": 6,
-                    "ERA": 3.00,
-                    "SO": 200,
-                    "IP": 180.0,
-                    "WAR": 5.0,
-                    "G": 30,
-                    "GS": 30,
-                    "SV": 0,
-                    "H": 130,
-                    "ER": 50,
-                    "HR": 15,
-                    "BB": 40,
-                    "WHIP": 0.95,
-                    "K/9": 10.0,
-                    "BB/9": 2.0,
-                    "FIP": 2.90,
-                }
-            ]
-        )
-        source = FakeDataSource(df)
+        rows = [
+            {
+                "PlayerId": 10155,
+                "MLBAMID": 545361,
+                "W": 12,
+                "L": 6,
+                "ERA": 3.00,
+                "SO": 200,
+                "IP": 180.0,
+                "WAR": 5.0,
+                "G": 30,
+                "GS": 30,
+                "SV": 0,
+                "H": 130,
+                "ER": 50,
+                "HR": 15,
+                "BB": 40,
+                "WHIP": 0.95,
+                "K/9": 10.0,
+                "BB/9": 2.0,
+                "FIP": 2.90,
+            }
+        ]
+        source = FakeDataSource(rows)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
@@ -340,44 +332,42 @@ class TestProjectionVsActuals:
         assert by_stat["so"].error == 20.0
 
 
-def _batting_projection_with_distributions_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {
-                "PlayerId": 10155,
-                "MLBAMID": 545361,
-                "PA": 600,
-                "AB": 530,
-                "H": 160,
-                "2B": 30,
-                "3B": 5,
-                "HR": 35,
-                "RBI": 90,
-                "R": 100,
-                "SB": 15,
-                "CS": 3,
-                "BB": 60,
-                "SO": 120,
-                "AVG": 0.302,
-                "OBP": 0.395,
-                "SLG": 0.575,
-                "OPS": 0.970,
-                "wOBA": 0.410,
-                "wRC+": 170.0,
-                "WAR": 8.5,
-                "HR_p10": 20.0,
-                "HR_p25": 25.0,
-                "HR_p50": 33.0,
-                "HR_p75": 40.0,
-                "HR_p90": 48.0,
-                "AVG_p10": 0.260,
-                "AVG_p25": 0.275,
-                "AVG_p50": 0.300,
-                "AVG_p75": 0.320,
-                "AVG_p90": 0.340,
-            }
-        ]
-    )
+def _batting_projection_with_distributions_rows() -> list[dict[str, Any]]:
+    return [
+        {
+            "PlayerId": 10155,
+            "MLBAMID": 545361,
+            "PA": 600,
+            "AB": 530,
+            "H": 160,
+            "2B": 30,
+            "3B": 5,
+            "HR": 35,
+            "RBI": 90,
+            "R": 100,
+            "SB": 15,
+            "CS": 3,
+            "BB": 60,
+            "SO": 120,
+            "AVG": 0.302,
+            "OBP": 0.395,
+            "SLG": 0.575,
+            "OPS": 0.970,
+            "wOBA": 0.410,
+            "wRC+": 170.0,
+            "WAR": 8.5,
+            "HR_p10": 20.0,
+            "HR_p25": 25.0,
+            "HR_p50": 33.0,
+            "HR_p75": 40.0,
+            "HR_p90": 48.0,
+            "AVG_p10": 0.260,
+            "AVG_p25": 0.275,
+            "AVG_p50": 0.300,
+            "AVG_p75": 0.320,
+            "AVG_p90": 0.340,
+        }
+    ]
 
 
 class TestProjectionLoaderIntegrationWithDistributions:
@@ -388,7 +378,7 @@ class TestProjectionLoaderIntegrationWithDistributions:
         mapper = make_fg_projection_batting_mapper(
             players, season=2025, system="pecota", version="2025.1", source_type="third_party"
         )
-        source = FakeDataSource(_batting_projection_with_distributions_df())
+        source = FakeDataSource(_batting_projection_with_distributions_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = ProjectionLoader(source, proj_repo, log_repo, mapper, conn=conn)
@@ -419,7 +409,7 @@ class TestProjectionLoaderIntegrationWithDistributions:
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
-        source = FakeDataSource(_batting_projection_df())
+        source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
         loader = ProjectionLoader(source, proj_repo, log_repo, mapper, conn=conn)

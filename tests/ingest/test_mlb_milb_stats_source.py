@@ -92,7 +92,7 @@ class TestMLBMinorLeagueBattingSource:
         assert source.source_type == "mlb_api"
         assert source.source_detail == "milb_batting"
 
-    def test_valid_json_returns_dataframe(self) -> None:
+    def test_valid_json_returns_list_of_dicts(self) -> None:
         splits = [
             _make_player_stat(player_id=545361, first_name="Mike", last_name="Trout"),
             _make_player_stat(player_id=660271, first_name="Shohei", last_name="Ohtani"),
@@ -101,42 +101,38 @@ class TestMLBMinorLeagueBattingSource:
         client = httpx.Client(transport=FakeTransport(response))
         source = MLBMinorLeagueBattingSource(client=client)
 
-        df = source.fetch(season=2024, level="AAA")
+        result = source.fetch(season=2024, level="AAA")
 
-        assert len(df) == 2
-        assert df.iloc[0]["mlbam_id"] == 545361
-        assert df.iloc[1]["mlbam_id"] == 660271
-        assert df.iloc[0]["g"] == 120
-        assert df.iloc[0]["pa"] == 500
-        assert df.iloc[0]["hr"] == 18
-        assert df.iloc[0]["avg"] == pytest.approx(0.289)
-        assert df.iloc[0]["obp"] == pytest.approx(0.350)
-        assert df.iloc[0]["slg"] == pytest.approx(0.480)
-        assert df.iloc[0]["season"] == 2024
-        assert df.iloc[0]["level"] == "AAA"
-        assert df.iloc[0]["league"] == "International League"
-        assert df.iloc[0]["team"] == "Syracuse Mets"
-        assert df.iloc[0]["age"] == 24
-        assert df.iloc[0]["hbp"] == 8
-        assert df.iloc[0]["sf"] == 4
-        assert df.iloc[0]["sh"] == 1
-        assert df.iloc[0]["first_name"] == "Mike"
-        assert df.iloc[0]["last_name"] == "Trout"
-        assert df.iloc[1]["first_name"] == "Shohei"
-        assert df.iloc[1]["last_name"] == "Ohtani"
+        assert len(result) == 2
+        assert result[0]["mlbam_id"] == 545361
+        assert result[1]["mlbam_id"] == 660271
+        assert result[0]["g"] == 120
+        assert result[0]["pa"] == 500
+        assert result[0]["hr"] == 18
+        assert result[0]["avg"] == pytest.approx(0.289)
+        assert result[0]["obp"] == pytest.approx(0.350)
+        assert result[0]["slg"] == pytest.approx(0.480)
+        assert result[0]["season"] == 2024
+        assert result[0]["level"] == "AAA"
+        assert result[0]["league"] == "International League"
+        assert result[0]["team"] == "Syracuse Mets"
+        assert result[0]["age"] == 24
+        assert result[0]["hbp"] == 8
+        assert result[0]["sf"] == 4
+        assert result[0]["sh"] == 1
+        assert result[0]["first_name"] == "Mike"
+        assert result[0]["last_name"] == "Trout"
+        assert result[1]["first_name"] == "Shohei"
+        assert result[1]["last_name"] == "Ohtani"
 
-    def test_empty_response_returns_empty_dataframe(self) -> None:
+    def test_empty_response_returns_empty_list(self) -> None:
         response = _fake_api_response([])
         client = httpx.Client(transport=FakeTransport(response))
         source = MLBMinorLeagueBattingSource(client=client)
 
-        df = source.fetch(season=2024, level="AAA")
+        result = source.fetch(season=2024, level="AAA")
 
-        assert len(df) == 0
-        assert "mlbam_id" in df.columns
-        assert "hr" in df.columns
-        assert "first_name" in df.columns
-        assert "last_name" in df.columns
+        assert result == []
 
     def test_http_error_raises(self) -> None:
         response = httpx.Response(500, content=b"Internal Server Error")
@@ -153,9 +149,9 @@ class TestMLBMinorLeagueBattingSource:
         client = httpx.Client(transport=transport)
         source = MLBMinorLeagueBattingSource(client=client)
 
-        df = source.fetch(season=2024, level="AAA")
+        result = source.fetch(season=2024, level="AAA")
 
-        assert len(df) == 1
+        assert len(result) == 1
         assert transport.call_count == 3
 
     def test_exhausted_retries_raises(self) -> None:
