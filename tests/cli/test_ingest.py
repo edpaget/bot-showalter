@@ -286,7 +286,7 @@ class TestIngestBatting:
         _seed_players(conn)
 
         batting_rows = _make_fg_batting_rows()
-        fake_source = _FakeSource(batting_rows, "pybaseball", "fg_batting_data")
+        fake_source = _FakeSource(batting_rows, "fangraphs", "batting")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",
@@ -312,7 +312,7 @@ class TestIngestBatting:
         _seed_players(conn)
 
         batting_rows = _make_fg_batting_rows()
-        fake_source = _FakeSource(batting_rows, "pybaseball", "fg_batting_data")
+        fake_source = _FakeSource(batting_rows, "fangraphs", "batting")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",
@@ -362,7 +362,7 @@ class TestIngestPitching:
         _seed_players(conn)
 
         pitching_rows = _make_fg_pitching_rows()
-        fake_source = _FakeSource(pitching_rows, "pybaseball", "fg_pitching_data")
+        fake_source = _FakeSource(pitching_rows, "fangraphs", "pitching")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",
@@ -388,7 +388,7 @@ class TestIngestPitching:
         _seed_players(conn)
 
         pitching_rows = _make_fg_pitching_rows()
-        fake_source = _FakeSource(pitching_rows, "pybaseball", "fg_pitching_data")
+        fake_source = _FakeSource(pitching_rows, "fangraphs", "pitching")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",

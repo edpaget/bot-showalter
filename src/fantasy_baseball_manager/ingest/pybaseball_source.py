@@ -6,8 +6,6 @@ from typing import Any
 import requests
 from pybaseball import (
     batting_stats_bref,
-    fg_batting_data,
-    fg_pitching_data,
     pitching_stats_bref,
 )
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_fixed
@@ -28,80 +26,6 @@ _network_retry = retry(
     before_sleep=_log_retry,
     reraise=True,
 )
-
-
-def _translate_fg_params(params: dict[str, Any]) -> dict[str, Any]:
-    """Translate canonical ``season`` kwarg to FanGraphs ``start_season``/``end_season``."""
-    if "season" in params:
-        yr = params.pop("season")
-        params.setdefault("start_season", yr)
-        params.setdefault("end_season", yr)
-    params.setdefault("qual", 0)
-    return params
-
-
-class FgBattingSource:
-    def __init__(
-        self,
-        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _network_retry,
-    ) -> None:
-        self._retrying_fetch = retry(self._do_fetch)
-
-    @property
-    def source_type(self) -> str:
-        return "pybaseball"
-
-    @property
-    def source_detail(self) -> str:
-        return "fg_batting_data"
-
-    def _do_fetch(self, **params: Any) -> list[dict[str, Any]]:
-        translated = _translate_fg_params(params)
-        logger.debug("Calling %s(%s)", "fg_batting_data", translated)
-        t0 = time.perf_counter()
-        try:
-            df = fg_batting_data(**translated)
-        except _NETWORK_ERRORS:
-            raise
-        except Exception as exc:
-            raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
-        logger.debug("%s returned %d rows in %.1fs", "fg_batting_data", len(df), time.perf_counter() - t0)
-        return df.to_dict("records")
-
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        return self._retrying_fetch(**params)
-
-
-class FgPitchingSource:
-    def __init__(
-        self,
-        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _network_retry,
-    ) -> None:
-        self._retrying_fetch = retry(self._do_fetch)
-
-    @property
-    def source_type(self) -> str:
-        return "pybaseball"
-
-    @property
-    def source_detail(self) -> str:
-        return "fg_pitching_data"
-
-    def _do_fetch(self, **params: Any) -> list[dict[str, Any]]:
-        translated = _translate_fg_params(params)
-        logger.debug("Calling %s(%s)", "fg_pitching_data", translated)
-        t0 = time.perf_counter()
-        try:
-            df = fg_pitching_data(**translated)
-        except _NETWORK_ERRORS:
-            raise
-        except Exception as exc:
-            raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
-        logger.debug("%s returned %d rows in %.1fs", "fg_pitching_data", len(df), time.perf_counter() - t0)
-        return df.to_dict("records")
-
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        return self._retrying_fetch(**params)
 
 
 class BrefBattingSource:

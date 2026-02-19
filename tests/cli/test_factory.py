@@ -316,7 +316,8 @@ class TestIngestContainer:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)
         source = container.batting_source("fangraphs")
-        assert source.source_detail == "fg_batting_data"
+        assert source.source_type == "fangraphs"
+        assert source.source_detail == "batting"
         conn.close()
 
     def test_batting_source_bbref(self) -> None:
@@ -337,7 +338,8 @@ class TestIngestContainer:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)
         source = container.pitching_source("fangraphs")
-        assert source.source_detail == "fg_pitching_data"
+        assert source.source_type == "fangraphs"
+        assert source.source_detail == "pitching"
         conn.close()
 
     def test_pitching_source_bbref(self) -> None:

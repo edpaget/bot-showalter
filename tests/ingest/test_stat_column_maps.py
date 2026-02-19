@@ -145,6 +145,46 @@ class TestFgBattingMapper:
         assert result is not None
         assert result.player_id == 2
 
+    def test_json_api_response_format(self) -> None:
+        """Verify mapper works with JSON API native types (int/float, not strings)."""
+        mapper = make_fg_batting_mapper([_trout()])
+        row: dict[str, Any] = {
+            "IDfg": 10155,
+            "Season": 2024,
+            "PA": 600,
+            "AB": 530,
+            "H": 160,
+            "2B": 30,
+            "3B": 5,
+            "HR": 35,
+            "RBI": 90,
+            "R": 100,
+            "SB": 15,
+            "CS": 3,
+            "BB": 60,
+            "SO": 120,
+            "HBP": 5,
+            "SF": 4,
+            "SH": 1,
+            "GDP": 10,
+            "IBB": 8,
+            "AVG": 0.302,
+            "OBP": 0.395,
+            "SLG": 0.575,
+            "OPS": 0.970,
+            "wOBA": 0.410,
+            "wRC+": 170.0,
+            "WAR": 8.5,
+        }
+        result = mapper(row)
+        assert result is not None
+        assert result.player_id == 1
+        assert result.season == 2024
+        assert result.pa == 600
+        assert result.hr == 35
+        assert result.avg == 0.302
+        assert result.wrc_plus == 170.0
+
 
 def _fg_pitching_row(
     *,
@@ -243,6 +283,41 @@ class TestFgPitchingMapper:
         result = mapper(_fg_pitching_row(era=float("nan")))
         assert result is not None
         assert result.era is None
+
+    def test_json_api_response_format(self) -> None:
+        """Verify mapper works with JSON API native types (int/float, not strings)."""
+        mapper = make_fg_pitching_mapper([_trout()])
+        row: dict[str, Any] = {
+            "IDfg": 10155,
+            "Season": 2024,
+            "W": 15,
+            "L": 8,
+            "G": 32,
+            "GS": 32,
+            "SV": 0,
+            "HLD": 0,
+            "H": 140,
+            "ER": 55,
+            "HR": 18,
+            "BB": 45,
+            "SO": 220,
+            "ERA": 2.85,
+            "IP": 190.1,
+            "WHIP": 0.97,
+            "K/9": 10.4,
+            "BB/9": 2.1,
+            "FIP": 3.10,
+            "xFIP": 3.25,
+            "WAR": 6.0,
+        }
+        result = mapper(row)
+        assert result is not None
+        assert result.player_id == 1
+        assert result.season == 2024
+        assert result.w == 15
+        assert result.so == 220
+        assert result.era == 2.85
+        assert result.k_per_9 == 10.4
 
 
 def _bref_batting_row(
