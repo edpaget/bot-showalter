@@ -378,6 +378,30 @@ class TestIngestContainer:
         assert source.source_detail == "statcast_pitch"
         conn.close()
 
+    def test_bio_source(self) -> None:
+        conn = create_connection(":memory:")
+        container = IngestContainer(conn)
+        source = container.bio_source()
+        assert source.source_type == "lahman"
+        assert source.source_detail == "people"
+        conn.close()
+
+    def test_appearances_source(self) -> None:
+        conn = create_connection(":memory:")
+        container = IngestContainer(conn)
+        source = container.appearances_source()
+        assert source.source_type == "lahman"
+        assert source.source_detail == "appearances"
+        conn.close()
+
+    def test_teams_source(self) -> None:
+        conn = create_connection(":memory:")
+        container = IngestContainer(conn)
+        source = container.teams_source()
+        assert source.source_type == "lahman"
+        assert source.source_detail == "teams"
+        conn.close()
+
     def test_sprint_speed_source(self) -> None:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)

@@ -445,7 +445,7 @@ class TestIngestBio:
         _seed_players(conn)
 
         lahman_rows = _make_lahman_people_rows()
-        fake_bio_source = _FakeSource(lahman_rows, "pybaseball", "lahman_people")
+        fake_bio_source = _FakeSource(lahman_rows, "lahman", "people")
         # Player source not used here, but container needs one
         fake_player_source = _FakeSource([], "chadwick_bureau", "chadwick_register")
 
@@ -491,7 +491,7 @@ class TestIngestBio:
                 "throws": "R",
             },
         ]
-        fake_bio_source = _FakeSource(lahman_rows, "pybaseball", "lahman_people")
+        fake_bio_source = _FakeSource(lahman_rows, "lahman", "people")
         fake_player_source = _FakeSource([], "chadwick_bureau", "chadwick_register")
 
         monkeypatch.setattr(
@@ -534,7 +534,7 @@ class TestIngestAppearances:
         _seed_players(conn)
 
         appearances_data = _make_appearances_rows()
-        fake_appearances = _FakeSource(appearances_data, "pylahman", "appearances")
+        fake_appearances = _FakeSource(appearances_data, "lahman", "appearances")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",
@@ -567,8 +567,8 @@ class TestIngestRoster:
 
         roster_data = _make_roster_appearances_rows()
         teams_data = _make_teams_rows()
-        fake_appearances = _FakeSource(roster_data, "pylahman", "appearances")
-        fake_teams = _FakeSource(teams_data, "pylahman", "teams")
+        fake_appearances = _FakeSource(roster_data, "lahman", "appearances")
+        fake_teams = _FakeSource(teams_data, "lahman", "teams")
 
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.app.build_ingest_container",

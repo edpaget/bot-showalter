@@ -8,9 +8,6 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     BrefPitchingSource,
     FgBattingSource,
     FgPitchingSource,
-    LahmanAppearancesSource,
-    LahmanPeopleSource,
-    LahmanTeamsSource,
     _translate_fg_params,
 )
 
@@ -86,39 +83,6 @@ class TestTranslateFgParams:
     def test_does_not_override_explicit_qual(self) -> None:
         result = _translate_fg_params({"qual": 100})
         assert result["qual"] == 100
-
-
-class TestLahmanPeopleSource:
-    def test_satisfies_datasource_protocol(self) -> None:
-        assert isinstance(LahmanPeopleSource(), DataSource)
-
-    def test_source_type(self) -> None:
-        assert LahmanPeopleSource().source_type == "pybaseball"
-
-    def test_source_detail(self) -> None:
-        assert LahmanPeopleSource().source_detail == "lahman_people"
-
-
-class TestLahmanAppearancesSource:
-    def test_satisfies_datasource_protocol(self) -> None:
-        assert isinstance(LahmanAppearancesSource(), DataSource)
-
-    def test_source_type(self) -> None:
-        assert LahmanAppearancesSource().source_type == "pylahman"
-
-    def test_source_detail(self) -> None:
-        assert LahmanAppearancesSource().source_detail == "appearances"
-
-
-class TestLahmanTeamsSource:
-    def test_satisfies_datasource_protocol(self) -> None:
-        assert isinstance(LahmanTeamsSource(), DataSource)
-
-    def test_source_type(self) -> None:
-        assert LahmanTeamsSource().source_type == "pylahman"
-
-    def test_source_detail(self) -> None:
-        assert LahmanTeamsSource().source_detail == "teams"
 
 
 class TestErrorWrapping:

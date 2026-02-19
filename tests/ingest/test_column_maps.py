@@ -254,6 +254,38 @@ class TestMakeLahmanBioMapper:
         assert result is not None
         assert result.throws is None
 
+    def test_string_values_from_csv(self) -> None:
+        mapper = make_lahman_bio_mapper([_TROUT])
+        row: dict[str, Any] = {
+            "retroID": "troum001",
+            "bbrefID": "troutmi01",
+            "birthYear": "1991",
+            "birthMonth": "8",
+            "birthDay": "7",
+            "bats": "R",
+            "throws": "R",
+        }
+        result = mapper(row)
+        assert result is not None
+        assert result.birth_date == "1991-08-07"
+        assert result.bats == "R"
+        assert result.throws == "R"
+
+    def test_none_birth_fields(self) -> None:
+        mapper = make_lahman_bio_mapper([_TROUT])
+        row: dict[str, Any] = {
+            "retroID": "troum001",
+            "bbrefID": "troutmi01",
+            "birthYear": None,
+            "birthMonth": None,
+            "birthDay": None,
+            "bats": "R",
+            "throws": "R",
+        }
+        result = mapper(row)
+        assert result is not None
+        assert result.birth_date is None
+
     def test_multiple_players_lookup(self) -> None:
         mapper = make_lahman_bio_mapper([_TROUT, _OHTANI])
         row: dict[str, Any] = {
@@ -394,6 +426,16 @@ class TestMakePositionAppearanceMapper:
         result = mapper(_make_appearance_row(playerID=float("nan")))
         assert result is None
 
+    def test_string_values_from_csv(self) -> None:
+        mapper = make_position_appearance_mapper([_TROUT])
+        row: dict[str, Any] = {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 120}
+        result = mapper(row)
+        assert result is not None
+        assert result.player_id == 1
+        assert result.season == 2023
+        assert result.position == "CF"
+        assert result.games == 120
+
     def test_games_value_preserved(self) -> None:
         mapper = make_position_appearance_mapper([_TROUT])
         result = mapper(_make_appearance_row(games=55))
@@ -439,6 +481,15 @@ class TestMakeRosterStintMapper:
         assert result is not None
         assert result.start_date == "2020-03-01"
 
+    def test_string_values_from_csv(self) -> None:
+        mapper = make_roster_stint_mapper([_TROUT], [_TEST_TEAM])
+        row: dict[str, Any] = {"playerID": "troutmi01", "yearID": 2023, "teamID": "LAA"}
+        result = mapper(row)
+        assert result is not None
+        assert result.player_id == 1
+        assert result.team_id == 10
+        assert result.season == 2023
+
     def test_nan_player_id_returns_none(self) -> None:
         mapper = make_roster_stint_mapper([_TROUT], [_TEST_TEAM])
         result = mapper(_make_roster_row(playerID=float("nan")))
@@ -468,6 +519,34 @@ class TestLahmanTeamRowToTeam:
         assert result.name == "Los Angeles Angels"
         assert result.league == "AL"
         assert result.division == "W"
+
+    def test_string_values_from_csv(self) -> None:
+        row: dict[str, Any] = {
+            "teamID": "LAA",
+            "name": "Los Angeles Angels",
+            "lgID": "AL",
+            "divID": "W",
+            "yearID": "2023",
+        }
+        result = lahman_team_row_to_team(row)
+        assert result is not None
+        assert result.abbreviation == "LAA"
+        assert result.name == "Los Angeles Angels"
+        assert result.league == "AL"
+        assert result.division == "W"
+
+    def test_none_fields_return_none(self) -> None:
+        row: dict[str, Any] = {
+            "teamID": None,
+            "name": "Los Angeles Angels",
+            "lgID": "AL",
+            "divID": "W",
+            "yearID": "2023",
+        }
+        assert lahman_team_row_to_team(row) is None
+
+        row2: dict[str, Any] = {"teamID": "LAA", "name": None, "lgID": "AL", "divID": "W", "yearID": "2023"}
+        assert lahman_team_row_to_team(row2) is None
 
     def test_missing_abbreviation_returns_none(self) -> None:
         result = lahman_team_row_to_team(_make_team_row(teamID=float("nan")))

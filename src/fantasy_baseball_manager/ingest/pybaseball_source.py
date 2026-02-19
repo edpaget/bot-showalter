@@ -1,5 +1,4 @@
 import logging
-import math
 import time
 from collections.abc import Callable
 from typing import Any
@@ -11,23 +10,9 @@ from pybaseball import (
     fg_pitching_data,
     pitching_stats_bref,
 )
-from pylahman import Appearances, People as lahman_people, Teams
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 logger = logging.getLogger(__name__)
-
-_POSITION_COLUMNS: dict[str, str] = {
-    "G_p": "P",
-    "G_c": "C",
-    "G_1b": "1B",
-    "G_2b": "2B",
-    "G_3b": "3B",
-    "G_ss": "SS",
-    "G_lf": "LF",
-    "G_cf": "CF",
-    "G_rf": "RF",
-    "G_dh": "DH",
-}
 
 _NETWORK_ERRORS = (requests.RequestException, ConnectionError, TimeoutError)
 
@@ -179,82 +164,3 @@ class BrefPitchingSource:
 
     def fetch(self, **params: Any) -> list[dict[str, Any]]:
         return self._retrying_fetch(**params)
-
-
-class LahmanPeopleSource:
-    @property
-    def source_type(self) -> str:
-        return "pybaseball"
-
-    @property
-    def source_detail(self) -> str:
-        return "lahman_people"
-
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        logger.debug("Calling %s(%s)", "lahman_people", params)
-        t0 = time.perf_counter()
-        try:
-            df = lahman_people()
-        except Exception as exc:
-            raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
-        logger.debug("%s returned %d rows in %.1fs", "lahman_people", len(df), time.perf_counter() - t0)
-        return df.to_dict("records")
-
-
-class LahmanAppearancesSource:
-    @property
-    def source_type(self) -> str:
-        return "pylahman"
-
-    @property
-    def source_detail(self) -> str:
-        return "appearances"
-
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        logger.debug("Calling %s(%s)", "Appearances", params)
-        t0 = time.perf_counter()
-        try:
-            df = Appearances()
-        except Exception as exc:
-            raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
-        if "season" in params:
-            df = df[df["yearID"] == params["season"]]
-        records: list[dict[str, Any]] = []
-        for _, row in df.iterrows():
-            for col, pos in _POSITION_COLUMNS.items():
-                games = row.get(col, 0)
-                if games is not None and not (isinstance(games, float) and math.isnan(games)) and int(games) > 0:
-                    records.append(
-                        {
-                            "playerID": row["playerID"],
-                            "yearID": row["yearID"],
-                            "teamID": row["teamID"],
-                            "position": pos,
-                            "games": int(games),
-                        }
-                    )
-        logger.debug("%s returned %d rows in %.1fs", "Appearances", len(records), time.perf_counter() - t0)
-        return records
-
-
-class LahmanTeamsSource:
-    @property
-    def source_type(self) -> str:
-        return "pylahman"
-
-    @property
-    def source_detail(self) -> str:
-        return "teams"
-
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        logger.debug("Calling %s(%s)", "Teams", params)
-        t0 = time.perf_counter()
-        try:
-            df = Teams()
-        except Exception as exc:
-            raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
-        rows = df.to_dict("records")
-        if "season" in params:
-            rows = [r for r in rows if r.get("yearID") == params["season"]]
-        logger.debug("%s returned %d rows in %.1fs", "Teams", len(rows), time.perf_counter() - t0)
-        return rows

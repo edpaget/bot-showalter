@@ -14,14 +14,12 @@ from fantasy_baseball_manager.ingest.mlb_milb_stats_source import MLBMinorLeague
 from fantasy_baseball_manager.ingest.mlb_transactions_source import MLBTransactionsSource
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.chadwick_source import ChadwickRegisterSource
+from fantasy_baseball_manager.ingest.lahman_source import LahmanAppearancesSource, LahmanPeopleSource, LahmanTeamsSource
 from fantasy_baseball_manager.ingest.pybaseball_source import (
     BrefBattingSource,
     BrefPitchingSource,
     FgBattingSource,
     FgPitchingSource,
-    LahmanAppearancesSource,
-    LahmanPeopleSource,
-    LahmanTeamsSource,
 )
 from fantasy_baseball_manager.ingest.sprint_speed_source import SprintSpeedSource
 from fantasy_baseball_manager.ingest.statcast_savant_source import StatcastSavantSource
