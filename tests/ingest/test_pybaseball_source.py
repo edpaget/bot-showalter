@@ -10,7 +10,6 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     LahmanAppearancesSource,
     LahmanPeopleSource,
     LahmanTeamsSource,
-    StatcastSource,
     _translate_fg_params,
 )
 
@@ -90,17 +89,6 @@ class TestLahmanPeopleSource:
 
     def test_source_detail(self) -> None:
         assert LahmanPeopleSource().source_detail == "lahman_people"
-
-
-class TestStatcastSource:
-    def test_satisfies_datasource_protocol(self) -> None:
-        assert isinstance(StatcastSource(), DataSource)
-
-    def test_source_type(self) -> None:
-        assert StatcastSource().source_type == "pybaseball"
-
-    def test_source_detail(self) -> None:
-        assert StatcastSource().source_detail == "statcast"
 
 
 class TestLahmanAppearancesSource:

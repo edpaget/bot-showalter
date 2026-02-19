@@ -22,9 +22,9 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     LahmanAppearancesSource,
     LahmanPeopleSource,
     LahmanTeamsSource,
-    StatcastSource,
-    StatcastSprintSpeedSource,
 )
+from fantasy_baseball_manager.ingest.sprint_speed_source import SprintSpeedSource
+from fantasy_baseball_manager.ingest.statcast_savant_source import StatcastSavantSource
 from fantasy_baseball_manager.domain.errors import ConfigError
 from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
@@ -233,7 +233,7 @@ class IngestContainer:
         return SqliteStatcastPitchRepo(self.statcast_conn)
 
     def statcast_source(self) -> DataSource:
-        return StatcastSource()
+        return StatcastSavantSource()
 
     @functools.cached_property
     def player_repo(self) -> SqlitePlayerRepo:
@@ -299,7 +299,7 @@ class IngestContainer:
         return SqliteSprintSpeedRepo(self.statcast_conn)
 
     def sprint_speed_source(self) -> DataSource:
-        return StatcastSprintSpeedSource()
+        return SprintSpeedSource()
 
     def milb_batting_source(self) -> DataSource:
         return MLBMinorLeagueBattingSource()

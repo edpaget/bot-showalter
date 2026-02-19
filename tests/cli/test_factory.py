@@ -374,7 +374,16 @@ class TestIngestContainer:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)
         source = container.statcast_source()
-        assert source.source_detail == "statcast"
+        assert source.source_type == "baseball_savant"
+        assert source.source_detail == "statcast_pitch"
+        conn.close()
+
+    def test_sprint_speed_source(self) -> None:
+        conn = create_connection(":memory:")
+        container = IngestContainer(conn)
+        source = container.sprint_speed_source()
+        assert source.source_type == "baseball_savant"
+        assert source.source_detail == "sprint_speed"
         conn.close()
 
     def test_statcast_conn_property(self) -> None:

@@ -9,8 +9,6 @@ from pybaseball import (
     fg_batting_data,
     fg_pitching_data,
     pitching_stats_bref,
-    statcast,
-    statcast_sprint_speed,
 )
 from pylahman import Appearances, People as lahman_people, Teams
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_fixed
@@ -170,29 +168,6 @@ class LahmanPeopleSource:
         return df.to_dict("records")
 
 
-class StatcastSource:
-    @property
-    def source_type(self) -> str:
-        return "pybaseball"
-
-    @property
-    def source_detail(self) -> str:
-        return "statcast"
-
-    @_network_retry
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        logger.debug("Calling %s(%s)", "statcast", params)
-        t0 = time.perf_counter()
-        try:
-            df = statcast(**params)
-        except _NETWORK_ERRORS:
-            raise
-        except Exception as exc:
-            raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
-        logger.debug("%s returned %d rows in %.1fs", "statcast", len(df), time.perf_counter() - t0)
-        return df.to_dict("records")
-
-
 class LahmanAppearancesSource:
     @property
     def source_type(self) -> str:
@@ -250,28 +225,3 @@ class LahmanTeamsSource:
             rows = [r for r in rows if r.get("yearID") == params["season"]]
         logger.debug("%s returned %d rows in %.1fs", "Teams", len(rows), time.perf_counter() - t0)
         return rows
-
-
-class StatcastSprintSpeedSource:
-    @property
-    def source_type(self) -> str:
-        return "pybaseball"
-
-    @property
-    def source_detail(self) -> str:
-        return "statcast_sprint_speed"
-
-    @_network_retry
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        year = params["year"]
-        min_opp = params.get("min_opp", 10)
-        logger.debug("Calling %s(year=%d, min_opp=%d)", "statcast_sprint_speed", year, min_opp)
-        t0 = time.perf_counter()
-        try:
-            df = statcast_sprint_speed(year=year, min_opp=min_opp)
-        except _NETWORK_ERRORS:
-            raise
-        except Exception as exc:
-            raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
-        logger.debug("%s returned %d rows in %.1fs", "statcast_sprint_speed", len(df), time.perf_counter() - t0)
-        return df.to_dict("records")

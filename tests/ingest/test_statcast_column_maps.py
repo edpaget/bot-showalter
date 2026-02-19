@@ -131,3 +131,62 @@ class TestStatcastPitchMapper:
         assert result.pitch_type is None
         assert result.release_speed is None
         assert result.barrel is None
+
+    def test_string_values_from_csv(self) -> None:
+        row = _make_row(
+            game_pk="718001",
+            batter="545361",
+            pitcher="477132",
+            at_bat_number="1",
+            pitch_number="1",
+            release_speed="95.2",
+            release_spin_rate="2400.0",
+            pfx_x="-5.1",
+            pfx_z="10.3",
+            plate_x="0.5",
+            plate_z="2.8",
+            zone="5",
+            launch_speed="102.3",
+            launch_angle="15.0",
+            hit_distance_sc="250.0",
+            barrel="1",
+            estimated_ba_using_speedangle="0.620",
+            estimated_woba_using_speedangle="0.850",
+            estimated_slg_using_speedangle="0.750",
+            hc_x="105.3",
+            hc_y="160.2",
+            release_extension="6.3",
+        )
+        result = statcast_pitch_mapper(row)
+        assert result is not None
+        assert result.game_pk == 718001
+        assert result.batter_id == 545361
+        assert result.pitcher_id == 477132
+        assert result.release_speed == 95.2
+        assert result.zone == 5
+        assert result.barrel == 1
+
+    def test_none_for_missing_optional_fields(self) -> None:
+        row = _make_row(
+            pitch_type=None,
+            release_speed=None,
+            release_spin_rate=None,
+            launch_speed=None,
+            launch_angle=None,
+            barrel=None,
+            events=None,
+            description=None,
+            hc_x=None,
+            hc_y=None,
+            stand=None,
+            release_extension=None,
+        )
+        result = statcast_pitch_mapper(row)
+        assert result is not None
+        assert result.pitch_type is None
+        assert result.release_speed is None
+        assert result.release_spin_rate is None
+        assert result.launch_speed is None
+        assert result.barrel is None
+        assert result.events is None
+        assert result.stand is None
