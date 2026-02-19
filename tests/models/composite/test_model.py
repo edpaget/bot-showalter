@@ -6,6 +6,7 @@ import fantasy_baseball_manager.features.group_library  # noqa: F401 — trigger
 from fantasy_baseball_manager.features.groups import FeatureGroup, get_group, list_groups
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 import fantasy_baseball_manager.models.composite  # noqa: F401 — trigger alias registration
+from fantasy_baseball_manager.models.composite.engine import EngineConfig
 from fantasy_baseball_manager.models.composite.model import (
     DEFAULT_GROUPS,
     CompositeModel,
@@ -414,3 +415,91 @@ class TestCompositePredict:
         config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
         result = CompositeModel(assembler=assembler, group_lookup=_test_lookup).predict(config)
         assert result.predictions[0]["season"] == 2024
+
+
+class FakeEngine:
+    """Fake engine that records calls for delegation testing."""
+
+    def __init__(
+        self,
+        ops: frozenset[str] = frozenset({"custom_op"}),
+        artifact: str = "custom_artifact",
+    ) -> None:
+        self._ops = ops
+        self._artifact = artifact
+        self.calls: list[
+            tuple[list[dict[str, Any]], list[dict[str, Any]], dict[int, float], dict[int, float], EngineConfig]
+        ] = []
+
+    @property
+    def supported_operations(self) -> frozenset[str]:
+        return self._ops
+
+    @property
+    def artifact_type(self) -> str:
+        return self._artifact
+
+    def predict(
+        self,
+        bat_rows: list[dict[str, Any]],
+        pitch_rows: list[dict[str, Any]],
+        bat_pt: dict[int, float],
+        pitch_pt: dict[int, float],
+        config: EngineConfig,
+    ) -> list[dict[str, Any]]:
+        self.calls.append((bat_rows, pitch_rows, bat_pt, pitch_pt, config))
+        return [{"player_id": 99, "season": config.projected_season, "player_type": "batter"}]
+
+
+class TestEngineDelegation:
+    def test_supported_operations_delegates_to_engine(self) -> None:
+        engine = FakeEngine(ops=frozenset({"train", "predict", "evaluate"}))
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=engine)
+        assert model.supported_operations == frozenset({"train", "predict", "evaluate"})
+
+    def test_artifact_type_delegates_to_engine(self) -> None:
+        engine = FakeEngine(artifact="directory")
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=engine)
+        assert model.artifact_type == "directory"
+
+    def test_predict_delegates_to_engine(self) -> None:
+        batting_rows = [
+            {
+                "player_id": 1,
+                "season": 2023,
+                "age": 29,
+                "proj_pa": 555,
+                "pa_1": 600,
+                "pa_2": 550,
+                "hr_1": 30.0,
+                "hr_2": 25.0,
+                "hr_wavg": 310.0 / 6700.0,
+                "weighted_pt": 6700.0,
+                "league_hr_rate": 50.0 / 1100.0,
+            },
+        ]
+        engine = FakeEngine()
+        assembler = FakeAssembler(batting_rows)
+        model = CompositeModel(assembler=assembler, group_lookup=_test_lookup, engine=engine)
+        config = ModelConfig(seasons=[2023], model_params={"batting_categories": ["hr"]})
+        result = model.predict(config)
+
+        # Engine was called exactly once
+        assert len(engine.calls) == 1
+        bat_rows_arg, pitch_rows_arg, bat_pt_arg, pitch_pt_arg, engine_config = engine.calls[0]
+
+        # Rows passed through
+        assert len(bat_rows_arg) == 1
+        assert bat_rows_arg[0]["player_id"] == 1
+
+        # PT extracted correctly
+        assert bat_pt_arg == {1: 555.0}
+
+        # EngineConfig populated
+        assert isinstance(engine_config, EngineConfig)
+        assert engine_config.projected_season == 2024
+        assert engine_config.version == "latest"
+        assert engine_config.system_name == "composite"
+
+        # Result uses engine output
+        assert result.predictions == [{"player_id": 99, "season": 2024, "player_type": "batter"}]

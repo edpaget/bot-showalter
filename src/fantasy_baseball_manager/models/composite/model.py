@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from typing import Any
 
-from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.group_library import (
     make_batting_counting_lags,
     make_batting_rate_lags,
@@ -12,19 +11,15 @@ from fantasy_baseball_manager.features.group_library import (
 from fantasy_baseball_manager.features.groups import FeatureGroup, compose_feature_set, get_group
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import FeatureSet
-from fantasy_baseball_manager.models.composite.convert import (
-    composite_projection_to_domain,
-    extract_projected_pt,
-)
+from fantasy_baseball_manager.models.composite.convert import extract_projected_pt
+from fantasy_baseball_manager.models.composite.engine import CompositeEngine, EngineConfig, MarcelEngine
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_league_averages,
     build_batting_weighted_rates,
     build_pitching_league_averages,
     build_pitching_weighted_rates,
 )
-from fantasy_baseball_manager.models.marcel.convert import rows_to_marcel_inputs
-from fantasy_baseball_manager.models.marcel.engine import age_adjust, regress_to_mean
-from fantasy_baseball_manager.models.marcel.types import LeagueAverages, MarcelConfig
+from fantasy_baseball_manager.models.marcel.types import MarcelConfig
 from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
     PredictResult,
@@ -92,10 +87,12 @@ class CompositeModel:
         assembler: DatasetAssembler,
         model_name: str = "composite",
         group_lookup: Callable[[str], FeatureGroup] = get_group,
+        engine: CompositeEngine | None = None,
     ) -> None:
         self._assembler = assembler
         self._model_name = model_name
         self._get_group = group_lookup
+        self._engine: CompositeEngine = engine or MarcelEngine()
 
     @property
     def name(self) -> str:
@@ -107,11 +104,11 @@ class CompositeModel:
 
     @property
     def supported_operations(self) -> frozenset[str]:
-        return frozenset({"prepare", "predict"})
+        return self._engine.supported_operations
 
     @property
     def artifact_type(self) -> str:
-        return ArtifactType.NONE.value
+        return self._engine.artifact_type
 
     def _build_feature_sets(
         self,
@@ -196,75 +193,20 @@ class CompositeModel:
         bat_rows = self._assembler.read(bat_handle)
         pitch_rows = self._assembler.read(pitch_handle)
 
-        projected_season = max(config.seasons) + 1 if config.seasons else 2025
-        version = config.version or "latest"
-
-        bat_lags = len(marcel_config.batting_weights)
-        pitch_lags = len(marcel_config.pitching_weights)
-
-        bat_inputs = rows_to_marcel_inputs(bat_rows, marcel_config.batting_categories, bat_lags, pitcher=False)
-        pitch_inputs = rows_to_marcel_inputs(pitch_rows, marcel_config.pitching_categories, pitch_lags, pitcher=True)
-
         bat_pt = extract_projected_pt(bat_rows, pitcher=False)
         pitch_pt = extract_projected_pt(pitch_rows, pitcher=True)
 
-        predictions: list[dict[str, Any]] = []
+        projected_season = max(config.seasons) + 1 if config.seasons else 2025
+        version = config.version or "latest"
 
-        for pid, marcel_input in bat_inputs.items():
-            proj_pa = bat_pt.get(pid, 0.0)
-            league = LeagueAverages(rates=marcel_input.league_rates)
-            regressed = regress_to_mean(
-                marcel_input.weighted_rates, league, marcel_input.weighted_pt, marcel_config.batting_regression_pa
-            )
-            adjusted = age_adjust(regressed, marcel_input.age, marcel_config)
-            counting = {cat: adjusted[cat] * proj_pa for cat in adjusted}
+        engine_config = EngineConfig(
+            marcel_config=marcel_config,
+            projected_season=projected_season,
+            version=version,
+            system_name=self._model_name,
+        )
 
-            domain = composite_projection_to_domain(
-                pid,
-                projected_season,
-                counting,
-                adjusted,
-                proj_pa,
-                pitcher=False,
-                version=version,
-                system=self._model_name,
-            )
-            predictions.append(
-                {
-                    "player_id": domain.player_id,
-                    "season": domain.season,
-                    "player_type": "batter",
-                    **domain.stat_json,
-                }
-            )
-
-        for pid, marcel_input in pitch_inputs.items():
-            proj_ip = pitch_pt.get(pid, 0.0)
-            league = LeagueAverages(rates=marcel_input.league_rates)
-            regressed = regress_to_mean(
-                marcel_input.weighted_rates, league, marcel_input.weighted_pt, marcel_config.pitching_regression_ip
-            )
-            adjusted = age_adjust(regressed, marcel_input.age, marcel_config)
-            counting = {cat: adjusted[cat] * proj_ip for cat in adjusted}
-
-            domain = composite_projection_to_domain(
-                pid,
-                projected_season,
-                counting,
-                adjusted,
-                proj_ip,
-                pitcher=True,
-                version=version,
-                system=self._model_name,
-            )
-            predictions.append(
-                {
-                    "player_id": domain.player_id,
-                    "season": domain.season,
-                    "player_type": "pitcher",
-                    **domain.stat_json,
-                }
-            )
+        predictions = self._engine.predict(bat_rows, pitch_rows, bat_pt, pitch_pt, engine_config)
 
         return PredictResult(
             model_name=self.name,
