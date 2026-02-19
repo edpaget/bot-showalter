@@ -451,6 +451,16 @@ class TestStatcastGBMAblate:
         pitcher_keys = [k for k in ablation_result.feature_impacts if k.startswith("pitcher:")]
         assert len(pitcher_keys) > 0
 
+    def test_ablate_returns_standard_errors(self, ablation_result: AblationResult) -> None:
+        assert len(ablation_result.feature_standard_errors) > 0
+
+    def test_ablate_standard_errors_match_impact_keys(self, ablation_result: AblationResult) -> None:
+        assert set(ablation_result.feature_standard_errors.keys()) == set(ablation_result.feature_impacts.keys())
+
+    def test_ablate_standard_errors_non_negative(self, ablation_result: AblationResult) -> None:
+        for se in ablation_result.feature_standard_errors.values():
+            assert se >= 0
+
 
 @pytest.fixture(scope="class")
 def preseason_ablation_result() -> AblationResult:
@@ -641,7 +651,7 @@ class TestStatcastGBMPreseasonPredict:
 
 
 class TestStatcastGBMPreseasonTune:
-    @pytest.fixture()
+    @pytest.fixture(scope="class")
     def tune_result(self) -> TuneResult:
         rows_by_season = {
             2021: [_make_preseason_row(f"p_{i}", 2021) for i in range(10)],
@@ -770,6 +780,63 @@ class TestStatcastGBMTrainPerTypeParams:
         assert len(captured_params) == 2
         assert captured_params[0] == {"max_iter": 50}
         assert captured_params[1] == {"max_iter": 50}
+
+
+class TestStatcastGBMAblateNRepeats:
+    def test_ablate_passes_n_repeats_from_config(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_n_repeats: list[int] = []
+        original_cpi = statcast_gbm_model_mod.compute_permutation_importance
+
+        def spy_cpi(*args: Any, **kwargs: Any) -> Any:
+            captured_n_repeats.append(kwargs.get("n_repeats", 20))
+            return original_cpi(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "compute_permutation_importance", spy_cpi)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={"n_repeats": 10},
+        )
+        model.ablate(config)
+        assert len(captured_n_repeats) == 2
+        assert captured_n_repeats[0] == 10
+        assert captured_n_repeats[1] == 10
+
+    def test_ablate_uses_default_n_repeats(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_n_repeats: list[int] = []
+        original_cpi = statcast_gbm_model_mod.compute_permutation_importance
+
+        def spy_cpi(*args: Any, **kwargs: Any) -> Any:
+            captured_n_repeats.append(kwargs.get("n_repeats", 20))
+            return original_cpi(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "compute_permutation_importance", spy_cpi)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(seasons=[2022, 2023])
+        model.ablate(config)
+        assert len(captured_n_repeats) == 2
+        assert captured_n_repeats[0] == 20
+        assert captured_n_repeats[1] == 20
 
 
 class TestStatcastGBMAblatePerTypeParams:

@@ -1,5 +1,6 @@
 import pytest
 import requests
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.pybaseball_source import (
@@ -11,6 +12,13 @@ from fantasy_baseball_manager.ingest.pybaseball_source import (
     LahmanPeopleSource,
     LahmanTeamsSource,
     _translate_fg_params,
+)
+
+_NO_WAIT_RETRY = retry(
+    stop=stop_after_attempt(2),
+    wait=wait_none(),
+    retry=retry_if_exception_type((requests.RequestException, ConnectionError, TimeoutError)),
+    reraise=True,
 )
 
 
@@ -138,7 +146,7 @@ class TestErrorWrapping:
             "fantasy_baseball_manager.ingest.pybaseball_source.fg_batting_data",
             fail,
         )
-        source = FgBattingSource()
+        source = FgBattingSource(retry=_NO_WAIT_RETRY)
         with pytest.raises(requests.ConnectionError):
             source.fetch(season=2024)
 

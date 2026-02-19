@@ -2,6 +2,7 @@ import csv
 import datetime
 import io
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -18,9 +19,23 @@ def _log_retry(retry_state: RetryCallState) -> None:
     logger.warning("Retrying statcast download (attempt %d): %s", retry_state.attempt_number, retry_state.outcome)
 
 
+_DEFAULT_RETRY = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential_jitter(initial=1, max=10),
+    retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+    before_sleep=_log_retry,
+    reraise=True,
+)
+
+
 class StatcastSavantSource:
-    def __init__(self, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        client: httpx.Client | None = None,
+        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _DEFAULT_RETRY,
+    ) -> None:
         self._client = client or httpx.Client(timeout=httpx.Timeout(120.0, connect=10.0))
+        self._fetch_day_with_retry = retry(self._do_fetch_day)
 
     @property
     def source_type(self) -> str:
@@ -30,14 +45,7 @@ class StatcastSavantSource:
     def source_detail(self) -> str:
         return "statcast_pitch"
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential_jitter(initial=1, max=10),
-        retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
-        before_sleep=_log_retry,
-        reraise=True,
-    )
-    def _fetch_day_with_retry(self, date_str: str) -> httpx.Response:
+    def _do_fetch_day(self, date_str: str) -> httpx.Response:
         params = {
             "all": "true",
             "type": "details",

@@ -3,9 +3,17 @@ from typing import Any
 
 import httpx
 import pytest
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
 from fantasy_baseball_manager.ingest.mlb_milb_stats_source import MLBMinorLeagueBattingSource
 from fantasy_baseball_manager.ingest.protocols import DataSource
+
+_NO_WAIT_RETRY = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_none(),
+    retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+    reraise=True,
+)
 
 
 class FakeTransport(httpx.BaseTransport):
@@ -137,7 +145,7 @@ class TestMLBMinorLeagueBattingSource:
     def test_http_error_raises(self) -> None:
         response = httpx.Response(500, content=b"Internal Server Error")
         client = httpx.Client(transport=FakeTransport(response))
-        source = MLBMinorLeagueBattingSource(client=client)
+        source = MLBMinorLeagueBattingSource(client=client, retry=_NO_WAIT_RETRY)
 
         with pytest.raises(httpx.HTTPStatusError):
             source.fetch(season=2024, level="AAA")
@@ -147,7 +155,7 @@ class TestMLBMinorLeagueBattingSource:
         success_response = _fake_api_response(splits)
         transport = FailNTransport(fail_count=2, success_response=success_response)
         client = httpx.Client(transport=transport)
-        source = MLBMinorLeagueBattingSource(client=client)
+        source = MLBMinorLeagueBattingSource(client=client, retry=_NO_WAIT_RETRY)
 
         result = source.fetch(season=2024, level="AAA")
 
@@ -159,7 +167,7 @@ class TestMLBMinorLeagueBattingSource:
         success_response = _fake_api_response(splits)
         transport = FailNTransport(fail_count=5, success_response=success_response)
         client = httpx.Client(transport=transport)
-        source = MLBMinorLeagueBattingSource(client=client)
+        source = MLBMinorLeagueBattingSource(client=client, retry=_NO_WAIT_RETRY)
 
         with pytest.raises(httpx.HTTPStatusError):
             source.fetch(season=2024, level="AAA")

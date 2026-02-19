@@ -5,9 +5,17 @@ from typing import Any
 
 import httpx
 import pytest
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
 from fantasy_baseball_manager.ingest.chadwick_source import ChadwickRegisterSource
 from fantasy_baseball_manager.ingest.protocols import DataSource
+
+_NO_WAIT_RETRY = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_none(),
+    retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+    reraise=True,
+)
 
 
 class FakeTransport(httpx.BaseTransport):
@@ -149,7 +157,7 @@ class TestChadwickRegisterSource:
         zip_bytes = _build_zip(rows)
         transport = FailNTransport(fail_count=2, success_response=_zip_response(zip_bytes))
         client = httpx.Client(transport=transport)
-        source = ChadwickRegisterSource(client=client)
+        source = ChadwickRegisterSource(client=client, retry=_NO_WAIT_RETRY)
 
         result = source.fetch()
 
@@ -170,7 +178,7 @@ class TestChadwickRegisterSource:
         zip_bytes = _build_zip(rows)
         transport = FailNTransport(fail_count=5, success_response=_zip_response(zip_bytes))
         client = httpx.Client(transport=transport)
-        source = ChadwickRegisterSource(client=client)
+        source = ChadwickRegisterSource(client=client, retry=_NO_WAIT_RETRY)
 
         with pytest.raises(httpx.HTTPStatusError):
             source.fetch()

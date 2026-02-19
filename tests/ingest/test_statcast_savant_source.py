@@ -1,8 +1,16 @@
 import httpx
 import pytest
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.statcast_savant_source import StatcastSavantSource
+
+_NO_WAIT_RETRY = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_none(),
+    retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+    reraise=True,
+)
 
 
 class FakeTransport(httpx.BaseTransport):
@@ -112,7 +120,7 @@ class TestStatcastSavantSource:
         csv_text = f"{_CSV_HEADER}\n{_CSV_ROW}\n"
         transport = FailNTransport(fail_count=2, success_response=_csv_response(csv_text))
         client = httpx.Client(transport=transport)
-        source = StatcastSavantSource(client=client)
+        source = StatcastSavantSource(client=client, retry=_NO_WAIT_RETRY)
 
         result = source.fetch(start_dt="2024-06-15", end_dt="2024-06-15")
 
@@ -123,7 +131,7 @@ class TestStatcastSavantSource:
         csv_text = f"{_CSV_HEADER}\n{_CSV_ROW}\n"
         transport = FailNTransport(fail_count=5, success_response=_csv_response(csv_text))
         client = httpx.Client(transport=transport)
-        source = StatcastSavantSource(client=client)
+        source = StatcastSavantSource(client=client, retry=_NO_WAIT_RETRY)
 
         with pytest.raises(httpx.HTTPStatusError):
             source.fetch(start_dt="2024-06-15", end_dt="2024-06-15")

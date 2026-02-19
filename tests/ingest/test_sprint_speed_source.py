@@ -1,8 +1,16 @@
 import httpx
 import pytest
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.sprint_speed_source import SprintSpeedSource
+
+_NO_WAIT_RETRY = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_none(),
+    retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+    reraise=True,
+)
 
 
 class FakeTransport(httpx.BaseTransport):
@@ -94,7 +102,7 @@ class TestSprintSpeedSource:
         csv_text = f"{_CSV_HEADER}\n{_CSV_ROWS}"
         transport = FailNTransport(fail_count=2, success_response=_csv_response(csv_text))
         client = httpx.Client(transport=transport)
-        source = SprintSpeedSource(client=client)
+        source = SprintSpeedSource(client=client, retry=_NO_WAIT_RETRY)
 
         result = source.fetch(year=2024)
 
@@ -105,7 +113,7 @@ class TestSprintSpeedSource:
         csv_text = f"{_CSV_HEADER}\n{_CSV_ROWS}"
         transport = FailNTransport(fail_count=5, success_response=_csv_response(csv_text))
         client = httpx.Client(transport=transport)
-        source = SprintSpeedSource(client=client)
+        source = SprintSpeedSource(client=client, retry=_NO_WAIT_RETRY)
 
         with pytest.raises(httpx.HTTPStatusError):
             source.fetch(year=2024)

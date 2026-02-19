@@ -3,8 +3,16 @@ from typing import Any
 
 import httpx
 import pytest
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
 from fantasy_baseball_manager.ingest.mlb_transactions_source import MLBTransactionsSource
+
+_NO_WAIT_RETRY = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_none(),
+    retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+    reraise=True,
+)
 
 
 def _fake_response(transactions: list[dict[str, Any]]) -> httpx.Response:
@@ -107,7 +115,7 @@ class TestMLBTransactionsSource:
         success_response = _fake_response(txns)
         transport = FailNTransport(fail_count=2, success_response=success_response)
         client = httpx.Client(transport=transport)
-        source = MLBTransactionsSource(client=client)
+        source = MLBTransactionsSource(client=client, retry=_NO_WAIT_RETRY)
 
         result = source.fetch(season=2024)
 
@@ -119,7 +127,7 @@ class TestMLBTransactionsSource:
         success_response = _fake_response(txns)
         transport = FailNTransport(fail_count=5, success_response=success_response)
         client = httpx.Client(transport=transport)
-        source = MLBTransactionsSource(client=client)
+        source = MLBTransactionsSource(client=client, retry=_NO_WAIT_RETRY)
 
         with pytest.raises(httpx.HTTPStatusError):
             source.fetch(season=2024)

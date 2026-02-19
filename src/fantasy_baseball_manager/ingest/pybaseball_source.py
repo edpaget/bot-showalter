@@ -1,6 +1,7 @@
 import logging
 import math
 import time
+from collections.abc import Callable
 from typing import Any
 
 import requests
@@ -55,6 +56,12 @@ def _translate_fg_params(params: dict[str, Any]) -> dict[str, Any]:
 
 
 class FgBattingSource:
+    def __init__(
+        self,
+        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _network_retry,
+    ) -> None:
+        self._retrying_fetch = retry(self._do_fetch)
+
     @property
     def source_type(self) -> str:
         return "pybaseball"
@@ -63,8 +70,7 @@ class FgBattingSource:
     def source_detail(self) -> str:
         return "fg_batting_data"
 
-    @_network_retry
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+    def _do_fetch(self, **params: Any) -> list[dict[str, Any]]:
         translated = _translate_fg_params(params)
         logger.debug("Calling %s(%s)", "fg_batting_data", translated)
         t0 = time.perf_counter()
@@ -77,8 +83,17 @@ class FgBattingSource:
         logger.debug("%s returned %d rows in %.1fs", "fg_batting_data", len(df), time.perf_counter() - t0)
         return df.to_dict("records")
 
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+        return self._retrying_fetch(**params)
+
 
 class FgPitchingSource:
+    def __init__(
+        self,
+        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _network_retry,
+    ) -> None:
+        self._retrying_fetch = retry(self._do_fetch)
+
     @property
     def source_type(self) -> str:
         return "pybaseball"
@@ -87,8 +102,7 @@ class FgPitchingSource:
     def source_detail(self) -> str:
         return "fg_pitching_data"
 
-    @_network_retry
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+    def _do_fetch(self, **params: Any) -> list[dict[str, Any]]:
         translated = _translate_fg_params(params)
         logger.debug("Calling %s(%s)", "fg_pitching_data", translated)
         t0 = time.perf_counter()
@@ -101,8 +115,17 @@ class FgPitchingSource:
         logger.debug("%s returned %d rows in %.1fs", "fg_pitching_data", len(df), time.perf_counter() - t0)
         return df.to_dict("records")
 
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+        return self._retrying_fetch(**params)
+
 
 class BrefBattingSource:
+    def __init__(
+        self,
+        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _network_retry,
+    ) -> None:
+        self._retrying_fetch = retry(self._do_fetch)
+
     @property
     def source_type(self) -> str:
         return "pybaseball"
@@ -111,8 +134,7 @@ class BrefBattingSource:
     def source_detail(self) -> str:
         return "batting_stats_bref"
 
-    @_network_retry
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+    def _do_fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "batting_stats_bref", params)
         t0 = time.perf_counter()
         try:
@@ -124,8 +146,17 @@ class BrefBattingSource:
         logger.debug("%s returned %d rows in %.1fs", "batting_stats_bref", len(df), time.perf_counter() - t0)
         return df.to_dict("records")
 
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+        return self._retrying_fetch(**params)
+
 
 class BrefPitchingSource:
+    def __init__(
+        self,
+        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _network_retry,
+    ) -> None:
+        self._retrying_fetch = retry(self._do_fetch)
+
     @property
     def source_type(self) -> str:
         return "pybaseball"
@@ -134,8 +165,7 @@ class BrefPitchingSource:
     def source_detail(self) -> str:
         return "pitching_stats_bref"
 
-    @_network_retry
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+    def _do_fetch(self, **params: Any) -> list[dict[str, Any]]:
         logger.debug("Calling %s(%s)", "pitching_stats_bref", params)
         t0 = time.perf_counter()
         try:
@@ -146,6 +176,9 @@ class BrefPitchingSource:
             raise RuntimeError(f"pybaseball fetch failed: {exc}") from exc
         logger.debug("%s returned %d rows in %.1fs", "pitching_stats_bref", len(df), time.perf_counter() - t0)
         return df.to_dict("records")
+
+    def fetch(self, **params: Any) -> list[dict[str, Any]]:
+        return self._retrying_fetch(**params)
 
 
 class LahmanPeopleSource:
