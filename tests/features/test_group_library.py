@@ -43,6 +43,8 @@ class TestStaticGroups:
             "statcast_expected_stats",
             "statcast_gbm_batter_rates",
             "statcast_gbm_pitcher_rates",
+            "statcast_gbm_preseason_batter_rates",
+            "statcast_gbm_preseason_pitcher_rates",
             "statcast_pitch_mix",
             "statcast_plate_discipline",
             "statcast_spin_profile",
@@ -63,6 +65,8 @@ class TestStaticGroups:
         assert get_group("mle_batter_rates").player_type == "batter"
         assert get_group("statcast_gbm_batter_rates").player_type == "batter"
         assert get_group("statcast_gbm_pitcher_rates").player_type == "pitcher"
+        assert get_group("statcast_gbm_preseason_batter_rates").player_type == "batter"
+        assert get_group("statcast_gbm_preseason_pitcher_rates").player_type == "pitcher"
         assert get_group("marcel_batter_rates").player_type == "batter"
         assert get_group("marcel_pitcher_rates").player_type == "pitcher"
 
@@ -92,6 +96,8 @@ class TestStaticGroups:
             "mle_batter_rates",
             "statcast_gbm_batter_rates",
             "statcast_gbm_pitcher_rates",
+            "statcast_gbm_preseason_batter_rates",
+            "statcast_gbm_preseason_pitcher_rates",
             "marcel_batter_rates",
             "marcel_pitcher_rates",
         ]
@@ -309,3 +315,67 @@ class TestProjectionGroupRoundTrip:
         assert cole["marcel_k_per_9"] == pytest.approx(9.0)
         assert cole["marcel_bb_per_9"] == pytest.approx(2.9)
         assert cole["marcel_ip"] == pytest.approx(190.0)
+
+
+class TestPreseasonStatcastGbmGroups:
+    def test_batter_group_registered_with_6_features(self) -> None:
+        group = get_group("statcast_gbm_preseason_batter_rates")
+        assert len(group.features) == 6
+
+    def test_batter_group_all_projection_source(self) -> None:
+        group = get_group("statcast_gbm_preseason_batter_rates")
+        for f in group.features:
+            assert isinstance(f, Feature)
+            assert f.source == Source.PROJECTION
+
+    def test_batter_group_all_preseason_system(self) -> None:
+        group = get_group("statcast_gbm_preseason_batter_rates")
+        for f in group.features:
+            assert isinstance(f, Feature)
+            assert f.system == "statcast-gbm-preseason"
+
+    def test_batter_group_all_lag_0(self) -> None:
+        group = get_group("statcast_gbm_preseason_batter_rates")
+        for f in group.features:
+            assert isinstance(f, Feature)
+            assert f.lag == 0
+
+    def test_batter_group_aliases(self) -> None:
+        group = get_group("statcast_gbm_preseason_batter_rates")
+        names = [f.name for f in group.features]
+        assert names == ["sc_pre_avg", "sc_pre_obp", "sc_pre_slg", "sc_pre_woba", "sc_pre_iso", "sc_pre_babip"]
+
+    def test_pitcher_group_registered_with_7_features(self) -> None:
+        group = get_group("statcast_gbm_preseason_pitcher_rates")
+        assert len(group.features) == 7
+
+    def test_pitcher_group_all_projection_source(self) -> None:
+        group = get_group("statcast_gbm_preseason_pitcher_rates")
+        for f in group.features:
+            assert isinstance(f, Feature)
+            assert f.source == Source.PROJECTION
+
+    def test_pitcher_group_all_preseason_system(self) -> None:
+        group = get_group("statcast_gbm_preseason_pitcher_rates")
+        for f in group.features:
+            assert isinstance(f, Feature)
+            assert f.system == "statcast-gbm-preseason"
+
+    def test_pitcher_group_all_lag_0(self) -> None:
+        group = get_group("statcast_gbm_preseason_pitcher_rates")
+        for f in group.features:
+            assert isinstance(f, Feature)
+            assert f.lag == 0
+
+    def test_pitcher_group_aliases(self) -> None:
+        group = get_group("statcast_gbm_preseason_pitcher_rates")
+        names = [f.name for f in group.features]
+        assert names == [
+            "sc_pre_era",
+            "sc_pre_fip",
+            "sc_pre_k_per_9",
+            "sc_pre_bb_per_9",
+            "sc_pre_hr_per_9",
+            "sc_pre_babip",
+            "sc_pre_whip",
+        ]

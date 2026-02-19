@@ -772,6 +772,73 @@ class TestStatcastGBMTrainPerTypeParams:
         assert captured_params[1] == {"max_iter": 50}
 
 
+class TestStatcastGBMAblatePerTypeParams:
+    def test_ablate_routes_per_type_params(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_params: list[dict[str, Any]] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any]) -> Any:
+            captured_params.append(params)
+            return original_fit(X, y, params)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={
+                "batter": {"max_iter": 50, "min_samples_leaf": 10},
+                "pitcher": {"max_iter": 80, "learning_rate": 0.05},
+            },
+        )
+        result = model.ablate(config)
+        assert isinstance(result, AblationResult)
+        # First call is batter, second is pitcher
+        assert len(captured_params) == 2
+        assert captured_params[0] == {"max_iter": 50, "min_samples_leaf": 10}
+        assert captured_params[1] == {"max_iter": 80, "learning_rate": 0.05}
+
+    def test_ablate_falls_back_to_top_level_params(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_params: list[dict[str, Any]] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any]) -> Any:
+            captured_params.append(params)
+            return original_fit(X, y, params)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={"max_iter": 50},
+        )
+        result = model.ablate(config)
+        assert isinstance(result, AblationResult)
+        # Both batter and pitcher get the same top-level params
+        assert len(captured_params) == 2
+        assert captured_params[0] == {"max_iter": 50}
+        assert captured_params[1] == {"max_iter": 50}
+
+
 class TestDefaultModeIsTrueTalent:
     def test_artifact_path_uses_model_name(self, tmp_path: Path) -> None:
         rows_by_season = {
