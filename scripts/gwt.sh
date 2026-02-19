@@ -11,12 +11,14 @@ Arguments:
   branch-name   Name for the new branch and worktree directory
   base-ref      Starting point (default: HEAD)
 
-The worktree is created as a sibling directory named <repo>-<branch>.
-Dependencies are installed via uv sync, large data directories are
-symlinked, and .claude/settings.local.json is copied if present.
+The worktree is created as a sibling directory named <repo>-<branch>,
+with slashes in the branch name replaced by dashes. Dependencies are
+installed via uv sync, large data directories are symlinked, and
+.claude/settings.local.json is copied if present.
 
 Example:
   $(basename "$0") feature-x
+  $(basename "$0") roadmap/my-feature/phase-1
   $(basename "$0") feature-x origin/main
 EOF
     exit 1
@@ -28,7 +30,8 @@ BRANCH="$1"
 BASE="${2:-HEAD}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_NAME="$(basename "$REPO_ROOT")"
-WORKTREE_DIR="$(dirname "$REPO_ROOT")/${REPO_NAME}-${BRANCH}"
+DIR_SUFFIX="${BRANCH//\//-}"
+WORKTREE_DIR="$(dirname "$REPO_ROOT")/${REPO_NAME}-${DIR_SUFFIX}"
 
 if [[ -d "$WORKTREE_DIR" ]]; then
     echo "Error: directory already exists: $WORKTREE_DIR" >&2

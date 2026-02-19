@@ -47,6 +47,17 @@ When executing a plan (after plan-mode approval):
 - Commit with a conventional commit message referencing what was done.
 - Coverage is enforced in CI via `fail_under`. Run `uv run pytest --cov` locally to check before pushing.
 
+## Worktree Workflow
+
+Each roadmap phase should be implemented in its own git worktree so that phases can be developed in parallel without interfering with each other.
+
+- **Branch naming:** `roadmap/<roadmap-name>/phase-<n>` (e.g., `roadmap/worktree-workflow/phase-1`).
+- **Create a worktree** for each phase: `./scripts/gwt.sh roadmap/<roadmap-name>/phase-<n>`. This sets up an isolated directory with its own `.venv/`, symlinked `data/` and `artifacts/`, and Claude Code settings.
+- **Implement the phase** in the worktree, committing as normal on the phase branch.
+- **Merge back to main** after the phase is complete: from the main worktree, `git merge --ff-only roadmap/<roadmap-name>/phase-<n>` (rebase first if needed to keep history linear).
+- **Clean up** the worktree: `./scripts/gwt-remove.sh --delete-branch ../fbm-roadmap-<roadmap-name>-phase-<n>`.
+- Phases that depend on earlier phases should branch from main after the dependency has been merged.
+
 ## Git Conventions
 
 - Write commits in the **Conventional Commits** style: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, etc.
