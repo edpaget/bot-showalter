@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -6,19 +7,19 @@ import fantasy_baseball_manager.features.group_library  # noqa: F401 — trigger
 from fantasy_baseball_manager.features.groups import FeatureGroup, get_group, list_groups
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 import fantasy_baseball_manager.models.composite  # noqa: F401 — trigger alias registration
-from fantasy_baseball_manager.models.composite.engine import EngineConfig
+from fantasy_baseball_manager.models.composite.engine import EngineConfig, GBMEngine, MarcelEngine
+from fantasy_baseball_manager.models.composite.features import (
+    build_composite_batting_features,
+    build_composite_pitching_features,
+    feature_columns,
+)
 from fantasy_baseball_manager.models.composite.model import (
     DEFAULT_GROUPS,
     CompositeModel,
     _build_marcel_config,
     _resolve_group,
 )
-from fantasy_baseball_manager.models.composite.features import (
-    build_composite_batting_features,
-    build_composite_pitching_features,
-)
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
-from fantasy_baseball_manager.models.registry import _clear, get, register, register_alias
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
     FineTunable,
@@ -26,8 +27,10 @@ from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
     Predictable,
     Preparable,
+    TrainResult,
     Trainable,
 )
+from fantasy_baseball_manager.models.registry import _clear, get, register, register_alias
 
 # Snapshot groups at import time — before any test can clear the global registry.
 _GROUPS: dict[str, FeatureGroup] = {name: get_group(name) for name in list_groups()}
@@ -94,8 +97,8 @@ class TestCompositeModelProtocol:
     def test_is_predictable(self) -> None:
         assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Predictable)
 
-    def test_is_not_trainable(self) -> None:
-        assert not isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Trainable)
+    def test_is_trainable(self) -> None:
+        assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Trainable)
 
     def test_is_not_evaluable(self) -> None:
         assert not isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Evaluable)
@@ -503,3 +506,257 @@ class TestEngineDelegation:
 
         # Result uses engine output
         assert result.predictions == [{"player_id": 99, "season": 2024, "player_type": "batter"}]
+
+
+class SeasonAwareFakeAssembler:
+    """Assembler that routes rows by season for train/holdout splits."""
+
+    def __init__(
+        self,
+        rows_by_season: dict[int, list[dict[str, Any]]] | None = None,
+        pitcher_rows_by_season: dict[int, list[dict[str, Any]]] | None = None,
+    ) -> None:
+        self._next_id = 1
+        self._rows_by_season = rows_by_season or {}
+        self._pitcher_rows_by_season = pitcher_rows_by_season or {}
+
+    def _select_rows(self, feature_set_name: str) -> dict[int, list[dict[str, Any]]]:
+        if "pitching" in feature_set_name:
+            return self._pitcher_rows_by_season
+        return self._rows_by_season
+
+    def materialize(self, feature_set: FeatureSet) -> DatasetHandle:
+        return self.get_or_materialize(feature_set)
+
+    def get_or_materialize(self, feature_set: FeatureSet) -> DatasetHandle:
+        source = self._select_rows(feature_set.name)
+        all_rows: list[dict[str, Any]] = []
+        for s in feature_set.seasons:
+            all_rows.extend(source.get(s, []))
+        handle = DatasetHandle(
+            dataset_id=self._next_id,
+            feature_set_id=self._next_id,
+            table_name=f"ds_{feature_set.name}",
+            row_count=len(all_rows),
+            seasons=feature_set.seasons,
+        )
+        self._next_id += 1
+        return handle
+
+    def split(
+        self,
+        handle: DatasetHandle,
+        train: range | list[int],
+        validation: list[int] | None = None,
+        holdout: list[int] | None = None,
+    ) -> DatasetSplits:
+        source = self._select_rows(handle.table_name)
+        train_seasons = list(train)
+        holdout_seasons = holdout or []
+        train_rows: list[dict[str, Any]] = []
+        for s in train_seasons:
+            train_rows.extend(source.get(s, []))
+        holdout_rows: list[dict[str, Any]] = []
+        for s in holdout_seasons:
+            holdout_rows.extend(source.get(s, []))
+        train_handle = DatasetHandle(
+            dataset_id=self._next_id,
+            feature_set_id=handle.feature_set_id,
+            table_name=f"{handle.table_name}_train",
+            row_count=len(train_rows),
+            seasons=tuple(train_seasons),
+        )
+        self._next_id += 1
+        holdout_handle = DatasetHandle(
+            dataset_id=self._next_id,
+            feature_set_id=handle.feature_set_id,
+            table_name=f"{handle.table_name}_holdout",
+            row_count=len(holdout_rows),
+            seasons=tuple(holdout_seasons),
+        )
+        self._next_id += 1
+        return DatasetSplits(train=train_handle, validation=None, holdout=holdout_handle)
+
+    def read(self, handle: DatasetHandle) -> list[dict[str, Any]]:
+        source = self._select_rows(handle.table_name)
+        rows: list[dict[str, Any]] = []
+        for s in handle.seasons:
+            rows.extend(source.get(s, []))
+        return rows
+
+
+def _make_batter_row(player_id: int, season: int) -> dict[str, Any]:
+    """Batter row with default composite features (batting_categories=["hr"]) + targets."""
+    return {
+        "player_id": player_id,
+        "season": season,
+        "age": 28,
+        "proj_pa": 550,
+        "pa_1": 600,
+        "pa_2": 550,
+        "hr_1": 25.0,
+        "hr_2": 22.0,
+        "hr_wavg": 0.04,
+        "weighted_pt": 6500.0,
+        "league_hr_rate": 0.03,
+        # Targets
+        "target_avg": 0.270,
+        "target_obp": 0.340,
+        "target_slg": 0.440,
+        "target_woba": 0.330,
+        "target_h": 145,
+        "target_hr": 24,
+        "target_ab": 500,
+        "target_so": 110,
+        "target_sf": 4,
+    }
+
+
+def _make_pitcher_row(player_id: int, season: int) -> dict[str, Any]:
+    """Pitcher row with default composite features (pitching_categories=["so"]) + targets."""
+    return {
+        "player_id": player_id,
+        "season": season,
+        "age": 27,
+        "proj_ip": 160.0,
+        "ip_1": 175.0,
+        "ip_2": 165.0,
+        "g_1": 32,
+        "g_2": 30,
+        "gs_1": 32,
+        "gs_2": 30,
+        "so_1": 190.0,
+        "so_2": 175.0,
+        "so_wavg": 1.05,
+        "weighted_pt": 1000.0,
+        "league_so_rate": 1.1,
+        # Targets
+        "target_era": 3.60,
+        "target_fip": 3.50,
+        "target_k_per_9": 9.5,
+        "target_bb_per_9": 2.8,
+        "target_whip": 1.18,
+        "target_h": 155,
+        "target_hr": 18,
+        "target_ip": 175.0,
+        "target_so": 190,
+    }
+
+
+class RecordingGBMEngine(GBMEngine):
+    """GBMEngine subclass that records train() args instead of fitting real models."""
+
+    def __init__(self) -> None:
+        self.train_calls: list[dict[str, Any]] = []
+
+    def train(
+        self,
+        bat_train_rows: list[dict[str, Any]],
+        bat_holdout_rows: list[dict[str, Any]],
+        pitch_train_rows: list[dict[str, Any]],
+        pitch_holdout_rows: list[dict[str, Any]],
+        bat_feature_cols: list[str],
+        pitch_feature_cols: list[str],
+        model_params: dict[str, Any],
+        artifact_path: Path,
+    ) -> dict[str, float]:
+        self.train_calls.append(
+            {
+                "bat_train_rows": bat_train_rows,
+                "bat_holdout_rows": bat_holdout_rows,
+                "pitch_train_rows": pitch_train_rows,
+                "pitch_holdout_rows": pitch_holdout_rows,
+                "bat_feature_cols": bat_feature_cols,
+                "pitch_feature_cols": pitch_feature_cols,
+                "model_params": model_params,
+                "artifact_path": artifact_path,
+            }
+        )
+        return {"batter_rmse_avg": 0.01}
+
+
+@pytest.mark.slow
+class TestCompositeModelTrain:
+    @pytest.fixture
+    def model_params(self) -> dict[str, Any]:
+        return {"batting_categories": ["hr"], "pitching_categories": ["so"], "engine": "gbm"}
+
+    @pytest.fixture
+    def assembler(self) -> SeasonAwareFakeAssembler:
+        bat_2022 = [_make_batter_row(i, 2022) for i in range(1, 21)]
+        bat_2023 = [_make_batter_row(i, 2023) for i in range(1, 11)]
+        pitch_2022 = [_make_pitcher_row(i, 2022) for i in range(100, 120)]
+        pitch_2023 = [_make_pitcher_row(i, 2023) for i in range(100, 110)]
+        return SeasonAwareFakeAssembler(
+            rows_by_season={2022: bat_2022, 2023: bat_2023},
+            pitcher_rows_by_season={2022: pitch_2022, 2023: pitch_2023},
+        )
+
+    def test_train_returns_train_result(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        model_params: dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
+        model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(seasons=[2022, 2023], model_params=model_params, artifacts_dir=str(tmp_path))
+        result = model.train(config)
+        assert isinstance(result, TrainResult)
+        assert result.model_name == "composite"
+        assert len(result.metrics) > 0
+
+    def test_train_saves_artifacts(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        model_params: dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
+        model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(seasons=[2022, 2023], model_params=model_params, artifacts_dir=str(tmp_path))
+        result = model.train(config)
+        artifact_path = Path(result.artifacts_path)
+        assert (artifact_path / "batter_models.joblib").exists()
+        assert (artifact_path / "pitcher_models.joblib").exists()
+
+    def test_train_requires_at_least_2_seasons(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        model_params: dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
+        model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(seasons=[2022], model_params=model_params, artifacts_dir=str(tmp_path))
+        with pytest.raises(ValueError, match="at least 2 seasons"):
+            model.train(config)
+
+    def test_train_unsupported_engine_raises(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        model_params: dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
+        model = CompositeModel(assembler=assembler, engine=MarcelEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(seasons=[2022, 2023], model_params=model_params, artifacts_dir=str(tmp_path))
+        with pytest.raises(ValueError, match="does not support train"):
+            model.train(config)
+
+    def test_train_passes_feature_columns(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        model_params: dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
+        engine = RecordingGBMEngine()
+        model = CompositeModel(assembler=assembler, engine=engine, group_lookup=_test_lookup)
+        config = ModelConfig(seasons=[2022, 2023], model_params=model_params, artifacts_dir=str(tmp_path))
+        marcel_config = _build_marcel_config(config.model_params)
+        batting_fs, pitching_fs = model._build_feature_sets(marcel_config, config)
+        expected_bat_cols = feature_columns(batting_fs)
+        expected_pitch_cols = feature_columns(pitching_fs)
+
+        model.train(config)
+
+        assert len(engine.train_calls) == 1
+        call = engine.train_calls[0]
+        assert call["bat_feature_cols"] == expected_bat_cols
+        assert call["pitch_feature_cols"] == expected_pitch_cols

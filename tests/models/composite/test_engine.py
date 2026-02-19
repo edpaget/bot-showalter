@@ -1,4 +1,5 @@
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -6,9 +7,11 @@ import pytest
 from fantasy_baseball_manager.models.composite.engine import (
     CompositeEngine,
     EngineConfig,
+    GBMEngine,
     MarcelEngine,
     resolve_engine,
 )
+from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
 
 
@@ -183,6 +186,220 @@ class TestMarcelEnginePredict:
         assert result[0]["season"] == 2025
 
 
+class TestGBMEngineProperties:
+    def test_supported_operations(self) -> None:
+        assert GBMEngine().supported_operations == frozenset({"prepare", "train", "predict"})
+
+    def test_artifact_type(self) -> None:
+        assert GBMEngine().artifact_type == "file"
+
+
+class TestGBMEngineProtocol:
+    def test_satisfies_composite_engine(self) -> None:
+        assert isinstance(GBMEngine(), CompositeEngine)
+
+    def test_predict_raises_not_implemented(self) -> None:
+        engine = GBMEngine()
+        config = EngineConfig(
+            marcel_config=MarcelConfig(),
+            projected_season=2025,
+            version="latest",
+            system_name="composite",
+        )
+        with pytest.raises(NotImplementedError):
+            engine.predict([], [], {}, {}, config)
+
+
+_FEATURE_COLS = ["age", "pa_1", "hr_1", "hr_wavg", "weighted_pt", "league_hr_rate"]
+_PITCH_FEATURE_COLS = ["age", "ip_1", "so_1", "so_wavg", "weighted_pt", "league_so_rate"]
+
+
+def _make_batter_train_row(player_id: int, season: int) -> dict[str, Any]:
+    """Synthetic batter row with feature + target columns."""
+    row: dict[str, Any] = {"player_id": player_id, "season": season}
+    for col in _FEATURE_COLS:
+        row[col] = 1.0
+    row["target_avg"] = 0.275
+    row["target_obp"] = 0.350
+    row["target_slg"] = 0.450
+    row["target_woba"] = 0.340
+    row["target_h"] = 150
+    row["target_hr"] = 25
+    row["target_ab"] = 500
+    row["target_so"] = 100
+    row["target_sf"] = 5
+    return row
+
+
+def _make_pitcher_train_row(player_id: int, season: int) -> dict[str, Any]:
+    """Synthetic pitcher row with feature + target columns."""
+    row: dict[str, Any] = {"player_id": player_id, "season": season}
+    for col in _PITCH_FEATURE_COLS:
+        row[col] = 1.0
+    row["target_era"] = 3.50
+    row["target_fip"] = 3.40
+    row["target_k_per_9"] = 9.0
+    row["target_bb_per_9"] = 3.0
+    row["target_whip"] = 1.20
+    row["target_h"] = 150
+    row["target_hr"] = 20
+    row["target_ip"] = 180.0
+    row["target_so"] = 200
+    return row
+
+
+@pytest.mark.slow
+class TestGBMEngineTrain:
+    @pytest.fixture
+    def artifact_path(self, tmp_path: Path) -> Path:
+        return tmp_path / "models"
+
+    @pytest.fixture
+    def bat_train_rows(self) -> list[dict[str, Any]]:
+        return [_make_batter_train_row(i, 2022) for i in range(1, 21)]
+
+    @pytest.fixture
+    def bat_holdout_rows(self) -> list[dict[str, Any]]:
+        return [_make_batter_train_row(i, 2023) for i in range(1, 11)]
+
+    @pytest.fixture
+    def pitch_train_rows(self) -> list[dict[str, Any]]:
+        return [_make_pitcher_train_row(i, 2022) for i in range(100, 120)]
+
+    @pytest.fixture
+    def pitch_holdout_rows(self) -> list[dict[str, Any]]:
+        return [_make_pitcher_train_row(i, 2023) for i in range(100, 110)]
+
+    def test_train_returns_batter_metrics(
+        self,
+        bat_train_rows: list[dict[str, Any]],
+        bat_holdout_rows: list[dict[str, Any]],
+        pitch_train_rows: list[dict[str, Any]],
+        pitch_holdout_rows: list[dict[str, Any]],
+        artifact_path: Path,
+    ) -> None:
+        engine = GBMEngine()
+        metrics = engine.train(
+            bat_train_rows,
+            bat_holdout_rows,
+            pitch_train_rows,
+            pitch_holdout_rows,
+            _FEATURE_COLS,
+            _PITCH_FEATURE_COLS,
+            {},
+            artifact_path,
+        )
+        for target in BATTER_TARGETS:
+            assert f"batter_rmse_{target}" in metrics
+
+    def test_train_returns_pitcher_metrics(
+        self,
+        bat_train_rows: list[dict[str, Any]],
+        bat_holdout_rows: list[dict[str, Any]],
+        pitch_train_rows: list[dict[str, Any]],
+        pitch_holdout_rows: list[dict[str, Any]],
+        artifact_path: Path,
+    ) -> None:
+        engine = GBMEngine()
+        metrics = engine.train(
+            bat_train_rows,
+            bat_holdout_rows,
+            pitch_train_rows,
+            pitch_holdout_rows,
+            _FEATURE_COLS,
+            _PITCH_FEATURE_COLS,
+            {},
+            artifact_path,
+        )
+        for target in PITCHER_TARGETS:
+            assert f"pitcher_rmse_{target}" in metrics
+
+    def test_train_saves_batter_models(
+        self,
+        bat_train_rows: list[dict[str, Any]],
+        bat_holdout_rows: list[dict[str, Any]],
+        pitch_train_rows: list[dict[str, Any]],
+        pitch_holdout_rows: list[dict[str, Any]],
+        artifact_path: Path,
+    ) -> None:
+        engine = GBMEngine()
+        engine.train(
+            bat_train_rows,
+            bat_holdout_rows,
+            pitch_train_rows,
+            pitch_holdout_rows,
+            _FEATURE_COLS,
+            _PITCH_FEATURE_COLS,
+            {},
+            artifact_path,
+        )
+        assert (artifact_path / "batter_models.joblib").exists()
+
+    def test_train_saves_pitcher_models(
+        self,
+        bat_train_rows: list[dict[str, Any]],
+        bat_holdout_rows: list[dict[str, Any]],
+        pitch_train_rows: list[dict[str, Any]],
+        pitch_holdout_rows: list[dict[str, Any]],
+        artifact_path: Path,
+    ) -> None:
+        engine = GBMEngine()
+        engine.train(
+            bat_train_rows,
+            bat_holdout_rows,
+            pitch_train_rows,
+            pitch_holdout_rows,
+            _FEATURE_COLS,
+            _PITCH_FEATURE_COLS,
+            {},
+            artifact_path,
+        )
+        assert (artifact_path / "pitcher_models.joblib").exists()
+
+    def test_train_empty_holdout_returns_no_metrics(
+        self,
+        bat_train_rows: list[dict[str, Any]],
+        pitch_train_rows: list[dict[str, Any]],
+        artifact_path: Path,
+    ) -> None:
+        engine = GBMEngine()
+        metrics = engine.train(
+            bat_train_rows,
+            [],
+            pitch_train_rows,
+            [],
+            _FEATURE_COLS,
+            _PITCH_FEATURE_COLS,
+            {},
+            artifact_path,
+        )
+        assert metrics == {}
+
+    def test_train_routes_batter_params(
+        self,
+        bat_train_rows: list[dict[str, Any]],
+        bat_holdout_rows: list[dict[str, Any]],
+        pitch_train_rows: list[dict[str, Any]],
+        pitch_holdout_rows: list[dict[str, Any]],
+        artifact_path: Path,
+    ) -> None:
+        """Batter-specific params are extracted via model_params.get('batter', model_params)."""
+        model_params = {"batter": {"max_iter": 50}, "pitcher": {"max_iter": 30}}
+        engine = GBMEngine()
+        # Should not raise — batter uses max_iter=50, pitcher uses max_iter=30
+        metrics = engine.train(
+            bat_train_rows,
+            bat_holdout_rows,
+            pitch_train_rows,
+            pitch_holdout_rows,
+            _FEATURE_COLS,
+            _PITCH_FEATURE_COLS,
+            model_params,
+            artifact_path,
+        )
+        assert len(metrics) > 0
+
+
 class TestResolveEngine:
     def test_default_returns_marcel(self) -> None:
         engine = resolve_engine({})
@@ -191,6 +408,10 @@ class TestResolveEngine:
     def test_explicit_marcel(self) -> None:
         engine = resolve_engine({"engine": "marcel"})
         assert isinstance(engine, MarcelEngine)
+
+    def test_explicit_gbm(self) -> None:
+        engine = resolve_engine({"engine": "gbm"})
+        assert isinstance(engine, GBMEngine)
 
     def test_unknown_raises(self) -> None:
         with pytest.raises(ValueError, match="bogus"):

@@ -1,6 +1,7 @@
 """Composite model — rate projection using external playing-time model."""
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from fantasy_baseball_manager.features.group_library import (
@@ -12,7 +13,13 @@ from fantasy_baseball_manager.features.groups import FeatureGroup, compose_featu
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import FeatureSet
 from fantasy_baseball_manager.models.composite.convert import extract_projected_pt
-from fantasy_baseball_manager.models.composite.engine import CompositeEngine, EngineConfig, MarcelEngine
+from fantasy_baseball_manager.models.composite.engine import CompositeEngine, EngineConfig, GBMEngine, MarcelEngine
+from fantasy_baseball_manager.models.composite.features import (
+    append_training_targets,
+    batter_target_features,
+    feature_columns,
+    pitcher_target_features,
+)
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_league_averages,
     build_batting_weighted_rates,
@@ -24,6 +31,7 @@ from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
     PredictResult,
     PrepareResult,
+    TrainResult,
 )
 from fantasy_baseball_manager.models.registry import register
 
@@ -180,6 +188,56 @@ class CompositeModel:
             model_name=self.name,
             rows_processed=bat_handle.row_count + pitch_handle.row_count,
             artifacts_path=config.artifacts_dir,
+        )
+
+    def train(self, config: ModelConfig) -> TrainResult:
+        if len(config.seasons) < 2:
+            msg = f"train requires at least 2 seasons (got {len(config.seasons)})"
+            raise ValueError(msg)
+        if not isinstance(self._engine, GBMEngine):
+            msg = f"Engine {type(self._engine).__name__} does not support train"
+            raise ValueError(msg)
+
+        marcel_config = _build_marcel_config(config.model_params)
+        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config)
+
+        bat_cols = feature_columns(batting_fs)
+        pitch_cols = feature_columns(pitching_fs)
+
+        bat_train_fs = append_training_targets(batting_fs, batter_target_features())
+        pitch_train_fs = append_training_targets(pitching_fs, pitcher_target_features())
+
+        bat_handle = self._assembler.get_or_materialize(bat_train_fs)
+        pitch_handle = self._assembler.get_or_materialize(pitch_train_fs)
+
+        train_seasons = config.seasons[:-1]
+        holdout_seasons = [config.seasons[-1]]
+
+        bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=holdout_seasons)
+        pitch_splits = self._assembler.split(pitch_handle, train=train_seasons, holdout=holdout_seasons)
+
+        bat_train_rows = self._assembler.read(bat_splits.train)
+        bat_holdout_rows = self._assembler.read(bat_splits.holdout) if bat_splits.holdout else []
+        pitch_train_rows = self._assembler.read(pitch_splits.train)
+        pitch_holdout_rows = self._assembler.read(pitch_splits.holdout) if pitch_splits.holdout else []
+
+        artifact_path = Path(config.artifacts_dir) / self._model_name / (config.version or "latest")
+
+        metrics = self._engine.train(
+            bat_train_rows,
+            bat_holdout_rows,
+            pitch_train_rows,
+            pitch_holdout_rows,
+            bat_cols,
+            pitch_cols,
+            config.model_params,
+            artifact_path,
+        )
+
+        return TrainResult(
+            model_name=self.name,
+            metrics=metrics,
+            artifacts_path=str(artifact_path),
         )
 
     def predict(self, config: ModelConfig) -> PredictResult:

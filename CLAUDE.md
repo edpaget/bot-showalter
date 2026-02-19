@@ -34,7 +34,7 @@ This project uses two tiers of planning:
 
 When asked to "create a plan", "write a plan", or "plan out" a feature — produce a **roadmap** document. Do NOT start implementing or exploring code for implementation purposes unless explicitly asked to implement.
 
-When implementing from a roadmap or plan document, read it first and implement exactly what it specifies. Do not expand scope beyond the plan unless asked.
+When implementing from a roadmap or plan document, read it first and implement exactly what it specifies. Do not expand scope beyond the plan unless asked. **Every roadmap phase must be implemented in its own worktree** — see [Worktree Workflow](#worktree-workflow) below.
 
 ## Implementation Discipline
 
@@ -49,7 +49,7 @@ When executing a plan (after plan-mode approval):
 
 ## Worktree Workflow
 
-Each roadmap phase should be implemented in its own git worktree so that phases can be developed in parallel without interfering with each other.
+**Every roadmap phase must be implemented in its own git worktree.** Never implement a phase directly on `main`. This ensures phases can be developed in parallel without interfering with each other.
 
 - **Branch naming:** `roadmap/<roadmap-name>/phase-<n>` (e.g., `roadmap/worktree-workflow/phase-1`).
 - **Create a worktree** for each phase: `./scripts/gwt.sh roadmap/<roadmap-name>/phase-<n>`. This sets up an isolated directory with its own `.venv/`, symlinked `data/` and `artifacts/`, and Claude Code settings.
