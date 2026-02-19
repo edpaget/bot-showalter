@@ -1,7 +1,7 @@
 import logging
 import sys
 
-_THIRD_PARTY_LOGGERS = ("httpx", "httpcore", "pybaseball", "urllib3", "filelock")
+_THIRD_PARTY_LOGGERS = ("httpx", "httpcore", "urllib3", "filelock")
 
 
 def configure_logging(*, verbose: bool = False) -> None:

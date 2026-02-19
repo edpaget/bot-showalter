@@ -20,12 +20,12 @@ class TestConfigureLogging:
 
     def test_third_party_suppressed_to_warning(self) -> None:
         configure_logging()
-        for name in ("httpx", "httpcore", "pybaseball", "urllib3", "filelock"):
+        for name in ("httpx", "httpcore", "urllib3", "filelock"):
             assert logging.getLogger(name).level == logging.WARNING
 
     def test_third_party_not_suppressed_when_verbose(self) -> None:
         configure_logging(verbose=True)
-        for name in ("httpx", "httpcore", "pybaseball", "urllib3", "filelock"):
+        for name in ("httpx", "httpcore", "urllib3", "filelock"):
             assert logging.getLogger(name).level == logging.NOTSET
 
     def test_handler_writes_to_stderr(self) -> None:

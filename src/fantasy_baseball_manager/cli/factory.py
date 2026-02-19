@@ -16,10 +16,6 @@ from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.chadwick_source import ChadwickRegisterSource
 from fantasy_baseball_manager.ingest.lahman_source import LahmanAppearancesSource, LahmanPeopleSource, LahmanTeamsSource
 from fantasy_baseball_manager.ingest.fangraphs_source import FgBattingSource, FgPitchingSource
-from fantasy_baseball_manager.ingest.pybaseball_source import (
-    BrefBattingSource,
-    BrefPitchingSource,
-)
 from fantasy_baseball_manager.ingest.sprint_speed_source import SprintSpeedSource
 from fantasy_baseball_manager.ingest.statcast_savant_source import StatcastSavantSource
 from fantasy_baseball_manager.domain.errors import ConfigError
@@ -251,19 +247,11 @@ class IngestContainer:
     def player_source(self) -> DataSource:
         return ChadwickRegisterSource()
 
-    def batting_source(self, name: str) -> DataSource:
-        if name == "fangraphs":
-            return FgBattingSource()
-        if name == "bbref":
-            return BrefBattingSource()
-        raise ValueError(f"Unknown batting source: {name!r}")
+    def batting_source(self) -> DataSource:
+        return FgBattingSource()
 
-    def pitching_source(self, name: str) -> DataSource:
-        if name == "fangraphs":
-            return FgPitchingSource()
-        if name == "bbref":
-            return BrefPitchingSource()
-        raise ValueError(f"Unknown pitching source: {name!r}")
+    def pitching_source(self) -> DataSource:
+        return FgPitchingSource()
 
     @functools.cached_property
     def il_stint_repo(self) -> SqliteILStintRepo:

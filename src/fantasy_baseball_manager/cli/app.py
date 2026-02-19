@@ -66,8 +66,6 @@ from fantasy_baseball_manager.domain.projection import Projection, StatDistribut
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
     lahman_team_row_to_team,
-    make_bref_batting_mapper,
-    make_bref_pitching_mapper,
     make_fg_batting_mapper,
     make_fg_pitching_mapper,
     make_fg_projection_batting_mapper,
@@ -803,24 +801,17 @@ def ingest_bio(
                 print_error(e.message)
 
 
-_SourceOpt = Annotated[str, typer.Option("--source", help="Data source: fangraphs or bbref")]
-
-
 @ingest_app.command("batting")
 def ingest_batting(
     season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
-    source: _SourceOpt = "fangraphs",
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Ingest historical batting stats."""
     with build_ingest_container(data_dir) as container:
-        data_source = container.batting_source(source)
+        data_source = container.batting_source()
         players = container.player_repo.all()
         for yr in season:
-            if source == "fangraphs":
-                mapper = make_fg_batting_mapper(players)
-            else:
-                mapper = make_bref_batting_mapper(players, season=yr)
+            mapper = make_fg_batting_mapper(players)
             loader = StatsLoader(
                 data_source,
                 container.batting_stats_repo,
@@ -840,18 +831,14 @@ def ingest_batting(
 @ingest_app.command("pitching")
 def ingest_pitching(
     season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
-    source: _SourceOpt = "fangraphs",
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Ingest historical pitching stats."""
     with build_ingest_container(data_dir) as container:
-        data_source = container.pitching_source(source)
+        data_source = container.pitching_source()
         players = container.player_repo.all()
         for yr in season:
-            if source == "fangraphs":
-                mapper = make_fg_pitching_mapper(players)
-            else:
-                mapper = make_bref_pitching_mapper(players, season=yr)
+            mapper = make_fg_pitching_mapper(players)
             loader = StatsLoader(
                 data_source,
                 container.pitching_stats_repo,

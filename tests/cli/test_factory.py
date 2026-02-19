@@ -315,45 +315,17 @@ class TestIngestContainer:
     def test_batting_source_fangraphs(self) -> None:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)
-        source = container.batting_source("fangraphs")
+        source = container.batting_source()
         assert source.source_type == "fangraphs"
         assert source.source_detail == "batting"
-        conn.close()
-
-    def test_batting_source_bbref(self) -> None:
-        conn = create_connection(":memory:")
-        container = IngestContainer(conn)
-        source = container.batting_source("bbref")
-        assert source.source_detail == "batting_stats_bref"
-        conn.close()
-
-    def test_batting_source_unknown_raises(self) -> None:
-        conn = create_connection(":memory:")
-        container = IngestContainer(conn)
-        with pytest.raises(ValueError, match="Unknown batting source"):
-            container.batting_source("unknown")
         conn.close()
 
     def test_pitching_source_fangraphs(self) -> None:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)
-        source = container.pitching_source("fangraphs")
+        source = container.pitching_source()
         assert source.source_type == "fangraphs"
         assert source.source_detail == "pitching"
-        conn.close()
-
-    def test_pitching_source_bbref(self) -> None:
-        conn = create_connection(":memory:")
-        container = IngestContainer(conn)
-        source = container.pitching_source("bbref")
-        assert source.source_detail == "pitching_stats_bref"
-        conn.close()
-
-    def test_pitching_source_unknown_raises(self) -> None:
-        conn = create_connection(":memory:")
-        container = IngestContainer(conn)
-        with pytest.raises(ValueError, match="Unknown pitching source"):
-            container.pitching_source("unknown")
         conn.close()
 
     def test_player_source(self) -> None:

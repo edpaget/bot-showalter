@@ -6,7 +6,6 @@ from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.column_maps import (
-    make_bref_pitching_mapper,
     make_fg_batting_mapper,
 )
 from fantasy_baseball_manager.ingest.loader import StatsLoader
@@ -247,51 +246,6 @@ class TestStatsLoaderIntegration:
         assert stats[0].hr == 30
         assert stats[0].avg == 0.311
         assert stats[0].war == 7.0
-
-    def test_bref_pitching_end_to_end(self, conn) -> None:
-        player_id = _seed_player(conn)
-        player_repo = SqlitePlayerRepo(conn)
-        players = player_repo.all()
-        mapper = make_bref_pitching_mapper(players, season=2024)
-
-        rows = [
-            {
-                "mlbID": 545361,
-                "W": 12,
-                "L": 6,
-                "G": 30,
-                "GS": 30,
-                "SV": 0,
-                "H": 130,
-                "ER": 50,
-                "HR": 15,
-                "BB": 40,
-                "SO": 200,
-                "ERA": 2.65,
-                "IP": 185.0,
-                "WHIP": 0.92,
-                "SO9": 9.7,
-            }
-        ]
-        source = FakeDataSource(rows)
-        repo = SqlitePitchingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "pitching_stats", conn=conn)
-
-        result = loader.load()
-
-        assert isinstance(result, Ok)
-        log = result.value
-        assert log.status == "success"
-        assert log.rows_loaded == 1
-
-        stats = repo.get_by_player_season(player_id, 2024, source="bbref")
-        assert len(stats) == 1
-        assert stats[0].w == 12
-        assert stats[0].era == 2.65
-        assert stats[0].k_per_9 == 9.7
-        assert stats[0].hld is None
-        assert stats[0].war is None
 
     def test_unknown_players_skipped(self, conn) -> None:
         player_id = _seed_player(conn)

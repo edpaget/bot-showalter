@@ -67,10 +67,10 @@ class _TestIngestContainer(IngestContainer):
     def player_source(self) -> DataSource:
         return self._fake_source
 
-    def batting_source(self, name: str) -> DataSource:
+    def batting_source(self) -> DataSource:
         return self._fake_source
 
-    def pitching_source(self, name: str) -> DataSource:
+    def pitching_source(self) -> DataSource:
         return self._fake_source
 
     def bio_source(self) -> DataSource:
