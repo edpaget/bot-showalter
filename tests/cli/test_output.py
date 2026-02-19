@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 
 from fantasy_baseball_manager.cli._output import (
+    print_ablation_result,
     print_comparison_result,
     print_error,
     print_features,
@@ -13,6 +14,7 @@ from fantasy_baseball_manager.cli._output import (
     print_valuation_eval_result,
     print_valuation_rankings,
 )
+from fantasy_baseball_manager.models.protocols import AblationResult
 from fantasy_baseball_manager.domain.evaluation import (
     ComparisonResult,
     StatMetrics,
@@ -389,3 +391,48 @@ class TestPrintStratifiedComparisonResult:
         captured = capsys.readouterr()
         assert "R²" in captured.out
         assert "0.5500" in captured.out
+
+
+class TestPrintAblationResult:
+    def test_print_ablation_with_se(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:hr": 0.0592},
+            feature_standard_errors={"batter:hr": 0.0045},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "SE:" in captured.out
+        assert "95% CI:" in captured.out
+
+    def test_print_ablation_without_se_backward_compat(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:hr": 0.0592},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "SE:" not in captured.out
+        assert "+0.0592" in captured.out
+
+    def test_print_ablation_prune_candidate_marked(self, capsys: pytest.CaptureFixture[str]) -> None:
+        # mean + 2*SE <= 0: mean=-0.01, SE=0.005 → -0.01 + 0.01 = 0.0 <= 0
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:noise": -0.01},
+            feature_standard_errors={"batter:noise": 0.005},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "PRUNE" in captured.out
+
+    def test_print_ablation_borderline_not_pruned(self, capsys: pytest.CaptureFixture[str]) -> None:
+        # mean + 2*SE > 0: mean=0.001, SE=0.005 → 0.001 + 0.01 = 0.011 > 0
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:borderline": 0.001},
+            feature_standard_errors={"batter:borderline": 0.005},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "PRUNE" not in captured.out

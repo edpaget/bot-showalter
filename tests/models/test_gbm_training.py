@@ -4,6 +4,7 @@ import random
 import pytest
 from fantasy_baseball_manager.models.gbm_training import (
     CVFold,
+    FeatureImportance,
     GridSearchResult,
     TargetVector,
     _evaluate_combination,
@@ -218,7 +219,7 @@ class TestComputePermutationImportance:
         }
         models = fit_models(X_train, y_train, {"min_samples_leaf": 5})
         result = compute_permutation_importance(models, X_holdout, y_holdout, ["feat_a", "feat_b"])
-        assert result["feat_a"] > 0
+        assert result["feat_a"].mean > 0
 
     def test_irrelevant_feature_has_near_zero_impact(self) -> None:
         gen = random.Random(99)
@@ -234,7 +235,34 @@ class TestComputePermutationImportance:
         }
         models = fit_models(X_train, y_train, {"min_samples_leaf": 5})
         result = compute_permutation_importance(models, X_holdout, y_holdout, ["feat_a", "feat_b"])
-        assert result["feat_b"] < result["feat_a"]
+        assert result["feat_b"].mean < result["feat_a"].mean
+
+    def test_returns_feature_importance_instances(self) -> None:
+        feature_cols = ["feat_a", "feat_b"]
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"avg": TargetVector(indices=[0, 1, 2, 3], values=[0.250, 0.300, 0.275, 0.280])}
+        models = fit_models(X, targets, {})
+        result = compute_permutation_importance(models, X, targets, feature_cols)
+        for fi in result.values():
+            assert isinstance(fi, FeatureImportance)
+
+    def test_standard_error_is_non_negative(self) -> None:
+        feature_cols = ["feat_a", "feat_b"]
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"avg": TargetVector(indices=[0, 1, 2, 3], values=[0.250, 0.300, 0.275, 0.280])}
+        models = fit_models(X, targets, {})
+        result = compute_permutation_importance(models, X, targets, feature_cols)
+        for fi in result.values():
+            assert fi.se >= 0
+
+    def test_single_repeat_has_zero_se(self) -> None:
+        feature_cols = ["feat_a", "feat_b"]
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"avg": TargetVector(indices=[0, 1, 2, 3], values=[0.250, 0.300, 0.275, 0.280])}
+        models = fit_models(X, targets, {})
+        result = compute_permutation_importance(models, X, targets, feature_cols, n_repeats=1)
+        for fi in result.values():
+            assert fi.se == 0.0
 
 
 class TestEndToEndWithMissingTargets:

@@ -53,9 +53,20 @@ def print_predict_result(result: PredictResult) -> None:
 def print_ablation_result(result: AblationResult) -> None:
     console.print(f"Ablation results for model [bold]'{result.model_name}'[/bold]")
     if result.feature_impacts:
+        has_se = bool(result.feature_standard_errors)
         for feature, impact in sorted(result.feature_impacts.items(), key=lambda x: -abs(x[1])):
             color = "green" if impact > 0 else "red"
-            console.print(f"  {feature}: [{color}]{impact:+.4f}[/{color}]")
+            if has_se:
+                se = result.feature_standard_errors.get(feature, 0.0)
+                ci_lo = impact - 2 * se
+                ci_hi = impact + 2 * se
+                prune = " [yellow]\\[PRUNE][/yellow]" if impact + 2 * se <= 0 else ""
+                console.print(
+                    f"  {feature}: [{color}]{impact:+.4f}[/{color}]"
+                    f" (SE: {se:.4f}, 95% CI: [{ci_lo:+.4f}, {ci_hi:+.4f}]){prune}"
+                )
+            else:
+                console.print(f"  {feature}: [{color}]{impact:+.4f}[/{color}]")
 
 
 def print_tune_result(result: TuneResult) -> None:

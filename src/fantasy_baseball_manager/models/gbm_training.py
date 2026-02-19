@@ -1,7 +1,9 @@
 import itertools
 import logging
+import math
 import os
 import random
+import statistics
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -19,6 +21,12 @@ logger = logging.getLogger(__name__)
 class TargetVector(NamedTuple):
     indices: list[int]
     values: list[float]
+
+
+@dataclass(frozen=True)
+class FeatureImportance:
+    mean: float
+    se: float
 
 
 def _filter_X(X: list[list[float]], indices: list[int]) -> list[list[float]]:
@@ -136,16 +144,16 @@ def compute_permutation_importance(
     X: list[list[float]],
     targets_dict: dict[str, TargetVector],
     feature_columns: list[str],
-    n_repeats: int = 5,
+    n_repeats: int = 20,
     rng_seed: int = 42,
-) -> dict[str, float]:
+) -> dict[str, FeatureImportance]:
     baseline_metrics = score_predictions(models, X, targets_dict)
     baseline_rmses = {t: baseline_metrics[f"rmse_{t}"] for t in targets_dict}
     n_targets = len(targets_dict)
     rng = random.Random(rng_seed)
     n_rows = len(X)
 
-    importances: dict[str, float] = {}
+    importances: dict[str, FeatureImportance] = {}
     for j, col_name in enumerate(feature_columns):
         repeat_increases: list[float] = []
         for _ in range(n_repeats):
@@ -157,7 +165,9 @@ def compute_permutation_importance(
             permuted_metrics = score_predictions(models, X_permuted, targets_dict)
             mean_increase = sum(permuted_metrics[f"rmse_{t}"] - baseline_rmses[t] for t in targets_dict) / n_targets
             repeat_increases.append(mean_increase)
-        importances[col_name] = sum(repeat_increases) / n_repeats
+        mean_val = sum(repeat_increases) / n_repeats
+        se_val = statistics.stdev(repeat_increases) / math.sqrt(n_repeats) if n_repeats > 1 else 0.0
+        importances[col_name] = FeatureImportance(mean=mean_val, se=se_val)
 
     return importances
 

@@ -43,6 +43,7 @@ class PredictResult:
 class AblationResult:
     model_name: str
     feature_impacts: dict[str, float]
+    feature_standard_errors: dict[str, float] = field(default_factory=dict)
 
 
 @runtime_checkable

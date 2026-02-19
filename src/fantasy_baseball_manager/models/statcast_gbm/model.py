@@ -330,9 +330,11 @@ class _StatcastGBMBase:
         train_seasons = config.seasons[:-1]
         holdout_seasons = [config.seasons[-1]]
         feature_impacts: dict[str, float] = {}
+        feature_standard_errors: dict[str, float] = {}
 
         batter_params = config.model_params.get("batter", config.model_params)
         pitcher_params = config.model_params.get("pitcher", config.model_params)
+        n_repeats = int(config.model_params.get("n_repeats", 20))
 
         # --- Batter ablation ---
         bat_fs = self._batter_training_set_builder(config.seasons)
@@ -356,9 +358,11 @@ class _StatcastGBMBase:
                 bat_X_holdout,
                 bat_y_holdout,
                 bat_feature_cols,
+                n_repeats=n_repeats,
             )
-            for col, impact in bat_importance.items():
-                feature_impacts[f"batter:{col}"] = impact
+            for col, fi in bat_importance.items():
+                feature_impacts[f"batter:{col}"] = fi.mean
+                feature_standard_errors[f"batter:{col}"] = fi.se
 
         # --- Pitcher ablation ---
         pit_fs = self._pitcher_training_set_builder(config.seasons)
@@ -382,13 +386,16 @@ class _StatcastGBMBase:
                 pit_X_holdout,
                 pit_y_holdout,
                 pit_feature_cols,
+                n_repeats=n_repeats,
             )
-            for col, impact in pit_importance.items():
-                feature_impacts[f"pitcher:{col}"] = impact
+            for col, fi in pit_importance.items():
+                feature_impacts[f"pitcher:{col}"] = fi.mean
+                feature_standard_errors[f"pitcher:{col}"] = fi.se
 
         return AblationResult(
             model_name=self.name,
             feature_impacts=feature_impacts,
+            feature_standard_errors=feature_standard_errors,
         )
 
     def _artifact_path(self, config: ModelConfig) -> Path:
