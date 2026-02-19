@@ -14,7 +14,7 @@ from fantasy_baseball_manager.cli._output import (
     print_valuation_eval_result,
     print_valuation_rankings,
 )
-from fantasy_baseball_manager.models.protocols import AblationResult
+from fantasy_baseball_manager.models.protocols import AblationResult, TargetComparison, ValidationResult
 from fantasy_baseball_manager.domain.evaluation import (
     ComparisonResult,
     StatMetrics,
@@ -488,3 +488,85 @@ class TestPrintAblationResult:
         captured = capsys.readouterr()
         assert "batter:a" in captured.out
         assert "batter:b" in captured.out
+
+
+def _make_validation_result(
+    player_type: str = "batter",
+    go: bool = True,
+    n_improved: int = 4,
+    n_degraded: int = 2,
+    max_degradation_pct: float = 1.3,
+    pruned_features: tuple[str, ...] = ("sprint_speed", "pull_pct"),
+    comparisons: tuple[TargetComparison, ...] | None = None,
+) -> ValidationResult:
+    if comparisons is None:
+        comparisons = (
+            TargetComparison(target="avg", full_rmse=0.0312, pruned_rmse=0.0310, delta_pct=-0.6),
+            TargetComparison(target="obp", full_rmse=0.0289, pruned_rmse=0.0292, delta_pct=1.0),
+        )
+    return ValidationResult(
+        player_type=player_type,
+        comparisons=comparisons,
+        pruned_features=pruned_features,
+        n_improved=n_improved,
+        n_degraded=n_degraded,
+        max_degradation_pct=max_degradation_pct,
+        go=go,
+    )
+
+
+class TestPrintAblationValidation:
+    def test_validation_go_shows_verdict(self, capsys: pytest.CaptureFixture[str]) -> None:
+        vr = _make_validation_result(go=True)
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:hr": 0.05},
+            validation_results={"batter": vr},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "GO" in captured.out
+
+    def test_validation_nogo_shows_verdict(self, capsys: pytest.CaptureFixture[str]) -> None:
+        vr = _make_validation_result(go=False, n_improved=2, n_degraded=5, max_degradation_pct=8.2)
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:hr": 0.05},
+            validation_results={"batter": vr},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "NO-GO" in captured.out
+
+    def test_no_validation_omits_section(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:hr": 0.05},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "Pruning Validation" not in captured.out
+
+    def test_validation_shows_pruned_features(self, capsys: pytest.CaptureFixture[str]) -> None:
+        vr = _make_validation_result(pruned_features=("sprint_speed", "pull_pct"))
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:hr": 0.05},
+            validation_results={"batter": vr},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "sprint_speed" in captured.out
+        assert "pull_pct" in captured.out
+
+    def test_validation_shows_rmse_table(self, capsys: pytest.CaptureFixture[str]) -> None:
+        vr = _make_validation_result()
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:hr": 0.05},
+            validation_results={"batter": vr},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "Full RMSE" in captured.out
+        assert "Pruned RMSE" in captured.out

@@ -21,6 +21,7 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
     TrainResult,
     TuneResult,
+    ValidationResult,
 )
 
 console = Console(highlight=False)
@@ -83,6 +84,41 @@ def print_ablation_result(result: AblationResult) -> None:
                 )
             else:
                 console.print(f"  {feature}: [{color}]{impact:+.4f}[/{color}]")
+    if result.validation_results:
+        console.print()
+        console.print("[bold]Pruning Validation:[/bold]")
+        for _, vr in sorted(result.validation_results.items()):
+            _print_validation_result(vr)
+
+
+def _print_validation_result(vr: ValidationResult) -> None:
+    verdict = "GO" if vr.go else "NO-GO"
+    verdict_color = "green" if vr.go else "red"
+    console.print(
+        f"  {vr.player_type}: [{verdict_color}][bold]{verdict}[/bold][/{verdict_color}]"
+        f" ({vr.n_improved} improved, {vr.n_degraded} degraded,"
+        f" max degradation: {vr.max_degradation_pct:.1f}%)"
+    )
+    if vr.pruned_features:
+        console.print(f"    Pruned: {', '.join(vr.pruned_features)}")
+    if vr.comparisons:
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Target")
+        table.add_column("Full RMSE", justify="right")
+        table.add_column("Pruned RMSE", justify="right")
+        table.add_column("Delta %", justify="right")
+        for comp in vr.comparisons:
+            delta_color = "green" if comp.delta_pct < 0 else "red" if comp.delta_pct > 0 else ""
+            delta_str = f"{comp.delta_pct:+.1f}%"
+            if delta_color:
+                delta_str = f"[{delta_color}]{delta_str}[/{delta_color}]"
+            table.add_row(
+                comp.target,
+                f"{comp.full_rmse:.4f}",
+                f"{comp.pruned_rmse:.4f}",
+                delta_str,
+            )
+        console.print(table)
 
 
 def print_tune_result(result: TuneResult) -> None:

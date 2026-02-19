@@ -40,6 +40,25 @@ class PredictResult:
 
 
 @dataclass(frozen=True)
+class TargetComparison:
+    target: str
+    full_rmse: float
+    pruned_rmse: float
+    delta_pct: float  # (pruned - full) / full * 100
+
+
+@dataclass(frozen=True)
+class ValidationResult:
+    player_type: str  # "batter" or "pitcher"
+    comparisons: tuple[TargetComparison, ...]
+    pruned_features: tuple[str, ...]  # feature column names removed
+    n_improved: int
+    n_degraded: int
+    max_degradation_pct: float  # worst single-target degradation %
+    go: bool
+
+
+@dataclass(frozen=True)
 class AblationResult:
     model_name: str
     feature_impacts: dict[str, float]
@@ -47,6 +66,7 @@ class AblationResult:
     group_impacts: dict[str, float] = field(default_factory=dict)
     group_standard_errors: dict[str, float] = field(default_factory=dict)
     group_members: dict[str, list[str]] = field(default_factory=dict)
+    validation_results: dict[str, ValidationResult] = field(default_factory=dict)
 
 
 @runtime_checkable

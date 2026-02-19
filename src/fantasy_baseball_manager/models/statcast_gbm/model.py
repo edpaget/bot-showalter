@@ -13,7 +13,9 @@ from fantasy_baseball_manager.models.gbm_training import (
     extract_targets,
     fit_models,
     grid_search_cv,
+    identify_prune_candidates,
     score_predictions,
+    validate_pruning,
 )
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
@@ -23,6 +25,7 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
     TrainResult,
     TuneResult,
+    ValidationResult,
 )
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 from fantasy_baseball_manager.models.registry import register
@@ -334,11 +337,14 @@ class _StatcastGBMBase:
         group_impacts: dict[str, float] = {}
         group_standard_errors: dict[str, float] = {}
         group_members: dict[str, list[str]] = {}
+        validation_results: dict[str, ValidationResult] = {}
 
         batter_params = config.model_params.get("batter", config.model_params)
         pitcher_params = config.model_params.get("pitcher", config.model_params)
         n_repeats = int(config.model_params.get("n_repeats", 20))
         correlation_threshold = float(config.model_params.get("correlation_threshold", 0.70))
+        do_validate = bool(config.model_params.get("validate", False))
+        max_degradation_pct = float(config.model_params.get("max_degradation_pct", 5.0))
 
         # --- Batter ablation ---
         bat_fs = self._batter_training_set_builder(config.seasons)
@@ -376,6 +382,21 @@ class _StatcastGBMBase:
                     group_standard_errors[key] = gi.se
                     group_members[key] = [f"batter:{m}" for m in g.members]
 
+            if do_validate:
+                prune_set = identify_prune_candidates(bat_result)
+                if prune_set:
+                    validation_results["batter"] = validate_pruning(
+                        full_models=bat_models,
+                        train_rows=bat_train_rows,
+                        holdout_rows=bat_holdout_rows,
+                        feature_columns=bat_feature_cols,
+                        prune_set=prune_set,
+                        targets=bat_targets,
+                        model_params=batter_params,
+                        player_type="batter",
+                        max_degradation_pct=max_degradation_pct,
+                    )
+
         # --- Pitcher ablation ---
         pit_fs = self._pitcher_training_set_builder(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
@@ -412,6 +433,21 @@ class _StatcastGBMBase:
                     group_standard_errors[key] = gi.se
                     group_members[key] = [f"pitcher:{m}" for m in g.members]
 
+            if do_validate:
+                prune_set = identify_prune_candidates(pit_result)
+                if prune_set:
+                    validation_results["pitcher"] = validate_pruning(
+                        full_models=pit_models,
+                        train_rows=pit_train_rows,
+                        holdout_rows=pit_holdout_rows,
+                        feature_columns=pit_feature_cols,
+                        prune_set=prune_set,
+                        targets=pit_targets,
+                        model_params=pitcher_params,
+                        player_type="pitcher",
+                        max_degradation_pct=max_degradation_pct,
+                    )
+
         return AblationResult(
             model_name=self.name,
             feature_impacts=feature_impacts,
@@ -419,6 +455,7 @@ class _StatcastGBMBase:
             group_impacts=group_impacts,
             group_standard_errors=group_standard_errors,
             group_members=group_members,
+            validation_results=validation_results,
         )
 
     def _artifact_path(self, config: ModelConfig) -> Path:

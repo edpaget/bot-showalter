@@ -13,6 +13,7 @@ import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 from threadpoolctl import threadpool_limits
 
+from fantasy_baseball_manager.models.protocols import TargetComparison, ValidationResult
 from fantasy_baseball_manager.models.sampling import holdout_metrics
 
 logger = logging.getLogger(__name__)
@@ -394,4 +395,108 @@ def grid_search_cv(
         best_mean_rmse=best_mean_rmse,
         per_target_rmse=best_per_target,
         all_results=all_results,
+    )
+
+
+def identify_prune_candidates(
+    result: GroupedImportanceResult,
+) -> list[str]:
+    """Identify features whose group CI upper bound (mean + 2*SE) <= 0."""
+    candidates: list[str] = []
+    for group in result.groups:
+        gi = result.group_importance[group.name]
+        ci_upper = gi.mean + 2 * gi.se
+        if ci_upper <= 0:
+            candidates.extend(group.members)
+    return sorted(candidates)
+
+
+def validate_pruning(
+    full_models: dict[str, HistGradientBoostingRegressor],
+    train_rows: list[dict[str, Any]],
+    holdout_rows: list[dict[str, Any]],
+    feature_columns: list[str],
+    prune_set: list[str],
+    targets: list[str],
+    model_params: dict[str, Any],
+    player_type: str,
+    max_degradation_pct: float = 5.0,
+) -> ValidationResult:
+    """Train a pruned model and compare holdout RMSE per-target against the full model."""
+    prune_set_s = set(prune_set)
+    pruned_cols = [c for c in feature_columns if c not in prune_set_s]
+
+    if not pruned_cols:
+        logger.warning("All features prunable — skipping validation for %s", player_type)
+        return ValidationResult(
+            player_type=player_type,
+            comparisons=(),
+            pruned_features=tuple(sorted(prune_set)),
+            n_improved=0,
+            n_degraded=0,
+            max_degradation_pct=0.0,
+            go=True,
+        )
+
+    if not prune_set:
+        return ValidationResult(
+            player_type=player_type,
+            comparisons=(),
+            pruned_features=(),
+            n_improved=0,
+            n_degraded=0,
+            max_degradation_pct=0.0,
+            go=True,
+        )
+
+    # Score full models on holdout
+    full_X_holdout = extract_features(holdout_rows, feature_columns)
+    full_y_holdout = extract_targets(holdout_rows, targets)
+    full_metrics = score_predictions(full_models, full_X_holdout, full_y_holdout)
+
+    # Train pruned models
+    pruned_X_train = extract_features(train_rows, pruned_cols)
+    pruned_y_train = extract_targets(train_rows, targets)
+    pruned_models = fit_models(pruned_X_train, pruned_y_train, model_params)
+
+    # Score pruned models on holdout
+    pruned_X_holdout = extract_features(holdout_rows, pruned_cols)
+    pruned_y_holdout = extract_targets(holdout_rows, targets)
+    pruned_metrics = score_predictions(pruned_models, pruned_X_holdout, pruned_y_holdout)
+
+    # Build comparisons
+    comparisons: list[TargetComparison] = []
+    n_improved = 0
+    n_degraded = 0
+    max_deg = 0.0
+
+    for target in targets:
+        full_rmse = full_metrics[f"rmse_{target}"]
+        pruned_rmse = pruned_metrics[f"rmse_{target}"]
+        delta_pct = (pruned_rmse - full_rmse) / full_rmse * 100 if full_rmse > 0 else 0.0
+        comparisons.append(
+            TargetComparison(
+                target=target,
+                full_rmse=full_rmse,
+                pruned_rmse=pruned_rmse,
+                delta_pct=delta_pct,
+            )
+        )
+        if pruned_rmse < full_rmse:
+            n_improved += 1
+        elif pruned_rmse > full_rmse:
+            n_degraded += 1
+            if delta_pct > max_deg:
+                max_deg = delta_pct
+
+    go = (n_improved > n_degraded) and (max_deg <= max_degradation_pct)
+
+    return ValidationResult(
+        player_type=player_type,
+        comparisons=tuple(comparisons),
+        pruned_features=tuple(sorted(prune_set)),
+        n_improved=n_improved,
+        n_degraded=n_degraded,
+        max_degradation_pct=max_deg,
+        go=go,
     )

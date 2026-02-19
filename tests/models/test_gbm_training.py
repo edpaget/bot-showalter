@@ -1,7 +1,10 @@
 import math
 import random
+from typing import Any
 
 import pytest
+from sklearn.ensemble import HistGradientBoostingRegressor
+
 from fantasy_baseball_manager.models.gbm_training import (
     CVFold,
     CorrelationGroup,
@@ -17,10 +20,51 @@ from fantasy_baseball_manager.models.gbm_training import (
     extract_targets,
     fit_models,
     grid_search_cv,
+    identify_prune_candidates,
     score_predictions,
+    validate_pruning,
+)
+from fantasy_baseball_manager.models.protocols import (
+    AblationResult,
+    TargetComparison,
+    ValidationResult,
 )
 
 pytestmark = pytest.mark.slow
+
+
+class TestTargetComparison:
+    def test_target_comparison_is_frozen(self) -> None:
+        tc = TargetComparison(target="avg", full_rmse=0.03, pruned_rmse=0.031, delta_pct=3.3)
+        assert tc.target == "avg"
+        assert tc.full_rmse == 0.03
+        assert tc.pruned_rmse == 0.031
+        assert tc.delta_pct == 3.3
+        with pytest.raises(AttributeError):
+            tc.target = "other"  # type: ignore[misc]
+
+
+class TestValidationResult:
+    def test_validation_result_is_frozen(self) -> None:
+        vr = ValidationResult(
+            player_type="batter",
+            comparisons=(),
+            pruned_features=(),
+            n_improved=0,
+            n_degraded=0,
+            max_degradation_pct=0.0,
+            go=True,
+        )
+        assert vr.player_type == "batter"
+        assert vr.go is True
+        with pytest.raises(AttributeError):
+            vr.go = False  # type: ignore[misc]
+
+
+class TestAblationResultValidation:
+    def test_ablation_result_validation_defaults_empty(self) -> None:
+        result = AblationResult(model_name="x", feature_impacts={})
+        assert result.validation_results == {}
 
 
 class TestCorrelationGroup:
@@ -115,6 +159,104 @@ class TestFindCorrelatedGroups:
         assert len(groups) == 1
         assert groups[0].members == ("only",)
         assert groups[0].name == "only"
+
+
+class TestIdentifyPruneCandidates:
+    def test_singleton_negative_ci_pruned(self) -> None:
+        groups = (CorrelationGroup(name="noise", members=("noise",)),)
+        result = GroupedImportanceResult(
+            groups=groups,
+            group_importance={"noise": FeatureImportance(mean=-0.01, se=0.002)},
+            feature_importance={"noise": FeatureImportance(mean=-0.01, se=0.002)},
+        )
+        assert identify_prune_candidates(result) == ["noise"]
+
+    def test_singleton_positive_ci_not_pruned(self) -> None:
+        groups = (CorrelationGroup(name="signal", members=("signal",)),)
+        result = GroupedImportanceResult(
+            groups=groups,
+            group_importance={"signal": FeatureImportance(mean=0.01, se=0.002)},
+            feature_importance={"signal": FeatureImportance(mean=0.01, se=0.002)},
+        )
+        assert identify_prune_candidates(result) == []
+
+    def test_multi_member_group_all_pruned(self) -> None:
+        groups = (CorrelationGroup(name="group_0", members=("a", "b")),)
+        result = GroupedImportanceResult(
+            groups=groups,
+            group_importance={"group_0": FeatureImportance(mean=-0.02, se=0.005)},
+            feature_importance={
+                "a": FeatureImportance(mean=-0.01, se=0.003),
+                "b": FeatureImportance(mean=-0.01, se=0.003),
+            },
+        )
+        assert identify_prune_candidates(result) == ["a", "b"]
+
+    def test_multi_member_group_positive_ci_not_pruned(self) -> None:
+        groups = (CorrelationGroup(name="group_0", members=("a", "b")),)
+        result = GroupedImportanceResult(
+            groups=groups,
+            group_importance={"group_0": FeatureImportance(mean=0.05, se=0.01)},
+            feature_importance={
+                "a": FeatureImportance(mean=0.03, se=0.005),
+                "b": FeatureImportance(mean=0.02, se=0.005),
+            },
+        )
+        assert identify_prune_candidates(result) == []
+
+    def test_boundary_zero_is_pruned(self) -> None:
+        # mean + 2*SE = -0.004 + 2*0.002 = 0.0 → pruned
+        groups = (CorrelationGroup(name="edge", members=("edge",)),)
+        result = GroupedImportanceResult(
+            groups=groups,
+            group_importance={"edge": FeatureImportance(mean=-0.004, se=0.002)},
+            feature_importance={"edge": FeatureImportance(mean=-0.004, se=0.002)},
+        )
+        assert identify_prune_candidates(result) == ["edge"]
+
+    def test_empty_result_returns_empty(self) -> None:
+        result = GroupedImportanceResult(
+            groups=(),
+            group_importance={},
+            feature_importance={},
+        )
+        assert identify_prune_candidates(result) == []
+
+    def test_mixed_groups(self) -> None:
+        groups = (
+            CorrelationGroup(name="good", members=("good",)),
+            CorrelationGroup(name="bad", members=("bad",)),
+        )
+        result = GroupedImportanceResult(
+            groups=groups,
+            group_importance={
+                "good": FeatureImportance(mean=0.05, se=0.01),
+                "bad": FeatureImportance(mean=-0.02, se=0.005),
+            },
+            feature_importance={
+                "good": FeatureImportance(mean=0.05, se=0.01),
+                "bad": FeatureImportance(mean=-0.02, se=0.005),
+            },
+        )
+        assert identify_prune_candidates(result) == ["bad"]
+
+    def test_returns_sorted(self) -> None:
+        groups = (
+            CorrelationGroup(name="z_feat", members=("z_feat",)),
+            CorrelationGroup(name="a_feat", members=("a_feat",)),
+        )
+        result = GroupedImportanceResult(
+            groups=groups,
+            group_importance={
+                "z_feat": FeatureImportance(mean=-0.01, se=0.002),
+                "a_feat": FeatureImportance(mean=-0.01, se=0.002),
+            },
+            feature_importance={
+                "z_feat": FeatureImportance(mean=-0.01, se=0.002),
+                "a_feat": FeatureImportance(mean=-0.01, se=0.002),
+            },
+        )
+        assert identify_prune_candidates(result) == ["a_feat", "z_feat"]
 
 
 class TestExtractTargets:
@@ -584,3 +726,157 @@ class TestGridSearchCV:
         result = grid_search_cv(folds, {"max_iter": [100]})
         assert isinstance(result, GridSearchResult)
         assert result.best_mean_rmse >= 0
+
+
+def _make_validate_data() -> tuple[
+    dict[str, HistGradientBoostingRegressor],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[str],
+    list[str],
+]:
+    """Build synthetic data with signal feature (feat_a) and noise feature (feat_noise)."""
+    gen = random.Random(42)
+    train_rows: list[dict[str, Any]] = []
+    holdout_rows: list[dict[str, Any]] = []
+    for i in range(60):
+        val = float(i)
+        row: dict[str, Any] = {
+            "feat_a": val,
+            "feat_noise": gen.random(),
+            "target_y": val * 0.01,
+        }
+        if i < 40:
+            train_rows.append(row)
+        else:
+            holdout_rows.append(row)
+    feature_cols = ["feat_a", "feat_noise"]
+    targets = ["y"]
+    X_train = extract_features(train_rows, feature_cols)
+    y_train = extract_targets(train_rows, targets)
+    full_models = fit_models(X_train, y_train, {"min_samples_leaf": 5})
+    return full_models, train_rows, holdout_rows, feature_cols, targets
+
+
+class TestValidatePruning:
+    def test_returns_validation_result(self) -> None:
+        full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
+        result = validate_pruning(
+            full_models,
+            train_rows,
+            holdout_rows,
+            feature_cols,
+            prune_set=["feat_noise"],
+            targets=targets,
+            model_params={"min_samples_leaf": 5},
+            player_type="batter",
+        )
+        assert isinstance(result, ValidationResult)
+
+    def test_comparisons_cover_all_targets(self) -> None:
+        full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
+        result = validate_pruning(
+            full_models,
+            train_rows,
+            holdout_rows,
+            feature_cols,
+            prune_set=["feat_noise"],
+            targets=targets,
+            model_params={"min_samples_leaf": 5},
+            player_type="batter",
+        )
+        comparison_targets = [c.target for c in result.comparisons]
+        assert comparison_targets == targets
+
+    def test_delta_pct_is_relative_to_full(self) -> None:
+        full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
+        result = validate_pruning(
+            full_models,
+            train_rows,
+            holdout_rows,
+            feature_cols,
+            prune_set=["feat_noise"],
+            targets=targets,
+            model_params={"min_samples_leaf": 5},
+            player_type="batter",
+        )
+        for comp in result.comparisons:
+            expected_pct = (comp.pruned_rmse - comp.full_rmse) / comp.full_rmse * 100
+            assert math.isclose(comp.delta_pct, expected_pct, rel_tol=1e-9)
+
+    def test_go_when_pruning_noise_feature(self) -> None:
+        full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
+        result = validate_pruning(
+            full_models,
+            train_rows,
+            holdout_rows,
+            feature_cols,
+            prune_set=["feat_noise"],
+            targets=targets,
+            model_params={"min_samples_leaf": 5},
+            player_type="batter",
+        )
+        # Pruning noise should not degrade, so go should be True
+        assert result.go is True
+
+    def test_nogo_when_pruning_important_feature(self) -> None:
+        full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
+        result = validate_pruning(
+            full_models,
+            train_rows,
+            holdout_rows,
+            feature_cols,
+            prune_set=["feat_a"],
+            targets=targets,
+            model_params={"min_samples_leaf": 5},
+            player_type="batter",
+        )
+        # Pruning the signal feature should degrade performance
+        assert result.go is False
+
+    def test_empty_prune_set(self) -> None:
+        full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
+        result = validate_pruning(
+            full_models,
+            train_rows,
+            holdout_rows,
+            feature_cols,
+            prune_set=[],
+            targets=targets,
+            model_params={"min_samples_leaf": 5},
+            player_type="batter",
+        )
+        assert result.go is True
+        assert result.comparisons == ()
+        assert result.pruned_features == ()
+
+    def test_records_pruned_features(self) -> None:
+        full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
+        result = validate_pruning(
+            full_models,
+            train_rows,
+            holdout_rows,
+            feature_cols,
+            prune_set=["feat_noise"],
+            targets=targets,
+            model_params={"min_samples_leaf": 5},
+            player_type="batter",
+        )
+        assert result.pruned_features == ("feat_noise",)
+
+    def test_custom_max_degradation_pct(self) -> None:
+        full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
+        # Prune the important feature with a very tight threshold
+        result = validate_pruning(
+            full_models,
+            train_rows,
+            holdout_rows,
+            feature_cols,
+            prune_set=["feat_a"],
+            targets=targets,
+            model_params={"min_samples_leaf": 5},
+            player_type="batter",
+            max_degradation_pct=0.0,
+        )
+        # Should be NO-GO since removing the signal feature degrades
+        assert result.go is False

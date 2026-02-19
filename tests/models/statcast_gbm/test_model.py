@@ -998,3 +998,99 @@ class TestDefaultModeIsTrueTalent:
         model.train(config)
         batter_path = tmp_path / "statcast-gbm" / "latest" / "batter_models.joblib"
         assert batter_path.exists()
+
+
+class TestStatcastGBMAblateValidation:
+    def test_ablate_default_has_no_validation(self, ablation_result: AblationResult) -> None:
+        assert ablation_result.validation_results == {}
+
+    def test_ablate_validate_true_calls_validate_pruning(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls: list[dict[str, Any]] = []
+        original_vp = statcast_gbm_model_mod.validate_pruning
+
+        def spy_vp(*args: Any, **kwargs: Any) -> Any:
+            calls.append(kwargs)
+            return original_vp(*args, **kwargs)
+
+        # Make identify_prune_candidates always return something to trigger validation
+        monkeypatch.setattr(statcast_gbm_model_mod, "identify_prune_candidates", lambda result: ["fake_col"])
+        monkeypatch.setattr(statcast_gbm_model_mod, "validate_pruning", spy_vp)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={"validate": True},
+        )
+        result = model.ablate(config)
+        assert isinstance(result, AblationResult)
+        # validate_pruning called for both batter and pitcher
+        assert len(calls) == 2
+
+    def test_ablate_validate_passes_max_degradation_pct(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_max_deg: list[float] = []
+        original_vp = statcast_gbm_model_mod.validate_pruning
+
+        def spy_vp(*args: Any, **kwargs: Any) -> Any:
+            captured_max_deg.append(kwargs.get("max_degradation_pct", 5.0))
+            return original_vp(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "identify_prune_candidates", lambda result: ["fake_col"])
+        monkeypatch.setattr(statcast_gbm_model_mod, "validate_pruning", spy_vp)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={"validate": True, "max_degradation_pct": 3.0},
+        )
+        model.ablate(config)
+        assert len(captured_max_deg) == 2
+        assert captured_max_deg[0] == 3.0
+        assert captured_max_deg[1] == 3.0
+
+    def test_ablate_validate_skips_when_no_candidates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        vp_calls: list[Any] = []
+        original_vp = statcast_gbm_model_mod.validate_pruning
+
+        def spy_vp(*args: Any, **kwargs: Any) -> Any:
+            vp_calls.append(True)
+            return original_vp(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "identify_prune_candidates", lambda result: [])
+        monkeypatch.setattr(statcast_gbm_model_mod, "validate_pruning", spy_vp)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={"validate": True},
+        )
+        result = model.ablate(config)
+        assert isinstance(result, AblationResult)
+        assert len(vp_calls) == 0
+        assert result.validation_results == {}
