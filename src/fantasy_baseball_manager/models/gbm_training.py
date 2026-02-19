@@ -258,8 +258,10 @@ def compute_grouped_permutation_importance(
     n_repeats: int = 20,
     rng_seed: int = 42,
     correlation_threshold: float = 0.70,
+    groups: list[CorrelationGroup] | None = None,
 ) -> GroupedImportanceResult:
-    groups = _find_correlated_groups(X, feature_columns, correlation_threshold)
+    if groups is None:
+        groups = _find_correlated_groups(X, feature_columns, correlation_threshold)
 
     # Individual importance
     individual = compute_permutation_importance(
@@ -302,6 +304,85 @@ def compute_grouped_permutation_importance(
         groups=tuple(groups),
         group_importance=group_importance,
         feature_importance=individual,
+    )
+
+
+def compute_cv_permutation_importance(
+    rows_by_season: dict[int, list[dict[str, Any]]],
+    feature_columns: list[str],
+    targets: list[str],
+    model_params: dict[str, Any],
+    n_repeats: int = 20,
+    rng_seed: int = 42,
+    correlation_threshold: float = 0.70,
+) -> GroupedImportanceResult:
+    sorted_seasons = sorted(rows_by_season.keys())
+    if len(sorted_seasons) < 2:
+        msg = f"compute_cv_permutation_importance requires at least 2 seasons (got {len(sorted_seasons)})"
+        raise ValueError(msg)
+
+    # Pool all rows and compute canonical groups once
+    all_rows = [row for s in sorted_seasons for row in rows_by_season[s]]
+    all_X = extract_features(all_rows, feature_columns)
+    canonical_groups = _find_correlated_groups(all_X, feature_columns, correlation_threshold)
+
+    # Generate expanding folds: for seasons [s0..sN], fold i trains on [s0..si], tests on s(i+1)
+    fold_feature_results: list[dict[str, FeatureImportance]] = []
+    fold_group_results: list[dict[str, FeatureImportance]] = []
+
+    for i in range(len(sorted_seasons) - 1):
+        train_seasons = sorted_seasons[: i + 1]
+        test_season = sorted_seasons[i + 1]
+
+        train_rows = [row for s in train_seasons for row in rows_by_season[s]]
+        test_rows = rows_by_season[test_season]
+
+        X_train = extract_features(train_rows, feature_columns)
+        y_train = extract_targets(train_rows, targets)
+        X_test = extract_features(test_rows, feature_columns)
+        y_test = extract_targets(test_rows, targets)
+
+        models = fit_models(X_train, y_train, model_params)
+        fold_result = compute_grouped_permutation_importance(
+            models,
+            X_test,
+            y_test,
+            feature_columns,
+            n_repeats=n_repeats,
+            rng_seed=rng_seed,
+            groups=canonical_groups,
+        )
+        fold_feature_results.append(fold_result.feature_importance)
+        fold_group_results.append(fold_result.group_importance)
+
+    n_folds = len(fold_feature_results)
+
+    # Average feature importance across folds
+    averaged_features: dict[str, FeatureImportance] = {}
+    for col in feature_columns:
+        fold_means = [fr[col].mean for fr in fold_feature_results]
+        mean_val = sum(fold_means) / n_folds
+        if n_folds > 1:
+            se_val = statistics.stdev(fold_means) / math.sqrt(n_folds)
+        else:
+            se_val = fold_feature_results[0][col].se
+        averaged_features[col] = FeatureImportance(mean=mean_val, se=se_val)
+
+    # Average group importance across folds
+    averaged_groups: dict[str, FeatureImportance] = {}
+    for group in canonical_groups:
+        fold_means = [gr[group.name].mean for gr in fold_group_results]
+        mean_val = sum(fold_means) / n_folds
+        if n_folds > 1:
+            se_val = statistics.stdev(fold_means) / math.sqrt(n_folds)
+        else:
+            se_val = fold_group_results[0][group.name].se
+        averaged_groups[group.name] = FeatureImportance(mean=mean_val, se=se_val)
+
+    return GroupedImportanceResult(
+        groups=tuple(canonical_groups),
+        group_importance=averaged_groups,
+        feature_importance=averaged_features,
     )
 
 

@@ -1094,3 +1094,90 @@ class TestStatcastGBMAblateValidation:
         assert isinstance(result, AblationResult)
         assert len(vp_calls) == 0
         assert result.validation_results == {}
+
+
+@pytest.fixture(scope="class")
+def multi_holdout_result() -> AblationResult:
+    rows_by_season = {
+        2021: _make_rows(10, 2021),
+        2022: _make_rows(10, 2022),
+        2023: _make_rows(10, 2023),
+    }
+    pitcher_rows_by_season = {
+        2021: _make_pitcher_rows(10, 2021),
+        2022: _make_pitcher_rows(10, 2022),
+        2023: _make_pitcher_rows(10, 2023),
+    }
+    assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+    model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+    config = ModelConfig(
+        seasons=[2021, 2022, 2023],
+        model_params={"multi_holdout": True, "n_repeats": 5},
+    )
+    return model.ablate(config)
+
+
+class TestStatcastGBMAblateMultiHoldout:
+    def test_multi_holdout_returns_ablation_result(self, multi_holdout_result: AblationResult) -> None:
+        assert isinstance(multi_holdout_result, AblationResult)
+        assert multi_holdout_result.model_name == "statcast-gbm"
+
+    def test_multi_holdout_has_batter_and_pitcher_impacts(self, multi_holdout_result: AblationResult) -> None:
+        batter_keys = [k for k in multi_holdout_result.feature_impacts if k.startswith("batter:")]
+        pitcher_keys = [k for k in multi_holdout_result.feature_impacts if k.startswith("pitcher:")]
+        assert len(batter_keys) > 0
+        assert len(pitcher_keys) > 0
+
+    def test_multi_holdout_has_group_data(self, multi_holdout_result: AblationResult) -> None:
+        assert isinstance(multi_holdout_result.group_impacts, dict)
+
+    def test_multi_holdout_se_non_negative(self, multi_holdout_result: AblationResult) -> None:
+        for se in multi_holdout_result.feature_standard_errors.values():
+            assert se >= 0
+        for se in multi_holdout_result.group_standard_errors.values():
+            assert se >= 0
+
+    def test_multi_holdout_with_validate(self) -> None:
+        rows_by_season = {
+            2021: _make_rows(10, 2021),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
+        }
+        pitcher_rows_by_season = {
+            2021: _make_pitcher_rows(10, 2021),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            model_params={"multi_holdout": True, "validate": True, "n_repeats": 5},
+        )
+        result = model.ablate(config)
+        assert isinstance(result, AblationResult)
+
+    def test_multi_holdout_default_is_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_calls: list[str] = []
+        original_cv = statcast_gbm_model_mod.compute_cv_permutation_importance
+
+        def spy_cv(*args: Any, **kwargs: Any) -> Any:
+            captured_calls.append("cv")
+            return original_cv(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "compute_cv_permutation_importance", spy_cv)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(seasons=[2022, 2023])
+        model.ablate(config)
+        # CV function should NOT be called when multi_holdout is not set
+        assert len(captured_calls) == 0

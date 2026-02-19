@@ -14,6 +14,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     TargetVector,
     _evaluate_combination,
     _find_correlated_groups,
+    compute_cv_permutation_importance,
     compute_grouped_permutation_importance,
     compute_permutation_importance,
     extract_features,
@@ -608,6 +609,29 @@ class TestComputeGroupedPermutationImportance:
         for fi in result.feature_importance.values():
             assert fi.se == 0.0
 
+    def test_explicit_groups_override_detection(self) -> None:
+        gen = random.Random(42)
+        n = 60
+        a_vals = [float(i) for i in range(n)]
+        b_vals = [2 * a_vals[i] + gen.gauss(0, 0.1) for i in range(n)]
+        c_vals = [gen.random() for _ in range(n)]
+        X = [[a_vals[i], b_vals[i], c_vals[i]] for i in range(n)]
+        targets = {"y": TargetVector(indices=list(range(n)), values=a_vals)}
+        models = fit_models(X, targets, {"min_samples_leaf": 5})
+        # Provide explicit groups: treat all 3 as singletons (override auto-detection)
+        explicit_groups = [
+            CorrelationGroup(name="a", members=("a",)),
+            CorrelationGroup(name="b", members=("b",)),
+            CorrelationGroup(name="c", members=("c",)),
+        ]
+        result = compute_grouped_permutation_importance(
+            models, X, targets, ["a", "b", "c"], n_repeats=5, groups=explicit_groups
+        )
+        # All 3 should be singletons (our explicit groups), not auto-detected correlation groups
+        assert len(result.groups) == 3
+        for g in result.groups:
+            assert len(g.members) == 1
+
 
 class TestEndToEndWithMissingTargets:
     def test_extract_fit_score_with_missing_targets(self) -> None:
@@ -880,3 +904,111 @@ class TestValidatePruning:
         )
         # Should be NO-GO since removing the signal feature degrades
         assert result.go is False
+
+
+def _make_cv_importance_data() -> dict[int, list[dict[str, Any]]]:
+    """Build 3 seasons of test data: feat_a = linear signal, feat_b = noise."""
+    gen = random.Random(42)
+    rows_by_season: dict[int, list[dict[str, Any]]] = {}
+    for season in [2020, 2021, 2022]:
+        rows: list[dict[str, Any]] = []
+        for i in range(20):
+            val = float(i + season * 10)
+            rows.append(
+                {
+                    "feat_a": val,
+                    "feat_b": gen.random(),
+                    "target_y": val * 0.01,
+                }
+            )
+        rows_by_season[season] = rows
+    return rows_by_season
+
+
+class TestComputeCVPermutationImportance:
+    def test_returns_grouped_importance_result(self) -> None:
+        data = _make_cv_importance_data()
+        result = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5
+        )
+        assert isinstance(result, GroupedImportanceResult)
+
+    def test_returns_all_feature_columns(self) -> None:
+        data = _make_cv_importance_data()
+        result = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5
+        )
+        assert set(result.feature_importance.keys()) == {"feat_a", "feat_b"}
+
+    def test_signal_feature_has_positive_importance(self) -> None:
+        data = _make_cv_importance_data()
+        result = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5
+        )
+        assert result.feature_importance["feat_a"].mean > 0
+
+    def test_noise_feature_less_important_than_signal(self) -> None:
+        data = _make_cv_importance_data()
+        result = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5
+        )
+        assert result.feature_importance["feat_b"].mean < result.feature_importance["feat_a"].mean
+
+    def test_se_non_negative(self) -> None:
+        data = _make_cv_importance_data()
+        result = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5
+        )
+        for fi in result.feature_importance.values():
+            assert fi.se >= 0
+        for gi in result.group_importance.values():
+            assert gi.se >= 0
+
+    def test_groups_present_in_result(self) -> None:
+        data = _make_cv_importance_data()
+        result = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5
+        )
+        assert len(result.groups) > 0
+
+    def test_two_seasons_single_fold(self) -> None:
+        gen = random.Random(99)
+        data: dict[int, list[dict[str, Any]]] = {}
+        for season in [2021, 2022]:
+            rows: list[dict[str, Any]] = []
+            for i in range(20):
+                val = float(i + season * 10)
+                rows.append(
+                    {
+                        "feat_a": val,
+                        "feat_b": gen.random(),
+                        "target_y": val * 0.01,
+                    }
+                )
+            data[season] = rows
+        result = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5
+        )
+        assert isinstance(result, GroupedImportanceResult)
+
+    def test_single_season_raises(self) -> None:
+        gen = random.Random(42)
+        data = {2022: [{"feat_a": float(i), "feat_b": gen.random(), "target_y": float(i)} for i in range(20)]}
+        with pytest.raises(ValueError, match="at least 2 seasons"):
+            compute_cv_permutation_importance(data, ["feat_a", "feat_b"], ["y"], {})
+
+    def test_empty_seasons_raises(self) -> None:
+        with pytest.raises(ValueError, match="at least 2 seasons"):
+            compute_cv_permutation_importance({}, ["feat_a", "feat_b"], ["y"], {})
+
+    def test_reproducible_with_same_seed(self) -> None:
+        data = _make_cv_importance_data()
+        result1 = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5, rng_seed=42
+        )
+        result2 = compute_cv_permutation_importance(
+            data, ["feat_a", "feat_b"], ["y"], {"min_samples_leaf": 5}, n_repeats=5, rng_seed=42
+        )
+        for col in ["feat_a", "feat_b"]:
+            assert result1.feature_importance[col].mean == result2.feature_importance[col].mean
+            assert result1.feature_importance[col].se == result2.feature_importance[col].se
