@@ -644,10 +644,24 @@ def _make_pitcher_row(player_id: int, season: int) -> dict[str, Any]:
 
 
 class RecordingGBMEngine(GBMEngine):
-    """GBMEngine subclass that records train() args instead of fitting real models."""
+    """GBMEngine subclass that records train()/predict() args instead of fitting real models."""
 
     def __init__(self) -> None:
         self.train_calls: list[dict[str, Any]] = []
+        self.predict_calls: list[
+            tuple[list[dict[str, Any]], list[dict[str, Any]], dict[int, float], dict[int, float], EngineConfig]
+        ] = []
+
+    def predict(
+        self,
+        bat_rows: list[dict[str, Any]],
+        pitch_rows: list[dict[str, Any]],
+        bat_pt: dict[int, float],
+        pitch_pt: dict[int, float],
+        config: EngineConfig,
+    ) -> list[dict[str, Any]]:
+        self.predict_calls.append((bat_rows, pitch_rows, bat_pt, pitch_pt, config))
+        return [{"player_id": 99, "season": config.projected_season, "player_type": "batter"}]
 
     def train(
         self,
@@ -760,3 +774,32 @@ class TestCompositeModelTrain:
         call = engine.train_calls[0]
         assert call["bat_feature_cols"] == expected_bat_cols
         assert call["pitch_feature_cols"] == expected_pitch_cols
+
+
+class TestGBMPredictConfig:
+    def test_gbm_predict_passes_artifact_path_and_feature_cols(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batter_row(1, 2023)]
+        pitching_rows = [_make_pitcher_row(100, 2023)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        engine = RecordingGBMEngine()
+        model = CompositeModel(assembler=assembler, engine=engine, group_lookup=_test_lookup)
+        model_params: dict[str, Any] = {"batting_categories": ["hr"], "pitching_categories": ["so"]}
+        config = ModelConfig(
+            seasons=[2023],
+            model_params=model_params,
+            artifacts_dir=str(tmp_path),
+        )
+        model.predict(config)
+
+        assert len(engine.predict_calls) == 1
+        _, _, _, _, engine_config = engine.predict_calls[0]
+
+        # artifact_path should be set for GBMEngine
+        expected_artifact_path = Path(str(tmp_path)) / "composite" / "latest"
+        assert engine_config.artifact_path == expected_artifact_path
+
+        # feature columns should be populated
+        assert len(engine_config.bat_feature_cols) > 0
+        assert len(engine_config.pitch_feature_cols) > 0
+        assert "age" in engine_config.bat_feature_cols
+        assert "age" in engine_config.pitch_feature_cols

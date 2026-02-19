@@ -257,11 +257,19 @@ class CompositeModel:
         projected_season = max(config.seasons) + 1 if config.seasons else 2025
         version = config.version or "latest"
 
+        gbm_kwargs: dict[str, Any] = {}
+        if isinstance(self._engine, GBMEngine):
+            artifact_path = Path(config.artifacts_dir) / self._model_name / (config.version or "latest")
+            gbm_kwargs["artifact_path"] = artifact_path
+            gbm_kwargs["bat_feature_cols"] = tuple(feature_columns(batting_fs))
+            gbm_kwargs["pitch_feature_cols"] = tuple(feature_columns(pitching_fs))
+
         engine_config = EngineConfig(
             marcel_config=marcel_config,
             projected_season=projected_season,
             version=version,
             system_name=self._model_name,
+            **gbm_kwargs,
         )
 
         predictions = self._engine.predict(bat_rows, pitch_rows, bat_pt, pitch_pt, engine_config)

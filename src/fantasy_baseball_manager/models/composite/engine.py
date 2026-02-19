@@ -6,7 +6,10 @@ from typing import Any, Protocol, runtime_checkable
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.models.composite.convert import (
+    batter_rates_to_counting,
+    best_rows_per_player,
     composite_projection_to_domain,
+    pitcher_rates_to_counting,
 )
 from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.models.gbm_training import (
@@ -18,7 +21,7 @@ from fantasy_baseball_manager.models.gbm_training import (
 from fantasy_baseball_manager.models.marcel.convert import rows_to_marcel_inputs
 from fantasy_baseball_manager.models.marcel.engine import age_adjust, regress_to_mean
 from fantasy_baseball_manager.models.marcel.types import LeagueAverages, MarcelConfig
-from fantasy_baseball_manager.models.statcast_gbm.serialization import save_models
+from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 
 
 @dataclass(frozen=True)
@@ -27,6 +30,9 @@ class EngineConfig:
     projected_season: int
     version: str
     system_name: str
+    artifact_path: Path | None = None
+    bat_feature_cols: tuple[str, ...] = ()
+    pitch_feature_cols: tuple[str, ...] = ()
 
 
 @runtime_checkable
@@ -149,7 +155,82 @@ class GBMEngine:
         pitch_pt: dict[int, float],
         config: EngineConfig,
     ) -> list[dict[str, Any]]:
-        raise NotImplementedError
+        if config.artifact_path is None:
+            msg = "GBMEngine.predict() requires artifact_path in EngineConfig"
+            raise ValueError(msg)
+
+        if not bat_rows and not pitch_rows:
+            return []
+
+        predictions: list[dict[str, Any]] = []
+
+        if bat_rows:
+            bat_best = best_rows_per_player(bat_rows)
+            bat_models = load_models(config.artifact_path / "batter_models.joblib")
+            bat_pids = list(bat_best.keys())
+            bat_deduped = [bat_best[pid] for pid in bat_pids]
+            bat_X = extract_features(bat_deduped, list(config.bat_feature_cols))
+
+            for i, pid in enumerate(bat_pids):
+                rates = {target: float(bat_models[target].predict([bat_X[i]])[0]) for target in bat_models}
+                proj_pa = bat_pt.get(pid, 0.0)
+                counting = batter_rates_to_counting(rates, int(proj_pa))
+
+                domain = composite_projection_to_domain(
+                    pid,
+                    config.projected_season,
+                    counting,
+                    rates,
+                    proj_pa,
+                    pitcher=False,
+                    version=config.version,
+                    system=config.system_name,
+                )
+                pred: dict[str, Any] = {
+                    "player_id": domain.player_id,
+                    "season": domain.season,
+                    "player_type": "batter",
+                    **domain.stat_json,
+                }
+                # Overlay GBM-predicted rates as authoritative
+                for target, value in rates.items():
+                    pred[target] = value
+                predictions.append(pred)
+
+        if pitch_rows:
+            pitch_best = best_rows_per_player(pitch_rows)
+            pitch_models = load_models(config.artifact_path / "pitcher_models.joblib")
+            pitch_pids = list(pitch_best.keys())
+            pitch_deduped = [pitch_best[pid] for pid in pitch_pids]
+            pitch_X = extract_features(pitch_deduped, list(config.pitch_feature_cols))
+
+            for i, pid in enumerate(pitch_pids):
+                rates = {target: float(pitch_models[target].predict([pitch_X[i]])[0]) for target in pitch_models}
+                proj_ip = pitch_pt.get(pid, 0.0)
+                counting = pitcher_rates_to_counting(rates, proj_ip)
+
+                domain = composite_projection_to_domain(
+                    pid,
+                    config.projected_season,
+                    counting,
+                    rates,
+                    proj_ip,
+                    pitcher=True,
+                    version=config.version,
+                    system=config.system_name,
+                )
+                pred = {
+                    "player_id": domain.player_id,
+                    "season": domain.season,
+                    "player_type": "pitcher",
+                    **domain.stat_json,
+                }
+                # Overlay GBM-predicted rates as authoritative
+                for target, value in rates.items():
+                    pred[target] = value
+                predictions.append(pred)
+
+        return predictions
 
     def train(
         self,

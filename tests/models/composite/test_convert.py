@@ -1,7 +1,89 @@
+import pytest
+
 from fantasy_baseball_manager.models.composite.convert import (
+    best_rows_per_player,
     composite_projection_to_domain,
+    batter_rates_to_counting,
     extract_projected_pt,
+    pitcher_rates_to_counting,
 )
+
+
+class TestBestRowsPerPlayer:
+    def test_single_row(self) -> None:
+        rows = [{"player_id": 1, "season": 2023, "proj_pa": 600}]
+        result = best_rows_per_player(rows)
+        assert result == {1: {"player_id": 1, "season": 2023, "proj_pa": 600}}
+
+    def test_multiple_seasons_takes_latest(self) -> None:
+        rows = [
+            {"player_id": 1, "season": 2022, "proj_pa": 550},
+            {"player_id": 1, "season": 2023, "proj_pa": 600},
+        ]
+        result = best_rows_per_player(rows)
+        assert result == {1: {"player_id": 1, "season": 2023, "proj_pa": 600}}
+
+    def test_multiple_players(self) -> None:
+        rows = [
+            {"player_id": 1, "season": 2023, "proj_pa": 600},
+            {"player_id": 2, "season": 2023, "proj_pa": 500},
+        ]
+        result = best_rows_per_player(rows)
+        assert len(result) == 2
+        assert result[1]["player_id"] == 1
+        assert result[2]["player_id"] == 2
+
+    def test_empty(self) -> None:
+        result = best_rows_per_player([])
+        assert result == {}
+
+
+class TestBatterRatesToCounting:
+    def test_basic_conversion_at_600_pa(self) -> None:
+        rates = {"avg": 0.280, "obp": 0.350, "slg": 0.450, "woba": 0.340}
+        result = batter_rates_to_counting(rates, 600)
+        # ab = pa * (1 - bb_frac - hbp_frac - sf_frac)
+        # default bb_frac=0.085, hbp_frac=0.012, sf_frac=0.01
+        ab = result["ab"]
+        assert result["h"] == pytest.approx(0.280 * ab)
+        assert result["pa"] == 600
+
+    def test_zero_pa_returns_zeros(self) -> None:
+        rates = {"avg": 0.280, "obp": 0.350, "slg": 0.450}
+        result = batter_rates_to_counting(rates, 0)
+        assert result["h"] == 0.0
+        assert result["hr"] == 0.0
+        assert result["ab"] == 0.0
+
+    def test_h_equals_avg_times_ab(self) -> None:
+        rates = {"avg": 0.300, "obp": 0.400, "slg": 0.500}
+        result = batter_rates_to_counting(rates, 500)
+        assert result["h"] == pytest.approx(0.300 * result["ab"])
+
+
+class TestPitcherRatesToCounting:
+    def test_basic_conversion_at_180_ip(self) -> None:
+        rates = {"era": 3.00, "k_per_9": 9.0, "bb_per_9": 3.0, "hr_per_9": 1.0, "whip": 1.20}
+        result = pitcher_rates_to_counting(rates, 180.0)
+        assert result["er"] == pytest.approx(3.00 * 180 / 9)  # 60
+        assert result["so"] == pytest.approx(9.0 * 180 / 9)  # 180
+        assert result["bb"] == pytest.approx(3.0 * 180 / 9)  # 60
+        assert result["hr"] == pytest.approx(1.0 * 180 / 9)  # 20
+        # h = whip * ip - bb = 1.20 * 180 - 60 = 156
+        assert result["h"] == pytest.approx(1.20 * 180 - 60)
+
+    def test_zero_ip_returns_zeros(self) -> None:
+        rates = {"era": 3.00, "k_per_9": 9.0, "bb_per_9": 3.0, "hr_per_9": 1.0, "whip": 1.20}
+        result = pitcher_rates_to_counting(rates, 0.0)
+        assert result == {"er": 0.0, "so": 0.0, "bb": 0.0, "hr": 0.0, "h": 0.0}
+
+    def test_missing_rate_keys_default_to_zero(self) -> None:
+        result = pitcher_rates_to_counting({}, 180.0)
+        assert result["er"] == 0.0
+        assert result["so"] == 0.0
+        assert result["bb"] == 0.0
+        assert result["hr"] == 0.0
+        assert result["h"] == 0.0
 
 
 class TestExtractProjectedPt:

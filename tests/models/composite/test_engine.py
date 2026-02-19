@@ -40,6 +40,33 @@ class TestEngineConfig:
             cfg.projected_season = 2026  # type: ignore[misc]
 
 
+class TestEngineConfigGBMFields:
+    def test_defaults_are_none_and_empty(self) -> None:
+        cfg = EngineConfig(
+            marcel_config=MarcelConfig(),
+            projected_season=2025,
+            version="v1",
+            system_name="composite",
+        )
+        assert cfg.artifact_path is None
+        assert cfg.bat_feature_cols == ()
+        assert cfg.pitch_feature_cols == ()
+
+    def test_explicit_values_accessible(self) -> None:
+        cfg = EngineConfig(
+            marcel_config=MarcelConfig(),
+            projected_season=2025,
+            version="v1",
+            system_name="composite",
+            artifact_path=Path("/tmp/models"),
+            bat_feature_cols=("age", "hr_1"),
+            pitch_feature_cols=("age", "so_1"),
+        )
+        assert cfg.artifact_path == Path("/tmp/models")
+        assert cfg.bat_feature_cols == ("age", "hr_1")
+        assert cfg.pitch_feature_cols == ("age", "so_1")
+
+
 class TestCompositeEngineProtocol:
     def test_runtime_checkable(self) -> None:
         assert isinstance(MarcelEngine(), CompositeEngine)
@@ -197,17 +224,6 @@ class TestGBMEngineProperties:
 class TestGBMEngineProtocol:
     def test_satisfies_composite_engine(self) -> None:
         assert isinstance(GBMEngine(), CompositeEngine)
-
-    def test_predict_raises_not_implemented(self) -> None:
-        engine = GBMEngine()
-        config = EngineConfig(
-            marcel_config=MarcelConfig(),
-            projected_season=2025,
-            version="latest",
-            system_name="composite",
-        )
-        with pytest.raises(NotImplementedError):
-            engine.predict([], [], {}, {}, config)
 
 
 _FEATURE_COLS = ["age", "pa_1", "hr_1", "hr_wavg", "weighted_pt", "league_hr_rate"]
@@ -398,6 +414,125 @@ class TestGBMEngineTrain:
             artifact_path,
         )
         assert len(metrics) > 0
+
+
+@pytest.mark.slow
+class TestGBMEnginePredict:
+    @pytest.fixture
+    def artifact_path(self, tmp_path: Path) -> Path:
+        return tmp_path / "models"
+
+    @pytest.fixture
+    def trained_artifact_path(self, artifact_path: Path) -> Path:
+        """Train models and return the artifact path."""
+        engine = GBMEngine()
+        bat_train = [_make_batter_train_row(i, 2022) for i in range(1, 21)]
+        pitch_train = [_make_pitcher_train_row(i, 2022) for i in range(100, 120)]
+        engine.train(
+            bat_train,
+            [],
+            pitch_train,
+            [],
+            _FEATURE_COLS,
+            _PITCH_FEATURE_COLS,
+            {},
+            artifact_path,
+        )
+        return artifact_path
+
+    @pytest.fixture
+    def engine_config(self, trained_artifact_path: Path) -> EngineConfig:
+        return EngineConfig(
+            marcel_config=MarcelConfig(),
+            projected_season=2025,
+            version="latest",
+            system_name="composite-gbm",
+            artifact_path=trained_artifact_path,
+            bat_feature_cols=tuple(_FEATURE_COLS),
+            pitch_feature_cols=tuple(_PITCH_FEATURE_COLS),
+        )
+
+    def test_returns_batter_predictions_with_rates(self, engine_config: EngineConfig) -> None:
+        engine = GBMEngine()
+        bat_rows = [_make_batter_train_row(1, 2023)]
+        bat_rows[0]["proj_pa"] = 600
+        bat_pt = {1: 600.0}
+        result = engine.predict(bat_rows, [], bat_pt, {}, engine_config)
+        assert len(result) == 1
+        pred = result[0]
+        assert pred["player_id"] == 1
+        assert pred["player_type"] == "batter"
+        assert "avg" in pred
+        assert "obp" in pred
+        assert "slg" in pred
+        assert "h" in pred
+
+    def test_returns_pitcher_predictions_with_rates(self, engine_config: EngineConfig) -> None:
+        engine = GBMEngine()
+        pitch_rows = [_make_pitcher_train_row(100, 2023)]
+        pitch_rows[0]["proj_ip"] = 180.0
+        pitch_pt = {100: 180.0}
+        result = engine.predict([], pitch_rows, {}, pitch_pt, engine_config)
+        assert len(result) == 1
+        pred = result[0]
+        assert pred["player_id"] == 100
+        assert pred["player_type"] == "pitcher"
+        assert "era" in pred
+        assert "k_per_9" in pred
+        assert "so" in pred
+
+    def test_uses_projected_pt(self, engine_config: EngineConfig) -> None:
+        engine = GBMEngine()
+        bat_rows = [_make_batter_train_row(1, 2023)]
+        bat_rows[0]["proj_pa"] = 400
+        bat_pt = {1: 400.0}
+        result = engine.predict(bat_rows, [], bat_pt, {}, engine_config)
+        assert result[0]["pa"] == 400
+
+    def test_deduplicates_to_one_per_player(self, engine_config: EngineConfig) -> None:
+        engine = GBMEngine()
+        row1 = _make_batter_train_row(1, 2022)
+        row1["proj_pa"] = 550
+        row2 = _make_batter_train_row(1, 2023)
+        row2["proj_pa"] = 600
+        bat_pt = {1: 600.0}
+        result = engine.predict([row1, row2], [], bat_pt, {}, engine_config)
+        assert len(result) == 1
+
+    def test_uses_projected_season_and_system_name(self, engine_config: EngineConfig) -> None:
+        engine = GBMEngine()
+        bat_rows = [_make_batter_train_row(1, 2023)]
+        bat_rows[0]["proj_pa"] = 600
+        bat_pt = {1: 600.0}
+        result = engine.predict(bat_rows, [], bat_pt, {}, engine_config)
+        assert result[0]["season"] == 2025
+
+    def test_raises_when_artifact_path_is_none(self) -> None:
+        engine = GBMEngine()
+        config = EngineConfig(
+            marcel_config=MarcelConfig(),
+            projected_season=2025,
+            version="latest",
+            system_name="composite",
+            artifact_path=None,
+        )
+        with pytest.raises(ValueError, match="artifact_path"):
+            engine.predict([], [], {}, {}, config)
+
+    def test_empty_rows_returns_empty(self, engine_config: EngineConfig) -> None:
+        engine = GBMEngine()
+        result = engine.predict([], [], {}, {}, engine_config)
+        assert result == []
+
+    def test_zero_pt_produces_zero_counting_stats(self, engine_config: EngineConfig) -> None:
+        engine = GBMEngine()
+        bat_rows = [_make_batter_train_row(1, 2023)]
+        bat_rows[0]["proj_pa"] = 0
+        bat_pt = {1: 0.0}
+        result = engine.predict(bat_rows, [], bat_pt, {}, engine_config)
+        assert len(result) == 1
+        pred = result[0]
+        assert pred["pa"] == 0
 
 
 class TestResolveEngine:
