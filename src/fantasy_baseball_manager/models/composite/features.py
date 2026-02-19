@@ -1,7 +1,13 @@
 from collections.abc import Sequence
 
 from fantasy_baseball_manager.features import batting, pitching, player, projection
-from fantasy_baseball_manager.features.types import AnyFeature, Feature, FeatureSet
+from fantasy_baseball_manager.features.types import (
+    AnyFeature,
+    DerivedTransformFeature,
+    Feature,
+    FeatureSet,
+    TransformFeature,
+)
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_league_averages,
     build_batting_weighted_rates,
@@ -76,6 +82,17 @@ def pitcher_target_features() -> list[Feature]:
     for stat in counting:
         features.append(pitching.col(stat).lag(0).alias(f"target_{stat}"))
     return features
+
+
+def feature_columns(fs: FeatureSet) -> list[str]:
+    """Extract feature column names from a FeatureSet, excluding target columns."""
+    columns: list[str] = []
+    for f in fs.features:
+        if isinstance(f, (TransformFeature, DerivedTransformFeature)):
+            columns.extend(f.outputs)
+        elif isinstance(f, Feature) and not f.name.startswith("target_"):
+            columns.append(f.name)
+    return columns
 
 
 def append_training_targets(fs: FeatureSet, targets: Sequence[Feature]) -> FeatureSet:

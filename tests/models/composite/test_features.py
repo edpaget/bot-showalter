@@ -1,11 +1,26 @@
+from typing import Any
+
 from fantasy_baseball_manager.features import batting, player
-from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature, FeatureSet, Source, SpineFilter
+from fantasy_baseball_manager.features.groups import compose_feature_set, get_group
+from fantasy_baseball_manager.features.types import (
+    DerivedTransformFeature,
+    Feature,
+    FeatureSet,
+    Source,
+    SpineFilter,
+    TransformFeature,
+)
 from fantasy_baseball_manager.models.composite.features import (
     append_training_targets,
     batter_target_features,
     build_composite_batting_features,
     build_composite_pitching_features,
+    feature_columns,
     pitcher_target_features,
+)
+from fantasy_baseball_manager.models.marcel.features import (
+    build_batting_league_averages,
+    build_batting_weighted_rates,
 )
 
 
@@ -204,3 +219,140 @@ class TestAppendTrainingTargets:
         fs = self._make_prediction_fs()
         train_fs = append_training_targets(fs, batter_target_features())
         assert train_fs.spine_filter == SpineFilter(player_type="batter")
+
+
+def _dummy_transform(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {}
+
+
+class TestFeatureColumns:
+    def _make_simple_fs(self) -> FeatureSet:
+        return FeatureSet(
+            name="test",
+            features=(
+                player.age(),
+                batting.col("pa").lag(1).alias("pa_1"),
+                batting.col("hr").lag(1).alias("hr_1"),
+            ),
+            seasons=(2023,),
+        )
+
+    def test_returns_list_of_strings(self) -> None:
+        fs = self._make_simple_fs()
+        cols = feature_columns(fs)
+        assert isinstance(cols, list)
+        assert all(isinstance(c, str) for c in cols)
+
+    def test_no_target_columns(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(
+                player.age(),
+                batting.col("hr").lag(0).alias("target_hr"),
+                batting.col("pa").lag(1).alias("pa_1"),
+            ),
+            seasons=(2023,),
+        )
+        cols = feature_columns(fs)
+        assert "target_hr" not in cols
+        assert "age" in cols
+        assert "pa_1" in cols
+
+    def test_extracts_feature_names(self) -> None:
+        fs = self._make_simple_fs()
+        cols = feature_columns(fs)
+        assert "age" in cols
+        assert "pa_1" in cols
+        assert "hr_1" in cols
+
+    def test_extracts_transform_outputs(self) -> None:
+        tf = TransformFeature(
+            name="pitch_mix",
+            source=Source.STATCAST,
+            columns=("pitch_type", "release_speed"),
+            group_by=("player_id", "season"),
+            transform=_dummy_transform,
+            outputs=("ff_pct", "si_pct", "sl_pct"),
+        )
+        fs = FeatureSet(
+            name="test",
+            features=(player.age(), tf),
+            seasons=(2023,),
+        )
+        cols = feature_columns(fs)
+        assert "ff_pct" in cols
+        assert "si_pct" in cols
+        assert "sl_pct" in cols
+
+    def test_extracts_derived_transform_outputs(self) -> None:
+        categories = ("hr", "bb")
+        weights = (0.6, 0.4)
+        weighted = build_batting_weighted_rates(categories, weights)
+        league_avg = build_batting_league_averages(categories)
+        fs = FeatureSet(
+            name="test",
+            features=(
+                player.age(),
+                batting.col("pa").lag(1).alias("pa_1"),
+                batting.col("hr").lag(1).alias("hr_1"),
+                batting.col("bb").lag(1).alias("bb_1"),
+                batting.col("pa").lag(2).alias("pa_2"),
+                batting.col("hr").lag(2).alias("hr_2"),
+                batting.col("bb").lag(2).alias("bb_2"),
+                weighted,
+                league_avg,
+            ),
+            seasons=(2023,),
+        )
+        cols = feature_columns(fs)
+        assert "hr_wavg" in cols
+        assert "bb_wavg" in cols
+        assert "weighted_pt" in cols
+        assert "league_hr_rate" in cols
+        assert "league_bb_rate" in cols
+
+    def test_preserves_order(self) -> None:
+        categories = ("hr",)
+        weights = (1.0,)
+        weighted = build_batting_weighted_rates(categories, weights)
+        fs = FeatureSet(
+            name="test",
+            features=(
+                player.age(),
+                batting.col("pa").lag(1).alias("pa_1"),
+                batting.col("hr").lag(1).alias("hr_1"),
+                weighted,
+            ),
+            seasons=(2023,),
+        )
+        cols = feature_columns(fs)
+        assert cols == ["age", "pa_1", "hr_1", "hr_wavg", "weighted_pt"]
+
+    def test_with_real_composite_feature_set(self) -> None:
+        groups = [
+            get_group("age"),
+            get_group("projected_batting_pt"),
+            get_group("statcast_gbm_preseason_batter_rates"),
+        ]
+        fs = compose_feature_set(
+            name="test_composite",
+            groups=groups,
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+        cols = feature_columns(fs)
+        assert "age" in cols
+        assert "proj_pa" in cols
+        assert "sc_pre_avg" in cols
+        assert "sc_pre_obp" in cols
+
+    def test_with_training_set_excludes_targets(self) -> None:
+        fs = self._make_simple_fs()
+        targets = batter_target_features()
+        train_fs = append_training_targets(fs, targets)
+        cols = feature_columns(train_fs)
+        assert "age" in cols
+        assert "pa_1" in cols
+        for target in targets:
+            assert target.name not in cols
