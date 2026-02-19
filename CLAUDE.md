@@ -36,6 +36,8 @@ When asked to "create a plan", "write a plan", or "plan out" a feature — produ
 
 When implementing from a roadmap or plan document, read it first and implement exactly what it specifies. Do not expand scope beyond the plan unless asked. **Every roadmap phase must be implemented in its own worktree** — see [Worktree Workflow](#worktree-workflow) below.
 
+**When asked to implement a roadmap phase**, follow the two-step flow in [Worktree Workflow](#worktree-workflow): first plan (in plan mode), then dispatch a headless agent. Do NOT start implementing code directly.
+
 ## Implementation Discipline
 
 When executing a plan (after plan-mode approval):
@@ -51,9 +53,27 @@ When executing a plan (after plan-mode approval):
 
 **Every roadmap phase must be implemented in its own git worktree.** Never implement a phase directly on `main`. This ensures phases can be developed in parallel without interfering with each other.
 
-- **Branch naming:** `roadmap/<roadmap-name>/phase-<n>` (e.g., `roadmap/worktree-workflow/phase-1`).
-- **Create a worktree** for each phase: `./scripts/gwt.sh roadmap/<roadmap-name>/phase-<n>`. This sets up an isolated directory with its own `.venv/`, symlinked `data/` and `artifacts/`, and Claude Code settings.
+### Branch naming
+
+`roadmap/<roadmap-name>/phase-<n>` (e.g., `roadmap/worktree-workflow/phase-1`).
+
+### Two-step implementation flow
+
+This is the primary workflow for implementing roadmap phases:
+
+1. **Plan** — Enter plan mode, read the roadmap doc, explore relevant code, produce a detailed implementation plan, and get user approval.
+2. **Dispatch** — Run `./scripts/gwt-implement.sh <roadmap-name> <phase-number>` to create a worktree and launch a headless Claude Code agent that implements the phase in the background. Use `--dry-run` to preview the prompt and command first. Follow progress with `tail -f` on the log file.
+
+### Manual worktree workflow
+
+Fallback for cases where headless dispatch isn't suitable (e.g., interactive exploration, debugging):
+
+- **Create a worktree:** `./scripts/gwt.sh roadmap/<roadmap-name>/phase-<n>`. This sets up an isolated directory with its own `.venv/`, symlinked `data/` and `artifacts/`, and Claude Code settings.
+- **Start Claude Code in the worktree:** `claude --cwd ../fbm-roadmap-<roadmap-name>-phase-<n>`.
 - **Implement the phase** in the worktree, committing as normal on the phase branch.
+
+### Merging and cleanup
+
 - **Merge back to main** after the phase is complete: from the main worktree, `git merge --ff-only roadmap/<roadmap-name>/phase-<n>` (rebase first if needed to keep history linear).
 - **Clean up** the worktree: `./scripts/gwt-remove.sh --delete-branch ../fbm-roadmap-<roadmap-name>-phase-<n>`.
 - Phases that depend on earlier phases should branch from main after the dependency has been merged.
