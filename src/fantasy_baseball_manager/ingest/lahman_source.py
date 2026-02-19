@@ -5,9 +5,9 @@ from collections.abc import Callable
 from typing import Any
 
 import httpx
-from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 from fantasy_baseball_manager.ingest._csv_helpers import nullify_empty_strings, strip_bom
+from fantasy_baseball_manager.ingest._retry import default_http_retry
 
 logger = logging.getLogger(__name__)
 
@@ -29,18 +29,7 @@ _POSITION_COLUMNS: dict[str, str] = {
     "G_dh": "DH",
 }
 
-
-def _log_retry(retry_state: RetryCallState) -> None:
-    logger.warning("Retrying Lahman download (attempt %d): %s", retry_state.attempt_number, retry_state.outcome)
-
-
-_DEFAULT_RETRY = retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential_jitter(initial=1, max=10),
-    retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
-    before_sleep=_log_retry,
-    reraise=True,
-)
+_DEFAULT_RETRY = default_http_retry("Lahman download")
 
 
 class LahmanPeopleSource:
