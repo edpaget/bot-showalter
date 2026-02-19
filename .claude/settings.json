@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff check:*)",
+      "Bash(uv run ty check:*)",
+      "Bash(uv run:*)",
+      "WebSearch",
+      "WebFetch(domain:www.baseball-reference.com)",
+      "WebFetch(domain:library.fangraphs.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:statsapi.mlb.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:baseballjudgments.tripod.com)",
+      "WebFetch(domain:fantasy.fangraphs.com)",
+      "WebFetch(domain:www.smartfantasybaseball.com)",
+      "WebFetch(domain:tht.fangraphs.com)",
+      "WebFetch(domain:www.fangraphs.com)",
+      "WebFetch(domain:blogs.fangraphs.com)",
+      "WebFetch(domain:bayesball.github.io)",
+      "WebFetch(domain:www.beyondtheboxscore.com)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ruff format --quiet $CLAUDE_FILE_PATHS"
+          }
+        ]
+      }
+    ]
+  }
+}
