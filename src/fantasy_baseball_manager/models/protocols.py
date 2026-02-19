@@ -44,6 +44,9 @@ class AblationResult:
     model_name: str
     feature_impacts: dict[str, float]
     feature_standard_errors: dict[str, float] = field(default_factory=dict)
+    group_impacts: dict[str, float] = field(default_factory=dict)
+    group_standard_errors: dict[str, float] = field(default_factory=dict)
+    group_members: dict[str, list[str]] = field(default_factory=dict)
 
 
 @runtime_checkable

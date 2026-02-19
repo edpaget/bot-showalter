@@ -4,10 +4,14 @@ import random
 import pytest
 from fantasy_baseball_manager.models.gbm_training import (
     CVFold,
+    CorrelationGroup,
     FeatureImportance,
     GridSearchResult,
+    GroupedImportanceResult,
     TargetVector,
     _evaluate_combination,
+    _find_correlated_groups,
+    compute_grouped_permutation_importance,
     compute_permutation_importance,
     extract_features,
     extract_targets,
@@ -17,6 +21,100 @@ from fantasy_baseball_manager.models.gbm_training import (
 )
 
 pytestmark = pytest.mark.slow
+
+
+class TestCorrelationGroup:
+    def test_correlation_group_is_frozen(self) -> None:
+        group = CorrelationGroup(name="group_0", members=("a", "b"))
+        assert group.name == "group_0"
+        assert group.members == ("a", "b")
+        with pytest.raises(AttributeError):
+            group.name = "other"  # type: ignore[misc]
+
+    def test_members_is_tuple(self) -> None:
+        group = CorrelationGroup(name="test", members=("x",))
+        assert isinstance(group.members, tuple)
+
+
+class TestGroupedImportanceResult:
+    def test_grouped_importance_result_is_frozen(self) -> None:
+        groups = (CorrelationGroup(name="a", members=("a",)),)
+        fi = FeatureImportance(mean=0.1, se=0.01)
+        result = GroupedImportanceResult(
+            groups=groups,
+            group_importance={"a": fi},
+            feature_importance={"a": fi},
+        )
+        assert result.groups == groups
+        assert result.group_importance == {"a": fi}
+        assert result.feature_importance == {"a": fi}
+        with pytest.raises(AttributeError):
+            result.groups = ()  # type: ignore[misc]
+
+
+class TestFindCorrelatedGroups:
+    def test_perfectly_correlated_features_grouped(self) -> None:
+        # col B = 2 * col A → same group
+        X = [[1.0, 2.0], [2.0, 4.0], [3.0, 6.0], [4.0, 8.0]]
+        groups = _find_correlated_groups(X, ["a", "b"])
+        assert len(groups) == 1
+        assert set(groups[0].members) == {"a", "b"}
+
+    def test_uncorrelated_features_each_singleton(self) -> None:
+        rng = random.Random(42)
+        X = [[float(i), rng.random(), rng.random()] for i in range(50)]
+        groups = _find_correlated_groups(X, ["a", "b", "c"])
+        assert len(groups) == 3
+        for g in groups:
+            assert len(g.members) == 1
+
+    def test_transitive_grouping(self) -> None:
+        # A~B and B~C (via construction) but A~C not directly
+        rng = random.Random(99)
+        n = 100
+        a = [float(i) for i in range(n)]
+        b = [a[i] + rng.gauss(0, 0.5) for i in range(n)]
+        c = [b[i] + rng.gauss(0, 0.5) for i in range(n)]
+        X = [[a[i], b[i], c[i]] for i in range(n)]
+        groups = _find_correlated_groups(X, ["a", "b", "c"], threshold=0.70)
+        # All three should be in one group via transitivity
+        multi_groups = [g for g in groups if len(g.members) > 1]
+        assert len(multi_groups) == 1
+        assert set(multi_groups[0].members) == {"a", "b", "c"}
+
+    def test_threshold_boundary(self) -> None:
+        # Pair at exactly threshold → not grouped (strict >)
+        # Perfect correlation gives r=1.0, threshold=1.0 → not grouped
+        X = [[1.0, 2.0], [2.0, 4.0], [3.0, 6.0], [4.0, 8.0]]
+        groups = _find_correlated_groups(X, ["a", "b"], threshold=1.0)
+        assert len(groups) == 2
+        for g in groups:
+            assert len(g.members) == 1
+
+    def test_constant_column_is_singleton(self) -> None:
+        # Constant column → NaN correlation → own group
+        X = [[1.0, 5.0], [2.0, 5.0], [3.0, 5.0], [4.0, 5.0]]
+        groups = _find_correlated_groups(X, ["a", "const"])
+        singletons = [g for g in groups if len(g.members) == 1]
+        assert len(singletons) == 2
+
+    def test_negative_correlation_groups(self) -> None:
+        # A and -A → same group (abs correlation)
+        X = [[1.0, -1.0], [2.0, -2.0], [3.0, -3.0], [4.0, -4.0]]
+        groups = _find_correlated_groups(X, ["a", "neg_a"])
+        assert len(groups) == 1
+        assert set(groups[0].members) == {"a", "neg_a"}
+
+    def test_empty_feature_list(self) -> None:
+        groups = _find_correlated_groups([], [], threshold=0.70)
+        assert groups == []
+
+    def test_single_feature_returns_singleton(self) -> None:
+        X = [[1.0], [2.0], [3.0]]
+        groups = _find_correlated_groups(X, ["only"])
+        assert len(groups) == 1
+        assert groups[0].members == ("only",)
+        assert groups[0].name == "only"
 
 
 class TestExtractTargets:
@@ -262,6 +360,110 @@ class TestComputePermutationImportance:
         models = fit_models(X, targets, {})
         result = compute_permutation_importance(models, X, targets, feature_cols, n_repeats=1)
         for fi in result.values():
+            assert fi.se == 0.0
+
+
+class TestComputeGroupedPermutationImportance:
+    def test_returns_all_groups_and_features(self) -> None:
+        gen = random.Random(42)
+        # 3 features: a (signal), b = 2*a + noise (correlated), c (noise)
+        n = 60
+        a_vals = [float(i) for i in range(n)]
+        b_vals = [2 * a_vals[i] + gen.gauss(0, 0.1) for i in range(n)]
+        c_vals = [gen.random() for _ in range(n)]
+        X = [[a_vals[i], b_vals[i], c_vals[i]] for i in range(n)]
+        targets = {"y": TargetVector(indices=list(range(n)), values=a_vals)}
+        models = fit_models(X, targets, {"min_samples_leaf": 5})
+        result = compute_grouped_permutation_importance(models, X, targets, ["a", "b", "c"], n_repeats=5)
+        assert isinstance(result, GroupedImportanceResult)
+        # All feature columns present in feature_importance
+        assert set(result.feature_importance.keys()) == {"a", "b", "c"}
+        # All group names present in group_importance
+        assert set(result.group_importance.keys()) == {g.name for g in result.groups}
+
+    def test_correlated_group_importance_higher_than_individual(self) -> None:
+        gen = random.Random(42)
+        n = 80
+        a_vals = [float(i) for i in range(n)]
+        b_vals = [a_vals[i] + gen.gauss(0, 0.3) for i in range(n)]
+        c_vals = [gen.random() for _ in range(n)]
+        X = [[a_vals[i], b_vals[i], c_vals[i]] for i in range(n)]
+        targets = {"y": TargetVector(indices=list(range(n)), values=a_vals)}
+        models = fit_models(X, targets, {"min_samples_leaf": 5})
+        result = compute_grouped_permutation_importance(models, X, targets, ["a", "b", "c"], n_repeats=10)
+        # Find the multi-member group
+        multi_groups = [g for g in result.groups if len(g.members) > 1]
+        assert len(multi_groups) >= 1
+        group = multi_groups[0]
+        group_imp = result.group_importance[group.name].mean
+        # Group importance should exceed individual importance of either member
+        for member in group.members:
+            assert group_imp >= result.feature_importance[member].mean
+
+    def test_singleton_group_matches_individual(self) -> None:
+        gen = random.Random(42)
+        n = 40
+        X = [[float(i), gen.random()] for i in range(n)]
+        targets = {"y": TargetVector(indices=list(range(n)), values=[float(i) for i in range(n)])}
+        models = fit_models(X, targets, {"min_samples_leaf": 5})
+        result = compute_grouped_permutation_importance(
+            models, X, targets, ["a", "b"], n_repeats=5, correlation_threshold=0.99
+        )
+        # With high threshold, all should be singletons
+        for g in result.groups:
+            assert len(g.members) == 1
+            feat_name = g.members[0]
+            assert math.isclose(
+                result.group_importance[g.name].mean,
+                result.feature_importance[feat_name].mean,
+                rel_tol=1e-9,
+            )
+
+    def test_all_values_are_feature_importance(self) -> None:
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"y": TargetVector(indices=[0, 1, 2, 3], values=[1.0, 2.0, 3.0, 4.0])}
+        models = fit_models(X, targets, {})
+        result = compute_grouped_permutation_importance(models, X, targets, ["a", "b"], n_repeats=3)
+        for fi in result.group_importance.values():
+            assert isinstance(fi, FeatureImportance)
+        for fi in result.feature_importance.values():
+            assert isinstance(fi, FeatureImportance)
+
+    def test_standard_errors_non_negative(self) -> None:
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"y": TargetVector(indices=[0, 1, 2, 3], values=[1.0, 2.0, 3.0, 4.0])}
+        models = fit_models(X, targets, {})
+        result = compute_grouped_permutation_importance(models, X, targets, ["a", "b"], n_repeats=5)
+        for fi in result.group_importance.values():
+            assert fi.se >= 0
+        for fi in result.feature_importance.values():
+            assert fi.se >= 0
+
+    def test_custom_correlation_threshold(self) -> None:
+        # threshold=1.0 (strict >) → all singletons even for perfectly correlated
+        X = [[1.0, 2.0], [2.0, 4.0], [3.0, 6.0], [4.0, 8.0]]
+        targets = {"y": TargetVector(indices=[0, 1, 2, 3], values=[1.0, 2.0, 3.0, 4.0])}
+        models = fit_models(X, targets, {})
+        result_high = compute_grouped_permutation_importance(
+            models, X, targets, ["a", "b"], n_repeats=3, correlation_threshold=1.0
+        )
+        assert all(len(g.members) == 1 for g in result_high.groups)
+
+        # Very low threshold → one big group
+        result_low = compute_grouped_permutation_importance(
+            models, X, targets, ["a", "b"], n_repeats=3, correlation_threshold=0.01
+        )
+        multi = [g for g in result_low.groups if len(g.members) > 1]
+        assert len(multi) == 1
+
+    def test_single_repeat_zero_se(self) -> None:
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"y": TargetVector(indices=[0, 1, 2, 3], values=[1.0, 2.0, 3.0, 4.0])}
+        models = fit_models(X, targets, {})
+        result = compute_grouped_permutation_importance(models, X, targets, ["a", "b"], n_repeats=1)
+        for fi in result.group_importance.values():
+            assert fi.se == 0.0
+        for fi in result.feature_importance.values():
             assert fi.se == 0.0
 
 

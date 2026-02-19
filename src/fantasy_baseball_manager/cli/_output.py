@@ -52,6 +52,22 @@ def print_predict_result(result: PredictResult) -> None:
 
 def print_ablation_result(result: AblationResult) -> None:
     console.print(f"Ablation results for model [bold]'{result.model_name}'[/bold]")
+    if result.group_impacts:
+        console.print("  [bold]Feature Groups:[/bold]")
+        for group_name, impact in sorted(result.group_impacts.items(), key=lambda x: -abs(x[1])):
+            se = result.group_standard_errors.get(group_name, 0.0)
+            ci_lo = impact - 2 * se
+            ci_hi = impact + 2 * se
+            color = "green" if impact > 0 else "red"
+            prune = " [yellow]\\[GROUP PRUNE][/yellow]" if impact + 2 * se <= 0 else ""
+            members = result.group_members.get(group_name, [])
+            n_features = len(members)
+            console.print(
+                f"    {group_name} ({n_features} features): [{color}]{impact:+.4f}[/{color}]"
+                f" (SE: {se:.4f}, 95% CI: [{ci_lo:+.4f}, {ci_hi:+.4f}]){prune}"
+            )
+            if members:
+                console.print(f"      {', '.join(members)}")
     if result.feature_impacts:
         has_se = bool(result.feature_standard_errors)
         for feature, impact in sorted(result.feature_impacts.items(), key=lambda x: -abs(x[1])):

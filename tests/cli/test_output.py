@@ -436,3 +436,55 @@ class TestPrintAblationResult:
         print_ablation_result(result)
         captured = capsys.readouterr()
         assert "PRUNE" not in captured.out
+
+    def test_print_ablation_with_groups(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:a": 0.03, "batter:b": 0.02},
+            feature_standard_errors={"batter:a": 0.005, "batter:b": 0.004},
+            group_impacts={"batter:group_0": 0.06},
+            group_standard_errors={"batter:group_0": 0.008},
+            group_members={"batter:group_0": ["batter:a", "batter:b"]},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "Feature Groups:" in captured.out
+        assert "batter:group_0" in captured.out
+
+    def test_print_ablation_group_prune_marked(self, capsys: pytest.CaptureFixture[str]) -> None:
+        # mean + 2*SE <= 0: mean=-0.02, SE=0.005 → -0.02 + 0.01 = -0.01 <= 0
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:a": -0.01, "batter:b": -0.01},
+            feature_standard_errors={"batter:a": 0.005, "batter:b": 0.005},
+            group_impacts={"batter:group_0": -0.02},
+            group_standard_errors={"batter:group_0": 0.005},
+            group_members={"batter:group_0": ["batter:a", "batter:b"]},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "GROUP PRUNE" in captured.out
+
+    def test_print_ablation_no_groups_omits_section(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:hr": 0.05},
+            feature_standard_errors={"batter:hr": 0.01},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "Feature Groups:" not in captured.out
+
+    def test_print_ablation_group_members_listed(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = AblationResult(
+            model_name="test-model",
+            feature_impacts={"batter:a": 0.03, "batter:b": 0.02},
+            feature_standard_errors={"batter:a": 0.005, "batter:b": 0.004},
+            group_impacts={"batter:group_0": 0.06},
+            group_standard_errors={"batter:group_0": 0.008},
+            group_members={"batter:group_0": ["batter:a", "batter:b"]},
+        )
+        print_ablation_result(result)
+        captured = capsys.readouterr()
+        assert "batter:a" in captured.out
+        assert "batter:b" in captured.out

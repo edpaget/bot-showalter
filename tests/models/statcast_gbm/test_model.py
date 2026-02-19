@@ -461,6 +461,22 @@ class TestStatcastGBMAblate:
         for se in ablation_result.feature_standard_errors.values():
             assert se >= 0
 
+    def test_ablate_returns_group_impacts(self, ablation_result: AblationResult) -> None:
+        assert isinstance(ablation_result.group_impacts, dict)
+
+    def test_ablate_group_keys_prefixed(self, ablation_result: AblationResult) -> None:
+        for key in ablation_result.group_impacts:
+            assert key.startswith("batter:") or key.startswith("pitcher:")
+
+    def test_ablate_group_members_are_prefixed(self, ablation_result: AblationResult) -> None:
+        for members in ablation_result.group_members.values():
+            for m in members:
+                assert m.startswith("batter:") or m.startswith("pitcher:")
+
+    def test_ablate_group_standard_errors_non_negative(self, ablation_result: AblationResult) -> None:
+        for se in ablation_result.group_standard_errors.values():
+            assert se >= 0
+
 
 @pytest.fixture(scope="class")
 def preseason_ablation_result() -> AblationResult:
@@ -785,13 +801,13 @@ class TestStatcastGBMTrainPerTypeParams:
 class TestStatcastGBMAblateNRepeats:
     def test_ablate_passes_n_repeats_from_config(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_n_repeats: list[int] = []
-        original_cpi = statcast_gbm_model_mod.compute_permutation_importance
+        original_cgpi = statcast_gbm_model_mod.compute_grouped_permutation_importance
 
-        def spy_cpi(*args: Any, **kwargs: Any) -> Any:
+        def spy_cgpi(*args: Any, **kwargs: Any) -> Any:
             captured_n_repeats.append(kwargs.get("n_repeats", 20))
-            return original_cpi(*args, **kwargs)
+            return original_cgpi(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "compute_permutation_importance", spy_cpi)
+        monkeypatch.setattr(statcast_gbm_model_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -814,13 +830,13 @@ class TestStatcastGBMAblateNRepeats:
 
     def test_ablate_uses_default_n_repeats(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_n_repeats: list[int] = []
-        original_cpi = statcast_gbm_model_mod.compute_permutation_importance
+        original_cgpi = statcast_gbm_model_mod.compute_grouped_permutation_importance
 
-        def spy_cpi(*args: Any, **kwargs: Any) -> Any:
+        def spy_cgpi(*args: Any, **kwargs: Any) -> Any:
             captured_n_repeats.append(kwargs.get("n_repeats", 20))
-            return original_cpi(*args, **kwargs)
+            return original_cgpi(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "compute_permutation_importance", spy_cpi)
+        monkeypatch.setattr(statcast_gbm_model_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -904,6 +920,63 @@ class TestStatcastGBMAblatePerTypeParams:
         assert len(captured_params) == 2
         assert captured_params[0] == {"max_iter": 50}
         assert captured_params[1] == {"max_iter": 50}
+
+
+class TestStatcastGBMAblateCorrelationThreshold:
+    def test_ablate_passes_correlation_threshold_from_config(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_thresholds: list[float] = []
+        original_cgpi = statcast_gbm_model_mod.compute_grouped_permutation_importance
+
+        def spy_cgpi(*args: Any, **kwargs: Any) -> Any:
+            captured_thresholds.append(kwargs.get("correlation_threshold", 0.70))
+            return original_cgpi(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "compute_grouped_permutation_importance", spy_cgpi)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={"correlation_threshold": 0.80},
+        )
+        model.ablate(config)
+        assert len(captured_thresholds) == 2
+        assert captured_thresholds[0] == 0.80
+        assert captured_thresholds[1] == 0.80
+
+    def test_ablate_uses_default_correlation_threshold(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_thresholds: list[float] = []
+        original_cgpi = statcast_gbm_model_mod.compute_grouped_permutation_importance
+
+        def spy_cgpi(*args: Any, **kwargs: Any) -> Any:
+            captured_thresholds.append(kwargs.get("correlation_threshold", 0.70))
+            return original_cgpi(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "compute_grouped_permutation_importance", spy_cgpi)
+
+        rows_by_season = {
+            2022: _make_rows(30, 2022),
+            2023: _make_rows(30, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(30, 2022),
+            2023: _make_pitcher_rows(30, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(seasons=[2022, 2023])
+        model.ablate(config)
+        assert len(captured_thresholds) == 2
+        assert captured_thresholds[0] == 0.70
+        assert captured_thresholds[1] == 0.70
 
 
 class TestDefaultModeIsTrueTalent:

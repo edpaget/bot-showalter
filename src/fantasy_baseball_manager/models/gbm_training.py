@@ -29,6 +29,83 @@ class FeatureImportance:
     se: float
 
 
+@dataclass(frozen=True)
+class CorrelationGroup:
+    name: str
+    members: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class GroupedImportanceResult:
+    groups: tuple[CorrelationGroup, ...]
+    group_importance: dict[str, FeatureImportance]
+    feature_importance: dict[str, FeatureImportance]
+
+
+def _find_correlated_groups(
+    X: list[list[float]],
+    feature_columns: list[str],
+    threshold: float = 0.70,
+) -> list[CorrelationGroup]:
+    n_features = len(feature_columns)
+    if n_features == 0:
+        return []
+
+    arr = np.array(X)
+    # Impute NaN with column means for correlation only
+    col_means = np.nanmean(arr, axis=0)
+    for j in range(n_features):
+        mask = np.isnan(arr[:, j])
+        if mask.any():
+            arr[mask, j] = col_means[j]
+
+    corr = np.corrcoef(arr, rowvar=False)
+    if n_features == 1:
+        corr = corr.reshape(1, 1)
+
+    # Union-Find
+    parent = list(range(n_features))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    for i in range(n_features):
+        for j in range(i + 1, n_features):
+            c = corr[i][j]
+            if not np.isnan(c) and abs(c) > threshold:
+                union(i, j)
+
+    # Collect components
+    components: dict[int, list[int]] = {}
+    for i in range(n_features):
+        root = find(i)
+        components.setdefault(root, []).append(i)
+
+    # Sort components by first member index
+    sorted_components = sorted(components.values(), key=lambda idxs: idxs[0])
+
+    groups: list[CorrelationGroup] = []
+    group_counter = 0
+    for idxs in sorted_components:
+        members = tuple(feature_columns[i] for i in idxs)
+        if len(members) == 1:
+            name = members[0]
+        else:
+            name = f"group_{group_counter}"
+            group_counter += 1
+        groups.append(CorrelationGroup(name=name, members=members))
+
+    return groups
+
+
 def _filter_X(X: list[list[float]], indices: list[int]) -> list[list[float]]:
     return [X[i] for i in indices]
 
@@ -170,6 +247,61 @@ def compute_permutation_importance(
         importances[col_name] = FeatureImportance(mean=mean_val, se=se_val)
 
     return importances
+
+
+def compute_grouped_permutation_importance(
+    models: dict[str, HistGradientBoostingRegressor],
+    X: list[list[float]],
+    targets_dict: dict[str, TargetVector],
+    feature_columns: list[str],
+    n_repeats: int = 20,
+    rng_seed: int = 42,
+    correlation_threshold: float = 0.70,
+) -> GroupedImportanceResult:
+    groups = _find_correlated_groups(X, feature_columns, correlation_threshold)
+
+    # Individual importance
+    individual = compute_permutation_importance(
+        models, X, targets_dict, feature_columns, n_repeats=n_repeats, rng_seed=rng_seed
+    )
+
+    # Group importance
+    baseline_metrics = score_predictions(models, X, targets_dict)
+    baseline_rmses = {t: baseline_metrics[f"rmse_{t}"] for t in targets_dict}
+    n_targets = len(targets_dict)
+    n_rows = len(X)
+    rng = random.Random(rng_seed)
+
+    col_index = {col: idx for idx, col in enumerate(feature_columns)}
+    group_importance: dict[str, FeatureImportance] = {}
+
+    for group in groups:
+        if len(group.members) == 1:
+            # Singleton: copy individual importance
+            group_importance[group.name] = individual[group.members[0]]
+        else:
+            # Multi-member: shuffle all member columns simultaneously
+            member_indices = [col_index[m] for m in group.members]
+            repeat_increases: list[float] = []
+            for _ in range(n_repeats):
+                X_permuted = [row[:] for row in X]
+                perm = list(range(n_rows))
+                rng.shuffle(perm)
+                for i in range(n_rows):
+                    for j in member_indices:
+                        X_permuted[i][j] = X[perm[i]][j]
+                permuted_metrics = score_predictions(models, X_permuted, targets_dict)
+                mean_increase = sum(permuted_metrics[f"rmse_{t}"] - baseline_rmses[t] for t in targets_dict) / n_targets
+                repeat_increases.append(mean_increase)
+            mean_val = sum(repeat_increases) / n_repeats
+            se_val = statistics.stdev(repeat_increases) / math.sqrt(n_repeats) if n_repeats > 1 else 0.0
+            group_importance[group.name] = FeatureImportance(mean=mean_val, se=se_val)
+
+    return GroupedImportanceResult(
+        groups=tuple(groups),
+        group_importance=group_importance,
+        feature_importance=individual,
+    )
 
 
 @dataclass(frozen=True)

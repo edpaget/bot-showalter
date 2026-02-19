@@ -8,7 +8,7 @@ from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
 from fantasy_baseball_manager.models.gbm_training import (
     CVFold,
-    compute_permutation_importance,
+    compute_grouped_permutation_importance,
     extract_features,
     extract_targets,
     fit_models,
@@ -331,10 +331,14 @@ class _StatcastGBMBase:
         holdout_seasons = [config.seasons[-1]]
         feature_impacts: dict[str, float] = {}
         feature_standard_errors: dict[str, float] = {}
+        group_impacts: dict[str, float] = {}
+        group_standard_errors: dict[str, float] = {}
+        group_members: dict[str, list[str]] = {}
 
         batter_params = config.model_params.get("batter", config.model_params)
         pitcher_params = config.model_params.get("pitcher", config.model_params)
         n_repeats = int(config.model_params.get("n_repeats", 20))
+        correlation_threshold = float(config.model_params.get("correlation_threshold", 0.70))
 
         # --- Batter ablation ---
         bat_fs = self._batter_training_set_builder(config.seasons)
@@ -353,16 +357,24 @@ class _StatcastGBMBase:
             bat_holdout_rows = self._assembler.read(bat_splits.holdout)
             bat_X_holdout = extract_features(bat_holdout_rows, bat_feature_cols)
             bat_y_holdout = extract_targets(bat_holdout_rows, bat_targets)
-            bat_importance = compute_permutation_importance(
+            bat_result = compute_grouped_permutation_importance(
                 bat_models,
                 bat_X_holdout,
                 bat_y_holdout,
                 bat_feature_cols,
                 n_repeats=n_repeats,
+                correlation_threshold=correlation_threshold,
             )
-            for col, fi in bat_importance.items():
+            for col, fi in bat_result.feature_importance.items():
                 feature_impacts[f"batter:{col}"] = fi.mean
                 feature_standard_errors[f"batter:{col}"] = fi.se
+            for g in bat_result.groups:
+                if len(g.members) > 1:
+                    key = f"batter:{g.name}"
+                    gi = bat_result.group_importance[g.name]
+                    group_impacts[key] = gi.mean
+                    group_standard_errors[key] = gi.se
+                    group_members[key] = [f"batter:{m}" for m in g.members]
 
         # --- Pitcher ablation ---
         pit_fs = self._pitcher_training_set_builder(config.seasons)
@@ -381,21 +393,32 @@ class _StatcastGBMBase:
             pit_holdout_rows = self._assembler.read(pit_splits.holdout)
             pit_X_holdout = extract_features(pit_holdout_rows, pit_feature_cols)
             pit_y_holdout = extract_targets(pit_holdout_rows, pit_targets)
-            pit_importance = compute_permutation_importance(
+            pit_result = compute_grouped_permutation_importance(
                 pit_models,
                 pit_X_holdout,
                 pit_y_holdout,
                 pit_feature_cols,
                 n_repeats=n_repeats,
+                correlation_threshold=correlation_threshold,
             )
-            for col, fi in pit_importance.items():
+            for col, fi in pit_result.feature_importance.items():
                 feature_impacts[f"pitcher:{col}"] = fi.mean
                 feature_standard_errors[f"pitcher:{col}"] = fi.se
+            for g in pit_result.groups:
+                if len(g.members) > 1:
+                    key = f"pitcher:{g.name}"
+                    gi = pit_result.group_importance[g.name]
+                    group_impacts[key] = gi.mean
+                    group_standard_errors[key] = gi.se
+                    group_members[key] = [f"pitcher:{m}" for m in g.members]
 
         return AblationResult(
             model_name=self.name,
             feature_impacts=feature_impacts,
             feature_standard_errors=feature_standard_errors,
+            group_impacts=group_impacts,
+            group_standard_errors=group_standard_errors,
+            group_members=group_members,
         )
 
     def _artifact_path(self, config: ModelConfig) -> Path:
