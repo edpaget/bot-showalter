@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
-from fantasy_baseball_manager.ingest._csv_helpers import nullify_empty_strings
+from fantasy_baseball_manager.ingest._csv_helpers import nullify_empty_strings, strip_bom
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class SprintSpeedSource:
         response = self._fetch_with_retry(query)
         logger.debug("Sprint speed responded %d", response.status_code)
 
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv.DictReader(io.StringIO(strip_bom(response.text)))
         rows: list[dict[str, Any]] = [nullify_empty_strings(row) for row in reader]
 
         logger.info("Parsed %d sprint speed rows for %s", len(rows), year)

@@ -111,3 +111,14 @@ class TestSprintSpeedSource:
             source.fetch(year=2024)
 
         assert transport.call_count == 3
+
+    def test_bom_is_stripped(self) -> None:
+        csv_text = f"\ufeff{_CSV_HEADER}\n{_CSV_ROWS}"
+        client = httpx.Client(transport=FakeTransport(_csv_response(csv_text)))
+        source = SprintSpeedSource(client=client)
+
+        result = source.fetch(year=2024)
+
+        assert len(result) == 2
+        assert "player_id" in result[0]
+        assert result[0]["player_id"] == "545361"

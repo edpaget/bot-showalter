@@ -129,3 +129,14 @@ class TestStatcastSavantSource:
             source.fetch(start_dt="2024-06-15", end_dt="2024-06-15")
 
         assert transport.call_count == 3
+
+    def test_bom_is_stripped(self) -> None:
+        csv_text = f"\ufeff{_CSV_HEADER}\n{_CSV_ROW}\n"
+        client = httpx.Client(transport=FakeTransport(_csv_response(csv_text)))
+        source = StatcastSavantSource(client=client)
+
+        result = source.fetch(start_dt="2024-06-15", end_dt="2024-06-15")
+
+        assert len(result) == 1
+        assert "game_pk" in result[0]
+        assert result[0]["game_pk"] == "718001"

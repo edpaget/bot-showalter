@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
-from fantasy_baseball_manager.ingest._csv_helpers import nullify_empty_strings
+from fantasy_baseball_manager.ingest._csv_helpers import nullify_empty_strings, strip_bom
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class StatcastSavantSource:
             logger.debug("Fetching statcast data for %s", date_str)
             response = self._fetch_day_with_retry(date_str)
 
-            reader = csv.DictReader(io.StringIO(response.text))
+            reader = csv.DictReader(io.StringIO(strip_bom(response.text)))
             day_rows = [nullify_empty_strings(row) for row in reader]
             rows.extend(day_rows)
 
