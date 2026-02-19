@@ -165,21 +165,25 @@ class FakePlayerRepo:
 
 ### Data sources
 
-All sources implement the `DataSource` protocol (`source_type`, `source_detail` properties and `fetch(**params) -> DataFrame`).
+All sources implement the `DataSource` protocol (`source_type`, `source_detail` properties and `fetch(**params) -> list[dict[str, Any]]`).
 
-| Source | Wraps | `source_detail` |
-|---|---|---|
-| `ChadwickSource` | `pybaseball.chadwick_register` | `chadwick_register` |
-| `FgBattingSource` | `pybaseball.fg_batting_data` | `fg_batting_data` |
-| `FgPitchingSource` | `pybaseball.fg_pitching_data` | `fg_pitching_data` |
-| `BrefBattingSource` | `pybaseball.batting_stats_bref` | `batting_stats_bref` |
-| `BrefPitchingSource` | `pybaseball.pitching_stats_bref` | `pitching_stats_bref` |
-| `StatcastSource` | `pybaseball.statcast` | `statcast` |
-| `CsvSource` | `pandas.read_csv` | file path |
+| Source | Upstream | `source_type` | `source_detail` |
+|---|---|---|---|
+| `ChadwickRegisterSource` | Chadwick Bureau GitHub ZIP | `chadwick_bureau` | `chadwick_register` |
+| `FgBattingSource` | FanGraphs JSON API | `fangraphs` | `batting` |
+| `FgPitchingSource` | FanGraphs JSON API | `fangraphs` | `pitching` |
+| `StatcastSavantSource` | Baseball Savant CSV | `baseball_savant` | `statcast_pitch` |
+| `SprintSpeedSource` | Baseball Savant CSV | `baseball_savant` | `sprint_speed` |
+| `LahmanPeopleSource` | Lahman GitHub CSV | `lahman` | `people` |
+| `LahmanAppearancesSource` | Lahman GitHub CSV | `lahman` | `appearances` |
+| `LahmanTeamsSource` | Lahman GitHub CSV | `lahman` | `teams` |
+| `MLBTransactionsSource` | MLB Stats API | `mlb_api` | `transactions` |
+| `MLBMinorLeagueBattingSource` | MLB Stats API | `mlb_api` | `milb_batting` |
+| `CsvSource` | Local CSV file | `csv` | file path |
 
 ### Loaders
 
-`StatsLoader` is the generic orchestrator. It fetches a DataFrame from a source, maps each row through a callable, upserts via a repo, and writes a `LoadLog` entry.
+`StatsLoader` is the generic orchestrator. It fetches rows from a source, maps each row through a callable, upserts via a repo, and writes a `LoadLog` entry.
 
 ```python
 from fantasy_baseball_manager.ingest.loader import StatsLoader
@@ -203,14 +207,19 @@ Mappers translate source-specific column names to domain objects. Factory functi
 
 | Mapper | Input format | Output |
 |---|---|---|
-| `make_fg_batting_mapper(players)` | FanGraphs batting CSV | `BattingStats` |
-| `make_fg_pitching_mapper(players)` | FanGraphs pitching CSV | `PitchingStats` |
-| `make_bref_batting_mapper(players, season=)` | BBRef batting | `BattingStats` |
-| `make_bref_pitching_mapper(players, season=)` | BBRef pitching | `PitchingStats` |
+| `make_fg_batting_mapper(players)` | FanGraphs JSON | `BattingStats` |
+| `make_fg_pitching_mapper(players)` | FanGraphs JSON | `PitchingStats` |
 | `make_fg_projection_batting_mapper(players, season=, system=, version=)` | FG projection CSV | `Projection` |
 | `make_fg_projection_pitching_mapper(players, season=, system=, version=)` | FG projection CSV | `Projection` |
-| `chadwick_row_to_player(row)` | Chadwick register | `Player` |
-| `statcast_pitch_mapper(row)` | Statcast DataFrame | `StatcastPitch` |
+| `make_lahman_bio_mapper(players)` | Lahman People CSV | `Player` |
+| `make_il_stint_mapper(players)` | MLB transactions JSON | `ILStint` |
+| `make_sprint_speed_mapper(players)` | Baseball Savant CSV | `SprintSpeed` |
+| `make_milb_batting_mapper(players)` | MLB Stats API JSON | `MiLBBattingStats` |
+| `make_position_appearance_mapper(players, teams)` | Lahman Appearances CSV | `PositionAppearance` |
+| `make_roster_stint_mapper(players, teams)` | Lahman roster data | `RosterStint` |
+| `chadwick_row_to_player(row)` | Chadwick register CSV | `Player` |
+| `statcast_pitch_mapper(row)` | Baseball Savant CSV | `StatcastPitch` |
+| `lahman_team_row_to_team(row)` | Lahman Teams CSV | `Team` |
 
 Rows with missing required fields (NaN player IDs, etc.) return `None` and are silently skipped by the loader.
 
@@ -232,7 +241,8 @@ player_repo = SqlitePlayerRepo(conn)
 
 # 1. Seed players from Chadwick register
 player_loader = PlayerLoader(
-    ChadwickSource(), player_repo, SqliteLoadLogRepo(conn), chadwick_row_to_player
+    ChadwickRegisterSource(), player_repo, SqliteLoadLogRepo(conn),
+    chadwick_row_to_player, conn=conn,
 )
 player_loader.load()
 
@@ -244,6 +254,7 @@ batting_loader = StatsLoader(
     SqliteLoadLogRepo(conn),
     make_fg_batting_mapper(players),
     "batting_stats",
+    conn=conn,
 )
 batting_loader.load(season=2024)
 
@@ -254,17 +265,19 @@ projection_loader = StatsLoader(
     SqliteLoadLogRepo(conn),
     make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1"),
     "projection",
+    conn=conn,
 )
 projection_loader.load()
 
 # 4. Load Statcast into separate database
 sc_conn = create_statcast_connection("statcast.db")
 statcast_loader = StatsLoader(
-    StatcastSource(),
+    StatcastSavantSource(),
     SqliteStatcastPitchRepo(sc_conn),
     SqliteLoadLogRepo(conn),  # load log stays in stats.db
     statcast_pitch_mapper,
     "statcast_pitch",
+    conn=conn,
 )
 for start, end in chunk_date_range("2024-06-01", "2024-06-30"):
     statcast_loader.load(start_dt=start, end_dt=end)

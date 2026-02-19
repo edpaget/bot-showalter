@@ -1,7 +1,7 @@
 # Replace pybaseball & pylahman with Direct Sources
 
 **Created:** 2026-02-18
-**Status:** Active — Phase 6 complete
+**Status:** Complete — all phases done
 **Goal:** Incrementally replace `pybaseball` and `pylahman` with direct HTTP
 fetchers backed by SQLite structured caching, then drop both dependencies.
 
@@ -15,10 +15,9 @@ fetchers backed by SQLite structured caching, then drop both dependencies.
 | 4 | Replace pylahman sources | ✅ Done |
 | 5 | Replace FanGraphs sources | ✅ Done |
 | 6 | Replace Baseball Reference sources | ✅ Done |
-| 7 | Remove pybaseball & pylahman, clean up pandas | Not started |
+| 7 | Remove pybaseball & pylahman, clean up pandas | ✅ Done |
 
-**Remaining pybaseball usage:** `pybaseball` package dependency only —
-no source classes remain in the ingest pipeline (Phase 7 removes the dep).
+**Remaining pybaseball usage:** Complete. All pybaseball and pylahman references removed.
 
 ## Motivation
 
@@ -194,14 +193,14 @@ Implementation:
 - Removed `--source` CLI option from `ingest batting` / `ingest pitching`.
 - Removed `"pybaseball"` from third-party logger suppression list.
 
-### Phase 7 — Remove pybaseball & pylahman, clean up pandas
+### Phase 7 — Remove pybaseball & pylahman, clean up pandas ✅
 
-1. Remove `pybaseball` and `pylahman` from `pyproject.toml` dependencies.
-2. Remove `pandas` from main dependencies if no longer used in `src/`
-   (keep in dev dependencies for notebooks).
-3. Remove `pyarrow` (pandas' Arrow backend) from locked deps.
-4. Clean up any remaining `import pandas` in source files.
-5. Verify all ingest commands still work end-to-end.
+Removed `pybaseball` and `pandas` from main `[project] dependencies` in
+`pyproject.toml`. Moved `pandas` to the `[dependency-groups] dev` section
+(notebooks-only usage). Regenerated the lockfile, dropping pybaseball and
+its exclusive transitive deps (lxml, pyarrow, pygithub, pyjwt, pynacl,
+cryptography, tqdm). Updated `docs/data-layer.md` to reflect the current
+source classes, mappers, and protocol signatures.
 
 ## Migration Strategy
 
