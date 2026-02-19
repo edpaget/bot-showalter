@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 
 from fantasy_baseball_manager.features import batting, pitching, player, projection
-from fantasy_baseball_manager.features.types import AnyFeature
+from fantasy_baseball_manager.features.types import AnyFeature, Feature, FeatureSet
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_league_averages,
     build_batting_weighted_rates,
@@ -52,3 +52,38 @@ def build_composite_pitching_features(
     features.append(build_pitching_weighted_rates(categories, weights))
     features.append(build_pitching_league_averages(categories))
     return features
+
+
+def batter_target_features() -> list[Feature]:
+    """Lag-0 batting features with ``target_`` prefix for training."""
+    direct = ("avg", "obp", "slg", "woba")
+    counting = ("h", "hr", "ab", "so", "sf")
+    features: list[Feature] = []
+    for stat in direct:
+        features.append(batting.col(stat).lag(0).alias(f"target_{stat}"))
+    for stat in counting:
+        features.append(batting.col(stat).lag(0).alias(f"target_{stat}"))
+    return features
+
+
+def pitcher_target_features() -> list[Feature]:
+    """Lag-0 pitching features with ``target_`` prefix for training."""
+    direct = ("era", "fip", "k_per_9", "bb_per_9", "whip")
+    counting = ("h", "hr", "ip", "so")
+    features: list[Feature] = []
+    for stat in direct:
+        features.append(pitching.col(stat).lag(0).alias(f"target_{stat}"))
+    for stat in counting:
+        features.append(pitching.col(stat).lag(0).alias(f"target_{stat}"))
+    return features
+
+
+def append_training_targets(fs: FeatureSet, targets: Sequence[Feature]) -> FeatureSet:
+    """Return a new FeatureSet with prediction features plus target features."""
+    return FeatureSet(
+        name=f"{fs.name}_train",
+        features=fs.features + tuple(targets),
+        seasons=fs.seasons,
+        source_filter=fs.source_filter,
+        spine_filter=fs.spine_filter,
+    )

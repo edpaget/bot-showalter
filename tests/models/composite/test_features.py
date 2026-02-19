@@ -1,7 +1,11 @@
-from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature, Source
+from fantasy_baseball_manager.features import batting, player
+from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature, FeatureSet, Source, SpineFilter
 from fantasy_baseball_manager.models.composite.features import (
+    append_training_targets,
+    batter_target_features,
     build_composite_batting_features,
     build_composite_pitching_features,
+    pitcher_target_features,
 )
 
 
@@ -87,3 +91,116 @@ class TestCompositePitchingFeatures:
         transforms = [f for f in features if isinstance(f, DerivedTransformFeature)]
         names = [t.name for t in transforms]
         assert "pitching_league_averages" in names
+
+
+class TestBatterTargetFeatures:
+    def test_returns_9_features(self) -> None:
+        targets = batter_target_features()
+        assert len(targets) == 9
+
+    def test_all_target_prefix(self) -> None:
+        targets = batter_target_features()
+        for f in targets:
+            assert f.name.startswith("target_")
+
+    def test_all_lag_0(self) -> None:
+        targets = batter_target_features()
+        for f in targets:
+            assert f.lag == 0
+
+    def test_all_batting_source(self) -> None:
+        targets = batter_target_features()
+        for f in targets:
+            assert f.source == Source.BATTING
+
+    def test_expected_names(self) -> None:
+        targets = batter_target_features()
+        names = [f.name for f in targets]
+        assert names == [
+            "target_avg",
+            "target_obp",
+            "target_slg",
+            "target_woba",
+            "target_h",
+            "target_hr",
+            "target_ab",
+            "target_so",
+            "target_sf",
+        ]
+
+
+class TestPitcherTargetFeatures:
+    def test_returns_9_features(self) -> None:
+        targets = pitcher_target_features()
+        assert len(targets) == 9
+
+    def test_all_target_prefix(self) -> None:
+        targets = pitcher_target_features()
+        for f in targets:
+            assert f.name.startswith("target_")
+
+    def test_all_lag_0(self) -> None:
+        targets = pitcher_target_features()
+        for f in targets:
+            assert f.lag == 0
+
+    def test_all_pitching_source(self) -> None:
+        targets = pitcher_target_features()
+        for f in targets:
+            assert f.source == Source.PITCHING
+
+    def test_expected_names(self) -> None:
+        targets = pitcher_target_features()
+        names = [f.name for f in targets]
+        assert names == [
+            "target_era",
+            "target_fip",
+            "target_k_per_9",
+            "target_bb_per_9",
+            "target_whip",
+            "target_h",
+            "target_hr",
+            "target_ip",
+            "target_so",
+        ]
+
+
+class TestAppendTrainingTargets:
+    def _make_prediction_fs(self) -> FeatureSet:
+        return FeatureSet(
+            name="composite_batting",
+            features=(player.age(), batting.col("pa").lag(1).alias("pa_1")),
+            seasons=(2022, 2023),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_type="batter"),
+        )
+
+    def test_name_has_train_suffix(self) -> None:
+        fs = self._make_prediction_fs()
+        train_fs = append_training_targets(fs, batter_target_features())
+        assert train_fs.name == "composite_batting_train"
+
+    def test_features_include_originals_plus_targets(self) -> None:
+        fs = self._make_prediction_fs()
+        targets = batter_target_features()
+        train_fs = append_training_targets(fs, targets)
+        assert len(train_fs.features) == len(fs.features) + len(targets)
+        # Original features come first
+        assert train_fs.features[: len(fs.features)] == fs.features
+        # Targets come after
+        assert train_fs.features[len(fs.features) :] == tuple(targets)
+
+    def test_preserves_seasons(self) -> None:
+        fs = self._make_prediction_fs()
+        train_fs = append_training_targets(fs, batter_target_features())
+        assert train_fs.seasons == (2022, 2023)
+
+    def test_preserves_source_filter(self) -> None:
+        fs = self._make_prediction_fs()
+        train_fs = append_training_targets(fs, batter_target_features())
+        assert train_fs.source_filter == "fangraphs"
+
+    def test_preserves_spine_filter(self) -> None:
+        fs = self._make_prediction_fs()
+        train_fs = append_training_targets(fs, batter_target_features())
+        assert train_fs.spine_filter == SpineFilter(player_type="batter")
