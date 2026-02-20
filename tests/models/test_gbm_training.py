@@ -14,6 +14,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     TargetVector,
     _evaluate_combination,
     _find_correlated_groups,
+    build_cv_folds,
     compute_cv_permutation_importance,
     compute_grouped_permutation_importance,
     compute_permutation_importance,
@@ -401,6 +402,11 @@ class TestExtractSampleWeights:
         result = extract_sample_weights(rows, "pa_1")
         assert result == [600.0, 1.0, 50.0]
 
+    def test_none_value_defaults_to_one(self) -> None:
+        rows = [{"pa_1": 600}, {"pa_1": None}, {"pa_1": 50}]
+        result = extract_sample_weights(rows, "pa_1")
+        assert result == [600.0, 1.0, 50.0]
+
 
 class TestFitModels:
     def test_returns_dict_of_models(self) -> None:
@@ -681,6 +687,47 @@ class TestEndToEndWithMissingTargets:
         assert "rmse_avg" in metrics
         assert "rmse_iso" in metrics
         assert all(isinstance(v, float) for v in metrics.values())
+
+
+class TestBuildCVFolds:
+    def _make_rows(self, season: int, n: int = 5) -> list[dict[str, Any]]:
+        return [
+            {"season": season, "feat_a": float(i), "feat_b": float(i * 2), "target_y": float(i * 0.1), "pa_1": 500 + i}
+            for i in range(n)
+        ]
+
+    def test_groups_by_season(self) -> None:
+        rows = self._make_rows(2021, 3) + self._make_rows(2022, 4) + self._make_rows(2023, 5)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022), ([2021, 2022], 2023)]
+        folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits)
+        assert len(folds) == 2
+        # Fold 0: train=2021 (3 rows), test=2022 (4 rows)
+        assert len(folds[0].X_train) == 3
+        assert len(folds[0].X_test) == 4
+        # Fold 1: train=2021+2022 (7 rows), test=2023 (5 rows)
+        assert len(folds[1].X_train) == 7
+        assert len(folds[1].X_test) == 5
+
+    def test_with_sample_weights(self) -> None:
+        rows = self._make_rows(2021, 3) + self._make_rows(2022, 3)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits, sample_weight_column="pa_1")
+        assert folds[0].sample_weights is not None
+        assert len(folds[0].sample_weights) == 3
+
+    def test_without_sample_weights(self) -> None:
+        rows = self._make_rows(2021, 3) + self._make_rows(2022, 3)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits)
+        assert folds[0].sample_weights is None
+
+    def test_empty_season(self) -> None:
+        rows = self._make_rows(2021, 3)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]  # 2022 has no rows
+        folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits)
+        assert len(folds) == 1
+        assert len(folds[0].X_train) == 3
+        assert len(folds[0].X_test) == 0
 
 
 def _make_cv_folds() -> list[CVFold]:

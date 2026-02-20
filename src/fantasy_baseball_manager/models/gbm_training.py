@@ -168,7 +168,11 @@ def extract_targets(
 
 
 def extract_sample_weights(rows: list[dict[str, Any]], column: str) -> list[float]:
-    return [float(row.get(column, 1.0)) for row in rows]
+    result: list[float] = []
+    for row in rows:
+        value = row.get(column)
+        result.append(float(value) if value is not None else 1.0)
+    return result
 
 
 def extract_features(
@@ -391,6 +395,41 @@ def compute_cv_permutation_importance(
         group_importance=averaged_groups,
         feature_importance=averaged_features,
     )
+
+
+def build_cv_folds(
+    all_rows: list[dict[str, Any]],
+    feature_columns: list[str],
+    targets: list[str],
+    cv_splits: list[tuple[list[int], int]],
+    sample_weight_column: str | None = None,
+) -> list["CVFold"]:
+    """Build CV folds from rows by grouping by season and applying splits.
+
+    Groups all_rows by their "season" key, then for each (train_seasons,
+    test_season) pair, extracts features, targets, and optional sample
+    weights into a CVFold.
+    """
+    rows_by_season: dict[int, list[dict[str, Any]]] = {}
+    for row in all_rows:
+        s = row["season"]
+        rows_by_season.setdefault(s, []).append(row)
+
+    folds: list[CVFold] = []
+    for train_seasons, test_season in cv_splits:
+        train_rows = [r for s in train_seasons for r in rows_by_season.get(s, [])]
+        test_rows = rows_by_season.get(test_season, [])
+        train_sw = extract_sample_weights(train_rows, sample_weight_column) if sample_weight_column else None
+        folds.append(
+            CVFold(
+                X_train=extract_features(train_rows, feature_columns),
+                y_train=extract_targets(train_rows, targets),
+                X_test=extract_features(test_rows, feature_columns),
+                y_test=extract_targets(test_rows, targets),
+                sample_weights=train_sw,
+            )
+        )
+    return folds
 
 
 @dataclass(frozen=True)
