@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
@@ -12,6 +13,7 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteT
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.protocols import (
+    ADPRepo,
     BattingStatsRepo,
     ILStintRepo,
     LeagueEnvironmentRepo,
@@ -72,3 +74,6 @@ class TestProtocolConformance:
 
     def test_load_log_repo_conforms(self) -> None:
         assert issubclass(SqliteLoadLogRepo, LoadLogRepo)
+
+    def test_adp_repo_conforms(self) -> None:
+        assert issubclass(SqliteADPRepo, ADPRepo)

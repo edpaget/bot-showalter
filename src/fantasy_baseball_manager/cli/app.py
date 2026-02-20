@@ -63,6 +63,7 @@ from fantasy_baseball_manager.services.cohort import (
 )
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
+from fantasy_baseball_manager.ingest.adp_mapper import ingest_fantasypros_adp
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
     lahman_team_row_to_team,
@@ -340,10 +341,11 @@ def tune(
     output_dir: _OutputDirOpt = None,
     season: _SeasonOpt = None,
     param: _ParamOpt = None,
+    top: _TopOpt = None,
 ) -> None:
     """Tune hyperparameters for a projection model."""
     params = _parse_params(param)
-    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params, top=top)
     with build_model_context(model, config) as ctx:
         match dispatch("tune", ctx.model, config):
             case Ok(TuneResult() as r):
@@ -359,10 +361,11 @@ def sweep(
     output_dir: _OutputDirOpt = None,
     season: _SeasonOpt = None,
     param: _ParamOpt = None,
+    top: _TopOpt = None,
 ) -> None:
     """Sweep meta-parameters (e.g. weight transforms) for a projection model."""
     params = _parse_params(param)
-    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params, top=top)
     with build_model_context(model, config) as ctx:
         match dispatch("sweep", ctx.model, config):
             case Ok(TuneResult() as r):
@@ -1106,6 +1109,69 @@ def ingest_milb_batting(
                     case Err(e):
                         print_error(e.message)
                         continue
+
+
+@ingest_app.command("adp")
+def ingest_adp(
+    csv_path: Annotated[Path, typer.Argument(help="Path to FantasyPros ADP CSV")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    as_of: Annotated[str | None, typer.Option("--as-of", help="Snapshot date (ISO)")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Ingest ADP data from a FantasyPros CSV file."""
+    if not csv_path.exists():
+        print_error(f"file not found: {csv_path}")
+        raise typer.Exit(code=1)
+
+    with build_ingest_container(data_dir) as container:
+        source = CsvSource(csv_path)
+        rows = source.fetch()
+        players = container.player_repo.all()
+        result = ingest_fantasypros_adp(rows, container.adp_repo, players, season=season, as_of=as_of)
+        container.conn.commit()
+        console.print(f"  Loaded {result.loaded} ADP records, skipped {result.skipped}")
+        if result.unmatched:
+            console.print(
+                f"  [yellow]Unmatched players ({len(result.unmatched)}):[/yellow] {', '.join(result.unmatched[:20])}"
+            )
+            if len(result.unmatched) > 20:
+                console.print(f"  ... and {len(result.unmatched) - 20} more")
+
+
+@ingest_app.command("adp-bulk")
+def ingest_adp_bulk(
+    directory: Annotated[Path, typer.Argument(help="Directory with fantasypros_*.csv files")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Bulk-ingest ADP data from all fantasypros_*.csv files in a directory."""
+    if not directory.is_dir():
+        print_error(f"not a directory: {directory}")
+        raise typer.Exit(code=1)
+
+    csv_files = sorted(directory.glob("fantasypros_*.csv"))
+    if not csv_files:
+        print_error(f"no fantasypros_*.csv files found in {directory}")
+        raise typer.Exit(code=1)
+
+    with build_ingest_container(data_dir) as container:
+        players = container.player_repo.all()
+        for csv_file in csv_files:
+            stem = csv_file.stem
+            year_str = stem.replace("fantasypros_", "")
+            try:
+                season = int(year_str)
+            except ValueError:
+                console.print(f"  [yellow]Skipping {csv_file.name}: cannot parse season[/yellow]")
+                continue
+
+            source = CsvSource(csv_file)
+            rows = source.fetch()
+            result = ingest_fantasypros_adp(rows, container.adp_repo, players, season=season)
+            container.conn.commit()
+            n_unmatched = len(result.unmatched)
+            console.print(
+                f"  {csv_file.name}: loaded {result.loaded}, skipped {result.skipped}, unmatched {n_unmatched}"
+            )
 
 
 # --- compute subcommand group ---

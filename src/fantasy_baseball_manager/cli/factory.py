@@ -24,6 +24,7 @@ from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
+from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
@@ -297,6 +298,10 @@ class IngestContainer:
 
     def teams_source(self) -> DataSource:
         return LahmanTeamsSource()
+
+    @functools.cached_property
+    def adp_repo(self) -> SqliteADPRepo:
+        return SqliteADPRepo(self._conn)
 
 
 @contextmanager
