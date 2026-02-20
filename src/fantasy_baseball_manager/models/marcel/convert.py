@@ -111,6 +111,14 @@ def rows_to_marcel_inputs(
     return result
 
 
+_WOBA_BB = 0.690
+_WOBA_HBP = 0.720
+_WOBA_1B = 0.880
+_WOBA_2B = 1.240
+_WOBA_3B = 1.560
+_WOBA_HR = 2.010
+
+
 def _compute_batter_rates(stats: dict[str, float], pa: int) -> dict[str, float]:
     """Derive batting rate stats from counting stats and PA."""
     if pa <= 0:
@@ -130,7 +138,22 @@ def _compute_batter_rates(stats: dict[str, float], pa: int) -> dict[str, float]:
     avg = h / ab
     obp = (h + bb + hbp) / (ab + bb + hbp + sf)
     slg = (singles + 2 * doubles + 3 * triples + 4 * hr) / ab
-    return {"ab": ab, "avg": avg, "obp": obp, "slg": slg, "ops": obp + slg}
+
+    ibb = stats.get("ibb", 0.0)
+    woba_denom = ab + bb - ibb + sf + hbp
+    if woba_denom > 0:
+        woba = (
+            _WOBA_BB * bb
+            + _WOBA_HBP * hbp
+            + _WOBA_1B * singles
+            + _WOBA_2B * doubles
+            + _WOBA_3B * triples
+            + _WOBA_HR * hr
+        ) / woba_denom
+    else:
+        woba = 0.0
+
+    return {"ab": ab, "avg": avg, "obp": obp, "slg": slg, "ops": obp + slg, "woba": woba}
 
 
 def _compute_pitcher_rates(stats: dict[str, float], ip: float) -> dict[str, float]:

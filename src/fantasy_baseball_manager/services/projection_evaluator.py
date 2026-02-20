@@ -58,6 +58,8 @@ class ProjectionEvaluator:
         actuals_source: str = "fangraphs",
         top: int | None = None,
         normalize_pt: ConsensusLookup | None = None,
+        min_pa: int | None = None,
+        min_ip: int | None = None,
     ) -> SystemMetrics:
         logger.info("Evaluating %s/%s for season %d", system, version, season)
         projections = self._projection_repo.get_by_system_version(system, version)
@@ -98,6 +100,11 @@ class ProjectionEvaluator:
         pitching_actuals = self._pitching_repo.get_by_season(season, source=actuals_source)
         if top is not None:
             pitching_actuals = _top_by_war(pitching_actuals, top)
+
+        if min_pa is not None:
+            batting_actuals = [a for a in batting_actuals if (a.pa or 0) >= min_pa]
+        if min_ip is not None:
+            pitching_actuals = [a for a in pitching_actuals if (a.ip or 0) >= min_ip]
 
         comparisons = self._build_comparisons(
             batter_projs,
@@ -146,6 +153,8 @@ class ProjectionEvaluator:
         actuals_source: str = "fangraphs",
         top: int | None = None,
         normalize_pt: ConsensusLookup | None = None,
+        min_pa: int | None = None,
+        min_ip: int | None = None,
     ) -> ComparisonResult:
         logger.info("Comparing %d systems for season %d", len(systems), season)
         system_metrics: list[SystemMetrics] = []
@@ -160,6 +169,8 @@ class ProjectionEvaluator:
                 actuals_source,
                 top=top,
                 normalize_pt=normalize_pt,
+                min_pa=min_pa,
+                min_ip=min_ip,
             )
             system_metrics.append(metrics)
             all_stat_names.update(metrics.metrics.keys())
@@ -180,6 +191,8 @@ class ProjectionEvaluator:
         actuals_source: str = "fangraphs",
         top: int | None = None,
         normalize_pt: ConsensusLookup | None = None,
+        min_pa: int | None = None,
+        min_ip: int | None = None,
     ) -> dict[str, SystemMetrics]:
         projections = self._projection_repo.get_by_system_version(system, version)
         projections = [p for p in projections if p.season == season]
@@ -217,6 +230,11 @@ class ProjectionEvaluator:
         pitching_actuals = self._pitching_repo.get_by_season(season, source=actuals_source)
         if top is not None:
             pitching_actuals = _top_by_war(pitching_actuals, top)
+
+        if min_pa is not None:
+            batting_actuals = [a for a in batting_actuals if (a.pa or 0) >= min_pa]
+        if min_ip is not None:
+            pitching_actuals = [a for a in pitching_actuals if (a.ip or 0) >= min_ip]
 
         # Partition actuals by cohort
         batting_by_cohort: dict[str, list[BattingStats]] = defaultdict(list)
@@ -259,6 +277,8 @@ class ProjectionEvaluator:
         actuals_source: str = "fangraphs",
         top: int | None = None,
         normalize_pt: ConsensusLookup | None = None,
+        min_pa: int | None = None,
+        min_ip: int | None = None,
     ) -> StratifiedComparisonResult:
         # Collect per-cohort metrics for each system
         all_cohort_labels: set[str] = set()
@@ -274,6 +294,8 @@ class ProjectionEvaluator:
                 actuals_source,
                 top=top,
                 normalize_pt=normalize_pt,
+                min_pa=min_pa,
+                min_ip=min_ip,
             )
             per_system.append(cohort_metrics)
             all_cohort_labels.update(cohort_metrics.keys())

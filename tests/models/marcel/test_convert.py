@@ -379,6 +379,47 @@ class TestProjectionToDomain:
         assert "bb_per_9" not in domain.stat_json
 
 
+class TestComputeBatterRatesWoba:
+    def test_compute_batter_rates_includes_woba(self) -> None:
+        proj = MarcelProjection(
+            player_id=1,
+            projected_season=2024,
+            age=29,
+            stats={
+                "h": 80.0,
+                "doubles": 15.0,
+                "triples": 2.0,
+                "hr": 20.0,
+                "bb": 40.0,
+                "hbp": 5.0,
+                "sf": 3.0,
+                "ibb": 5.0,
+            },
+            rates={},
+            pa=500,
+        )
+        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        assert "woba" in domain.stat_json
+        # singles = 80 - 15 - 2 - 20 = 43
+        # ab = 500 - 40 - 5 - 3 = 452
+        # woba_denom = ab + bb - ibb + sf + hbp = 452 + 40 - 5 + 3 + 5 = 495
+        # woba = (0.690*40 + 0.720*5 + 0.880*43 + 1.240*15 + 1.560*2 + 2.010*20) / 495
+        expected = (0.690 * 40 + 0.720 * 5 + 0.880 * 43 + 1.240 * 15 + 1.560 * 2 + 2.010 * 20) / 495
+        assert domain.stat_json["woba"] == pytest.approx(expected, abs=0.001)
+
+    def test_compute_batter_rates_woba_zero_pa(self) -> None:
+        proj = MarcelProjection(
+            player_id=1,
+            projected_season=2024,
+            age=29,
+            stats={"h": 0.0, "hr": 0.0, "bb": 0.0, "hbp": 0.0, "sf": 0.0},
+            rates={},
+            pa=0,
+        )
+        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        assert "woba" not in domain.stat_json
+
+
 class TestExtractPtFromRows:
     def test_extracts_column_value(self) -> None:
         rows = [{"player_id": 1, "season": 2023, "proj_pa": 500}]

@@ -52,6 +52,7 @@ def _seed_batting_actuals(
     season: int = 2025,
     source: str = "fangraphs",
     war: float | None = None,
+    pa: int | None = None,
 ) -> None:
     batting_repo.upsert(
         BattingStats(
@@ -61,6 +62,7 @@ def _seed_batting_actuals(
             hr=hr,
             avg=avg,
             war=war,
+            pa=pa,
         )
     )
 
@@ -95,6 +97,7 @@ def _seed_pitching_actuals(
     season: int = 2025,
     source: str = "fangraphs",
     war: float | None = None,
+    ip: float | None = None,
 ) -> None:
     pitching_repo.upsert(
         PitchingStats(
@@ -104,6 +107,7 @@ def _seed_pitching_actuals(
             era=era,
             so=so,
             war=war,
+            ip=ip,
         )
     )
 
@@ -327,6 +331,65 @@ class TestEvaluateTopNFilter:
         result = evaluator.evaluate("steamer", "2025.1", 2025, top=2)
         assert result.metrics["era"].n == 2
         assert result.metrics["so"].n == 2
+
+
+class TestEvaluateMinPaIpFilter:
+    def test_min_pa_filters_low_pa_batters(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2, 3):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
+        _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265, pa=500)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310, pa=100)
+        _seed_batting_actuals(batting_repo, 3, hr=18, avg=0.240, pa=30)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025, min_pa=100)
+        assert result.metrics["hr"].n == 2
+
+    def test_min_ip_filters_low_ip_pitchers(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
+        for pid in (10, 11, 12):
+            _seed_player(conn, pid)
+        _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
+        _seed_pitcher_projection(proj_repo, 11, era=4.00, so=150)
+        _seed_pitcher_projection(proj_repo, 12, era=5.00, so=100)
+        _seed_pitching_actuals(pitching_repo, 10, era=3.50, so=190, ip=180.0)
+        _seed_pitching_actuals(pitching_repo, 11, era=3.80, so=160, ip=50.0)
+        _seed_pitching_actuals(pitching_repo, 12, era=4.50, so=120, ip=5.0)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025, min_ip=50)
+        assert result.metrics["era"].n == 2
+
+    def test_min_pa_none_includes_all(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2, 3):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
+        _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265, pa=500)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310, pa=100)
+        _seed_batting_actuals(batting_repo, 3, hr=18, avg=0.240, pa=30)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025, min_pa=None)
+        assert result.metrics["hr"].n == 3
+
+    def test_min_pa_and_top_compose(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in (1, 2, 3):
+            _seed_player(conn, pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
+        _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265, pa=500, war=5.0)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310, pa=100, war=3.0)
+        _seed_batting_actuals(batting_repo, 3, hr=18, avg=0.240, pa=30, war=1.0)
+
+        # top=3 keeps all 3, then min_pa=100 filters out player 3 (pa=30)
+        result = evaluator.evaluate("steamer", "2025.1", 2025, top=3, min_pa=100)
+        assert result.metrics["hr"].n == 2
 
 
 class TestCompareComposedSystems:

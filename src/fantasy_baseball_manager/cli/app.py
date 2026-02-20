@@ -475,6 +475,8 @@ def compare_cmd(
     stratify: Annotated[str | None, typer.Option("--stratify", help="Stratify by: age, experience, top300")] = None,
     normalize_pt: Annotated[str | None, typer.Option("--normalize-pt", help="PT source: consensus")] = None,
     rate_only: Annotated[bool, typer.Option("--rate-only", help="Evaluate rate stats only")] = False,
+    min_pa: Annotated[int | None, typer.Option("--min-pa", help="Minimum PA for batters")] = None,
+    min_ip: Annotated[int | None, typer.Option("--min-ip", help="Minimum IP for pitchers")] = None,
 ) -> None:
     """Compare multiple projection systems against actuals."""
     if stratify is not None and stratify not in _STRATIFY_CHOICES:
@@ -504,7 +506,9 @@ def compare_cmd(
             consensus = build_consensus_lookup(steamer_projs, zips_projs)
 
         if stratify is None:
-            result = ctx.evaluator.compare(parsed, season, stats=stat, top=top, normalize_pt=consensus)
+            result = ctx.evaluator.compare(
+                parsed, season, stats=stat, top=top, normalize_pt=consensus, min_pa=min_pa, min_ip=min_ip
+            )
             print_comparison_result(result)
         else:
             cohort_assignments = _build_cohort_assignments(ctx, stratify, season)
@@ -516,6 +520,8 @@ def compare_cmd(
                 stats=stat,
                 top=top,
                 normalize_pt=consensus,
+                min_pa=min_pa,
+                min_ip=min_ip,
             )
             print_stratified_comparison_result(strat_result)
 
