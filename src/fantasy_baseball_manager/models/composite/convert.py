@@ -1,17 +1,11 @@
 from typing import Any
 
 from fantasy_baseball_manager.domain.projection import Projection
-from fantasy_baseball_manager.models.marcel.convert import _compute_batter_rates, _compute_pitcher_rates
-
-
-def best_rows_per_player(rows: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
-    """Deduplicate rows to one per player, keeping the latest season."""
-    best: dict[int, dict[str, Any]] = {}
-    for row in rows:
-        pid = int(row["player_id"])
-        if pid not in best or row["season"] > best[pid]["season"]:
-            best[pid] = row
-    return best
+from fantasy_baseball_manager.models.stat_utils import (
+    best_rows_per_player,
+    compute_batter_rates,
+    compute_pitcher_rates,
+)
 
 
 def extract_projected_pt(rows: list[dict[str, Any]], pitcher: bool = False) -> dict[int, float]:
@@ -109,11 +103,11 @@ def composite_projection_to_domain(
 
     if pitcher:
         stat_json["ip"] = pt
-        stat_json.update(_compute_pitcher_rates(stats, pt))
+        stat_json.update(compute_pitcher_rates(stats, pt))
         player_type = "pitcher"
     else:
         stat_json["pa"] = int(pt)
-        stat_json.update(_compute_batter_rates(stats, int(pt)))
+        stat_json.update(compute_batter_rates(stats, int(pt)))
         player_type = "batter"
 
     return Projection(
