@@ -18,6 +18,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     compute_grouped_permutation_importance,
     compute_permutation_importance,
     extract_features,
+    extract_sample_weights,
     extract_targets,
     fit_models,
     grid_search_cv,
@@ -388,6 +389,19 @@ class TestExtractFeatures:
         assert math.isnan(result[0][1])
 
 
+class TestExtractSampleWeights:
+    def test_returns_float_list(self) -> None:
+        rows = [{"pa_1": 600}, {"pa_1": 400}, {"pa_1": 50}]
+        result = extract_sample_weights(rows, "pa_1")
+        assert result == [600.0, 400.0, 50.0]
+        assert all(isinstance(v, float) for v in result)
+
+    def test_missing_column_defaults_to_one(self) -> None:
+        rows = [{"pa_1": 600}, {"other": 42}, {"pa_1": 50}]
+        result = extract_sample_weights(rows, "pa_1")
+        assert result == [600.0, 1.0, 50.0]
+
+
 class TestFitModels:
     def test_returns_dict_of_models(self) -> None:
         X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
@@ -406,6 +420,22 @@ class TestFitModels:
         X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
         targets = {"avg": TargetVector(indices=[0, 1, 3], values=[0.250, 0.300, 0.280])}
         models = fit_models(X, targets, {})
+        assert "avg" in models
+        assert hasattr(models["avg"], "predict")
+
+    def test_fit_with_sample_weights(self) -> None:
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"avg": TargetVector(indices=[0, 1, 2, 3], values=[0.250, 0.300, 0.275, 0.280])}
+        weights = [1.0, 2.0, 1.0, 3.0]
+        models = fit_models(X, targets, {}, sample_weights=weights)
+        assert "avg" in models
+        assert hasattr(models["avg"], "predict")
+
+    def test_fit_with_partial_targets_filters_weights(self) -> None:
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"avg": TargetVector(indices=[0, 1, 3], values=[0.250, 0.300, 0.280])}
+        weights = [10.0, 20.0, 30.0, 40.0]
+        models = fit_models(X, targets, {}, sample_weights=weights)
         assert "avg" in models
         assert hasattr(models["avg"], "predict")
 
@@ -733,6 +763,39 @@ class TestGridSearchCV:
         assert isinstance(entry["mean_rmse"], float)
         assert entry["mean_rmse"] >= 0
         assert "y" in entry["per_target_rmse"]
+
+    def test_evaluate_combination_with_weights(self) -> None:
+        folds = _make_cv_folds()
+        # Add sample_weights to each fold
+        weighted_folds = [
+            CVFold(
+                X_train=f.X_train,
+                y_train=f.y_train,
+                X_test=f.X_test,
+                y_test=f.y_test,
+                sample_weights=[1.0] * len(f.X_train),
+            )
+            for f in folds
+        ]
+        entry = _evaluate_combination(weighted_folds, {"max_iter": 100})
+        assert isinstance(entry["mean_rmse"], float)
+        assert entry["mean_rmse"] >= 0
+
+    def test_grid_search_with_sample_weights(self) -> None:
+        folds = _make_cv_folds()
+        weighted_folds = [
+            CVFold(
+                X_train=f.X_train,
+                y_train=f.y_train,
+                X_test=f.X_test,
+                y_test=f.y_test,
+                sample_weights=[1.0] * len(f.X_train),
+            )
+            for f in folds
+        ]
+        result = grid_search_cv(weighted_folds, {"max_iter": [100]})
+        assert isinstance(result, GridSearchResult)
+        assert result.best_mean_rmse >= 0
 
     def test_parallel_matches_sequential(self) -> None:
         folds = _make_cv_folds()

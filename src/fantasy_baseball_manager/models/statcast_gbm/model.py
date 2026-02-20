@@ -10,6 +10,7 @@ from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_
 from fantasy_baseball_manager.models.gbm_training import (
     CVFold,
     extract_features,
+    extract_sample_weights,
     extract_targets,
     fit_models,
     grid_search_cv,
@@ -111,6 +112,14 @@ class _StatcastGBMBase:
     def _pitcher_columns(self) -> list[str]:
         raise NotImplementedError
 
+    @property
+    def _batter_sample_weight_column(self) -> str | None:
+        return None
+
+    @property
+    def _pitcher_sample_weight_column(self) -> str | None:
+        return None
+
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)
         pitcher_fs = self._pitcher_feature_set_builder(config.seasons)
@@ -149,7 +158,9 @@ class _StatcastGBMBase:
 
         bat_X_train = extract_features(bat_train_rows, bat_feature_cols)
         bat_y_train = extract_targets(bat_train_rows, bat_targets)
-        bat_models = fit_models(bat_X_train, bat_y_train, batter_params)
+        bat_sw_col = self._batter_sample_weight_column
+        bat_sw = extract_sample_weights(bat_train_rows, bat_sw_col) if bat_sw_col else None
+        bat_models = fit_models(bat_X_train, bat_y_train, batter_params, sample_weights=bat_sw)
 
         if bat_splits.holdout is not None:
             bat_holdout_rows = self._assembler.read(bat_splits.holdout)
@@ -172,7 +183,9 @@ class _StatcastGBMBase:
 
         pit_X_train = extract_features(pit_train_rows, pit_feature_cols)
         pit_y_train = extract_targets(pit_train_rows, pit_targets)
-        pit_models = fit_models(pit_X_train, pit_y_train, pitcher_params)
+        pit_sw_col = self._pitcher_sample_weight_column
+        pit_sw = extract_sample_weights(pit_train_rows, pit_sw_col) if pit_sw_col else None
+        pit_models = fit_models(pit_X_train, pit_y_train, pitcher_params, sample_weights=pit_sw)
 
         if pit_splits.holdout is not None:
             pit_holdout_rows = self._assembler.read(pit_splits.holdout)
@@ -270,16 +283,19 @@ class _StatcastGBMBase:
             s = row["season"]
             bat_rows_by_season.setdefault(s, []).append(row)
 
+        bat_sw_col = self._batter_sample_weight_column
         bat_folds: list[CVFold] = []
         for train_seasons, test_season in cv_splits:
             train_rows = [r for s in train_seasons for r in bat_rows_by_season.get(s, [])]
             test_rows = bat_rows_by_season.get(test_season, [])
+            train_sw = extract_sample_weights(train_rows, bat_sw_col) if bat_sw_col else None
             bat_folds.append(
                 CVFold(
                     X_train=extract_features(train_rows, bat_feature_cols),
                     y_train=extract_targets(train_rows, bat_targets),
                     X_test=extract_features(test_rows, bat_feature_cols),
                     y_test=extract_targets(test_rows, bat_targets),
+                    sample_weights=train_sw,
                 )
             )
 
@@ -297,16 +313,19 @@ class _StatcastGBMBase:
             s = row["season"]
             pit_rows_by_season.setdefault(s, []).append(row)
 
+        pit_sw_col = self._pitcher_sample_weight_column
         pit_folds: list[CVFold] = []
         for train_seasons, test_season in cv_splits:
             train_rows = [r for s in train_seasons for r in pit_rows_by_season.get(s, [])]
             test_rows = pit_rows_by_season.get(test_season, [])
+            train_sw = extract_sample_weights(train_rows, pit_sw_col) if pit_sw_col else None
             pit_folds.append(
                 CVFold(
                     X_train=extract_features(train_rows, pit_feature_cols),
                     y_train=extract_targets(train_rows, pit_targets),
                     X_test=extract_features(test_rows, pit_feature_cols),
                     y_test=extract_targets(test_rows, pit_targets),
+                    sample_weights=train_sw,
                 )
             )
 
@@ -425,3 +444,11 @@ class StatcastGBMPreseasonModel(_StatcastGBMBase):
     @property
     def _pitcher_columns(self) -> list[str]:
         return preseason_averaged_pitcher_curated_columns()
+
+    @property
+    def _batter_sample_weight_column(self) -> str | None:
+        return "pa_1"
+
+    @property
+    def _pitcher_sample_weight_column(self) -> str | None:
+        return "ip_1"

@@ -273,6 +273,21 @@ class TestStatcastGBMPreseasonProtocol:
         assert len(features) > 0
 
 
+class TestSampleWeightColumns:
+    def test_preseason_batter_weight_column(self) -> None:
+        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._batter_sample_weight_column == "pa_1"
+
+    def test_preseason_pitcher_weight_column(self) -> None:
+        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._pitcher_sample_weight_column == "ip_1"
+
+    def test_live_model_weight_columns_none(self) -> None:
+        model = StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._batter_sample_weight_column is None
+        assert model._pitcher_sample_weight_column is None
+
+
 class TestStatcastGBMPrepare:
     def test_prepare_returns_result(self) -> None:
         assembler = FakeAssembler()
@@ -730,14 +745,111 @@ class TestStatcastGBMPreseasonTune:
         assert "tune" in ops
 
 
+class TestTrainSampleWeights:
+    def test_train_preseason_passes_sample_weights(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_weights: list[list[float] | None] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_weights.append(kwargs.get("sample_weights"))
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(seasons=[2022, 2023], artifacts_dir=str(tmp_path))
+        model.train(config)
+        # Both batter and pitcher should have weights
+        assert len(captured_weights) == 2
+        assert captured_weights[0] is not None
+        assert isinstance(captured_weights[0], list)
+        assert all(isinstance(w, float) for w in captured_weights[0])
+        assert captured_weights[1] is not None
+        assert isinstance(captured_weights[1], list)
+        assert all(isinstance(w, float) for w in captured_weights[1])
+
+    def test_train_live_no_sample_weights(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_weights: list[list[float] | None] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_weights.append(kwargs.get("sample_weights"))
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(seasons=[2022, 2023], artifacts_dir=str(tmp_path))
+        model.train(config)
+        assert len(captured_weights) == 2
+        assert captured_weights[0] is None
+        assert captured_weights[1] is None
+
+
+class TestTuneSampleWeights:
+    def test_tune_preseason_uses_sample_weights(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_folds: list[list[Any]] = []
+        original_grid = statcast_gbm_model_mod.grid_search_cv
+
+        def spy_grid(folds: list[Any], *args: Any, **kwargs: Any) -> Any:
+            captured_folds.append(folds)
+            return original_grid(folds, *args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "grid_search_cv", spy_grid)
+
+        rows_by_season = {
+            2021: [_make_preseason_row(f"p_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2021: [_make_preseason_pitcher_row(f"pit_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            model_params={"param_grid": {"max_iter": [100]}},
+        )
+        model.tune(config)
+        # grid_search_cv called twice (batter + pitcher)
+        assert len(captured_folds) == 2
+        # Each fold list should have folds with sample_weights set
+        for fold_list in captured_folds:
+            for fold in fold_list:
+                assert fold.sample_weights is not None
+                assert isinstance(fold.sample_weights, list)
+                assert all(isinstance(w, float) for w in fold.sample_weights)
+
+
 class TestStatcastGBMTrainPerTypeParams:
     def test_train_routes_per_type_params(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_params: list[dict[str, Any]] = []
         original_fit = statcast_gbm_model_mod.fit_models
 
-        def spy_fit(X: Any, y: Any, params: dict[str, Any]) -> Any:
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
             captured_params.append(params)
-            return original_fit(X, y, params)
+            return original_fit(X, y, params, **kwargs)
 
         monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
 
@@ -770,9 +882,9 @@ class TestStatcastGBMTrainPerTypeParams:
         captured_params: list[dict[str, Any]] = []
         original_fit = statcast_gbm_model_mod.fit_models
 
-        def spy_fit(X: Any, y: Any, params: dict[str, Any]) -> Any:
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
             captured_params.append(params)
-            return original_fit(X, y, params)
+            return original_fit(X, y, params, **kwargs)
 
         monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
 

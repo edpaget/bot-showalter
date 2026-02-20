@@ -167,6 +167,10 @@ def extract_targets(
     return result
 
 
+def extract_sample_weights(rows: list[dict[str, Any]], column: str) -> list[float]:
+    return [float(row.get(column, 1.0)) for row in rows]
+
+
 def extract_features(
     rows: list[dict[str, Any]],
     feature_columns: list[str],
@@ -189,6 +193,8 @@ def fit_models(
     X: list[list[float]],
     targets_dict: dict[str, TargetVector],
     model_params: dict[str, Any],
+    *,
+    sample_weights: list[float] | None = None,
 ) -> dict[str, HistGradientBoostingRegressor]:
     allowed_params = {"max_iter", "max_depth", "learning_rate", "min_samples_leaf", "max_leaf_nodes"}
     filtered_params = {k: v for k, v in model_params.items() if k in allowed_params}
@@ -197,7 +203,8 @@ def fit_models(
     models: dict[str, HistGradientBoostingRegressor] = {}
     for target_name, tv in targets_dict.items():
         model = HistGradientBoostingRegressor(**filtered_params)
-        model.fit(_filter_X(X, tv.indices), tv.values)
+        filtered_w = [sample_weights[i] for i in tv.indices] if sample_weights else None
+        model.fit(_filter_X(X, tv.indices), tv.values, sample_weight=filtered_w)
         models[target_name] = model
     logger.info("Fitted %d models in %.1fs", len(models), time.perf_counter() - t0)
     return models
@@ -392,6 +399,7 @@ class CVFold:
     y_train: dict[str, TargetVector]
     X_test: list[list[float]]
     y_test: dict[str, TargetVector]
+    sample_weights: list[float] | None = None
 
 
 @dataclass(frozen=True)
@@ -409,7 +417,7 @@ def _evaluate_combination(folds: list[CVFold], params: dict[str, Any]) -> dict[s
         n_folds = len(folds)
 
         for fold in folds:
-            models = fit_models(fold.X_train, fold.y_train, params)
+            models = fit_models(fold.X_train, fold.y_train, params, sample_weights=fold.sample_weights)
             metrics = score_predictions(models, fold.X_test, fold.y_test)
             for key, value in metrics.items():
                 target_name = key.removeprefix("rmse_")
