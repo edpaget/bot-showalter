@@ -438,12 +438,12 @@ class TestStatcastGBMEvaluate:
 @pytest.fixture(scope="class")
 def ablation_result() -> AblationResult:
     rows_by_season = {
-        2022: _make_rows(30, 2022),
-        2023: _make_rows(30, 2023),
+        2022: _make_rows(10, 2022),
+        2023: _make_rows(10, 2023),
     }
     pitcher_rows_by_season = {
-        2022: _make_pitcher_rows(30, 2022),
-        2023: _make_pitcher_rows(30, 2023),
+        2022: _make_pitcher_rows(10, 2022),
+        2023: _make_pitcher_rows(10, 2023),
     }
     assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
     model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -498,12 +498,12 @@ class TestStatcastGBMAblate:
 @pytest.fixture(scope="class")
 def preseason_ablation_result() -> AblationResult:
     rows_by_season = {
-        2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(30)],
-        2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(30)],
+        2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+        2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
     }
     pitcher_rows_by_season = {
-        2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(30)],
-        2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(30)],
+        2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+        2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
     }
     assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
     model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -924,12 +924,12 @@ class TestStatcastGBMAblateNRepeats:
         monkeypatch.setattr(ablation_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -953,12 +953,12 @@ class TestStatcastGBMAblateNRepeats:
         monkeypatch.setattr(ablation_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -981,12 +981,12 @@ class TestStatcastGBMAblatePerTypeParams:
         monkeypatch.setattr(ablation_mod, "fit_models", spy_fit)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -1015,12 +1015,12 @@ class TestStatcastGBMAblatePerTypeParams:
         monkeypatch.setattr(ablation_mod, "fit_models", spy_fit)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -1048,12 +1048,12 @@ class TestStatcastGBMAblateCorrelationThreshold:
         monkeypatch.setattr(ablation_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -1077,12 +1077,12 @@ class TestStatcastGBMAblateCorrelationThreshold:
         monkeypatch.setattr(ablation_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -1131,12 +1131,12 @@ class TestStatcastGBMAblateValidation:
         monkeypatch.setattr(ablation_mod, "validate_pruning", spy_vp)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -1161,12 +1161,12 @@ class TestStatcastGBMAblateValidation:
         monkeypatch.setattr(ablation_mod, "validate_pruning", spy_vp)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -1191,12 +1191,12 @@ class TestStatcastGBMAblateValidation:
         monkeypatch.setattr(ablation_mod, "validate_pruning", spy_vp)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -1282,12 +1282,12 @@ class TestStatcastGBMAblateMultiHoldout:
         monkeypatch.setattr(ablation_mod, "compute_cv_permutation_importance", spy_cv)
 
         rows_by_season = {
-            2022: _make_rows(30, 2022),
-            2023: _make_rows(30, 2023),
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
         }
         pitcher_rows_by_season = {
-            2022: _make_pitcher_rows(30, 2022),
-            2023: _make_pitcher_rows(30, 2023),
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)

@@ -774,8 +774,8 @@ def _make_cv_folds() -> list[CVFold]:
     # 3 seasons of data: train on expanding window, test on next
     season_data: dict[int, tuple[list[list[float]], list[float]]] = {}
     for s in [2020, 2021, 2022]:
-        X = [[float(i + s * 10), gen.random()] for i in range(20)]
-        y = [float(i + s * 10) for i in range(20)]
+        X = [[float(i + s * 10), gen.random()] for i in range(10)]
+        y = [float(i + s * 10) for i in range(10)]
         season_data[s] = (X, y)
 
     # Fold 0: train=2020, test=2021
@@ -1167,7 +1167,7 @@ def _make_sweep_rows() -> list[dict[str, Any]]:
     gen = random.Random(42)
     rows: list[dict[str, Any]] = []
     for season in [2020, 2021, 2022]:
-        for i in range(20):
+        for i in range(10):
             val = float(i + season * 10)
             rows.append(
                 {
