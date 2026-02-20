@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from threadpoolctl import threadpool_limits
+
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import FeatureSet
@@ -116,6 +118,16 @@ def run_ablation(
     player_configs: list[PlayerTypeConfig],
 ) -> AblationResult:
     """Full ablation loop shared by statcast-gbm and composite models."""
+    with threadpool_limits(limits=1, user_api="openmp"):
+        return _run_ablation_inner(assembler, model_name, config, player_configs)
+
+
+def _run_ablation_inner(
+    assembler: DatasetAssembler,
+    model_name: str,
+    config: ModelConfig,
+    player_configs: list[PlayerTypeConfig],
+) -> AblationResult:
     feature_impacts: dict[str, float] = {}
     feature_standard_errors: dict[str, float] = {}
     group_impacts: dict[str, float] = {}
