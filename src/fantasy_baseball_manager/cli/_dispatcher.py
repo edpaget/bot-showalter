@@ -17,6 +17,7 @@ from fantasy_baseball_manager.models.protocols import (
     Preparable,
     PrepareResult,
     Model,
+    Sweepable,
     Trainable,
     TrainResult,
     Tunable,
@@ -35,6 +36,7 @@ _OPERATION_MAP: dict[str, tuple[type, str]] = {
     "finetune": (FineTunable, "finetune"),
     "ablate": (Ablatable, "ablate"),
     "tune": (Tunable, "tune"),
+    "sweep": (Sweepable, "sweep"),
 }
 
 type _AnyResult = PrepareResult | TrainResult | SystemMetrics | PredictResult | AblationResult | TuneResult

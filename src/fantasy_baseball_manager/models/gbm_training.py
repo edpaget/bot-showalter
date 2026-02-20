@@ -14,6 +14,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from threadpoolctl import threadpool_limits
 
 from fantasy_baseball_manager.models.protocols import TargetComparison, ValidationResult
+from fantasy_baseball_manager.models.sample_weight_transforms import WeightTransform, get_transform
 from fantasy_baseball_manager.models.sampling import holdout_metrics
 
 logger = logging.getLogger(__name__)
@@ -403,6 +404,7 @@ def build_cv_folds(
     targets: list[str],
     cv_splits: list[tuple[list[int], int]],
     sample_weight_column: str | None = None,
+    sample_weight_transform: WeightTransform | None = None,
 ) -> list["CVFold"]:
     """Build CV folds from rows by grouping by season and applying splits.
 
@@ -420,6 +422,8 @@ def build_cv_folds(
         train_rows = [r for s in train_seasons for r in rows_by_season.get(s, [])]
         test_rows = rows_by_season.get(test_season, [])
         train_sw = extract_sample_weights(train_rows, sample_weight_column) if sample_weight_column else None
+        if train_sw is not None and sample_weight_transform is not None:
+            train_sw = sample_weight_transform(train_sw)
         folds.append(
             CVFold(
                 X_train=extract_features(train_rows, feature_columns),
@@ -522,6 +526,58 @@ def grid_search_cv(
         best_params=best_params,
         best_mean_rmse=best_mean_rmse,
         per_target_rmse=best_per_target,
+        all_results=all_results,
+    )
+
+
+def sweep_cv(
+    all_rows: list[dict[str, Any]],
+    feature_columns: list[str],
+    targets: list[str],
+    cv_splits: list[tuple[list[int], int]],
+    model_params: dict[str, Any],
+    sweep_grid: dict[str, list[Any]],
+    *,
+    sample_weight_column: str | None = None,
+) -> GridSearchResult:
+    """Sweep over meta-parameters that affect fold construction.
+
+    Unlike grid_search_cv (which sweeps GBM hyperparameters with fixed
+    folds), this function sweeps parameters that change how folds are
+    built — e.g. sample_weight_transform — and evaluates each with
+    fixed model_params.
+
+    Recognised sweep_grid keys:
+      - "sample_weight_transform": list of transform names from REGISTRY
+
+    Returns GridSearchResult with best_params being the best meta-param
+    combination.
+    """
+    param_names = list(sweep_grid.keys())
+    param_values = list(sweep_grid.values())
+    combos = [dict(zip(param_names, c)) for c in itertools.product(*param_values)]
+
+    all_results: list[dict[str, Any]] = []
+    for meta_params in combos:
+        transform_name = meta_params.get("sample_weight_transform")
+        transform = get_transform(transform_name) if transform_name else None
+        folds = build_cv_folds(
+            all_rows,
+            feature_columns,
+            targets,
+            cv_splits,
+            sample_weight_column=sample_weight_column,
+            sample_weight_transform=transform,
+        )
+        result = _evaluate_combination(folds, model_params)
+        result["params"] = meta_params
+        all_results.append(result)
+
+    best = min(all_results, key=lambda r: r["mean_rmse"])
+    return GridSearchResult(
+        best_params=best["params"],
+        best_mean_rmse=best["mean_rmse"],
+        per_target_rmse=best["per_target_rmse"],
         all_results=all_results,
     )
 

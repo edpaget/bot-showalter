@@ -139,6 +139,11 @@ class Tunable(Protocol):
 
 
 @runtime_checkable
+class Sweepable(Protocol):
+    def sweep(self, config: ModelConfig) -> TuneResult: ...
+
+
+@runtime_checkable
 class FeatureIntrospectable(Protocol):
     @property
     def declared_features(self) -> tuple[AnyFeature, ...]: ...

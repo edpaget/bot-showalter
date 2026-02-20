@@ -15,6 +15,12 @@ from fantasy_baseball_manager.models.gbm_training import (
     fit_models,
     grid_search_cv,
     score_predictions,
+    sweep_cv,
+)
+from fantasy_baseball_manager.models.sample_weight_transforms import (
+    REGISTRY as TRANSFORM_REGISTRY,
+    WeightTransform,
+    get_transform,
 )
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
@@ -120,6 +126,14 @@ class _StatcastGBMBase:
     def _pitcher_sample_weight_column(self) -> str | None:
         return None
 
+    @property
+    def _sample_weight_transform(self) -> str | None:
+        return None
+
+    def _resolve_weight_transform(self, config: ModelConfig) -> WeightTransform | None:
+        name = config.model_params.get("sample_weight_transform", self._sample_weight_transform)
+        return get_transform(name) if name else None
+
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)
         pitcher_fs = self._pitcher_feature_set_builder(config.seasons)
@@ -160,6 +174,9 @@ class _StatcastGBMBase:
         bat_y_train = extract_targets(bat_train_rows, bat_targets)
         bat_sw_col = self._batter_sample_weight_column
         bat_sw = extract_sample_weights(bat_train_rows, bat_sw_col) if bat_sw_col else None
+        transform = self._resolve_weight_transform(config)
+        if bat_sw is not None and transform is not None:
+            bat_sw = transform(bat_sw)
         bat_models = fit_models(bat_X_train, bat_y_train, batter_params, sample_weights=bat_sw)
 
         if bat_splits.holdout is not None:
@@ -185,6 +202,8 @@ class _StatcastGBMBase:
         pit_y_train = extract_targets(pit_train_rows, pit_targets)
         pit_sw_col = self._pitcher_sample_weight_column
         pit_sw = extract_sample_weights(pit_train_rows, pit_sw_col) if pit_sw_col else None
+        if pit_sw is not None and transform is not None:
+            pit_sw = transform(pit_sw)
         pit_models = fit_models(pit_X_train, pit_y_train, pitcher_params, sample_weights=pit_sw)
 
         if pit_splits.holdout is not None:
@@ -266,6 +285,7 @@ class _StatcastGBMBase:
             raise ValueError(msg)
 
         param_grid = config.model_params.get("param_grid", DEFAULT_PARAM_GRID)
+        transform = self._resolve_weight_transform(config)
 
         # temporal_expanding_cv reserves the last season for holdout internally
         cv_splits = list(temporal_expanding_cv(config.seasons))
@@ -275,7 +295,12 @@ class _StatcastGBMBase:
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_all_rows = self._assembler.read(bat_handle)
         bat_folds = build_cv_folds(
-            bat_all_rows, self._batter_columns, list(BATTER_TARGETS), cv_splits, self._batter_sample_weight_column
+            bat_all_rows,
+            self._batter_columns,
+            list(BATTER_TARGETS),
+            cv_splits,
+            self._batter_sample_weight_column,
+            sample_weight_transform=transform,
         )
         bat_result = grid_search_cv(bat_folds, param_grid)
 
@@ -284,9 +309,68 @@ class _StatcastGBMBase:
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_all_rows = self._assembler.read(pit_handle)
         pit_folds = build_cv_folds(
-            pit_all_rows, self._pitcher_columns, list(PITCHER_TARGETS), cv_splits, self._pitcher_sample_weight_column
+            pit_all_rows,
+            self._pitcher_columns,
+            list(PITCHER_TARGETS),
+            cv_splits,
+            self._pitcher_sample_weight_column,
+            sample_weight_transform=transform,
         )
         pit_result = grid_search_cv(pit_folds, param_grid)
+
+        return TuneResult(
+            model_name=self.name,
+            batter_params=bat_result.best_params,
+            pitcher_params=pit_result.best_params,
+            batter_cv_rmse=bat_result.per_target_rmse,
+            pitcher_cv_rmse=pit_result.per_target_rmse,
+        )
+
+    def sweep(self, config: ModelConfig) -> TuneResult:
+        """Sweep over meta-parameters (e.g. weight transforms) using CV.
+
+        Reads sweep_grid from config.model_params["sweep_grid"].
+        Default grid: {"sample_weight_transform": list(REGISTRY.keys())}
+        """
+        if len(config.seasons) < 3:
+            msg = f"sweep requires at least 3 seasons (got {len(config.seasons)})"
+            raise ValueError(msg)
+
+        sweep_grid = config.model_params.get(
+            "sweep_grid",
+            {"sample_weight_transform": list(TRANSFORM_REGISTRY.keys())},
+        )
+        cv_splits = list(temporal_expanding_cv(config.seasons))
+        batter_params = config.model_params.get("batter", config.model_params)
+        pitcher_params = config.model_params.get("pitcher", config.model_params)
+
+        # Batter sweep
+        bat_fs = self._batter_training_set_builder(config.seasons)
+        bat_handle = self._assembler.get_or_materialize(bat_fs)
+        bat_all_rows = self._assembler.read(bat_handle)
+        bat_result = sweep_cv(
+            bat_all_rows,
+            self._batter_columns,
+            list(BATTER_TARGETS),
+            cv_splits,
+            batter_params,
+            sweep_grid,
+            sample_weight_column=self._batter_sample_weight_column,
+        )
+
+        # Pitcher sweep
+        pit_fs = self._pitcher_training_set_builder(config.seasons)
+        pit_handle = self._assembler.get_or_materialize(pit_fs)
+        pit_all_rows = self._assembler.read(pit_handle)
+        pit_result = sweep_cv(
+            pit_all_rows,
+            self._pitcher_columns,
+            list(PITCHER_TARGETS),
+            cv_splits,
+            pitcher_params,
+            sweep_grid,
+            sample_weight_column=self._pitcher_sample_weight_column,
+        )
 
         return TuneResult(
             model_name=self.name,
@@ -403,9 +487,17 @@ class StatcastGBMPreseasonModel(_StatcastGBMBase):
         return preseason_averaged_pitcher_curated_columns()
 
     @property
+    def supported_operations(self) -> frozenset[str]:
+        return frozenset({"prepare", "train", "evaluate", "predict", "ablate", "tune", "sweep"})
+
+    @property
     def _batter_sample_weight_column(self) -> str | None:
         return "pa_1"
 
     @property
     def _pitcher_sample_weight_column(self) -> str | None:
         return "ip_1"
+
+    @property
+    def _sample_weight_transform(self) -> str | None:
+        return "raw"

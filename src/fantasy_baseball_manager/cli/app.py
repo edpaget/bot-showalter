@@ -353,6 +353,25 @@ def tune(
                 raise typer.Exit(code=1)
 
 
+@app.command()
+def sweep(
+    model: _ModelArg,
+    output_dir: _OutputDirOpt = None,
+    season: _SeasonOpt = None,
+    param: _ParamOpt = None,
+) -> None:
+    """Sweep meta-parameters (e.g. weight transforms) for a projection model."""
+    params = _parse_params(param)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
+    with build_model_context(model, config) as ctx:
+        match dispatch("sweep", ctx.model, config):
+            case Ok(TuneResult() as r):
+                print_tune_result(r)
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
+
+
 @app.command("list")
 def list_cmd() -> None:
     """List all registered projection models."""

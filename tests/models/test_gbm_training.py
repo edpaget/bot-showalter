@@ -25,6 +25,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     grid_search_cv,
     identify_prune_candidates,
     score_predictions,
+    sweep_cv,
     validate_pruning,
 )
 from fantasy_baseball_manager.models.protocols import (
@@ -32,6 +33,7 @@ from fantasy_baseball_manager.models.protocols import (
     TargetComparison,
     ValidationResult,
 )
+from fantasy_baseball_manager.models.sample_weight_transforms import sqrt as sqrt_transform
 
 pytestmark = pytest.mark.slow
 
@@ -729,6 +731,42 @@ class TestBuildCVFolds:
         assert len(folds[0].X_train) == 3
         assert len(folds[0].X_test) == 0
 
+    def test_with_transform(self) -> None:
+        rows = self._make_rows(2021, 3) + self._make_rows(2022, 3)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            sample_weight_column="pa_1",
+            sample_weight_transform=sqrt_transform,
+        )
+        assert folds[0].sample_weights is not None
+        raw_weights = extract_sample_weights([r for r in rows if r["season"] == 2021], "pa_1")
+        for actual, raw_w in zip(folds[0].sample_weights, raw_weights):
+            assert math.isclose(actual, math.sqrt(raw_w), abs_tol=1e-9)
+
+    def test_transform_none_no_effect(self) -> None:
+        rows = self._make_rows(2021, 3) + self._make_rows(2022, 3)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds_no_transform = build_cv_folds(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            sample_weight_column="pa_1",
+        )
+        folds_none = build_cv_folds(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            sample_weight_column="pa_1",
+            sample_weight_transform=None,
+        )
+        assert folds_no_transform[0].sample_weights == folds_none[0].sample_weights
+
 
 def _make_cv_folds() -> list[CVFold]:
     """Build 2 simple CV folds with linear signal in feat_a."""
@@ -1122,3 +1160,85 @@ class TestComputeCVPermutationImportance:
         for col in ["feat_a", "feat_b"]:
             assert result1.feature_importance[col].mean == result2.feature_importance[col].mean
             assert result1.feature_importance[col].se == result2.feature_importance[col].se
+
+
+def _make_sweep_rows() -> list[dict[str, Any]]:
+    """Build 3 seasons of rows with a weight column for sweep tests."""
+    gen = random.Random(42)
+    rows: list[dict[str, Any]] = []
+    for season in [2020, 2021, 2022]:
+        for i in range(20):
+            val = float(i + season * 10)
+            rows.append(
+                {
+                    "season": season,
+                    "feat_a": val,
+                    "feat_b": gen.random(),
+                    "target_y": val * 0.01,
+                    "pa_1": 100 + i * 30,
+                }
+            )
+    return rows
+
+
+class TestSweepCV:
+    def test_returns_best_transform(self) -> None:
+        rows = _make_sweep_rows()
+        cv_splits: list[tuple[list[int], int]] = [([2020], 2021), ([2020, 2021], 2022)]
+        result = sweep_cv(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            {},
+            {"sample_weight_transform": ["raw", "sqrt"]},
+            sample_weight_column="pa_1",
+        )
+        assert isinstance(result, GridSearchResult)
+        assert "sample_weight_transform" in result.best_params
+        assert result.best_params["sample_weight_transform"] in ["raw", "sqrt"]
+
+    def test_all_results_populated(self) -> None:
+        rows = _make_sweep_rows()
+        cv_splits: list[tuple[list[int], int]] = [([2020], 2021), ([2020, 2021], 2022)]
+        result = sweep_cv(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            {},
+            {"sample_weight_transform": ["raw", "sqrt", "log1p"]},
+            sample_weight_column="pa_1",
+        )
+        assert len(result.all_results) == 3
+
+    def test_single_combo(self) -> None:
+        rows = _make_sweep_rows()
+        cv_splits: list[tuple[list[int], int]] = [([2020], 2021), ([2020, 2021], 2022)]
+        result = sweep_cv(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            {},
+            {"sample_weight_transform": ["sqrt"]},
+            sample_weight_column="pa_1",
+        )
+        assert result.best_params == {"sample_weight_transform": "sqrt"}
+        assert len(result.all_results) == 1
+
+    def test_no_weight_column_ignores_transform(self) -> None:
+        rows = _make_sweep_rows()
+        cv_splits: list[tuple[list[int], int]] = [([2020], 2021), ([2020, 2021], 2022)]
+        result = sweep_cv(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            {},
+            {"sample_weight_transform": ["raw", "sqrt"]},
+            sample_weight_column=None,
+        )
+        # Without weights, all transforms yield the same RMSE
+        rmses = [entry["mean_rmse"] for entry in result.all_results]
+        assert all(math.isclose(r, rmses[0], rel_tol=1e-9) for r in rmses)
