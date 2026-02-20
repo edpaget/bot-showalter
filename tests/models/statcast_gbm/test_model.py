@@ -1447,6 +1447,232 @@ class TestSweepMethod:
             assert target in sweep_result.pitcher_cv_rmse
 
 
+class TestPerTypeTransform:
+    def test_train_applies_separate_batter_pitcher_transforms(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured_weights: list[list[float] | None] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_weights.append(kwargs.get("sample_weights"))
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={
+                "batter": {"sample_weight_transform": "sqrt"},
+                "pitcher": {"sample_weight_transform": "log1p"},
+            },
+        )
+        model.train(config)
+        assert len(captured_weights) == 2
+        # Batter weights should be sqrt-transformed (pa_1=1.0 → sqrt(1.0)=1.0)
+        bat_weights = captured_weights[0]
+        assert bat_weights is not None
+        for w in bat_weights:
+            assert math.isclose(w, math.sqrt(1.0), abs_tol=1e-9)
+        # Pitcher weights should be log1p-transformed (ip_1=1.0 → log1p(1.0)=ln(2))
+        pit_weights = captured_weights[1]
+        assert pit_weights is not None
+        for w in pit_weights:
+            assert math.isclose(w, math.log1p(1.0), abs_tol=1e-9)
+
+    def test_train_falls_back_to_top_level_transform(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_weights: list[list[float] | None] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_weights.append(kwargs.get("sample_weights"))
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"sample_weight_transform": "sqrt"},
+        )
+        model.train(config)
+        assert len(captured_weights) == 2
+        # Both batter and pitcher should get sqrt transform
+        for weights in captured_weights:
+            assert weights is not None
+            for w in weights:
+                assert math.isclose(w, math.sqrt(1.0), abs_tol=1e-9)
+
+    def test_train_per_type_overrides_top_level(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_weights: list[list[float] | None] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_weights.append(kwargs.get("sample_weights"))
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={
+                "sample_weight_transform": "sqrt",
+                "batter": {"sample_weight_transform": "log1p"},
+            },
+        )
+        model.train(config)
+        assert len(captured_weights) == 2
+        # Batter gets log1p (override)
+        bat_weights = captured_weights[0]
+        assert bat_weights is not None
+        for w in bat_weights:
+            assert math.isclose(w, math.log1p(1.0), abs_tol=1e-9)
+        # Pitcher gets sqrt (top-level fallback)
+        pit_weights = captured_weights[1]
+        assert pit_weights is not None
+        for w in pit_weights:
+            assert math.isclose(w, math.sqrt(1.0), abs_tol=1e-9)
+
+    def test_tune_applies_per_type_transforms(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_transforms: list[Any] = []
+        original_build = statcast_gbm_model_mod.build_cv_folds
+
+        def spy_build(*args: Any, **kwargs: Any) -> Any:
+            captured_transforms.append(kwargs.get("sample_weight_transform"))
+            return original_build(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "build_cv_folds", spy_build)
+
+        rows_by_season = {
+            2021: [_make_preseason_row(f"p_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2021: [_make_preseason_pitcher_row(f"pit_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            model_params={
+                "param_grid": {"max_iter": [100]},
+                "batter": {"sample_weight_transform": "sqrt"},
+                "pitcher": {"sample_weight_transform": "log1p"},
+            },
+        )
+        model.tune(config)
+        assert len(captured_transforms) == 2
+        # Both should be callable (not None)
+        assert all(t is not None for t in captured_transforms)
+        # Verify they're different transforms by applying to a test value
+        test_val = [100.0]
+        batter_result = captured_transforms[0](test_val)
+        pitcher_result = captured_transforms[1](test_val)
+        assert math.isclose(batter_result[0], math.sqrt(100.0), abs_tol=1e-9)
+        assert math.isclose(pitcher_result[0], math.log1p(100.0), abs_tol=1e-9)
+
+
+class TestConfigTopPassThrough:
+    def test_sweep_passes_config_top_to_sweep_cv(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_kwargs: list[dict[str, Any]] = []
+        original_sweep_cv = statcast_gbm_model_mod.sweep_cv
+
+        def spy_sweep_cv(*args: Any, **kwargs: Any) -> Any:
+            captured_kwargs.append(kwargs)
+            return original_sweep_cv(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "sweep_cv", spy_sweep_cv)
+
+        rows_by_season = {
+            2021: [_make_preseason_row(f"p_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2021: [_make_preseason_pitcher_row(f"pit_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            top=100,
+            model_params={"sweep_grid": {"sample_weight_transform": ["raw", "sqrt"]}},
+        )
+        model.sweep(config)
+        assert len(captured_kwargs) == 2
+        assert captured_kwargs[0]["test_top_n"] == 100
+        assert captured_kwargs[1]["test_top_n"] == 100
+
+    def test_tune_passes_config_top_to_build_cv_folds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_kwargs: list[dict[str, Any]] = []
+        original_build = statcast_gbm_model_mod.build_cv_folds
+
+        def spy_build(*args: Any, **kwargs: Any) -> Any:
+            captured_kwargs.append(kwargs)
+            return original_build(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "build_cv_folds", spy_build)
+
+        rows_by_season = {
+            2021: [_make_preseason_row(f"p_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2021: [_make_preseason_pitcher_row(f"pit_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            top=100,
+            model_params={"param_grid": {"max_iter": [100]}},
+        )
+        model.tune(config)
+        assert len(captured_kwargs) == 2
+        assert captured_kwargs[0]["test_top_n"] == 100
+        assert captured_kwargs[1]["test_top_n"] == 100
+
+
 class TestSweepSupportedOperations:
     def test_preseason_supports_sweep(self) -> None:
         model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)

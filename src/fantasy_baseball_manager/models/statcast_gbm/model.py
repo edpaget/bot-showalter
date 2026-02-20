@@ -130,8 +130,8 @@ class _StatcastGBMBase:
     def _sample_weight_transform(self) -> str | None:
         return None
 
-    def _resolve_weight_transform(self, config: ModelConfig) -> WeightTransform | None:
-        name = config.model_params.get("sample_weight_transform", self._sample_weight_transform)
+    def _resolve_weight_transform(self, player_params: dict[str, Any]) -> WeightTransform | None:
+        name = player_params.get("sample_weight_transform", self._sample_weight_transform)
         return get_transform(name) if name else None
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
@@ -174,9 +174,9 @@ class _StatcastGBMBase:
         bat_y_train = extract_targets(bat_train_rows, bat_targets)
         bat_sw_col = self._batter_sample_weight_column
         bat_sw = extract_sample_weights(bat_train_rows, bat_sw_col) if bat_sw_col else None
-        transform = self._resolve_weight_transform(config)
-        if bat_sw is not None and transform is not None:
-            bat_sw = transform(bat_sw)
+        bat_transform = self._resolve_weight_transform(batter_params)
+        if bat_sw is not None and bat_transform is not None:
+            bat_sw = bat_transform(bat_sw)
         bat_models = fit_models(bat_X_train, bat_y_train, batter_params, sample_weights=bat_sw)
 
         if bat_splits.holdout is not None:
@@ -202,8 +202,9 @@ class _StatcastGBMBase:
         pit_y_train = extract_targets(pit_train_rows, pit_targets)
         pit_sw_col = self._pitcher_sample_weight_column
         pit_sw = extract_sample_weights(pit_train_rows, pit_sw_col) if pit_sw_col else None
-        if pit_sw is not None and transform is not None:
-            pit_sw = transform(pit_sw)
+        pit_transform = self._resolve_weight_transform(pitcher_params)
+        if pit_sw is not None and pit_transform is not None:
+            pit_sw = pit_transform(pit_sw)
         pit_models = fit_models(pit_X_train, pit_y_train, pitcher_params, sample_weights=pit_sw)
 
         if pit_splits.holdout is not None:
@@ -285,7 +286,10 @@ class _StatcastGBMBase:
             raise ValueError(msg)
 
         param_grid = config.model_params.get("param_grid", DEFAULT_PARAM_GRID)
-        transform = self._resolve_weight_transform(config)
+        batter_tune_params = config.model_params.get("batter", config.model_params)
+        pitcher_tune_params = config.model_params.get("pitcher", config.model_params)
+        bat_transform = self._resolve_weight_transform(batter_tune_params)
+        pit_transform = self._resolve_weight_transform(pitcher_tune_params)
 
         # temporal_expanding_cv reserves the last season for holdout internally
         cv_splits = list(temporal_expanding_cv(config.seasons))
@@ -300,7 +304,8 @@ class _StatcastGBMBase:
             list(BATTER_TARGETS),
             cv_splits,
             self._batter_sample_weight_column,
-            sample_weight_transform=transform,
+            sample_weight_transform=bat_transform,
+            test_top_n=config.top,
         )
         bat_result = grid_search_cv(bat_folds, param_grid)
 
@@ -314,7 +319,8 @@ class _StatcastGBMBase:
             list(PITCHER_TARGETS),
             cv_splits,
             self._pitcher_sample_weight_column,
-            sample_weight_transform=transform,
+            sample_weight_transform=pit_transform,
+            test_top_n=config.top,
         )
         pit_result = grid_search_cv(pit_folds, param_grid)
 
@@ -356,6 +362,7 @@ class _StatcastGBMBase:
             batter_params,
             sweep_grid,
             sample_weight_column=self._batter_sample_weight_column,
+            test_top_n=config.top,
         )
 
         # Pitcher sweep
@@ -370,6 +377,7 @@ class _StatcastGBMBase:
             pitcher_params,
             sweep_grid,
             sample_weight_column=self._pitcher_sample_weight_column,
+            test_top_n=config.top,
         )
 
         return TuneResult(

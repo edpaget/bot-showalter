@@ -747,6 +747,46 @@ class TestBuildCVFolds:
         for actual, raw_w in zip(folds[0].sample_weights, raw_weights):
             assert math.isclose(actual, math.sqrt(raw_w), abs_tol=1e-9)
 
+    def test_top_n_filters_test_rows_by_weight(self) -> None:
+        rows = self._make_rows(2021, 5) + self._make_rows(2022, 5)
+        # Give rows different pa_1 values so we can verify filtering
+        for i, row in enumerate(r for r in rows if r["season"] == 2022):
+            row["pa_1"] = 100 + i * 100  # 100, 200, 300, 400, 500
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits, sample_weight_column="pa_1", test_top_n=3)
+        assert len(folds[0].X_test) == 3
+
+    def test_top_n_none_includes_all(self) -> None:
+        rows = self._make_rows(2021, 3) + self._make_rows(2022, 5)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(
+            rows, ["feat_a", "feat_b"], ["y"], cv_splits, sample_weight_column="pa_1", test_top_n=None
+        )
+        assert len(folds[0].X_test) == 5
+
+    def test_top_n_larger_than_fold_includes_all(self) -> None:
+        rows = self._make_rows(2021, 3) + self._make_rows(2022, 5)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(
+            rows, ["feat_a", "feat_b"], ["y"], cv_splits, sample_weight_column="pa_1", test_top_n=100
+        )
+        assert len(folds[0].X_test) == 5
+
+    def test_top_n_requires_sample_weight_column(self) -> None:
+        rows = self._make_rows(2021, 3) + self._make_rows(2022, 3)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        with pytest.raises(ValueError, match="test_top_n requires sample_weight_column"):
+            build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits, test_top_n=3)
+
+    def test_top_n_does_not_affect_train_rows(self) -> None:
+        rows = self._make_rows(2021, 10) + self._make_rows(2022, 10)
+        for i, row in enumerate(r for r in rows if r["season"] == 2022):
+            row["pa_1"] = 100 + i * 50
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits, sample_weight_column="pa_1", test_top_n=3)
+        assert len(folds[0].X_train) == 10
+        assert len(folds[0].X_test) == 3
+
     def test_transform_none_no_effect(self) -> None:
         rows = self._make_rows(2021, 3) + self._make_rows(2022, 3)
         cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
@@ -1242,3 +1282,19 @@ class TestSweepCV:
         # Without weights, all transforms yield the same RMSE
         rmses = [entry["mean_rmse"] for entry in result.all_results]
         assert all(math.isclose(r, rmses[0], rel_tol=1e-9) for r in rmses)
+
+    def test_sweep_with_test_top_n(self) -> None:
+        rows = _make_sweep_rows()
+        cv_splits: list[tuple[list[int], int]] = [([2020], 2021), ([2020, 2021], 2022)]
+        result = sweep_cv(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            {},
+            {"sample_weight_transform": ["raw", "sqrt"]},
+            sample_weight_column="pa_1",
+            test_top_n=5,
+        )
+        assert isinstance(result, GridSearchResult)
+        assert "sample_weight_transform" in result.best_params
