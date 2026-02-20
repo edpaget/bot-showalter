@@ -1,5 +1,9 @@
+import importlib
+from collections.abc import Iterator
+
 import pytest
 
+import fantasy_baseball_manager.features.group_library
 from fantasy_baseball_manager.features.groups import (
     FeatureGroup,
     _clear,
@@ -16,8 +20,11 @@ def _make_feature(name: str) -> Feature:
 
 
 @pytest.fixture(autouse=True)
-def _clean_registry() -> None:
+def _clean_registry() -> Iterator[None]:
     _clear()
+    yield
+    _clear()
+    importlib.reload(fantasy_baseball_manager.features.group_library)
 
 
 class TestFeatureGroup:

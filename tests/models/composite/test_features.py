@@ -1,5 +1,7 @@
 from typing import Any
 
+import fantasy_baseball_manager.features.group_library  # noqa: F401 — trigger registration
+
 from fantasy_baseball_manager.features import batting, player
 from fantasy_baseball_manager.features.groups import compose_feature_set, get_group
 from fantasy_baseball_manager.features.types import (
