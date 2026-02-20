@@ -6,6 +6,7 @@ import pytest
 from fantasy_baseball_manager.ingest.adp_mapper import _discover_provider_columns
 from fantasy_baseball_manager.ingest.fantasypros_adp_source import (
     FantasyProsADPSource,
+    _normalize_rows,
     _parse_table_html,
 )
 from fantasy_baseball_manager.ingest.protocols import DataSource
@@ -117,31 +118,24 @@ class _TimeoutPlaywright:
 # ---------------------------------------------------------------------------
 
 
-def _strip_table_wrapper(html: str) -> str:
-    """Extract inner HTML from the fixture (strip outermost <table> tag)."""
-    # The fixture is a full <table>; _parse_table_html expects a full <table>
-    return html
-
-
 class TestParseTableHtml:
     def test_parses_headers_from_thead(self) -> None:
         rows = _parse_table_html(_FIXTURE_HTML)
-        assert rows  # non-empty
-        expected_keys = {"Rank", "Player", "Team", "Positions", "ESPN", "Yahoo", "CBS", "NFBC", "AVG"}
+        assert rows
+        expected_keys = {"Rank", "Player (Team)", "Yahoo", "CBS", "RTS", "NFBC", "FT", "ESPN", "AVG"}
         assert set(rows[0].keys()) == expected_keys
 
     def test_parses_rows_from_tbody(self) -> None:
         rows = _parse_table_html(_FIXTURE_HTML)
         assert len(rows) == 20
-        assert rows[0]["Player"] == "Shohei Ohtani"
+        assert rows[0]["Player (Team)"] == "Shohei Ohtani (LAD - SP,DH)"
         assert rows[0]["Rank"] == "1"
-        assert rows[19]["Player"] == "Vladimir Guerrero Jr."
 
-    def test_rank_player_team_positions_avg_present(self) -> None:
+    def test_rank_and_avg_present(self) -> None:
         rows = _parse_table_html(_FIXTURE_HTML)
-        required_keys = {"Rank", "Player", "Team", "Positions", "AVG"}
         for row in rows:
-            assert required_keys <= set(row.keys())
+            assert "Rank" in row
+            assert "AVG" in row
 
     def test_provider_columns_detected(self) -> None:
         rows = _parse_table_html(_FIXTURE_HTML)
@@ -165,6 +159,51 @@ class TestParseTableHtml:
 
 
 # ---------------------------------------------------------------------------
+# _normalize_rows unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeRows:
+    def test_splits_player_team_column(self) -> None:
+        rows = _parse_table_html(_FIXTURE_HTML)
+        normalized = _normalize_rows(rows)
+        assert normalized[0]["Player"] == "Shohei Ohtani"
+        assert normalized[0]["Team"] == "LAD"
+        assert normalized[0]["Positions"] == "SP,DH"
+
+    def test_preserves_other_columns(self) -> None:
+        rows = _parse_table_html(_FIXTURE_HTML)
+        normalized = _normalize_rows(rows)
+        assert normalized[0]["Rank"] == "1"
+        assert normalized[0]["AVG"] == "1.0"
+        assert "ESPN" in normalized[0]
+
+    def test_all_rows_have_player_team_positions(self) -> None:
+        rows = _parse_table_html(_FIXTURE_HTML)
+        normalized = _normalize_rows(rows)
+        for row in normalized:
+            assert "Player" in row
+            assert "Team" in row
+            assert "Positions" in row
+
+    def test_passthrough_when_no_combined_column(self) -> None:
+        rows = [{"Rank": "1", "Player": "Test Player", "Team": "NYY", "AVG": "1.0"}]
+        result = _normalize_rows(rows)
+        assert result == rows
+
+    def test_empty_rows_passthrough(self) -> None:
+        assert _normalize_rows([]) == []
+
+    def test_handles_suffix_in_name(self) -> None:
+        rows = _parse_table_html(_FIXTURE_HTML)
+        normalized = _normalize_rows(rows)
+        vlad = normalized[19]
+        assert vlad["Player"] == "Vladimir Guerrero Jr."
+        assert vlad["Team"] == "TOR"
+        assert vlad["Positions"] == "1B"
+
+
+# ---------------------------------------------------------------------------
 # FantasyProsADPSource tests
 # ---------------------------------------------------------------------------
 
@@ -180,7 +219,6 @@ class TestFantasyProsADPSource:
         assert "fantasypros.com" in source.source_detail
 
     def test_fetch_returns_row_dicts(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # Extract inner table content (strip outer <table> tags) for mock locator
         inner = _FIXTURE_HTML.split(">", 1)[1].rsplit("</table>", 1)[0]
         mock_pw = _MockPlaywright(inner)
         monkeypatch.setattr(
@@ -192,6 +230,7 @@ class TestFantasyProsADPSource:
         rows = source.fetch()
         assert len(rows) == 20
         assert rows[0]["Player"] == "Shohei Ohtani"
+        assert rows[0]["Team"] == "LAD"
         assert rows[0]["Rank"] == "1"
         assert "AVG" in rows[0]
 
@@ -205,6 +244,9 @@ class TestFantasyProsADPSource:
 
         source = FantasyProsADPSource()
         rows = source.fetch()
+        assert "Player" in rows[0]
+        assert "Team" in rows[0]
+        assert "Positions" in rows[0]
         header = list(rows[0].keys())
         providers = _discover_provider_columns(header)
         assert len(providers) >= 2

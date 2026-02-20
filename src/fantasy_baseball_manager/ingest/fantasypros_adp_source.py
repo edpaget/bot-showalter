@@ -1,4 +1,5 @@
 import logging
+import re
 from html.parser import HTMLParser
 from typing import Any
 
@@ -8,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 _URL = "https://www.fantasypros.com/mlb/adp/overall.php"
 _TABLE_SELECTOR = "#data"
-_TIMEOUT_MS = 30_000
+_NAV_TIMEOUT_MS = 60_000
+_TABLE_TIMEOUT_MS = 30_000
 
 
 class _TableParser(HTMLParser):
@@ -80,6 +82,34 @@ def _parse_table_html(html: str) -> list[dict[str, Any]]:
     return result
 
 
+_PLAYER_TEAM_RE = re.compile(r"^(.+?)\s*\((\w+)\s*-\s*(.+)\)$")
+
+
+def _normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Split 'Player (Team)' column into separate Player, Team, Positions columns."""
+    if not rows or "Player (Team)" not in rows[0]:
+        return rows
+
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        new_row: dict[str, Any] = {}
+        for key, value in row.items():
+            if key == "Player (Team)":
+                m = _PLAYER_TEAM_RE.match(value)
+                if m:
+                    new_row["Player"] = m.group(1).strip()
+                    new_row["Team"] = m.group(2).strip()
+                    new_row["Positions"] = m.group(3).strip()
+                else:
+                    new_row["Player"] = value
+                    new_row["Team"] = ""
+                    new_row["Positions"] = ""
+            else:
+                new_row[key] = value
+        result.append(new_row)
+    return result
+
+
 class FantasyProsADPSource:
     """Fetch live ADP data from FantasyPros via headless Chromium."""
 
@@ -97,13 +127,14 @@ class FantasyProsADPSource:
             browser = pw.chromium.launch(headless=True)
             try:
                 page = browser.new_page()
-                page.goto(_URL, wait_until="networkidle")
+                page.goto(_URL, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
                 locator = page.locator(_TABLE_SELECTOR)
-                locator.wait_for(timeout=_TIMEOUT_MS)
+                locator.wait_for(timeout=_TABLE_TIMEOUT_MS)
                 html = locator.inner_html()
             finally:
                 browser.close()
 
         rows = _parse_table_html(f"<table>{html}</table>")
+        rows = _normalize_rows(rows)
         logger.debug("Parsed %d rows from FantasyPros ADP page", len(rows))
         return rows
