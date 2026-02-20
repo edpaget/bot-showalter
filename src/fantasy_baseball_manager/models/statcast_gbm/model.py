@@ -27,7 +27,6 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.statcast_gbm.features import (
-    batter_preseason_weighted_feature_columns,
     build_batter_feature_set,
     build_batter_preseason_weighted_set,
     build_batter_preseason_weighted_training_set,
@@ -40,7 +39,8 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     build_pitcher_preseason_averaged_training_set,
     live_batter_curated_columns,
     live_pitcher_curated_columns,
-    pitcher_preseason_averaged_feature_columns,
+    preseason_averaged_pitcher_curated_columns,
+    preseason_weighted_batter_curated_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
@@ -412,7 +412,7 @@ class StatcastGBMPreseasonModel(_StatcastGBMBase):
 
     @property
     def _batter_columns(self) -> list[str]:
-        return batter_preseason_weighted_feature_columns()
+        return preseason_weighted_batter_curated_columns()
 
     @property
     def _pitcher_feature_set_builder(self) -> _FeatureSetBuilder:
@@ -424,4 +424,4 @@ class StatcastGBMPreseasonModel(_StatcastGBMBase):
 
     @property
     def _pitcher_columns(self) -> list[str]:
-        return pitcher_preseason_averaged_feature_columns()
+        return preseason_averaged_pitcher_curated_columns()

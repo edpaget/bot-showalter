@@ -257,7 +257,7 @@ def pitcher_preseason_feature_columns() -> list[str]:
 
 
 def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age(), player.pitch_clock_era()]
+    features: list[AnyFeature] = [player.age()]
     features.extend(_batter_lag_features())
     features.extend(
         [
@@ -277,7 +277,7 @@ def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
 
 
 def build_batter_preseason_weighted_training_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age(), player.pitch_clock_era()]
+    features: list[AnyFeature] = [player.age()]
     features.extend(_batter_lag_features())
     features.extend(
         [
@@ -364,7 +364,7 @@ def batter_preseason_averaged_feature_columns() -> list[str]:
 
 
 def build_pitcher_preseason_averaged_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age(), player.pitch_clock_era()]
+    features: list[AnyFeature] = [player.age()]
     features.extend(_pitcher_lag_features())
     features.extend(
         [
@@ -385,7 +385,7 @@ def build_pitcher_preseason_averaged_set(seasons: Sequence[int]) -> FeatureSet:
 
 
 def build_pitcher_preseason_averaged_training_set(seasons: Sequence[int]) -> FeatureSet:
-    features: list[AnyFeature] = [player.age(), player.pitch_clock_era()]
+    features: list[AnyFeature] = [player.age()]
     features.extend(_pitcher_lag_features())
     features.extend(
         [
@@ -473,6 +473,103 @@ def live_pitcher_curated_columns() -> list[str]:
         "avg_exit_velo_against",
         "barrel_pct_against",
         "zone_rate",
+    ]
+
+
+def preseason_weighted_batter_curated_columns() -> list[str]:
+    """Curated batter columns for the weighted preseason model.
+
+    Derived from multi-holdout ablation (2026-02-19).
+    """
+    return [
+        "age",
+        "pa_1",
+        "hr_1",
+        "h_1",
+        "doubles_1",
+        "triples_1",
+        "bb_1",
+        "so_1",
+        "sb_1",
+        "avg_1",
+        "obp_1",
+        "slg_1",
+        "k_pct_1",
+        "bb_pct_1",
+        "avg_exit_velo",
+        "max_exit_velo",
+        "avg_launch_angle",
+        "hard_hit_pct",
+        "gb_pct",
+        "fb_pct",
+        "ld_pct",
+        "sweet_spot_pct",
+        "exit_velo_p90",
+        "chase_rate",
+        "zone_contact_pct",
+        "whiff_rate",
+        "swinging_strike_pct",
+        "called_strike_pct",
+        "xba",
+        "xwoba",
+        "xslg",
+        "pull_pct",
+        "oppo_pct",
+        "center_pct",
+    ]
+
+
+def preseason_averaged_pitcher_curated_columns() -> list[str]:
+    """Curated pitcher columns for the averaged preseason model.
+
+    Derived from multi-holdout ablation (2026-02-19).
+    """
+    return [
+        "age",
+        "ip_1",
+        "so_1",
+        "bb_1",
+        "hr_1",
+        "era_1",
+        "fip_1",
+        "ff_pct",
+        "ff_velo",
+        "sl_pct",
+        "sl_velo",
+        "ch_pct",
+        "ch_velo",
+        "cu_pct",
+        "cu_velo",
+        "si_pct",
+        "si_velo",
+        "fc_pct",
+        "fc_velo",
+        "avg_spin_rate",
+        "ff_spin",
+        "sl_spin",
+        "cu_spin",
+        "ch_spin",
+        "avg_h_break",
+        "ff_h_break",
+        "ff_v_break",
+        "sl_h_break",
+        "sl_v_break",
+        "cu_h_break",
+        "cu_v_break",
+        "ch_h_break",
+        "ch_v_break",
+        "avg_extension",
+        "ff_extension",
+        "chase_rate",
+        "zone_contact_pct",
+        "whiff_rate",
+        "swinging_strike_pct",
+        "called_strike_pct",
+        "gb_pct_against",
+        "fb_pct_against",
+        "avg_exit_velo_against",
+        "zone_rate",
+        "first_pitch_strike_pct",
     ]
 
 

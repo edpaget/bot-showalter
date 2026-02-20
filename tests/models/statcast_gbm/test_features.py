@@ -38,7 +38,9 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     pitcher_preseason_averaged_feature_columns,
     pitcher_preseason_feature_columns,
     preseason_batter_curated_columns,
+    preseason_averaged_pitcher_curated_columns,
     preseason_pitcher_curated_columns,
+    preseason_weighted_batter_curated_columns,
 )
 
 
@@ -633,6 +635,137 @@ class TestPreseasonPitcherCuratedColumns:
         assert curated <= full
 
 
+class TestPreseasonWeightedBatterCuratedColumns:
+    def test_returns_list_of_strings(self) -> None:
+        columns = preseason_weighted_batter_curated_columns()
+        assert isinstance(columns, list)
+        assert all(isinstance(c, str) for c in columns)
+
+    def test_exact_columns(self) -> None:
+        columns = preseason_weighted_batter_curated_columns()
+        expected = [
+            "age",
+            "pa_1",
+            "hr_1",
+            "h_1",
+            "doubles_1",
+            "triples_1",
+            "bb_1",
+            "so_1",
+            "sb_1",
+            "avg_1",
+            "obp_1",
+            "slg_1",
+            "k_pct_1",
+            "bb_pct_1",
+            "avg_exit_velo",
+            "max_exit_velo",
+            "avg_launch_angle",
+            "hard_hit_pct",
+            "gb_pct",
+            "fb_pct",
+            "ld_pct",
+            "sweet_spot_pct",
+            "exit_velo_p90",
+            "chase_rate",
+            "zone_contact_pct",
+            "whiff_rate",
+            "swinging_strike_pct",
+            "called_strike_pct",
+            "xba",
+            "xwoba",
+            "xslg",
+            "pull_pct",
+            "oppo_pct",
+            "center_pct",
+        ]
+        assert columns == expected
+
+    def test_no_overlap_with_pruned(self) -> None:
+        columns = set(preseason_weighted_batter_curated_columns())
+        pruned = {
+            "pitch_clock_era",
+            "barrel_pct",
+        }
+        assert columns & pruned == set()
+
+    def test_subset_of_full_columns(self) -> None:
+        curated = set(preseason_weighted_batter_curated_columns())
+        full = set(batter_preseason_weighted_feature_columns())
+        assert curated <= full
+
+
+class TestPreseasonAveragedPitcherCuratedColumns:
+    def test_returns_list_of_strings(self) -> None:
+        columns = preseason_averaged_pitcher_curated_columns()
+        assert isinstance(columns, list)
+        assert all(isinstance(c, str) for c in columns)
+
+    def test_exact_columns(self) -> None:
+        columns = preseason_averaged_pitcher_curated_columns()
+        expected = [
+            "age",
+            "ip_1",
+            "so_1",
+            "bb_1",
+            "hr_1",
+            "era_1",
+            "fip_1",
+            "ff_pct",
+            "ff_velo",
+            "sl_pct",
+            "sl_velo",
+            "ch_pct",
+            "ch_velo",
+            "cu_pct",
+            "cu_velo",
+            "si_pct",
+            "si_velo",
+            "fc_pct",
+            "fc_velo",
+            "avg_spin_rate",
+            "ff_spin",
+            "sl_spin",
+            "cu_spin",
+            "ch_spin",
+            "avg_h_break",
+            "ff_h_break",
+            "ff_v_break",
+            "sl_h_break",
+            "sl_v_break",
+            "cu_h_break",
+            "cu_v_break",
+            "ch_h_break",
+            "ch_v_break",
+            "avg_extension",
+            "ff_extension",
+            "chase_rate",
+            "zone_contact_pct",
+            "whiff_rate",
+            "swinging_strike_pct",
+            "called_strike_pct",
+            "gb_pct_against",
+            "fb_pct_against",
+            "avg_exit_velo_against",
+            "zone_rate",
+            "first_pitch_strike_pct",
+        ]
+        assert columns == expected
+
+    def test_no_overlap_with_pruned(self) -> None:
+        columns = set(preseason_averaged_pitcher_curated_columns())
+        pruned = {
+            "pitch_clock_era",
+            "barrel_pct_against",
+        }
+        assert columns & pruned == set()
+
+    def test_subset_of_full_columns(self) -> None:
+        curated = set(preseason_averaged_pitcher_curated_columns())
+        full = set(pitcher_preseason_averaged_feature_columns())
+        assert curated <= full
+
+
 # --- Curated feature-set builder tests ---
 
 
@@ -922,10 +1055,10 @@ class TestPitcherPreseasonAveragedSet:
         for tf in transforms:
             assert tf.lags == (1, 2), f"{tf.name} should have lags=(1, 2)"
 
-    def test_includes_pitch_clock_era(self) -> None:
+    def test_excludes_pitch_clock_era(self) -> None:
         fs = build_pitcher_preseason_averaged_set([2023])
         names = [f.name for f in fs.features]
-        assert "pitch_clock_era" in names
+        assert "pitch_clock_era" not in names
 
     def test_version_differs_from_single_lag(self) -> None:
         single = build_pitcher_preseason_set([2023])
@@ -961,9 +1094,9 @@ class TestPitcherPreseasonAveragedFeatureColumns:
         columns = pitcher_preseason_averaged_feature_columns()
         assert not any(c.startswith("target_") for c in columns)
 
-    def test_includes_pitch_clock_era(self) -> None:
+    def test_excludes_pitch_clock_era(self) -> None:
         columns = pitcher_preseason_averaged_feature_columns()
-        assert "pitch_clock_era" in columns
+        assert "pitch_clock_era" not in columns
 
 
 # --- Weighted preseason batter feature-set builder tests ---
@@ -995,10 +1128,10 @@ class TestBatterPreseasonWeightedSet:
         weighted = build_batter_preseason_weighted_set([2023])
         assert single.version != weighted.version
 
-    def test_includes_pitch_clock_era(self) -> None:
+    def test_excludes_pitch_clock_era(self) -> None:
         fs = build_batter_preseason_weighted_set([2023])
         names = [f.name for f in fs.features]
-        assert "pitch_clock_era" in names
+        assert "pitch_clock_era" not in names
 
     def test_version_differs_from_pooled(self) -> None:
         pooled = build_batter_preseason_averaged_set([2023])
@@ -1036,6 +1169,6 @@ class TestBatterPreseasonWeightedFeatureColumns:
         columns = batter_preseason_weighted_feature_columns()
         assert not any(c.startswith("target_") for c in columns)
 
-    def test_includes_pitch_clock_era(self) -> None:
+    def test_excludes_pitch_clock_era(self) -> None:
         columns = batter_preseason_weighted_feature_columns()
-        assert "pitch_clock_era" in columns
+        assert "pitch_clock_era" not in columns
