@@ -130,6 +130,20 @@ class _StatcastGBMBase:
     def _sample_weight_transform(self) -> str | None:
         return None
 
+    @property
+    def _batter_min_pa(self) -> int:
+        return 0
+
+    @property
+    def _pitcher_min_ip(self) -> int:
+        return 0
+
+    def _resolve_min_pa(self, player_params: dict[str, Any]) -> int:
+        return player_params.get("min_pa", self._batter_min_pa)
+
+    def _resolve_min_ip(self, player_params: dict[str, Any]) -> int:
+        return player_params.get("min_ip", self._pitcher_min_ip)
+
     def _resolve_weight_transform(self, player_params: dict[str, Any]) -> WeightTransform | None:
         name = player_params.get("sample_weight_transform", self._sample_weight_transform)
         return get_transform(name) if name else None
@@ -167,6 +181,9 @@ class _StatcastGBMBase:
         bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=holdout_seasons)
 
         bat_train_rows = self._assembler.read(bat_splits.train)
+        bat_min_pa = self._resolve_min_pa(batter_params)
+        if bat_min_pa > 0:
+            bat_train_rows = [r for r in bat_train_rows if (r.get("pa") or 0) >= bat_min_pa]
         bat_feature_cols = self._batter_columns
         bat_targets = list(BATTER_TARGETS)
 
@@ -195,6 +212,9 @@ class _StatcastGBMBase:
         pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=holdout_seasons)
 
         pit_train_rows = self._assembler.read(pit_splits.train)
+        pit_min_ip = self._resolve_min_ip(pitcher_params)
+        if pit_min_ip > 0:
+            pit_train_rows = [r for r in pit_train_rows if (r.get("ip") or 0) >= pit_min_ip]
         pit_feature_cols = self._pitcher_columns
         pit_targets = list(PITCHER_TARGETS)
 
@@ -298,6 +318,9 @@ class _StatcastGBMBase:
         bat_fs = self._batter_training_set_builder(config.seasons)
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_all_rows = self._assembler.read(bat_handle)
+        bat_min_pa = self._resolve_min_pa(batter_tune_params)
+        if bat_min_pa > 0:
+            bat_all_rows = [r for r in bat_all_rows if (r.get("pa") or 0) >= bat_min_pa]
         bat_folds = build_cv_folds(
             bat_all_rows,
             self._batter_columns,
@@ -314,6 +337,9 @@ class _StatcastGBMBase:
         pit_fs = self._pitcher_training_set_builder(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_all_rows = self._assembler.read(pit_handle)
+        pit_min_ip = self._resolve_min_ip(pitcher_tune_params)
+        if pit_min_ip > 0:
+            pit_all_rows = [r for r in pit_all_rows if (r.get("ip") or 0) >= pit_min_ip]
         pit_folds = build_cv_folds(
             pit_all_rows,
             self._pitcher_columns,
@@ -356,6 +382,9 @@ class _StatcastGBMBase:
         bat_fs = self._batter_training_set_builder(config.seasons)
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_all_rows = self._assembler.read(bat_handle)
+        bat_min_pa = self._resolve_min_pa(batter_params)
+        if bat_min_pa > 0:
+            bat_all_rows = [r for r in bat_all_rows if (r.get("pa") or 0) >= bat_min_pa]
         bat_result = sweep_cv(
             bat_all_rows,
             self._batter_columns,
@@ -372,6 +401,9 @@ class _StatcastGBMBase:
         pit_fs = self._pitcher_training_set_builder(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_all_rows = self._assembler.read(pit_handle)
+        pit_min_ip = self._resolve_min_ip(pitcher_params)
+        if pit_min_ip > 0:
+            pit_all_rows = [r for r in pit_all_rows if (r.get("ip") or 0) >= pit_min_ip]
         pit_result = sweep_cv(
             pit_all_rows,
             self._pitcher_columns,
@@ -509,6 +541,14 @@ class StatcastGBMPreseasonModel(_StatcastGBMBase):
     @property
     def _pitcher_sample_weight_column(self) -> str | None:
         return "ip_1"
+
+    @property
+    def _batter_min_pa(self) -> int:
+        return 100
+
+    @property
+    def _pitcher_min_ip(self) -> int:
+        return 20
 
     @property
     def _sample_weight_transform(self) -> str | None:

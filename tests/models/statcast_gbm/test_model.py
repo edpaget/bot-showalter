@@ -55,6 +55,9 @@ def _make_row(player_id: str, season: int) -> dict[str, Any]:
     row["target_ab"] = 500
     row["target_so"] = 100
     row["target_sf"] = 5
+    # Metadata columns
+    row["pa"] = 500
+    row["war"] = 2.0
     return row
 
 
@@ -76,6 +79,9 @@ def _make_pitcher_row(player_id: str, season: int) -> dict[str, Any]:
     row["target_hr"] = 20
     row["target_ip"] = 180.0
     row["target_so"] = 160
+    # Metadata columns
+    row["ip"] = 180.0
+    row["war"] = 2.0
     return row
 
 
@@ -599,6 +605,9 @@ def _make_preseason_row(player_id: str, season: int) -> dict[str, Any]:
     row["target_ab"] = 500
     row["target_so"] = 100
     row["target_sf"] = 5
+    # Metadata columns
+    row["pa"] = 500
+    row["war"] = 2.0
     return row
 
 
@@ -615,6 +624,9 @@ def _make_preseason_pitcher_row(player_id: str, season: int) -> dict[str, Any]:
     row["target_hr"] = 20
     row["target_ip"] = 180.0
     row["target_so"] = 160
+    # Metadata columns
+    row["ip"] = 180.0
+    row["war"] = 2.0
     return row
 
 
@@ -1747,3 +1759,243 @@ class TestSweepSupportedOperations:
     def test_live_does_not_support_sweep(self) -> None:
         model = StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
         assert "sweep" not in model.supported_operations
+
+
+class TestMinActivityProperties:
+    def test_preseason_batter_min_pa_default(self) -> None:
+        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._batter_min_pa == 100
+
+    def test_preseason_pitcher_min_ip_default(self) -> None:
+        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._pitcher_min_ip == 20
+
+    def test_live_model_min_pa_is_zero(self) -> None:
+        model = StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._batter_min_pa == 0
+
+    def test_live_model_min_ip_is_zero(self) -> None:
+        model = StatcastGBMModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._pitcher_min_ip == 0
+
+
+class TestResolveMinActivity:
+    def test_resolve_min_pa_returns_property_default(self) -> None:
+        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._resolve_min_pa({}) == 100
+
+    def test_resolve_min_pa_overridden_by_model_params(self) -> None:
+        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._resolve_min_pa({"min_pa": 50}) == 50
+
+    def test_resolve_min_ip_returns_property_default(self) -> None:
+        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._resolve_min_ip({}) == 20
+
+    def test_resolve_min_ip_overridden_by_model_params(self) -> None:
+        model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)
+        assert model._resolve_min_ip({"min_ip": 10}) == 10
+
+
+class TestMinActivityTrainFilter:
+    def test_train_filters_low_pa_batters(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_X: list[list[list[float]]] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_X.append(X)
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        high_pa_rows = [_make_preseason_row(f"high_{i}", 2022) for i in range(5)]
+        for r in high_pa_rows:
+            r["pa"] = 500
+        low_pa_rows = [_make_preseason_row(f"low_{i}", 2022) for i in range(5)]
+        for r in low_pa_rows:
+            r["pa"] = 50
+
+        rows_by_season = {
+            2022: high_pa_rows + low_pa_rows,
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(seasons=[2022, 2023], artifacts_dir=str(tmp_path))
+        model.train(config)
+        # First fit_models call is batters — train on 2022, holdout on 2023
+        # Only the 5 high-PA rows from 2022 should be in training
+        bat_X_train = captured_X[0]
+        assert len(bat_X_train) == 5
+
+    def test_train_filters_low_ip_pitchers(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_X: list[list[list[float]]] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_X.append(X)
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        high_ip_rows = [_make_preseason_pitcher_row(f"high_{i}", 2022) for i in range(5)]
+        for r in high_ip_rows:
+            r["ip"] = 180.0
+        low_ip_rows = [_make_preseason_pitcher_row(f"low_{i}", 2022) for i in range(5)]
+        for r in low_ip_rows:
+            r["ip"] = 10.0
+
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: high_ip_rows + low_ip_rows,
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(seasons=[2022, 2023], artifacts_dir=str(tmp_path))
+        model.train(config)
+        # Second fit_models call is pitchers
+        pit_X_train = captured_X[1]
+        assert len(pit_X_train) == 5
+
+    def test_train_holdout_not_filtered(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_holdout_X: list[list[list[float]]] = []
+        original_score = statcast_gbm_model_mod.score_predictions
+
+        def spy_score(models: Any, X: Any, y: Any) -> Any:
+            captured_holdout_X.append(X)
+            return original_score(models, X, y)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "score_predictions", spy_score)
+
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(5)]
+            + [{**_make_preseason_row(f"low_{i}", 2023), "pa": 50} for i in range(5)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(seasons=[2022, 2023], artifacts_dir=str(tmp_path))
+        model.train(config)
+        # Holdout is 2023 with 10 batter rows (5 high + 5 low PA) — all should be present
+        bat_holdout_X = captured_holdout_X[0]
+        assert len(bat_holdout_X) == 10
+
+    def test_train_filter_configurable_via_model_params(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_X: list[list[list[float]]] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_X.append(X)
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows = []
+        for i in range(10):
+            r = _make_preseason_row(f"p_{i}", 2022)
+            r["pa"] = 100 + i * 50  # 100, 150, 200, ..., 550
+            rows.append(r)
+
+        rows_by_season = {
+            2022: rows,
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"batter": {"min_pa": 200}},
+        )
+        model.train(config)
+        # PA values: 100, 150, 200, 250, 300, 350, 400, 450, 500, 550
+        # With min_pa=200, rows with pa >= 200 → 8 rows
+        bat_X_train = captured_X[0]
+        assert len(bat_X_train) == 8
+
+
+class TestMinActivityTuneFilter:
+    def test_tune_passes_filtered_rows_to_build_cv_folds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_rows: list[list[dict[str, Any]]] = []
+        original_build = statcast_gbm_model_mod.build_cv_folds
+
+        def spy_build(all_rows: list[dict[str, Any]], *args: Any, **kwargs: Any) -> Any:
+            captured_rows.append(all_rows)
+            return original_build(all_rows, *args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "build_cv_folds", spy_build)
+
+        high_pa = [_make_preseason_row(f"high_{i}", s) for s in (2021, 2022, 2023) for i in range(5)]
+        for r in high_pa:
+            r["pa"] = 500
+        low_pa = [_make_preseason_row(f"low_{i}", s) for s in (2021, 2022, 2023) for i in range(5)]
+        for r in low_pa:
+            r["pa"] = 50
+
+        rows_by_season: dict[int, list[dict[str, Any]]] = {}
+        for s in (2021, 2022, 2023):
+            rows_by_season[s] = [r for r in high_pa + low_pa if r["season"] == s]
+
+        pitcher_rows = {s: [_make_preseason_pitcher_row(f"pit_{i}", s) for i in range(10)] for s in (2021, 2022, 2023)}
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            model_params={"param_grid": {"max_iter": [100]}},
+        )
+        model.tune(config)
+        # build_cv_folds called for batters first — should have only high-PA rows
+        # 3 seasons × 5 high-PA rows = 15 (not 30)
+        bat_rows = captured_rows[0]
+        assert len(bat_rows) == 15
+
+
+class TestMinActivitySweepFilter:
+    def test_sweep_passes_filtered_rows_to_sweep_cv(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_rows: list[list[dict[str, Any]]] = []
+        original_sweep = statcast_gbm_model_mod.sweep_cv
+
+        def spy_sweep(all_rows: list[dict[str, Any]], *args: Any, **kwargs: Any) -> Any:
+            captured_rows.append(all_rows)
+            return original_sweep(all_rows, *args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "sweep_cv", spy_sweep)
+
+        high_pa = [_make_preseason_row(f"high_{i}", s) for s in (2021, 2022, 2023) for i in range(5)]
+        for r in high_pa:
+            r["pa"] = 500
+        low_pa = [_make_preseason_row(f"low_{i}", s) for s in (2021, 2022, 2023) for i in range(5)]
+        for r in low_pa:
+            r["pa"] = 50
+
+        rows_by_season: dict[int, list[dict[str, Any]]] = {}
+        for s in (2021, 2022, 2023):
+            rows_by_season[s] = [r for r in high_pa + low_pa if r["season"] == s]
+
+        pitcher_rows = {s: [_make_preseason_pitcher_row(f"pit_{i}", s) for i in range(10)] for s in (2021, 2022, 2023)}
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            model_params={"sweep_grid": {"sample_weight_transform": ["raw", "sqrt"]}},
+        )
+        model.sweep(config)
+        # sweep_cv called for batters first — should have only high-PA rows
+        bat_rows = captured_rows[0]
+        assert len(bat_rows) == 15
