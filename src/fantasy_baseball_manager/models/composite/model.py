@@ -12,6 +12,8 @@ from fantasy_baseball_manager.features.group_library import (
 from fantasy_baseball_manager.features.groups import FeatureGroup, compose_feature_set, get_group
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import FeatureSet
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
+from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.composite.convert import extract_projected_pt
 from fantasy_baseball_manager.models.composite.engine import CompositeEngine, EngineConfig, GBMEngine, MarcelEngine
 from fantasy_baseball_manager.models.composite.features import (
@@ -27,7 +29,10 @@ from fantasy_baseball_manager.models.marcel.features import (
     build_pitching_weighted_rates,
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
+from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.models.protocols import (
+    AblationResult,
+    Evaluator,
     ModelConfig,
     PredictResult,
     PrepareResult,
@@ -96,11 +101,13 @@ class CompositeModel:
         model_name: str = "composite",
         group_lookup: Callable[[str], FeatureGroup] = get_group,
         engine: CompositeEngine | None = None,
+        evaluator: Evaluator | None = None,
     ) -> None:
         self._assembler = assembler
         self._model_name = model_name
         self._get_group = group_lookup
         self._engine: CompositeEngine = engine or MarcelEngine()
+        self._evaluator = evaluator
 
     @property
     def name(self) -> str:
@@ -112,7 +119,12 @@ class CompositeModel:
 
     @property
     def supported_operations(self) -> frozenset[str]:
-        return self._engine.supported_operations
+        ops = set(self._engine.supported_operations)
+        if self._evaluator is not None:
+            ops.add("evaluate")
+        if isinstance(self._engine, GBMEngine):
+            ops.add("ablate")
+        return frozenset(ops)
 
     @property
     def artifact_type(self) -> str:
@@ -239,6 +251,48 @@ class CompositeModel:
             metrics=metrics,
             artifacts_path=str(artifact_path),
         )
+
+    def evaluate(self, config: ModelConfig) -> SystemMetrics:
+        return evaluate_projections(self._evaluator, self.name, config)
+
+    def ablate(self, config: ModelConfig) -> AblationResult:
+        if len(config.seasons) < 2:
+            msg = f"ablate requires at least 2 seasons (got {len(config.seasons)})"
+            raise ValueError(msg)
+        if not isinstance(self._engine, GBMEngine):
+            msg = f"Engine {type(self._engine).__name__} does not support ablate"
+            raise ValueError(msg)
+
+        marcel_config = _build_marcel_config(config.model_params)
+        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config)
+
+        bat_train_fs = append_training_targets(batting_fs, batter_target_features())
+        pitch_train_fs = append_training_targets(pitching_fs, pitcher_target_features())
+
+        bat_cols = feature_columns(batting_fs)
+        pitch_cols = feature_columns(pitching_fs)
+
+        batter_params = config.model_params.get("batter", config.model_params)
+        pitcher_params = config.model_params.get("pitcher", config.model_params)
+
+        player_configs = [
+            PlayerTypeConfig(
+                player_type="batter",
+                train_fs=bat_train_fs,
+                columns=bat_cols,
+                targets=list(BATTER_TARGETS),
+                params=batter_params,
+            ),
+            PlayerTypeConfig(
+                player_type="pitcher",
+                train_fs=pitch_train_fs,
+                columns=pitch_cols,
+                targets=list(PITCHER_TARGETS),
+                params=pitcher_params,
+            ),
+        ]
+
+        return run_ablation(self._assembler, self.name, config, player_configs)
 
     def predict(self, config: ModelConfig) -> PredictResult:
 

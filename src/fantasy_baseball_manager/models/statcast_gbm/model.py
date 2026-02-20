@@ -6,18 +6,14 @@ from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
+from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.gbm_training import (
     CVFold,
-    GroupedImportanceResult,
-    compute_cv_permutation_importance,
-    compute_grouped_permutation_importance,
     extract_features,
     extract_targets,
     fit_models,
     grid_search_cv,
-    identify_prune_candidates,
     score_predictions,
-    validate_pruning,
 )
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
@@ -27,7 +23,6 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
     TrainResult,
     TuneResult,
-    ValidationResult,
 )
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 from fantasy_baseball_manager.models.registry import register
@@ -196,9 +191,7 @@ class _StatcastGBMBase:
         )
 
     def evaluate(self, config: ModelConfig) -> SystemMetrics:
-        version = config.version or "latest"
-        season = config.seasons[0]
-        return self._evaluator.evaluate(self.name, version, season, top=config.top)
+        return evaluate_projections(self._evaluator, self.name, config)
 
     def predict(self, config: ModelConfig) -> PredictResult:
         artifact_path = self._artifact_path(config)
@@ -332,171 +325,27 @@ class _StatcastGBMBase:
             msg = f"ablate requires at least 2 seasons (got {len(config.seasons)})"
             raise ValueError(msg)
 
-        train_seasons = config.seasons[:-1]
-        holdout_seasons = [config.seasons[-1]]
-        feature_impacts: dict[str, float] = {}
-        feature_standard_errors: dict[str, float] = {}
-        group_impacts: dict[str, float] = {}
-        group_standard_errors: dict[str, float] = {}
-        group_members: dict[str, list[str]] = {}
-        validation_results: dict[str, ValidationResult] = {}
-
         batter_params = config.model_params.get("batter", config.model_params)
         pitcher_params = config.model_params.get("pitcher", config.model_params)
-        n_repeats = int(config.model_params.get("n_repeats", 20))
-        correlation_threshold = float(config.model_params.get("correlation_threshold", 0.70))
-        do_validate = bool(config.model_params.get("validate", False))
-        max_degradation_pct = float(config.model_params.get("max_degradation_pct", 5.0))
-        multi_holdout = bool(config.model_params.get("multi_holdout", False))
 
-        for player_type, training_builder, columns, targets, params in [
-            (
-                "batter",
-                self._batter_training_set_builder,
-                self._batter_columns,
-                list(BATTER_TARGETS),
-                batter_params,
+        player_configs = [
+            PlayerTypeConfig(
+                player_type="batter",
+                train_fs=self._batter_training_set_builder(config.seasons),
+                columns=self._batter_columns,
+                targets=list(BATTER_TARGETS),
+                params=batter_params,
             ),
-            (
-                "pitcher",
-                self._pitcher_training_set_builder,
-                self._pitcher_columns,
-                list(PITCHER_TARGETS),
-                pitcher_params,
+            PlayerTypeConfig(
+                player_type="pitcher",
+                train_fs=self._pitcher_training_set_builder(config.seasons),
+                columns=self._pitcher_columns,
+                targets=list(PITCHER_TARGETS),
+                params=pitcher_params,
             ),
-        ]:
-            if multi_holdout:
-                result = self._ablate_multi_holdout(
-                    config,
-                    training_builder,
-                    columns,
-                    targets,
-                    params,
-                    n_repeats,
-                    correlation_threshold,
-                )
-            else:
-                result = self._ablate_single_holdout(
-                    config,
-                    training_builder,
-                    columns,
-                    targets,
-                    params,
-                    train_seasons,
-                    holdout_seasons,
-                    n_repeats,
-                    correlation_threshold,
-                )
+        ]
 
-            if result is not None:
-                for col, fi in result.feature_importance.items():
-                    feature_impacts[f"{player_type}:{col}"] = fi.mean
-                    feature_standard_errors[f"{player_type}:{col}"] = fi.se
-                for g in result.groups:
-                    if len(g.members) > 1:
-                        key = f"{player_type}:{g.name}"
-                        gi = result.group_importance[g.name]
-                        group_impacts[key] = gi.mean
-                        group_standard_errors[key] = gi.se
-                        group_members[key] = [f"{player_type}:{m}" for m in g.members]
-
-                if do_validate:
-                    prune_set = identify_prune_candidates(result)
-                    if prune_set:
-                        # For validation, always use last-season holdout split
-                        fs = training_builder(config.seasons)
-                        handle = self._assembler.get_or_materialize(fs)
-                        splits = self._assembler.split(handle, train=train_seasons, holdout=holdout_seasons)
-                        val_train_rows = self._assembler.read(splits.train)
-                        val_X_train = extract_features(val_train_rows, columns)
-                        val_y_train = extract_targets(val_train_rows, targets)
-                        full_models = fit_models(val_X_train, val_y_train, params)
-                        if splits.holdout is not None:
-                            val_holdout_rows = self._assembler.read(splits.holdout)
-                            validation_results[player_type] = validate_pruning(
-                                full_models=full_models,
-                                train_rows=val_train_rows,
-                                holdout_rows=val_holdout_rows,
-                                feature_columns=columns,
-                                prune_set=prune_set,
-                                targets=targets,
-                                model_params=params,
-                                player_type=player_type,
-                                max_degradation_pct=max_degradation_pct,
-                            )
-
-        return AblationResult(
-            model_name=self.name,
-            feature_impacts=feature_impacts,
-            feature_standard_errors=feature_standard_errors,
-            group_impacts=group_impacts,
-            group_standard_errors=group_standard_errors,
-            group_members=group_members,
-            validation_results=validation_results,
-        )
-
-    def _ablate_single_holdout(
-        self,
-        config: ModelConfig,
-        training_builder: _FeatureSetBuilder,
-        columns: list[str],
-        targets: list[str],
-        params: dict[str, Any],
-        train_seasons: list[int],
-        holdout_seasons: list[int],
-        n_repeats: int,
-        correlation_threshold: float,
-    ) -> GroupedImportanceResult | None:
-        fs = training_builder(config.seasons)
-        handle = self._assembler.get_or_materialize(fs)
-        splits = self._assembler.split(handle, train=train_seasons, holdout=holdout_seasons)
-
-        train_rows = self._assembler.read(splits.train)
-        X_train = extract_features(train_rows, columns)
-        y_train = extract_targets(train_rows, targets)
-        models = fit_models(X_train, y_train, params)
-
-        if splits.holdout is not None:
-            holdout_rows = self._assembler.read(splits.holdout)
-            X_holdout = extract_features(holdout_rows, columns)
-            y_holdout = extract_targets(holdout_rows, targets)
-            return compute_grouped_permutation_importance(
-                models,
-                X_holdout,
-                y_holdout,
-                columns,
-                n_repeats=n_repeats,
-                correlation_threshold=correlation_threshold,
-            )
-        return None
-
-    def _ablate_multi_holdout(
-        self,
-        config: ModelConfig,
-        training_builder: _FeatureSetBuilder,
-        columns: list[str],
-        targets: list[str],
-        params: dict[str, Any],
-        n_repeats: int,
-        correlation_threshold: float,
-    ) -> GroupedImportanceResult:
-        fs = training_builder(config.seasons)
-        handle = self._assembler.get_or_materialize(fs)
-        all_rows = self._assembler.read(handle)
-
-        rows_by_season: dict[int, list[dict[str, Any]]] = {}
-        for row in all_rows:
-            s = row["season"]
-            rows_by_season.setdefault(s, []).append(row)
-
-        return compute_cv_permutation_importance(
-            rows_by_season,
-            columns,
-            targets,
-            params,
-            n_repeats=n_repeats,
-            correlation_threshold=correlation_threshold,
-        )
+        return run_ablation(self._assembler, self.name, config, player_configs)
 
     def _artifact_path(self, config: ModelConfig) -> Path:
         return Path(config.artifacts_dir) / self.name / (config.version or "latest")

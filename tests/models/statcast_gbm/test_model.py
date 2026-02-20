@@ -27,6 +27,7 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     live_pitcher_curated_columns,
     pitcher_preseason_feature_columns,
 )
+from fantasy_baseball_manager.models import ablation as ablation_mod
 from fantasy_baseball_manager.models.statcast_gbm import model as statcast_gbm_model_mod
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel, StatcastGBMPreseasonModel
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
@@ -801,13 +802,13 @@ class TestStatcastGBMTrainPerTypeParams:
 class TestStatcastGBMAblateNRepeats:
     def test_ablate_passes_n_repeats_from_config(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_n_repeats: list[int] = []
-        original_cgpi = statcast_gbm_model_mod.compute_grouped_permutation_importance
+        original_cgpi = ablation_mod.compute_grouped_permutation_importance
 
         def spy_cgpi(*args: Any, **kwargs: Any) -> Any:
             captured_n_repeats.append(kwargs.get("n_repeats", 20))
             return original_cgpi(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "compute_grouped_permutation_importance", spy_cgpi)
+        monkeypatch.setattr(ablation_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -830,13 +831,13 @@ class TestStatcastGBMAblateNRepeats:
 
     def test_ablate_uses_default_n_repeats(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_n_repeats: list[int] = []
-        original_cgpi = statcast_gbm_model_mod.compute_grouped_permutation_importance
+        original_cgpi = ablation_mod.compute_grouped_permutation_importance
 
         def spy_cgpi(*args: Any, **kwargs: Any) -> Any:
             captured_n_repeats.append(kwargs.get("n_repeats", 20))
             return original_cgpi(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "compute_grouped_permutation_importance", spy_cgpi)
+        monkeypatch.setattr(ablation_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -858,13 +859,13 @@ class TestStatcastGBMAblateNRepeats:
 class TestStatcastGBMAblatePerTypeParams:
     def test_ablate_routes_per_type_params(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_params: list[dict[str, Any]] = []
-        original_fit = statcast_gbm_model_mod.fit_models
+        original_fit = ablation_mod.fit_models
 
         def spy_fit(X: Any, y: Any, params: dict[str, Any]) -> Any:
             captured_params.append(params)
             return original_fit(X, y, params)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+        monkeypatch.setattr(ablation_mod, "fit_models", spy_fit)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -892,13 +893,13 @@ class TestStatcastGBMAblatePerTypeParams:
 
     def test_ablate_falls_back_to_top_level_params(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_params: list[dict[str, Any]] = []
-        original_fit = statcast_gbm_model_mod.fit_models
+        original_fit = ablation_mod.fit_models
 
         def spy_fit(X: Any, y: Any, params: dict[str, Any]) -> Any:
             captured_params.append(params)
             return original_fit(X, y, params)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+        monkeypatch.setattr(ablation_mod, "fit_models", spy_fit)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -925,13 +926,13 @@ class TestStatcastGBMAblatePerTypeParams:
 class TestStatcastGBMAblateCorrelationThreshold:
     def test_ablate_passes_correlation_threshold_from_config(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_thresholds: list[float] = []
-        original_cgpi = statcast_gbm_model_mod.compute_grouped_permutation_importance
+        original_cgpi = ablation_mod.compute_grouped_permutation_importance
 
         def spy_cgpi(*args: Any, **kwargs: Any) -> Any:
             captured_thresholds.append(kwargs.get("correlation_threshold", 0.70))
             return original_cgpi(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "compute_grouped_permutation_importance", spy_cgpi)
+        monkeypatch.setattr(ablation_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -954,13 +955,13 @@ class TestStatcastGBMAblateCorrelationThreshold:
 
     def test_ablate_uses_default_correlation_threshold(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_thresholds: list[float] = []
-        original_cgpi = statcast_gbm_model_mod.compute_grouped_permutation_importance
+        original_cgpi = ablation_mod.compute_grouped_permutation_importance
 
         def spy_cgpi(*args: Any, **kwargs: Any) -> Any:
             captured_thresholds.append(kwargs.get("correlation_threshold", 0.70))
             return original_cgpi(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "compute_grouped_permutation_importance", spy_cgpi)
+        monkeypatch.setattr(ablation_mod, "compute_grouped_permutation_importance", spy_cgpi)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -1006,15 +1007,15 @@ class TestStatcastGBMAblateValidation:
 
     def test_ablate_validate_true_calls_validate_pruning(self, monkeypatch: pytest.MonkeyPatch) -> None:
         calls: list[dict[str, Any]] = []
-        original_vp = statcast_gbm_model_mod.validate_pruning
+        original_vp = ablation_mod.validate_pruning
 
         def spy_vp(*args: Any, **kwargs: Any) -> Any:
             calls.append(kwargs)
             return original_vp(*args, **kwargs)
 
         # Make identify_prune_candidates always return something to trigger validation
-        monkeypatch.setattr(statcast_gbm_model_mod, "identify_prune_candidates", lambda result: ["fake_col"])
-        monkeypatch.setattr(statcast_gbm_model_mod, "validate_pruning", spy_vp)
+        monkeypatch.setattr(ablation_mod, "identify_prune_candidates", lambda result: ["fake_col"])
+        monkeypatch.setattr(ablation_mod, "validate_pruning", spy_vp)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -1037,14 +1038,14 @@ class TestStatcastGBMAblateValidation:
 
     def test_ablate_validate_passes_max_degradation_pct(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_max_deg: list[float] = []
-        original_vp = statcast_gbm_model_mod.validate_pruning
+        original_vp = ablation_mod.validate_pruning
 
         def spy_vp(*args: Any, **kwargs: Any) -> Any:
             captured_max_deg.append(kwargs.get("max_degradation_pct", 5.0))
             return original_vp(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "identify_prune_candidates", lambda result: ["fake_col"])
-        monkeypatch.setattr(statcast_gbm_model_mod, "validate_pruning", spy_vp)
+        monkeypatch.setattr(ablation_mod, "identify_prune_candidates", lambda result: ["fake_col"])
+        monkeypatch.setattr(ablation_mod, "validate_pruning", spy_vp)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -1067,14 +1068,14 @@ class TestStatcastGBMAblateValidation:
 
     def test_ablate_validate_skips_when_no_candidates(self, monkeypatch: pytest.MonkeyPatch) -> None:
         vp_calls: list[Any] = []
-        original_vp = statcast_gbm_model_mod.validate_pruning
+        original_vp = ablation_mod.validate_pruning
 
         def spy_vp(*args: Any, **kwargs: Any) -> Any:
             vp_calls.append(True)
             return original_vp(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "identify_prune_candidates", lambda result: [])
-        monkeypatch.setattr(statcast_gbm_model_mod, "validate_pruning", spy_vp)
+        monkeypatch.setattr(ablation_mod, "identify_prune_candidates", lambda result: [])
+        monkeypatch.setattr(ablation_mod, "validate_pruning", spy_vp)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),
@@ -1159,13 +1160,13 @@ class TestStatcastGBMAblateMultiHoldout:
 
     def test_multi_holdout_default_is_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_calls: list[str] = []
-        original_cv = statcast_gbm_model_mod.compute_cv_permutation_importance
+        original_cv = ablation_mod.compute_cv_permutation_importance
 
         def spy_cv(*args: Any, **kwargs: Any) -> Any:
             captured_calls.append("cv")
             return original_cv(*args, **kwargs)
 
-        monkeypatch.setattr(statcast_gbm_model_mod, "compute_cv_permutation_importance", spy_cv)
+        monkeypatch.setattr(ablation_mod, "compute_cv_permutation_importance", spy_cv)
 
         rows_by_season = {
             2022: _make_rows(30, 2022),

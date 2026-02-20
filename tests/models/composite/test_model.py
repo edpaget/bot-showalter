@@ -20,7 +20,10 @@ from fantasy_baseball_manager.models.composite.model import (
     _resolve_group,
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
+from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
 from fantasy_baseball_manager.models.protocols import (
+    Ablatable,
+    AblationResult,
     Evaluable,
     FineTunable,
     Model,
@@ -87,6 +90,30 @@ class FakeAssembler:
 _NULL_ASSEMBLER = FakeAssembler(batting_rows=[])
 
 
+class FakeEvaluator:
+    """Records calls and returns a canned SystemMetrics."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, int, int | None]] = []
+
+    def evaluate(
+        self,
+        system: str,
+        version: str,
+        season: int,
+        stats: list[str] | None = None,
+        actuals_source: str = "fangraphs",
+        top: int | None = None,
+    ) -> SystemMetrics:
+        self.calls.append((system, version, season, top))
+        return SystemMetrics(
+            system=system,
+            version=version,
+            source_type="test",
+            metrics={"avg": StatMetrics(rmse=0.01, mae=0.008, correlation=0.9, r_squared=0.81, n=100)},
+        )
+
+
 class TestCompositeModelProtocol:
     def test_is_model(self) -> None:
         assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Model)
@@ -100,11 +127,34 @@ class TestCompositeModelProtocol:
     def test_is_trainable(self) -> None:
         assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Trainable)
 
-    def test_is_not_evaluable(self) -> None:
-        assert not isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Evaluable)
+    def test_is_evaluable(self) -> None:
+        assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER, evaluator=FakeEvaluator()), Evaluable)
+
+    def test_is_ablatable(self) -> None:
+        assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), Ablatable)
 
     def test_is_not_finetuneable(self) -> None:
         assert not isinstance(CompositeModel(assembler=_NULL_ASSEMBLER), FineTunable)
+
+    def test_supported_operations_includes_evaluate_with_evaluator(self) -> None:
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, evaluator=FakeEvaluator())
+        assert "evaluate" in model.supported_operations
+
+    def test_supported_operations_excludes_evaluate_without_evaluator(self) -> None:
+        model = CompositeModel(assembler=_NULL_ASSEMBLER)
+        assert "evaluate" not in model.supported_operations
+
+    def test_supported_operations_includes_ablate_with_gbm_engine(self) -> None:
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=GBMEngine())
+        assert "ablate" in model.supported_operations
+
+    def test_supported_operations_excludes_ablate_with_marcel_engine(self) -> None:
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=MarcelEngine())
+        assert "ablate" not in model.supported_operations
+
+    def test_supported_operations_gbm_with_evaluator(self) -> None:
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=GBMEngine(), evaluator=FakeEvaluator())
+        assert model.supported_operations == frozenset({"prepare", "train", "predict", "evaluate", "ablate"})
 
     def test_name(self) -> None:
         assert CompositeModel(assembler=_NULL_ASSEMBLER).name == "composite"
@@ -117,6 +167,43 @@ class TestCompositeModelProtocol:
 
     def test_artifact_type(self) -> None:
         assert CompositeModel(assembler=_NULL_ASSEMBLER).artifact_type == "none"
+
+
+class TestCompositeEvaluate:
+    def test_evaluate_delegates_to_evaluator(self) -> None:
+        evaluator = FakeEvaluator()
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, evaluator=evaluator)
+        config = ModelConfig(seasons=[2023], version="v1")
+        result = model.evaluate(config)
+        assert isinstance(result, SystemMetrics)
+        assert evaluator.calls == [("composite", "v1", 2023, None)]
+
+    def test_evaluate_uses_config_version(self) -> None:
+        evaluator = FakeEvaluator()
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, evaluator=evaluator)
+        config = ModelConfig(seasons=[2023], version="v2")
+        model.evaluate(config)
+        assert evaluator.calls[0][1] == "v2"
+
+    def test_evaluate_passes_top(self) -> None:
+        evaluator = FakeEvaluator()
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, evaluator=evaluator)
+        config = ModelConfig(seasons=[2023], top=50)
+        model.evaluate(config)
+        assert evaluator.calls[0][3] == 50
+
+    def test_evaluate_uses_model_name(self) -> None:
+        evaluator = FakeEvaluator()
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, model_name="composite-mle", evaluator=evaluator)
+        config = ModelConfig(seasons=[2023])
+        model.evaluate(config)
+        assert evaluator.calls[0][0] == "composite-mle"
+
+    def test_evaluate_without_evaluator_raises(self) -> None:
+        model = CompositeModel(assembler=_NULL_ASSEMBLER)
+        config = ModelConfig(seasons=[2023])
+        with pytest.raises(TypeError):
+            model.evaluate(config)
 
 
 class TestResolveGroup:
@@ -776,6 +863,84 @@ class TestCompositeModelTrain:
         assert call["pitch_feature_cols"] == expected_pitch_cols
 
 
+class TestCompositeAblate:
+    def test_ablate_requires_at_least_2_seasons(self) -> None:
+        assembler = SeasonAwareFakeAssembler()
+        model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(
+            seasons=[2022],
+            model_params={"batting_categories": ["hr"], "pitching_categories": ["so"]},
+        )
+        with pytest.raises(ValueError, match="at least 2 seasons"):
+            model.ablate(config)
+
+    def test_ablate_requires_gbm_engine(self) -> None:
+        assembler = SeasonAwareFakeAssembler()
+        model = CompositeModel(assembler=assembler, engine=MarcelEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={"batting_categories": ["hr"], "pitching_categories": ["so"]},
+        )
+        with pytest.raises(ValueError, match="does not support ablate"):
+            model.ablate(config)
+
+
+@pytest.fixture(scope="class")
+def composite_ablation_result() -> AblationResult:
+    bat_2022 = [_make_batter_row(i, 2022) for i in range(1, 31)]
+    bat_2023 = [_make_batter_row(i, 2023) for i in range(1, 31)]
+    pitch_2022 = [_make_pitcher_row(i, 2022) for i in range(100, 130)]
+    pitch_2023 = [_make_pitcher_row(i, 2023) for i in range(100, 130)]
+    assembler = SeasonAwareFakeAssembler(
+        rows_by_season={2022: bat_2022, 2023: bat_2023},
+        pitcher_rows_by_season={2022: pitch_2022, 2023: pitch_2023},
+    )
+    model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+    config = ModelConfig(
+        seasons=[2022, 2023],
+        model_params={
+            "batting_categories": ["hr"],
+            "pitching_categories": ["so"],
+            "n_repeats": 5,
+        },
+    )
+    return model.ablate(config)
+
+
+@pytest.mark.slow
+class TestCompositeAblateResults:
+    def test_returns_ablation_result(self, composite_ablation_result: AblationResult) -> None:
+        assert isinstance(composite_ablation_result, AblationResult)
+        assert composite_ablation_result.model_name == "composite"
+
+    def test_returns_nonempty_impacts(self, composite_ablation_result: AblationResult) -> None:
+        assert len(composite_ablation_result.feature_impacts) > 0
+
+    def test_impacts_include_batter_features(self, composite_ablation_result: AblationResult) -> None:
+        batter_keys = [k for k in composite_ablation_result.feature_impacts if k.startswith("batter:")]
+        assert len(batter_keys) > 0
+
+    def test_impacts_include_pitcher_features(self, composite_ablation_result: AblationResult) -> None:
+        pitcher_keys = [k for k in composite_ablation_result.feature_impacts if k.startswith("pitcher:")]
+        assert len(pitcher_keys) > 0
+
+    def test_returns_standard_errors(self, composite_ablation_result: AblationResult) -> None:
+        assert len(composite_ablation_result.feature_standard_errors) > 0
+        assert set(composite_ablation_result.feature_standard_errors.keys()) == set(
+            composite_ablation_result.feature_impacts.keys()
+        )
+
+    def test_standard_errors_non_negative(self, composite_ablation_result: AblationResult) -> None:
+        for v in composite_ablation_result.feature_standard_errors.values():
+            assert v >= 0.0
+
+    def test_group_impacts_is_dict(self, composite_ablation_result: AblationResult) -> None:
+        assert isinstance(composite_ablation_result.group_impacts, dict)
+
+    def test_default_no_validation(self, composite_ablation_result: AblationResult) -> None:
+        assert composite_ablation_result.validation_results == {}
+
+
 class TestGBMPredictConfig:
     def test_gbm_predict_passes_artifact_path_and_feature_cols(self, tmp_path: Path) -> None:
         batting_rows = [_make_batter_row(1, 2023)]
@@ -803,3 +968,41 @@ class TestGBMPredictConfig:
         assert len(engine_config.pitch_feature_cols) > 0
         assert "age" in engine_config.bat_feature_cols
         assert "age" in engine_config.pitch_feature_cols
+
+
+@pytest.fixture(scope="class")
+def composite_multi_holdout_result() -> AblationResult:
+    bat_rows = {s: [_make_batter_row(i, s) for i in range(1, 31)] for s in (2021, 2022, 2023)}
+    pitch_rows = {s: [_make_pitcher_row(i, s) for i in range(100, 130)] for s in (2021, 2022, 2023)}
+    assembler = SeasonAwareFakeAssembler(
+        rows_by_season=bat_rows,
+        pitcher_rows_by_season=pitch_rows,
+    )
+    model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+    config = ModelConfig(
+        seasons=[2021, 2022, 2023],
+        model_params={
+            "batting_categories": ["hr"],
+            "pitching_categories": ["so"],
+            "multi_holdout": True,
+            "n_repeats": 5,
+        },
+    )
+    return model.ablate(config)
+
+
+@pytest.mark.slow
+class TestCompositeAblateMultiHoldout:
+    def test_returns_ablation_result(self, composite_multi_holdout_result: AblationResult) -> None:
+        assert isinstance(composite_multi_holdout_result, AblationResult)
+        assert composite_multi_holdout_result.model_name == "composite"
+
+    def test_has_batter_and_pitcher_impacts(self, composite_multi_holdout_result: AblationResult) -> None:
+        batter_keys = [k for k in composite_multi_holdout_result.feature_impacts if k.startswith("batter:")]
+        pitcher_keys = [k for k in composite_multi_holdout_result.feature_impacts if k.startswith("pitcher:")]
+        assert len(batter_keys) > 0
+        assert len(pitcher_keys) > 0
+
+    def test_se_non_negative(self, composite_multi_holdout_result: AblationResult) -> None:
+        for v in composite_multi_holdout_result.feature_standard_errors.values():
+            assert v >= 0.0
