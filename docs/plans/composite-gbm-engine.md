@@ -45,7 +45,7 @@ When `engine = "gbm"` is set in model_params, the composite model trains one `Hi
 
 ## Phases
 
-### Phase 1: Extract shared training utilities
+### Phase 1: Extract shared training utilities ✅
 
 Move the generic GBM training functions out of `statcast_gbm/training.py` into a shared module that both models can import.
 
@@ -56,7 +56,7 @@ Move the generic GBM training functions out of `statcast_gbm/training.py` into a
 
 **Verification:** All existing statcast-gbm tests pass unchanged.
 
-### Phase 2: Composite training feature sets
+### Phase 2: Composite training feature sets ✅
 
 Add the ability to build training-mode feature sets for composite variants. Training sets need target columns (lag-0 rate stats) appended to the feature columns.
 
@@ -71,7 +71,7 @@ Add the ability to build training-mode feature sets for composite variants. Trai
 
 **Design note:** The composite model's `_build_feature_sets()` already produces the right prediction-time FeatureSets. The training variant just needs target columns added. A helper like `append_targets(feature_set, target_features) → FeatureSet` can do this generically.
 
-### Phase 3: Composite feature column extraction
+### Phase 3: Composite feature column extraction ✅
 
 Add a function to extract the ordered list of feature column names from a composite FeatureSet. This is the bridge between the feature system and the GBM training loop — the GBM needs a flat `list[str]` of column names to build its feature matrix.
 
@@ -81,7 +81,7 @@ Add a function to extract the ordered list of feature column names from a compos
 
 **Key concern:** DerivedTransformFeature outputs (like `h_wavg`, `league_h_rate`) need correct naming. Verify by materializing a dataset and comparing `row.keys()` against the extracted column list.
 
-### Phase 4: Engine protocol and routing
+### Phase 4: Engine protocol and routing ✅
 
 Define a `CompositeEngine` protocol and wrap the existing Marcel logic in a `MarcelEngine`. Add engine selection based on `model_params["engine"]`.
 
@@ -105,7 +105,7 @@ The MarcelEngine wraps the existing `rows_to_marcel_inputs → regress_to_mean �
 
 **Verification:** All existing composite tests pass. Marcel engine produces identical output.
 
-### Phase 5: GBM engine — train
+### Phase 5: GBM engine — train ✅
 
 Implement `GBMEngine.train()` that fits per-target GBMs on the composite feature matrix.
 
