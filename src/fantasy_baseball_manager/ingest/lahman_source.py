@@ -32,7 +32,10 @@ _POSITION_COLUMNS: dict[str, str] = {
 _DEFAULT_RETRY = default_http_retry("Lahman download")
 
 
-class LahmanPeopleSource:
+class LahmanCsvSource:
+    _url: str
+    _source_detail: str
+
     def __init__(
         self,
         client: httpx.Client | None = None,
@@ -47,56 +50,42 @@ class LahmanPeopleSource:
 
     @property
     def source_detail(self) -> str:
-        return "people"
+        return self._source_detail
 
     def _do_fetch(self) -> httpx.Response:
-        response = self._client.get(_PEOPLE_URL)
+        response = self._client.get(self._url)
         response.raise_for_status()
         return response
 
+    def _post_process(self, rows: list[dict[str, Any]], **params: Any) -> list[dict[str, Any]]:
+        return rows
+
     def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        logger.debug("GET %s", _PEOPLE_URL)
+        logger.debug("GET %s", self._url)
         response = self._fetch_with_retry()
         reader = csv.DictReader(io.StringIO(strip_bom(response.text)))
         rows: list[dict[str, Any]] = [nullify_empty_strings(row) for row in reader]
-        logger.info("Parsed %d Lahman People rows", len(rows))
+        rows = self._post_process(rows, **params)
+        logger.info("Parsed %d Lahman %s rows", len(rows), self._source_detail.title())
         return rows
 
 
-class LahmanAppearancesSource:
-    def __init__(
-        self,
-        client: httpx.Client | None = None,
-        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _DEFAULT_RETRY,
-    ) -> None:
-        self._client = client or httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0))
-        self._fetch_with_retry = retry(self._do_fetch)
+class LahmanPeopleSource(LahmanCsvSource):
+    _url = _PEOPLE_URL
+    _source_detail = "people"
 
-    @property
-    def source_type(self) -> str:
-        return "lahman"
 
-    @property
-    def source_detail(self) -> str:
-        return "appearances"
+class LahmanAppearancesSource(LahmanCsvSource):
+    _url = _APPEARANCES_URL
+    _source_detail = "appearances"
 
-    def _do_fetch(self) -> httpx.Response:
-        response = self._client.get(_APPEARANCES_URL)
-        response.raise_for_status()
-        return response
-
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        logger.debug("GET %s", _APPEARANCES_URL)
-        response = self._fetch_with_retry()
-        reader = csv.DictReader(io.StringIO(strip_bom(response.text)))
-        all_rows = [nullify_empty_strings(row) for row in reader]
-
+    def _post_process(self, rows: list[dict[str, Any]], **params: Any) -> list[dict[str, Any]]:
         season = params.get("season")
         if season is not None:
-            all_rows = [r for r in all_rows if r["yearID"] == str(season)]
+            rows = [r for r in rows if r["yearID"] == str(season)]
 
         records: list[dict[str, Any]] = []
-        for row in all_rows:
+        for row in rows:
             for col, pos in _POSITION_COLUMNS.items():
                 games_val = row.get(col)
                 if games_val is None:
@@ -113,41 +102,15 @@ class LahmanAppearancesSource:
                         }
                     )
 
-        logger.info("Parsed %d Lahman Appearances records", len(records))
         return records
 
 
-class LahmanTeamsSource:
-    def __init__(
-        self,
-        client: httpx.Client | None = None,
-        retry: Callable[[Callable[..., Any]], Callable[..., Any]] = _DEFAULT_RETRY,
-    ) -> None:
-        self._client = client or httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0))
-        self._fetch_with_retry = retry(self._do_fetch)
+class LahmanTeamsSource(LahmanCsvSource):
+    _url = _TEAMS_URL
+    _source_detail = "teams"
 
-    @property
-    def source_type(self) -> str:
-        return "lahman"
-
-    @property
-    def source_detail(self) -> str:
-        return "teams"
-
-    def _do_fetch(self) -> httpx.Response:
-        response = self._client.get(_TEAMS_URL)
-        response.raise_for_status()
-        return response
-
-    def fetch(self, **params: Any) -> list[dict[str, Any]]:
-        logger.debug("GET %s", _TEAMS_URL)
-        response = self._fetch_with_retry()
-        reader = csv.DictReader(io.StringIO(strip_bom(response.text)))
-        rows: list[dict[str, Any]] = [nullify_empty_strings(row) for row in reader]
-
+    def _post_process(self, rows: list[dict[str, Any]], **params: Any) -> list[dict[str, Any]]:
         season = params.get("season")
         if season is not None:
             rows = [r for r in rows if r["yearID"] == str(season)]
-
-        logger.info("Parsed %d Lahman Teams rows", len(rows))
         return rows

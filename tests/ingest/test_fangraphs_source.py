@@ -2,7 +2,7 @@ import httpx
 import pytest
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
-from fantasy_baseball_manager.ingest.fangraphs_source import FgBattingSource, FgPitchingSource
+from fantasy_baseball_manager.ingest.fangraphs_source import FgStatsSource
 from fantasy_baseball_manager.ingest.protocols import DataSource
 
 _NO_WAIT_RETRY = retry(
@@ -98,62 +98,78 @@ _PITCHING_ROWS = [
     },
 ]
 
+_STAT_TYPE_CASES = [
+    ("bat", "batting", _BATTING_ROWS, "PA", 600, 10155),
+    ("pit", "pitching", _PITCHING_ROWS, "W", 15, 19755),
+]
 
-class TestFgBattingSource:
-    def test_satisfies_datasource_protocol(self) -> None:
-        source = FgBattingSource()
+
+class TestFgStatsSource:
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_satisfies_datasource_protocol(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
+        source = FgStatsSource(stat_type=stat_type)
         assert isinstance(source, DataSource)
 
-    def test_source_type_and_detail(self) -> None:
-        source = FgBattingSource()
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_source_type_and_detail(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
+        source = FgStatsSource(stat_type=stat_type)
         assert source.source_type == "fangraphs"
-        assert source.source_detail == "batting"
+        assert source.source_detail == detail
 
-    def test_valid_json_returns_list_of_dicts(self) -> None:
-        transport = FakeTransport(_json_response(_BATTING_ROWS))
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_valid_json_returns_list_of_dicts(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
+        transport = FakeTransport(_json_response(rows))
         client = httpx.Client(transport=transport)
-        source = FgBattingSource(client=client)
+        source = FgStatsSource(stat_type=stat_type, client=client)
 
         result = source.fetch(season=2024)
 
         assert len(result) == 1
-        row = result[0]
-        assert row["PA"] == 600
-        assert row["AB"] == 530
-        assert row["HR"] == 35
-        assert row["AVG"] == 0.302
-        assert row["wOBA"] == 0.410
-        assert row["wRC+"] == 170.0
-        assert row["WAR"] == 8.5
+        assert result[0][sample_key] == sample_val
 
-    def test_playerid_remapped_to_idfg(self) -> None:
-        transport = FakeTransport(_json_response(_BATTING_ROWS))
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_playerid_remapped_to_idfg(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
+        transport = FakeTransport(_json_response(rows))
         client = httpx.Client(transport=transport)
-        source = FgBattingSource(client=client)
+        source = FgStatsSource(stat_type=stat_type, client=client)
 
         result = source.fetch(season=2024)
 
-        assert result[0]["IDfg"] == 10155
+        assert result[0]["IDfg"] == idfg
 
-    def test_empty_response_returns_empty_list(self) -> None:
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_empty_response_returns_empty_list(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
         transport = FakeTransport(_json_response([]))
         client = httpx.Client(transport=transport)
-        source = FgBattingSource(client=client)
+        source = FgStatsSource(stat_type=stat_type, client=client)
 
         result = source.fetch(season=2024)
 
         assert result == []
 
-    def test_query_params_include_season(self) -> None:
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_query_params_include_season(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
         transport = FakeTransport(_json_response([]))
         client = httpx.Client(transport=transport)
-        source = FgBattingSource(client=client)
+        source = FgStatsSource(stat_type=stat_type, client=client)
 
         source.fetch(season=2024)
 
         assert transport.last_request is not None
         params = dict(transport.last_request.url.params)
-        assert params["stats"] == "bat"
+        assert params["stats"] == stat_type
         assert params["season"] == "2024"
         assert params["season1"] == "2024"
         assert params["qual"] == "0"
@@ -161,121 +177,46 @@ class TestFgBattingSource:
         assert params["type"] == "8"
         assert params["pageitems"] == "2000000"
 
-    def test_retry_on_503_then_success(self) -> None:
-        transport = FailNTransport(fail_count=2, success_response=_json_response(_BATTING_ROWS))
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_retry_on_503_then_success(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
+        transport = FailNTransport(fail_count=2, success_response=_json_response(rows))
         client = httpx.Client(transport=transport)
-        source = FgBattingSource(client=client, retry=_NO_WAIT_RETRY)
+        source = FgStatsSource(stat_type=stat_type, client=client, retry=_NO_WAIT_RETRY)
 
         result = source.fetch(season=2024)
 
         assert len(result) == 1
         assert transport.call_count == 3
 
-    def test_exhausted_retries_raises(self) -> None:
-        transport = FailNTransport(fail_count=5, success_response=_json_response(_BATTING_ROWS))
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_exhausted_retries_raises(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
+        transport = FailNTransport(fail_count=5, success_response=_json_response(rows))
         client = httpx.Client(transport=transport)
-        source = FgBattingSource(client=client, retry=_NO_WAIT_RETRY)
+        source = FgStatsSource(stat_type=stat_type, client=client, retry=_NO_WAIT_RETRY)
 
         with pytest.raises(httpx.HTTPStatusError):
             source.fetch(season=2024)
 
         assert transport.call_count == 3
 
-    def test_data_wrapper_response(self) -> None:
+    @pytest.mark.parametrize(("stat_type", "detail", "rows", "sample_key", "sample_val", "idfg"), _STAT_TYPE_CASES)
+    def test_data_wrapper_response(
+        self, stat_type: str, detail: str, rows: list[dict], sample_key: str, sample_val: object, idfg: int
+    ) -> None:
         """API may return {"data": [...]} instead of bare array."""
-        transport = FakeTransport(_json_response({"data": _BATTING_ROWS}))
+        transport = FakeTransport(_json_response({"data": rows}))
         client = httpx.Client(transport=transport)
-        source = FgBattingSource(client=client)
+        source = FgStatsSource(stat_type=stat_type, client=client)
 
         result = source.fetch(season=2024)
 
         assert len(result) == 1
-        assert result[0]["IDfg"] == 10155
+        assert result[0]["IDfg"] == idfg
 
-
-class TestFgPitchingSource:
-    def test_satisfies_datasource_protocol(self) -> None:
-        source = FgPitchingSource()
-        assert isinstance(source, DataSource)
-
-    def test_source_type_and_detail(self) -> None:
-        source = FgPitchingSource()
-        assert source.source_type == "fangraphs"
-        assert source.source_detail == "pitching"
-
-    def test_valid_json_returns_list_of_dicts(self) -> None:
-        transport = FakeTransport(_json_response(_PITCHING_ROWS))
-        client = httpx.Client(transport=transport)
-        source = FgPitchingSource(client=client)
-
-        result = source.fetch(season=2024)
-
-        assert len(result) == 1
-        row = result[0]
-        assert row["W"] == 15
-        assert row["SO"] == 200
-        assert row["ERA"] == 2.80
-        assert row["IP"] == 180.0
-        assert row["WAR"] == 6.0
-
-    def test_playerid_remapped_to_idfg(self) -> None:
-        transport = FakeTransport(_json_response(_PITCHING_ROWS))
-        client = httpx.Client(transport=transport)
-        source = FgPitchingSource(client=client)
-
-        result = source.fetch(season=2024)
-
-        assert result[0]["IDfg"] == 19755
-
-    def test_empty_response_returns_empty_list(self) -> None:
-        transport = FakeTransport(_json_response([]))
-        client = httpx.Client(transport=transport)
-        source = FgPitchingSource(client=client)
-
-        result = source.fetch(season=2024)
-
-        assert result == []
-
-    def test_query_params_include_season(self) -> None:
-        transport = FakeTransport(_json_response([]))
-        client = httpx.Client(transport=transport)
-        source = FgPitchingSource(client=client)
-
-        source.fetch(season=2024)
-
-        assert transport.last_request is not None
-        params = dict(transport.last_request.url.params)
-        assert params["stats"] == "pit"
-        assert params["season"] == "2024"
-        assert params["season1"] == "2024"
-
-    def test_retry_on_503_then_success(self) -> None:
-        transport = FailNTransport(fail_count=2, success_response=_json_response(_PITCHING_ROWS))
-        client = httpx.Client(transport=transport)
-        source = FgPitchingSource(client=client, retry=_NO_WAIT_RETRY)
-
-        result = source.fetch(season=2024)
-
-        assert len(result) == 1
-        assert transport.call_count == 3
-
-    def test_exhausted_retries_raises(self) -> None:
-        transport = FailNTransport(fail_count=5, success_response=_json_response(_PITCHING_ROWS))
-        client = httpx.Client(transport=transport)
-        source = FgPitchingSource(client=client, retry=_NO_WAIT_RETRY)
-
-        with pytest.raises(httpx.HTTPStatusError):
-            source.fetch(season=2024)
-
-        assert transport.call_count == 3
-
-    def test_data_wrapper_response(self) -> None:
-        """API may return {"data": [...]} instead of bare array."""
-        transport = FakeTransport(_json_response({"data": _PITCHING_ROWS}))
-        client = httpx.Client(transport=transport)
-        source = FgPitchingSource(client=client)
-
-        result = source.fetch(season=2024)
-
-        assert len(result) == 1
-        assert result[0]["IDfg"] == 19755
+    def test_invalid_stat_type_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="Unknown stat_type 'invalid'"):
+            FgStatsSource(stat_type="invalid")

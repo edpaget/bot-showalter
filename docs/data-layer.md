@@ -170,8 +170,8 @@ All sources implement the `DataSource` protocol (`source_type`, `source_detail` 
 | Source | Upstream | `source_type` | `source_detail` |
 |---|---|---|---|
 | `ChadwickRegisterSource` | Chadwick Bureau GitHub ZIP | `chadwick_bureau` | `chadwick_register` |
-| `FgBattingSource` | FanGraphs JSON API | `fangraphs` | `batting` |
-| `FgPitchingSource` | FanGraphs JSON API | `fangraphs` | `pitching` |
+| `FgStatsSource(stat_type="bat")` | FanGraphs JSON API | `fangraphs` | `batting` |
+| `FgStatsSource(stat_type="pit")` | FanGraphs JSON API | `fangraphs` | `pitching` |
 | `StatcastSavantSource` | Baseball Savant CSV | `baseball_savant` | `statcast_pitch` |
 | `SprintSpeedSource` | Baseball Savant CSV | `baseball_savant` | `sprint_speed` |
 | `LahmanPeopleSource` | Lahman GitHub CSV | `lahman` | `people` |
@@ -189,7 +189,7 @@ All sources implement the `DataSource` protocol (`source_type`, `source_detail` 
 from fantasy_baseball_manager.ingest.loader import Loader
 
 loader = Loader(
-    source=FgBattingSource(),
+    source=FgStatsSource(stat_type="bat"),
     repo=SqliteBattingStatsRepo(conn),
     load_log_repo=SqliteLoadLogRepo(conn),
     row_mapper=make_fg_batting_mapper(players),
@@ -248,7 +248,7 @@ player_loader.load()
 # 2. Load batting stats
 players = player_repo.all()
 batting_loader = Loader(
-    FgBattingSource(),
+    FgStatsSource(stat_type="bat"),
     SqliteBattingStatsRepo(conn),
     SqliteLoadLogRepo(conn),
     make_fg_batting_mapper(players),

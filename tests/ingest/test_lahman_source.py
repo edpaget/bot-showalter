@@ -4,6 +4,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_no
 
 from fantasy_baseball_manager.ingest.lahman_source import (
     LahmanAppearancesSource,
+    LahmanCsvSource,
     LahmanPeopleSource,
     LahmanTeamsSource,
 )
@@ -362,3 +363,14 @@ class TestLahmanTeamsSource:
             source.fetch(season=2023)
 
         assert transport.call_count == 3
+
+
+class TestLahmanCsvSourceBase:
+    def test_people_is_subclass(self) -> None:
+        assert issubclass(LahmanPeopleSource, LahmanCsvSource)
+
+    def test_appearances_is_subclass(self) -> None:
+        assert issubclass(LahmanAppearancesSource, LahmanCsvSource)
+
+    def test_teams_is_subclass(self) -> None:
+        assert issubclass(LahmanTeamsSource, LahmanCsvSource)
