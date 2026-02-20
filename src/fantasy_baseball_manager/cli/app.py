@@ -32,11 +32,13 @@ from fantasy_baseball_manager.cli._output import (
     print_talent_quality_report,
     print_train_result,
     print_tune_result,
+    print_value_over_adp,
     print_valuation_eval_result,
     print_valuation_rankings,
 )
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
+    build_adp_report_context,
     build_compute_container,
     build_datasets_context,
     build_eval_context,
@@ -1364,3 +1366,28 @@ def report_residual_persistence(
         raise typer.Exit(code=1)
 
     print_residual_persistence_report(report)
+
+
+@report_app.command("value-over-adp")
+def report_value_over_adp(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    player_type: Annotated[str | None, typer.Option("--player-type")] = None,
+    position: Annotated[str | None, typer.Option("--position")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N per section")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show value-over-ADP report: buy targets, avoids, and sleepers."""
+    with build_adp_report_context(data_dir) as ctx:
+        report = ctx.service.compute_value_over_adp(
+            season,
+            system,
+            version,
+            provider=provider,
+            player_type=player_type,
+            position=position,
+            top=top,
+        )
+    print_value_over_adp(report)

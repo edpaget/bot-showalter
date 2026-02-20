@@ -48,6 +48,7 @@ from fantasy_baseball_manager.services.residual_persistence_diagnostic import Re
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
+from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
 
@@ -450,5 +451,26 @@ def build_valuation_eval_context(data_dir: str) -> Iterator[ValuationEvalContext
             player_repo=SqlitePlayerRepo(conn),
         )
         yield ValuationEvalContext(conn=conn, evaluator=evaluator)
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class ADPReportContext:
+    conn: sqlite3.Connection
+    service: ADPReportService
+
+
+@contextmanager
+def build_adp_report_context(data_dir: str) -> Iterator[ADPReportContext]:
+    """Composition-root context manager for ADP report commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        service = ADPReportService(
+            SqlitePlayerRepo(conn),
+            SqliteValuationRepo(conn),
+            SqliteADPRepo(conn),
+        )
+        yield ADPReportContext(conn=conn, service=service)
     finally:
         conn.close()

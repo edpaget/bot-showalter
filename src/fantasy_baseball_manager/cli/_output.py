@@ -12,6 +12,7 @@ from fantasy_baseball_manager.domain.residual_persistence import ResidualPersist
 from fantasy_baseball_manager.domain.talent_quality import TrueTalentQualityReport
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
+from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
@@ -738,3 +739,85 @@ def print_residual_persistence_report(report: ResidualPersistenceReport) -> None
     verdict = "GO" if s.go else "NO-GO"
     console.print(f"  Verdict: [{go_color}][bold]{verdict}[/bold][/{go_color}]")
     console.print()
+
+
+def print_value_over_adp(report: ValueOverADPReport) -> None:
+    """Print a Value-Over-ADP report with buy targets, avoids, and sleepers."""
+    console.print(
+        f"[bold]Value-Over-ADP[/bold] — {report.system} v{report.version}"
+        f" | season {report.season} | provider {report.provider}"
+        f" | {report.n_matched} matched"
+    )
+    console.print()
+
+    if report.buy_targets:
+        console.print("[bold green]Buy Targets[/bold green] (market undervalues)")
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Delta", justify="right")
+        table.add_column("Player")
+        table.add_column("Type")
+        table.add_column("Pos")
+        table.add_column("ZAR$", justify="right")
+        table.add_column("ZARRk", justify="right")
+        table.add_column("ADPRk", justify="right")
+        table.add_column("ADPPick", justify="right")
+        for entry in report.buy_targets:
+            table.add_row(
+                f"[green]+{entry.rank_delta}[/green]",
+                entry.player_name,
+                entry.player_type,
+                entry.position,
+                f"${entry.zar_value:.1f}",
+                str(entry.zar_rank),
+                str(entry.adp_rank),
+                f"{entry.adp_pick:.1f}",
+            )
+        console.print(table)
+        console.print()
+
+    if report.avoid_list:
+        console.print("[bold red]Avoid List[/bold red] (market overvalues)")
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Delta", justify="right")
+        table.add_column("Player")
+        table.add_column("Type")
+        table.add_column("Pos")
+        table.add_column("ZAR$", justify="right")
+        table.add_column("ZARRk", justify="right")
+        table.add_column("ADPRk", justify="right")
+        table.add_column("ADPPick", justify="right")
+        for entry in report.avoid_list:
+            table.add_row(
+                f"[red]{entry.rank_delta}[/red]",
+                entry.player_name,
+                entry.player_type,
+                entry.position,
+                f"${entry.zar_value:.1f}",
+                str(entry.zar_rank),
+                str(entry.adp_rank),
+                f"{entry.adp_pick:.1f}",
+            )
+        console.print(table)
+        console.print()
+
+    if report.unranked_valuable:
+        console.print("[bold yellow]Unranked Sleepers[/bold yellow] (ZAR value but no ADP)")
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Player")
+        table.add_column("Type")
+        table.add_column("Pos")
+        table.add_column("ZAR$", justify="right")
+        table.add_column("ZARRk", justify="right")
+        for entry in report.unranked_valuable:
+            table.add_row(
+                entry.player_name,
+                entry.player_type,
+                entry.position,
+                f"${entry.zar_value:.1f}",
+                str(entry.zar_rank),
+            )
+        console.print(table)
+        console.print()
+
+    if not report.buy_targets and not report.avoid_list and not report.unranked_valuable:
+        console.print("No discrepancies found.")
