@@ -8,7 +8,7 @@ from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
 from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.gbm_training import (
-    CVFold,
+    build_cv_folds,
     extract_features,
     extract_sample_weights,
     extract_targets,
@@ -271,64 +271,21 @@ class _StatcastGBMBase:
         cv_splits = list(temporal_expanding_cv(config.seasons))
 
         # --- Batter CV folds ---
-        # Materialize once, read all rows, split by season in Python
         bat_fs = self._batter_training_set_builder(config.seasons)
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_all_rows = self._assembler.read(bat_handle)
-        bat_feature_cols = self._batter_columns
-        bat_targets = list(BATTER_TARGETS)
-
-        bat_rows_by_season: dict[int, list[dict[str, Any]]] = {}
-        for row in bat_all_rows:
-            s = row["season"]
-            bat_rows_by_season.setdefault(s, []).append(row)
-
-        bat_sw_col = self._batter_sample_weight_column
-        bat_folds: list[CVFold] = []
-        for train_seasons, test_season in cv_splits:
-            train_rows = [r for s in train_seasons for r in bat_rows_by_season.get(s, [])]
-            test_rows = bat_rows_by_season.get(test_season, [])
-            train_sw = extract_sample_weights(train_rows, bat_sw_col) if bat_sw_col else None
-            bat_folds.append(
-                CVFold(
-                    X_train=extract_features(train_rows, bat_feature_cols),
-                    y_train=extract_targets(train_rows, bat_targets),
-                    X_test=extract_features(test_rows, bat_feature_cols),
-                    y_test=extract_targets(test_rows, bat_targets),
-                    sample_weights=train_sw,
-                )
-            )
-
+        bat_folds = build_cv_folds(
+            bat_all_rows, self._batter_columns, list(BATTER_TARGETS), cv_splits, self._batter_sample_weight_column
+        )
         bat_result = grid_search_cv(bat_folds, param_grid)
 
         # --- Pitcher CV folds ---
         pit_fs = self._pitcher_training_set_builder(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_all_rows = self._assembler.read(pit_handle)
-        pit_feature_cols = self._pitcher_columns
-        pit_targets = list(PITCHER_TARGETS)
-
-        pit_rows_by_season: dict[int, list[dict[str, Any]]] = {}
-        for row in pit_all_rows:
-            s = row["season"]
-            pit_rows_by_season.setdefault(s, []).append(row)
-
-        pit_sw_col = self._pitcher_sample_weight_column
-        pit_folds: list[CVFold] = []
-        for train_seasons, test_season in cv_splits:
-            train_rows = [r for s in train_seasons for r in pit_rows_by_season.get(s, [])]
-            test_rows = pit_rows_by_season.get(test_season, [])
-            train_sw = extract_sample_weights(train_rows, pit_sw_col) if pit_sw_col else None
-            pit_folds.append(
-                CVFold(
-                    X_train=extract_features(train_rows, pit_feature_cols),
-                    y_train=extract_targets(train_rows, pit_targets),
-                    X_test=extract_features(test_rows, pit_feature_cols),
-                    y_test=extract_targets(test_rows, pit_targets),
-                    sample_weights=train_sw,
-                )
-            )
-
+        pit_folds = build_cv_folds(
+            pit_all_rows, self._pitcher_columns, list(PITCHER_TARGETS), cv_splits, self._pitcher_sample_weight_column
+        )
         pit_result = grid_search_cv(pit_folds, param_grid)
 
         return TuneResult(

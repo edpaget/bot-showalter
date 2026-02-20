@@ -30,6 +30,7 @@ from fantasy_baseball_manager.models.marcel.features import (
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
 from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
+from fantasy_baseball_manager.models.gbm_training import build_cv_folds, grid_search_cv
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     Evaluator,
@@ -37,8 +38,18 @@ from fantasy_baseball_manager.models.protocols import (
     PredictResult,
     PrepareResult,
     TrainResult,
+    TuneResult,
 )
 from fantasy_baseball_manager.models.registry import register
+from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
+
+DEFAULT_PARAM_GRID: dict[str, list[Any]] = {
+    "max_iter": [100, 200, 500, 1000],
+    "max_depth": [3, 5, 7, None],
+    "learning_rate": [0.01, 0.05, 0.1, 0.2],
+    "min_samples_leaf": [5, 10, 20, 50],
+    "max_leaf_nodes": [15, 31, 63, None],
+}
 
 DEFAULT_GROUPS: tuple[str, ...] = (
     "age",
@@ -124,6 +135,7 @@ class CompositeModel:
             ops.add("evaluate")
         if isinstance(self._engine, GBMEngine):
             ops.add("ablate")
+            ops.add("tune")
         return frozenset(ops)
 
     @property
@@ -250,6 +262,46 @@ class CompositeModel:
             model_name=self.name,
             metrics=metrics,
             artifacts_path=str(artifact_path),
+        )
+
+    def tune(self, config: ModelConfig) -> TuneResult:
+        if len(config.seasons) < 3:
+            msg = f"tune requires at least 3 seasons (got {len(config.seasons)})"
+            raise ValueError(msg)
+        if not isinstance(self._engine, GBMEngine):
+            msg = f"Engine {type(self._engine).__name__} does not support tune"
+            raise ValueError(msg)
+
+        param_grid = config.model_params.get("param_grid", DEFAULT_PARAM_GRID)
+        cv_splits = list(temporal_expanding_cv(config.seasons))
+
+        marcel_config = _build_marcel_config(config.model_params)
+        batting_fs, pitching_fs = self._build_feature_sets(marcel_config, config)
+
+        bat_train_fs = append_training_targets(batting_fs, batter_target_features())
+        pitch_train_fs = append_training_targets(pitching_fs, pitcher_target_features())
+
+        bat_handle = self._assembler.get_or_materialize(bat_train_fs)
+        pitch_handle = self._assembler.get_or_materialize(pitch_train_fs)
+
+        bat_all_rows = self._assembler.read(bat_handle)
+        pitch_all_rows = self._assembler.read(pitch_handle)
+
+        bat_cols = feature_columns(batting_fs)
+        pitch_cols = feature_columns(pitching_fs)
+
+        bat_folds = build_cv_folds(bat_all_rows, bat_cols, list(BATTER_TARGETS), cv_splits)
+        pit_folds = build_cv_folds(pitch_all_rows, pitch_cols, list(PITCHER_TARGETS), cv_splits)
+
+        bat_result = grid_search_cv(bat_folds, param_grid)
+        pit_result = grid_search_cv(pit_folds, param_grid)
+
+        return TuneResult(
+            model_name=self.name,
+            batter_params=bat_result.best_params,
+            pitcher_params=pit_result.best_params,
+            batter_cv_rmse=bat_result.per_target_rmse,
+            pitcher_cv_rmse=pit_result.per_target_rmse,
         )
 
     def evaluate(self, config: ModelConfig) -> SystemMetrics:

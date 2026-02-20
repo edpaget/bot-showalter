@@ -19,6 +19,10 @@ from fantasy_baseball_manager.models.composite.model import (
     _build_marcel_config,
     _resolve_group,
 )
+from fantasy_baseball_manager.models.composite.targets import (
+    BATTER_TARGETS,
+    PITCHER_TARGETS,
+)
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
 from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
 from fantasy_baseball_manager.models.protocols import (
@@ -32,6 +36,8 @@ from fantasy_baseball_manager.models.protocols import (
     Preparable,
     TrainResult,
     Trainable,
+    Tunable,
+    TuneResult,
 )
 from fantasy_baseball_manager.models.registry import _clear, get, register, register_alias
 
@@ -152,9 +158,20 @@ class TestCompositeModelProtocol:
         model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=MarcelEngine())
         assert "ablate" not in model.supported_operations
 
+    def test_is_tunable_with_gbm_engine(self) -> None:
+        assert isinstance(CompositeModel(assembler=_NULL_ASSEMBLER, engine=GBMEngine()), Tunable)
+
+    def test_supported_operations_excludes_tune_with_marcel_engine(self) -> None:
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=MarcelEngine())
+        assert "tune" not in model.supported_operations
+
+    def test_supported_operations_includes_tune_with_gbm_engine(self) -> None:
+        model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=GBMEngine())
+        assert "tune" in model.supported_operations
+
     def test_supported_operations_gbm_with_evaluator(self) -> None:
         model = CompositeModel(assembler=_NULL_ASSEMBLER, engine=GBMEngine(), evaluator=FakeEvaluator())
-        assert model.supported_operations == frozenset({"prepare", "train", "predict", "evaluate", "ablate"})
+        assert model.supported_operations == frozenset({"prepare", "train", "predict", "evaluate", "ablate", "tune"})
 
     def test_name(self) -> None:
         assert CompositeModel(assembler=_NULL_ASSEMBLER).name == "composite"
@@ -1006,3 +1023,64 @@ class TestCompositeAblateMultiHoldout:
     def test_se_non_negative(self, composite_multi_holdout_result: AblationResult) -> None:
         for v in composite_multi_holdout_result.feature_standard_errors.values():
             assert v >= 0.0
+
+
+@pytest.fixture(scope="class")
+def composite_tune_result() -> TuneResult:
+    bat_rows = {s: [_make_batter_row(i, s) for i in range(1, 21)] for s in (2021, 2022, 2023)}
+    pitch_rows = {s: [_make_pitcher_row(i, s) for i in range(100, 120)] for s in (2021, 2022, 2023)}
+    assembler = SeasonAwareFakeAssembler(
+        rows_by_season=bat_rows,
+        pitcher_rows_by_season=pitch_rows,
+    )
+    model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+    config = ModelConfig(
+        seasons=[2021, 2022, 2023],
+        model_params={
+            "batting_categories": ["hr"],
+            "pitching_categories": ["so"],
+            "param_grid": {"max_iter": [50, 100]},
+        },
+    )
+    return model.tune(config)
+
+
+@pytest.mark.slow
+class TestCompositeTune:
+    def test_tune_returns_tune_result(self, composite_tune_result: TuneResult) -> None:
+        assert isinstance(composite_tune_result, TuneResult)
+        assert composite_tune_result.model_name == "composite"
+
+    def test_batter_params_nonempty(self, composite_tune_result: TuneResult) -> None:
+        assert len(composite_tune_result.batter_params) > 0
+
+    def test_pitcher_params_nonempty(self, composite_tune_result: TuneResult) -> None:
+        assert len(composite_tune_result.pitcher_params) > 0
+
+    def test_batter_cv_rmse_has_all_targets(self, composite_tune_result: TuneResult) -> None:
+        for target in BATTER_TARGETS:
+            assert target in composite_tune_result.batter_cv_rmse
+
+    def test_pitcher_cv_rmse_has_all_targets(self, composite_tune_result: TuneResult) -> None:
+        for target in PITCHER_TARGETS:
+            assert target in composite_tune_result.pitcher_cv_rmse
+
+    def test_tune_raises_with_fewer_than_3_seasons(self) -> None:
+        assembler = SeasonAwareFakeAssembler()
+        model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(
+            seasons=[2021, 2022],
+            model_params={"batting_categories": ["hr"], "pitching_categories": ["so"]},
+        )
+        with pytest.raises(ValueError, match="at least 3 seasons"):
+            model.tune(config)
+
+    def test_tune_raises_with_marcel_engine(self) -> None:
+        assembler = SeasonAwareFakeAssembler()
+        model = CompositeModel(assembler=assembler, engine=MarcelEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            model_params={"batting_categories": ["hr"], "pitching_categories": ["so"]},
+        )
+        with pytest.raises(ValueError, match="does not support tune"):
+            model.tune(config)
