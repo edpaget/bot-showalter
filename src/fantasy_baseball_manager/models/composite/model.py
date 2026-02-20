@@ -30,7 +30,7 @@ from fantasy_baseball_manager.models.marcel.features import (
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
 from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
-from fantasy_baseball_manager.models.gbm_training import build_cv_folds, grid_search_cv
+from fantasy_baseball_manager.models.gbm_training import build_cv_folds, extract_sample_weights, grid_search_cv
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     Evaluator,
@@ -41,6 +41,7 @@ from fantasy_baseball_manager.models.protocols import (
     TuneResult,
 )
 from fantasy_baseball_manager.models.registry import register
+from fantasy_baseball_manager.models.sample_weight_transforms import get_transform
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 
 DEFAULT_PARAM_GRID: dict[str, list[Any]] = {
@@ -245,6 +246,21 @@ class CompositeModel:
         pitch_train_rows = self._assembler.read(pitch_splits.train)
         pitch_holdout_rows = self._assembler.read(pitch_splits.holdout) if pitch_splits.holdout else []
 
+        batter_params = config.model_params.get("batter", config.model_params)
+        pitcher_params = config.model_params.get("pitcher", config.model_params)
+
+        bat_sw_col = config.model_params.get("batter_sample_weight_column")
+        bat_sw = extract_sample_weights(bat_train_rows, bat_sw_col) if bat_sw_col else None
+        bat_transform_name = batter_params.get("sample_weight_transform")
+        if bat_sw is not None and bat_transform_name:
+            bat_sw = get_transform(bat_transform_name)(bat_sw)
+
+        pitch_sw_col = config.model_params.get("pitcher_sample_weight_column")
+        pitch_sw = extract_sample_weights(pitch_train_rows, pitch_sw_col) if pitch_sw_col else None
+        pitch_transform_name = pitcher_params.get("sample_weight_transform")
+        if pitch_sw is not None and pitch_transform_name:
+            pitch_sw = get_transform(pitch_transform_name)(pitch_sw)
+
         artifact_path = Path(config.artifacts_dir) / self._model_name / (config.version or "latest")
 
         metrics = self._engine.train(
@@ -256,6 +272,8 @@ class CompositeModel:
             pitch_cols,
             config.model_params,
             artifact_path,
+            bat_sample_weights=bat_sw,
+            pitch_sample_weights=pitch_sw,
         )
 
         return TrainResult(
@@ -290,8 +308,32 @@ class CompositeModel:
         bat_cols = feature_columns(batting_fs)
         pitch_cols = feature_columns(pitching_fs)
 
-        bat_folds = build_cv_folds(bat_all_rows, bat_cols, list(BATTER_TARGETS), cv_splits)
-        pit_folds = build_cv_folds(pitch_all_rows, pitch_cols, list(PITCHER_TARGETS), cv_splits)
+        batter_params = config.model_params.get("batter", config.model_params)
+        pitcher_params = config.model_params.get("pitcher", config.model_params)
+
+        bat_sw_col = config.model_params.get("batter_sample_weight_column")
+        bat_transform_name = batter_params.get("sample_weight_transform")
+        bat_transform = get_transform(bat_transform_name) if bat_transform_name else None
+        bat_folds = build_cv_folds(
+            bat_all_rows,
+            bat_cols,
+            list(BATTER_TARGETS),
+            cv_splits,
+            sample_weight_column=bat_sw_col,
+            sample_weight_transform=bat_transform,
+        )
+
+        pitch_sw_col = config.model_params.get("pitcher_sample_weight_column")
+        pitch_transform_name = pitcher_params.get("sample_weight_transform")
+        pitch_transform = get_transform(pitch_transform_name) if pitch_transform_name else None
+        pit_folds = build_cv_folds(
+            pitch_all_rows,
+            pitch_cols,
+            list(PITCHER_TARGETS),
+            cv_splits,
+            sample_weight_column=pitch_sw_col,
+            sample_weight_transform=pitch_transform,
+        )
 
         bat_result = grid_search_cv(bat_folds, param_grid)
         pit_result = grid_search_cv(pit_folds, param_grid)

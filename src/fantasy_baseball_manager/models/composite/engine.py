@@ -242,6 +242,9 @@ class GBMEngine:
         pitch_feature_cols: list[str],
         model_params: dict[str, Any],
         artifact_path: Path,
+        *,
+        bat_sample_weights: list[float] | None = None,
+        pitch_sample_weights: list[float] | None = None,
     ) -> dict[str, float]:
         artifact_path.mkdir(parents=True, exist_ok=True)
         metrics: dict[str, float] = {}
@@ -250,7 +253,7 @@ class GBMEngine:
         batter_params = model_params.get("batter", model_params)
         bat_X = extract_features(bat_train_rows, bat_feature_cols)
         bat_y = extract_targets(bat_train_rows, list(BATTER_TARGETS))
-        bat_models = fit_models(bat_X, bat_y, batter_params)
+        bat_models = fit_models(bat_X, bat_y, batter_params, sample_weights=bat_sample_weights)
 
         if bat_holdout_rows:
             bat_X_holdout = extract_features(bat_holdout_rows, bat_feature_cols)
@@ -265,7 +268,7 @@ class GBMEngine:
         pitcher_params = model_params.get("pitcher", model_params)
         pitch_X = extract_features(pitch_train_rows, pitch_feature_cols)
         pitch_y = extract_targets(pitch_train_rows, list(PITCHER_TARGETS))
-        pitch_models = fit_models(pitch_X, pitch_y, pitcher_params)
+        pitch_models = fit_models(pitch_X, pitch_y, pitcher_params, sample_weights=pitch_sample_weights)
 
         if pitch_holdout_rows:
             pitch_X_holdout = extract_features(pitch_holdout_rows, pitch_feature_cols)

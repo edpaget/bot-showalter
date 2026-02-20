@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 from typing import Any
 
@@ -777,6 +778,9 @@ class RecordingGBMEngine(GBMEngine):
         pitch_feature_cols: list[str],
         model_params: dict[str, Any],
         artifact_path: Path,
+        *,
+        bat_sample_weights: list[float] | None = None,
+        pitch_sample_weights: list[float] | None = None,
     ) -> dict[str, float]:
         self.train_calls.append(
             {
@@ -788,6 +792,8 @@ class RecordingGBMEngine(GBMEngine):
                 "pitch_feature_cols": pitch_feature_cols,
                 "model_params": model_params,
                 "artifact_path": artifact_path,
+                "bat_sample_weights": bat_sample_weights,
+                "pitch_sample_weights": pitch_sample_weights,
             }
         )
         return {"batter_rmse_avg": 0.01}
@@ -1084,3 +1090,92 @@ class TestCompositeTune:
         )
         with pytest.raises(ValueError, match="does not support tune"):
             model.tune(config)
+
+
+class TestCompositeSampleWeights:
+    @pytest.fixture
+    def assembler(self) -> SeasonAwareFakeAssembler:
+        bat_2022 = [_make_batter_row(i, 2022) for i in range(1, 21)]
+        bat_2023 = [_make_batter_row(i, 2023) for i in range(1, 11)]
+        pitch_2022 = [_make_pitcher_row(i, 2022) for i in range(100, 120)]
+        pitch_2023 = [_make_pitcher_row(i, 2023) for i in range(100, 110)]
+        return SeasonAwareFakeAssembler(
+            rows_by_season={2022: bat_2022, 2023: bat_2023},
+            pitcher_rows_by_season={2022: pitch_2022, 2023: pitch_2023},
+        )
+
+    def test_train_passes_sample_weights(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        tmp_path: Path,
+    ) -> None:
+        engine = RecordingGBMEngine()
+        model = CompositeModel(assembler=assembler, engine=engine, group_lookup=_test_lookup)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={
+                "batting_categories": ["hr"],
+                "pitching_categories": ["so"],
+                "engine": "gbm",
+                "batter_sample_weight_column": "proj_pa",
+                "pitcher_sample_weight_column": "proj_ip",
+            },
+            artifacts_dir=str(tmp_path),
+        )
+        model.train(config)
+
+        call = engine.train_calls[0]
+        assert call["bat_sample_weights"] is not None
+        assert call["pitch_sample_weights"] is not None
+        assert len(call["bat_sample_weights"]) == len(call["bat_train_rows"])
+        assert len(call["pitch_sample_weights"]) == len(call["pitch_train_rows"])
+
+    def test_train_without_sample_weights(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        tmp_path: Path,
+    ) -> None:
+        engine = RecordingGBMEngine()
+        model = CompositeModel(assembler=assembler, engine=engine, group_lookup=_test_lookup)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={
+                "batting_categories": ["hr"],
+                "pitching_categories": ["so"],
+                "engine": "gbm",
+            },
+            artifacts_dir=str(tmp_path),
+        )
+        model.train(config)
+
+        call = engine.train_calls[0]
+        assert call["bat_sample_weights"] is None
+        assert call["pitch_sample_weights"] is None
+
+    def test_train_with_transform(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        tmp_path: Path,
+    ) -> None:
+        engine = RecordingGBMEngine()
+        model = CompositeModel(assembler=assembler, engine=engine, group_lookup=_test_lookup)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            model_params={
+                "batting_categories": ["hr"],
+                "pitching_categories": ["so"],
+                "engine": "gbm",
+                "batter_sample_weight_column": "proj_pa",
+                "pitcher_sample_weight_column": "proj_ip",
+                "batter": {"sample_weight_transform": "sqrt"},
+                "pitcher": {"sample_weight_transform": "sqrt"},
+            },
+            artifacts_dir=str(tmp_path),
+        )
+        model.train(config)
+
+        call = engine.train_calls[0]
+        # Weights should be sqrt-transformed
+        assert call["bat_sample_weights"] is not None
+        raw_pa = 550.0  # from _make_batter_row proj_pa
+        assert math.isclose(call["bat_sample_weights"][0], math.sqrt(raw_pa), abs_tol=1e-9)
