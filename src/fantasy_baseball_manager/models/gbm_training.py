@@ -530,6 +530,34 @@ def grid_search_cv(
     )
 
 
+def _evaluate_sweep_combo(
+    all_rows: list[dict[str, Any]],
+    feature_columns: list[str],
+    targets: list[str],
+    cv_splits: list[tuple[list[int], int]],
+    model_params: dict[str, Any],
+    meta_params: dict[str, Any],
+    sample_weight_column: str | None,
+) -> dict[str, Any]:
+    """Build folds for one meta-param combo and evaluate.
+
+    Top-level function so it is picklable for ProcessPoolExecutor.
+    """
+    transform_name = meta_params.get("sample_weight_transform")
+    transform = get_transform(transform_name) if transform_name else None
+    folds = build_cv_folds(
+        all_rows,
+        feature_columns,
+        targets,
+        cv_splits,
+        sample_weight_column=sample_weight_column,
+        sample_weight_transform=transform,
+    )
+    result = _evaluate_combination(folds, model_params)
+    result["params"] = meta_params
+    return result
+
+
 def sweep_cv(
     all_rows: list[dict[str, Any]],
     feature_columns: list[str],
@@ -539,6 +567,7 @@ def sweep_cv(
     sweep_grid: dict[str, list[Any]],
     *,
     sample_weight_column: str | None = None,
+    max_workers: int | None = None,
 ) -> GridSearchResult:
     """Sweep over meta-parameters that affect fold construction.
 
@@ -550,6 +579,10 @@ def sweep_cv(
     Recognised sweep_grid keys:
       - "sample_weight_transform": list of transform names from REGISTRY
 
+    Args:
+        max_workers: Maximum number of parallel worker processes. Defaults to
+            the number of CPUs. Set to 1 to disable parallelism.
+
     Returns GridSearchResult with best_params being the best meta-param
     combination.
     """
@@ -557,23 +590,36 @@ def sweep_cv(
     param_values = list(sweep_grid.values())
     combos = [dict(zip(param_names, c)) for c in itertools.product(*param_values)]
 
-    all_results: list[dict[str, Any]] = []
-    for meta_params in combos:
-        transform_name = meta_params.get("sample_weight_transform")
-        transform = get_transform(transform_name) if transform_name else None
-        folds = build_cv_folds(
-            all_rows,
-            feature_columns,
-            targets,
-            cv_splits,
-            sample_weight_column=sample_weight_column,
-            sample_weight_transform=transform,
-        )
-        result = _evaluate_combination(folds, model_params)
-        result["params"] = meta_params
-        all_results.append(result)
+    effective_workers = min(max_workers or os.cpu_count() or 1, len(combos))
+    logger.info("Sweep: %d combos, %d splits, %d workers", len(combos), len(cv_splits), effective_workers)
+    t0 = time.perf_counter()
+
+    if effective_workers <= 1:
+        all_results = [
+            _evaluate_sweep_combo(all_rows, feature_columns, targets, cv_splits, model_params, mp, sample_weight_column)
+            for mp in combos
+        ]
+    else:
+        with ProcessPoolExecutor(max_workers=effective_workers) as executor:
+            futures = [
+                executor.submit(
+                    _evaluate_sweep_combo,
+                    all_rows,
+                    feature_columns,
+                    targets,
+                    cv_splits,
+                    model_params,
+                    mp,
+                    sample_weight_column,
+                )
+                for mp in combos
+            ]
+            all_results = [f.result() for f in futures]
 
     best = min(all_results, key=lambda r: r["mean_rmse"])
+    logger.info(
+        "Sweep done in %.1fs: best RMSE=%.4f params=%s", time.perf_counter() - t0, best["mean_rmse"], best["params"]
+    )
     return GridSearchResult(
         best_params=best["params"],
         best_mean_rmse=best["mean_rmse"],
