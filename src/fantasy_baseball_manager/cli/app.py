@@ -1,3 +1,5 @@
+import csv
+import datetime
 import math
 from pathlib import Path
 from typing import Annotated, Any
@@ -84,6 +86,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     statcast_pitch_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
+from fantasy_baseball_manager.ingest.fantasypros_adp_source import FantasyProsADPSource
 from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
@@ -1176,6 +1179,48 @@ def ingest_adp_bulk(
             console.print(
                 f"  {csv_file.name}: loaded {result.loaded}, skipped {result.skipped}, unmatched {n_unmatched}"
             )
+
+
+def _write_adp_csv(rows: list[dict[str, Any]], path: Path) -> None:
+    if not rows:
+        return
+    fieldnames = list(rows[0].keys())
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+@ingest_app.command("adp-fetch")
+def ingest_adp_fetch(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    as_of: Annotated[str | None, typer.Option("--as-of", help="Snapshot date (ISO)")] = None,
+    save_csv: Annotated[Path | None, typer.Option("--save-csv", help="Save fetched data to CSV")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Fetch live ADP data from FantasyPros and ingest it."""
+    if as_of is None:
+        as_of = datetime.date.today().isoformat()
+
+    source = FantasyProsADPSource()
+    rows = source.fetch()
+    console.print(f"  Fetched {len(rows)} rows from FantasyPros")
+
+    if save_csv is not None:
+        _write_adp_csv(rows, save_csv)
+        console.print(f"  Saved CSV to {save_csv}")
+
+    with build_ingest_container(data_dir) as container:
+        players = container.player_repo.all()
+        result = ingest_fantasypros_adp(rows, container.adp_repo, players, season=season, as_of=as_of)
+        container.conn.commit()
+        console.print(f"  Loaded {result.loaded} ADP records, skipped {result.skipped}")
+        if result.unmatched:
+            console.print(
+                f"  [yellow]Unmatched players ({len(result.unmatched)}):[/yellow] {', '.join(result.unmatched[:20])}"
+            )
+            if len(result.unmatched) > 20:
+                console.print(f"  ... and {len(result.unmatched) - 20} more")
 
 
 # --- compute subcommand group ---
