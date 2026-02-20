@@ -22,10 +22,10 @@ max_leaf_nodes = 15
 min_samples_leaf = 50
 
 [models.statcast-gbm-preseason.params.batter]
-sample_weight_transform = "sqrt"
+sample_weight_transform = "log1p"
 
 [models.statcast-gbm-preseason.params.pitcher]
-sample_weight_transform = "raw"
+sample_weight_transform = "sqrt"
 learning_rate = 0.01
 max_depth = 3
 max_iter = 200
@@ -42,9 +42,12 @@ feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batti
 
 [models.composite-full.params]
 engine = "gbm"
-feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "mle_batter_rates", "statcast_gbm_preseason_batter_rates", "statcast_gbm_preseason_pitcher_rates"]
+feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "statcast_gbm_preseason_batter_rates", "statcast_gbm_preseason_pitcher_rates"]
+batter_sample_weight_column = "proj_pa"
+pitcher_sample_weight_column = "proj_ip"
 
 [models.composite-full.params.batter]
+sample_weight_transform = "sqrt"
 learning_rate = 0.05
 max_depth = 3
 max_iter = 100
@@ -52,6 +55,7 @@ max_leaf_nodes = 15
 min_samples_leaf = 50
 
 [models.composite-full.params.pitcher]
+sample_weight_transform = "sqrt"
 learning_rate = 0.01
 max_depth = 3
 max_iter = 200
