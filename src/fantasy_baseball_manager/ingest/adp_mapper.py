@@ -63,8 +63,8 @@ def _resolve_player(
     by_name_team: dict[tuple[str, str], int],
     by_name: dict[str, list[int]],
 ) -> int | None:
-    raw_name = row.get("Player", "")
-    team = row.get("Team", "").strip()
+    raw_name = row.get("Player") or ""
+    team = (row.get("Team") or "").strip()
     normalized = _normalize_name(raw_name)
 
     if team:
@@ -133,7 +133,7 @@ def ingest_fantasypros_adp(
         rank = int(rank_str)
         positions = row.get("Positions", "").strip()
 
-        avg_str = row.get("AVG", "").strip()
+        avg_str = row.get("AVG", "").strip().replace(",", "")
         if avg_str:
             repo.upsert(
                 ADP(
@@ -149,7 +149,7 @@ def ingest_fantasypros_adp(
             loaded += 1
 
         for col_name, slug in provider_columns:
-            val = row.get(col_name, "").strip()
+            val = row.get(col_name, "").strip().replace(",", "")
             if not val:
                 continue
             repo.upsert(
