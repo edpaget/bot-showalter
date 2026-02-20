@@ -21,7 +21,11 @@ max_iter = 100
 max_leaf_nodes = 15
 min_samples_leaf = 50
 
+[models.statcast-gbm-preseason.params.batter]
+sample_weight_transform = "sqrt"
+
 [models.statcast-gbm-preseason.params.pitcher]
+sample_weight_transform = "raw"
 learning_rate = 0.01
 max_depth = 3
 max_iter = 200

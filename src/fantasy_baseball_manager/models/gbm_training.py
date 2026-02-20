@@ -431,7 +431,7 @@ def build_cv_folds(
         train_rows = [r for s in train_seasons for r in rows_by_season.get(s, [])]
         test_rows = rows_by_season.get(test_season, [])
         if test_top_n is not None and sample_weight_column is not None and len(test_rows) > test_top_n:
-            test_rows = sorted(test_rows, key=lambda r: r.get(sample_weight_column, 0), reverse=True)[:test_top_n]
+            test_rows = sorted(test_rows, key=lambda r: r.get(sample_weight_column) or 0, reverse=True)[:test_top_n]
         train_sw = extract_sample_weights(train_rows, sample_weight_column) if sample_weight_column else None
         if train_sw is not None and sample_weight_transform is not None:
             train_sw = sample_weight_transform(train_sw)
