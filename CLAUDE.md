@@ -27,16 +27,17 @@ Fantasy baseball manager. Python 3.14+, uses `uv` for dependency management. Tes
 
 ## Planning
 
-This project uses two tiers of planning:
+This project uses three tiers of planning:
 
 1. **Roadmaps** (`/roadmap` skill) — High-level multi-phase plans written to `docs/plans/<topic>.md`. These describe what to build and in what order, but not implementation detail.
-2. **Phase plans** (built-in plan mode) — When implementing a specific phase from a roadmap, use plan mode to design the detailed implementation steps, then execute after approval.
+2. **Phase plans** — Detailed implementation plans at `docs/plans/<roadmap-name>/phase-<n>.md`, linked from the roadmap doc's phase section. These are the primary guide for headless agents implementing a phase.
+3. **Plan mode** (built-in) — The tool used to produce phase plans. After approval, persist the plan as a phase plan doc (tier 2).
 
 When asked to "create a plan", "write a plan", or "plan out" a feature — produce a **roadmap** document. Do NOT start implementing or exploring code for implementation purposes unless explicitly asked to implement.
 
 When implementing from a roadmap or plan document, read it first and implement exactly what it specifies. Do not expand scope beyond the plan unless asked. **Every roadmap phase must be implemented in its own worktree** — see [Worktree Workflow](#worktree-workflow) below.
 
-**When asked to implement a roadmap phase**, follow the two-step flow in [Worktree Workflow](#worktree-workflow): first plan (in plan mode), then dispatch a headless agent. Do NOT start implementing code directly.
+**When asked to implement a roadmap phase**, follow the three-step flow in [Worktree Workflow](#worktree-workflow): plan, persist, then dispatch. Do NOT start implementing code directly.
 
 ## Implementation Discipline
 
@@ -57,12 +58,13 @@ When executing a plan (after plan-mode approval):
 
 `roadmap/<roadmap-name>/phase-<n>` (e.g., `roadmap/worktree-workflow/phase-1`).
 
-### Two-step implementation flow
+### Three-step implementation flow
 
 This is the primary workflow for implementing roadmap phases:
 
 1. **Plan** — Enter plan mode, read the roadmap doc, explore relevant code, produce a detailed implementation plan, and get user approval.
-2. **Dispatch** — Run `./scripts/gwt-implement.sh <roadmap-name> <phase-number>` to create a worktree and launch a headless Claude Code agent that implements the phase in the background. Use `--dry-run` to preview the prompt and command first. Follow progress with `tail -f` on the log file.
+2. **Persist** — Write the approved plan to `docs/plans/<roadmap-name>/phase-<n>.md`. Add a `[Phase plan](<roadmap-name>/phase-<n>.md)` link in the roadmap doc's phase section. Commit both files on `main`.
+3. **Dispatch** — Run `./scripts/gwt-implement.sh <roadmap-name> <phase-number>` to create a worktree and launch a headless Claude Code agent that implements the phase in the background. The agent uses the persisted phase plan as its primary guide. Use `--dry-run` to preview the prompt and command first. Follow progress with `tail -f` on the log file.
 
 ### Manual worktree workflow
 

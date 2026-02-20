@@ -14,6 +14,9 @@ Arguments:
   roadmap-name   Name of the roadmap (matches docs/plans/<name>.md)
   phase-number   Phase number to implement
 
+The phase plan doc (docs/plans/<roadmap-name>/phase-<n>.md) must exist before
+dispatch. See CLAUDE.md three-step flow for the persist step.
+
 Options:
   --model <model>       Model to use (passed to claude -p)
   --base <ref>          Base ref for worktree (default: HEAD)
@@ -51,10 +54,18 @@ ROADMAP="$1"
 PHASE="$2"
 BRANCH="roadmap/${ROADMAP}/phase-${PHASE}"
 PLAN_DOC="docs/plans/${ROADMAP}.md"
+PHASE_PLAN_DOC="docs/plans/${ROADMAP}/phase-${PHASE}.md"
 
-# Validate plan doc exists
+# Validate roadmap doc exists
 if [[ ! -f "$REPO_ROOT/$PLAN_DOC" ]]; then
-    echo "Error: plan document not found: $PLAN_DOC" >&2
+    echo "Error: roadmap document not found: $PLAN_DOC" >&2
+    exit 1
+fi
+
+# Validate phase plan doc exists
+if [[ ! -f "$REPO_ROOT/$PHASE_PLAN_DOC" ]]; then
+    echo "Error: phase plan not found: $PHASE_PLAN_DOC" >&2
+    echo "  Persist the plan first (see CLAUDE.md three-step flow)." >&2
     exit 1
 fi
 
@@ -73,9 +84,12 @@ WORKTREE_DIR="$(dirname "$REPO_ROOT")/${REPO_NAME}-${DIR_SUFFIX}"
 PROMPT=$(cat <<'PROMPT_EOF'
 Read CLAUDE.md for project conventions and development commands.
 
-Read docs/plans/ROADMAP_PLACEHOLDER.md and find the Phase PHASE_PLACEHOLDER section.
+Read docs/plans/ROADMAP_PLACEHOLDER/phase-PHASE_PLACEHOLDER.md for the detailed implementation plan.
+This is the primary guide — follow its steps in order.
 
-Implement exactly what the phase specifies — no scope expansion beyond the plan.
+Also read docs/plans/ROADMAP_PLACEHOLDER.md for high-level context and acceptance criteria.
+
+Implement exactly what the phase plan specifies — no scope expansion beyond the plan.
 
 Follow TDD: write a failing test first, then the minimum code to make it pass, then refactor. Run `uv run pytest` after each major step to verify.
 
