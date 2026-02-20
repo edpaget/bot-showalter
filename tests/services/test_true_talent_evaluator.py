@@ -9,6 +9,7 @@ from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStats
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
+from tests.helpers import seed_player
 
 
 def _make_service(
@@ -21,22 +22,12 @@ def _make_service(
     return service, proj_repo, batting_repo, pitching_repo
 
 
-def _seed_player(conn: sqlite3.Connection, player_id: int, first: str = "Player", last: str | None = None) -> None:
-    last = last or str(player_id)
-    conn.execute(
-        "INSERT OR IGNORE INTO player (id, name_first, name_last, birth_date, bats) "
-        "VALUES (?, ?, ?, '1990-01-01', 'R')",
-        (player_id, first, last),
-    )
-    conn.commit()
-
-
 class TestDataAssembly:
     def test_returning_players_and_metadata(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, batting_repo, _ = _make_service(conn)
 
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         # Season N (2024): all 3 players have projections + actuals
         for pid in (1, 2, 3):
@@ -103,7 +94,7 @@ class TestPredictiveValidity:
 
         # Create 6 players with model estimates that track N+1 better than raw
         for pid in range(1, 7):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         # Model estimates in season N: close to true talent
         model_estimates = [0.270, 0.280, 0.290, 0.300, 0.310, 0.320]
@@ -174,7 +165,7 @@ class TestResidualNonPersistence:
         # Residuals_N1: [0.005, -0.005, 0.01, 0.005, -0.01, -0.005, 0.01, -0.005]
 
         for i, pid in enumerate(range(1, 9)):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -214,7 +205,7 @@ class TestShrinkageQuality:
         raw_actuals = [0.250, 0.270, 0.300, 0.330, 0.350]
 
         for i, pid in enumerate(range(1, 6)):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -260,7 +251,7 @@ class TestRSquaredDecomposition:
         pa_values = [100, 300, 500, 150, 450]
 
         for i, pid in enumerate(range(1, 6)):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -304,7 +295,7 @@ class TestStatFilter:
         service, proj_repo, batting_repo, _ = _make_service(conn)
 
         for pid in range(1, 4):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -358,7 +349,7 @@ class TestNoReturningPlayers:
 
         # Only season N data, no N+1 data
         for pid in range(1, 4):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -387,7 +378,7 @@ class TestPitcherEvaluation:
         service, proj_repo, _, pitching_repo = _make_service(conn)
 
         for pid in range(10, 16):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -448,7 +439,7 @@ class TestSummaryAggregation:
         n1_obp = [0.342, 0.348, 0.362, 0.368, 0.382, 0.388]
 
         for i, pid in enumerate(range(1, 7)):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,

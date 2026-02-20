@@ -1,17 +1,12 @@
 import sqlite3
 
 from fantasy_baseball_manager.domain.adp import ADP
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from fantasy_baseball_manager.services.adp_report import ADPReportService
-
-
-def _seed_player(conn: sqlite3.Connection, name_first: str, name_last: str, mlbam_id: int) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(Player(name_first=name_first, name_last=name_last, mlbam_id=mlbam_id))
+from tests.helpers import seed_player
 
 
 def _seed_valuation(
@@ -76,7 +71,7 @@ def _make_service(conn: sqlite3.Connection) -> ADPReportService:
 class TestBasicBuyAndAvoid:
     def test_buy_target_positive_delta(self, conn: sqlite3.Connection) -> None:
         """Player ranked higher by ZAR (rank 5) than ADP (rank 50) => buy target."""
-        pid = _seed_player(conn, "Juan", "Soto", 665742)
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         _seed_valuation(conn, pid, rank=5, value=40.0, position="OF")
         _seed_adp(conn, pid, overall_pick=50.0, rank=50, positions="OF")
 
@@ -100,7 +95,7 @@ class TestBasicBuyAndAvoid:
 
     def test_avoid_negative_delta(self, conn: sqlite3.Connection) -> None:
         """Player ranked lower by ZAR (rank 50) than ADP (rank 5) => avoid."""
-        pid = _seed_player(conn, "Overvalued", "Guy", 100001)
+        pid = seed_player(conn, name_first="Overvalued", name_last="Guy", mlbam_id=100001)
         _seed_valuation(conn, pid, rank=50, value=5.0, position="1B")
         _seed_adp(conn, pid, overall_pick=5.0, rank=5, positions="1B")
 
@@ -118,10 +113,10 @@ class TestBasicBuyAndAvoid:
 
     def test_buy_and_avoid_sorted(self, conn: sqlite3.Connection) -> None:
         """Multiple players: buy targets sorted desc by delta, avoid sorted asc."""
-        pid1 = _seed_player(conn, "Big", "Buy", 100001)
-        pid2 = _seed_player(conn, "Small", "Buy", 100002)
-        pid3 = _seed_player(conn, "Big", "Avoid", 100003)
-        pid4 = _seed_player(conn, "Small", "Avoid", 100004)
+        pid1 = seed_player(conn, name_first="Big", name_last="Buy", mlbam_id=100001)
+        pid2 = seed_player(conn, name_first="Small", name_last="Buy", mlbam_id=100002)
+        pid3 = seed_player(conn, name_first="Big", name_last="Avoid", mlbam_id=100003)
+        pid4 = seed_player(conn, name_first="Small", name_last="Avoid", mlbam_id=100004)
 
         # Buy targets: ZAR ranks them higher than ADP
         _seed_valuation(conn, pid1, rank=1, value=50.0)
@@ -153,7 +148,7 @@ class TestBasicBuyAndAvoid:
 
 class TestUnrankedValuable:
     def test_player_with_valuation_but_no_adp_is_sleeper(self, conn: sqlite3.Connection) -> None:
-        pid = _seed_player(conn, "Hidden", "Gem", 100001)
+        pid = seed_player(conn, name_first="Hidden", name_last="Gem", mlbam_id=100001)
         _seed_valuation(conn, pid, rank=50, value=20.0)
 
         svc = _make_service(conn)
@@ -165,7 +160,7 @@ class TestUnrankedValuable:
         assert report.unranked_valuable[0].zar_rank == 50
 
     def test_unranked_outside_top300_excluded(self, conn: sqlite3.Connection) -> None:
-        pid = _seed_player(conn, "Marginal", "Player", 100001)
+        pid = seed_player(conn, name_first="Marginal", name_last="Player", mlbam_id=100001)
         _seed_valuation(conn, pid, rank=301, value=0.5)
 
         svc = _make_service(conn)
@@ -176,8 +171,8 @@ class TestUnrankedValuable:
 
 class TestFilterByPlayerType:
     def test_only_batters(self, conn: sqlite3.Connection) -> None:
-        pid_bat = _seed_player(conn, "Juan", "Soto", 665742)
-        pid_pit = _seed_player(conn, "Gerrit", "Cole", 543037)
+        pid_bat = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        pid_pit = seed_player(conn, name_first="Gerrit", name_last="Cole", mlbam_id=543037)
         _seed_valuation(conn, pid_bat, rank=1, value=40.0, player_type="batter")
         _seed_valuation(conn, pid_pit, rank=2, value=30.0, player_type="pitcher", position="SP")
         _seed_adp(conn, pid_bat, overall_pick=5.0, rank=5, positions="OF")
@@ -193,8 +188,8 @@ class TestFilterByPlayerType:
             assert entry.player_type == "batter"
 
     def test_only_pitchers(self, conn: sqlite3.Connection) -> None:
-        pid_bat = _seed_player(conn, "Juan", "Soto", 665742)
-        pid_pit = _seed_player(conn, "Gerrit", "Cole", 543037)
+        pid_bat = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        pid_pit = seed_player(conn, name_first="Gerrit", name_last="Cole", mlbam_id=543037)
         _seed_valuation(conn, pid_bat, rank=1, value=40.0, player_type="batter")
         _seed_valuation(conn, pid_pit, rank=2, value=30.0, player_type="pitcher", position="SP")
         _seed_adp(conn, pid_bat, overall_pick=5.0, rank=5, positions="OF")
@@ -211,8 +206,8 @@ class TestFilterByPlayerType:
 
 class TestFilterByPosition:
     def test_only_of(self, conn: sqlite3.Connection) -> None:
-        pid_of = _seed_player(conn, "Juan", "Soto", 665742)
-        pid_1b = _seed_player(conn, "Freddie", "Freeman", 518692)
+        pid_of = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        pid_1b = seed_player(conn, name_first="Freddie", name_last="Freeman", mlbam_id=518692)
         _seed_valuation(conn, pid_of, rank=1, value=40.0, position="OF")
         _seed_valuation(conn, pid_1b, rank=2, value=35.0, position="1B")
         _seed_adp(conn, pid_of, overall_pick=5.0, rank=5, positions="OF")
@@ -231,13 +226,13 @@ class TestTopLimitsSections:
     def test_top_limits_each_section(self, conn: sqlite3.Connection) -> None:
         # Create 10 buy targets
         for i in range(10):
-            pid = _seed_player(conn, f"Buy{i}", "Target", 100000 + i)
+            pid = seed_player(conn, name_first=f"Buy{i}", name_last="Target", mlbam_id=100000 + i)
             _seed_valuation(conn, pid, rank=i + 1, value=float(50 - i))
             _seed_adp(conn, pid, overall_pick=float(200 + i), rank=200 + i, positions="OF")
 
         # Create 10 avoid players
         for i in range(10):
-            pid = _seed_player(conn, f"Avoid{i}", "Player", 200000 + i)
+            pid = seed_player(conn, name_first=f"Avoid{i}", name_last="Player", mlbam_id=200000 + i)
             _seed_valuation(conn, pid, rank=200 + i, value=float(5 - i * 0.1))
             _seed_adp(conn, pid, overall_pick=float(i + 1), rank=i + 1, positions="OF")
 
@@ -250,7 +245,7 @@ class TestTopLimitsSections:
 
 class TestEmptyInputs:
     def test_no_valuations(self, conn: sqlite3.Connection) -> None:
-        pid = _seed_player(conn, "Juan", "Soto", 665742)
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         _seed_adp(conn, pid, overall_pick=5.0, rank=5, positions="OF")
 
         svc = _make_service(conn)
@@ -262,7 +257,7 @@ class TestEmptyInputs:
         assert report.unranked_valuable == []
 
     def test_no_adp(self, conn: sqlite3.Connection) -> None:
-        pid = _seed_player(conn, "Juan", "Soto", 665742)
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         _seed_valuation(conn, pid, rank=1, value=40.0)
 
         svc = _make_service(conn)
@@ -276,7 +271,7 @@ class TestEmptyInputs:
 class TestTwoWayPlayer:
     def test_picks_lowest_rank_adp(self, conn: sqlite3.Connection) -> None:
         """Ohtani has batter and pitcher ADP entries; use lowest overall_pick."""
-        pid = _seed_player(conn, "Shohei", "Ohtani", 660271)
+        pid = seed_player(conn, name_first="Shohei", name_last="Ohtani", mlbam_id=660271)
         _seed_valuation(conn, pid, rank=5, value=50.0, player_type="batter")
         # Batter ADP: pick 2, rank 2 (better)
         _seed_adp(conn, pid, overall_pick=2.0, rank=2, positions="DH")
@@ -295,7 +290,7 @@ class TestTwoWayPlayer:
 
     def test_two_way_player_type_filter_picks_matching(self, conn: sqlite3.Connection) -> None:
         """When filtering by player_type, pick the ADP entry matching that type."""
-        pid = _seed_player(conn, "Shohei", "Ohtani", 660271)
+        pid = seed_player(conn, name_first="Shohei", name_last="Ohtani", mlbam_id=660271)
         _seed_valuation(conn, pid, rank=3, value=35.0, player_type="pitcher", position="SP")
         # Batter ADP: pick 1
         _seed_adp(conn, pid, overall_pick=1.0, rank=1, positions="DH")
@@ -315,7 +310,7 @@ class TestTwoWayPlayer:
 
 class TestVersionFilter:
     def test_only_matching_version_included(self, conn: sqlite3.Connection) -> None:
-        pid = _seed_player(conn, "Juan", "Soto", 665742)
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         _seed_valuation(conn, pid, rank=1, value=40.0, version="1.0")
         _seed_valuation(conn, pid, rank=5, value=35.0, version="2.0")
         _seed_adp(conn, pid, overall_pick=5.0, rank=5, positions="OF")
@@ -332,7 +327,7 @@ class TestVersionFilter:
 
 class TestReportMetadata:
     def test_report_metadata(self, conn: sqlite3.Connection) -> None:
-        pid = _seed_player(conn, "Juan", "Soto", 665742)
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         _seed_valuation(conn, pid, rank=1, value=40.0)
         _seed_adp(conn, pid, overall_pick=5.0, rank=5, positions="OF")
 

@@ -1,19 +1,14 @@
 import sqlite3
 from typing import Any
 
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_milb_batting_mapper
 from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from tests.helpers import seed_player
 from tests.ingest.conftest import FakeDataSource
-
-
-def _seed_player(conn: sqlite3.Connection, *, mlbam_id: int = 545361) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=mlbam_id))
 
 
 def _milb_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
@@ -49,7 +44,7 @@ def _milb_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
 
 class TestMilbLoader:
     def test_end_to_end_load(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, mlbam_id=545361)
         players = SqlitePlayerRepo(conn).all()
         mapper = make_milb_batting_mapper(players)
 
@@ -72,7 +67,7 @@ class TestMilbLoader:
         assert results[0].level == "AAA"
 
     def test_unknown_players_skipped(self, conn: sqlite3.Connection) -> None:
-        _seed_player(conn, mlbam_id=545361)
+        seed_player(conn, mlbam_id=545361)  # seed known player; test row uses unknown mlbam_id
         players = SqlitePlayerRepo(conn).all()
         mapper = make_milb_batting_mapper(players)
 
@@ -89,7 +84,7 @@ class TestMilbLoader:
         assert result.value.rows_loaded == 0
 
     def test_multi_level_season(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, mlbam_id=545361)
         players = SqlitePlayerRepo(conn).all()
         mapper = make_milb_batting_mapper(players)
 

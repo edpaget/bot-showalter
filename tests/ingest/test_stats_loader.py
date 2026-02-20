@@ -3,7 +3,6 @@ from typing import Any
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_batting_mapper,
@@ -13,26 +12,8 @@ from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStats
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from tests.helpers import seed_player
 from tests.ingest.conftest import ErrorDataSource, FakeDataSource
-
-
-def _seed_player(
-    conn,
-    *,
-    name_first: str = "Mike",
-    name_last: str = "Trout",
-    mlbam_id: int = 545361,
-    fangraphs_id: int = 10155,
-) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(
-        Player(
-            name_first=name_first,
-            name_last=name_last,
-            mlbam_id=mlbam_id,
-            fangraphs_id=fangraphs_id,
-        )
-    )
 
 
 def _batting_mapper(row: dict[str, Any]) -> BattingStats | None:
@@ -64,7 +45,7 @@ def _batting_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
 
 class TestStatsLoader:
     def test_loads_batting_stats_and_writes_success_log(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         source = FakeDataSource(_batting_rows({"player_id": player_id}))
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
@@ -85,7 +66,7 @@ class TestStatsLoader:
         assert len(stats) == 1
 
     def test_skips_rows_where_mapper_returns_none(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         rows = [
             {"player_id": player_id, "season": 2024},
             {"season": 2024},  # missing player_id → mapper returns None
@@ -132,7 +113,7 @@ class TestStatsLoader:
         assert log.rows_loaded == 0
 
     def test_timestamps_are_valid_iso_strings(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         source = FakeDataSource(_batting_rows({"player_id": player_id}))
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
@@ -147,7 +128,7 @@ class TestStatsLoader:
         assert started <= finished
 
     def test_works_with_pitching_repo(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         rows = [{"player_id": player_id, "season": 2024}]
         source = FakeDataSource(rows)
         repo = SqlitePitchingStatsRepo(conn)
@@ -166,7 +147,7 @@ class TestStatsLoader:
         assert len(stats) == 1
 
     def test_upsert_error_rolls_back_and_writes_error_log(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         conn.commit()
         # First row valid, second row has nonexistent player_id causing FK violation
         rows = [
@@ -194,7 +175,7 @@ class TestStatsLoader:
 
 class TestStatsLoaderIntegration:
     def test_fg_batting_end_to_end(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_batting_mapper(players)
@@ -248,7 +229,7 @@ class TestStatsLoaderIntegration:
         assert stats[0].war == 7.0
 
     def test_unknown_players_skipped(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_batting_mapper(players)

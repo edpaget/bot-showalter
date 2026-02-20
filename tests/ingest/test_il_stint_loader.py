@@ -1,18 +1,13 @@
 from typing import Any
 
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_il_stint_mapper
 from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from tests.helpers import seed_player
 from tests.ingest.conftest import FakeDataSource
-
-
-def _seed_player(conn, *, mlbam_id: int = 545361) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=mlbam_id))
 
 
 def _il_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
@@ -28,7 +23,7 @@ def _il_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
 
 class TestILStintLoader:
     def test_end_to_end_placement_and_activation(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, mlbam_id=545361)
         players = SqlitePlayerRepo(conn).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
@@ -68,7 +63,7 @@ class TestILStintLoader:
         assert types == {"placement", "activation"}
 
     def test_non_il_transactions_skipped(self, conn) -> None:
-        _seed_player(conn)
+        seed_player(conn, mlbam_id=545361)
         players = SqlitePlayerRepo(conn).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
@@ -100,7 +95,7 @@ class TestILStintLoader:
         assert result.value.rows_loaded == 1
 
     def test_unknown_player_skipped(self, conn) -> None:
-        _seed_player(conn, mlbam_id=545361)
+        seed_player(conn, mlbam_id=545361)
         players = SqlitePlayerRepo(conn).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
@@ -125,7 +120,7 @@ class TestILStintLoader:
         assert result.value.rows_loaded == 0
 
     def test_upsert_idempotency_via_loader(self, conn) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, mlbam_id=545361)
         players = SqlitePlayerRepo(conn).all()
         mapper = make_il_stint_mapper(players, season=2024)
 

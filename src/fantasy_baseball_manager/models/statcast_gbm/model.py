@@ -306,6 +306,7 @@ class _StatcastGBMBase:
             self._batter_sample_weight_column,
             sample_weight_transform=bat_transform,
             test_top_n=config.top,
+            test_rank_column="war",
         )
         bat_result = grid_search_cv(bat_folds, param_grid)
 
@@ -321,6 +322,7 @@ class _StatcastGBMBase:
             self._pitcher_sample_weight_column,
             sample_weight_transform=pit_transform,
             test_top_n=config.top,
+            test_rank_column="war",
         )
         pit_result = grid_search_cv(pit_folds, param_grid)
 
@@ -363,6 +365,7 @@ class _StatcastGBMBase:
             sweep_grid,
             sample_weight_column=self._batter_sample_weight_column,
             test_top_n=config.top,
+            test_rank_column="war",
         )
 
         # Pitcher sweep
@@ -378,6 +381,7 @@ class _StatcastGBMBase:
             sweep_grid,
             sample_weight_column=self._pitcher_sample_weight_column,
             test_top_n=config.top,
+            test_rank_column="war",
         )
 
         return TuneResult(

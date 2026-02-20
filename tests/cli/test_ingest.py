@@ -12,13 +12,13 @@ from fantasy_baseball_manager.cli.factory import IngestContainer
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.ingest.protocols import DataSource
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
+from tests.helpers import seed_player
 
 runner = CliRunner()
 
@@ -223,26 +223,23 @@ class TestIngestPlayers:
 
 def _seed_players(conn: sqlite3.Connection) -> None:
     """Seed player data needed for batting/pitching/bio mapper lookups."""
-    repo = SqlitePlayerRepo(conn)
-    repo.upsert(
-        Player(
-            name_first="Mike",
-            name_last="Trout",
-            mlbam_id=545361,
-            fangraphs_id=10155,
-            bbref_id="troutmi01",
-            retro_id="troum001",
-        )
+    seed_player(
+        conn,
+        name_first="Mike",
+        name_last="Trout",
+        mlbam_id=545361,
+        fangraphs_id=10155,
+        bbref_id="troutmi01",
+        retro_id="troum001",
     )
-    repo.upsert(
-        Player(
-            name_first="Shohei",
-            name_last="Ohtani",
-            mlbam_id=660271,
-            fangraphs_id=19755,
-            bbref_id="ohtansh01",
-            retro_id="ohtas001",
-        )
+    seed_player(
+        conn,
+        name_first="Shohei",
+        name_last="Ohtani",
+        mlbam_id=660271,
+        fangraphs_id=19755,
+        bbref_id="ohtansh01",
+        retro_id="ohtas001",
     )
     conn.commit()
 

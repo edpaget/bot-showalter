@@ -10,6 +10,7 @@ from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingSta
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
+from tests.helpers import seed_player
 
 
 _ServiceTuple = tuple[
@@ -26,21 +27,11 @@ def _make_service(conn: sqlite3.Connection) -> _ServiceTuple:
     return service, proj_repo, player_repo, batting_repo, pitching_repo
 
 
-def _seed_player(conn: sqlite3.Connection, player_id: int, first: str = "Player", last: str | None = None) -> None:
-    last = last or str(player_id)
-    conn.execute(
-        "INSERT OR IGNORE INTO player (id, name_first, name_last, birth_date, bats) "
-        "VALUES (?, ?, ?, '1990-01-01', 'R')",
-        (player_id, first, last),
-    )
-    conn.commit()
-
-
 class TestComputeDeltasBatterDirectStats:
     def test_compute_deltas_batter_direct_stats(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         proj_repo.upsert(
             Projection(
@@ -82,7 +73,7 @@ class TestComputeDeltasPitcherDirectStats:
     def test_compute_deltas_pitcher_direct_stats(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, _, pitching_repo = _make_service(conn)
         for pid in (10, 11):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         proj_repo.upsert(
             Projection(
@@ -116,7 +107,7 @@ class TestComputeDeltasPitcherDirectStats:
 class TestComputeDeltasDerivedBatterIso:
     def test_compute_deltas_derived_batter_iso(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)
-        _seed_player(conn, 1)
+        seed_player(conn, player_id=1)
 
         proj_repo.upsert(
             Projection(
@@ -141,7 +132,7 @@ class TestComputeDeltasDerivedBatterIso:
 class TestComputeDeltasDerivedBatterBabip:
     def test_compute_deltas_derived_batter_babip(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)
-        _seed_player(conn, 1)
+        seed_player(conn, player_id=1)
 
         proj_repo.upsert(
             Projection(
@@ -178,7 +169,7 @@ class TestComputeDeltasDerivedBatterBabip:
 class TestComputeDeltasDerivedPitcherHrPer9:
     def test_compute_deltas_derived_pitcher_hr_per_9(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, _, pitching_repo = _make_service(conn)
-        _seed_player(conn, 10)
+        seed_player(conn, player_id=10)
 
         proj_repo.upsert(
             Projection(
@@ -203,7 +194,7 @@ class TestComputeDeltasDerivedPitcherHrPer9:
 class TestComputeDeltasDerivedPitcherBabip:
     def test_compute_deltas_derived_pitcher_babip(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, _, pitching_repo = _make_service(conn)
-        _seed_player(conn, 10)
+        seed_player(conn, player_id=10)
 
         proj_repo.upsert(
             Projection(
@@ -238,8 +229,8 @@ class TestComputeDeltasDerivedPitcherBabip:
 class TestComputeDeltasSkipsMissingProjection:
     def test_compute_deltas_skips_missing_projection(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)
-        _seed_player(conn, 1)
-        _seed_player(conn, 2)
+        seed_player(conn, player_id=1)
+        seed_player(conn, player_id=2)
 
         # Only player 1 has a projection
         proj_repo.upsert(
@@ -264,8 +255,8 @@ class TestComputeDeltasSkipsMissingProjection:
 class TestComputeDeltasSkipsMissingActual:
     def test_compute_deltas_skips_missing_actual(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)
-        _seed_player(conn, 1)
-        _seed_player(conn, 2)
+        seed_player(conn, player_id=1)
+        seed_player(conn, player_id=2)
 
         proj_repo.upsert(
             Projection(
@@ -300,7 +291,7 @@ class TestComputeDeltasPercentileRanking:
     def test_compute_deltas_percentile_ranking(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         # All project avg=0.280, actuals differ to get different deltas
         for pid in (1, 2, 3):
@@ -335,7 +326,7 @@ class TestComputeDeltasInvertedStatPerformanceDelta:
     def test_compute_deltas_inverted_stat_performance_delta(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, _, pitching_repo = _make_service(conn)
         for pid in (10, 11):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         proj_repo.upsert(
             Projection(
@@ -378,7 +369,7 @@ class TestComputeDeltasInvertedStatPerformanceDelta:
 class TestComputeDeltasFiltersByStat:
     def test_compute_deltas_filters_by_stat(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, _, pitching_repo = _make_service(conn)
-        _seed_player(conn, 10)
+        seed_player(conn, player_id=10)
 
         proj_repo.upsert(
             Projection(
@@ -411,7 +402,7 @@ class TestMinPaFiltersBatters:
     def test_min_pa_filters_low_pa_batters(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         for pid in (1, 2):
             proj_repo.upsert(
@@ -437,7 +428,7 @@ class TestMinPaFiltersLowIpPitchers:
     def test_min_pa_filters_low_ip_pitchers(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, _, pitching_repo = _make_service(conn)
         for pid in (10, 11):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         for pid in (10, 11):
             proj_repo.upsert(
@@ -463,7 +454,7 @@ class TestMinPaNoneIncludesAll:
     def test_min_pa_none_includes_all(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
         for pid in (1, 2):
             proj_repo.upsert(

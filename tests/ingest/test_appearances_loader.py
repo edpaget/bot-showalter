@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Any
 
-from fantasy_baseball_manager.domain.player import Player, Team
+from fantasy_baseball_manager.domain.player import Team
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import (
     make_position_appearance_mapper,
@@ -12,14 +12,8 @@ from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
+from tests.helpers import seed_player
 from tests.ingest.conftest import FakeDataSource
-
-
-def _seed_player(conn: sqlite3.Connection) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(
-        Player(name_first="Mike", name_last="Trout", mlbam_id=545361, bbref_id="troutmi01", retro_id="troum001")
-    )
 
 
 def _seed_team(conn: sqlite3.Connection) -> int:
@@ -42,7 +36,7 @@ def _roster_rows() -> list[dict[str, Any]]:
 
 class TestPositionAppearanceLoader:
     def test_end_to_end(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         players = SqlitePlayerRepo(conn).all()
         mapper = make_position_appearance_mapper(players)
 
@@ -66,7 +60,7 @@ class TestPositionAppearanceLoader:
         assert positions["DH"] == 25
 
     def test_unknown_player_skipped(self, conn: sqlite3.Connection) -> None:
-        _seed_player(conn)
+        seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         players = SqlitePlayerRepo(conn).all()
         mapper = make_position_appearance_mapper(players)
 
@@ -83,7 +77,7 @@ class TestPositionAppearanceLoader:
         assert result.value.rows_loaded == 0
 
     def test_upsert_idempotency(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         players = SqlitePlayerRepo(conn).all()
         mapper = make_position_appearance_mapper(players)
 
@@ -101,7 +95,7 @@ class TestPositionAppearanceLoader:
 
 class TestRosterStintLoader:
     def test_end_to_end(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         team_id = _seed_team(conn)
         players = SqlitePlayerRepo(conn).all()
         teams = SqliteTeamRepo(conn).all()
@@ -126,7 +120,7 @@ class TestRosterStintLoader:
         assert stints[0].start_date == "2023-03-01"
 
     def test_unknown_team_skipped(self, conn: sqlite3.Connection) -> None:
-        _seed_player(conn)
+        seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         _seed_team(conn)
         players = SqlitePlayerRepo(conn).all()
         teams = SqliteTeamRepo(conn).all()
@@ -145,7 +139,7 @@ class TestRosterStintLoader:
         assert result.value.rows_loaded == 0
 
     def test_upsert_idempotency(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         _seed_team(conn)
         players = SqlitePlayerRepo(conn).all()
         teams = SqliteTeamRepo(conn).all()

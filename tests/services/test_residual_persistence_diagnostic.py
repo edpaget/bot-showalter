@@ -8,6 +8,7 @@ from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStats
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.residual_persistence_diagnostic import ResidualPersistenceDiagnostic
+from tests.helpers import seed_player
 
 
 def _make_service(
@@ -20,22 +21,12 @@ def _make_service(
     return service, proj_repo, batting_repo, player_repo
 
 
-def _seed_player(conn: sqlite3.Connection, player_id: int, first: str = "Player", last: str | None = None) -> None:
-    last = last or str(player_id)
-    conn.execute(
-        "INSERT OR IGNORE INTO player (id, name_first, name_last, birth_date, bats) "
-        "VALUES (?, ?, ?, '1990-01-01', 'R')",
-        (player_id, first, last),
-    )
-    conn.commit()
-
-
 class TestDataAssembly:
     def test_returning_players_and_metadata(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, batting_repo, _ = _make_service(conn)
 
         for pid in (1, 2, 3):
-            _seed_player(conn, pid, last=f"P{pid}")
+            seed_player(conn, player_id=pid, name_last=f"P{pid}")
 
         # Season N: all 3 players
         for pid in (1, 2, 3):
@@ -111,7 +102,7 @@ class TestResidualCorrelation:
         pa_values = [100, 150, 250, 350, 450, 500, 300, 550]
 
         for i, pid in enumerate(range(1, 9)):
-            _seed_player(conn, pid, last=f"P{pid}")
+            seed_player(conn, player_id=pid, name_last=f"P{pid}")
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -166,7 +157,7 @@ class TestChronicPerformers:
 
         for i, pid in enumerate(range(1, 7)):
             first = ["Over1", "Over2", "Under1", "Normal1", "Normal2", "Normal3"][i]
-            _seed_player(conn, pid, first=first, last=f"L{pid}")
+            seed_player(conn, player_id=pid, name_first=first, name_last=f"L{pid}")
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -212,7 +203,7 @@ class TestRmseCeiling:
         actuals_n1 = [0.292, 0.302, 0.312, 0.322]  # same +0.020 bias
 
         for i, pid in enumerate(range(1, 5)):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -254,7 +245,7 @@ class TestGoNoGoSummary:
         biases = [0.010, 0.020, 0.030, -0.010, -0.020, 0.015]
 
         for i, pid in enumerate(range(1, 7)):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
 
             avg_est = 0.270 + i * 0.010
             obp_est = 0.340 + i * 0.010
@@ -357,7 +348,7 @@ class TestNoReturningPlayers:
 
         # Only season N data
         for pid in range(1, 4):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,
@@ -387,7 +378,7 @@ class TestStatFilter:
         service, proj_repo, batting_repo, _ = _make_service(conn)
 
         for pid in range(1, 4):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
             proj_repo.upsert(
                 Projection(
                     player_id=pid,

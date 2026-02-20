@@ -1,5 +1,6 @@
 from typing import Any
 
+from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
@@ -108,6 +109,23 @@ class FakeProjectionRepo:
 
     def get_distributions(self, projection_id: int) -> list[Any]:
         return []
+
+
+class FakeADPRepo:
+    def __init__(self, adps: list[ADP] | None = None) -> None:
+        self._adps = adps or []
+
+    def upsert(self, adp: ADP) -> int:
+        return 1
+
+    def get_by_player_season(self, player_id: int, season: int) -> list[ADP]:
+        return [a for a in self._adps if a.player_id == player_id and a.season == season]
+
+    def get_by_season(self, season: int, provider: str | None = None) -> list[ADP]:
+        result = [a for a in self._adps if a.season == season]
+        if provider is not None:
+            result = [a for a in result if a.provider == provider]
+        return result
 
 
 class FakeBattingStatsRepo:

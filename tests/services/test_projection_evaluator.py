@@ -9,6 +9,7 @@ from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.domain.evaluation import StratifiedComparisonResult
 from fantasy_baseball_manager.domain.pt_normalization import ConsensusLookup
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
+from tests.helpers import seed_player
 
 
 def _make_evaluator(
@@ -112,20 +113,11 @@ def _seed_pitching_actuals(
     )
 
 
-def _seed_player(conn: sqlite3.Connection, player_id: int) -> None:
-    conn.execute(
-        "INSERT OR IGNORE INTO player (id, name_first, name_last, birth_date, bats) "
-        "VALUES (?, 'Player', ?, '1990-01-01', 'R')",
-        (player_id, str(player_id)),
-    )
-    conn.commit()
-
-
 class TestEvaluateBattingSystem:
     def test_evaluate_batting_system(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
@@ -146,7 +138,7 @@ class TestEvaluatePitchingSystem:
     def test_evaluate_pitching_system(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
         for pid in (10, 11):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
         _seed_pitcher_projection(proj_repo, 11, era=4.00, so=150)
         _seed_pitching_actuals(pitching_repo, 10, era=3.50, so=190)
@@ -163,7 +155,7 @@ class TestEvaluateMixedPlayerTypes:
     def test_evaluate_mixed_player_types(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, pitching_repo = _make_evaluator(conn)
         for pid in (1, 10):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
         _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
@@ -177,7 +169,7 @@ class TestEvaluateMixedPlayerTypes:
 class TestEvaluateFiltersBySeason:
     def test_evaluate_filters_by_season(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
-        _seed_player(conn, 1)
+        seed_player(conn, player_id=1)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, season=2024)
         _seed_batter_projection(proj_repo, 1, hr=35, avg=0.290, season=2025)
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265, season=2025)
@@ -190,7 +182,7 @@ class TestEvaluateSkipsPlayersWithoutActuals:
     def test_evaluate_skips_players_without_actuals(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
@@ -204,7 +196,7 @@ class TestEvaluateWithStatFilter:
     def test_evaluate_with_stat_filter(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
@@ -218,7 +210,7 @@ class TestEvaluateWithStatFilter:
 class TestEvaluateSourceType:
     def test_source_type_from_projections(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
-        _seed_player(conn, 1)
+        seed_player(conn, player_id=1)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, source_type="third_party")
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
 
@@ -238,7 +230,7 @@ class TestCompareMultipleSystems:
     def test_compare_multiple_systems(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, system="steamer", version="2025.1")
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300, system="steamer", version="2025.1")
         _seed_batter_projection(proj_repo, 1, hr=32, avg=0.275, system="zips", version="2025.1")
@@ -262,7 +254,7 @@ class TestEvaluateActualsDriven:
         """A player with actuals but no projection should appear with projected=0."""
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         # Player 1 has projection and actuals
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
@@ -276,7 +268,7 @@ class TestEvaluateActualsDriven:
     def test_unprojected_pitcher_included_with_zero(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
         for pid in (10, 11):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
         _seed_pitching_actuals(pitching_repo, 10, era=3.50, so=190)
         # Player 11 has only actuals
@@ -291,7 +283,7 @@ class TestEvaluateTopNFilter:
     def test_top_filters_by_war(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
@@ -306,7 +298,7 @@ class TestEvaluateTopNFilter:
     def test_top_none_includes_all(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
@@ -320,7 +312,7 @@ class TestEvaluateTopNFilter:
     def test_top_filters_pitchers_by_war(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
         for pid in (10, 11, 12):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
         _seed_pitcher_projection(proj_repo, 11, era=4.00, so=150)
         _seed_pitcher_projection(proj_repo, 12, era=5.00, so=100)
@@ -337,7 +329,7 @@ class TestEvaluateMinPaIpFilter:
     def test_min_pa_filters_low_pa_batters(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
@@ -351,7 +343,7 @@ class TestEvaluateMinPaIpFilter:
     def test_min_ip_filters_low_ip_pitchers(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
         for pid in (10, 11, 12):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
         _seed_pitcher_projection(proj_repo, 11, era=4.00, so=150)
         _seed_pitcher_projection(proj_repo, 12, era=5.00, so=100)
@@ -365,7 +357,7 @@ class TestEvaluateMinPaIpFilter:
     def test_min_pa_none_includes_all(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
@@ -379,7 +371,7 @@ class TestEvaluateMinPaIpFilter:
     def test_min_pa_and_top_compose(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
@@ -396,7 +388,7 @@ class TestCompareComposedSystems:
     def test_compare_includes_ensemble_system(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=29, avg=0.270, system="ensemble", version="2025.1")
         _seed_batter_projection(proj_repo, 2, hr=23, avg=0.295, system="ensemble", version="2025.1")
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
@@ -414,7 +406,7 @@ class TestCompareComposedSystems:
     def test_compare_includes_composite_system(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, system="composite", version="2025.1")
         _seed_batter_projection(proj_repo, 2, hr=24, avg=0.290, system="composite", version="2025.1")
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
@@ -431,7 +423,7 @@ class TestCompareComposedSystems:
     def test_compare_ensemble_alongside_components(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         # Component systems
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, system="marcel", version="2025.1")
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300, system="marcel", version="2025.1")
@@ -459,7 +451,7 @@ class TestEvaluateStratified:
     def test_evaluate_stratified_splits_by_cohort(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2, 3):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
@@ -478,7 +470,7 @@ class TestEvaluateStratified:
     def test_evaluate_stratified_excludes_unassigned(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
@@ -496,7 +488,7 @@ class TestCompareStratified:
     def test_compare_stratified_returns_per_cohort(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280, system="steamer", version="2025.1")
         _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300, system="steamer", version="2025.1")
         _seed_batter_projection(proj_repo, 1, hr=32, avg=0.275, system="zips", version="2025.1")
@@ -524,7 +516,7 @@ class TestCompareStratified:
 class TestEvaluateWithNormalizePt:
     def test_evaluate_with_normalize_pt_rescales_counting(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
-        _seed_player(conn, 1)
+        seed_player(conn, player_id=1)
         proj_repo.upsert(
             Projection(
                 player_id=1,
@@ -545,7 +537,7 @@ class TestEvaluateWithNormalizePt:
 
     def test_evaluate_normalize_pt_none_is_noop(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
-        _seed_player(conn, 1)
+        seed_player(conn, player_id=1)
         _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
         _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
 
@@ -555,7 +547,7 @@ class TestEvaluateWithNormalizePt:
 
     def test_evaluate_normalize_pt_skips_uncovered_player(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
-        _seed_player(conn, 1)
+        seed_player(conn, player_id=1)
         proj_repo.upsert(
             Projection(
                 player_id=1,
@@ -578,7 +570,7 @@ class TestEvaluateWithNormalizePt:
     def test_compare_passes_normalize_pt_through(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1,):
-            _seed_player(conn, pid)
+            seed_player(conn, player_id=pid)
         for system in ("steamer", "zips"):
             proj_repo.upsert(
                 Projection(

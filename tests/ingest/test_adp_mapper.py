@@ -1,6 +1,5 @@
 import sqlite3
 
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
     _discover_provider_columns,
@@ -9,16 +8,16 @@ from fantasy_baseball_manager.ingest.adp_mapper import (
 )
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from tests.helpers import seed_player
 
 
 def _seed_players(conn: sqlite3.Connection) -> dict[str, int]:
-    repo = SqlitePlayerRepo(conn)
     ids: dict[str, int] = {}
-    ids["trout"] = repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
-    ids["judge"] = repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))
-    ids["ohtani"] = repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271))
-    ids["witt"] = repo.upsert(Player(name_first="Bobby", name_last="Witt", mlbam_id=677951))
-    ids["acuna"] = repo.upsert(Player(name_first="Ronald", name_last="Acuna", mlbam_id=660670))
+    ids["trout"] = seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
+    ids["judge"] = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+    ids["ohtani"] = seed_player(conn, name_first="Shohei", name_last="Ohtani", mlbam_id=660271)
+    ids["witt"] = seed_player(conn, name_first="Bobby", name_last="Witt", mlbam_id=677951)
+    ids["acuna"] = seed_player(conn, name_first="Ronald", name_last="Acuna", mlbam_id=660670)
     return ids
 
 
@@ -151,9 +150,9 @@ class TestIngestFantasyprosADP:
         assert result.unmatched == ["Nonexistent Player"]
 
     def test_ambiguous_name(self, conn: sqlite3.Connection) -> None:
+        seed_player(conn, name_first="John", name_last="Smith", mlbam_id=100001)
+        seed_player(conn, name_first="John", name_last="Smith", mlbam_id=100002)
         repo_p = SqlitePlayerRepo(conn)
-        repo_p.upsert(Player(name_first="John", name_last="Smith", mlbam_id=100001))
-        repo_p.upsert(Player(name_first="John", name_last="Smith", mlbam_id=100002))
         repo = SqliteADPRepo(conn)
         rows = [
             _make_row("1", "John Smith", "NYY", "OF", "50.0"),

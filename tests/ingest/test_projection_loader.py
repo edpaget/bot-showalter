@@ -6,7 +6,6 @@ import pytest
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection_accuracy import (
     compare_to_batting_actuals,
     compare_to_pitching_actuals,
@@ -23,12 +22,8 @@ from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from tests.helpers import seed_player
 from tests.ingest.conftest import FakeDataSource
-
-
-def _seed_player(conn: sqlite3.Connection) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))
 
 
 def _batting_projection_rows() -> list[dict[str, Any]]:
@@ -61,7 +56,7 @@ def _batting_projection_rows() -> list[dict[str, Any]]:
 
 class TestProjectionLoaderIntegration:
     def test_loads_batting_projections_via_stats_loader(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
@@ -85,7 +80,7 @@ class TestProjectionLoaderIntegration:
         assert results[0].player_type == "batter"
 
     def test_loads_pitching_projections(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_pitching_mapper(players, season=2025, system="zips", version="2025.1")
@@ -131,7 +126,7 @@ class TestProjectionLoaderIntegration:
         assert results[0].player_type == "pitcher"
 
     def test_csv_source_to_projection(self, tmp_path: Path, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         csv_file = tmp_path / "steamer_batting.csv"
         csv_file.write_text("PlayerId,MLBAMID,PA,HR,AVG,WAR\n10155,545361,600,35,0.302,8.5\n")
 
@@ -156,7 +151,7 @@ class TestProjectionLoaderIntegration:
         assert results[0].stat_json["hr"] == 35
 
     def test_unknown_players_skipped(self, conn: sqlite3.Connection) -> None:
-        _seed_player(conn)
+        seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
@@ -176,7 +171,7 @@ class TestProjectionLoaderIntegration:
         assert log.rows_loaded == 1
 
     def test_upsert_deduplicates_on_reload(self, conn: sqlite3.Connection) -> None:
-        _seed_player(conn)
+        seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")
@@ -192,7 +187,7 @@ class TestProjectionLoaderIntegration:
         assert len(results) == 1
 
     def test_third_party_import_sets_source_type(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(
@@ -221,7 +216,7 @@ class TestProjectionLoaderIntegration:
 
 class TestProjectionVsActuals:
     def test_compare_batting_projection_to_actuals(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
 
         # Load projection
         player_repo = SqlitePlayerRepo(conn)
@@ -270,7 +265,7 @@ class TestProjectionVsActuals:
         assert by_stat["war"].error == 2.0
 
     def test_compare_pitching_projection_to_actuals(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_pitching_mapper(players, season=2025, system="steamer", version="2025.1")
@@ -372,7 +367,7 @@ def _batting_projection_with_distributions_rows() -> list[dict[str, Any]]:
 
 class TestProjectionLoaderIntegrationWithDistributions:
     def test_loads_projections_with_distributions(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(
@@ -410,7 +405,7 @@ class TestProjectionLoaderIntegrationWithDistributions:
         assert by_stat["avg"].p50 == 0.300
 
     def test_loads_projections_without_distributions(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn, fangraphs_id=10155)
         player_repo = SqlitePlayerRepo(conn)
         players = player_repo.all()
         mapper = make_fg_projection_batting_mapper(players, season=2025, system="steamer", version="2025.1")

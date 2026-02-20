@@ -1,19 +1,13 @@
 import sqlite3
 
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
-from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
-
-
-def _seed_player(conn: sqlite3.Connection) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+from tests.helpers import seed_player
 
 
 class TestSqliteProjectionRepo:
     def test_upsert_and_get_by_player_season(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         proj = Projection(
             player_id=player_id,
@@ -31,7 +25,7 @@ class TestSqliteProjectionRepo:
         assert results[0].system == "steamer"
 
     def test_get_by_player_season_with_system(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         repo.upsert(
             Projection(
@@ -58,7 +52,7 @@ class TestSqliteProjectionRepo:
         assert results[0].stat_json["hr"] == 25
 
     def test_get_by_system_version(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         repo.upsert(
             Projection(
@@ -85,7 +79,7 @@ class TestSqliteProjectionRepo:
         assert results[0].stat_json["hr"] == 30
 
     def test_upsert_updates_existing(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         repo.upsert(
             Projection(
@@ -112,7 +106,7 @@ class TestSqliteProjectionRepo:
         assert results[0].stat_json["hr"] == 35
 
     def test_stat_columns_round_trip(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         stats = {"hr": 30, "avg": 0.280, "war": 5.5, "pa": 600, "bb": 70}
         repo.upsert(
@@ -131,7 +125,7 @@ class TestSqliteProjectionRepo:
 
     def test_only_known_stat_columns_stored(self, conn: sqlite3.Connection) -> None:
         """Unknown keys in stat_json are silently dropped by the flat schema."""
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         repo.upsert(
             Projection(
@@ -148,7 +142,7 @@ class TestSqliteProjectionRepo:
         assert "unknown_stat" not in results[0].stat_json
 
     def test_get_by_season(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         repo.upsert(
             Projection(
@@ -175,7 +169,7 @@ class TestSqliteProjectionRepo:
         assert results[0].season == 2025
 
     def test_source_type_defaults_to_first_party(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         repo.upsert(
             Projection(
@@ -192,7 +186,7 @@ class TestSqliteProjectionRepo:
         assert results[0].source_type == "first_party"
 
     def test_source_type_third_party_roundtrip(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         repo.upsert(
             Projection(
@@ -210,7 +204,7 @@ class TestSqliteProjectionRepo:
         assert results[0].source_type == "third_party"
 
     def test_get_by_season_with_system(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         repo.upsert(
             Projection(
@@ -239,7 +233,7 @@ class TestSqliteProjectionRepo:
 
 def _seed_projection(conn: sqlite3.Connection) -> tuple[int, int]:
     """Seed a player and projection, returning (player_id, projection_id)."""
-    player_id = _seed_player(conn)
+    player_id = seed_player(conn)
     repo = SqliteProjectionRepo(conn)
     proj_id = repo.upsert(
         Projection(
@@ -338,7 +332,7 @@ class TestProjectionDistributions:
 
 class TestPctStatsRoundTrip:
     def test_k_pct_bb_pct_round_trip(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteProjectionRepo(conn)
         stats = {"k_pct": 0.235, "bb_pct": 0.105, "avg": 0.280}
         repo.upsert(

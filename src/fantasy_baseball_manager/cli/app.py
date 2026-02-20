@@ -11,6 +11,7 @@ from fantasy_baseball_manager.cli._logging import configure_logging
 from fantasy_baseball_manager.cli._output import (
     console,
     print_ablation_result,
+    print_adp_accuracy_report,
     print_comparison_result,
     print_dataset_list,
     print_error,
@@ -38,6 +39,7 @@ from fantasy_baseball_manager.cli._output import (
 )
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
+    build_adp_accuracy_context,
     build_adp_report_context,
     build_compute_container,
     build_datasets_context,
@@ -1391,3 +1393,27 @@ def report_value_over_adp(
             top=top,
         )
     print_value_over_adp(report)
+
+
+@report_app.command("adp-accuracy")
+def report_adp_accuracy(
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s)")],
+    league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    compare_system: Annotated[str | None, typer.Option("--compare-system", help="Valuation system/version")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Evaluate how well ADP predicts actual season outcomes."""
+    league = load_league(league_name, Path.cwd())
+
+    compare: tuple[str, str] | None = None
+    if compare_system is not None:
+        parts = compare_system.split("/", 1)
+        if len(parts) != 2:
+            print_error(f"invalid compare-system format '{compare_system}', expected 'system/version'")
+            raise typer.Exit(code=1)
+        compare = (parts[0], parts[1])
+
+    with build_adp_accuracy_context(data_dir) as ctx:
+        report = ctx.evaluator.evaluate(season, league, provider=provider, compare_system=compare)
+    print_adp_accuracy_report(report)

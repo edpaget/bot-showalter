@@ -32,6 +32,7 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
+from tests.helpers import seed_player
 
 runner = CliRunner()
 
@@ -373,11 +374,6 @@ class TestFeaturesCommand:
         assert "computed=age" in result.output
 
 
-def _seed_player_for_import(conn: sqlite3.Connection) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361, fangraphs_id=10155))
-
-
 class TestImportCommand:
     def test_import_command_exists(self) -> None:
         result = runner.invoke(app, ["import", "--help"])
@@ -387,7 +383,7 @@ class TestImportCommand:
     def test_import_batting_csv(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         db_path = tmp_path / "fbm.db"
         seed_conn = create_connection(db_path)
-        _seed_player_for_import(seed_conn)
+        seed_player(seed_conn, mlbam_id=545361, fangraphs_id=10155)
         seed_conn.commit()
         seed_conn.close()
 
@@ -426,7 +422,7 @@ class TestImportCommand:
     def test_import_pitching_csv(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         db_path = tmp_path / "fbm.db"
         seed_conn = create_connection(db_path)
-        _seed_player_for_import(seed_conn)
+        seed_player(seed_conn, mlbam_id=545361, fangraphs_id=10155)
         seed_conn.commit()
         seed_conn.close()
 
@@ -732,14 +728,8 @@ def _register_predictable_stub_with_projections() -> None:
 def _seed_players_for_persistence(db_path: Path) -> None:
     """Seed the two players that the predictable stub references."""
     conn = create_connection(db_path)
-    conn.execute(
-        "INSERT INTO player (id, name_first, name_last, birth_date, bats) "
-        "VALUES (1, 'Mike', 'Trout', '1991-08-07', 'R')"
-    )
-    conn.execute(
-        "INSERT INTO player (id, name_first, name_last, birth_date, bats) "
-        "VALUES (2, 'Aaron', 'Judge', '1992-04-26', 'R')"
-    )
+    seed_player(conn, player_id=1, name_first="Mike", name_last="Trout", birth_date="1991-08-07")
+    seed_player(conn, player_id=2, name_first="Aaron", name_last="Judge", birth_date="1992-04-26")
     conn.commit()
     conn.close()
 

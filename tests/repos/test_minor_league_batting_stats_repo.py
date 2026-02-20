@@ -1,14 +1,8 @@
 import sqlite3
 
 from fantasy_baseball_manager.domain.minor_league_batting_stats import MinorLeagueBattingStats
-from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
-from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
-
-
-def _seed_player(conn: sqlite3.Connection, *, mlbam_id: int = 545361) -> int:
-    repo = SqlitePlayerRepo(conn)
-    return repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=mlbam_id))
+from tests.helpers import seed_player
 
 
 def _make_stats(player_id: int, **overrides: object) -> MinorLeagueBattingStats:
@@ -42,7 +36,7 @@ def _make_stats(player_id: int, **overrides: object) -> MinorLeagueBattingStats:
 
 class TestMinorLeagueBattingStatsRepo:
     def test_upsert_and_get_by_player(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
         stats = _make_stats(player_id)
 
@@ -73,7 +67,7 @@ class TestMinorLeagueBattingStatsRepo:
         assert row.id is not None
 
     def test_upsert_idempotency(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
         stats = _make_stats(player_id, hr=18)
 
@@ -89,7 +83,7 @@ class TestMinorLeagueBattingStatsRepo:
         assert results[0].hr == 20
 
     def test_get_by_player_season(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
 
         repo.upsert(_make_stats(player_id, season=2023))
@@ -105,8 +99,8 @@ class TestMinorLeagueBattingStatsRepo:
         assert results_2023[0].season == 2023
 
     def test_get_by_season_level(self, conn: sqlite3.Connection) -> None:
-        p1 = _seed_player(conn, mlbam_id=545361)
-        p2 = _seed_player(conn, mlbam_id=660271)
+        p1 = seed_player(conn, mlbam_id=545361)
+        p2 = seed_player(conn, mlbam_id=660271)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
 
         repo.upsert(_make_stats(p1, level="AAA"))
@@ -121,7 +115,7 @@ class TestMinorLeagueBattingStatsRepo:
         assert len(aa_results) == 1
 
     def test_multiple_levels_same_season(self, conn: sqlite3.Connection) -> None:
-        player_id = _seed_player(conn)
+        player_id = seed_player(conn)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
 
         repo.upsert(_make_stats(player_id, level="AA", team="Binghamton Rumble Ponies"))

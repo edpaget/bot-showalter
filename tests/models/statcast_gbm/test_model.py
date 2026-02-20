@@ -1673,6 +1673,72 @@ class TestConfigTopPassThrough:
         assert captured_kwargs[1]["test_top_n"] == 100
 
 
+class TestWarRankColumn:
+    def test_sweep_passes_war_as_test_rank_column(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_kwargs: list[dict[str, Any]] = []
+        original_sweep_cv = statcast_gbm_model_mod.sweep_cv
+
+        def spy_sweep_cv(*args: Any, **kwargs: Any) -> Any:
+            captured_kwargs.append(kwargs)
+            return original_sweep_cv(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "sweep_cv", spy_sweep_cv)
+
+        rows_by_season = {
+            2021: [_make_preseason_row(f"p_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2021: [_make_preseason_pitcher_row(f"pit_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            top=100,
+            model_params={"sweep_grid": {"sample_weight_transform": ["raw", "sqrt"]}},
+        )
+        model.sweep(config)
+        assert len(captured_kwargs) == 2
+        assert captured_kwargs[0]["test_rank_column"] == "war"
+        assert captured_kwargs[1]["test_rank_column"] == "war"
+
+    def test_tune_passes_war_as_test_rank_column(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_kwargs: list[dict[str, Any]] = []
+        original_build = statcast_gbm_model_mod.build_cv_folds
+
+        def spy_build(*args: Any, **kwargs: Any) -> Any:
+            captured_kwargs.append(kwargs)
+            return original_build(*args, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "build_cv_folds", spy_build)
+
+        rows_by_season = {
+            2021: [_make_preseason_row(f"p_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2021: [_make_preseason_pitcher_row(f"pit_{i}", 2021) for i in range(10)],
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2021, 2022, 2023],
+            top=100,
+            model_params={"param_grid": {"max_iter": [100]}},
+        )
+        model.tune(config)
+        assert len(captured_kwargs) == 2
+        assert captured_kwargs[0]["test_rank_column"] == "war"
+        assert captured_kwargs[1]["test_rank_column"] == "war"
+
+
 class TestSweepSupportedOperations:
     def test_preseason_supports_sweep(self) -> None:
         model = StatcastGBMPreseasonModel(assembler=_NULL_ASSEMBLER, evaluator=_NULL_EVALUATOR)

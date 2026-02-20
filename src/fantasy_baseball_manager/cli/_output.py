@@ -12,6 +12,7 @@ from fantasy_baseball_manager.domain.residual_persistence import ResidualPersist
 from fantasy_baseball_manager.domain.talent_quality import TrueTalentQualityReport
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
+from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
@@ -821,3 +822,90 @@ def print_value_over_adp(report: ValueOverADPReport) -> None:
 
     if not report.buy_targets and not report.avoid_list and not report.unranked_valuable:
         console.print("No discrepancies found.")
+
+
+def print_adp_accuracy_report(report: ADPAccuracyReport) -> None:
+    """Print ADP accuracy evaluation report."""
+    n_seasons = len(report.seasons)
+    has_comparison = report.comparison is not None and len(report.comparison) > 0
+
+    if n_seasons == 1:
+        result = report.adp_results[0]
+
+        if has_comparison:
+            assert report.comparison is not None
+            sys_result = report.comparison[0]
+            console.print(f"[bold]ADP Accuracy[/bold] — season {result.season} | provider {report.provider}")
+            console.print()
+
+            table = Table(show_edge=False, pad_edge=False)
+            table.add_column("Metric")
+            table.add_column("ADP", justify="right")
+            table.add_column(f"{sys_result.system}/{sys_result.version}", justify="right")
+
+            table.add_row("Matched", str(result.n_matched), str(sys_result.n_matched))
+            table.add_row(
+                "Spearman rho",
+                f"{result.rank_correlation:.4f}",
+                f"{sys_result.rank_correlation:.4f}",
+            )
+            table.add_row("Value RMSE", f"${result.value_rmse:.2f}", f"${sys_result.value_rmse:.2f}")
+            table.add_row("Value MAE", f"${result.value_mae:.2f}", f"${sys_result.value_mae:.2f}")
+            for n in sorted(result.top_n_precision):
+                adp_pct = result.top_n_precision[n] * 100
+                sys_pct = sys_result.top_n_precision.get(n, 0.0) * 100
+                table.add_row(f"Top-{n} precision", f"{adp_pct:.1f}%", f"{sys_pct:.1f}%")
+            console.print(table)
+        else:
+            console.print(
+                f"[bold]ADP Accuracy[/bold] — season {result.season}"
+                f" | provider {report.provider}"
+                f" | {result.n_matched} matched"
+            )
+            console.print()
+            console.print(f"  Spearman rank correlation: {result.rank_correlation:.4f}")
+            console.print(f"  Value RMSE: ${result.value_rmse:.2f}")
+            console.print(f"  Value MAE: ${result.value_mae:.2f}")
+            for n in sorted(result.top_n_precision):
+                pct = result.top_n_precision[n] * 100
+                console.print(f"  Top-{n} precision: {pct:.1f}%")
+    else:
+        console.print(f"[bold]ADP Accuracy[/bold] — {n_seasons} seasons | provider {report.provider}")
+        console.print()
+
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Season")
+        table.add_column("Matched", justify="right")
+        table.add_column("Spearman", justify="right")
+        table.add_column("RMSE", justify="right")
+        table.add_column("MAE", justify="right")
+        for n in sorted(report.mean_top_n_precision):
+            table.add_column(f"Top{n}", justify="right")
+
+        for result in report.adp_results:
+            row: list[str] = [
+                str(result.season),
+                str(result.n_matched),
+                f"{result.rank_correlation:.4f}" if result.n_matched >= 3 else "—",
+                f"${result.value_rmse:.2f}",
+                f"${result.value_mae:.2f}",
+            ]
+            for n in sorted(result.top_n_precision):
+                pct = result.top_n_precision[n] * 100
+                row.append(f"{pct:.1f}%")
+            table.add_row(*row)
+
+        # Aggregate row
+        agg_row: list[str] = [
+            "[bold]Mean[/bold]",
+            "",
+            f"[bold]{report.mean_rank_correlation:.4f}[/bold]",
+            f"[bold]${report.mean_value_rmse:.2f}[/bold]",
+            "",
+        ]
+        for n in sorted(report.mean_top_n_precision):
+            pct = report.mean_top_n_precision[n] * 100
+            agg_row.append(f"[bold]{pct:.1f}%[/bold]")
+        table.add_row(*agg_row)
+
+        console.print(table)

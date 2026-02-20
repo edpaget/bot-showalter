@@ -772,10 +772,10 @@ class TestBuildCVFolds:
         )
         assert len(folds[0].X_test) == 5
 
-    def test_top_n_requires_sample_weight_column(self) -> None:
+    def test_top_n_requires_sample_weight_or_rank_column(self) -> None:
         rows = self._make_rows(2021, 3) + self._make_rows(2022, 3)
         cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
-        with pytest.raises(ValueError, match="test_top_n requires sample_weight_column"):
+        with pytest.raises(ValueError, match="test_top_n requires sample_weight_column or test_rank_column"):
             build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits, test_top_n=3)
 
     def test_top_n_does_not_affect_train_rows(self) -> None:
@@ -785,6 +785,122 @@ class TestBuildCVFolds:
         cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
         folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits, sample_weight_column="pa_1", test_top_n=3)
         assert len(folds[0].X_train) == 10
+        assert len(folds[0].X_test) == 3
+
+    def test_rank_column_filters_test_rows(self) -> None:
+        """test_rank_column ranks test rows by the specified column, not sample_weight_column."""
+        rows: list[dict[str, Any]] = []
+        for i in range(5):
+            rows.append(
+                {
+                    "season": 2021,
+                    "feat_a": float(i),
+                    "feat_b": float(i * 2),
+                    "target_y": float(i * 0.1),
+                    "pa_1": 500 + i,
+                    "war": float(i),
+                }
+            )
+        for i in range(5):
+            # war and pa_1 diverge: pa_1 is always 500 but war varies
+            rows.append(
+                {
+                    "season": 2022,
+                    "feat_a": float(i),
+                    "feat_b": float(i * 2),
+                    "target_y": float(i * 0.1),
+                    "pa_1": 500,
+                    "war": float(i * 2),  # 0, 2, 4, 6, 8
+                }
+            )
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            sample_weight_column="pa_1",
+            test_top_n=3,
+            test_rank_column="war",
+        )
+        assert len(folds[0].X_test) == 3
+
+    def test_rank_column_defaults_to_sample_weight_column(self) -> None:
+        """Without test_rank_column, test_top_n filters by sample_weight_column."""
+        rows = self._make_rows(2021, 5) + self._make_rows(2022, 5)
+        for i, row in enumerate(r for r in rows if r["season"] == 2022):
+            row["pa_1"] = 100 + i * 100
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits, sample_weight_column="pa_1", test_top_n=3)
+        assert len(folds[0].X_test) == 3
+
+    def test_rank_column_without_top_n_is_noop(self) -> None:
+        """test_rank_column without test_top_n includes all test rows."""
+        rows: list[dict[str, Any]] = []
+        for i in range(5):
+            rows.append(
+                {
+                    "season": 2021,
+                    "feat_a": float(i),
+                    "feat_b": float(i * 2),
+                    "target_y": float(i * 0.1),
+                    "pa_1": 500 + i,
+                    "war": float(i),
+                }
+            )
+        for i in range(5):
+            rows.append(
+                {
+                    "season": 2022,
+                    "feat_a": float(i),
+                    "feat_b": float(i * 2),
+                    "target_y": float(i * 0.1),
+                    "pa_1": 500,
+                    "war": float(i),
+                }
+            )
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            test_rank_column="war",
+        )
+        assert len(folds[0].X_test) == 5
+
+    def test_rank_column_alone_allows_top_n(self) -> None:
+        """test_rank_column without sample_weight_column still allows test_top_n."""
+        rows: list[dict[str, Any]] = []
+        for i in range(5):
+            rows.append(
+                {
+                    "season": 2021,
+                    "feat_a": float(i),
+                    "feat_b": float(i * 2),
+                    "target_y": float(i * 0.1),
+                    "war": float(i),
+                }
+            )
+        for i in range(5):
+            rows.append(
+                {
+                    "season": 2022,
+                    "feat_a": float(i),
+                    "feat_b": float(i * 2),
+                    "target_y": float(i * 0.1),
+                    "war": float(i * 2),
+                }
+            )
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            test_top_n=3,
+            test_rank_column="war",
+        )
         assert len(folds[0].X_test) == 3
 
     def test_transform_none_no_effect(self) -> None:
@@ -1282,6 +1398,26 @@ class TestSweepCV:
         # Without weights, all transforms yield the same RMSE
         rmses = [entry["mean_rmse"] for entry in result.all_results]
         assert all(math.isclose(r, rmses[0], rel_tol=1e-9) for r in rmses)
+
+    def test_sweep_with_test_rank_column(self) -> None:
+        rows = _make_sweep_rows()
+        # Add war column
+        for row in rows:
+            row["war"] = row["pa_1"] / 100.0
+        cv_splits: list[tuple[list[int], int]] = [([2020], 2021), ([2020, 2021], 2022)]
+        result = sweep_cv(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            {},
+            {"sample_weight_transform": ["raw", "sqrt"]},
+            sample_weight_column="pa_1",
+            test_top_n=5,
+            test_rank_column="war",
+        )
+        assert isinstance(result, GridSearchResult)
+        assert "sample_weight_transform" in result.best_params
 
     def test_sweep_with_test_top_n(self) -> None:
         rows = _make_sweep_rows()

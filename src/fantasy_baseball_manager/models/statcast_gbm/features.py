@@ -67,6 +67,7 @@ def _batter_target_features() -> list[Feature]:
         features.append(batting.col(stat).lag(0).alias(f"target_{stat}"))
     for stat in counting:
         features.append(batting.col(stat).lag(0).alias(f"target_{stat}"))
+    features.append(batting.col("war").lag(0).alias("war"))
     return features
 
 
@@ -116,6 +117,7 @@ def _pitcher_target_features() -> list[Feature]:
         features.append(pitching.col(stat).lag(0).alias(f"target_{stat}"))
     for stat in counting:
         features.append(pitching.col(stat).lag(0).alias(f"target_{stat}"))
+    features.append(pitching.col("war").lag(0).alias("war"))
     return features
 
 

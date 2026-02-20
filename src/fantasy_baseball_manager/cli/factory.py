@@ -47,8 +47,9 @@ from fantasy_baseball_manager.services.projection_evaluator import ProjectionEva
 from fantasy_baseball_manager.services.residual_persistence_diagnostic import ResidualPersistenceDiagnostic
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
-from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
+from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
 from fantasy_baseball_manager.services.adp_report import ADPReportService
+from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
 
@@ -472,5 +473,29 @@ def build_adp_report_context(data_dir: str) -> Iterator[ADPReportContext]:
             SqliteADPRepo(conn),
         )
         yield ADPReportContext(conn=conn, service=service)
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class ADPAccuracyContext:
+    conn: sqlite3.Connection
+    evaluator: ADPAccuracyEvaluator
+
+
+@contextmanager
+def build_adp_accuracy_context(data_dir: str) -> Iterator[ADPAccuracyContext]:
+    """Composition-root context manager for ADP accuracy evaluation commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        evaluator = ADPAccuracyEvaluator(
+            adp_repo=SqliteADPRepo(conn),
+            valuation_repo=SqliteValuationRepo(conn),
+            player_repo=SqlitePlayerRepo(conn),
+            batting_repo=SqliteBattingStatsRepo(conn),
+            pitching_repo=SqlitePitchingStatsRepo(conn),
+            position_repo=SqlitePositionAppearanceRepo(conn),
+        )
+        yield ADPAccuracyContext(conn=conn, evaluator=evaluator)
     finally:
         conn.close()

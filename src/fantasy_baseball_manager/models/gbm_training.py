@@ -406,6 +406,7 @@ def build_cv_folds(
     sample_weight_column: str | None = None,
     sample_weight_transform: WeightTransform | None = None,
     test_top_n: int | None = None,
+    test_rank_column: str | None = None,
 ) -> list["CVFold"]:
     """Build CV folds from rows by grouping by season and applying splits.
 
@@ -414,11 +415,11 @@ def build_cv_folds(
     weights into a CVFold.
 
     If test_top_n is set, only the top N test rows (ranked by
-    sample_weight_column descending) are kept in each fold's test set.
-    This aligns CV scoring with top-N evaluation.
+    test_rank_column or sample_weight_column descending) are kept in each
+    fold's test set. This aligns CV scoring with top-N evaluation.
     """
-    if test_top_n is not None and sample_weight_column is None:
-        msg = "test_top_n requires sample_weight_column to rank test rows"
+    if test_top_n is not None and sample_weight_column is None and test_rank_column is None:
+        msg = "test_top_n requires sample_weight_column or test_rank_column to rank test rows"
         raise ValueError(msg)
 
     rows_by_season: dict[int, list[dict[str, Any]]] = {}
@@ -430,8 +431,9 @@ def build_cv_folds(
     for train_seasons, test_season in cv_splits:
         train_rows = [r for s in train_seasons for r in rows_by_season.get(s, [])]
         test_rows = rows_by_season.get(test_season, [])
-        if test_top_n is not None and sample_weight_column is not None and len(test_rows) > test_top_n:
-            test_rows = sorted(test_rows, key=lambda r: r.get(sample_weight_column) or 0, reverse=True)[:test_top_n]
+        rank_col = test_rank_column or sample_weight_column
+        if test_top_n is not None and rank_col is not None and len(test_rows) > test_top_n:
+            test_rows = sorted(test_rows, key=lambda r: r.get(rank_col) or 0, reverse=True)[:test_top_n]
         train_sw = extract_sample_weights(train_rows, sample_weight_column) if sample_weight_column else None
         if train_sw is not None and sample_weight_transform is not None:
             train_sw = sample_weight_transform(train_sw)
@@ -550,6 +552,7 @@ def _evaluate_sweep_combo(
     meta_params: dict[str, Any],
     sample_weight_column: str | None,
     test_top_n: int | None = None,
+    test_rank_column: str | None = None,
 ) -> dict[str, Any]:
     """Build folds for one meta-param combo and evaluate.
 
@@ -565,6 +568,7 @@ def _evaluate_sweep_combo(
         sample_weight_column=sample_weight_column,
         sample_weight_transform=transform,
         test_top_n=test_top_n,
+        test_rank_column=test_rank_column,
     )
     result = _evaluate_combination(folds, model_params)
     result["params"] = meta_params
@@ -582,6 +586,7 @@ def sweep_cv(
     sample_weight_column: str | None = None,
     max_workers: int | None = None,
     test_top_n: int | None = None,
+    test_rank_column: str | None = None,
 ) -> GridSearchResult:
     """Sweep over meta-parameters that affect fold construction.
 
@@ -611,7 +616,15 @@ def sweep_cv(
     if effective_workers <= 1:
         all_results = [
             _evaluate_sweep_combo(
-                all_rows, feature_columns, targets, cv_splits, model_params, mp, sample_weight_column, test_top_n
+                all_rows,
+                feature_columns,
+                targets,
+                cv_splits,
+                model_params,
+                mp,
+                sample_weight_column,
+                test_top_n,
+                test_rank_column,
             )
             for mp in combos
         ]
@@ -628,6 +641,7 @@ def sweep_cv(
                     mp,
                     sample_weight_column,
                     test_top_n,
+                    test_rank_column,
                 )
                 for mp in combos
             ]
