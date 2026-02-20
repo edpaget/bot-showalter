@@ -40,6 +40,20 @@ feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batti
 engine = "gbm"
 feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "mle_batter_rates", "statcast_gbm_preseason_batter_rates", "statcast_gbm_preseason_pitcher_rates"]
 
+[models.composite-full.params.batter]
+learning_rate = 0.05
+max_depth = 3
+max_iter = 100
+max_leaf_nodes = 15
+min_samples_leaf = 50
+
+[models.composite-full.params.pitcher]
+learning_rate = 0.01
+max_depth = 3
+max_iter = 200
+max_leaf_nodes = 15
+min_samples_leaf = 5
+
 # --- League configurations ---
 
 [leagues.h2h]
