@@ -8,7 +8,7 @@ from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_batting_mapper,
 )
-from fantasy_baseball_manager.ingest.loader import StatsLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
@@ -68,7 +68,7 @@ class TestStatsLoader:
         source = FakeDataSource(_batting_rows({"player_id": player_id}))
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         result = loader.load()
 
@@ -93,7 +93,7 @@ class TestStatsLoader:
         source = FakeDataSource(rows)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         result = loader.load()
 
@@ -105,7 +105,7 @@ class TestStatsLoader:
         source = ErrorDataSource()
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         result = loader.load()
 
@@ -122,7 +122,7 @@ class TestStatsLoader:
         source = FakeDataSource([])
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         result = loader.load()
 
@@ -136,7 +136,7 @@ class TestStatsLoader:
         source = FakeDataSource(_batting_rows({"player_id": player_id}))
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         result = loader.load()
 
@@ -152,7 +152,7 @@ class TestStatsLoader:
         source = FakeDataSource(rows)
         repo = SqlitePitchingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _pitching_mapper, "pitching_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, _pitching_mapper, "pitching_stats", conn=conn)
 
         result = loader.load()
 
@@ -176,7 +176,7 @@ class TestStatsLoader:
         source = FakeDataSource(rows)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
 
         result = loader.load()
 
@@ -232,7 +232,7 @@ class TestStatsLoaderIntegration:
         source = FakeDataSource(rows)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
 
         result = loader.load()
 
@@ -314,7 +314,7 @@ class TestStatsLoaderIntegration:
         source = FakeDataSource(rows)
         repo = SqliteBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
 
         result = loader.load()
 

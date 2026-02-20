@@ -17,7 +17,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_pitching_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
-from fantasy_baseball_manager.ingest.loader import ProjectionLoader, StatsLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
@@ -68,7 +68,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         result = loader.load()
 
@@ -115,7 +115,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(rows)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         result = loader.load()
 
@@ -141,7 +141,7 @@ class TestProjectionLoaderIntegration:
         source = CsvSource(csv_file)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         result = loader.load()
 
@@ -167,7 +167,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(rows)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         result = loader.load()
 
@@ -183,7 +183,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         loader.load()
         loader.load()
@@ -205,7 +205,7 @@ class TestProjectionLoaderIntegration:
         source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         result = loader.load()
 
@@ -230,7 +230,7 @@ class TestProjectionVsActuals:
         source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
         loader.load()
 
         # Load actual stats
@@ -300,7 +300,7 @@ class TestProjectionVsActuals:
         source = FakeDataSource(rows)
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
         loader.load()
 
         pitching_repo = SqlitePitchingStatsRepo(conn)
@@ -381,7 +381,12 @@ class TestProjectionLoaderIntegrationWithDistributions:
         source = FakeDataSource(_batting_projection_with_distributions_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = ProjectionLoader(source, proj_repo, log_repo, mapper, conn=conn)
+
+        def _post_upsert(projection_id: int, projection: Any) -> None:
+            if projection.distributions is not None:
+                proj_repo.upsert_distributions(projection_id, list(projection.distributions.values()))
+
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn, post_upsert=_post_upsert)
 
         result = loader.load()
 
@@ -412,7 +417,7 @@ class TestProjectionLoaderIntegrationWithDistributions:
         source = FakeDataSource(_batting_projection_rows())
         proj_repo = SqliteProjectionRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = ProjectionLoader(source, proj_repo, log_repo, mapper, conn=conn)
+        loader = Loader(source, proj_repo, log_repo, mapper, "projection", conn=conn)
 
         result = loader.load()
 

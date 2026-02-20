@@ -7,7 +7,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_position_appearance_mapper,
     make_roster_stint_mapper,
 )
-from fantasy_baseball_manager.ingest.loader import StatsLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
@@ -49,7 +49,7 @@ class TestPositionAppearanceLoader:
         source = FakeDataSource(_appearance_rows())
         repo = SqlitePositionAppearanceRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
 
         result = loader.load(season=2023)
 
@@ -74,7 +74,7 @@ class TestPositionAppearanceLoader:
         source = FakeDataSource(rows)
         repo = SqlitePositionAppearanceRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
 
         result = loader.load(season=2023)
 
@@ -90,7 +90,7 @@ class TestPositionAppearanceLoader:
         source = FakeDataSource(_appearance_rows())
         repo = SqlitePositionAppearanceRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
 
         loader.load(season=2023)
         loader.load(season=2023)
@@ -110,7 +110,7 @@ class TestRosterStintLoader:
         source = FakeDataSource(_roster_rows())
         repo = SqliteRosterStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
 
         result = loader.load(season=2023)
 
@@ -136,7 +136,7 @@ class TestRosterStintLoader:
         source = FakeDataSource(rows)
         repo = SqliteRosterStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
 
         result = loader.load(season=2023)
 
@@ -154,7 +154,7 @@ class TestRosterStintLoader:
         source = FakeDataSource(_roster_rows())
         repo = SqliteRosterStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
 
         loader.load(season=2023)
         loader.load(season=2023)

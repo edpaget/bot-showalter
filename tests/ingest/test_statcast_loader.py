@@ -8,7 +8,7 @@ from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 from fantasy_baseball_manager.ingest.column_maps import statcast_pitch_mapper
-from fantasy_baseball_manager.ingest.loader import StatsLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
@@ -52,7 +52,7 @@ class TestStatcastLoaderIntegration:
         source = FakeDataSource(rows)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(
+        loader = Loader(
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
@@ -77,7 +77,7 @@ class TestStatcastLoaderIntegration:
         source = FakeDataSource(rows)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(
+        loader = Loader(
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
@@ -96,7 +96,7 @@ class TestStatcastLoaderIntegration:
         source = FakeDataSource(rows)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(
+        loader = Loader(
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
@@ -112,7 +112,7 @@ class TestStatcastLoaderIntegration:
         source = FakeDataSource([])
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(
+        loader = Loader(
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
@@ -128,7 +128,7 @@ class TestStatcastLoaderIntegration:
         source = ErrorDataSource()
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(
+        loader = Loader(
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 
@@ -148,7 +148,7 @@ class TestStatcastLoaderIntegration:
         source = FakeDataSource(rows)
         pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(
+        loader = Loader(
             source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
         )
 

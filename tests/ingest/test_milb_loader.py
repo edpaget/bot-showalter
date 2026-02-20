@@ -4,7 +4,7 @@ from typing import Any
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_milb_batting_mapper
-from fantasy_baseball_manager.ingest.loader import StatsLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -56,7 +56,7 @@ class TestMilbLoader:
         source = FakeDataSource(_milb_rows())
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
 
         result = loader.load(season=2024, level="AAA")
 
@@ -80,7 +80,7 @@ class TestMilbLoader:
         source = FakeDataSource(rows)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
 
         result = loader.load(season=2024, level="AAA")
 
@@ -100,7 +100,7 @@ class TestMilbLoader:
         source = FakeDataSource(rows)
         repo = SqliteMinorLeagueBattingStatsRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
 
         result = loader.load(season=2024, level="AAA")
 

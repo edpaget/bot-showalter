@@ -183,23 +183,22 @@ All sources implement the `DataSource` protocol (`source_type`, `source_detail` 
 
 ### Loaders
 
-`StatsLoader` is the generic orchestrator. It fetches rows from a source, maps each row through a callable, upserts via a repo, and writes a `LoadLog` entry.
+`Loader` is the generic orchestrator. It fetches rows from a source, maps each row through a callable, upserts via a repo, and writes a `LoadLog` entry. An optional `post_upsert` callback runs after each upsert (used for projection distributions).
 
 ```python
-from fantasy_baseball_manager.ingest.loader import StatsLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 
-loader = StatsLoader(
+loader = Loader(
     source=FgBattingSource(),
     repo=SqliteBattingStatsRepo(conn),
     load_log_repo=SqliteLoadLogRepo(conn),
     row_mapper=make_fg_batting_mapper(players),
     target_table="batting_stats",
+    conn=conn,
 )
 log = loader.load(season=2024)
 # log.status == "success", log.rows_loaded == N
 ```
-
-`PlayerLoader` is a specialized variant for the player table.
 
 ### Column mappers
 
@@ -240,15 +239,15 @@ conn = create_connection("stats.db")
 player_repo = SqlitePlayerRepo(conn)
 
 # 1. Seed players from Chadwick register
-player_loader = PlayerLoader(
+player_loader = Loader(
     ChadwickRegisterSource(), player_repo, SqliteLoadLogRepo(conn),
-    chadwick_row_to_player, conn=conn,
+    chadwick_row_to_player, "player", conn=conn,
 )
 player_loader.load()
 
 # 2. Load batting stats
 players = player_repo.all()
-batting_loader = StatsLoader(
+batting_loader = Loader(
     FgBattingSource(),
     SqliteBattingStatsRepo(conn),
     SqliteLoadLogRepo(conn),
@@ -259,7 +258,7 @@ batting_loader = StatsLoader(
 batting_loader.load(season=2024)
 
 # 3. Load projections from CSV
-projection_loader = StatsLoader(
+projection_loader = Loader(
     CsvSource("steamer_batting_2025.csv"),
     SqliteProjectionRepo(conn),
     SqliteLoadLogRepo(conn),
@@ -271,7 +270,7 @@ projection_loader.load()
 
 # 4. Load Statcast into separate database
 sc_conn = create_statcast_connection("statcast.db")
-statcast_loader = StatsLoader(
+statcast_loader = Loader(
     StatcastSavantSource(),
     SqliteStatcastPitchRepo(sc_conn),
     SqliteLoadLogRepo(conn),  # load log stays in stats.db
@@ -479,6 +478,6 @@ Indexes on `statcast_pitch`: `(pitcher_id, game_date)`, `(batter_id, game_date)`
 - **Upsert everywhere.** All imports are idempotent. Re-running an import replaces existing data via `ON CONFLICT ... DO UPDATE`.
 - **Frozen dataclasses.** Domain objects are immutable value types. No mutable state, no ORM base classes.
 - **Mapper factories with closures.** Column mappers close over a player ID lookup table built at mapper creation time, avoiding repeated queries during row iteration.
-- **Audit trail.** Every `StatsLoader.load()` call writes a `LoadLog` entry with timestamps, row count, and status (success/error).
+- **Audit trail.** Every `Loader.load()` call writes a `LoadLog` entry with timestamps, row count, and status (success/error).
 - **Two-pass materialization.** SQL-expressible features run as a single `CREATE TABLE AS SELECT` for performance. Python transforms run as a second pass only when needed, keeping the common case fast.
 - **Cross-database joins via ATTACH.** Statcast data lives in a separate DB file. The assembler lazily attaches it only when a `Source.STATCAST` transform is encountered, joining through `player.mlbam_id`.

@@ -3,7 +3,7 @@ from typing import Any
 
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.column_maps import chadwick_row_to_player
-from fantasy_baseball_manager.ingest.loader import PlayerLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from tests.ingest.conftest import ErrorDataSource, FakeDataSource
@@ -28,7 +28,7 @@ class TestPlayerLoader:
         source = FakeDataSource(_chadwick_rows({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
+        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
 
         result = loader.load()
 
@@ -54,7 +54,7 @@ class TestPlayerLoader:
         source = FakeDataSource(rows)
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
+        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
 
         result = loader.load()
 
@@ -67,7 +67,7 @@ class TestPlayerLoader:
         source = FakeDataSource(_chadwick_rows({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
+        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
 
         loader.load()
         loader.load()
@@ -78,7 +78,7 @@ class TestPlayerLoader:
         source = ErrorDataSource()
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
+        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
 
         result = loader.load()
 
@@ -95,7 +95,7 @@ class TestPlayerLoader:
         source = FakeDataSource(_chadwick_rows({}))
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
+        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
 
         result = loader.load()
 
@@ -109,7 +109,7 @@ class TestPlayerLoader:
         source = FakeDataSource([])
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
+        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
 
         result = loader.load()
 
@@ -141,7 +141,7 @@ class TestPlayerLoader:
         source = FakeDataSource(rows)
         player_repo = SqlitePlayerRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = PlayerLoader(source, player_repo, log_repo, chadwick_row_to_player, conn=conn)
+        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
 
         result = loader.load()
 

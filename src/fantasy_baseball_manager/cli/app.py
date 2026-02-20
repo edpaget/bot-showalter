@@ -79,7 +79,7 @@ from fantasy_baseball_manager.ingest.column_maps import (
     statcast_pitch_mapper,
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
-from fantasy_baseball_manager.ingest.loader import PlayerLoader, ProjectionLoader, StatsLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     FeatureIntrospectable,
@@ -427,7 +427,14 @@ def import_cmd(
             )
 
         source = CsvSource(csv_path)
-        loader = ProjectionLoader(source, ctx.proj_repo, ctx.log_repo, mapper, conn=ctx.conn)
+
+        def _post_upsert(projection_id: int, projection: Projection) -> None:
+            if projection.distributions is not None:
+                ctx.proj_repo.upsert_distributions(projection_id, list(projection.distributions.values()))
+
+        loader = Loader(
+            source, ctx.proj_repo, ctx.log_repo, mapper, "projection", conn=ctx.conn, post_upsert=_post_upsert
+        )
         match loader.load(encoding="utf-8-sig"):
             case Ok(log):
                 print_import_result(log)
@@ -764,11 +771,12 @@ def ingest_players(
     """Ingest player data from the Chadwick register."""
     with build_ingest_container(data_dir) as container:
         source = container.player_source()
-        loader = PlayerLoader(
+        loader = Loader(
             source,
             container.player_repo,
             container.log_repo,
             chadwick_row_to_player,
+            "player",
             conn=container.conn,
         )
         match loader.load():
@@ -787,11 +795,12 @@ def ingest_bio(
         players = container.player_repo.all()
         source = container.bio_source()
         mapper = make_lahman_bio_mapper(players)
-        loader = PlayerLoader(
+        loader = Loader(
             source,
             container.player_repo,
             container.log_repo,
             mapper,
+            "player",
             conn=container.conn,
         )
         match loader.load():
@@ -812,7 +821,7 @@ def ingest_batting(
         players = container.player_repo.all()
         for yr in season:
             mapper = make_fg_batting_mapper(players)
-            loader = StatsLoader(
+            loader = Loader(
                 data_source,
                 container.batting_stats_repo,
                 container.log_repo,
@@ -839,7 +848,7 @@ def ingest_pitching(
         players = container.player_repo.all()
         for yr in season:
             mapper = make_fg_pitching_mapper(players)
-            loader = StatsLoader(
+            loader = Loader(
                 data_source,
                 container.pitching_stats_repo,
                 container.log_repo,
@@ -865,7 +874,7 @@ def ingest_statcast(
         for yr in season:
             start_dt = f"{yr}-03-01"
             end_dt = f"{yr}-11-30"
-            loader = StatsLoader(
+            loader = Loader(
                 container.statcast_source(),
                 container.statcast_pitch_repo,
                 container.log_repo,
@@ -891,7 +900,7 @@ def ingest_sprint_speed(
     with build_ingest_container(data_dir) as container:
         for yr in season:
             mapper = make_sprint_speed_mapper(season=yr)
-            loader = StatsLoader(
+            loader = Loader(
                 container.sprint_speed_source(),
                 container.sprint_speed_repo,
                 container.log_repo,
@@ -919,7 +928,7 @@ def ingest_il(
         for yr in season:
             mapper = make_il_stint_mapper(players, season=yr)
             source = container.il_source()
-            loader = StatsLoader(
+            loader = Loader(
                 source,
                 container.il_stint_repo,
                 container.log_repo,
@@ -945,7 +954,7 @@ def ingest_appearances(
         players = container.player_repo.all()
         mapper = make_position_appearance_mapper(players)
         for yr in season:
-            loader = StatsLoader(
+            loader = Loader(
                 container.appearances_source(),
                 container.position_appearance_repo,
                 container.log_repo,
@@ -982,7 +991,7 @@ def ingest_roster(
         teams = container.team_repo.all()
         mapper = make_roster_stint_mapper(players, teams)
         for yr in season:
-            loader = StatsLoader(
+            loader = Loader(
                 container.appearances_source(),
                 container.roster_stint_repo,
                 container.log_repo,
@@ -1020,7 +1029,7 @@ def _auto_register_players(rows: list[dict[str, Any]], container: IngestContaine
 
 
 class _PreloadedSource:
-    """Wraps pre-fetched rows so StatsLoader can use them without re-fetching."""
+    """Wraps pre-fetched rows so Loader can use them without re-fetching."""
 
     def __init__(self, rows: list[dict[str, Any]], original: object) -> None:
         self._rows = rows
@@ -1058,7 +1067,7 @@ def ingest_milb_batting(
                 _auto_register_players(rows, container)
                 players = container.player_repo.all()
                 mapper = make_milb_batting_mapper(players)
-                loader = StatsLoader(
+                loader = Loader(
                     _PreloadedSource(rows, source),
                     container.minor_league_batting_stats_repo,
                     container.log_repo,

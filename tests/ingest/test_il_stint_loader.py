@@ -3,7 +3,7 @@ from typing import Any
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_il_stint_mapper
-from fantasy_baseball_manager.ingest.loader import StatsLoader
+from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -52,7 +52,7 @@ class TestILStintLoader:
         source = FakeDataSource(rows)
         repo = SqliteILStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "il_stint", conn=conn)
 
         result = loader.load(season=2024)
 
@@ -91,7 +91,7 @@ class TestILStintLoader:
         source = FakeDataSource(rows)
         repo = SqliteILStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "il_stint", conn=conn)
 
         result = loader.load(season=2024)
 
@@ -116,7 +116,7 @@ class TestILStintLoader:
         source = FakeDataSource(rows)
         repo = SqliteILStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
-        loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "il_stint", conn=conn)
 
         result = loader.load(season=2024)
 
@@ -134,7 +134,7 @@ class TestILStintLoader:
         repo = SqliteILStintRepo(conn)
         log_repo = SqliteLoadLogRepo(conn)
 
-        loader = StatsLoader(source, repo, log_repo, mapper, "il_stint", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "il_stint", conn=conn)
         loader.load(season=2024)
         loader.load(season=2024)
 
