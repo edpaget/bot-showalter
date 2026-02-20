@@ -1118,6 +1118,21 @@ def ingest_milb_batting(
                         continue
 
 
+def _build_player_teams(container: IngestContainer, season: int) -> dict[int, str]:
+    """Build a player_id → team abbreviation mapping from the most recent roster stint."""
+    teams = {t.id: t.abbreviation for t in container.team_repo.all() if t.id is not None}
+    stints = container.roster_stint_repo.get_by_season(season)
+    if not stints:
+        # Fall back to previous season
+        stints = container.roster_stint_repo.get_by_season(season - 1)
+    player_teams: dict[int, str] = {}
+    for stint in stints:
+        abbrev = teams.get(stint.team_id)
+        if abbrev:
+            player_teams[stint.player_id] = abbrev
+    return player_teams
+
+
 @ingest_app.command("adp")
 def ingest_adp(
     csv_path: Annotated[Path, typer.Argument(help="Path to FantasyPros ADP CSV")],
@@ -1134,7 +1149,10 @@ def ingest_adp(
         source = CsvSource(csv_path)
         rows = source.fetch()
         players = container.player_repo.all()
-        result = ingest_fantasypros_adp(rows, container.adp_repo, players, season=season, as_of=as_of)
+        player_teams = _build_player_teams(container, season)
+        result = ingest_fantasypros_adp(
+            rows, container.adp_repo, players, season=season, as_of=as_of, player_teams=player_teams
+        )
         container.conn.commit()
         console.print(f"  Loaded {result.loaded} ADP records, skipped {result.skipped}")
         if result.unmatched:
@@ -1173,7 +1191,8 @@ def ingest_adp_bulk(
 
             source = CsvSource(csv_file)
             rows = source.fetch()
-            result = ingest_fantasypros_adp(rows, container.adp_repo, players, season=season)
+            player_teams = _build_player_teams(container, season)
+            result = ingest_fantasypros_adp(rows, container.adp_repo, players, season=season, player_teams=player_teams)
             container.conn.commit()
             n_unmatched = len(result.unmatched)
             console.print(
@@ -1212,7 +1231,10 @@ def ingest_adp_fetch(
 
     with build_ingest_container(data_dir) as container:
         players = container.player_repo.all()
-        result = ingest_fantasypros_adp(rows, container.adp_repo, players, season=season, as_of=as_of)
+        player_teams = _build_player_teams(container, season)
+        result = ingest_fantasypros_adp(
+            rows, container.adp_repo, players, season=season, as_of=as_of, player_teams=player_teams
+        )
         container.conn.commit()
         console.print(f"  Loaded {result.loaded} ADP records, skipped {result.skipped}")
         if result.unmatched:

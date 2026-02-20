@@ -23,6 +23,8 @@ _PROVIDER_SLUGS: dict[str, str] = {
 
 _SUFFIX_RE = re.compile(r"\s+(Jr\.?|Sr\.?|II|III|IV|V)\s*$", re.IGNORECASE)
 _PARENTHETICAL_RE = re.compile(r"\s*\((?:Batter|Pitcher)\)\s*$", re.IGNORECASE)
+_INITIAL_DOT_RE = re.compile(r"(?<!\w)([A-Za-z])\.")
+_ADJACENT_INITIALS_RE = re.compile(r"(?<=\b[A-Za-z]) (?=[A-Za-z]\b)")
 
 
 def _normalize_name(name: str) -> str:
@@ -30,11 +32,17 @@ def _normalize_name(name: str) -> str:
     name = _SUFFIX_RE.sub("", name)
     nfkd = unicodedata.normalize("NFKD", name)
     stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
+    # Strip periods from initials: "J. T." -> "J  T " / "J.T." -> "JT "
+    stripped = _INITIAL_DOT_RE.sub(r"\1", stripped)
+    # Collapse whitespace, then merge adjacent single-letter tokens: "J T" -> "JT"
+    stripped = " ".join(stripped.split())
+    stripped = _ADJACENT_INITIALS_RE.sub("", stripped)
     return stripped.strip().lower()
 
 
 def _build_player_lookups(
     players: list[Player],
+    player_teams: dict[int, str] | None = None,
 ) -> tuple[dict[tuple[str, str], int], dict[str, list[int]]]:
     by_name_team: dict[tuple[str, str], int] = {}
     by_name: dict[str, list[int]] = {}
@@ -45,15 +53,8 @@ def _build_player_lookups(
         full_name = f"{p.name_first} {p.name_last}"
         normalized = _normalize_name(full_name)
         by_name.setdefault(normalized, []).append(p.id)
-
-    for p in players:
-        if p.id is None:
-            continue
-        full_name = f"{p.name_first} {p.name_last}"
-        normalized = _normalize_name(full_name)
-        # We don't have team abbreviations on Player, so name-only lookup is primary.
-        # The by_name_team lookup is populated from roster data if available;
-        # for now we skip it and rely on name-only with disambiguation.
+        if player_teams and p.id in player_teams:
+            by_name_team[(normalized, player_teams[p.id])] = p.id
 
     return by_name_team, by_name
 
@@ -107,8 +108,9 @@ def ingest_fantasypros_adp(
     players: list[Player],
     season: int,
     as_of: str | None = None,
+    player_teams: dict[int, str] | None = None,
 ) -> ADPIngestResult:
-    by_name_team, by_name = _build_player_lookups(players)
+    by_name_team, by_name = _build_player_lookups(players, player_teams)
 
     if not rows:
         return ADPIngestResult(loaded=0, skipped=0, unmatched=[])

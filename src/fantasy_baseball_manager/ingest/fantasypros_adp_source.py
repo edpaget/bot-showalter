@@ -82,7 +82,33 @@ def _parse_table_html(html: str) -> list[dict[str, Any]]:
     return result
 
 
-_PLAYER_TEAM_RE = re.compile(r"^(.+?)\s*\((\w+)\s*-\s*(.+)\)$")
+# "Name (TEAM - POS)" with optional trailing status like IL60, NRI, FA
+_PLAYER_TEAM_RE = re.compile(r"^(.+?)\s*\((\w+)\s*-\s*([^)]+)\)")
+# "Name (POS) FA" — no team, just position(s) with optional trailing status
+_PLAYER_POS_RE = re.compile(r"^(.+?)\s*\(([^)]+)\)\s*(?:IL\d*|NRI|FA)?\s*$")
+# "(Batter)" or "(Pitcher)" role annotation
+_ROLE_RE = re.compile(r"\s*\((?:Batter|Pitcher)\)\s*$", re.IGNORECASE)
+
+
+def _split_player_team(value: str) -> tuple[str, str, str]:
+    """Parse a combined 'Player (Team - Positions)' cell into (name, team, positions)."""
+    # Try "Name (TEAM - POS) ..." first (most common)
+    m = _PLAYER_TEAM_RE.match(value)
+    if m:
+        return m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+    # Try "Name (POS) FA" — free agents / position-only
+    m = _PLAYER_POS_RE.match(value)
+    if m:
+        name = m.group(1).strip()
+        pos = m.group(2).strip()
+        # Distinguish "(Batter)"/"(Pitcher)" from real positions
+        if _ROLE_RE.search(value):
+            name = _ROLE_RE.sub("", value).strip()
+            return name, "", ""
+        return name, "", pos
+    # Fallback: strip any role annotation, return name only
+    name = _ROLE_RE.sub("", value).strip()
+    return name, "", ""
 
 
 def _normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -95,15 +121,10 @@ def _normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         new_row: dict[str, Any] = {}
         for key, value in row.items():
             if key == "Player (Team)":
-                m = _PLAYER_TEAM_RE.match(value)
-                if m:
-                    new_row["Player"] = m.group(1).strip()
-                    new_row["Team"] = m.group(2).strip()
-                    new_row["Positions"] = m.group(3).strip()
-                else:
-                    new_row["Player"] = value
-                    new_row["Team"] = ""
-                    new_row["Positions"] = ""
+                player, team, positions = _split_player_team(value)
+                new_row["Player"] = player
+                new_row["Team"] = team
+                new_row["Positions"] = positions
             else:
                 new_row[key] = value
         result.append(new_row)

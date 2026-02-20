@@ -8,6 +8,7 @@ from fantasy_baseball_manager.ingest.fantasypros_adp_source import (
     FantasyProsADPSource,
     _normalize_rows,
     _parse_table_html,
+    _split_player_team,
 )
 from fantasy_baseball_manager.ingest.protocols import DataSource
 
@@ -159,6 +160,67 @@ class TestParseTableHtml:
 
 
 # ---------------------------------------------------------------------------
+# _split_player_team unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestSplitPlayerTeam:
+    def test_standard_format(self) -> None:
+        name, team, pos = _split_player_team("Shohei Ohtani (LAD - SP,DH)")
+        assert name == "Shohei Ohtani"
+        assert team == "LAD"
+        assert pos == "SP,DH"
+
+    def test_trailing_il_status(self) -> None:
+        name, team, pos = _split_player_team("Spencer Schwellenbach (ATL - SP) IL60")
+        assert name == "Spencer Schwellenbach"
+        assert team == "ATL"
+        assert pos == "SP"
+
+    def test_trailing_nri_status(self) -> None:
+        name, team, pos = _split_player_team("Konnor Griffin (PIT - SS,CF) NRI")
+        assert name == "Konnor Griffin"
+        assert team == "PIT"
+        assert pos == "SS,CF"
+
+    def test_trailing_il10(self) -> None:
+        name, team, pos = _split_player_team("Grayson Rodriguez (LAA - SP) IL10")
+        assert name == "Grayson Rodriguez"
+        assert team == "LAA"
+        assert pos == "SP"
+
+    def test_free_agent_no_team(self) -> None:
+        name, team, pos = _split_player_team("Clayton Kershaw (SP) FA")
+        assert name == "Clayton Kershaw"
+        assert team == ""
+        assert pos == "SP"
+
+    def test_free_agent_rp(self) -> None:
+        name, team, pos = _split_player_team("Michael Kopech (RP) FA")
+        assert name == "Michael Kopech"
+        assert team == ""
+        assert pos == "RP"
+
+    def test_batter_annotation(self) -> None:
+        name, team, pos = _split_player_team("Shohei Ohtani (Batter)")
+        assert name == "Shohei Ohtani"
+        assert team == ""
+        assert pos == ""
+
+    def test_pitcher_annotation(self) -> None:
+        name, team, pos = _split_player_team("Shohei Ohtani (Pitcher)")
+        assert name == "Shohei Ohtani"
+        assert team == ""
+        assert pos == ""
+
+    def test_suffix_preserved_in_name(self) -> None:
+        name, team, pos = _split_player_team("Vladimir Guerrero Jr. (TOR - 1B)")
+        assert name == "Vladimir Guerrero Jr."
+        assert team == "TOR"
+        assert pos == "1B"
+
+
+# ---------------------------------------------------------------------------
 # _normalize_rows unit tests
 # ---------------------------------------------------------------------------
 
@@ -201,6 +263,19 @@ class TestNormalizeRows:
         assert vlad["Player"] == "Vladimir Guerrero Jr."
         assert vlad["Team"] == "TOR"
         assert vlad["Positions"] == "1B"
+
+    def test_strips_il_status(self) -> None:
+        rows = [{"Player (Team)": "Jared Jones (PIT - SP) IL60", "Rank": "1"}]
+        normalized = _normalize_rows(rows)
+        assert normalized[0]["Player"] == "Jared Jones"
+        assert normalized[0]["Team"] == "PIT"
+        assert normalized[0]["Positions"] == "SP"
+
+    def test_handles_free_agent(self) -> None:
+        rows = [{"Player (Team)": "Clayton Kershaw (SP) FA", "Rank": "1"}]
+        normalized = _normalize_rows(rows)
+        assert normalized[0]["Player"] == "Clayton Kershaw"
+        assert normalized[0]["Positions"] == "SP"
 
 
 # ---------------------------------------------------------------------------

@@ -59,6 +59,22 @@ class TestNormalizeName:
     def test_strips_accents(self) -> None:
         assert _normalize_name("Ronald Acuña") == "ronald acuna"
 
+    def test_collapses_initials_with_spaces(self) -> None:
+        assert _normalize_name("J. T. Realmuto") == "jt realmuto"
+
+    def test_collapses_initials_without_spaces(self) -> None:
+        assert _normalize_name("J.T. Realmuto") == "jt realmuto"
+
+    def test_collapses_single_initial(self) -> None:
+        assert _normalize_name("A.J. Minter") == "aj minter"
+
+    def test_collapses_initials_with_extra_spaces(self) -> None:
+        assert _normalize_name("A. J. Minter") == "aj minter"
+
+    def test_initials_match_across_formats(self) -> None:
+        # "J. P. Crawford" from DB should match "J.P. Crawford" from ADP
+        assert _normalize_name("J. P. Crawford") == _normalize_name("J.P. Crawford")
+
 
 class TestDiscoverProviderColumns:
     def test_2026_headers(self) -> None:
@@ -160,6 +176,34 @@ class TestIngestFantasyprosADP:
         result = ingest_fantasypros_adp(rows, repo, repo_p.all(), season=2026)
         assert result.loaded == 0
         assert result.unmatched == ["John Smith"]
+
+    def test_ambiguous_name_resolved_by_team(self, conn: sqlite3.Connection) -> None:
+        id1 = seed_player(conn, name_first="John", name_last="Smith", mlbam_id=100001)
+        seed_player(conn, name_first="John", name_last="Smith", mlbam_id=100002)
+        repo = SqliteADPRepo(conn)
+        rows = [
+            _make_row("1", "John Smith", "NYY", "OF", "50.0"),
+        ]
+        player_teams = {id1: "NYY"}
+        result = ingest_fantasypros_adp(
+            rows, repo, SqlitePlayerRepo(conn).all(), season=2026, player_teams=player_teams
+        )
+        assert result.loaded == 1
+        assert result.unmatched == []
+        adps = repo.get_by_player_season(id1, 2026)
+        assert len(adps) == 1
+
+    def test_initials_with_periods_match(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="J. T.", name_last="Realmuto", mlbam_id=592663)
+        repo = SqliteADPRepo(conn)
+        rows = [
+            _make_row("1", "J.T. Realmuto", "PHI", "C", "50.0"),
+        ]
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        assert result.loaded == 1
+        assert result.unmatched == []
+        adps = repo.get_by_player_season(pid, 2026)
+        assert len(adps) == 1
 
     def test_jr_suffix_matches(self, conn: sqlite3.Connection) -> None:
         ids = _seed_players(conn)
