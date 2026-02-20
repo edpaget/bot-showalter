@@ -18,6 +18,7 @@ from fantasy_baseball_manager.domain.errors import ConfigError
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
+from fantasy_baseball_manager.models.composite.engine import GBMEngine, MarcelEngine
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
 from fantasy_baseball_manager.models.registry import _clear, register
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -87,6 +88,27 @@ class _WithModelNameModel:
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
         return PrepareResult(model_name=self.model_name_value, rows_processed=0, artifacts_path="")
+
+
+class _WithEngineModel:
+    def __init__(self, assembler: object = None, engine: object = None) -> None:
+        self.assembler = assembler
+        self.engine = engine
+
+    @property
+    def name(self) -> str:
+        return "withengine"
+
+    @property
+    def description(self) -> str:
+        return "Model that accepts engine"
+
+    @property
+    def supported_operations(self) -> frozenset[str]:
+        return frozenset({"prepare"})
+
+    def prepare(self, config: ModelConfig) -> PrepareResult:
+        return PrepareResult(model_name="withengine", rows_processed=0, artifacts_path="")
 
 
 @pytest.fixture(autouse=True)
@@ -224,6 +246,38 @@ class TestBuildModelContext:
                 raise RuntimeError("boom")
         with pytest.raises(ProgrammingError):
             conn.execute("SELECT 1")
+
+    def test_build_model_context_passes_engine_kwarg(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("withengine")(_WithEngineModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig(model_params={"engine": "gbm"})
+        with build_model_context("withengine", config) as ctx:
+            assert isinstance(ctx.model, _WithEngineModel)
+            assert isinstance(ctx.model.engine, GBMEngine)
+
+    def test_build_model_context_defaults_to_marcel_engine(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("withengine")(_WithEngineModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig()
+        with build_model_context("withengine", config) as ctx:
+            assert isinstance(ctx.model, _WithEngineModel)
+            assert isinstance(ctx.model.engine, MarcelEngine)
+
+    def test_build_model_context_engine_not_passed_when_not_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("witharg")(_WithArgModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        config = ModelConfig(model_params={"engine": "gbm"})
+        with build_model_context("witharg", config) as ctx:
+            assert isinstance(ctx.model, _WithArgModel)
 
 
 class TestBuildEvalContext:

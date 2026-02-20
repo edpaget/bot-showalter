@@ -29,12 +29,15 @@ max_leaf_nodes = 15
 min_samples_leaf = 50
 
 [models.composite-mle.params]
+engine = "gbm"
 feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "mle_batter_rates"]
 
 [models.composite-statcast.params]
+engine = "gbm"
 feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "statcast_gbm_preseason_batter_rates", "statcast_gbm_preseason_pitcher_rates"]
 
 [models.composite-full.params]
+engine = "gbm"
 feature_groups = ["age", "projected_batting_pt", "projected_pitching_pt", "batting_counting_lags", "pitching_counting_lags", "mle_batter_rates", "statcast_gbm_preseason_batter_rates", "statcast_gbm_preseason_pitcher_rates"]
 
 # --- League configurations ---

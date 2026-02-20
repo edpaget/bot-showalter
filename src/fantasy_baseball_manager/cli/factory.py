@@ -18,6 +18,7 @@ from fantasy_baseball_manager.ingest.lahman_source import LahmanAppearancesSourc
 from fantasy_baseball_manager.ingest.fangraphs_source import FgBattingSource, FgPitchingSource
 from fantasy_baseball_manager.ingest.sprint_speed_source import SprintSpeedSource
 from fantasy_baseball_manager.ingest.statcast_savant_source import StatcastSavantSource
+from fantasy_baseball_manager.models.composite.engine import resolve_engine
 from fantasy_baseball_manager.domain.errors import ConfigError
 from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
@@ -91,9 +92,11 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             SqliteBattingStatsRepo(conn),
             SqlitePitchingStatsRepo(conn),
         )
+        engine = resolve_engine(config.model_params)
         result = create_model(
             model_name,
             assembler=assembler,
+            engine=engine,
             projection_repo=SqliteProjectionRepo(conn),
             evaluator=evaluator,
             milb_repo=SqliteMinorLeagueBattingStatsRepo(conn),
