@@ -56,7 +56,12 @@ When executing a plan (after plan-mode approval):
 
 ## Worktree Workflow
 
-Implement each roadmap phase in its own worktree to avoid working directly on `main`. Use the built-in `EnterWorktree` tool to create an isolated worktree and switch into it. After the phase is complete, merge back to main with `git merge --ff-only` (rebase first if needed to keep history linear).
+Implement each roadmap phase in its own worktree to avoid working directly on `main`. Use the built-in `EnterWorktree` tool to create an isolated worktree and switch into it. After the phase is complete, merge back to main with `git merge --ff-only` (rebase first if needed to keep history linear). Then clean up the worktree branch:
+
+```bash
+git worktree remove .claude/worktrees/<name>
+git branch -d <branch-name>
+```
 
 ## Git Conventions
 
