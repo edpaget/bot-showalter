@@ -1,12 +1,16 @@
 import statistics
 
+from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings, StatType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.projection_confidence import (
+    ClassifiedPlayer,
     ConfidenceReport,
     PlayerConfidence,
     StatSpread,
+    VarianceClassification,
 )
+from fantasy_baseball_manager.domain.valuation import Valuation
 
 
 def compute_confidence(
@@ -131,3 +135,131 @@ def _classify_agreement(overall_cv: float) -> str:
     if overall_cv >= 0.25:
         return "low"
     return "medium"
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: High-variance player classification
+# ---------------------------------------------------------------------------
+
+_ADP_CLOSE_THRESHOLD: int = 10
+_ADP_LATE_THRESHOLD: int = 20
+_ADP_EARLY_THRESHOLD: int = 20
+_SIGNIFICANT_ABOVE_RATIO: float = 1.3
+
+
+def classify_variance(
+    report: ConfidenceReport,
+    valuations: list[Valuation],
+    adp: list[ADP] | None = None,
+) -> list[ClassifiedPlayer]:
+    """Classify players into draft-actionable variance buckets.
+
+    Combines projection agreement (from *report*) with dollar valuations and
+    ADP to produce a single ``VarianceClassification`` per player.
+    """
+    # 1. Group valuations by player_id → per-player value stats
+    player_values: dict[int, list[float]] = {}
+    for v in valuations:
+        player_values.setdefault(v.player_id, []).append(v.value)
+
+    # 2. Compute median, max, min per player
+    player_stats: dict[int, tuple[float, float, float]] = {}  # median, max, min
+    for pid, vals in player_values.items():
+        player_stats[pid] = (
+            statistics.median(vals),
+            max(vals),
+            min(vals),
+        )
+
+    # 3. Compute value_rank — sort by median desc, assign ranks 1..N
+    ranked_pids: list[int] = sorted(player_stats, key=lambda pid: player_stats[pid][0], reverse=True)
+    value_rank_map: dict[int, int] = {pid: rank for rank, pid in enumerate(ranked_pids, start=1)}
+
+    # 4. Build rank→value mapping
+    rank_to_value: dict[int, float] = {rank: player_stats[pid][0] for pid, rank in value_rank_map.items()}
+    max_rank: int = len(rank_to_value)
+
+    # 5. Build ADP lookup — group by player_id, take lowest overall_pick
+    adp_lookup: dict[int, float] = {}
+    if adp:
+        for entry in adp:
+            current = adp_lookup.get(entry.player_id)
+            if current is None or entry.overall_pick < current:
+                adp_lookup[entry.player_id] = entry.overall_pick
+
+    # 6. Classify each player in the report
+    result: list[ClassifiedPlayer] = []
+    for player in report.players:
+        if player.player_id not in player_stats:
+            continue
+
+        median_val, max_val, min_val = player_stats[player.player_id]
+        v_rank: int = value_rank_map[player.player_id]
+
+        # ADP
+        raw_adp: float | None = adp_lookup.get(player.player_id)
+        adp_rank: int | None = round(raw_adp) if raw_adp is not None else None
+
+        # adp_expected: dollar value at the ADP position (or median if no ADP)
+        if adp_rank is not None and max_rank > 0:
+            clamped: int = max(1, min(adp_rank, max_rank))
+            adp_expected: float = rank_to_value[clamped]
+        else:
+            adp_expected = median_val
+
+        # risk_reward_score
+        rr_score: float = max_val + min_val - 2 * adp_expected
+
+        # Upside flag
+        has_upside: bool = max_val >= _SIGNIFICANT_ABOVE_RATIO * adp_expected
+
+        # Classification decision tree
+        classification = _classify_player(player.agreement_level, adp_rank, v_rank, has_upside)
+
+        result.append(
+            ClassifiedPlayer(
+                player=player,
+                classification=classification,
+                adp_rank=adp_rank,
+                value_rank=v_rank,
+                risk_reward_score=rr_score,
+            )
+        )
+
+    return result
+
+
+def _classify_player(
+    agreement: str,
+    adp_rank: int | None,
+    value_rank: int,
+    has_upside: bool,
+) -> VarianceClassification:
+    """Decision tree: first match wins → exactly one classification."""
+    if adp_rank is None:
+        # No ADP path
+        if agreement in ("high", "medium"):
+            return VarianceClassification.KNOWN_QUANTITY
+        return VarianceClassification.HIDDEN_UPSIDE
+
+    rank_diff: int = adp_rank - value_rank
+    adp_late: bool = rank_diff > _ADP_LATE_THRESHOLD
+    adp_early: bool = rank_diff < -_ADP_EARLY_THRESHOLD
+
+    # Has ADP path
+    if agreement == "high" and abs(rank_diff) <= _ADP_CLOSE_THRESHOLD:
+        return VarianceClassification.SAFE_CONSENSUS
+    if agreement == "high":
+        return VarianceClassification.KNOWN_QUANTITY
+    if agreement == "low" and adp_late and has_upside:
+        return VarianceClassification.UPSIDE_GAMBLE
+    if agreement == "low" and adp_early:
+        return VarianceClassification.RISKY_AVOID
+    if agreement == "medium" and has_upside:
+        return VarianceClassification.HIDDEN_UPSIDE
+    if agreement == "low" and has_upside:
+        return VarianceClassification.UPSIDE_GAMBLE
+    if agreement == "low":
+        return VarianceClassification.RISKY_AVOID
+    # medium fallback
+    return VarianceClassification.KNOWN_QUANTITY
