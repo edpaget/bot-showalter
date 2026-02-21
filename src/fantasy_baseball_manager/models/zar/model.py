@@ -13,7 +13,6 @@ from fantasy_baseball_manager.models.zar.engine import (
 )
 from fantasy_baseball_manager.models.zar.positions import (
     best_position,
-    build_position_map,
     build_roster_spots,
 )
 from fantasy_baseball_manager.repos.protocols import (
@@ -22,6 +21,7 @@ from fantasy_baseball_manager.repos.protocols import (
     ProjectionRepo,
     ValuationRepo,
 )
+from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 
 
 def _extract_stats(projections: list[Projection]) -> list[dict[str, float]]:
@@ -44,11 +44,13 @@ class ZarModel:
         position_repo: PositionAppearanceRepo,
         player_repo: PlayerRepo | None = None,
         valuation_repo: ValuationRepo | None = None,
+        eligibility_service: PlayerEligibilityService | None = None,
     ) -> None:
         self._projection_repo = projection_repo
         self._player_repo = player_repo
         self._position_repo = position_repo
         self._valuation_repo = valuation_repo
+        self._eligibility_service = eligibility_service or PlayerEligibilityService(position_repo)
 
     @property
     def name(self) -> str:
@@ -79,8 +81,7 @@ class ZarModel:
             projections = [p for p in projections if p.season == season]
         else:
             projections = self._projection_repo.get_by_season(season, system=proj_system)
-        appearances = self._position_repo.get_by_season(season)
-        position_map = build_position_map(appearances, league)
+        position_map = self._eligibility_service.get_batter_positions(season, league)
 
         # 2. Split into batters and pitchers
         batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) > 0]

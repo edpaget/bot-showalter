@@ -18,6 +18,7 @@ from fantasy_baseball_manager.models.protocols import (
     Trainable,
 )
 from fantasy_baseball_manager.models.zar.model import ZarModel
+from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 from tests.fakes.repos import (
     FakePlayerRepo,
     FakePositionAppearanceRepo,
@@ -493,3 +494,97 @@ class TestZarModelPredict:
         model.predict(config)
         player_ids = {v.player_id for v in val_repo.upserted}
         assert player_ids == {1}
+
+
+class TestZarModelEligibilityService:
+    """Tests for PlayerEligibilityService integration into ZarModel."""
+
+    def test_uses_injected_eligibility_service(self) -> None:
+        """When an eligibility service is provided, ZarModel uses it for fallback."""
+        # Position data only in 2024, projections for 2025
+        appearances = [
+            PositionAppearance(player_id=1, season=2024, position="C", games=100),
+            PositionAppearance(player_id=2, season=2024, position="OF", games=150),
+            PositionAppearance(player_id=3, season=2024, position="OF", games=140),
+        ]
+        pos_repo = FakePositionAppearanceRepo(appearances)
+        service = PlayerEligibilityService(pos_repo)
+        val_repo = FakeValuationRepo()
+        model = ZarModel(
+            projection_repo=FakeProjectionRepo(_build_projections()),
+            position_repo=pos_repo,
+            player_repo=FakePlayerRepo(),
+            valuation_repo=val_repo,
+            eligibility_service=service,
+        )
+        model.predict(_standard_config())
+        batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
+        # With fallback to 2024 data, batters should have valid positions
+        valid_positions = {"c", "of", "util"}
+        for v in batter_vals:
+            assert v.position in valid_positions
+
+    def test_fallback_assigns_positions_for_future_season(self) -> None:
+        """For 2026 projections with only 2025 position data, service falls back."""
+        projections = [
+            Projection(
+                player_id=1,
+                season=2026,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0, "avg": 0.291},
+            ),
+            Projection(
+                player_id=2,
+                season=2026,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0, "avg": 0.280},
+            ),
+            Projection(
+                player_id=4,
+                season=2026,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
+            ),
+        ]
+        appearances = [
+            PositionAppearance(player_id=1, season=2025, position="C", games=100),
+            PositionAppearance(player_id=2, season=2025, position="OF", games=150),
+        ]
+        pos_repo = FakePositionAppearanceRepo(appearances)
+        service = PlayerEligibilityService(pos_repo)
+        val_repo = FakeValuationRepo()
+        model = ZarModel(
+            projection_repo=FakeProjectionRepo(projections),
+            position_repo=pos_repo,
+            player_repo=FakePlayerRepo(),
+            valuation_repo=val_repo,
+            eligibility_service=service,
+        )
+        config = ModelConfig(
+            seasons=[2026],
+            model_params={"league": _standard_league(), "projection_system": "steamer"},
+            version="1.0",
+        )
+        model.predict(config)
+        batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
+        # Without fallback, all batters would be "util". With fallback to 2025,
+        # at least one batter should have a non-util position (c or of).
+        non_util = [v for v in batter_vals if v.position != "util"]
+        assert len(non_util) > 0, "Fallback should assign real positions, not all util"
+
+    def test_builds_service_from_position_repo_when_not_injected(self) -> None:
+        """When no eligibility service is injected, ZarModel builds one internally."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        # Should work exactly as before — positions from same season
+        batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
+        assert len(batter_vals) == 3
+        valid_positions = {"c", "of", "util"}
+        for v in batter_vals:
+            assert v.position in valid_positions

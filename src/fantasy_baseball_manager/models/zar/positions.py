@@ -19,6 +19,7 @@ POSITION_ALIASES: dict[str, str] = {
 def build_position_map(
     appearances: list[PositionAppearance],
     league: LeagueSettings,
+    min_games: int = 1,
 ) -> dict[int, list[str]]:
     """Map player IDs to lists of eligible league-settings position keys."""
     valid_positions = set(league.positions.keys())
@@ -27,6 +28,8 @@ def build_position_map(
 
     result: dict[int, list[str]] = {}
     for app in appearances:
+        if app.games < min_games:
+            continue
         league_pos = POSITION_ALIASES.get(app.position)
         if league_pos and league_pos in valid_positions:
             result.setdefault(app.player_id, [])

@@ -57,6 +57,7 @@ from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
 from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
+from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
@@ -104,6 +105,8 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             SqlitePitchingStatsRepo(conn),
         )
         engine = resolve_engine(config.model_params)
+        position_appearance_repo = SqlitePositionAppearanceRepo(conn)
+        eligibility_service = PlayerEligibilityService(position_appearance_repo)
         result = create_model(
             model_name,
             assembler=assembler,
@@ -114,8 +117,9 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             league_env_repo=SqliteLeagueEnvironmentRepo(conn),
             level_factor_repo=SqliteLevelFactorRepo(conn),
             player_repo=SqlitePlayerRepo(conn),
-            position_repo=SqlitePositionAppearanceRepo(conn),
+            position_repo=position_appearance_repo,
             valuation_repo=SqliteValuationRepo(conn),
+            eligibility_service=eligibility_service,
         )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)

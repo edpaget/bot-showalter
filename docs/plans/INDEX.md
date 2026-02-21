@@ -15,6 +15,7 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | not started | keeper-surplus-value |
 | [LLM Agent](llm-agent.md) | 3 | phases 1-2 done | none |
+| [Player Eligibility](player-eligibility.md) | 3 | phase 1 done | none |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 | not started | none |
 | [Live Draft Tracker](live-draft-tracker.md) | 4 | not started | valuations (done) |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | not started | draft board (done), ADP (done) |
@@ -47,5 +48,6 @@ These aren't hard blockers but enhance the consuming roadmap when available:
 
 - **Tier generator** enhances: draft board export, live draft tracker, mock draft simulator, positional upgrade calculator, roster optimizer
 - **ADP integration** (done) enhances: tier generator CLI, live draft tracker
+- **Player eligibility** enhances: positional scarcity (depends on correct position assignments)
 - **Positional scarcity** enhances: roster optimizer, keeper optimization solver
 - **Category balance tracker** enhances: live draft tracker, mock draft simulator, positional upgrade calculator
