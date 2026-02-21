@@ -1,7 +1,7 @@
 import statistics
 from collections import defaultdict
 
-from fantasy_baseball_manager.domain.tier import PlayerTier
+from fantasy_baseball_manager.domain.tier import PlayerTier, TierSummaryEntry, TierSummaryReport
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.protocols import PlayerRepo
 
@@ -64,6 +64,50 @@ def generate_tiers(
             )
 
     return result
+
+
+def tier_summary(tiers: list[PlayerTier]) -> TierSummaryReport:
+    """Build a cross-position summary from tier assignments.
+
+    Groups by (position, tier) and computes count, total value, average value,
+    and best player for each group.
+    """
+    if not tiers:
+        return TierSummaryReport(positions=[], max_tier=0, entries=[])
+
+    # Group by (position, tier)
+    groups: dict[tuple[str, int], list[PlayerTier]] = defaultdict(list)
+    for pt in tiers:
+        groups[(pt.position, pt.tier)].append(pt)
+
+    entries: list[TierSummaryEntry] = []
+    positions_set: set[str] = set()
+    max_tier = 0
+
+    for (position, tier), group in sorted(groups.items()):
+        positions_set.add(position)
+        max_tier = max(max_tier, tier)
+        total_value = sum(pt.value for pt in group)
+        count = len(group)
+        avg_value = total_value / count
+        # Best player = highest value (first by rank since generate_tiers sorts by rank)
+        best = max(group, key=lambda pt: pt.value)
+        entries.append(
+            TierSummaryEntry(
+                position=position,
+                tier=tier,
+                count=count,
+                total_value=total_value,
+                avg_value=avg_value,
+                best_player=best.player_name,
+            )
+        )
+
+    return TierSummaryReport(
+        positions=sorted(positions_set),
+        max_tier=max_tier,
+        entries=entries,
+    )
 
 
 def _gap_tiers(sorted_vals: list[Valuation], max_tiers: int) -> list[int]:

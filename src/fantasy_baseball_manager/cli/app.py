@@ -41,6 +41,7 @@ from fantasy_baseball_manager.cli._output import (
     print_tune_result,
     print_projection_confidence,
     print_system_disagreements,
+    print_tier_summary,
     print_value_over_adp,
     print_valuation_eval_result,
     print_valuation_rankings,
@@ -89,7 +90,7 @@ from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
 from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
 from fantasy_baseball_manager.services.projection_confidence import classify_variance, compute_confidence
-from fantasy_baseball_manager.services.tier_generator import generate_tiers
+from fantasy_baseball_manager.services.tier_generator import generate_tiers, tier_summary
 from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
@@ -2214,3 +2215,22 @@ def yahoo_my_roster(
             system_str,
         )
     console.print(table)
+
+
+@draft_app.command("tier-summary")
+def draft_tier_summary(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    method: Annotated[str, typer.Option("--method", help="Tiering method: gap or jenks")] = "gap",
+    max_tiers: Annotated[int, typer.Option("--max-tiers", help="Max tiers per position")] = 5,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Display a cross-position tier summary matrix."""
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        tiers = generate_tiers(valuations, ctx.player_repo, method=method, max_tiers=max_tiers)
+        report = tier_summary(tiers)
+        print_tier_summary(report)

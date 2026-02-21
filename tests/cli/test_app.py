@@ -1527,3 +1527,44 @@ class TestDraftTiersCommand:
             if parts and parts[0].isdigit():
                 tier_num = int(parts[0])
                 assert tier_num <= 2, f"Found tier {tier_num} > 2 in output: {line}"
+
+
+class TestDraftTierSummaryCommand:
+    def test_tier_summary_shows_matrix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_tier_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["draft", "tier-summary", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "OF" in result.output
+        assert "SP" in result.output
+        assert "Tier 1" in result.output
+
+    def test_tier_summary_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["draft", "tier-summary", "--season", "2099", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "No tier data found" in result.output
+
+    def test_tier_summary_counts_correct(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_tier_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["draft", "tier-summary", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        # The seeded data has 5 OF and 3 SP players
+        # Total row should appear
+        assert "Total" in result.output

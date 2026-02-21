@@ -24,7 +24,7 @@ from fantasy_baseball_manager.domain.projection_confidence import (
     PlayerConfidence,
     VarianceClassification,
 )
-from fantasy_baseball_manager.domain.tier import PlayerTier
+from fantasy_baseball_manager.domain.tier import PlayerTier, TierSummaryReport
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
@@ -1293,5 +1293,40 @@ def print_system_disagreements(player: PlayerConfidence, projections: list[Proje
             else:
                 cells.append(f"{val:.1f}")
         table.add_row(*cells)
+
+    console.print(table)
+
+
+def print_tier_summary(report: TierSummaryReport) -> None:
+    """Print a cross-position tier summary matrix."""
+    if not report.entries:
+        console.print("No tier data found.")
+        return
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Position")
+    for t in range(1, report.max_tier + 1):
+        table.add_column(f"Tier {t}", justify="center")
+
+    # Index entries by (position, tier)
+    entry_map: dict[tuple[str, int], str] = {}
+    tier_totals: dict[int, int] = defaultdict(int)
+    for entry in report.entries:
+        cell = f"{entry.count} (avg ${entry.avg_value:.1f})"
+        entry_map[(entry.position, entry.tier)] = cell
+        tier_totals[entry.tier] += entry.count
+
+    for position in report.positions:
+        cells: list[str] = [position]
+        for t in range(1, report.max_tier + 1):
+            cells.append(entry_map.get((position, t), ""))
+        table.add_row(*cells)
+
+    # Totals footer row
+    table.add_section()
+    footer: list[str] = ["[bold]Total[/bold]"]
+    for t in range(1, report.max_tier + 1):
+        footer.append(f"[bold]{tier_totals.get(t, 0)}[/bold]")
+    table.add_row(*footer)
 
     console.print(table)
