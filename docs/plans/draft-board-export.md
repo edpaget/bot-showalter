@@ -67,6 +67,14 @@ For drafters who want a printed reference or a browser tab open during the draft
 - Value outliers are highlighted.
 - Prints cleanly on letter/A4 paper (landscape orientation).
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Draft board service | done (2026-02-17) |
+| 2 — CLI display & CSV export | done (2026-02-18) |
+| 3 — HTML rendering + Flask live server | done (2026-02-20) |
+
 ## Ordering
 
 Phase 1 -> 2 -> 3, sequential. Phase 1 is the core data layer and must land first. Phase 2 adds user-facing output. Phase 3 adds polish and live capabilities. This roadmap can begin immediately (phase 1 only needs valuations) but benefits from the tier generator and ADP integration being completed first.
