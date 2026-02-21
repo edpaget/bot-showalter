@@ -5,14 +5,16 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
-from tests.fakes.repos import FakePositionAppearanceRepo
+from tests.fakes.repos import FakePitchingStatsRepo, FakePositionAppearanceRepo
 
 
 def _league(
     positions: dict[str, int] | None = None,
     roster_util: int = 1,
+    pitcher_positions: dict[str, int] | None = None,
 ) -> LeagueSettings:
     return LeagueSettings(
         name="Test",
@@ -29,6 +31,7 @@ def _league(
         ),
         roster_util=roster_util,
         positions=positions or {"c": 1, "of": 3},
+        pitcher_positions=pitcher_positions or {},
     )
 
 
@@ -127,3 +130,151 @@ class TestGetBatterPositionsMinGames:
         assert 1 in result
         assert "c" not in result[1]
         assert "of" in result[1]
+
+
+# ---------------------------------------------------------------------------
+# Pitcher positions
+# ---------------------------------------------------------------------------
+
+_SP_RP_LEAGUE = {"sp": 2, "rp": 2, "p": 4}
+
+
+def _pitching_stats(
+    player_id: int,
+    season: int,
+    g: int,
+    gs: int,
+    source: str = "fangraphs",
+) -> PitchingStats:
+    return PitchingStats(player_id=player_id, season=season, source=source, g=g, gs=gs)
+
+
+class TestGetPitcherPositionsBackwardCompat:
+    """Empty pitcher_positions → all pitchers get ["p"]."""
+
+    def test_empty_pitcher_positions_returns_p_for_all(self) -> None:
+        service = PlayerEligibilityService(FakePositionAppearanceRepo())
+        league = _league()
+        result = service.get_pitcher_positions(2025, league, [10, 20])
+        assert result == {10: ["p"], 20: ["p"]}
+
+
+class TestGetPitcherPositionsSPOnly:
+    """Pitcher with only starts → SP-eligible + P flex."""
+
+    def test_sp_only(self) -> None:
+        stats = [_pitching_stats(10, 2025, g=30, gs=30)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" in result[10]
+        assert "rp" not in result[10]
+        assert "p" in result[10]
+
+
+class TestGetPitcherPositionsRPOnly:
+    """Pitcher with only relief appearances → RP-eligible + P flex."""
+
+    def test_rp_only(self) -> None:
+        stats = [_pitching_stats(10, 2025, g=60, gs=0)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "rp" in result[10]
+        assert "sp" not in result[10]
+        assert "p" in result[10]
+
+
+class TestGetPitcherPositionsDualEligible:
+    """Pitcher with both starts and relief → SP + RP + P."""
+
+    def test_dual_eligible(self) -> None:
+        stats = [_pitching_stats(10, 2025, g=40, gs=20)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" in result[10]
+        assert "rp" in result[10]
+        assert "p" in result[10]
+
+
+class TestGetPitcherPositionsSeasonFallback:
+    """When no pitching stats for current season, falls back to season - 1."""
+
+    def test_falls_back_to_previous_season(self) -> None:
+        stats = [_pitching_stats(10, 2024, g=30, gs=30)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" in result[10]
+        assert "p" in result[10]
+
+
+class TestGetPitcherPositionsRookieWithoutStats:
+    """Pitcher in pitcher_ids but with no stats → gets ["p"] if "p" in config."""
+
+    def test_rookie_gets_flex(self) -> None:
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [99])
+        assert result[99] == ["p"]
+
+    def test_rookie_no_flex_slot(self) -> None:
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(),
+        )
+        league = _league(pitcher_positions={"sp": 2, "rp": 2})
+        result = service.get_pitcher_positions(2025, league, [99])
+        assert result[99] == []
+
+
+class TestGetPitcherPositionsMultiSource:
+    """Stats from multiple sources → aggregate max(g), max(gs)."""
+
+    def test_aggregates_across_sources(self) -> None:
+        stats = [
+            _pitching_stats(10, 2025, g=20, gs=15, source="fangraphs"),
+            _pitching_stats(10, 2025, g=25, gs=10, source="baseball-reference"),
+        ]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        # max(g)=25, max(gs)=15 → gs>0 so SP, (25-15)=10>0 so RP
+        assert "sp" in result[10]
+        assert "rp" in result[10]
+        assert "p" in result[10]
+
+
+class TestGetPitcherPositionsFilteredByConfig:
+    """Only positions present in league.pitcher_positions are included."""
+
+    def test_sp_only_league(self) -> None:
+        stats = [_pitching_stats(10, 2025, g=40, gs=20)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions={"sp": 4})
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" in result[10]
+        assert "rp" not in result[10]
+        assert "p" not in result[10]

@@ -107,7 +107,11 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
         )
         engine = resolve_engine(config.model_params)
         position_appearance_repo = SqlitePositionAppearanceRepo(conn)
-        eligibility_service = PlayerEligibilityService(position_appearance_repo)
+        pitching_stats_repo = SqlitePitchingStatsRepo(conn)
+        eligibility_service = PlayerEligibilityService(
+            position_appearance_repo,
+            pitching_stats_repo=pitching_stats_repo,
+        )
         result = create_model(
             model_name,
             assembler=assembler,

@@ -80,6 +80,11 @@ c = 1
 ss = 1
 of = 3
 
+[leagues.h2h.pitcher_positions]
+sp = 2
+rp = 2
+p = 4
+
 [[leagues.h2h.batting_categories]]
 key = "hr"
 name = "Home Runs"

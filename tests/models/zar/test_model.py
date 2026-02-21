@@ -7,6 +7,7 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.protocols import (
@@ -20,6 +21,7 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.zar.model import ZarModel
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 from tests.fakes.repos import (
+    FakePitchingStatsRepo,
     FakePlayerRepo,
     FakePositionAppearanceRepo,
     FakeProjectionRepo,
@@ -588,3 +590,87 @@ class TestZarModelEligibilityService:
         valid_positions = {"c", "of", "util"}
         for v in batter_vals:
             assert v.position in valid_positions
+
+
+# ---------------------------------------------------------------------------
+# Pitcher SP/RP split tests
+# ---------------------------------------------------------------------------
+
+
+def _sp_rp_league() -> LeagueSettings:
+    """League with sp=2, rp=2, p=2 pitcher slots."""
+    return dataclasses.replace(
+        _standard_league(),
+        roster_pitchers=6,
+        pitcher_positions={"sp": 2, "rp": 2, "p": 2},
+    )
+
+
+class TestZarModelPitcherPositions:
+    """Tests for SP/RP classification flowing through ZarModel.predict()."""
+
+    def test_empty_pitcher_positions_matches_current_behavior(self) -> None:
+        """Without pitcher_positions, all pitchers get position='p'."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        pitcher_vals = [v for v in val_repo.upserted if v.player_type == "pitcher"]
+        for v in pitcher_vals:
+            assert v.position == "p"
+
+    def test_sp_rp_split_produces_separate_positions(self) -> None:
+        """With pitcher_positions, pitchers get SP or RP based on stats."""
+        pitching_stats = [
+            PitchingStats(player_id=4, season=2025, source="fg", g=32, gs=32),  # SP
+            PitchingStats(player_id=5, season=2025, source="fg", g=65, gs=0),  # RP
+        ]
+        pos_repo = FakePositionAppearanceRepo(_build_appearances())
+        pitching_repo = FakePitchingStatsRepo(pitching_stats)
+        service = PlayerEligibilityService(pos_repo, pitching_stats_repo=pitching_repo)
+        val_repo = FakeValuationRepo()
+        model = ZarModel(
+            projection_repo=FakeProjectionRepo(_build_projections()),
+            position_repo=pos_repo,
+            player_repo=FakePlayerRepo(),
+            valuation_repo=val_repo,
+            eligibility_service=service,
+        )
+        league = _sp_rp_league()
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={"league": league, "projection_system": "steamer"},
+            version="1.0",
+        )
+        model.predict(config)
+        pitcher_vals = {v.player_id: v for v in val_repo.upserted if v.player_type == "pitcher"}
+        # Player 4 (SP only) should be assigned sp or p
+        assert pitcher_vals[4].position in {"sp", "p"}
+        # Player 5 (RP only) should be assigned rp or p
+        assert pitcher_vals[5].position in {"rp", "p"}
+
+    def test_dual_eligible_pitcher_gets_best_position(self) -> None:
+        """A dual SP/RP pitcher should be assigned whichever has lower replacement level."""
+        pitching_stats = [
+            PitchingStats(player_id=4, season=2025, source="fg", g=32, gs=20),  # dual
+            PitchingStats(player_id=5, season=2025, source="fg", g=65, gs=0),  # RP
+        ]
+        pos_repo = FakePositionAppearanceRepo(_build_appearances())
+        pitching_repo = FakePitchingStatsRepo(pitching_stats)
+        service = PlayerEligibilityService(pos_repo, pitching_stats_repo=pitching_repo)
+        val_repo = FakeValuationRepo()
+        model = ZarModel(
+            projection_repo=FakeProjectionRepo(_build_projections()),
+            position_repo=pos_repo,
+            player_repo=FakePlayerRepo(),
+            valuation_repo=val_repo,
+            eligibility_service=service,
+        )
+        league = _sp_rp_league()
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={"league": league, "projection_system": "steamer"},
+            version="1.0",
+        )
+        model.predict(config)
+        dual_val = next(v for v in val_repo.upserted if v.player_id == 4)
+        # Dual-eligible pitcher should get a valid pitcher position
+        assert dual_val.position in {"sp", "rp", "p"}

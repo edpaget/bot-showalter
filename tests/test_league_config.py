@@ -58,6 +58,19 @@ def _minimal_settings(**overrides: object) -> LeagueSettings:
     return LeagueSettings(**defaults)  # type: ignore[arg-type]
 
 
+# -- LeagueSettings defaults -------------------------------------------------
+
+
+class TestLeagueSettingsDefaults:
+    def test_pitcher_positions_defaults_to_empty(self) -> None:
+        settings = _minimal_settings()
+        assert settings.pitcher_positions == {}
+
+    def test_pitcher_positions_with_values(self) -> None:
+        settings = _minimal_settings(pitcher_positions={"sp": 2, "rp": 2, "p": 4})
+        assert settings.pitcher_positions == {"sp": 2, "rp": 2, "p": 4}
+
+
 # -- validate_category -------------------------------------------------------
 
 
@@ -252,6 +265,7 @@ class TestParseLeague:
         assert len(settings.pitching_categories) == 1
         assert settings.roster_util == 0
         assert settings.positions == {}
+        assert settings.pitcher_positions == {}
 
     def test_with_optional_fields(self) -> None:
         raw = {
@@ -279,6 +293,31 @@ class TestParseLeague:
         settings = parse_league("side", raw)
         assert settings.roster_util == 2
         assert settings.positions == {"c": 1, "ss": 1, "of": 5}
+
+    def test_with_pitcher_positions(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "pitcher_positions": {"sp": 2, "rp": 2, "p": 4},
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.pitcher_positions == {"sp": 2, "rp": 2, "p": 4}
 
     def test_missing_required_field(self) -> None:
         raw = {

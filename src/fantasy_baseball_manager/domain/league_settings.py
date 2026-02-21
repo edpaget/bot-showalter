@@ -39,3 +39,4 @@ class LeagueSettings:
     pitching_categories: tuple[CategoryConfig, ...]
     roster_util: int = 0
     positions: dict[str, int] = field(default_factory=dict)
+    pitcher_positions: dict[str, int] = field(default_factory=dict)

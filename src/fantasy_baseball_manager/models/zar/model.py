@@ -103,8 +103,14 @@ class ZarModel:
             proj_system,
         )
 
-        # 5. Run ZAR for pitchers — all share a single "p" position
-        pitcher_position_map: dict[int, list[str]] = {p.player_id: ["p"] for p in pitcher_projs}
+        # 5. Run ZAR for pitchers
+        pitcher_position_map = self._eligibility_service.get_pitcher_positions(
+            season, league, [p.player_id for p in pitcher_projs]
+        )
+        if league.pitcher_positions:
+            pitcher_roster_spots = dict(league.pitcher_positions)
+        else:
+            pitcher_roster_spots = {"p": league.roster_pitchers}
         pitcher_valuations = self._value_pool(
             pitcher_projs,
             list(league.pitching_categories),
@@ -115,7 +121,7 @@ class ZarModel:
             season,
             version,
             proj_system,
-            pitcher_roster_spots={"p": league.roster_pitchers},
+            pitcher_roster_spots=pitcher_roster_spots,
         )
 
         # 6. Rank all valuations combined by value descending
@@ -168,7 +174,12 @@ class ZarModel:
             return []
 
         stats_list = _extract_stats(projections)
-        no_pos: list[str] = ["util"] if league.roster_util > 0 else []
+        if pitcher_roster_spots is not None and "p" in pitcher_roster_spots:
+            no_pos: list[str] = ["p"]
+        elif league.roster_util > 0:
+            no_pos = ["util"]
+        else:
+            no_pos = []
         player_positions = [position_map.get(p.player_id, no_pos) for p in projections]
         roster_spots = build_roster_spots(league, pitcher_roster_spots=pitcher_roster_spots)
 
