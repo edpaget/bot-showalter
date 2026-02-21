@@ -1,4 +1,5 @@
 import csv
+import html
 from typing import TextIO
 
 from fantasy_baseball_manager.domain.adp import ADP
@@ -7,6 +8,20 @@ from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 from fantasy_baseball_manager.domain.valuation import Valuation
 
 _PITCHER_POSITIONS = {"SP", "RP"}
+
+_BATTER_POSITION_ORDER = ["C", "1B", "2B", "SS", "3B", "OF", "DH"]
+_PITCHER_POSITION_ORDER = ["SP", "RP"]
+
+_TIER_COLORS = [
+    "#e8f5e9",  # tier 1: soft green
+    "#e3f2fd",  # tier 2: soft blue
+    "#fff3e0",  # tier 3: soft orange
+    "#fce4ec",  # tier 4: soft pink
+    "#f3e5f5",  # tier 5: soft purple
+    "#e0f7fa",  # tier 6: soft cyan
+    "#fffde7",  # tier 7: soft yellow
+    "#efebe9",  # tier 8: soft brown
+]
 
 
 def _is_pitcher_adp(adp: ADP) -> bool:
@@ -130,3 +145,144 @@ def export_csv(board: DraftBoard, output: TextIO) -> None:
             record["Delta"] = str(row.adp_delta) if row.adp_delta is not None else ""
 
         writer.writerow(record)
+
+
+def _position_sort_key(position: str, is_pitcher: bool) -> int:
+    order = _PITCHER_POSITION_ORDER if is_pitcher else _BATTER_POSITION_ORDER
+    try:
+        return order.index(position)
+    except ValueError:
+        return len(order)
+
+
+def _group_rows(rows: list[DraftBoardRow]) -> list[tuple[str, list[tuple[str, list[DraftBoardRow]]]]]:
+    """Group rows into (type_label, [(position, [rows])]) with correct ordering."""
+    batters = [r for r in rows if r.player_type != "pitcher"]
+    pitchers = [r for r in rows if r.player_type == "pitcher"]
+
+    groups: list[tuple[str, list[tuple[str, list[DraftBoardRow]]]]] = []
+    for label, group_rows, is_pitcher in [("Batters", batters, False), ("Pitchers", pitchers, True)]:
+        if not group_rows:
+            continue
+        by_pos: dict[str, list[DraftBoardRow]] = {}
+        for r in group_rows:
+            by_pos.setdefault(r.position, []).append(r)
+        sorted_positions = sorted(by_pos.keys(), key=lambda p: _position_sort_key(p, is_pitcher))
+        pos_groups: list[tuple[str, list[DraftBoardRow]]] = []
+        for pos in sorted_positions:
+            pos_rows = sorted(by_pos[pos], key=lambda r: r.value, reverse=True)
+            pos_groups.append((pos, pos_rows))
+        groups.append((label, pos_groups))
+
+    return groups
+
+
+def export_html(
+    board: DraftBoard,
+    league: LeagueSettings,
+    output: TextIO,
+    *,
+    adp_delta_threshold: int = 10,
+    auto_refresh: int | None = None,
+) -> None:
+    """Write a draft board to styled HTML format."""
+    has_tier = any(r.tier is not None for r in board.rows)
+    has_adp = any(r.adp_overall is not None for r in board.rows)
+    e = html.escape
+
+    headers: list[str] = ["Rank", "Player", "Pos", "Value"]
+    if has_tier:
+        headers.append("Tier")
+    headers.extend(board.batting_categories)
+    headers.extend(board.pitching_categories)
+    if has_adp:
+        headers.extend(["ADP", "ADPRk", "Delta"])
+
+    col_count = len(headers)
+
+    parts: list[str] = []
+    w = parts.append
+
+    w("<!DOCTYPE html>\n")
+    w('<html lang="en">\n<head>\n<meta charset="utf-8">\n')
+    w(f"<title>{e(league.name)} — Draft Board</title>\n")
+    if auto_refresh is not None:
+        w(f'<meta http-equiv="refresh" content="{auto_refresh}">\n')
+    w("<style>\n")
+    w("body { font-family: system-ui, sans-serif; margin: 1em; }\n")
+    w("table { border-collapse: collapse; width: 100%; font-size: 0.85em; }\n")
+    w("th, td { border: 1px solid #ccc; padding: 3px 6px; text-align: left; }\n")
+    w("th { background: #f5f5f5; position: sticky; top: 0; }\n")
+    w(".buy { color: #006600; font-weight: bold; }\n")
+    w(".avoid { color: #cc0000; font-weight: bold; }\n")
+    w(".type-header td { background: #333; color: #fff; font-weight: bold; font-size: 1.1em; }\n")
+    w(".pos-header td { background: #e0e0e0; font-weight: bold; }\n")
+    for i, color in enumerate(_TIER_COLORS, start=1):
+        w(f".tier-{i} {{ background: {color}; }}\n")
+    w("@media print {\n")
+    w("  @page { size: landscape; margin: 0.5cm; }\n")
+    w("  body { font-size: 8pt; margin: 0; }\n")
+    w("  tr { page-break-inside: avoid; }\n")
+    w("  th { position: static; }\n")
+    w("}\n")
+    w("</style>\n")
+    w("</head>\n<body>\n")
+    w(f"<h1>{e(league.name)} — Draft Board</h1>\n")
+    w("<table>\n<thead>\n<tr>")
+    for h in headers:
+        w(f"<th>{e(h)}</th>")
+    w("</tr>\n</thead>\n<tbody>\n")
+
+    grouped = _group_rows(board.rows)
+    for type_label, pos_groups in grouped:
+        w(f'<tr class="type-header"><td colspan="{col_count}">{e(type_label)}</td></tr>\n')
+        for pos_label, pos_rows in pos_groups:
+            w(f'<tr class="pos-header"><td colspan="{col_count}">{e(pos_label)}</td></tr>\n')
+            for row in pos_rows:
+                tier_class = ""
+                if row.tier is not None:
+                    tier_css_idx = ((row.tier - 1) % 8) + 1
+                    tier_class = f' class="tier-{tier_css_idx}"'
+                w(f"<tr{tier_class}>")
+
+                is_pitcher = row.player_type == "pitcher"
+                w(f"<td>{row.rank}</td>")
+                w(f"<td>{e(row.player_name)}</td>")
+                w(f"<td>{e(row.position)}</td>")
+                w(f"<td>${row.value:.1f}</td>")
+
+                if has_tier:
+                    w(f"<td>{row.tier if row.tier is not None else ''}</td>")
+
+                for cat in board.batting_categories:
+                    if is_pitcher:
+                        w("<td></td>")
+                    else:
+                        z = row.category_z_scores.get(cat)
+                        w(f"<td>{z:.2f}</td>" if z is not None else "<td></td>")
+
+                for cat in board.pitching_categories:
+                    if not is_pitcher:
+                        w("<td></td>")
+                    else:
+                        z = row.category_z_scores.get(cat)
+                        w(f"<td>{z:.2f}</td>" if z is not None else "<td></td>")
+
+                if has_adp:
+                    w(f"<td>{row.adp_overall:.1f}</td>" if row.adp_overall is not None else "<td></td>")
+                    w(f"<td>{row.adp_rank}</td>" if row.adp_rank is not None else "<td></td>")
+                    if row.adp_delta is not None:
+                        delta_class = ""
+                        if row.adp_delta >= adp_delta_threshold:
+                            delta_class = ' class="buy"'
+                        elif row.adp_delta <= -adp_delta_threshold:
+                            delta_class = ' class="avoid"'
+                        w(f"<td{delta_class}>{row.adp_delta}</td>")
+                    else:
+                        w("<td></td>")
+
+                w("</tr>\n")
+
+    w("</tbody>\n</table>\n</body>\n</html>")
+
+    output.write("".join(parts))
