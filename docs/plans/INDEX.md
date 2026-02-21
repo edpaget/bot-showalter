@@ -6,7 +6,7 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 
 | Roadmap | Phases | Progress | Hard Dependencies |
 |---------|--------|----------|-------------------|
-| [ADP Integration](adp-integration.md) | 5 | phases 1-2 done | none |
+| [ADP Integration](adp-integration.md) | 5 | all phases done | none |
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | not started | ADP, projections, valuations (all done) |
 | [Category Balance Tracker](category-balance-tracker.md) | 3 | not started | none |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
@@ -24,7 +24,7 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 | [Projection Confidence Report](projection-confidence-report.md) | 3 | phases 1-2 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
-| [Tier Generator](tier-generator.md) | 3 | phase 1 done | none |
+| [Tier Generator](tier-generator.md) | 3 | phases 1-2 done | none |
 | [Top-300 Tuning](top-300-tuning.md) | 6 | phases 1-3 done | none |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | not started | live-draft-tracker, keeper-surplus-value |
 
@@ -46,6 +46,6 @@ All other dependencies (valuations, ADP, draft board, projections) are already s
 These aren't hard blockers but enhance the consuming roadmap when available:
 
 - **Tier generator** enhances: draft board export, live draft tracker, mock draft simulator, positional upgrade calculator, roster optimizer
-- **ADP integration** (remaining phases) enhances: tier generator CLI, live draft tracker
+- **ADP integration** (done) enhances: tier generator CLI, live draft tracker
 - **Positional scarcity** enhances: roster optimizer, keeper optimization solver
 - **Category balance tracker** enhances: live draft tracker, mock draft simulator, positional upgrade calculator
