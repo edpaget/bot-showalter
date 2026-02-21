@@ -86,6 +86,60 @@ client_secret = "secret"
         assert config.leagues == {}
         assert config.default_league is None
 
+    def test_env_var_overrides_client_id(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("FBM_YAHOO_CLIENT_ID", "env-client-id")
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+client_id = "toml-client-id"
+client_secret = "secret"
+""",
+        )
+        config = load_yahoo_config(tmp_path)
+        assert config.client_id == "env-client-id"
+
+    def test_env_var_overrides_client_secret(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("FBM_YAHOO_CLIENT_SECRET", "env-secret")
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+client_id = "id"
+client_secret = "toml-secret"
+""",
+        )
+        config = load_yahoo_config(tmp_path)
+        assert config.client_secret == "env-secret"
+
+    def test_env_var_supplies_client_id_when_missing_from_toml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("FBM_YAHOO_CLIENT_ID", "env-client-id")
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+client_secret = "secret"
+""",
+        )
+        config = load_yahoo_config(tmp_path)
+        assert config.client_id == "env-client-id"
+
+    def test_env_var_supplies_client_secret_when_missing_from_toml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("FBM_YAHOO_CLIENT_SECRET", "env-secret")
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+client_id = "id"
+""",
+        )
+        config = load_yahoo_config(tmp_path)
+        assert config.client_secret == "env-secret"
+
     def test_league_missing_league_id_raises(self, tmp_path: Path) -> None:
         _write_toml(
             tmp_path,

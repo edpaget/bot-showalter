@@ -1,0 +1,9 @@
+# Yahoo Fantasy API OAuth credentials
+# Copy this file to .envrc and fill in your values, then run `direnv allow`.
+# These override the corresponding fields in fbm.toml.
+
+export FBM_YAHOO_CLIENT_ID=
+export FBM_YAHOO_CLIENT_SECRET=
+
+# Optional: override the default league from fbm.toml
+# export FBM_YAHOO_LEAGUE=

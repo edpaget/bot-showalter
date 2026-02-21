@@ -46,8 +46,8 @@ def load_yahoo_config(config_dir: Path) -> YahooConfig:
     if yahoo is None:
         raise YahooConfigError(f"No [yahoo] section in {_CONFIG_FILENAME}")
 
-    client_id: str = _require_field(yahoo, "client_id", "[yahoo]")
-    client_secret: str = _require_field(yahoo, "client_secret", "[yahoo]")
+    client_id: str = os.environ.get("FBM_YAHOO_CLIENT_ID") or _require_field(yahoo, "client_id", "[yahoo]")
+    client_secret: str = os.environ.get("FBM_YAHOO_CLIENT_SECRET") or _require_field(yahoo, "client_secret", "[yahoo]")
     default_league: str | None = yahoo.get("default_league")
 
     leagues: dict[str, YahooLeagueConfig] = {}

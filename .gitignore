@@ -33,6 +33,9 @@ artifacts/
 # Logs
 logs/
 
+# direnv
+.envrc
+
 # OS
 .DS_Store
 Thumbs.db
