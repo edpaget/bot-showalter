@@ -33,7 +33,6 @@ from fantasy_baseball_manager.models.statcast_gbm import model as statcast_gbm_m
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel, StatcastGBMPreseasonModel
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 
-pytestmark = pytest.mark.slow
 
 _FEATURE_COLUMNS = live_batter_curated_columns()
 _PITCHER_FEATURE_COLUMNS = live_pitcher_curated_columns()
@@ -305,6 +304,7 @@ class TestStatcastGBMPrepare:
         assert result.model_name == "statcast-gbm"
 
 
+@pytest.mark.slow
 class TestStatcastGBMTrain:
     def test_train_returns_metrics(self, tmp_path: Path) -> None:
         rows_by_season = {
@@ -351,6 +351,7 @@ class TestStatcastGBMTrain:
         assert pitcher_path.exists()
 
 
+@pytest.mark.slow
 class TestStatcastGBMPredict:
     def test_predict_returns_predictions(self, tmp_path: Path) -> None:
         # First train to create artifact
@@ -457,6 +458,7 @@ def ablation_result() -> AblationResult:
     return model.ablate(config)
 
 
+@pytest.mark.slow
 class TestStatcastGBMAblate:
     def test_ablate_returns_result(self, ablation_result: AblationResult) -> None:
         assert isinstance(ablation_result, AblationResult)
@@ -517,6 +519,7 @@ def preseason_ablation_result() -> AblationResult:
     return model.ablate(config)
 
 
+@pytest.mark.slow
 class TestStatcastGBMPreseasonAblate:
     def test_ablate_preseason_returns_result(self, preseason_ablation_result: AblationResult) -> None:
         assert isinstance(preseason_ablation_result, AblationResult)
@@ -534,6 +537,7 @@ class TestStatcastGBMPreseasonAblate:
         assert len(pitcher_keys) > 0
 
 
+@pytest.mark.slow
 class TestStatcastGBMTrainWithMissingTargets:
     def test_train_handles_missing_target_columns(self, tmp_path: Path) -> None:
         # Build batter rows where some are missing target_slg (breaks iso but not avg)
@@ -630,6 +634,7 @@ def _make_preseason_pitcher_row(player_id: str, season: int) -> dict[str, Any]:
     return row
 
 
+@pytest.mark.slow
 class TestStatcastGBMPreseasonTrain:
     def test_train_preseason_returns_metrics(self, tmp_path: Path) -> None:
         rows_by_season = {
@@ -673,6 +678,7 @@ class TestStatcastGBMPreseasonTrain:
         assert pitcher_path.exists()
 
 
+@pytest.mark.slow
 class TestStatcastGBMPreseasonPredict:
     def test_predict_preseason(self, tmp_path: Path) -> None:
         rows_by_season = {
@@ -695,6 +701,7 @@ class TestStatcastGBMPreseasonPredict:
         assert len(result.predictions) > 0
 
 
+@pytest.mark.slow
 class TestStatcastGBMPreseasonTune:
     @pytest.fixture(scope="class")
     def tune_result(self) -> TuneResult:
@@ -758,6 +765,7 @@ class TestStatcastGBMPreseasonTune:
         assert "tune" in ops
 
 
+@pytest.mark.slow
 class TestTrainSampleWeights:
     def test_train_preseason_passes_sample_weights(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_weights: list[list[float] | None] = []
@@ -817,6 +825,7 @@ class TestTrainSampleWeights:
         assert captured_weights[1] is None
 
 
+@pytest.mark.slow
 class TestTuneSampleWeights:
     def test_tune_preseason_uses_sample_weights(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_folds: list[list[Any]] = []
@@ -855,6 +864,7 @@ class TestTuneSampleWeights:
                 assert all(isinstance(w, float) for w in fold.sample_weights)
 
 
+@pytest.mark.slow
 class TestStatcastGBMTrainPerTypeParams:
     def test_train_routes_per_type_params(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_params: list[dict[str, Any]] = []
@@ -924,6 +934,7 @@ class TestStatcastGBMTrainPerTypeParams:
         assert captured_params[1] == {"max_iter": 50}
 
 
+@pytest.mark.slow
 class TestStatcastGBMAblateNRepeats:
     def test_ablate_passes_n_repeats_from_config(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_n_repeats: list[int] = []
@@ -981,6 +992,7 @@ class TestStatcastGBMAblateNRepeats:
         assert captured_n_repeats[1] == 20
 
 
+@pytest.mark.slow
 class TestStatcastGBMAblatePerTypeParams:
     def test_ablate_routes_per_type_params(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_params: list[dict[str, Any]] = []
@@ -1048,6 +1060,7 @@ class TestStatcastGBMAblatePerTypeParams:
         assert captured_params[1] == {"max_iter": 50}
 
 
+@pytest.mark.slow
 class TestStatcastGBMAblateCorrelationThreshold:
     def test_ablate_passes_correlation_threshold_from_config(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_thresholds: list[float] = []
@@ -1105,6 +1118,7 @@ class TestStatcastGBMAblateCorrelationThreshold:
         assert captured_thresholds[1] == 0.70
 
 
+@pytest.mark.slow
 class TestDefaultModeIsTrueTalent:
     def test_artifact_path_uses_model_name(self, tmp_path: Path) -> None:
         rows_by_season = {
@@ -1126,6 +1140,7 @@ class TestDefaultModeIsTrueTalent:
         assert batter_path.exists()
 
 
+@pytest.mark.slow
 class TestStatcastGBMAblateValidation:
     def test_ablate_default_has_no_validation(self, ablation_result: AblationResult) -> None:
         assert ablation_result.validation_results == {}
@@ -1243,6 +1258,7 @@ def multi_holdout_result() -> AblationResult:
     return model.ablate(config)
 
 
+@pytest.mark.slow
 class TestStatcastGBMAblateMultiHoldout:
     def test_multi_holdout_returns_ablation_result(self, multi_holdout_result: AblationResult) -> None:
         assert isinstance(multi_holdout_result, AblationResult)
@@ -1319,6 +1335,7 @@ class TestSampleWeightTransformProperty:
         assert model._sample_weight_transform is None
 
 
+@pytest.mark.slow
 class TestTrainAppliesTransform:
     def test_train_applies_sqrt_transform(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_weights: list[list[float] | None] = []
@@ -1388,6 +1405,7 @@ class TestTrainAppliesTransform:
             assert w == 1.0
 
 
+@pytest.mark.slow
 class TestTuneAppliesTransform:
     def test_tune_passes_transform_to_build_cv_folds(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_transforms: list[Any] = []
@@ -1421,6 +1439,7 @@ class TestTuneAppliesTransform:
         assert all(t is not None for t in captured_transforms)
 
 
+@pytest.mark.slow
 class TestSweepMethod:
     @pytest.fixture(scope="class")
     def sweep_result(self) -> TuneResult:
@@ -1459,6 +1478,7 @@ class TestSweepMethod:
             assert target in sweep_result.pitcher_cv_rmse
 
 
+@pytest.mark.slow
 class TestPerTypeTransform:
     def test_train_applies_separate_batter_pitcher_transforms(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1619,6 +1639,7 @@ class TestPerTypeTransform:
         assert math.isclose(pitcher_result[0], math.log1p(100.0), abs_tol=1e-9)
 
 
+@pytest.mark.slow
 class TestConfigTopPassThrough:
     def test_sweep_passes_config_top_to_sweep_cv(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_kwargs: list[dict[str, Any]] = []
@@ -1685,6 +1706,7 @@ class TestConfigTopPassThrough:
         assert captured_kwargs[1]["test_top_n"] == 100
 
 
+@pytest.mark.slow
 class TestWarRankColumn:
     def test_sweep_passes_war_as_test_rank_column(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_kwargs: list[dict[str, Any]] = []
@@ -1797,6 +1819,7 @@ class TestResolveMinActivity:
         assert model._resolve_min_ip({"min_ip": 10}) == 10
 
 
+@pytest.mark.slow
 class TestMinActivityTrainFilter:
     def test_train_filters_low_pa_batters(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_X: list[list[list[float]]] = []
@@ -1930,6 +1953,7 @@ class TestMinActivityTrainFilter:
         assert len(bat_X_train) == 8
 
 
+@pytest.mark.slow
 class TestMinActivityTuneFilter:
     def test_tune_passes_all_rows_with_train_filter(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_rows: list[list[dict[str, Any]]] = []
@@ -1973,6 +1997,7 @@ class TestMinActivityTuneFilter:
         assert len(filtered) == 15
 
 
+@pytest.mark.slow
 class TestMinActivitySweepFilter:
     def test_sweep_passes_all_rows_with_train_filter(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_rows: list[list[dict[str, Any]]] = []

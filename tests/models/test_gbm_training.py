@@ -35,8 +35,6 @@ from fantasy_baseball_manager.models.protocols import (
 )
 from fantasy_baseball_manager.models.sample_weight_transforms import sqrt as sqrt_transform
 
-pytestmark = pytest.mark.slow
-
 
 class TestTargetComparison:
     def test_target_comparison_is_frozen(self) -> None:
@@ -410,6 +408,7 @@ class TestExtractSampleWeights:
         assert result == [600.0, 1.0, 50.0]
 
 
+@pytest.mark.slow
 class TestFitModels:
     def test_returns_dict_of_models(self) -> None:
         X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
@@ -448,6 +447,7 @@ class TestFitModels:
         assert hasattr(models["avg"], "predict")
 
 
+@pytest.mark.slow
 class TestScorePredictions:
     def test_returns_rmse_keys(self) -> None:
         X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
@@ -473,6 +473,7 @@ class TestScorePredictions:
         assert metrics["rmse_avg"] >= 0
 
 
+@pytest.mark.slow
 class TestComputePermutationImportance:
     def test_returns_all_feature_columns(self) -> None:
         feature_cols = ["feat_a", "feat_b", "feat_c"]
@@ -544,6 +545,7 @@ class TestComputePermutationImportance:
             assert fi.se == 0.0
 
 
+@pytest.mark.slow
 class TestComputeGroupedPermutationImportance:
     def test_returns_all_groups_and_features(self) -> None:
         gen = random.Random(42)
@@ -671,6 +673,7 @@ class TestComputeGroupedPermutationImportance:
             assert len(g.members) == 1
 
 
+@pytest.mark.slow
 class TestEndToEndWithMissingTargets:
     def test_extract_fit_score_with_missing_targets(self) -> None:
         rows = [
@@ -986,6 +989,7 @@ def _make_cv_folds() -> list[CVFold]:
     return [fold0, fold1]
 
 
+@pytest.mark.slow
 class TestGridSearchCV:
     def test_single_param_returns_better_option(self) -> None:
         folds = _make_cv_folds()
@@ -1114,6 +1118,7 @@ def _make_validate_data() -> tuple[
     return full_models, train_rows, holdout_rows, feature_cols, targets
 
 
+@pytest.mark.slow
 class TestValidatePruning:
     def test_returns_validation_result(self) -> None:
         full_models, train_rows, holdout_rows, feature_cols, targets = _make_validate_data()
@@ -1257,6 +1262,7 @@ def _make_cv_importance_data() -> dict[int, list[dict[str, Any]]]:
     return rows_by_season
 
 
+@pytest.mark.slow
 class TestComputeCVPermutationImportance:
     def test_returns_grouped_importance_result(self) -> None:
         data = _make_cv_importance_data()
@@ -1365,6 +1371,7 @@ def _make_sweep_rows() -> list[dict[str, Any]]:
     return rows
 
 
+@pytest.mark.slow
 class TestSweepCV:
     def test_returns_best_transform(self) -> None:
         rows = _make_sweep_rows()
