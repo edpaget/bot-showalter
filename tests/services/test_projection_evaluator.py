@@ -250,8 +250,8 @@ class TestCompareMultipleSystems:
 
 
 class TestEvaluateActualsDriven:
-    def test_unprojected_player_included_with_zero(self, conn: sqlite3.Connection) -> None:
-        """A player with actuals but no projection should appear with projected=0."""
+    def test_unprojected_player_included_with_zero_for_counting(self, conn: sqlite3.Connection) -> None:
+        """A player with actuals but no projection should appear with projected=0 for counting stats."""
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
         for pid in (1, 2):
             seed_player(conn, player_id=pid)
@@ -262,10 +262,12 @@ class TestEvaluateActualsDriven:
         _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310)
 
         result = evaluator.evaluate("steamer", "2025.1", 2025)
+        # counting stats: both players contribute
         assert result.metrics["hr"].n == 2
-        assert result.metrics["avg"].n == 2
+        # rate stats: missing player skipped (projected=0 is nonsensical for rates)
+        assert result.metrics["avg"].n == 1
 
-    def test_unprojected_pitcher_included_with_zero(self, conn: sqlite3.Connection) -> None:
+    def test_unprojected_pitcher_included_with_zero_for_counting(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
         for pid in (10, 11):
             seed_player(conn, player_id=pid)
@@ -275,7 +277,9 @@ class TestEvaluateActualsDriven:
         _seed_pitching_actuals(pitching_repo, 11, era=4.00, so=160)
 
         result = evaluator.evaluate("steamer", "2025.1", 2025)
-        assert result.metrics["era"].n == 2
+        # rate stats: missing player skipped
+        assert result.metrics["era"].n == 1
+        # counting stats: both players contribute
         assert result.metrics["so"].n == 2
 
 

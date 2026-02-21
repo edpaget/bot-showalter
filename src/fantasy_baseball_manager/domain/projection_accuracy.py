@@ -139,9 +139,12 @@ def compare_to_pitching_actuals(projection: Projection, actual: PitchingStats) -
 def _missing_comparisons(
     actual_obj: object,
     stat_fields: tuple[str, ...],
+    skip_stats: frozenset[str] = frozenset(),
 ) -> list[ProjectionComparison]:
     comparisons: list[ProjectionComparison] = []
     for stat_name in stat_fields:
+        if stat_name in skip_stats:
+            continue
         actual_val = getattr(actual_obj, stat_name, None)
         if actual_val is None:
             continue
@@ -157,11 +160,21 @@ def _missing_comparisons(
     return comparisons
 
 
+_BATTING_RATE_STATS = frozenset(BATTING_RATE_STATS)
+_PITCHING_RATE_STATS = frozenset(PITCHING_RATE_STATS)
+
+
 def missing_batting_comparisons(actual: BattingStats) -> list[ProjectionComparison]:
-    """Create comparisons for a batter with no projection (projected=0)."""
-    return _missing_comparisons(actual, _BATTING_STAT_FIELDS)
+    """Create comparisons for a batter with no projection (projected=0).
+
+    Rate stats are skipped because projected=0 is nonsensical for rates.
+    """
+    return _missing_comparisons(actual, _BATTING_STAT_FIELDS, skip_stats=_BATTING_RATE_STATS)
 
 
 def missing_pitching_comparisons(actual: PitchingStats) -> list[ProjectionComparison]:
-    """Create comparisons for a pitcher with no projection (projected=0)."""
-    return _missing_comparisons(actual, _PITCHING_STAT_FIELDS)
+    """Create comparisons for a pitcher with no projection (projected=0).
+
+    Rate stats are skipped because projected=0 is nonsensical for rates.
+    """
+    return _missing_comparisons(actual, _PITCHING_STAT_FIELDS, skip_stats=_PITCHING_RATE_STATS)

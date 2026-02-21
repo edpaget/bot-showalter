@@ -172,13 +172,16 @@ class TestMissingBattingComparisons:
         comparisons = missing_batting_comparisons(actual)
         assert comparisons == []
 
-    def test_rate_stat_included(self) -> None:
-        actual = _batting_actuals(avg=0.300)
+    def test_rate_stats_skipped(self) -> None:
+        actual = _batting_actuals(avg=0.300, obp=0.380, slg=0.500, hr=28, pa=580)
         comparisons = missing_batting_comparisons(actual)
-        by_stat = {c.stat_name: c for c in comparisons}
-        assert by_stat["avg"].projected == 0.0
-        assert by_stat["avg"].actual == 0.300
-        assert by_stat["avg"].error == -0.300
+        stat_names = {c.stat_name for c in comparisons}
+        assert "avg" not in stat_names
+        assert "obp" not in stat_names
+        assert "slg" not in stat_names
+        # counting stats still included
+        assert "hr" in stat_names
+        assert "pa" in stat_names
 
 
 class TestMissingPitchingComparisons:
@@ -194,17 +197,38 @@ class TestMissingPitchingComparisons:
         comparisons = missing_pitching_comparisons(actual)
 
         by_stat = {c.stat_name: c for c in comparisons}
-        assert "era" in by_stat
-        assert by_stat["era"].projected == 0.0
-        assert by_stat["era"].actual == 3.50
-        assert by_stat["era"].error == -3.50
+        # counting stats included
+        assert by_stat["so"].projected == 0.0
+        assert by_stat["so"].actual == 190.0
+        assert by_stat["w"].error == -10.0
+        # rate stats skipped
+        assert "era" not in by_stat
 
     def test_skips_none_actuals(self) -> None:
-        actual = PitchingStats(player_id=1, season=2025, source="fangraphs", era=3.50)
+        actual = PitchingStats(player_id=1, season=2025, source="fangraphs", so=190)
         comparisons = missing_pitching_comparisons(actual)
         stat_names = {c.stat_name for c in comparisons}
-        assert "so" not in stat_names
-        assert "era" in stat_names
+        assert "so" in stat_names
+        assert "era" not in stat_names
+
+    def test_rate_stats_skipped(self) -> None:
+        actual = PitchingStats(
+            player_id=1,
+            season=2025,
+            source="fangraphs",
+            era=3.50,
+            whip=1.20,
+            fip=3.80,
+            so=190,
+            w=10,
+        )
+        comparisons = missing_pitching_comparisons(actual)
+        stat_names = {c.stat_name for c in comparisons}
+        assert "era" not in stat_names
+        assert "whip" not in stat_names
+        assert "fip" not in stat_names
+        assert "so" in stat_names
+        assert "w" in stat_names
 
 
 class TestBattingStatConstants:

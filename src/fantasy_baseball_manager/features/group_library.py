@@ -178,12 +178,12 @@ register_group(
         description="Statcast-GBM preseason batter rate estimates",
         player_type="batter",
         features=(
-            projection.col("avg").system("statcast-gbm-preseason").lag(0).alias("sc_pre_avg"),
-            projection.col("obp").system("statcast-gbm-preseason").lag(0).alias("sc_pre_obp"),
-            projection.col("slg").system("statcast-gbm-preseason").lag(0).alias("sc_pre_slg"),
-            projection.col("woba").system("statcast-gbm-preseason").lag(0).alias("sc_pre_woba"),
-            projection.col("iso").system("statcast-gbm-preseason").lag(0).alias("sc_pre_iso"),
-            projection.col("babip").system("statcast-gbm-preseason").lag(0).alias("sc_pre_babip"),
+            projection.col("avg").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_avg"),
+            projection.col("obp").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_obp"),
+            projection.col("slg").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_slg"),
+            projection.col("woba").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_woba"),
+            projection.col("iso").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_iso"),
+            projection.col("babip").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_babip"),
         ),
     )
 )
@@ -194,13 +194,21 @@ register_group(
         description="Statcast-GBM preseason pitcher rate estimates",
         player_type="pitcher",
         features=(
-            projection.col("era").system("statcast-gbm-preseason").lag(0).alias("sc_pre_era"),
-            projection.col("fip").system("statcast-gbm-preseason").lag(0).alias("sc_pre_fip"),
-            projection.col("k_per_9").system("statcast-gbm-preseason").lag(0).alias("sc_pre_k_per_9"),
-            projection.col("bb_per_9").system("statcast-gbm-preseason").lag(0).alias("sc_pre_bb_per_9"),
-            projection.col("hr_per_9").system("statcast-gbm-preseason").lag(0).alias("sc_pre_hr_per_9"),
-            projection.col("babip").system("statcast-gbm-preseason").lag(0).alias("sc_pre_babip"),
-            projection.col("whip").system("statcast-gbm-preseason").lag(0).alias("sc_pre_whip"),
+            projection.col("era").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_era"),
+            projection.col("fip").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_fip"),
+            projection.col("k_per_9").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_k_per_9"),
+            projection.col("bb_per_9")
+            .system("statcast-gbm-preseason")
+            .version("latest")
+            .lag(0)
+            .alias("sc_pre_bb_per_9"),
+            projection.col("hr_per_9")
+            .system("statcast-gbm-preseason")
+            .version("latest")
+            .lag(0)
+            .alias("sc_pre_hr_per_9"),
+            projection.col("babip").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_babip"),
+            projection.col("whip").system("statcast-gbm-preseason").version("latest").lag(0).alias("sc_pre_whip"),
         ),
     )
 )
