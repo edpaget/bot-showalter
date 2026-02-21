@@ -8,8 +8,8 @@ This roadmap depends on: projections from multiple systems (done — Steamer, Zi
 
 | Phase | Status |
 |-------|--------|
-| 1 — Cross-system spread calculation | not started |
-| 2 — High-variance player identification | not started |
+| 1 — Cross-system spread calculation | done (2026-02-20) |
+| 2 — High-variance player identification | done (2026-02-20) |
 | 3 — CLI commands and report output | not started |
 
 ## Phase 1: Cross-System Spread Calculation
