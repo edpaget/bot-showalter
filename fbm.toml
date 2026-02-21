@@ -145,3 +145,16 @@ key = "sv+hld"
 name = "Net Saves + Holds"
 stat_type = "counting"
 direction = "higher"
+
+# --- Yahoo Fantasy integration ---
+
+[yahoo]
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+default_league = "keeper"
+
+[yahoo.leagues.keeper]
+league_id = 12345
+
+[yahoo.leagues.redraft]
+league_id = 67890

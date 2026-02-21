@@ -25,8 +25,10 @@ from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
+from fantasy_baseball_manager.config_yahoo import load_yahoo_config
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
+from fantasy_baseball_manager.repos.yahoo_league_repo import SqliteYahooLeagueRepo, SqliteYahooTeamRepo
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
 from fantasy_baseball_manager.repos.level_factor_repo import SqliteLevelFactorRepo
@@ -49,6 +51,8 @@ from fantasy_baseball_manager.services.residual_persistence_diagnostic import Re
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
+from fantasy_baseball_manager.yahoo.auth import YahooAuth
+from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
 from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
@@ -520,6 +524,32 @@ def build_confidence_report_context(data_dir: str) -> Iterator[ConfidenceReportC
             conn=conn,
             player_repo=SqlitePlayerRepo(conn),
             projection_repo=SqliteProjectionRepo(conn),
+        )
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class YahooContext:
+    conn: sqlite3.Connection
+    yahoo_league_repo: SqliteYahooLeagueRepo
+    yahoo_team_repo: SqliteYahooTeamRepo
+    client: YahooFantasyClient
+
+
+@contextmanager
+def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContext]:
+    """Composition-root context manager for Yahoo Fantasy commands."""
+    config = load_yahoo_config(config_dir)
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        auth = YahooAuth(config.client_id, config.client_secret)
+        client = YahooFantasyClient(auth)
+        yield YahooContext(
+            conn=conn,
+            yahoo_league_repo=SqliteYahooLeagueRepo(conn),
+            yahoo_team_repo=SqliteYahooTeamRepo(conn),
+            client=client,
         )
     finally:
         conn.close()

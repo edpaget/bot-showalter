@@ -61,11 +61,13 @@ from fantasy_baseball_manager.cli.factory import (
     build_runs_context,
     build_valuation_eval_context,
     build_valuations_context,
+    build_yahoo_context,
     create_model,
 )
 from fantasy_baseball_manager.cli.factory import EvalContext
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.config_league import load_league
+from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config, resolve_default_league
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.projection_accuracy import BATTING_RATE_STATS, PITCHING_RATE_STATS
 from fantasy_baseball_manager.domain.pt_normalization import build_consensus_lookup
@@ -80,9 +82,12 @@ from fantasy_baseball_manager.domain.projection import Projection, StatDistribut
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
 from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
 from fantasy_baseball_manager.services.projection_confidence import compute_confidence
 from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
+from fantasy_baseball_manager.yahoo.auth import YahooAuth
+from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
     lahman_team_row_to_team,
@@ -1733,3 +1738,101 @@ def draft_live(
     flask_app = create_live_draft_app(valuations, league, player_names, adp=adp_list if adp_list else None)
     console.print(f"Live draft server running at http://{host}:{port}/")
     flask_app.run(host=host, port=port)
+
+
+# --- yahoo subcommand group ---
+
+yahoo_app = typer.Typer(name="yahoo", help="Yahoo Fantasy integration")
+app.add_typer(yahoo_app, name="yahoo")
+
+
+@yahoo_app.command("auth")
+def yahoo_auth(
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Authenticate with Yahoo Fantasy API (triggers OAuth flow)."""
+    try:
+        config = load_yahoo_config(Path(config_dir))
+    except YahooConfigError as exc:
+        print_error(str(exc))
+        raise typer.Exit(code=1) from None
+
+    auth = YahooAuth(config.client_id, config.client_secret)
+    try:
+        token = auth.get_access_token()
+    except Exception as exc:
+        print_error(f"Authentication failed: {exc}")
+        raise typer.Exit(code=1) from None
+
+    console.print(f"[bold green]Authenticated.[/bold green] Token: {token[:8]}...")
+
+
+@yahoo_app.command("sync")
+def yahoo_sync(
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Sync league metadata from Yahoo Fantasy API."""
+    try:
+        config = load_yahoo_config(Path(config_dir))
+    except YahooConfigError as exc:
+        print_error(str(exc))
+        raise typer.Exit(code=1) from None
+
+    if league is None:
+        try:
+            league = resolve_default_league(config)
+        except YahooConfigError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
+
+    if league not in config.leagues:
+        print_error(f"League '{league}' not found in [yahoo.leagues]")
+        raise typer.Exit(code=1)
+
+    league_config = config.leagues[league]
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        # Get game key for current season
+        game_key = ctx.client.get_game_key(2026)
+        league_key = f"{game_key}.l.{league_config.league_id}"
+
+        source = YahooLeagueSource(ctx.client)
+        result = source.fetch(league_key=league_key, game_key=game_key)
+
+        # Upsert league
+        league_data = result["league"]
+        yahoo_league = YahooLeague(
+            league_key=league_data["league_key"],
+            name=league_data["name"],
+            season=league_data["season"],
+            num_teams=league_data["num_teams"],
+            draft_type=league_data["draft_type"],
+            is_keeper=league_data["is_keeper"],
+            game_key=league_data["game_key"],
+        )
+        ctx.yahoo_league_repo.upsert(yahoo_league)
+
+        # Upsert teams
+        for team_data in result["teams"]:
+            yahoo_team = YahooTeam(
+                team_key=team_data["team_key"],
+                league_key=team_data["league_key"],
+                team_id=team_data["team_id"],
+                name=team_data["name"],
+                manager_name=team_data["manager_name"],
+                is_owned_by_user=team_data["is_owned_by_user"],
+            )
+            ctx.yahoo_team_repo.upsert(yahoo_team)
+
+        ctx.conn.commit()
+
+    console.print(f"[bold green]Synced[/bold green] {yahoo_league.name} ({yahoo_league.league_key})")
+    console.print(f"  Season: {yahoo_league.season}")
+    console.print(f"  Teams: {yahoo_league.num_teams}")
+    console.print(f"  Draft type: {yahoo_league.draft_type}")
+    console.print(f"  Keeper: {'yes' if yahoo_league.is_keeper else 'no'}")
+    for team_data in result["teams"]:
+        marker = " (you)" if team_data["is_owned_by_user"] else ""
+        console.print(f"  - {team_data['name']} ({team_data['manager_name']}){marker}")
