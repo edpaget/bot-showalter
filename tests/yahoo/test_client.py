@@ -212,3 +212,56 @@ class TestYahooFantasyClientRetry:
         yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client, retry=_NO_WAIT_RETRY)  # type: ignore[arg-type]
         with pytest.raises(httpx.TransportError):
             yahoo_client.get_league_settings("449.l.12345")
+
+
+_ROSTER_RESPONSE: dict[str, object] = {"fantasy_content": {"team": [{"roster": "data"}]}}
+_PLAYERS_RESPONSE: dict[str, object] = {"fantasy_content": {"league": [{"players": "data"}]}}
+
+
+class TestYahooFantasyClientGetRoster:
+    def test_sends_correct_request(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_ROSTER_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client)  # type: ignore[arg-type]
+        yahoo_client.get_roster("449.l.12345.t.1")
+
+        assert transport.last_request is not None
+        url = str(transport.last_request.url)
+        assert "team/449.l.12345.t.1/roster/players" in url
+        assert "format=json" in url
+
+    def test_includes_auth_header(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_ROSTER_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(token="my-token"), client=client)  # type: ignore[arg-type]
+        yahoo_client.get_roster("449.l.12345.t.1")
+
+        assert transport.last_request is not None
+        assert transport.last_request.headers["authorization"] == "Bearer my-token"
+
+    def test_returns_parsed_response(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_ROSTER_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client)  # type: ignore[arg-type]
+        result = yahoo_client.get_roster("449.l.12345.t.1")
+        assert "fantasy_content" in result
+
+
+class TestYahooFantasyClientGetPlayers:
+    def test_sends_correct_request(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_PLAYERS_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client)  # type: ignore[arg-type]
+        yahoo_client.get_players("449.l.12345", ["449.p.1", "449.p.2"])
+
+        assert transport.last_request is not None
+        url = str(transport.last_request.url)
+        assert "league/449.l.12345/players;player_keys=449.p.1,449.p.2" in url
+        assert "format=json" in url
+
+    def test_returns_parsed_response(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_PLAYERS_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client)  # type: ignore[arg-type]
+        result = yahoo_client.get_players("449.l.12345", ["449.p.1"])
+        assert "fantasy_content" in result
