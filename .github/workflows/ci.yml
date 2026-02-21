@@ -31,4 +31,36 @@ jobs:
         run: uv run ty check src tests
 
       - name: Tests with coverage
-        run: uv run pytest --cov --cov-report=term-missing
+        run: uv run pytest --cov --cov-report=term-missing --cov-report=json:coverage.json
+
+      # Coverage badge: extracts the percentage from the JSON report and pushes
+      # a shields.io-compatible JSON endpoint to a GitHub gist.
+      #
+      # Setup (one-time):
+      #   1. Create a public gist at https://gist.github.com with a placeholder
+      #      file named "coverage-badge.json" (content can be `{}`).
+      #   2. Copy the gist ID from the URL (the hex string after your username).
+      #   3. Add a repository variable COVERAGE_GIST_ID with that gist ID
+      #      (Settings > Secrets and variables > Actions > Variables).
+      #   4. Create a personal access token with the "gist" scope.
+      #   5. Add a repository secret GIST_TOKEN with that token
+      #      (Settings > Secrets and variables > Actions > Secrets).
+      - name: Extract coverage percentage
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: coverage
+        run: |
+          PCT=$(python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered_display'])")
+          echo "pct=$PCT" >> "$GITHUB_OUTPUT"
+
+      - name: Update coverage badge
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: coverage-badge.json
+          label: coverage
+          message: ${{ steps.coverage.outputs.pct }}%
+          valColorRange: ${{ steps.coverage.outputs.pct }}
+          minColorRange: 50
+          maxColorRange: 100

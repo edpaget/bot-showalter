@@ -1,5 +1,9 @@
 # Fantasy Baseball Manager
 
+[![CI](https://github.com/edpaget/bot-showalter/actions/workflows/ci.yml/badge.svg)](https://github.com/edpaget/bot-showalter/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/edpaget/COVERAGE_GIST_ID/raw/coverage-badge.json)](https://github.com/edpaget/bot-showalter/actions/workflows/ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 A projection-driven fantasy baseball toolkit. Statistical models forecast player performance to support drafts, trades, and lineup decisions.
 
 ## Requirements
