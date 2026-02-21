@@ -19,6 +19,7 @@ from fantasy_baseball_manager.cli._output import (
     print_comparison_result,
     print_dataset_list,
     print_draft_board,
+    print_draft_tiers,
     print_error,
     print_features,
     print_import_result,
@@ -81,10 +82,12 @@ from fantasy_baseball_manager.domain.projection_confidence import ConfidenceRepo
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
+from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
 from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
 from fantasy_baseball_manager.services.projection_confidence import compute_confidence
+from fantasy_baseball_manager.services.tier_generator import generate_tiers
 from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
@@ -1836,3 +1839,33 @@ def yahoo_sync(
     for team_data in result["teams"]:
         marker = " (you)" if team_data["is_owned_by_user"] else ""
         console.print(f"  - {team_data['name']} ({team_data['manager_name']}){marker}")
+
+
+@draft_app.command("tiers")
+def draft_tiers(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    method: Annotated[str, typer.Option("--method", help="Tiering method: gap or jenks")] = "gap",
+    max_tiers: Annotated[int, typer.Option("--max-tiers", help="Max tiers per position")] = 5,
+    position: Annotated[str | None, typer.Option("--position", help="Filter to a single position")] = None,
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Display position-grouped tier assignments."""
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+        if position is not None:
+            valuations = [v for v in valuations if v.position == position]
+
+        tiers = generate_tiers(valuations, ctx.player_repo, method=method, max_tiers=max_tiers)
+
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+        adp_by_player: dict[int, ADP] | None = None
+        if adp_list:
+            adp_by_player = {}
+            for adp in adp_list:
+                adp_by_player[adp.player_id] = adp
+
+        print_draft_tiers(tiers, adp_by_player=adp_by_player)

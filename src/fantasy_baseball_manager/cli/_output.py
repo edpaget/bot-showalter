@@ -5,6 +5,7 @@ from collections import defaultdict
 from rich.console import Console
 from rich.table import Table
 
+from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, StratifiedComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
@@ -17,6 +18,7 @@ from fantasy_baseball_manager.domain.adp_movers import ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
 from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport
+from fantasy_baseball_manager.domain.tier import PlayerTier
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
@@ -1105,3 +1107,50 @@ def print_projection_confidence(report: ConfidenceReport) -> None:
         table.add_row(*cells)
 
     console.print(table)
+
+
+def print_draft_tiers(tiers: list[PlayerTier], adp_by_player: dict[int, ADP] | None = None) -> None:
+    """Print tier assignments as position-grouped Rich tables with tier separators."""
+    if not tiers:
+        console.print("No tier data found.")
+        return
+
+    # Group by position (already sorted by position then rank from generate_tiers)
+    by_position: dict[str, list[PlayerTier]] = defaultdict(list)
+    for t in tiers:
+        by_position[t.position].append(t)
+
+    has_adp = adp_by_player is not None and len(adp_by_player) > 0
+
+    for position, players in by_position.items():
+        console.print(f"[bold]\u2500\u2500 {position} \u2500\u2500[/bold]")
+
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Tier", justify="right")
+        table.add_column("Rank", justify="right")
+        table.add_column("Player")
+        table.add_column("Value", justify="right")
+        if has_adp:
+            table.add_column("ADP", justify="right")
+
+        prev_tier: int | None = None
+        for pt in players:
+            if prev_tier is not None and pt.tier != prev_tier:
+                table.add_section()
+
+            row: list[str] = [
+                str(pt.tier),
+                str(pt.rank),
+                pt.player_name,
+                f"${pt.value:.1f}",
+            ]
+            if has_adp:
+                assert adp_by_player is not None
+                adp = adp_by_player.get(pt.player_id)
+                row.append(f"{adp.overall_pick:.1f}" if adp else "")
+
+            table.add_row(*row)
+            prev_tier = pt.tier
+
+        console.print(table)
+        console.print()

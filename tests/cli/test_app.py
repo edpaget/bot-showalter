@@ -1394,3 +1394,136 @@ class TestDraftExportCommand:
         # Should have header but no data rows
         lines = output_file.read_text().strip().split("\n")
         assert len(lines) == 1  # header only
+
+
+def _seed_tier_data(conn: sqlite3.Connection) -> None:
+    """Seed players + valuations with clear value gaps for tier tests."""
+    player_repo = SqlitePlayerRepo(conn)
+    val_repo = SqliteValuationRepo(conn)
+
+    # OF players with clear tier gaps: 42, 40 (tier 1) ... gap ... 28, 26 (tier 2) ... gap ... 15 (tier 3)
+    of_players = [
+        ("Mike", "Trout", 545361, 42.0),
+        ("Juan", "Soto", 665742, 40.0),
+        ("Aaron", "Judge", 592450, 28.0),
+        ("Kyle", "Tucker", 663656, 26.0),
+        ("Julio", "Rodriguez", 677594, 15.0),
+    ]
+    for i, (first, last, mlbam, value) in enumerate(of_players, start=1):
+        pid = player_repo.upsert(Player(name_first=first, name_last=last, mlbam_id=mlbam))
+        val_repo.upsert(
+            Valuation(
+                player_id=pid,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="batter",
+                position="OF",
+                value=value,
+                rank=i,
+                category_scores={"hr": 1.0},
+            )
+        )
+
+    # SP players: 35, 33 (tier 1) ... gap ... 20 (tier 2)
+    sp_players = [
+        ("Gerrit", "Cole", 543037, 35.0),
+        ("Spencer", "Strider", 675911, 33.0),
+        ("Logan", "Webb", 657277, 20.0),
+    ]
+    for i, (first, last, mlbam, value) in enumerate(sp_players, start=1):
+        pid = player_repo.upsert(Player(name_first=first, name_last=last, mlbam_id=mlbam))
+        val_repo.upsert(
+            Valuation(
+                player_id=pid,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="pitcher",
+                position="SP",
+                value=value,
+                rank=i,
+                category_scores={"w": 1.0},
+            )
+        )
+
+    conn.commit()
+
+
+class TestDraftTiersCommand:
+    def test_draft_tiers_shows_players(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_tier_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["draft", "tiers", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+        assert "Gerrit Cole" in result.output
+        assert "OF" in result.output
+        assert "SP" in result.output
+
+    def test_draft_tiers_empty_season(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["draft", "tiers", "--season", "2099", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "No tier data found" in result.output
+
+    def test_draft_tiers_position_filter(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_tier_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["draft", "tiers", "--season", "2026", "--position", "OF", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+        assert "Gerrit Cole" not in result.output
+
+    def test_draft_tiers_method_jenks(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_tier_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["draft", "tiers", "--season", "2026", "--method", "jenks", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+
+    def test_draft_tiers_max_tiers(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_tier_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["draft", "tiers", "--season", "2026", "--max-tiers", "2", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        # With max-tiers=2, no tier number should exceed 2
+        assert "Mike Trout" in result.output
+        # Check that tier numbers > 2 don't appear as standalone tier values
+        # (the output has columns: Tier, Rank, Player, Value)
+        lines = result.output.split("\n")
+        for line in lines:
+            parts = line.split()
+            # Look for lines that start with a tier number in the first column
+            if parts and parts[0].isdigit():
+                tier_num = int(parts[0])
+                assert tier_num <= 2, f"Found tier {tier_num} > 2 in output: {line}"
