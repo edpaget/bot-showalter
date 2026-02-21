@@ -55,8 +55,7 @@ Follow this structure (based on existing roadmaps in `docs/plans/`):
 ## Rules
 
 - Each phase must be independently implementable and mergeable.
-- Steps should be concrete enough to guide implementation but not so detailed that they prescribe every line of code — that's what phase plans are for.
+- Steps should be concrete enough to guide implementation but not so detailed that they prescribe every line of code.
 - Include acceptance criteria for every phase.
 - End with an ordering section noting dependencies and suggested priority.
 - Do NOT start implementing code. This is a planning artifact only.
-- Do NOT create phase plan docs (`docs/plans/<topic>/phase-<n>.md`) — those are created in the persist step when a phase is about to be implemented.

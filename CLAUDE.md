@@ -27,17 +27,14 @@ Fantasy baseball manager. Python 3.14+, uses `uv` for dependency management. Tes
 
 ## Planning
 
-This project uses three tiers of planning:
+This project uses two levels of planning:
 
 1. **Roadmaps** (`/roadmap` skill) — High-level multi-phase plans written to `docs/plans/<topic>.md`. These describe what to build and in what order, but not implementation detail.
-2. **Phase plans** — Detailed implementation plans at `docs/plans/<roadmap-name>/phase-<n>.md`, linked from the roadmap doc's phase section. These are the primary guide for headless agents implementing a phase.
-3. **Plan mode** (built-in) — The tool used to produce phase plans. After approval, persist the plan as a phase plan doc (tier 2).
+2. **Plan mode** (built-in) — Used when implementing a roadmap phase. Enter plan mode, explore the code, produce a detailed implementation plan, and get user approval before writing code.
 
 When asked to "create a plan", "write a plan", or "plan out" a feature — produce a **roadmap** document. Do NOT start implementing or exploring code for implementation purposes unless explicitly asked to implement.
 
-When implementing from a roadmap or plan document, read it first and implement exactly what it specifies. Do not expand scope beyond the plan unless asked. **Every roadmap phase must be implemented in its own worktree** — see [Worktree Workflow](#worktree-workflow) below.
-
-**When asked to implement a roadmap phase**, follow the three-step flow in [Worktree Workflow](#worktree-workflow): plan, persist, then dispatch. Do NOT start implementing code directly.
+When implementing from a roadmap, read it first and implement exactly what it specifies. Do not expand scope beyond the plan unless asked.
 
 ## Implementation Discipline
 
@@ -52,33 +49,7 @@ When executing a plan (after plan-mode approval):
 
 ## Worktree Workflow
 
-**Every roadmap phase must be implemented in its own git worktree.** Never implement a phase directly on `main`. This ensures phases can be developed in parallel without interfering with each other.
-
-### Branch naming
-
-`roadmap/<roadmap-name>/phase-<n>` (e.g., `roadmap/worktree-workflow/phase-1`).
-
-### Three-step implementation flow
-
-This is the primary workflow for implementing roadmap phases:
-
-1. **Plan** — Enter plan mode, read the roadmap doc, explore relevant code, produce a detailed implementation plan, and get user approval.
-2. **Persist** — Write the approved plan to `docs/plans/<roadmap-name>/phase-<n>.md`. Add a `[Phase plan](<roadmap-name>/phase-<n>.md)` link in the roadmap doc's phase section. Commit both files on `main`.
-3. **Dispatch** — Run `./scripts/gwt-implement.sh <roadmap-name> <phase-number>` to create a worktree and launch a headless Claude Code agent that implements the phase in the background. The agent uses the persisted phase plan as its primary guide. Use `--dry-run` to preview the prompt and command first. Follow progress with `tail -f` on the log file.
-
-### Manual worktree workflow
-
-Fallback for cases where headless dispatch isn't suitable (e.g., interactive exploration, debugging):
-
-- **Create a worktree:** `./scripts/gwt.sh roadmap/<roadmap-name>/phase-<n>`. This sets up an isolated directory with its own `.venv/`, symlinked `data/` and `artifacts/`, and Claude Code settings.
-- **Start Claude Code in the worktree:** `claude --cwd ../fbm-roadmap-<roadmap-name>-phase-<n>`.
-- **Implement the phase** in the worktree, committing as normal on the phase branch.
-
-### Merging and cleanup
-
-- **Merge back to main** after the phase is complete: from the main worktree, `git merge --ff-only roadmap/<roadmap-name>/phase-<n>` (rebase first if needed to keep history linear).
-- **Clean up** the worktree: `./scripts/gwt-remove.sh --delete-branch ../fbm-roadmap-<roadmap-name>-phase-<n>`.
-- Phases that depend on earlier phases should branch from main after the dependency has been merged.
+Implement each roadmap phase in its own worktree to avoid working directly on `main`. Use the built-in `EnterWorktree` tool to create an isolated worktree and switch into it. After the phase is complete, merge back to main with `git merge --ff-only` (rebase first if needed to keep history linear).
 
 ## Git Conventions
 
