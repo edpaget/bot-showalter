@@ -9,6 +9,7 @@ from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, StratifiedComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
+from fantasy_baseball_manager.domain.residual_analysis import ResidualAnalysisReport
 from fantasy_baseball_manager.domain.residual_persistence import ResidualPersistenceReport
 from fantasy_baseball_manager.domain.talent_quality import TrueTalentQualityReport
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
@@ -1330,3 +1331,73 @@ def print_tier_summary(report: TierSummaryReport) -> None:
     table.add_row(*footer)
 
     console.print(table)
+
+
+def print_residual_analysis_report(report: ResidualAnalysisReport) -> None:
+    """Print residual analysis diagnostic report."""
+    top_label = f", top {report.top}" if report.top else ""
+    console.print(
+        f"[bold]Residual Analysis[/bold] — {report.system}/{report.version}"
+        f" (seasons {', '.join(str(s) for s in report.seasons)}{top_label})"
+    )
+    console.print()
+
+    if report.stat_analyses:
+        # Per-stat bias and heteroscedasticity table
+        stat_table = Table(show_edge=False, pad_edge=False)
+        stat_table.add_column("Stat")
+        stat_table.add_column("Type")
+        stat_table.add_column("N", justify="right")
+        stat_table.add_column("Mean Resid", justify="right")
+        stat_table.add_column("Std Resid", justify="right")
+        stat_table.add_column("Bias Sig?", justify="center")
+        stat_table.add_column("Hetero r", justify="right")
+        stat_table.add_column("Hetero Sig?", justify="center")
+
+        for a in report.stat_analyses:
+            bias_color = "red" if a.bias_significant else "green"
+            hetero_color = "red" if a.heteroscedasticity_significant else "green"
+            stat_table.add_row(
+                a.stat_name,
+                a.player_type,
+                str(a.n_observations),
+                f"{a.mean_residual:+.4f}",
+                f"{a.std_residual:.4f}",
+                f"[{bias_color}]{'yes' if a.bias_significant else 'no'}[/{bias_color}]",
+                f"{a.heteroscedasticity_corr:+.3f}",
+                f"[{hetero_color}]{'yes' if a.heteroscedasticity_significant else 'no'}[/{hetero_color}]",
+            )
+        console.print(stat_table)
+        console.print()
+
+        # Calibration bins per stat
+        for a in report.stat_analyses:
+            if a.calibration_bins:
+                console.print(f"[bold]Calibration Bins — {a.stat_name} ({a.player_type}):[/bold]")
+                bin_table = Table(show_edge=False, pad_edge=False)
+                bin_table.add_column("Bin Center", justify="right")
+                bin_table.add_column("Mean Pred", justify="right")
+                bin_table.add_column("Mean Actual", justify="right")
+                bin_table.add_column("Mean Resid", justify="right")
+                bin_table.add_column("Count", justify="right")
+                for b in a.calibration_bins:
+                    bin_table.add_row(
+                        f"{b.bin_center:.4f}",
+                        f"{b.mean_predicted:.4f}",
+                        f"{b.mean_actual:.4f}",
+                        f"{b.mean_residual:+.4f}",
+                        str(b.count),
+                    )
+                console.print(bin_table)
+                console.print()
+
+    # Summary
+    s = report.summary
+    console.print("[bold]Summary:[/bold]")
+    console.print(f"  Bias significant: {s.n_bias_significant}/{s.n_bias_total}")
+    console.print(f"  Heteroscedasticity significant: {s.n_hetero_significant}/{s.n_hetero_total}")
+    if s.calibration_recommended:
+        console.print("  [yellow]Calibration recommended[/yellow]")
+    else:
+        console.print("  [green]No calibration needed[/green]")
+    console.print()

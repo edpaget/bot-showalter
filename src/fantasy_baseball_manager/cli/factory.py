@@ -49,6 +49,7 @@ from fantasy_baseball_manager.services.dataset_catalog import DatasetCatalogServ
 from fantasy_baseball_manager.services.league_environment_service import LeagueEnvironmentService
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
+from fantasy_baseball_manager.services.residual_analysis_diagnostic import ResidualAnalysisDiagnostic
 from fantasy_baseball_manager.services.residual_persistence_diagnostic import ResidualPersistenceDiagnostic
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
@@ -347,6 +348,7 @@ class ReportContext:
     report_service: PerformanceReportService
     talent_evaluator: TrueTalentEvaluator
     residual_diagnostic: ResidualPersistenceDiagnostic
+    residual_analysis_diagnostic: ResidualAnalysisDiagnostic
 
 
 @contextmanager
@@ -360,6 +362,7 @@ def build_report_context(data_dir: str) -> Iterator[ReportContext]:
             report_service=container.performance_report_service,
             talent_evaluator=container.talent_evaluator,
             residual_diagnostic=container.residual_diagnostic,
+            residual_analysis_diagnostic=container.residual_analysis_diagnostic,
         )
     finally:
         conn.close()

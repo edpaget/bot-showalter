@@ -51,6 +51,12 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     preseason_averaged_pitcher_curated_columns,
     preseason_weighted_batter_curated_columns,
 )
+from fantasy_baseball_manager.models.statcast_gbm.calibration import (
+    apply_calibrators,
+    fit_calibrators,
+    load_calibrators,
+    save_calibrators,
+)
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 
@@ -162,6 +168,9 @@ class _StatcastGBMBase:
         name = player_params.get("sample_weight_transform", self._sample_weight_transform)
         return get_transform(name) if name else None
 
+    def _calibrate(self, player_params: dict[str, Any]) -> bool:
+        return bool(player_params.get("calibrate", False))
+
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)
         pitcher_fs = self._pitcher_feature_set_builder(config.seasons)
@@ -220,6 +229,11 @@ class _StatcastGBMBase:
 
         save_models(bat_models, artifact_path / "batter_models.joblib")
 
+        if self._calibrate(batter_params) and bat_splits.holdout is not None:
+            bat_calibrators = fit_calibrators(bat_models, bat_X_holdout, bat_y_holdout)
+            if bat_calibrators:
+                save_calibrators(bat_calibrators, artifact_path / "batter_calibrators.joblib")
+
         # --- Pitcher training ---
         pit_fs = self._pitcher_training_set_builder(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
@@ -251,6 +265,11 @@ class _StatcastGBMBase:
 
         save_models(pit_models, artifact_path / "pitcher_models.joblib")
 
+        if self._calibrate(pitcher_params) and pit_splits.holdout is not None:
+            pit_calibrators = fit_calibrators(pit_models, pit_X_holdout, pit_y_holdout)
+            if pit_calibrators:
+                save_calibrators(pit_calibrators, artifact_path / "pitcher_calibrators.joblib")
+
         return TrainResult(
             model_name=self.name,
             metrics=metrics,
@@ -276,6 +295,11 @@ class _StatcastGBMBase:
         for target_name, model in bat_models.items():
             bat_target_preds[target_name] = list(model.predict(bat_X))
 
+        bat_cal_path = artifact_path / "batter_calibrators.joblib"
+        if bat_cal_path.exists():
+            bat_calibrators = load_calibrators(bat_cal_path)
+            bat_target_preds = apply_calibrators(bat_target_preds, bat_calibrators)
+
         for i, row in enumerate(bat_rows):
             pred: dict[str, Any] = {
                 "player_id": row["player_id"],
@@ -297,6 +321,11 @@ class _StatcastGBMBase:
         pit_target_preds: dict[str, list[float]] = {}
         for target_name, model in pit_models.items():
             pit_target_preds[target_name] = list(model.predict(pit_X))
+
+        pit_cal_path = artifact_path / "pitcher_calibrators.joblib"
+        if pit_cal_path.exists():
+            pit_calibrators = load_calibrators(pit_cal_path)
+            pit_target_preds = apply_calibrators(pit_target_preds, pit_calibrators)
 
         for i, row in enumerate(pit_rows):
             pred = {

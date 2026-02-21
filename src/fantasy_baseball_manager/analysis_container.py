@@ -18,6 +18,7 @@ from fantasy_baseball_manager.services.performance_report import PerformanceRepo
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
+from fantasy_baseball_manager.services.residual_analysis_diagnostic import ResidualAnalysisDiagnostic
 from fantasy_baseball_manager.services.residual_persistence_diagnostic import ResidualPersistenceDiagnostic
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
@@ -141,6 +142,15 @@ class AnalysisContainer:
         return ResidualPersistenceDiagnostic(
             self.projection_repo,
             self.batting_stats_repo,
+            self.player_repo,
+        )
+
+    @functools.cached_property
+    def residual_analysis_diagnostic(self) -> ResidualAnalysisDiagnostic:
+        return ResidualAnalysisDiagnostic(
+            self.projection_repo,
+            self.batting_stats_repo,
+            self.pitching_stats_repo,
             self.player_repo,
         )
 

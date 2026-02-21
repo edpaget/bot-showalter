@@ -35,6 +35,7 @@ from fantasy_baseball_manager.cli._output import (
     print_performance_report,
     print_system_summaries,
     print_talent_delta_report,
+    print_residual_analysis_report,
     print_residual_persistence_report,
     print_talent_quality_report,
     print_train_result,
@@ -1507,6 +1508,37 @@ def report_residual_persistence(
         raise typer.Exit(code=1)
 
     print_residual_persistence_report(report)
+
+
+@report_app.command("residual-analysis")
+def report_residual_analysis(
+    system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm-preseason/phase4)")],
+    season: Annotated[list[int], typer.Option("--season", help="Season(s) to analyze")],
+    stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Filter to top-N by projected WAR")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Analyze systematic prediction bias and heteroscedasticity."""
+    parts = system.split("/", 1)
+    if len(parts) != 2:
+        print_error(f"invalid system format '{system}', expected 'system/version'")
+        raise typer.Exit(code=1)
+    sys_name, version = parts
+
+    with build_report_context(data_dir) as ctx:
+        report = ctx.residual_analysis_diagnostic.analyze(
+            sys_name,
+            version,
+            seasons=season,
+            stats=stat,
+            top=top,
+        )
+
+    if not report.stat_analyses:
+        console.print("No projections found.")
+        raise typer.Exit(code=1)
+
+    print_residual_analysis_report(report)
 
 
 @report_app.command("value-over-adp")

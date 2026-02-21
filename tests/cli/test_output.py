@@ -19,6 +19,7 @@ from fantasy_baseball_manager.cli._output import (
     print_predict_result,
     print_prepare_result,
     print_projection_confidence,
+    print_residual_analysis_report,
     print_residual_persistence_report,
     print_run_detail,
     print_run_list,
@@ -55,6 +56,12 @@ from fantasy_baseball_manager.domain.projection_confidence import (
     PlayerConfidence,
     StatSpread,
     VarianceClassification,
+)
+from fantasy_baseball_manager.domain.residual_analysis import (
+    CalibrationBin,
+    ResidualAnalysisReport,
+    ResidualAnalysisSummary,
+    StatResidualAnalysis,
 )
 from fantasy_baseball_manager.domain.residual_persistence import (
     ChronicPerformer,
@@ -1789,3 +1796,72 @@ class TestPrintSystemDisagreements:
         print_system_disagreements(player, [])
         captured = capsys.readouterr()
         assert "J. Soto" in captured.out
+
+
+def _make_residual_analysis_report(
+    *,
+    bias_significant: bool = True,
+    hetero_significant: bool = False,
+) -> ResidualAnalysisReport:
+    bins = [
+        CalibrationBin(bin_center=0.250, mean_predicted=0.248, mean_actual=0.258, mean_residual=0.010, count=50),
+        CalibrationBin(bin_center=0.280, mean_predicted=0.279, mean_actual=0.286, mean_residual=0.007, count=50),
+    ]
+    stat_analyses = [
+        StatResidualAnalysis(
+            stat_name="avg",
+            player_type="batter",
+            n_observations=100,
+            mean_residual=0.0085,
+            std_residual=0.025,
+            bias_significant=bias_significant,
+            heteroscedasticity_corr=0.12,
+            heteroscedasticity_significant=hetero_significant,
+            calibration_bins=bins,
+        ),
+    ]
+    summary = ResidualAnalysisSummary(
+        n_bias_significant=1 if bias_significant else 0,
+        n_bias_total=1,
+        n_hetero_significant=1 if hetero_significant else 0,
+        n_hetero_total=1,
+        calibration_recommended=bias_significant,
+    )
+    return ResidualAnalysisReport(
+        system="test-sys",
+        version="v1",
+        seasons=[2023, 2024],
+        top=300,
+        stat_analyses=stat_analyses,
+        summary=summary,
+    )
+
+
+class TestPrintResidualAnalysisReport:
+    def test_shows_stat_table(self, capsys: pytest.CaptureFixture[str]) -> None:
+        report = _make_residual_analysis_report()
+        print_residual_analysis_report(report)
+        captured = capsys.readouterr()
+        assert "Residual Analysis" in captured.out
+        assert "avg" in captured.out
+        assert "batter" in captured.out
+        assert "0.0085" in captured.out  # mean residual
+
+    def test_shows_calibration_recommendation(self, capsys: pytest.CaptureFixture[str]) -> None:
+        report = _make_residual_analysis_report(bias_significant=True)
+        print_residual_analysis_report(report)
+        captured = capsys.readouterr()
+        assert "Calibration recommended" in captured.out
+
+    def test_shows_no_calibration_needed(self, capsys: pytest.CaptureFixture[str]) -> None:
+        report = _make_residual_analysis_report(bias_significant=False)
+        print_residual_analysis_report(report)
+        captured = capsys.readouterr()
+        assert "No calibration needed" in captured.out
+
+    def test_shows_calibration_bins(self, capsys: pytest.CaptureFixture[str]) -> None:
+        report = _make_residual_analysis_report()
+        print_residual_analysis_report(report)
+        captured = capsys.readouterr()
+        assert "Calibration Bins" in captured.out
+        assert "0.2500" in captured.out  # bin center
