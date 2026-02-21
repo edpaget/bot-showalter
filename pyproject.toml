@@ -42,6 +42,7 @@ select = ["E", "F", "PLC0415"]
 [tool.coverage.run]
 source = ["src"]
 branch = true
+omit = ["src/fantasy_baseball_manager/repos/protocols.py"]
 
 [tool.coverage.report]
 show_missing = true
