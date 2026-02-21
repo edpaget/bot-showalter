@@ -3,8 +3,10 @@ from sqlite3 import ProgrammingError
 import pytest
 
 from fantasy_baseball_manager.cli._dispatcher import dispatch
+from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
+    build_chat_context,
     build_eval_context,
     build_import_context,
     build_ingest_container,
@@ -514,6 +516,26 @@ class TestBuildValuationEvalContext:
             lambda path: create_connection(":memory:"),
         )
         with build_valuation_eval_context("./data") as ctx:
+            conn = ctx.conn
+        with pytest.raises(ProgrammingError):
+            conn.execute("SELECT 1")
+
+
+class TestBuildChatContext:
+    def test_yields_chat_context_with_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_chat_context("./data") as ctx:
+            assert isinstance(ctx.container, AnalysisContainer)
+
+    def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_chat_context("./data") as ctx:
             conn = ctx.conn
         with pytest.raises(ProgrammingError):
             conn.execute("SELECT 1")

@@ -544,6 +544,23 @@ def build_confidence_report_context(data_dir: str) -> Iterator[ConfidenceReportC
 
 
 @dataclass(frozen=True)
+class ChatContext:
+    conn: sqlite3.Connection
+    container: AnalysisContainer
+
+
+@contextmanager
+def build_chat_context(data_dir: str) -> Iterator[ChatContext]:
+    """Composition-root context manager for the chat command."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        container = AnalysisContainer(conn)
+        yield ChatContext(conn=conn, container=container)
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
 class YahooContext:
     conn: sqlite3.Connection
     yahoo_league_repo: SqliteYahooLeagueRepo

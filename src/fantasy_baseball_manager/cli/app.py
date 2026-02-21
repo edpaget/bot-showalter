@@ -2,6 +2,7 @@ import csv
 import datetime
 import logging
 import math
+import os
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -48,11 +49,14 @@ from fantasy_baseball_manager.cli._output import (
     print_valuation_rankings,
     print_variance_targets,
 )
+from fantasy_baseball_manager.agent.chat import run_chat
+from fantasy_baseball_manager.agent.graph import build_agent
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
     build_adp_accuracy_context,
     build_adp_movers_context,
     build_adp_report_context,
+    build_chat_context,
     build_compute_container,
     build_confidence_report_context,
     build_datasets_context,
@@ -589,6 +593,22 @@ def compare_cmd(
 # --- runs subcommand group ---
 
 _DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
+
+
+@app.command("chat")
+def chat_cmd(
+    data_dir: _DataDirOpt = "./data",
+    model: Annotated[str, typer.Option("--model", help="Anthropic model")] = "claude-haiku-4-5-20251001",
+) -> None:
+    """Start an interactive chat session with the fantasy baseball assistant."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print_error("ANTHROPIC_API_KEY environment variable is required.")
+        raise typer.Exit(code=1)
+    with build_chat_context(data_dir) as ctx:
+        agent = build_agent(ctx.container, model=model)
+        run_chat(agent)
+
 
 runs_app = typer.Typer(name="runs", help="Manage first-party model runs")
 app.add_typer(runs_app, name="runs")
