@@ -4,6 +4,14 @@ Surface the degree of agreement (or disagreement) across projection systems for 
 
 This roadmap depends on: projections from multiple systems (done — Steamer, ZiPS, Marcel, Statcast GBM, composite all produce `Projection` records).
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Cross-system spread calculation | not started |
+| 2 — High-variance player identification | not started |
+| 3 — CLI commands and report output | not started |
+
 ## Phase 1: Cross-System Spread Calculation
 
 Compute per-player, per-stat spread metrics across all available projection systems for a given season.

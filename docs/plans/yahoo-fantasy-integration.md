@@ -4,6 +4,16 @@ Integrate Yahoo Fantasy Sports API to make the system league-aware — knowing y
 
 Yahoo's Fantasy Sports REST API (OAuth2, XML/JSON) exposes league metadata, rosters, draft results, transactions, and standings via a resource hierarchy: game → league → team → roster/players. Player identity uses Yahoo-specific IDs that must be crosswalked to our MLBAM-based system. Two-way players (e.g., Ohtani) are represented as separate Yahoo player IDs for batting and pitching, requiring a many-to-one mapping.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — OAuth client and league metadata sync | not started |
+| 2 — Player ID crosswalk and roster ingest | not started |
+| 3 — Draft results and live draft tracking | not started |
+| 4 — League history and keeper evaluation | not started |
+| 5 — Transaction log and league activity | not started |
+
 ## Phase 1: OAuth client and league metadata sync
 
 Stand up the Yahoo API client with persistent OAuth2 tokens, fetch league metadata, and auto-populate league settings.

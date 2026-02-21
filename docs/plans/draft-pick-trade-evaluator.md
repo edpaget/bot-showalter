@@ -4,6 +4,15 @@ Evaluate draft pick trades by estimating the surplus value of each pick slot. In
 
 This roadmap depends on: ADP integration (done), valuations (done), draft board service (done).
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Pick value curves | not started |
+| 2 — Trade evaluation engine | not started |
+| 3 — Multi-round cascade analysis | not started |
+| 4 — CLI commands | not started |
+
 ## Phase 1: Pick Value Curves
 
 Build the foundational model that maps draft pick numbers to expected player value, producing smooth value curves from historical ADP-to-valuation data.

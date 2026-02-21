@@ -4,6 +4,14 @@ Cluster players into draft tiers by position so that during a draft you can quic
 
 The existing ZAR valuation system provides the per-player dollar values and positional assignments that serve as input. The tier generator adds a clustering layer on top, producing labeled tier assignments that can be consumed by the draft board export, the live draft tracker, and the category balance tracker.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Tier clustering engine | not started |
+| 2 — CLI command and formatted output | not started |
+| 3 — Cross-position tier map | not started |
+
 ## Phase 1: Tier clustering engine
 
 [Phase plan](tier-generator/phase-1.md)

@@ -4,6 +4,14 @@ Analyze and report the value dropoff curve per position to guide draft timing de
 
 The ZAR valuation system already computes per-player dollar values with positional assignments. This roadmap adds analysis on top of that data — computing dropoff metrics, generating scarcity reports, and optionally visualizing the curves.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Scarcity metrics and report | not started |
+| 2 — Per-position value curves | not started |
+| 3 — Scarcity-adjusted rankings | not started |
+
 ## Phase 1: Scarcity metrics and report
 
 [Phase plan](positional-scarcity/phase-1.md)

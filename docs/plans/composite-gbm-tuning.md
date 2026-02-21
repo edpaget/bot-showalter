@@ -35,6 +35,18 @@ Close the accuracy gap between composite-full GBM and professional projection sy
 
 Reduce RMSE gap to Steamer to ≤1.1x on batting rate stats for top-300 players. Pitching target: ≤1.5x Steamer on ERA/FIP for top-300.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Evaluation infrastructure | not started |
+| 2 — Hyperparameter tuning | done |
+| 3 — Training data expansion | not started |
+| 4 — Feature engineering | not started |
+| 5 — Model architecture improvements | not started |
+| 6 — Top-300 calibration | not started |
+| 7 — Continuous evaluation framework | not started |
+
 ## Phases
 
 ### Phase 1: Evaluation infrastructure

@@ -32,6 +32,18 @@ The root cause is that the model trains on all players equally — fringe player
 
 Reduce RMSE ratio to Steamer to ≤1.05x on batting rate stats (AVG, OBP, SLG, wOBA) for top-300 players. Pitching target: ≤1.3x on ERA/FIP.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — PA/IP-weighted training | done |
+| 1.5 — Configurable weight transforms | done |
+| 2 — Min-PA/IP training filter | done |
+| 3 — Hyperparameter re-tuning | not started |
+| 4 — Expanded training window | not started |
+| 5 — Residual analysis and calibration | not started |
+| 6 — Feature engineering for top-300 differentiation | not started |
+
 ## Phase 1: PA/IP-weighted training
 
 The highest-leverage change. Currently `fit_models()` treats every training row equally. A player with 50 PA and one with 650 PA contribute the same to the loss function. This means the model optimizes for the average player, not the typical fantasy-relevant player.

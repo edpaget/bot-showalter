@@ -27,6 +27,16 @@ Key observations:
 - Empty-string provider values are common for players only listed on some platforms.
 - Dual entries for two-way players (e.g., Ohtani as SP and Ohtani (Batter) as DH).
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — ADP domain, storage, and FantasyPros ingest | done |
+| 2 — Value-over-ADP report | done |
+| 3 — Historical ADP evaluation | not started |
+| 4 — Automated ADP fetching | done |
+| 5 — ADP trend tracking | not started |
+
 ## Phase 1: ADP domain, storage, and FantasyPros ingest
 
 Define the ADP domain model, persistence layer, and build a mapper tailored to the FantasyPros CSV format. Combines what would have been separate domain and ingest phases since the data shape is already known.

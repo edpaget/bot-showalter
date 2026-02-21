@@ -4,6 +4,15 @@ Calculate surplus value for keeper and dynasty leagues, where players are retain
 
 This is a new capability with no existing keeper/dynasty infrastructure in the codebase. It builds on the ZAR valuation system for projected dollar values and adds a keeper cost layer with contract tracking, surplus calculation, and trade analysis.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Keeper cost storage and import | not started |
+| 2 — Surplus value calculation | not started |
+| 3 — Keeper-adjusted draft pool | not started |
+| 4 — Trade value calculator | not started |
+
 ## Phase 1: Keeper cost storage and import
 
 [Phase plan](keeper-surplus-value/phase-1.md)

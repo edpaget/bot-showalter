@@ -4,6 +4,14 @@ Discount player projections and valuations by injury probability, using historic
 
 The IL stint data is already in the database (via `fbm ingest il`), and the playing-time model projects PA/IP. This roadmap builds an injury risk model on top of that data and integrates it into the valuation pipeline.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Injury history profile | not started |
+| 2 — Games-lost probability model | not started |
+| 3 — Projection and valuation adjustment | not started |
+
 ## Phase 1: Injury history profile
 
 [Phase plan](injury-risk-discount/phase-1.md)

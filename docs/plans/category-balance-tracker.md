@@ -4,6 +4,14 @@ Track projected category strengths and weaknesses as a roster is assembled durin
 
 This builds on the league settings (which define scoring categories) and the projection system (which provides per-player stat projections). It integrates with the live draft tracker but is also useful standalone for evaluating any roster.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Roster category projection | not started |
+| 2 — Category need identification | not started |
+| 3 — Draft integration and running balance | not started |
+
 ## Phase 1: Roster category projection
 
 [Phase plan](category-balance-tracker/phase-1.md)

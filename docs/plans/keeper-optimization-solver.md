@@ -4,6 +4,15 @@ Solve the optimal keeper set given N keeper slots, balancing surplus value again
 
 This roadmap depends on: keeper/surplus value (planned — domain types and basic surplus computation), valuations (done), positional scarcity (planned), draft board service (done). Extends the keeper-surplus-value roadmap with optimization logic.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Combinatorial keeper selection | not started |
+| 2 — Draft pool adjustment | not started |
+| 3 — Scenario analysis | not started |
+| 4 — CLI commands | not started |
+
 ## Phase 1: Combinatorial Keeper Selection
 
 Enumerate and score all valid keeper combinations to find the set that maximizes total surplus, subject to roster constraints.

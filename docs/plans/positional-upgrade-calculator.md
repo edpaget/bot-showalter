@@ -4,6 +4,15 @@ Given a partially drafted roster, quantify the marginal fantasy value of adding 
 
 This roadmap depends on: draft board service (done), valuations with `category_scores` (done), league settings with `positions` (done). Benefits from: category balance tracker (planned), tier generator (planned).
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Marginal value engine | not started |
+| 2 — Upgrade comparison view | not started |
+| 3 — Opportunity cost scoring | not started |
+| 4 — CLI commands | not started |
+
 ## Phase 1: Marginal Value Engine
 
 Build the core calculation that scores each available player by how much they improve a partially filled roster, considering both total value and category balance.

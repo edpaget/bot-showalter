@@ -4,6 +4,15 @@ Train a classification model to predict which players will significantly outperf
 
 This roadmap depends on: ADP integration (done), feature infrastructure (done — SQL assembler, feature library, feature groups), GBM training infrastructure (done — `models/gbm_training.py`), projections (done), valuations (done).
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Label generation | not started |
+| 2 — Classification model | not started |
+| 3 — Calibration and evaluation | not started |
+| 4 — CLI commands | not started |
+
 ## Phase 1: Label Generation
 
 Define what constitutes a "breakout" and "bust" in terms of ADP-relative performance, and build the labeled dataset from historical seasons.

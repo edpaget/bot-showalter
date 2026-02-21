@@ -4,6 +4,15 @@ For H2H category leagues, analyze the MLB schedule to identify players with favo
 
 This roadmap depends on: league settings (done — `LeagueFormat.H2H_CATEGORIES` supported), projections (done). Requires: new MLB schedule data ingest.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — MLB schedule ingest | not started |
+| 2 — Team strength ratings | not started |
+| 3 — Player schedule report | not started |
+| 4 — CLI commands | not started |
+
 ## Phase 1: MLB Schedule Ingest
 
 Ingest the MLB regular season schedule so the system knows which teams play on which dates, how many games per week, and opponent matchups.

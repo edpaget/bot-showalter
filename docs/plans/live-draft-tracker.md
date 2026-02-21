@@ -4,6 +4,15 @@ Build a stateful, interactive draft assistant that tracks picks as they happen a
 
 This is the capstone draft-day tool. It depends on the valuation system (already built) and benefits from — but does not require — the tier generator, positional scarcity, category balance tracker, and ADP integration roadmaps.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Draft state engine | not started |
+| 2 — Recommendation engine | not started |
+| 3 — Interactive CLI session | not started |
+| 4 — Draft log and post-draft analysis | not started |
+
 ## Phase 1: Draft state engine
 
 Build the core stateful draft tracker — a state machine that tracks picks, maintains the available player pool, and records rosters.

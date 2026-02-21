@@ -4,6 +4,17 @@ Ingest historical batting and pitching stats from FanGraphs' international leade
 
 FanGraphs serves international data via the same JSON API used for MLB stats. The endpoint `https://www.fangraphs.com/api/leaders/international/{league}/data` accepts query parameters for league, season, stat type (bat/pit), and position. It returns player-level season stats including advanced metrics (wRC+, wOBA, FIP, etc.). Historical coverage: NPB 2019–2025 (~7 seasons), KBO 2002–2025 (~23 seasons). Player IDs use the `sa#######` format (FanGraphs international ID) plus a `minormasterid` field.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — FanGraphs international source | not started |
+| 2 — International stats domain and persistence | not started |
+| 3 — Player registration for international players | not started |
+| 4 — CLI commands and ingest pipeline | not started |
+| 5 — NPB/KBO level factors for MLE translation | not started |
+| 6 — Cross-league player matching | not started |
+
 ## Phase 1: FanGraphs international source
 
 Build the HTTP source that fetches raw JSON from the FanGraphs international API for both NPB and KBO.

@@ -4,6 +4,14 @@ Given league settings and a draft format (snake with a known pick position, or a
 
 The optimizer sits on top of the valuation, tier, and positional scarcity systems. It doesn't replace human judgment during the draft but provides a quantitative starting framework: a budget allocation (auction) or a positional target schedule (snake) that maximizes expected roster value.
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Auction budget allocator | not started |
+| 2 — Snake draft position targets | not started |
+| 3 — Monte Carlo draft simulation | not started |
+
 ## Phase 1: Auction budget allocator
 
 For auction drafts, compute the optimal budget split across positions.

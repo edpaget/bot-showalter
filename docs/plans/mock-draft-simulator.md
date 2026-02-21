@@ -4,6 +4,15 @@ Simulate full drafts against configurable bot strategies before draft day. Run h
 
 This roadmap depends on: draft board service (phase 1, done), ADP integration (done), tier generator (planned), category balance tracker (planned), positional scarcity (planned).
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Single-draft engine | not started |
+| 2 — Human strategy configuration | not started |
+| 3 — Batch simulation and analytics | not started |
+| 4 — CLI commands | not started |
+
 ## Phase 1: Single-Draft Engine
 
 Build the core simulation loop that runs a single snake draft with one human strategy and N-1 bot strategies, producing a completed roster for each team.
