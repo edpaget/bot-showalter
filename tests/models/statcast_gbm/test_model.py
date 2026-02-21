@@ -1931,12 +1931,14 @@ class TestMinActivityTrainFilter:
 
 
 class TestMinActivityTuneFilter:
-    def test_tune_passes_filtered_rows_to_build_cv_folds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_tune_passes_all_rows_with_train_filter(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_rows: list[list[dict[str, Any]]] = []
+        captured_filters: list[Any] = []
         original_build = statcast_gbm_model_mod.build_cv_folds
 
         def spy_build(all_rows: list[dict[str, Any]], *args: Any, **kwargs: Any) -> Any:
             captured_rows.append(all_rows)
+            captured_filters.append(kwargs.get("train_row_filter"))
             return original_build(all_rows, *args, **kwargs)
 
         monkeypatch.setattr(statcast_gbm_model_mod, "build_cv_folds", spy_build)
@@ -1960,19 +1962,26 @@ class TestMinActivityTuneFilter:
             model_params={"param_grid": {"max_iter": [100]}},
         )
         model.tune(config)
-        # build_cv_folds called for batters first — should have only high-PA rows
-        # 3 seasons × 5 high-PA rows = 15 (not 30)
+        # ALL rows (including low-PA) should be passed to build_cv_folds
+        # 3 seasons × 10 rows = 30
         bat_rows = captured_rows[0]
-        assert len(bat_rows) == 15
+        assert len(bat_rows) == 30
+        # A train_row_filter callback should be provided
+        assert captured_filters[0] is not None
+        # The filter should exclude low-PA rows
+        filtered = captured_filters[0](bat_rows)
+        assert len(filtered) == 15
 
 
 class TestMinActivitySweepFilter:
-    def test_sweep_passes_filtered_rows_to_sweep_cv(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_sweep_passes_all_rows_with_train_filter(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_rows: list[list[dict[str, Any]]] = []
+        captured_filters: list[Any] = []
         original_sweep = statcast_gbm_model_mod.sweep_cv
 
         def spy_sweep(all_rows: list[dict[str, Any]], *args: Any, **kwargs: Any) -> Any:
             captured_rows.append(all_rows)
+            captured_filters.append(kwargs.get("train_row_filter"))
             return original_sweep(all_rows, *args, **kwargs)
 
         monkeypatch.setattr(statcast_gbm_model_mod, "sweep_cv", spy_sweep)
@@ -1996,6 +2005,12 @@ class TestMinActivitySweepFilter:
             model_params={"sweep_grid": {"sample_weight_transform": ["raw", "sqrt"]}},
         )
         model.sweep(config)
-        # sweep_cv called for batters first — should have only high-PA rows
+        # ALL rows (including low-PA) should be passed to sweep_cv
+        # 3 seasons × 10 rows = 30
         bat_rows = captured_rows[0]
-        assert len(bat_rows) == 15
+        assert len(bat_rows) == 30
+        # A train_row_filter callback should be provided
+        assert captured_filters[0] is not None
+        # The filter should exclude low-PA rows
+        filtered = captured_filters[0](bat_rows)
+        assert len(filtered) == 15

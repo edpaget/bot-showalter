@@ -903,6 +903,34 @@ class TestBuildCVFolds:
         )
         assert len(folds[0].X_test) == 3
 
+    def test_train_row_filter_only_filters_train(self) -> None:
+        rows = self._make_rows(2021, 10) + self._make_rows(2022, 10)
+        # Give 2021 rows different pa_1 values: first 5 get 100, last 5 get 600
+        for i, row in enumerate(r for r in rows if r["season"] == 2021):
+            row["pa_1"] = 100 if i < 5 else 600
+        # Also give 2022 rows mixed pa_1 so we can verify they're NOT filtered
+        for i, row in enumerate(r for r in rows if r["season"] == 2022):
+            row["pa_1"] = 100 if i < 5 else 600
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(
+            rows,
+            ["feat_a", "feat_b"],
+            ["y"],
+            cv_splits,
+            sample_weight_column="pa_1",
+            train_row_filter=lambda rs: [r for r in rs if r["pa_1"] >= 500],
+        )
+        # Training rows should be filtered: only 5 rows with pa_1=600
+        assert len(folds[0].X_train) == 5
+        # Test rows should NOT be filtered: all 10 rows present
+        assert len(folds[0].X_test) == 10
+
+    def test_train_row_filter_none_is_noop(self) -> None:
+        rows = self._make_rows(2021, 5) + self._make_rows(2022, 5)
+        cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]
+        folds = build_cv_folds(rows, ["feat_a", "feat_b"], ["y"], cv_splits, train_row_filter=None)
+        assert len(folds[0].X_train) == 5
+
     def test_transform_none_no_effect(self) -> None:
         rows = self._make_rows(2021, 3) + self._make_rows(2022, 3)
         cv_splits: list[tuple[list[int], int]] = [([2021], 2022)]

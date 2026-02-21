@@ -7,6 +7,7 @@ import statistics
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -18,6 +19,19 @@ from fantasy_baseball_manager.models.sample_weight_transforms import WeightTrans
 from fantasy_baseball_manager.models.sampling import holdout_metrics
 
 logger = logging.getLogger(__name__)
+
+RowFilter = Callable[[list[dict[str, Any]]], list[dict[str, Any]]]
+
+
+class MinValueFilter:
+    """Picklable row filter that keeps rows where column >= threshold."""
+
+    def __init__(self, column: str, threshold: float) -> None:
+        self.column = column
+        self.threshold = threshold
+
+    def __call__(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [r for r in rows if (r.get(self.column) or 0) >= self.threshold]
 
 
 class TargetVector(NamedTuple):
@@ -407,6 +421,7 @@ def build_cv_folds(
     sample_weight_transform: WeightTransform | None = None,
     test_top_n: int | None = None,
     test_rank_column: str | None = None,
+    train_row_filter: RowFilter | None = None,
 ) -> list["CVFold"]:
     """Build CV folds from rows by grouping by season and applying splits.
 
@@ -430,6 +445,8 @@ def build_cv_folds(
     folds: list[CVFold] = []
     for train_seasons, test_season in cv_splits:
         train_rows = [r for s in train_seasons for r in rows_by_season.get(s, [])]
+        if train_row_filter is not None:
+            train_rows = train_row_filter(train_rows)
         test_rows = rows_by_season.get(test_season, [])
         rank_col = test_rank_column or sample_weight_column
         if test_top_n is not None and rank_col is not None and len(test_rows) > test_top_n:
@@ -553,6 +570,7 @@ def _evaluate_sweep_combo(
     sample_weight_column: str | None,
     test_top_n: int | None = None,
     test_rank_column: str | None = None,
+    train_row_filter: RowFilter | None = None,
 ) -> dict[str, Any]:
     """Build folds for one meta-param combo and evaluate.
 
@@ -569,6 +587,7 @@ def _evaluate_sweep_combo(
         sample_weight_transform=transform,
         test_top_n=test_top_n,
         test_rank_column=test_rank_column,
+        train_row_filter=train_row_filter,
     )
     result = _evaluate_combination(folds, model_params)
     result["params"] = meta_params
@@ -587,6 +606,7 @@ def sweep_cv(
     max_workers: int | None = None,
     test_top_n: int | None = None,
     test_rank_column: str | None = None,
+    train_row_filter: RowFilter | None = None,
 ) -> GridSearchResult:
     """Sweep over meta-parameters that affect fold construction.
 
@@ -625,6 +645,7 @@ def sweep_cv(
                 sample_weight_column,
                 test_top_n,
                 test_rank_column,
+                train_row_filter,
             )
             for mp in combos
         ]
@@ -642,6 +663,7 @@ def sweep_cv(
                     sample_weight_column,
                     test_top_n,
                     test_rank_column,
+                    train_row_filter,
                 )
                 for mp in combos
             ]

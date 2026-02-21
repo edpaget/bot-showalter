@@ -8,6 +8,8 @@ from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
 from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.gbm_training import (
+    MinValueFilter,
+    RowFilter,
     build_cv_folds,
     extract_features,
     extract_sample_weights,
@@ -143,6 +145,18 @@ class _StatcastGBMBase:
 
     def _resolve_min_ip(self, player_params: dict[str, Any]) -> int:
         return player_params.get("min_ip", self._pitcher_min_ip)
+
+    def _make_pa_filter(self, player_params: dict[str, Any]) -> RowFilter | None:
+        min_pa = self._resolve_min_pa(player_params)
+        if min_pa <= 0:
+            return None
+        return MinValueFilter("pa", min_pa)
+
+    def _make_ip_filter(self, player_params: dict[str, Any]) -> RowFilter | None:
+        min_ip = self._resolve_min_ip(player_params)
+        if min_ip <= 0:
+            return None
+        return MinValueFilter("ip", min_ip)
 
     def _resolve_weight_transform(self, player_params: dict[str, Any]) -> WeightTransform | None:
         name = player_params.get("sample_weight_transform", self._sample_weight_transform)
@@ -318,9 +332,6 @@ class _StatcastGBMBase:
         bat_fs = self._batter_training_set_builder(config.seasons)
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_all_rows = self._assembler.read(bat_handle)
-        bat_min_pa = self._resolve_min_pa(batter_tune_params)
-        if bat_min_pa > 0:
-            bat_all_rows = [r for r in bat_all_rows if (r.get("pa") or 0) >= bat_min_pa]
         bat_folds = build_cv_folds(
             bat_all_rows,
             self._batter_columns,
@@ -330,6 +341,7 @@ class _StatcastGBMBase:
             sample_weight_transform=bat_transform,
             test_top_n=config.top,
             test_rank_column="war",
+            train_row_filter=self._make_pa_filter(batter_tune_params),
         )
         bat_result = grid_search_cv(bat_folds, param_grid)
 
@@ -337,9 +349,6 @@ class _StatcastGBMBase:
         pit_fs = self._pitcher_training_set_builder(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_all_rows = self._assembler.read(pit_handle)
-        pit_min_ip = self._resolve_min_ip(pitcher_tune_params)
-        if pit_min_ip > 0:
-            pit_all_rows = [r for r in pit_all_rows if (r.get("ip") or 0) >= pit_min_ip]
         pit_folds = build_cv_folds(
             pit_all_rows,
             self._pitcher_columns,
@@ -349,6 +358,7 @@ class _StatcastGBMBase:
             sample_weight_transform=pit_transform,
             test_top_n=config.top,
             test_rank_column="war",
+            train_row_filter=self._make_ip_filter(pitcher_tune_params),
         )
         pit_result = grid_search_cv(pit_folds, param_grid)
 
@@ -382,9 +392,6 @@ class _StatcastGBMBase:
         bat_fs = self._batter_training_set_builder(config.seasons)
         bat_handle = self._assembler.get_or_materialize(bat_fs)
         bat_all_rows = self._assembler.read(bat_handle)
-        bat_min_pa = self._resolve_min_pa(batter_params)
-        if bat_min_pa > 0:
-            bat_all_rows = [r for r in bat_all_rows if (r.get("pa") or 0) >= bat_min_pa]
         bat_result = sweep_cv(
             bat_all_rows,
             self._batter_columns,
@@ -395,15 +402,13 @@ class _StatcastGBMBase:
             sample_weight_column=self._batter_sample_weight_column,
             test_top_n=config.top,
             test_rank_column="war",
+            train_row_filter=self._make_pa_filter(batter_params),
         )
 
         # Pitcher sweep
         pit_fs = self._pitcher_training_set_builder(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
         pit_all_rows = self._assembler.read(pit_handle)
-        pit_min_ip = self._resolve_min_ip(pitcher_params)
-        if pit_min_ip > 0:
-            pit_all_rows = [r for r in pit_all_rows if (r.get("ip") or 0) >= pit_min_ip]
         pit_result = sweep_cv(
             pit_all_rows,
             self._pitcher_columns,
@@ -414,6 +419,7 @@ class _StatcastGBMBase:
             sample_weight_column=self._pitcher_sample_weight_column,
             test_top_n=config.top,
             test_rank_column="war",
+            train_row_filter=self._make_ip_filter(pitcher_params),
         )
 
         return TuneResult(
