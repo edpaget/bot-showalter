@@ -127,6 +127,17 @@ class FakeADPRepo:
             result = [a for a in result if a.provider == provider]
         return result
 
+    def get_snapshots(self, season: int, provider: str) -> list[str]:
+        dates = {
+            a.as_of
+            for a in self._adps
+            if a.season == season and a.provider == provider and a.as_of is not None and a.as_of != ""
+        }
+        return sorted(dates)
+
+    def get_by_snapshot(self, season: int, provider: str, as_of: str) -> list[ADP]:
+        return [a for a in self._adps if a.season == season and a.provider == provider and a.as_of == as_of]
+
 
 class FakeBattingStatsRepo:
     def __init__(self, stats: list[BattingStats] | None = None) -> None:

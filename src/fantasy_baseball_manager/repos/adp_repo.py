@@ -51,6 +51,20 @@ class SqliteADPRepo:
             ).fetchall()
         return [self._row_to_adp(row) for row in rows]
 
+    def get_snapshots(self, season: int, provider: str) -> list[str]:
+        rows = self._conn.execute(
+            "SELECT DISTINCT as_of FROM adp WHERE season = ? AND provider = ? AND as_of != '' ORDER BY as_of",
+            (season, provider),
+        ).fetchall()
+        return [row["as_of"] for row in rows]
+
+    def get_by_snapshot(self, season: int, provider: str, as_of: str) -> list[ADP]:
+        rows = self._conn.execute(
+            self._select_sql() + " WHERE season = ? AND provider = ? AND as_of = ?",
+            (season, provider, as_of),
+        ).fetchall()
+        return [self._row_to_adp(row) for row in rows]
+
     @staticmethod
     def _select_sql() -> str:
         return "SELECT id, player_id, season, provider, overall_pick, rank, positions, as_of, loaded_at FROM adp"

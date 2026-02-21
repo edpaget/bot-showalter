@@ -15,6 +15,7 @@ from fantasy_baseball_manager.cli._output import (
     console,
     print_ablation_result,
     print_adp_accuracy_report,
+    print_adp_movers_report,
     print_comparison_result,
     print_dataset_list,
     print_draft_board,
@@ -44,6 +45,7 @@ from fantasy_baseball_manager.cli._output import (
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
     build_adp_accuracy_context,
+    build_adp_movers_context,
     build_adp_report_context,
     build_compute_container,
     build_datasets_context,
@@ -1533,6 +1535,25 @@ def report_adp_accuracy(
     with build_adp_accuracy_context(data_dir) as ctx:
         report = ctx.evaluator.evaluate(season, league, provider=provider, compare_system=compare)
     print_adp_accuracy_report(report)
+
+
+@report_app.command("adp-movers")
+def report_adp_movers(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    window: Annotated[int, typer.Option("--window", help="Days before latest snapshot")] = 14,
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    top: Annotated[int, typer.Option("--top", help="Show top N risers/fallers")] = 20,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show the biggest ADP movers between two snapshots."""
+    with build_adp_movers_context(data_dir) as ctx:
+        try:
+            current, previous = ctx.service.resolve_window(season, provider, window)
+        except ValueError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
+        report = ctx.service.compute_adp_movers(season, provider, current, previous, top=top)
+    print_adp_movers_report(report)
 
 
 # --- draft subcommand group ---

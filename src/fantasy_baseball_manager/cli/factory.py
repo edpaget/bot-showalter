@@ -48,6 +48,7 @@ from fantasy_baseball_manager.services.residual_persistence_diagnostic import Re
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
+from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
@@ -520,5 +521,25 @@ def build_adp_accuracy_context(data_dir: str) -> Iterator[ADPAccuracyContext]:
             position_repo=SqlitePositionAppearanceRepo(conn),
         )
         yield ADPAccuracyContext(conn=conn, evaluator=evaluator)
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class ADPMoversContext:
+    conn: sqlite3.Connection
+    service: ADPMoversService
+
+
+@contextmanager
+def build_adp_movers_context(data_dir: str) -> Iterator[ADPMoversContext]:
+    """Composition-root context manager for ADP movers commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        service = ADPMoversService(
+            SqliteADPRepo(conn),
+            SqlitePlayerRepo(conn),
+        )
+        yield ADPMoversContext(conn=conn, service=service)
     finally:
         conn.close()

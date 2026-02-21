@@ -13,6 +13,7 @@ from fantasy_baseball_manager.domain.talent_quality import TrueTalentQualityRepo
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
 from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport
+from fantasy_baseball_manager.domain.adp_movers import ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
@@ -976,3 +977,76 @@ def print_draft_board(board: DraftBoard) -> None:
         table.add_row(*cells)
 
     console.print(table)
+
+
+def print_adp_movers_report(report: ADPMoversReport) -> None:
+    """Print an ADP movers report with risers, fallers, new entries, and dropped."""
+    console.print(
+        f"[bold]ADP Movers[/bold] — season {report.season}"
+        f" | provider {report.provider}"
+        f" | {report.previous_as_of} -> {report.current_as_of}"
+    )
+    console.print()
+
+    if report.risers:
+        console.print("[bold green]Risers[/bold green]")
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Delta", justify="right")
+        table.add_column("Player")
+        table.add_column("Pos")
+        table.add_column("Current", justify="right")
+        table.add_column("Previous", justify="right")
+        for m in report.risers:
+            table.add_row(
+                f"[green]+{m.rank_delta}[/green]",
+                m.player_name,
+                m.position,
+                str(m.current_rank),
+                str(m.previous_rank),
+            )
+        console.print(table)
+        console.print()
+
+    if report.fallers:
+        console.print("[bold red]Fallers[/bold red]")
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Delta", justify="right")
+        table.add_column("Player")
+        table.add_column("Pos")
+        table.add_column("Current", justify="right")
+        table.add_column("Previous", justify="right")
+        for m in report.fallers:
+            table.add_row(
+                f"[red]{m.rank_delta}[/red]",
+                m.player_name,
+                m.position,
+                str(m.current_rank),
+                str(m.previous_rank),
+            )
+        console.print(table)
+        console.print()
+
+    if report.new_entries:
+        console.print("[bold yellow]New Entries[/bold yellow]")
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Player")
+        table.add_column("Pos")
+        table.add_column("Rank", justify="right")
+        for m in report.new_entries:
+            table.add_row(m.player_name, m.position, str(m.current_rank))
+        console.print(table)
+        console.print()
+
+    if report.dropped_entries:
+        console.print("[bold dim]Dropped[/bold dim]")
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Player")
+        table.add_column("Pos")
+        table.add_column("Last Rank", justify="right")
+        for m in report.dropped_entries:
+            table.add_row(m.player_name, m.position, str(m.previous_rank))
+        console.print(table)
+        console.print()
+
+    if not report.risers and not report.fallers and not report.new_entries and not report.dropped_entries:
+        console.print("No movers found.")

@@ -110,3 +110,51 @@ class TestSqliteADPRepo:
         repo = SqliteADPRepo(conn)
         assert repo.get_by_player_season(999, 2026) == []
         assert repo.get_by_season(2099) == []
+
+    def test_get_snapshots_returns_distinct_as_of_sorted(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn)
+        repo = SqliteADPRepo(conn)
+        repo.upsert(_make_adp(pid, as_of="2026-02-20"))
+        repo.upsert(_make_adp(pid, as_of="2026-01-15", positions="DH"))
+        result = repo.get_snapshots(2026, "fantasypros")
+        assert result == ["2026-01-15", "2026-02-20"]
+
+    def test_get_snapshots_excludes_empty_as_of(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn)
+        repo = SqliteADPRepo(conn)
+        repo.upsert(_make_adp(pid, as_of=None))
+        repo.upsert(_make_adp(pid, as_of="2026-02-01", positions="DH"))
+        result = repo.get_snapshots(2026, "fantasypros")
+        assert result == ["2026-02-01"]
+
+    def test_get_snapshots_filters_by_provider(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn)
+        repo = SqliteADPRepo(conn)
+        repo.upsert(_make_adp(pid, provider="fantasypros", as_of="2026-01-15"))
+        repo.upsert(_make_adp(pid, provider="espn", as_of="2026-02-01"))
+        assert repo.get_snapshots(2026, "fantasypros") == ["2026-01-15"]
+        assert repo.get_snapshots(2026, "espn") == ["2026-02-01"]
+
+    def test_get_snapshots_empty(self, conn: sqlite3.Connection) -> None:
+        seed_player(conn)
+        repo = SqliteADPRepo(conn)
+        assert repo.get_snapshots(2026, "fantasypros") == []
+
+    def test_get_by_snapshot_returns_matching_records(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn)
+        repo = SqliteADPRepo(conn)
+        repo.upsert(_make_adp(pid, as_of="2026-02-01", overall_pick=10.0, rank=10))
+        result = repo.get_by_snapshot(2026, "fantasypros", "2026-02-01")
+        assert len(result) == 1
+        assert result[0].player_id == pid
+        assert result[0].overall_pick == 10.0
+        assert result[0].as_of == "2026-02-01"
+
+    def test_get_by_snapshot_excludes_other_dates(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn)
+        repo = SqliteADPRepo(conn)
+        repo.upsert(_make_adp(pid, as_of="2026-02-01", overall_pick=10.0, rank=10))
+        repo.upsert(_make_adp(pid, as_of="2026-02-15", overall_pick=5.0, rank=5, positions="DH"))
+        result = repo.get_by_snapshot(2026, "fantasypros", "2026-02-01")
+        assert len(result) == 1
+        assert result[0].as_of == "2026-02-01"
