@@ -1535,7 +1535,9 @@ def report_residual_analysis(
     system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm-preseason/phase4)")],
     season: Annotated[list[int], typer.Option("--season", help="Season(s) to analyze")],
     stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
-    top: Annotated[int | None, typer.Option("--top", help="Filter to top-N by projected WAR")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Filter to top-N by actual WAR")] = None,
+    min_pa: Annotated[int | None, typer.Option("--min-pa", help="Minimum PA for batters")] = None,
+    min_ip: Annotated[int | None, typer.Option("--min-ip", help="Minimum IP for pitchers")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Analyze systematic prediction bias and heteroscedasticity."""
@@ -1552,6 +1554,8 @@ def report_residual_analysis(
             seasons=season,
             stats=stat,
             top=top,
+            min_pa=min_pa,
+            min_ip=min_ip,
         )
 
     if not report.stat_analyses:

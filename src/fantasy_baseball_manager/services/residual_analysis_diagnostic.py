@@ -1,5 +1,4 @@
 import statistics
-from collections.abc import Mapping
 from typing import Any
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
@@ -20,6 +19,14 @@ from fantasy_baseball_manager.repos.protocols import (
     ProjectionRepo,
 )
 from fantasy_baseball_manager.services.performance_report import _get_batter_actual, _get_pitcher_actual
+
+
+def _top_by_war_batting(items: list[BattingStats], top: int) -> list[BattingStats]:
+    return sorted(items, key=lambda x: x.war if x.war is not None else 0.0, reverse=True)[:top]
+
+
+def _top_by_war_pitching(items: list[PitchingStats], top: int) -> list[PitchingStats]:
+    return sorted(items, key=lambda x: x.war if x.war is not None else 0.0, reverse=True)[:top]
 
 
 class ResidualAnalysisDiagnostic:
@@ -43,6 +50,8 @@ class ResidualAnalysisDiagnostic:
         stats: list[str] | None = None,
         top: int | None = None,
         actuals_source: str = "fangraphs",
+        min_pa: int | None = None,
+        min_ip: int | None = None,
     ) -> ResidualAnalysisReport:
         projections = self._projection_repo.get_by_system_version(system, version)
 
@@ -58,14 +67,23 @@ class ResidualAnalysisDiagnostic:
             elif p.player_type == "pitcher":
                 pitcher_projs.setdefault(p.season, {})[p.player_id] = stat_dict
 
-        # Load actuals
-        batter_actuals: dict[int, dict[int, BattingStats]] = {}
-        pitcher_actuals: dict[int, dict[int, PitchingStats]] = {}
+        # Load actuals, filtered by top-N actual WAR and min PA/IP
+        batter_actuals: dict[int, list[BattingStats]] = {}
+        pitcher_actuals: dict[int, list[PitchingStats]] = {}
         for season in seasons:
             bat_list = self._batting_repo.get_by_season(season, source=actuals_source)
-            batter_actuals[season] = {a.player_id: a for a in bat_list}
+            if top is not None:
+                bat_list = _top_by_war_batting(bat_list, top)
+            if min_pa is not None:
+                bat_list = [a for a in bat_list if (a.pa or 0) >= min_pa]
+            batter_actuals[season] = bat_list
+
             pit_list = self._pitching_repo.get_by_season(season, source=actuals_source)
-            pitcher_actuals[season] = {a.player_id: a for a in pit_list}
+            if top is not None:
+                pit_list = _top_by_war_pitching(pit_list, top)
+            if min_ip is not None:
+                pit_list = [a for a in pit_list if (a.ip or 0) >= min_ip]
+            pitcher_actuals[season] = pit_list
 
         # Determine target stats
         batter_stats = list(stats) if stats else list(BATTER_TARGETS)
@@ -81,8 +99,6 @@ class ResidualAnalysisDiagnostic:
                 projs_by_season=batter_projs,
                 actuals_by_season=batter_actuals,
                 get_actual=_get_batter_actual,
-                war_key="war",
-                top=top,
             )
             if analysis is not None:
                 stat_analyses.append(analysis)
@@ -95,8 +111,6 @@ class ResidualAnalysisDiagnostic:
                 projs_by_season=pitcher_projs,
                 actuals_by_season=pitcher_actuals,
                 get_actual=_get_pitcher_actual,
-                war_key="war",
-                top=top,
             )
             if analysis is not None:
                 stat_analyses.append(analysis)
@@ -127,32 +141,23 @@ class ResidualAnalysisDiagnostic:
         self,
         stat_name: str,
         player_type: str,
-        projs_by_season: Mapping[int, dict[int, dict[str, float]]],
-        actuals_by_season: Mapping[int, Mapping[int, BattingStats | PitchingStats]],
+        projs_by_season: dict[int, dict[int, dict[str, float]]],
+        actuals_by_season: dict[int, list[BattingStats]] | dict[int, list[PitchingStats]],
         get_actual: Any,
-        war_key: str,
-        top: int | None,
     ) -> StatResidualAnalysis | None:
         predictions: list[float] = []
         actuals: list[float] = []
 
         for season, projs in projs_by_season.items():
-            season_actuals = actuals_by_season.get(season, {})
+            season_actuals = actuals_by_season.get(season, [])
 
-            # If top-N, sort by WAR and take top
-            if top is not None:
-                items = list(projs.items())
-                items.sort(key=lambda x: x[1].get(war_key, 0.0), reverse=True)
-                items = items[:top]
-            else:
-                items = list(projs.items())
-
-            for pid, proj_stats in items:
+            for actual_obj in season_actuals:
+                pid = actual_obj.player_id
+                proj_stats = projs.get(pid)
+                if proj_stats is None:
+                    continue
                 est = proj_stats.get(stat_name)
                 if est is None:
-                    continue
-                actual_obj = season_actuals.get(pid)
-                if actual_obj is None:
                     continue
                 actual_val = get_actual(actual_obj, stat_name)
                 if actual_val is None:
