@@ -16,6 +16,7 @@ from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport
 from fantasy_baseball_manager.domain.adp_movers import ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
+from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
@@ -1050,3 +1051,57 @@ def print_adp_movers_report(report: ADPMoversReport) -> None:
 
     if not report.risers and not report.fallers and not report.new_entries and not report.dropped_entries:
         console.print("No movers found.")
+
+
+def print_projection_confidence(report: ConfidenceReport) -> None:
+    """Print a projection confidence report showing cross-system agreement."""
+    if not report.players:
+        console.print("No players with sufficient projection systems.")
+        return
+
+    console.print(
+        f"[bold]Projection Confidence[/bold] — season {report.season}"
+        f" | {len(report.systems)} systems: {', '.join(report.systems)}"
+        f" | {len(report.players)} players"
+    )
+    console.print()
+
+    # Collect all stat keys across players for column headers
+    stat_keys: list[str] = []
+    seen: set[str] = set()
+    for player in report.players:
+        for spread in player.spreads:
+            if spread.stat not in seen:
+                stat_keys.append(spread.stat)
+                seen.add(spread.stat)
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Player")
+    table.add_column("Type")
+    table.add_column("Pos")
+    table.add_column("CV", justify="right")
+    table.add_column("Agreement")
+    for stat in stat_keys:
+        table.add_column(stat, justify="right")
+
+    for player in report.players:
+        agreement_color = {"high": "green", "medium": "yellow", "low": "red"}.get(player.agreement_level, "")
+        agreement_str = f"[{agreement_color}]{player.agreement_level}[/{agreement_color}]"
+
+        spread_by_stat = {s.stat: s for s in player.spreads}
+        cells: list[str] = [
+            player.player_name,
+            player.player_type,
+            player.position,
+            f"{player.overall_cv:.3f}",
+            agreement_str,
+        ]
+        for stat in stat_keys:
+            spread = spread_by_stat.get(stat)
+            if spread is not None:
+                cells.append(f"{spread.min_value:.0f}-{spread.max_value:.0f}")
+            else:
+                cells.append("")
+        table.add_row(*cells)
+
+    console.print(table)

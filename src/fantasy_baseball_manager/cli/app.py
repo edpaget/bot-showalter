@@ -38,6 +38,7 @@ from fantasy_baseball_manager.cli._output import (
     print_talent_quality_report,
     print_train_result,
     print_tune_result,
+    print_projection_confidence,
     print_value_over_adp,
     print_valuation_eval_result,
     print_valuation_rankings,
@@ -48,6 +49,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_adp_movers_context,
     build_adp_report_context,
     build_compute_container,
+    build_confidence_report_context,
     build_datasets_context,
     build_draft_board_context,
     build_eval_context,
@@ -73,9 +75,11 @@ from fantasy_baseball_manager.services.cohort import (
     assign_top300_cohorts,
 )
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
 from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv
+from fantasy_baseball_manager.services.projection_confidence import compute_confidence
 from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
@@ -1554,6 +1558,52 @@ def report_adp_movers(
             raise typer.Exit(code=1) from None
         report = ctx.service.compute_adp_movers(season, provider, current, previous, top=top)
     print_adp_movers_report(report)
+
+
+@report_app.command("projection-confidence")
+def report_projection_confidence(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    min_systems: Annotated[int, typer.Option("--min-systems", help="Minimum projection systems required")] = 3,
+    player_type: Annotated[str | None, typer.Option("--player-type", help="Filter: batter or pitcher")] = None,
+    agreement: Annotated[str | None, typer.Option("--agreement", help="Filter: high, medium, or low")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show projection confidence report: cross-system agreement per player."""
+    league = load_league(league_name, Path.cwd())
+
+    with build_confidence_report_context(data_dir) as ctx:
+        projections = ctx.projection_repo.get_by_season(season)
+        if player_type is not None:
+            projections = [p for p in projections if p.player_type == player_type]
+
+        player_ids = {p.player_id for p in projections}
+        players = ctx.player_repo.get_by_ids(list(player_ids))
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        report = compute_confidence(
+            projections,
+            league,
+            player_names,
+            min_systems=min_systems,
+        )
+
+    if agreement is not None:
+        report = ConfidenceReport(
+            season=report.season,
+            systems=report.systems,
+            players=[p for p in report.players if p.agreement_level == agreement],
+        )
+
+    if top is not None:
+        report = ConfidenceReport(
+            season=report.season,
+            systems=report.systems,
+            players=report.players[:top],
+        )
+
+    print_projection_confidence(report)
 
 
 # --- draft subcommand group ---

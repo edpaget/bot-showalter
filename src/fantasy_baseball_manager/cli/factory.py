@@ -543,3 +543,24 @@ def build_adp_movers_context(data_dir: str) -> Iterator[ADPMoversContext]:
         yield ADPMoversContext(conn=conn, service=service)
     finally:
         conn.close()
+
+
+@dataclass(frozen=True)
+class ConfidenceReportContext:
+    conn: sqlite3.Connection
+    player_repo: SqlitePlayerRepo
+    projection_repo: SqliteProjectionRepo
+
+
+@contextmanager
+def build_confidence_report_context(data_dir: str) -> Iterator[ConfidenceReportContext]:
+    """Composition-root context manager for projection confidence report commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield ConfidenceReportContext(
+            conn=conn,
+            player_repo=SqlitePlayerRepo(conn),
+            projection_repo=SqliteProjectionRepo(conn),
+        )
+    finally:
+        conn.close()
