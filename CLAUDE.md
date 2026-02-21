@@ -29,12 +29,18 @@ Fantasy baseball manager. Python 3.14+, uses `uv` for dependency management. Tes
 
 This project uses two levels of planning:
 
-1. **Roadmaps** (`/roadmap` skill) — High-level multi-phase plans written to `docs/plans/<topic>.md`. These describe what to build and in what order, but not implementation detail.
-2. **Plan mode** (built-in) — Used when implementing a roadmap phase. Enter plan mode, explore the code, produce a detailed implementation plan, and get user approval before writing code.
+1. **Roadmaps** (`/roadmap` skill) — High-level multi-phase plans written to `docs/plans/<topic>.md`. These describe what to build and in what order, but not implementation detail. Each roadmap has a **Status** table that tracks phase progress. See [`docs/plans/INDEX.md`](docs/plans/INDEX.md) for an overview of all roadmaps and their dependencies.
+2. **Plan mode** (built-in) — Used when starting implementation of a roadmap phase. Enter plan mode, explore the code, produce a detailed implementation plan, and get user approval before writing code. The plan lives only in the plan-mode session — do not write separate phase-plan files to disk.
 
 When asked to "create a plan", "write a plan", or "plan out" a feature — produce a **roadmap** document. Do NOT start implementing or exploring code for implementation purposes unless explicitly asked to implement.
 
-When implementing from a roadmap, read it first and implement exactly what it specifies. Do not expand scope beyond the plan unless asked.
+When implementing from a roadmap, use the `/implement` skill (e.g., `/implement tier-generator phase 1`). It handles reading the roadmap, entering plan mode, worktree setup, and status updates. The full sequence is:
+
+1. Read the roadmap and locate the target phase's steps and acceptance criteria.
+2. Enter plan mode to explore the code and design the implementation approach.
+3. After plan-mode approval, implement in a worktree (see Worktree Workflow).
+4. Do not expand scope beyond the roadmap phase unless asked.
+5. After the phase lands, update the roadmap's Status table (mark the phase `done (<date>)`) and update `docs/plans/INDEX.md` if progress changes affect the dependency graph or status summary.
 
 ## Implementation Discipline
 
@@ -46,6 +52,7 @@ When executing a plan (after plan-mode approval):
 - Fix any failures before re-committing.
 - Commit with a conventional commit message referencing what was done.
 - Coverage is enforced in CI via `fail_under`. Run `uv run pytest --cov` locally to check before pushing.
+- **Before the final commit, verify each acceptance criterion from the roadmap phase.** Walk the list explicitly — confirm each one is satisfied by the implementation or tests. If a criterion isn't met, finish it before committing.
 
 ## Worktree Workflow
 

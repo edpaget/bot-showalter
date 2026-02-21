@@ -24,6 +24,13 @@ Follow this structure (based on existing roadmaps in `docs/plans/`):
 
 <1-2 paragraph summary of what this roadmap achieves and why.>
 
+## Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — <short title> | not started |
+| 2 — <short title> | not started |
+
 ## Phase 1: <Short title>
 
 <Brief description of what this phase does.>
@@ -57,5 +64,6 @@ Follow this structure (based on existing roadmaps in `docs/plans/`):
 - Each phase must be independently implementable and mergeable.
 - Steps should be concrete enough to guide implementation but not so detailed that they prescribe every line of code.
 - Include acceptance criteria for every phase.
+- Include a Status table after the summary, listing every phase with its current status (`not started`, `in progress`, `done (<date>)`, or `blocked on <reason>`). For ML/quantitative phases, record go/no-go outcomes in the status when completed.
 - End with an ordering section noting dependencies and suggested priority.
 - Do NOT start implementing code. This is a planning artifact only.
