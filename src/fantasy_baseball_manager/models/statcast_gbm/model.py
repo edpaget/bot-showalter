@@ -171,6 +171,10 @@ class _StatcastGBMBase:
     def _calibrate(self, player_params: dict[str, Any]) -> bool:
         return bool(player_params.get("calibrate", False))
 
+    def _calibration_top(self, player_params: dict[str, Any]) -> int | None:
+        val = player_params.get("calibration_top")
+        return int(val) if val is not None else None
+
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)
         pitcher_fs = self._pitcher_feature_set_builder(config.seasons)
@@ -230,7 +234,13 @@ class _StatcastGBMBase:
         save_models(bat_models, artifact_path / "batter_models.joblib")
 
         if self._calibrate(batter_params) and bat_splits.holdout is not None:
-            bat_calibrators = fit_calibrators(bat_models, bat_X_holdout, bat_y_holdout)
+            bat_cal_rows = bat_holdout_rows
+            bat_cal_top = self._calibration_top(batter_params)
+            if bat_cal_top is not None:
+                bat_cal_rows = sorted(bat_cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:bat_cal_top]
+            bat_X_cal = extract_features(bat_cal_rows, bat_feature_cols)
+            bat_y_cal = extract_targets(bat_cal_rows, bat_targets)
+            bat_calibrators = fit_calibrators(bat_models, bat_X_cal, bat_y_cal)
             if bat_calibrators:
                 save_calibrators(bat_calibrators, artifact_path / "batter_calibrators.joblib")
 
@@ -266,7 +276,13 @@ class _StatcastGBMBase:
         save_models(pit_models, artifact_path / "pitcher_models.joblib")
 
         if self._calibrate(pitcher_params) and pit_splits.holdout is not None:
-            pit_calibrators = fit_calibrators(pit_models, pit_X_holdout, pit_y_holdout)
+            pit_cal_rows = pit_holdout_rows
+            pit_cal_top = self._calibration_top(pitcher_params)
+            if pit_cal_top is not None:
+                pit_cal_rows = sorted(pit_cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:pit_cal_top]
+            pit_X_cal = extract_features(pit_cal_rows, pit_feature_cols)
+            pit_y_cal = extract_targets(pit_cal_rows, pit_targets)
+            pit_calibrators = fit_calibrators(pit_models, pit_X_cal, pit_y_cal)
             if pit_calibrators:
                 save_calibrators(pit_calibrators, artifact_path / "pitcher_calibrators.joblib")
 
