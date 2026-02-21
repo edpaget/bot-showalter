@@ -1,10 +1,13 @@
 import sqlite3
 
+import pytest
+
 from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
     _discover_provider_columns,
     _normalize_name,
     _split_raw_name,
+    fetch_mlb_active_teams,
     ingest_fantasypros_adp,
 )
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
@@ -100,6 +103,48 @@ class TestSplitRawName:
 
     def test_single_name(self) -> None:
         assert _split_raw_name("Madonna") == ("", "Madonna")
+
+
+class TestFetchMlbActiveTeams:
+    def test_returns_mlbam_to_team_mapping(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        teams_json = {"teams": [{"id": 147, "abbreviation": "NYY"}, {"id": 119, "abbreviation": "LAD"}]}
+        players_json = {
+            "people": [
+                {"id": 660271, "currentTeam": {"id": 119}},
+                {"id": 592450, "currentTeam": {"id": 147}},
+                {"id": 999999},  # no currentTeam
+            ]
+        }
+
+        class _FakeResponse:
+            def __init__(self, data: dict) -> None:
+                self._data = data
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> dict:
+                return self._data
+
+        class _FakeClient:
+            def __init__(self) -> None:
+                self._calls: list[str] = []
+
+            def get(self, url: str, **kwargs: object) -> _FakeResponse:
+                self._calls.append(url)
+                if "teams" in url:
+                    return _FakeResponse(teams_json)
+                return _FakeResponse(players_json)
+
+            def __enter__(self) -> "_FakeClient":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                pass
+
+        monkeypatch.setattr("fantasy_baseball_manager.ingest.adp_mapper.httpx.Client", lambda **kw: _FakeClient())
+        result = fetch_mlb_active_teams(2026)
+        assert result == {660271: "LAD", 592450: "NYY"}
 
 
 class TestDiscoverProviderColumns:

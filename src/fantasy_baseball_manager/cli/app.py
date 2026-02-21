@@ -1,5 +1,6 @@
 import csv
 import datetime
+import logging
 import math
 from pathlib import Path
 from typing import Annotated, Any
@@ -69,7 +70,7 @@ from fantasy_baseball_manager.services.cohort import (
 )
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
-from fantasy_baseball_manager.ingest.adp_mapper import ingest_fantasypros_adp
+from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
     lahman_team_row_to_team,
@@ -98,6 +99,8 @@ from fantasy_baseball_manager.models.protocols import (
 )
 from fantasy_baseball_manager.models.registry import list_models
 from fantasy_baseball_manager.models.run_manager import RunManager
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(name="fbm", help="Fantasy Baseball Manager — projection model CLI")
 
@@ -1119,17 +1122,35 @@ def ingest_milb_batting(
 
 
 def _build_player_teams(container: IngestContainer, season: int) -> dict[int, str]:
-    """Build a player_id → team abbreviation mapping from the most recent roster stint."""
+    """Build a player_id → team abbreviation mapping, preferring live MLB API data."""
+    # Start with Lahman roster stints as a base
     teams = {t.id: t.abbreviation for t in container.team_repo.all() if t.id is not None}
     stints = container.roster_stint_repo.get_by_season(season)
     if not stints:
-        # Fall back to previous season
         stints = container.roster_stint_repo.get_by_season(season - 1)
     player_teams: dict[int, str] = {}
     for stint in stints:
         abbrev = teams.get(stint.team_id)
         if abbrev:
             player_teams[stint.player_id] = abbrev
+
+    # Overlay with live MLB API data (has current offseason moves)
+    try:
+        mlbam_teams = fetch_mlb_active_teams(season)
+        mlbam_to_id = {
+            p.mlbam_id: p.id for p in container.player_repo.all() if p.mlbam_id is not None and p.id is not None
+        }
+        updated = 0
+        for mlbam_id, abbrev in mlbam_teams.items():
+            pid = mlbam_to_id.get(mlbam_id)
+            if pid is not None and player_teams.get(pid) != abbrev:
+                player_teams[pid] = abbrev
+                updated += 1
+        if updated:
+            logger.info("Updated %d player team assignments from MLB API", updated)
+    except Exception:
+        logger.warning("Could not fetch live rosters from MLB API, using stored stints only")
+
     return player_teams
 
 

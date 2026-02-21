@@ -4,11 +4,15 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.protocols import ADPRepo, PlayerRepo
 
 logger = logging.getLogger(__name__)
+
+_MLB_API_BASE = "https://statsapi.mlb.com/api/v1"
 
 _FIXED_COLUMNS = {"Rank", "Player", "Team", "Positions", "AVG"}
 
@@ -79,6 +83,27 @@ def _normalize_name(name: str) -> str:
     tokens = lowered.split()
     tokens = [_NICK_ALIASES.get(t, t) for t in tokens]
     return " ".join(tokens)
+
+
+def fetch_mlb_active_teams(season: int) -> dict[int, str]:
+    """Fetch mlbam_id → team abbreviation for all active MLB players from the MLB API."""
+    with httpx.Client(timeout=30) as client:
+        teams_resp = client.get(f"{_MLB_API_BASE}/teams", params={"sportId": 1, "season": season})
+        teams_resp.raise_for_status()
+        team_map: dict[int, str] = {}
+        for t in teams_resp.json().get("teams", []):
+            team_map[t["id"]] = t["abbreviation"]
+
+        players_resp = client.get(f"{_MLB_API_BASE}/sports/1/players", params={"season": season})
+        players_resp.raise_for_status()
+        result: dict[int, str] = {}
+        for p in players_resp.json().get("people", []):
+            team_id = p.get("currentTeam", {}).get("id")
+            abbrev = team_map.get(team_id, "") if team_id else ""
+            if abbrev:
+                result[p["id"]] = abbrev
+    logger.debug("Fetched %d active player-team mappings from MLB API", len(result))
+    return result
 
 
 def _build_player_lookups(
