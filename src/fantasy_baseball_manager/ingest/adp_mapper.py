@@ -6,11 +6,27 @@ from typing import Any
 
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.repos.protocols import ADPRepo
+from fantasy_baseball_manager.repos.protocols import ADPRepo, PlayerRepo
 
 logger = logging.getLogger(__name__)
 
 _FIXED_COLUMNS = {"Rank", "Player", "Team", "Positions", "AVG"}
+
+# Lahman → modern abbreviation aliases (FantasyPros uses the modern style)
+_TEAM_ALIASES: dict[str, str] = {
+    "KCA": "KC",
+    "TBA": "TB",
+    "SFN": "SF",
+    "SDN": "SD",
+    "SLN": "STL",
+    "CHN": "CHC",
+    "CHA": "CWS",
+    "LAN": "LAD",
+    "NYA": "NYY",
+    "NYN": "NYM",
+    "WAS": "WSH",
+    "ANA": "LAA",
+}
 
 _PROVIDER_SLUGS: dict[str, str] = {
     "ESPN": "espn",
@@ -26,6 +42,27 @@ _PARENTHETICAL_RE = re.compile(r"\s*\((?:Batter|Pitcher)\)\s*$", re.IGNORECASE)
 _INITIAL_DOT_RE = re.compile(r"(?<!\w)([A-Za-z])\.")
 _ADJACENT_INITIALS_RE = re.compile(r"(?<=\b[A-Za-z]) (?=[A-Za-z]\b)")
 
+# Formal name → common short form used in baseball databases.
+# Applied during normalization so "Matthew Boyd" matches "Matt Boyd".
+_NICK_ALIASES: dict[str, str] = {
+    "matthew": "matt",
+    "michael": "mike",
+    "christopher": "chris",
+    "nicholas": "nick",
+    "alexander": "alex",
+    "benjamin": "ben",
+    "gregory": "greg",
+    "timothy": "tim",
+    "stephen": "steve",
+    "steven": "steve",
+    "jeffrey": "jeff",
+    "zachary": "zach",
+    "frederick": "fred",
+    "nathaniel": "nate",
+    "jonathan": "jon",
+    "abraham": "abe",
+}
+
 
 def _normalize_name(name: str) -> str:
     name = _PARENTHETICAL_RE.sub("", name)
@@ -37,7 +74,11 @@ def _normalize_name(name: str) -> str:
     # Collapse whitespace, then merge adjacent single-letter tokens: "J T" -> "JT"
     stripped = " ".join(stripped.split())
     stripped = _ADJACENT_INITIALS_RE.sub("", stripped)
-    return stripped.strip().lower()
+    lowered = stripped.strip().lower()
+    # Apply nickname aliases to each token
+    tokens = lowered.split()
+    tokens = [_NICK_ALIASES.get(t, t) for t in tokens]
+    return " ".join(tokens)
 
 
 def _build_player_lookups(
@@ -54,7 +95,9 @@ def _build_player_lookups(
         normalized = _normalize_name(full_name)
         by_name.setdefault(normalized, []).append(p.id)
         if player_teams and p.id in player_teams:
-            by_name_team[(normalized, player_teams[p.id])] = p.id
+            raw_team = player_teams[p.id]
+            team_abbrev = _TEAM_ALIASES.get(raw_team, raw_team)
+            by_name_team[(normalized, team_abbrev)] = p.id
 
     return by_name_team, by_name
 
@@ -95,11 +138,22 @@ def _discover_provider_columns(header: list[str]) -> list[tuple[str, str]]:
     return providers
 
 
+def _split_raw_name(raw_name: str) -> tuple[str, str]:
+    """Split a raw ADP player name into (first, last) for stub creation."""
+    name = _PARENTHETICAL_RE.sub("", raw_name).strip()
+    name = _SUFFIX_RE.sub("", name).strip()
+    parts = name.rsplit(" ", 1)
+    if len(parts) == 2:
+        return parts[0], parts[1]
+    return "", parts[0]
+
+
 @dataclass(frozen=True)
 class ADPIngestResult:
     loaded: int
     skipped: int
     unmatched: list[str]
+    created: int = 0
 
 
 def ingest_fantasypros_adp(
@@ -109,6 +163,7 @@ def ingest_fantasypros_adp(
     season: int,
     as_of: str | None = None,
     player_teams: dict[int, str] | None = None,
+    player_repo: PlayerRepo | None = None,
 ) -> ADPIngestResult:
     by_name_team, by_name = _build_player_lookups(players, player_teams)
 
@@ -120,13 +175,25 @@ def ingest_fantasypros_adp(
 
     loaded = 0
     skipped = 0
+    created = 0
     unmatched: list[str] = []
 
     for row in rows:
         player_id = _resolve_player(row, by_name_team, by_name)
         if player_id is None:
-            unmatched.append(row.get("Player", "???"))
-            continue
+            raw_name = row.get("Player") or ""
+            normalized = _normalize_name(raw_name)
+            candidates = by_name.get(normalized, [])
+            # Only create stubs for truly missing players (not ambiguous ones)
+            if player_repo is not None and len(candidates) == 0:
+                first, last = _split_raw_name(raw_name)
+                player_id = player_repo.upsert(Player(name_first=first, name_last=last))
+                by_name.setdefault(normalized, []).append(player_id)
+                created += 1
+                logger.debug("Created stub player '%s %s' (id=%d)", first, last, player_id)
+            else:
+                unmatched.append(raw_name or "???")
+                continue
 
         rank_str = row.get("Rank", "").strip()
         if not rank_str:
@@ -167,4 +234,4 @@ def ingest_fantasypros_adp(
             )
             loaded += 1
 
-    return ADPIngestResult(loaded=loaded, skipped=skipped, unmatched=unmatched)
+    return ADPIngestResult(loaded=loaded, skipped=skipped, unmatched=unmatched, created=created)

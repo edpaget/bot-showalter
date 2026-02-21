@@ -4,6 +4,7 @@ from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
     _discover_provider_columns,
     _normalize_name,
+    _split_raw_name,
     ingest_fantasypros_adp,
 )
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
@@ -74,6 +75,31 @@ class TestNormalizeName:
     def test_initials_match_across_formats(self) -> None:
         # "J. P. Crawford" from DB should match "J.P. Crawford" from ADP
         assert _normalize_name("J. P. Crawford") == _normalize_name("J.P. Crawford")
+
+    def test_nickname_matthew_matches_matt(self) -> None:
+        assert _normalize_name("Matthew Boyd") == _normalize_name("Matt Boyd")
+
+    def test_nickname_michael_matches_mike(self) -> None:
+        assert _normalize_name("Michael King") == _normalize_name("Mike King")
+
+    def test_nickname_does_not_affect_last_name(self) -> None:
+        # "Stephen" in a last name should still be aliased (acceptable trade-off),
+        # but verify normalization is consistent
+        assert _normalize_name("John Matthew") == "john matt"
+
+
+class TestSplitRawName:
+    def test_simple_name(self) -> None:
+        assert _split_raw_name("Mike Trout") == ("Mike", "Trout")
+
+    def test_strips_jr_suffix(self) -> None:
+        assert _split_raw_name("Bobby Witt Jr.") == ("Bobby", "Witt")
+
+    def test_strips_parenthetical(self) -> None:
+        assert _split_raw_name("Shohei Ohtani (Batter)") == ("Shohei", "Ohtani")
+
+    def test_single_name(self) -> None:
+        assert _split_raw_name("Madonna") == ("", "Madonna")
 
 
 class TestDiscoverProviderColumns:
@@ -193,6 +219,23 @@ class TestIngestFantasyprosADP:
         adps = repo.get_by_player_season(id1, 2026)
         assert len(adps) == 1
 
+    def test_team_alias_resolves_lahman_abbreviation(self, conn: sqlite3.Connection) -> None:
+        id1 = seed_player(conn, name_first="Bobby", name_last="Witt", mlbam_id=677951)
+        seed_player(conn, name_first="Bobby", name_last="Witt", mlbam_id=124492)
+        repo = SqliteADPRepo(conn)
+        rows = [
+            _make_row("1", "Bobby Witt Jr.", "KC", "SS", "3.4"),
+        ]
+        # Lahman uses "KCA" but ADP row has "KC"
+        player_teams = {id1: "KCA"}
+        result = ingest_fantasypros_adp(
+            rows, repo, SqlitePlayerRepo(conn).all(), season=2026, player_teams=player_teams
+        )
+        assert result.loaded == 1
+        assert result.unmatched == []
+        adps = repo.get_by_player_season(id1, 2026)
+        assert len(adps) == 1
+
     def test_initials_with_periods_match(self, conn: sqlite3.Connection) -> None:
         pid = seed_player(conn, name_first="J. T.", name_last="Realmuto", mlbam_id=592663)
         repo = SqliteADPRepo(conn)
@@ -242,6 +285,49 @@ class TestIngestFantasyprosADP:
         repo = SqliteADPRepo(conn)
         result = ingest_fantasypros_adp([], repo, SqlitePlayerRepo(conn).all(), season=2026)
         assert result == ADPIngestResult(loaded=0, skipped=0, unmatched=[])
+
+    def test_creates_stub_for_unknown_player(self, conn: sqlite3.Connection) -> None:
+        _seed_players(conn)
+        repo = SqliteADPRepo(conn)
+        player_repo = SqlitePlayerRepo(conn)
+        rows = [
+            _make_row("100", "Tatsuya Imai", "HOU", "SP", "172.4"),
+        ]
+        result = ingest_fantasypros_adp(rows, repo, player_repo.all(), season=2026, player_repo=player_repo)
+        assert result.loaded == 1
+        assert result.created == 1
+        assert result.unmatched == []
+        # Stub player was created and ADP links to it
+        stub = player_repo.search_by_name("Imai")
+        assert len(stub) == 1
+        assert stub[0].name_first == "Tatsuya"
+        adps = repo.get_by_player_season(stub[0].id, 2026)  # type: ignore[arg-type]
+        assert len(adps) == 1
+        assert adps[0].overall_pick == 172.4
+
+    def test_stub_not_created_for_ambiguous_player(self, conn: sqlite3.Connection) -> None:
+        seed_player(conn, name_first="Josh", name_last="Bell", mlbam_id=100001)
+        seed_player(conn, name_first="Josh", name_last="Bell", mlbam_id=100002)
+        repo = SqliteADPRepo(conn)
+        player_repo = SqlitePlayerRepo(conn)
+        rows = [
+            _make_row("50", "Josh Bell", "MIN", "1B,DH", "384.0"),
+        ]
+        result = ingest_fantasypros_adp(rows, repo, player_repo.all(), season=2026, player_repo=player_repo)
+        assert result.loaded == 0
+        assert result.created == 0
+        assert result.unmatched == ["Josh Bell"]
+
+    def test_stub_not_created_without_player_repo(self, conn: sqlite3.Connection) -> None:
+        _seed_players(conn)
+        repo = SqliteADPRepo(conn)
+        rows = [
+            _make_row("100", "Tatsuya Imai", "HOU", "SP", "172.4"),
+        ]
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        assert result.loaded == 0
+        assert result.created == 0
+        assert result.unmatched == ["Tatsuya Imai"]
 
     def test_avg_always_produced(self, conn: sqlite3.Connection) -> None:
         ids = _seed_players(conn)

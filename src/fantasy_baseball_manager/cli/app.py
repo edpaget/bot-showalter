@@ -1151,10 +1151,18 @@ def ingest_adp(
         players = container.player_repo.all()
         player_teams = _build_player_teams(container, season)
         result = ingest_fantasypros_adp(
-            rows, container.adp_repo, players, season=season, as_of=as_of, player_teams=player_teams
+            rows,
+            container.adp_repo,
+            players,
+            season=season,
+            as_of=as_of,
+            player_teams=player_teams,
+            player_repo=container.player_repo,
         )
         container.conn.commit()
         console.print(f"  Loaded {result.loaded} ADP records, skipped {result.skipped}")
+        if result.created:
+            console.print(f"  Created {result.created} player stubs for unknown players")
         if result.unmatched:
             console.print(
                 f"  [yellow]Unmatched players ({len(result.unmatched)}):[/yellow] {', '.join(result.unmatched[:20])}"
@@ -1192,12 +1200,20 @@ def ingest_adp_bulk(
             source = CsvSource(csv_file)
             rows = source.fetch()
             player_teams = _build_player_teams(container, season)
-            result = ingest_fantasypros_adp(rows, container.adp_repo, players, season=season, player_teams=player_teams)
+            result = ingest_fantasypros_adp(
+                rows,
+                container.adp_repo,
+                players,
+                season=season,
+                player_teams=player_teams,
+                player_repo=container.player_repo,
+            )
             container.conn.commit()
             n_unmatched = len(result.unmatched)
-            console.print(
-                f"  {csv_file.name}: loaded {result.loaded}, skipped {result.skipped}, unmatched {n_unmatched}"
-            )
+            parts = [f"loaded {result.loaded}", f"skipped {result.skipped}", f"unmatched {n_unmatched}"]
+            if result.created:
+                parts.append(f"created {result.created}")
+            console.print(f"  {csv_file.name}: {', '.join(parts)}")
 
 
 def _write_adp_csv(rows: list[dict[str, Any]], path: Path) -> None:
@@ -1233,10 +1249,18 @@ def ingest_adp_fetch(
         players = container.player_repo.all()
         player_teams = _build_player_teams(container, season)
         result = ingest_fantasypros_adp(
-            rows, container.adp_repo, players, season=season, as_of=as_of, player_teams=player_teams
+            rows,
+            container.adp_repo,
+            players,
+            season=season,
+            as_of=as_of,
+            player_teams=player_teams,
+            player_repo=container.player_repo,
         )
         container.conn.commit()
         console.print(f"  Loaded {result.loaded} ADP records, skipped {result.skipped}")
+        if result.created:
+            console.print(f"  Created {result.created} player stubs for unknown players")
         if result.unmatched:
             console.print(
                 f"  [yellow]Unmatched players ({len(result.unmatched)}):[/yellow] {', '.join(result.unmatched[:20])}"
