@@ -33,9 +33,9 @@ Key observations:
 |-------|--------|
 | 1 — ADP domain, storage, and FantasyPros ingest | done |
 | 2 — Value-over-ADP report | done |
-| 3 — Historical ADP evaluation | not started |
+| 3 — Historical ADP evaluation | done (2026-02-20) |
 | 4 — Automated ADP fetching | done |
-| 5 — ADP trend tracking | not started |
+| 5 — ADP trend tracking | done (2026-02-20) |
 
 ## Phase 1: ADP domain, storage, and FantasyPros ingest
 
