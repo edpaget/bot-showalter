@@ -10,7 +10,7 @@ The existing ZAR valuation system provides the per-player dollar values and posi
 |-------|--------|
 | 1 — Tier clustering engine | done (2026-02-20) |
 | 2 — CLI command and formatted output | done (2026-02-21) |
-| 3 — Cross-position tier map | not started |
+| 3 — Cross-position tier map | done (2026-02-21) |
 
 ## Phase 1: Tier clustering engine
 

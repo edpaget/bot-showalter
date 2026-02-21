@@ -25,9 +25,10 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 | [Projection Confidence Report](projection-confidence-report.md) | 3 | phases 1-2 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
-| [Tier Generator](tier-generator.md) | 3 | phases 1-2 done | none |
+| [Test Performance](test-performance.md) | 4 | not started | none |
+| [Tier Generator](tier-generator.md) | 3 | all phases done | none |
 | [Top-300 Tuning](top-300-tuning.md) | 6 | phases 1-5 done | none |
-| [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | not started | live-draft-tracker, keeper-surplus-value |
+| [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | phases 1-2 done | live-draft-tracker, keeper-surplus-value |
 
 ## Dependency Graph
 
