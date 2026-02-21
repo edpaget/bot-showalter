@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
@@ -139,19 +140,13 @@ def build_eval_context(data_dir: str) -> Iterator[EvalContext]:
     """Composition-root context manager for eval/compare commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        projection_repo = SqliteProjectionRepo(conn)
-        batting_repo = SqliteBattingStatsRepo(conn)
-        evaluator = ProjectionEvaluator(
-            projection_repo,
-            batting_repo,
-            SqlitePitchingStatsRepo(conn),
-        )
+        container = AnalysisContainer(conn)
         yield EvalContext(
             conn=conn,
-            evaluator=evaluator,
-            player_repo=SqlitePlayerRepo(conn),
-            batting_repo=batting_repo,
-            projection_repo=projection_repo,
+            evaluator=container.projection_evaluator,
+            player_repo=container.player_repo,
+            batting_repo=container.batting_stats_repo,
+            projection_repo=container.projection_repo,
         )
     finally:
         conn.close()
@@ -330,11 +325,8 @@ def build_projections_context(data_dir: str) -> Iterator[ProjectionsContext]:
     """Composition-root context manager for projections commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        lookup_service = ProjectionLookupService(
-            SqlitePlayerRepo(conn),
-            SqliteProjectionRepo(conn),
-        )
-        yield ProjectionsContext(conn=conn, lookup_service=lookup_service)
+        container = AnalysisContainer(conn)
+        yield ProjectionsContext(conn=conn, lookup_service=container.projection_lookup_service)
     finally:
         conn.close()
 
@@ -352,23 +344,12 @@ def build_report_context(data_dir: str) -> Iterator[ReportContext]:
     """Composition-root context manager for report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        proj_repo = SqliteProjectionRepo(conn)
-        batting_repo = SqliteBattingStatsRepo(conn)
-        pitching_repo = SqlitePitchingStatsRepo(conn)
-        player_repo = SqlitePlayerRepo(conn)
-        report_service = PerformanceReportService(
-            proj_repo,
-            player_repo,
-            batting_repo,
-            pitching_repo,
-        )
-        talent_evaluator = TrueTalentEvaluator(proj_repo, batting_repo, pitching_repo)
-        residual_diagnostic = ResidualPersistenceDiagnostic(proj_repo, batting_repo, player_repo)
+        container = AnalysisContainer(conn)
         yield ReportContext(
             conn=conn,
-            report_service=report_service,
-            talent_evaluator=talent_evaluator,
-            residual_diagnostic=residual_diagnostic,
+            report_service=container.performance_report_service,
+            talent_evaluator=container.talent_evaluator,
+            residual_diagnostic=container.residual_diagnostic,
         )
     finally:
         conn.close()
@@ -425,11 +406,8 @@ def build_valuations_context(data_dir: str) -> Iterator[ValuationsContext]:
     """Composition-root context manager for valuations commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        lookup_service = ValuationLookupService(
-            SqlitePlayerRepo(conn),
-            SqliteValuationRepo(conn),
-        )
-        yield ValuationsContext(conn=conn, lookup_service=lookup_service)
+        container = AnalysisContainer(conn)
+        yield ValuationsContext(conn=conn, lookup_service=container.valuation_lookup_service)
     finally:
         conn.close()
 
@@ -445,14 +423,8 @@ def build_valuation_eval_context(data_dir: str) -> Iterator[ValuationEvalContext
     """Composition-root context manager for valuation evaluation commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        evaluator = ValuationEvaluator(
-            valuation_repo=SqliteValuationRepo(conn),
-            batting_repo=SqliteBattingStatsRepo(conn),
-            pitching_repo=SqlitePitchingStatsRepo(conn),
-            position_repo=SqlitePositionAppearanceRepo(conn),
-            player_repo=SqlitePlayerRepo(conn),
-        )
-        yield ValuationEvalContext(conn=conn, evaluator=evaluator)
+        container = AnalysisContainer(conn)
+        yield ValuationEvalContext(conn=conn, evaluator=container.valuation_evaluator)
     finally:
         conn.close()
 
@@ -468,12 +440,8 @@ def build_adp_report_context(data_dir: str) -> Iterator[ADPReportContext]:
     """Composition-root context manager for ADP report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        service = ADPReportService(
-            SqlitePlayerRepo(conn),
-            SqliteValuationRepo(conn),
-            SqliteADPRepo(conn),
-        )
-        yield ADPReportContext(conn=conn, service=service)
+        container = AnalysisContainer(conn)
+        yield ADPReportContext(conn=conn, service=container.adp_report_service)
     finally:
         conn.close()
 
@@ -491,11 +459,12 @@ def build_draft_board_context(data_dir: str) -> Iterator[DraftBoardContext]:
     """Composition-root context manager for draft board commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
+        container = AnalysisContainer(conn)
         yield DraftBoardContext(
             conn=conn,
-            player_repo=SqlitePlayerRepo(conn),
-            valuation_repo=SqliteValuationRepo(conn),
-            adp_repo=SqliteADPRepo(conn),
+            player_repo=container.player_repo,
+            valuation_repo=container.valuation_repo,
+            adp_repo=container.adp_repo,
         )
     finally:
         conn.close()
@@ -512,15 +481,8 @@ def build_adp_accuracy_context(data_dir: str) -> Iterator[ADPAccuracyContext]:
     """Composition-root context manager for ADP accuracy evaluation commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        evaluator = ADPAccuracyEvaluator(
-            adp_repo=SqliteADPRepo(conn),
-            valuation_repo=SqliteValuationRepo(conn),
-            player_repo=SqlitePlayerRepo(conn),
-            batting_repo=SqliteBattingStatsRepo(conn),
-            pitching_repo=SqlitePitchingStatsRepo(conn),
-            position_repo=SqlitePositionAppearanceRepo(conn),
-        )
-        yield ADPAccuracyContext(conn=conn, evaluator=evaluator)
+        container = AnalysisContainer(conn)
+        yield ADPAccuracyContext(conn=conn, evaluator=container.adp_accuracy_evaluator)
     finally:
         conn.close()
 
@@ -536,11 +498,8 @@ def build_adp_movers_context(data_dir: str) -> Iterator[ADPMoversContext]:
     """Composition-root context manager for ADP movers commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        service = ADPMoversService(
-            SqliteADPRepo(conn),
-            SqlitePlayerRepo(conn),
-        )
-        yield ADPMoversContext(conn=conn, service=service)
+        container = AnalysisContainer(conn)
+        yield ADPMoversContext(conn=conn, service=container.adp_movers_service)
     finally:
         conn.close()
 
