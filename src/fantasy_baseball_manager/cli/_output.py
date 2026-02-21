@@ -17,7 +17,13 @@ from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport
 from fantasy_baseball_manager.domain.adp_movers import ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
-from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport
+from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.projection_confidence import (
+    ClassifiedPlayer,
+    ConfidenceReport,
+    PlayerConfidence,
+    VarianceClassification,
+)
 from fantasy_baseball_manager.domain.tier import PlayerTier
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
@@ -1154,3 +1160,138 @@ def print_draft_tiers(tiers: list[PlayerTier], adp_by_player: dict[int, ADP] | N
 
         console.print(table)
         console.print()
+
+
+_CLASSIFICATION_ORDER: list[VarianceClassification] = [
+    VarianceClassification.UPSIDE_GAMBLE,
+    VarianceClassification.HIDDEN_UPSIDE,
+    VarianceClassification.SAFE_CONSENSUS,
+    VarianceClassification.KNOWN_QUANTITY,
+    VarianceClassification.RISKY_AVOID,
+]
+
+_CLASSIFICATION_STYLES: dict[VarianceClassification, str] = {
+    VarianceClassification.UPSIDE_GAMBLE: "bold green",
+    VarianceClassification.HIDDEN_UPSIDE: "green",
+    VarianceClassification.SAFE_CONSENSUS: "dim",
+    VarianceClassification.KNOWN_QUANTITY: "dim",
+    VarianceClassification.RISKY_AVOID: "bold red",
+}
+
+_CLASSIFICATION_LABELS: dict[VarianceClassification, str] = {
+    VarianceClassification.UPSIDE_GAMBLE: "Upside Gamble — Draft Targets",
+    VarianceClassification.HIDDEN_UPSIDE: "Hidden Upside — Draft Targets",
+    VarianceClassification.SAFE_CONSENSUS: "Safe Consensus",
+    VarianceClassification.KNOWN_QUANTITY: "Known Quantity",
+    VarianceClassification.RISKY_AVOID: "Risky Avoid — Fade",
+}
+
+
+def print_variance_targets(classified: list[ClassifiedPlayer]) -> None:
+    """Print variance-classified players grouped by classification bucket."""
+    if not classified:
+        console.print("No classified players.")
+        return
+
+    console.print(f"[bold]Variance Targets[/bold] — {len(classified)} players classified")
+    console.print()
+
+    # Group by classification
+    by_class: dict[VarianceClassification, list[ClassifiedPlayer]] = {}
+    for cp in classified:
+        by_class.setdefault(cp.classification, []).append(cp)
+
+    for cls in _CLASSIFICATION_ORDER:
+        group = by_class.get(cls)
+        if not group:
+            continue
+
+        style = _CLASSIFICATION_STYLES[cls]
+        label = _CLASSIFICATION_LABELS[cls]
+        console.print(f"[{style}]{label}[/{style}] ({len(group)})")
+
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Player")
+        table.add_column("Type")
+        table.add_column("Pos")
+        table.add_column("Agreement")
+        table.add_column("ValRk", justify="right")
+        table.add_column("ADPRk", justify="right")
+        table.add_column("RR Score", justify="right")
+
+        for cp in group:
+            rr = cp.risk_reward_score
+            rr_color = "green" if rr > 0 else "red" if rr < 0 else ""
+            rr_str = f"[{rr_color}]{rr:+.1f}[/{rr_color}]" if rr_color else f"{rr:+.1f}"
+            table.add_row(
+                cp.player.player_name,
+                cp.player.player_type,
+                cp.player.position,
+                cp.player.agreement_level,
+                str(cp.value_rank),
+                str(cp.adp_rank) if cp.adp_rank is not None else "—",
+                rr_str,
+            )
+
+        console.print(table)
+        console.print()
+
+
+def print_system_disagreements(player: PlayerConfidence, projections: list[Projection]) -> None:
+    """Print per-system stat comparison for a single player."""
+    console.print(f"[bold]System Disagreements[/bold] — {player.player_name} ({player.position})")
+    console.print()
+
+    if not player.spreads:
+        console.print("No stat spreads available.")
+        return
+
+    # Sort spreads by CV descending (widest disagreement first)
+    sorted_spreads = sorted(player.spreads, key=lambda s: s.cv, reverse=True)
+
+    # Collect all systems from projections
+    systems = sorted({p.system for p in projections})
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Stat")
+    table.add_column("CV", justify="right")
+    for sys in systems:
+        table.add_column(sys, justify="right")
+
+    # Build a lookup: system → stat_json
+    system_stats: dict[str, dict[str, float]] = {}
+    for proj in projections:
+        if proj.system not in system_stats:
+            system_stats[proj.system] = {}
+        for k, v in proj.stat_json.items():
+            if isinstance(v, int | float):
+                system_stats[proj.system][k] = float(v)
+
+    for spread in sorted_spreads:
+        # Get per-system values for this stat
+        values: dict[str, float] = {}
+        for sys in systems:
+            val = system_stats.get(sys, {}).get(spread.stat)
+            if val is not None:
+                values[sys] = val
+
+        if not values:
+            continue
+
+        min_val = min(values.values())
+        max_val = max(values.values())
+
+        cells: list[str] = [spread.stat, f"{spread.cv:.3f}"]
+        for sys in systems:
+            val = values.get(sys)
+            if val is None:
+                cells.append("—")
+            elif val == min_val and min_val != max_val:
+                cells.append(f"[dim]{val:.1f}[/dim]")
+            elif val == max_val and min_val != max_val:
+                cells.append(f"[bold]{val:.1f}[/bold]")
+            else:
+                cells.append(f"{val:.1f}")
+        table.add_row(*cells)
+
+    console.print(table)

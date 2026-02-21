@@ -40,9 +40,11 @@ from fantasy_baseball_manager.cli._output import (
     print_train_result,
     print_tune_result,
     print_projection_confidence,
+    print_system_disagreements,
     print_value_over_adp,
     print_valuation_eval_result,
     print_valuation_rankings,
+    print_variance_targets,
 )
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
@@ -78,7 +80,7 @@ from fantasy_baseball_manager.services.cohort import (
     assign_top300_cohorts,
 )
 from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport
+from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport, VarianceClassification
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
@@ -86,7 +88,7 @@ from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
 from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
-from fantasy_baseball_manager.services.projection_confidence import compute_confidence
+from fantasy_baseball_manager.services.projection_confidence import classify_variance, compute_confidence
 from fantasy_baseball_manager.services.tier_generator import generate_tiers
 from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
@@ -1614,6 +1616,119 @@ def report_projection_confidence(
         )
 
     print_projection_confidence(report)
+
+
+@report_app.command("variance-targets")
+def report_variance_targets(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    min_systems: Annotated[int, typer.Option("--min-systems")] = 3,
+    player_type: Annotated[str | None, typer.Option("--player-type")] = None,
+    classification: Annotated[str | None, typer.Option("--classification", help="Filter by classification")] = None,
+    top: Annotated[int | None, typer.Option("--top")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show variance targets: players grouped into draft-actionable classification buckets."""
+    league = load_league(league_name, Path.cwd())
+
+    with build_confidence_report_context(data_dir) as ctx:
+        projections = ctx.projection_repo.get_by_season(season)
+        if player_type is not None:
+            projections = [p for p in projections if p.player_type == player_type]
+
+        player_ids = {p.player_id for p in projections}
+        players = ctx.player_repo.get_by_ids(list(player_ids))
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        report = compute_confidence(
+            projections,
+            league,
+            player_names,
+            min_systems=min_systems,
+        )
+
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+
+        classified = classify_variance(report, valuations, adp_list if adp_list else None)
+
+    if classification is not None:
+        try:
+            target_cls = VarianceClassification(classification)
+        except ValueError:
+            print_error(
+                f"invalid classification '{classification}', expected one of: "
+                + ", ".join(c.value for c in VarianceClassification)
+            )
+            raise typer.Exit(code=1) from None
+        classified = [c for c in classified if c.classification == target_cls]
+
+    if top is not None:
+        classified = classified[:top]
+
+    print_variance_targets(classified)
+
+
+@report_app.command("system-disagreements")
+def report_system_disagreements(
+    player: Annotated[str, typer.Option("--player", help="Player name (partial match)")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
+    min_systems: Annotated[int, typer.Option("--min-systems")] = 3,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show per-system stat comparison for a single player."""
+    league = load_league(league_name, Path.cwd())
+
+    with build_confidence_report_context(data_dir) as ctx:
+        all_projections = ctx.projection_repo.get_by_season(season)
+
+        player_ids = {p.player_id for p in all_projections}
+        players_list = ctx.player_repo.get_by_ids(list(player_ids))
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players_list if p.id is not None}
+
+        # Search for player by name (case-insensitive partial match)
+        search = player.lower()
+        matches = [(pid, name) for pid, name in player_names.items() if search in name.lower()]
+
+        if not matches:
+            print_error(f"no player found matching '{player}'")
+            raise typer.Exit(code=1)
+
+        if len(matches) > 1:
+            # Try exact match first
+            exact = [(pid, name) for pid, name in matches if name.lower() == search]
+            if len(exact) == 1:
+                matches = exact
+            else:
+                console.print(f"Multiple players match '{player}':")
+                for _, name in matches[:10]:
+                    console.print(f"  {name}")
+                raise typer.Exit(code=1)
+
+        matched_pid, _ = matches[0]
+
+        # Filter projections to matched player
+        player_projections = [p for p in all_projections if p.player_id == matched_pid]
+
+        report = compute_confidence(
+            player_projections,
+            league,
+            player_names,
+            min_systems=min_systems,
+        )
+
+    if not report.players:
+        print_error(f"not enough projection systems for this player (need {min_systems})")
+        raise typer.Exit(code=1)
+
+    player_confidence = report.players[0]
+    print_system_disagreements(player_confidence, player_projections)
 
 
 # --- draft subcommand group ---

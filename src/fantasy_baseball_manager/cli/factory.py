@@ -513,6 +513,8 @@ class ConfidenceReportContext:
     conn: sqlite3.Connection
     player_repo: SqlitePlayerRepo
     projection_repo: SqliteProjectionRepo
+    valuation_repo: SqliteValuationRepo
+    adp_repo: SqliteADPRepo
 
 
 @contextmanager
@@ -520,10 +522,13 @@ def build_confidence_report_context(data_dir: str) -> Iterator[ConfidenceReportC
     """Composition-root context manager for projection confidence report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
+        container = AnalysisContainer(conn)
         yield ConfidenceReportContext(
             conn=conn,
-            player_repo=SqlitePlayerRepo(conn),
-            projection_repo=SqliteProjectionRepo(conn),
+            player_repo=container.player_repo,
+            projection_repo=container.projection_repo,
+            valuation_repo=container.valuation_repo,
+            adp_repo=container.adp_repo,
         )
     finally:
         conn.close()

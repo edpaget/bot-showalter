@@ -23,6 +23,7 @@ from fantasy_baseball_manager.cli._output import (
     print_run_detail,
     print_run_list,
     print_stratified_comparison_result,
+    print_system_disagreements,
     print_system_metrics,
     print_system_summaries,
     print_talent_quality_report,
@@ -31,6 +32,7 @@ from fantasy_baseball_manager.cli._output import (
     print_valuation_eval_result,
     print_valuation_rankings,
     print_value_over_adp,
+    print_variance_targets,
 )
 from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport, ADPAccuracyResult, SystemAccuracyResult
 from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
@@ -46,7 +48,14 @@ from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
-from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport, PlayerConfidence, StatSpread
+from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.projection_confidence import (
+    ClassifiedPlayer,
+    ConfidenceReport,
+    PlayerConfidence,
+    StatSpread,
+    VarianceClassification,
+)
 from fantasy_baseball_manager.domain.residual_persistence import (
     ChronicPerformer,
     ResidualPersistenceReport,
@@ -1580,3 +1589,203 @@ class TestPrintFeaturesDerivedTransform:
         assert "derived transform" in captured.out
         assert "hr_rate" in captured.out
         assert "iso" in captured.out
+
+
+def _make_player_confidence(
+    player_id: int = 1,
+    player_name: str = "J. Soto",
+    player_type: str = "batter",
+    position: str = "OF",
+    overall_cv: float = 0.110,
+    agreement_level: str = "high",
+    spreads: list[StatSpread] | None = None,
+) -> PlayerConfidence:
+    if spreads is None:
+        spreads = [
+            StatSpread(stat="hr", min_value=25, max_value=35, mean=30, std=5.0, cv=0.167, systems={}),
+        ]
+    return PlayerConfidence(
+        player_id=player_id,
+        player_name=player_name,
+        player_type=player_type,
+        position=position,
+        spreads=spreads,
+        overall_cv=overall_cv,
+        agreement_level=agreement_level,
+    )
+
+
+def _make_classified_player(
+    player_id: int = 1,
+    player_name: str = "J. Soto",
+    classification: VarianceClassification = VarianceClassification.SAFE_CONSENSUS,
+    adp_rank: int | None = 5,
+    value_rank: int = 3,
+    risk_reward_score: float = 2.5,
+    **kwargs: Any,
+) -> ClassifiedPlayer:
+    return ClassifiedPlayer(
+        player=_make_player_confidence(player_id=player_id, player_name=player_name, **kwargs),
+        classification=classification,
+        adp_rank=adp_rank,
+        value_rank=value_rank,
+        risk_reward_score=risk_reward_score,
+    )
+
+
+class TestPrintVarianceTargets:
+    def test_empty_list(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_variance_targets([])
+        captured = capsys.readouterr()
+        assert "No classified players" in captured.out
+
+    def test_groups_by_classification(self, capsys: pytest.CaptureFixture[str]) -> None:
+        classified = [
+            _make_classified_player(
+                player_id=1,
+                player_name="Upside Guy",
+                classification=VarianceClassification.UPSIDE_GAMBLE,
+                risk_reward_score=5.0,
+            ),
+            _make_classified_player(
+                player_id=2,
+                player_name="Safe Guy",
+                classification=VarianceClassification.SAFE_CONSENSUS,
+                risk_reward_score=1.0,
+            ),
+            _make_classified_player(
+                player_id=3,
+                player_name="Risky Guy",
+                classification=VarianceClassification.RISKY_AVOID,
+                risk_reward_score=-3.0,
+            ),
+        ]
+        print_variance_targets(classified)
+        captured = capsys.readouterr()
+        assert "Upside Guy" in captured.out
+        assert "Safe Guy" in captured.out
+        assert "Risky Guy" in captured.out
+        assert "UPSIDE_GAMBLE" in captured.out or "Upside Gamble" in captured.out
+        assert "SAFE_CONSENSUS" in captured.out or "Safe Consensus" in captured.out
+        assert "RISKY_AVOID" in captured.out or "Risky Avoid" in captured.out
+
+    def test_rr_score_signed(self, capsys: pytest.CaptureFixture[str]) -> None:
+        classified = [
+            _make_classified_player(
+                player_id=1,
+                player_name="Positive RR",
+                classification=VarianceClassification.UPSIDE_GAMBLE,
+                risk_reward_score=5.0,
+            ),
+            _make_classified_player(
+                player_id=2,
+                player_name="Negative RR",
+                classification=VarianceClassification.RISKY_AVOID,
+                risk_reward_score=-3.0,
+            ),
+        ]
+        print_variance_targets(classified)
+        captured = capsys.readouterr()
+        assert "+5.0" in captured.out
+        assert "-3.0" in captured.out
+
+    def test_header_shows_count(self, capsys: pytest.CaptureFixture[str]) -> None:
+        classified = [
+            _make_classified_player(player_id=1, player_name="Player A"),
+            _make_classified_player(player_id=2, player_name="Player B"),
+        ]
+        print_variance_targets(classified)
+        captured = capsys.readouterr()
+        assert "2 players classified" in captured.out
+
+
+class TestPrintSystemDisagreements:
+    def test_shows_per_system_values(self, capsys: pytest.CaptureFixture[str]) -> None:
+        player = _make_player_confidence(
+            player_name="J. Soto",
+            position="OF",
+            spreads=[
+                StatSpread(
+                    stat="hr",
+                    min_value=25,
+                    max_value=35,
+                    mean=30,
+                    std=5.0,
+                    cv=0.167,
+                    systems={"steamer": 25.0, "zips": 35.0, "atc": 30.0},
+                ),
+            ],
+        )
+        projections = [
+            Projection(
+                player_id=1, season=2025, system="steamer", version="1.0", player_type="batter", stat_json={"hr": 25.0}
+            ),
+            Projection(
+                player_id=1, season=2025, system="zips", version="1.0", player_type="batter", stat_json={"hr": 35.0}
+            ),
+            Projection(
+                player_id=1, season=2025, system="atc", version="1.0", player_type="batter", stat_json={"hr": 30.0}
+            ),
+        ]
+        print_system_disagreements(player, projections)
+        captured = capsys.readouterr()
+        assert "J. Soto" in captured.out
+        assert "OF" in captured.out
+        assert "hr" in captured.out
+        assert "steamer" in captured.out
+        assert "zips" in captured.out
+        assert "atc" in captured.out
+
+    def test_sorted_by_cv_descending(self, capsys: pytest.CaptureFixture[str]) -> None:
+        player = _make_player_confidence(
+            spreads=[
+                StatSpread(
+                    stat="avg",
+                    min_value=0.270,
+                    max_value=0.300,
+                    mean=0.285,
+                    std=0.015,
+                    cv=0.053,
+                    systems={"steamer": 0.270, "zips": 0.300},
+                ),
+                StatSpread(
+                    stat="hr",
+                    min_value=15,
+                    max_value=40,
+                    mean=27.5,
+                    std=12.5,
+                    cv=0.455,
+                    systems={"steamer": 15.0, "zips": 40.0},
+                ),
+            ],
+        )
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="1.0",
+                player_type="batter",
+                stat_json={"hr": 15.0, "avg": 0.270},
+            ),
+            Projection(
+                player_id=1,
+                season=2025,
+                system="zips",
+                version="1.0",
+                player_type="batter",
+                stat_json={"hr": 40.0, "avg": 0.300},
+            ),
+        ]
+        print_system_disagreements(player, projections)
+        captured = capsys.readouterr()
+        # hr (CV=0.455) should appear before avg (CV=0.053) in the output
+        hr_pos = captured.out.find("hr")
+        avg_pos = captured.out.find("avg")
+        assert hr_pos < avg_pos
+
+    def test_empty_spreads(self, capsys: pytest.CaptureFixture[str]) -> None:
+        player = _make_player_confidence(spreads=[])
+        print_system_disagreements(player, [])
+        captured = capsys.readouterr()
+        assert "J. Soto" in captured.out
