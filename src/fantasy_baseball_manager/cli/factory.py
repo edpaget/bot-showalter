@@ -478,6 +478,29 @@ def build_adp_report_context(data_dir: str) -> Iterator[ADPReportContext]:
 
 
 @dataclass(frozen=True)
+class DraftBoardContext:
+    conn: sqlite3.Connection
+    player_repo: SqlitePlayerRepo
+    valuation_repo: SqliteValuationRepo
+    adp_repo: SqliteADPRepo
+
+
+@contextmanager
+def build_draft_board_context(data_dir: str) -> Iterator[DraftBoardContext]:
+    """Composition-root context manager for draft board commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield DraftBoardContext(
+            conn=conn,
+            player_repo=SqlitePlayerRepo(conn),
+            valuation_repo=SqliteValuationRepo(conn),
+            adp_repo=SqliteADPRepo(conn),
+        )
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
 class ADPAccuracyContext:
     conn: sqlite3.Connection
     evaluator: ADPAccuracyEvaluator

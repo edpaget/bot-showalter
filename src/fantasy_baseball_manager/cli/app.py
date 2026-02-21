@@ -17,6 +17,7 @@ from fantasy_baseball_manager.cli._output import (
     print_adp_accuracy_report,
     print_comparison_result,
     print_dataset_list,
+    print_draft_board,
     print_error,
     print_features,
     print_import_result,
@@ -46,6 +47,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_adp_report_context,
     build_compute_container,
     build_datasets_context,
+    build_draft_board_context,
     build_eval_context,
     build_import_context,
     build_ingest_container,
@@ -70,6 +72,8 @@ from fantasy_baseball_manager.services.cohort import (
 )
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
+from fantasy_baseball_manager.domain.draft_board import DraftBoard
+from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv
 from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
@@ -1529,3 +1533,88 @@ def report_adp_accuracy(
     with build_adp_accuracy_context(data_dir) as ctx:
         report = ctx.evaluator.evaluate(season, league, provider=provider, compare_system=compare)
     print_adp_accuracy_report(report)
+
+
+# --- draft subcommand group ---
+
+draft_app = typer.Typer(name="draft", help="Draft board display and export")
+app.add_typer(draft_app, name="draft")
+
+
+def _fetch_draft_board_data(
+    season: int,
+    system: str,
+    version: str,
+    league_name: str,
+    provider: str,
+    data_dir: str,
+    player_type: str | None,
+    position: str | None,
+    top: int | None,
+) -> DraftBoard:
+    league = load_league(league_name, Path.cwd())
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+        if player_type is not None:
+            valuations = [v for v in valuations if v.player_type == player_type]
+        if position is not None:
+            valuations = [v for v in valuations if v.position == position]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+
+        board = build_draft_board(valuations, league, player_names, adp=adp_list if adp_list else None)
+
+        if top is not None:
+            board = DraftBoard(
+                rows=board.rows[:top],
+                batting_categories=board.batting_categories,
+                pitching_categories=board.pitching_categories,
+            )
+
+    return board
+
+
+@draft_app.command("board")
+def draft_board(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    player_type: Annotated[str | None, typer.Option("--player-type", help="Filter by player type")] = None,
+    position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Display the draft board in the terminal."""
+    board = _fetch_draft_board_data(
+        season, system, version, league_name, provider, data_dir, player_type, position, top
+    )
+    print_draft_board(board)
+
+
+@draft_app.command("export")
+def draft_export(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    output: Annotated[Path, typer.Option("--output", help="Output file path")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    player_type: Annotated[str | None, typer.Option("--player-type", help="Filter by player type")] = None,
+    position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Export the draft board to a CSV file."""
+    board = _fetch_draft_board_data(
+        season, system, version, league_name, provider, data_dir, player_type, position, top
+    )
+    with open(output, "w", newline="", encoding="utf-8") as f:
+        export_csv(board, f)
+    console.print(f"Draft board exported to {output}")

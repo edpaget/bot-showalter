@@ -1256,3 +1256,141 @@ class TestValuationsEvaluateCommand:
         result = runner.invoke(app, ["valuations", "evaluate", "--help"])
         assert result.exit_code == 0
         assert "evaluate" in result.output.lower() or "season" in result.output.lower()
+
+
+def _draft_board_league() -> LeagueSettings:
+    return LeagueSettings(
+        name="Test League",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=12,
+        budget=260,
+        roster_batters=14,
+        roster_pitchers=9,
+        batting_categories=(
+            CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            CategoryConfig(key="r", name="Runs", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        pitching_categories=(
+            CategoryConfig(key="w", name="Wins", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            CategoryConfig(key="sv", name="Saves", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+    )
+
+
+def _seed_draft_board_data(conn: sqlite3.Connection) -> None:
+    """Seed player + valuation data for draft board commands."""
+    player_repo = SqlitePlayerRepo(conn)
+    val_repo = SqliteValuationRepo(conn)
+
+    pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+    pid2 = player_repo.upsert(Player(name_first="Gerrit", name_last="Cole", mlbam_id=543037))
+
+    val_repo.upsert(
+        Valuation(
+            player_id=pid1,
+            season=2026,
+            system="zar",
+            version="1.0",
+            projection_system="steamer",
+            projection_version="v1",
+            player_type="batter",
+            position="OF",
+            value=42.5,
+            rank=1,
+            category_scores={"hr": 2.1, "r": 1.0},
+        )
+    )
+    val_repo.upsert(
+        Valuation(
+            player_id=pid2,
+            season=2026,
+            system="zar",
+            version="1.0",
+            projection_system="steamer",
+            projection_version="v1",
+            player_type="pitcher",
+            position="SP",
+            value=35.0,
+            rank=2,
+            category_scores={"w": 1.5, "sv": -0.2},
+        )
+    )
+    conn.commit()
+
+
+class TestDraftBoardCommand:
+    def test_draft_board_shows_players(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_draft_board_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+
+        result = runner.invoke(
+            app,
+            ["draft", "board", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+        assert "Gerrit Cole" in result.output
+
+    def test_draft_board_empty_season(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+
+        result = runner.invoke(
+            app,
+            ["draft", "board", "--season", "2099", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "No players on draft board" in result.output
+
+    def test_draft_board_top_limits_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_draft_board_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+
+        result = runner.invoke(
+            app,
+            ["draft", "board", "--season", "2026", "--top", "1", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+        assert "Gerrit Cole" not in result.output
+
+
+class TestDraftExportCommand:
+    def test_draft_export_writes_csv(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_draft_board_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+
+        output_file = tmp_path / "board.csv"
+        result = runner.invoke(
+            app,
+            ["draft", "export", "--season", "2026", "--output", str(output_file), "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert output_file.exists()
+        content = output_file.read_text()
+        assert "Mike Trout" in content
+        assert "Gerrit Cole" in content
+        assert "Rank" in content
+
+    def test_draft_export_empty_season(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_conn = create_connection(":memory:")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+
+        output_file = tmp_path / "empty.csv"
+        result = runner.invoke(
+            app,
+            ["draft", "export", "--season", "2099", "--output", str(output_file), "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert output_file.exists()
+        # Should have header but no data rows
+        lines = output_file.read_text().strip().split("\n")
+        assert len(lines) == 1  # header only

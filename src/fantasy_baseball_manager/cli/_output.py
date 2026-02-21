@@ -14,6 +14,7 @@ from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
 from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
+from fantasy_baseball_manager.domain.draft_board import DraftBoard
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
 from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
@@ -909,3 +910,69 @@ def print_adp_accuracy_report(report: ADPAccuracyReport) -> None:
         table.add_row(*agg_row)
 
         console.print(table)
+
+
+def print_draft_board(board: DraftBoard) -> None:
+    """Print a draft board as a Rich table."""
+    if not board.rows:
+        console.print("No players on draft board.")
+        return
+
+    has_tier = any(r.tier is not None for r in board.rows)
+    has_adp = any(r.adp_overall is not None for r in board.rows)
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Rank", justify="right")
+    table.add_column("Player")
+    table.add_column("Type")
+    table.add_column("Pos")
+    table.add_column("Value", justify="right")
+    if has_tier:
+        table.add_column("Tier", justify="right")
+    for cat in board.batting_categories:
+        table.add_column(cat, justify="right")
+    for cat in board.pitching_categories:
+        table.add_column(cat, justify="right")
+    if has_adp:
+        table.add_column("ADP", justify="right")
+        table.add_column("ADPRk", justify="right")
+        table.add_column("Delta", justify="right")
+
+    for row in board.rows:
+        is_pitcher = row.player_type == "pitcher"
+        cells: list[str] = [
+            str(row.rank),
+            row.player_name,
+            row.player_type,
+            row.position,
+            f"${row.value:.1f}",
+        ]
+        if has_tier:
+            cells.append(str(row.tier) if row.tier is not None else "")
+        for cat in board.batting_categories:
+            if is_pitcher:
+                cells.append("")
+            else:
+                z = row.category_z_scores.get(cat)
+                cells.append(f"{z:.2f}" if z is not None else "")
+        for cat in board.pitching_categories:
+            if not is_pitcher:
+                cells.append("")
+            else:
+                z = row.category_z_scores.get(cat)
+                cells.append(f"{z:.2f}" if z is not None else "")
+        if has_adp:
+            cells.append(f"{row.adp_overall:.1f}" if row.adp_overall is not None else "")
+            cells.append(str(row.adp_rank) if row.adp_rank is not None else "")
+            if row.adp_delta is not None:
+                if row.adp_delta > 0:
+                    cells.append(f"[green]+{row.adp_delta}[/green]")
+                elif row.adp_delta < 0:
+                    cells.append(f"[red]{row.adp_delta}[/red]")
+                else:
+                    cells.append("0")
+            else:
+                cells.append("")
+        table.add_row(*cells)
+
+    console.print(table)

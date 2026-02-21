@@ -1,3 +1,6 @@
+import csv
+import io
+
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.draft_board import (
     DraftBoard,
@@ -12,7 +15,7 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 from fantasy_baseball_manager.domain.valuation import Valuation
-from fantasy_baseball_manager.services.draft_board import build_draft_board
+from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv
 
 
 def _league(
@@ -323,3 +326,229 @@ class TestRowFields:
             category_z_scores={},
         )
         assert row.rank == 1
+
+
+def _board_with_rows(
+    rows: list[DraftBoardRow],
+    batting_cats: tuple[str, ...] = ("hr", "r", "rbi"),
+    pitching_cats: tuple[str, ...] = ("w", "sv", "era"),
+) -> DraftBoard:
+    return DraftBoard(rows=rows, batting_categories=batting_cats, pitching_categories=pitching_cats)
+
+
+class TestExportCsvBasic:
+    def test_basic_batter_and_pitcher(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Mike Trout",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=42.5,
+                category_z_scores={"hr": 2.1, "r": 1.0, "rbi": 0.8},
+            ),
+            DraftBoardRow(
+                player_id=2,
+                player_name="Gerrit Cole",
+                rank=2,
+                player_type="pitcher",
+                position="SP",
+                value=35.0,
+                category_z_scores={"w": 1.5, "sv": -0.2, "era": 1.8},
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        csv_rows = list(reader)
+
+        assert len(csv_rows) == 2
+        assert csv_rows[0]["Player"] == "Mike Trout"
+        assert csv_rows[0]["Rank"] == "1"
+        assert csv_rows[0]["Value"] == "$42.5"
+        assert csv_rows[1]["Player"] == "Gerrit Cole"
+
+    def test_header_contains_expected_columns(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Test",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=10.0,
+                category_z_scores={"hr": 1.0},
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        fieldnames = reader.fieldnames or []
+        assert "Rank" in fieldnames
+        assert "Player" in fieldnames
+        assert "Type" in fieldnames
+        assert "Pos" in fieldnames
+        assert "Value" in fieldnames
+        assert "hr" in fieldnames
+        assert "w" in fieldnames
+
+
+class TestExportCsvOmitColumns:
+    def test_omits_tier_and_adp_when_all_none(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Test",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=10.0,
+                category_z_scores={},
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        fieldnames = reader.fieldnames or []
+        assert "Tier" not in fieldnames
+        assert "ADP" not in fieldnames
+        assert "ADPRk" not in fieldnames
+        assert "Delta" not in fieldnames
+
+    def test_includes_tier_when_any_present(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="A",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=10.0,
+                category_z_scores={},
+                tier=1,
+            ),
+            DraftBoardRow(
+                player_id=2,
+                player_name="B",
+                rank=2,
+                player_type="batter",
+                position="1B",
+                value=5.0,
+                category_z_scores={},
+                tier=None,
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        fieldnames = reader.fieldnames or []
+        assert "Tier" in fieldnames
+        csv_rows = list(reader)
+        assert csv_rows[0]["Tier"] == "1"
+        assert csv_rows[1]["Tier"] == ""
+
+    def test_includes_adp_when_any_present(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="A",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=10.0,
+                category_z_scores={},
+                adp_overall=15.5,
+                adp_rank=15,
+                adp_delta=14,
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        fieldnames = reader.fieldnames or []
+        assert "ADP" in fieldnames
+        assert "ADPRk" in fieldnames
+        assert "Delta" in fieldnames
+        csv_rows = list(reader)
+        assert csv_rows[0]["ADP"] == "15.5"
+        assert csv_rows[0]["ADPRk"] == "15"
+        assert csv_rows[0]["Delta"] == "14"
+
+
+class TestExportCsvEmpty:
+    def test_empty_board_produces_header_only(self) -> None:
+        board = _board_with_rows([])
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        content = buf.getvalue()
+        lines = content.strip().split("\n")
+        assert len(lines) == 1  # header only
+        assert "Rank" in lines[0]
+
+
+class TestExportCsvZScoreFormatting:
+    def test_batter_has_batting_z_scores_and_empty_pitching(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Batter",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=20.0,
+                category_z_scores={"hr": 1.23, "r": 0.45, "rbi": -0.67},
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        csv_rows = list(reader)
+        row = csv_rows[0]
+        assert row["hr"] == "1.23"
+        assert row["r"] == "0.45"
+        assert row["rbi"] == "-0.67"
+        # Pitching columns should be empty for a batter
+        assert row["w"] == ""
+        assert row["sv"] == ""
+        assert row["era"] == ""
+
+    def test_pitcher_has_pitching_z_scores_and_empty_batting(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Pitcher",
+                rank=1,
+                player_type="pitcher",
+                position="SP",
+                value=15.0,
+                category_z_scores={"w": 1.50, "sv": 0.00, "era": -1.20},
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        csv_rows = list(reader)
+        row = csv_rows[0]
+        # Batting columns should be empty for a pitcher
+        assert row["hr"] == ""
+        assert row["r"] == ""
+        assert row["rbi"] == ""
+        assert row["w"] == "1.50"
+        assert row["sv"] == "0.00"
+        assert row["era"] == "-1.20"

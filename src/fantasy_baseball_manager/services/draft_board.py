@@ -1,3 +1,6 @@
+import csv
+from typing import TextIO
+
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow, TierAssignment
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings
@@ -77,3 +80,53 @@ def build_draft_board(
         batting_categories=batting_categories,
         pitching_categories=pitching_categories,
     )
+
+
+def export_csv(board: DraftBoard, output: TextIO) -> None:
+    """Write a draft board to CSV format."""
+    has_tier = any(r.tier is not None for r in board.rows)
+    has_adp = any(r.adp_overall is not None for r in board.rows)
+
+    fieldnames: list[str] = ["Rank", "Player", "Type", "Pos", "Value"]
+    if has_tier:
+        fieldnames.append("Tier")
+    fieldnames.extend(board.batting_categories)
+    fieldnames.extend(board.pitching_categories)
+    if has_adp:
+        fieldnames.extend(["ADP", "ADPRk", "Delta"])
+
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for row in board.rows:
+        is_pitcher = row.player_type == "pitcher"
+        record: dict[str, str] = {
+            "Rank": str(row.rank),
+            "Player": row.player_name,
+            "Type": row.player_type,
+            "Pos": row.position,
+            "Value": f"${row.value:.1f}",
+        }
+        if has_tier:
+            record["Tier"] = str(row.tier) if row.tier is not None else ""
+
+        for cat in board.batting_categories:
+            if is_pitcher:
+                record[cat] = ""
+            else:
+                z = row.category_z_scores.get(cat)
+                record[cat] = f"{z:.2f}" if z is not None else ""
+
+        for cat in board.pitching_categories:
+            if not is_pitcher:
+                record[cat] = ""
+            else:
+                z = row.category_z_scores.get(cat)
+                record[cat] = f"{z:.2f}" if z is not None else ""
+
+        if has_adp:
+            record["ADP"] = f"{row.adp_overall:.1f}" if row.adp_overall is not None else ""
+            record["ADPRk"] = str(row.adp_rank) if row.adp_rank is not None else ""
+            record["Delta"] = str(row.adp_delta) if row.adp_delta is not None else ""
+
+        writer.writerow(record)

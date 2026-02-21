@@ -5,6 +5,7 @@ import pytest
 from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
     print_comparison_result,
+    print_draft_board,
     print_error,
     print_features,
     print_player_projections,
@@ -14,6 +15,7 @@ from fantasy_baseball_manager.cli._output import (
     print_valuation_eval_result,
     print_valuation_rankings,
 )
+from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
 from fantasy_baseball_manager.models.protocols import AblationResult, TargetComparison, ValidationResult
 from fantasy_baseball_manager.domain.evaluation import (
     ComparisonResult,
@@ -570,3 +572,76 @@ class TestPrintAblationValidation:
         captured = capsys.readouterr()
         assert "Full RMSE" in captured.out
         assert "Pruned RMSE" in captured.out
+
+
+class TestPrintDraftBoard:
+    def test_basic_output_contains_player_info(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Mike Trout",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=42.5,
+                category_z_scores={"hr": 2.10, "r": 1.00},
+            ),
+            DraftBoardRow(
+                player_id=2,
+                player_name="Gerrit Cole",
+                rank=2,
+                player_type="pitcher",
+                position="SP",
+                value=35.0,
+                category_z_scores={"w": 1.50},
+            ),
+        ]
+        board = DraftBoard(rows=rows, batting_categories=("hr", "r"), pitching_categories=("w",))
+        print_draft_board(board)
+        captured = capsys.readouterr()
+        assert "Mike Trout" in captured.out
+        assert "Gerrit Cole" in captured.out
+        assert "$42.5" in captured.out
+        assert "1" in captured.out  # rank
+
+    def test_empty_board_prints_message(self, capsys: pytest.CaptureFixture[str]) -> None:
+        board = DraftBoard(rows=[], batting_categories=("hr",), pitching_categories=("w",))
+        print_draft_board(board)
+        captured = capsys.readouterr()
+        assert "No players on draft board." in captured.out
+
+    def test_adp_delta_shows_signed_values(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Buy Target",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=40.0,
+                category_z_scores={},
+                adp_overall=20.0,
+                adp_rank=20,
+                adp_delta=19,
+            ),
+            DraftBoardRow(
+                player_id=2,
+                player_name="Avoid Player",
+                rank=2,
+                player_type="batter",
+                position="1B",
+                value=30.0,
+                category_z_scores={},
+                adp_overall=1.0,
+                adp_rank=1,
+                adp_delta=-1,
+            ),
+        ]
+        board = DraftBoard(rows=rows, batting_categories=("hr",), pitching_categories=("w",))
+        print_draft_board(board)
+        captured = capsys.readouterr()
+        # Positive delta has + sign, negative has - sign
+        assert "+19" in captured.out
+        assert "-1" in captured.out
+        assert "ADP" in captured.out
+        assert "Delta" in captured.out
