@@ -14,6 +14,7 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | not started | ADP (done), draft board (done) |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | not started | keeper-surplus-value |
+| [LLM Agent](llm-agent.md) | 3 | phase 1 done | none |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 | not started | none |
 | [Live Draft Tracker](live-draft-tracker.md) | 4 | not started | valuations (done) |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | not started | draft board (done), ADP (done) |
