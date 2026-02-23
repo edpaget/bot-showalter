@@ -175,6 +175,9 @@ class _StatcastGBMBase:
         val = player_params.get("calibration_top")
         return int(val) if val is not None else None
 
+    def _calibration_method(self, player_params: dict[str, Any]) -> str:
+        return str(player_params.get("calibration_method", "affine"))
+
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)
         pitcher_fs = self._pitcher_feature_set_builder(config.seasons)
@@ -240,7 +243,9 @@ class _StatcastGBMBase:
                 bat_cal_rows = sorted(bat_cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:bat_cal_top]
             bat_X_cal = extract_features(bat_cal_rows, bat_feature_cols)
             bat_y_cal = extract_targets(bat_cal_rows, bat_targets)
-            bat_calibrators = fit_calibrators(bat_models, bat_X_cal, bat_y_cal)
+            bat_calibrators = fit_calibrators(
+                bat_models, bat_X_cal, bat_y_cal, method=self._calibration_method(batter_params)
+            )
             if bat_calibrators:
                 save_calibrators(bat_calibrators, artifact_path / "batter_calibrators.joblib")
 
@@ -282,7 +287,9 @@ class _StatcastGBMBase:
                 pit_cal_rows = sorted(pit_cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:pit_cal_top]
             pit_X_cal = extract_features(pit_cal_rows, pit_feature_cols)
             pit_y_cal = extract_targets(pit_cal_rows, pit_targets)
-            pit_calibrators = fit_calibrators(pit_models, pit_X_cal, pit_y_cal)
+            pit_calibrators = fit_calibrators(
+                pit_models, pit_X_cal, pit_y_cal, method=self._calibration_method(pitcher_params)
+            )
             if pit_calibrators:
                 save_calibrators(pit_calibrators, artifact_path / "pitcher_calibrators.joblib")
 
