@@ -46,6 +46,7 @@ When implementing from a roadmap, use the `/implement` skill (e.g., `/implement 
 
 When executing a plan (after plan-mode approval):
 
+- **Before writing data-layer code**, verify the actual shapes you'll work with. Run `.schema <table>` in SQLite to check real column names; make a minimal test request to any external API and inspect the response structure. Do not assume schemas or parameter names from memory — check first.
 - Follow TDD: write the failing test first, then the minimum code to pass.
 - After each major step, run `uv run pytest` to verify.
 - When all steps are complete, commit. Pre-commit hooks run the full quality gate automatically (ruff format, ruff check, ty check, pytest).
@@ -56,9 +57,11 @@ When executing a plan (after plan-mode approval):
 
 ## Worktree Workflow
 
-Implement each roadmap phase in its own worktree to avoid working directly on `main`. Use the built-in `EnterWorktree` tool to create an isolated worktree and switch into it. After the phase is complete, merge back to main with `git merge --ff-only` (rebase first if needed to keep history linear). Then clean up the worktree branch:
+Implement each roadmap phase in its own worktree to avoid working directly on `main`. Use the built-in `EnterWorktree` tool to create an isolated worktree and switch into it. After the phase is complete, **`cd` back to the main repo directory before** merging or cleaning up:
 
 ```bash
+cd /Users/edward/Projects/fbm
+git merge --ff-only <branch-name>   # rebase first if needed to keep history linear
 git worktree remove .claude/worktrees/<name>
 git branch -d <branch-name>
 ```
@@ -70,3 +73,8 @@ git branch -d <branch-name>
 - Keep history linear — no merge commits. Rebase feature branches onto `main` before merging with `git merge --ff-only`.
 - Pre-commit hooks enforce the full quality gate (format, lint, type check, tests). Do not skip hooks with `--no-verify`.
 - **Always combine `git add` and `git commit` in a single chained command** (e.g., `git add file1 file2 && git commit -m "…"`). Never stage files in a separate step from committing — this avoids conflicts with manually staged files across concurrent agents.
+- **Pre-commit checklist** (follow every time):
+  1. Run `uv run ruff format src tests` before staging so pre-commit hooks don't reformat and force a re-stage cycle.
+  2. `git add` only the files related to the current task — name them explicitly, never use `git add .` or `git add -A`.
+  3. Run `git diff --cached --name-only` and verify every listed file belongs to this change. Remove anything unrelated with `git reset HEAD <file>`.
+  4. If pre-commit hooks still modify files (e.g., ruff finds a new issue), re-stage the changed files and create a **new** commit — do not amend.
