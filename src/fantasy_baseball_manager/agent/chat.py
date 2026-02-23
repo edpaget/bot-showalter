@@ -5,6 +5,8 @@ from typing import Any
 from langchain_core.messages import AIMessageChunk
 from langgraph.graph.state import CompiledStateGraph
 
+from fantasy_baseball_manager.agent.stream import extract_text
+
 
 def run_chat(agent: CompiledStateGraph) -> None:
     """Run an interactive chat loop with the agent."""
@@ -44,9 +46,6 @@ def run_chat(agent: CompiledStateGraph) -> None:
 
 def _print_chunk_content(content: str | list[dict[str, Any]]) -> None:
     """Print the text portion of an AIMessageChunk's content."""
-    if isinstance(content, str):
-        print(content, end="", flush=True)
-    elif isinstance(content, list):
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                print(block.get("text", ""), end="", flush=True)
+    text = extract_text(content)
+    if text:
+        print(text, end="", flush=True)

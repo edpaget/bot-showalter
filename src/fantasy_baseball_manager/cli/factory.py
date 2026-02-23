@@ -554,9 +554,9 @@ class ChatContext:
 
 
 @contextmanager
-def build_chat_context(data_dir: str) -> Iterator[ChatContext]:
-    """Composition-root context manager for the chat command."""
-    conn = create_connection(Path(data_dir) / "fbm.db")
+def build_chat_context(data_dir: str, *, check_same_thread: bool = True) -> Iterator[ChatContext]:
+    """Composition-root context manager for the chat/discord commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db", check_same_thread=check_same_thread)
     try:
         container = AnalysisContainer(conn)
         yield ChatContext(conn=conn, container=container)

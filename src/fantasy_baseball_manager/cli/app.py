@@ -51,6 +51,7 @@ from fantasy_baseball_manager.cli._output import (
 )
 from fantasy_baseball_manager.agent.chat import run_chat
 from fantasy_baseball_manager.agent.graph import build_agent
+from fantasy_baseball_manager.discord_bot.bot import FBMDiscordBot
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
     build_adp_accuracy_context,
@@ -608,6 +609,25 @@ def chat_cmd(
     with build_chat_context(data_dir) as ctx:
         agent = build_agent(ctx.container, model=model)
         run_chat(agent)
+
+
+@app.command("discord")
+def discord_cmd(
+    data_dir: _DataDirOpt = "./data",
+    model: Annotated[str, typer.Option("--model", help="Anthropic model")] = "claude-haiku-4-5-20251001",
+) -> None:
+    """Run the Discord bot for the fantasy baseball assistant."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print_error("ANTHROPIC_API_KEY environment variable is required.")
+        raise typer.Exit(code=1)
+    token = os.environ.get("FBM_DISCORD_TOKEN")
+    if not token:
+        print_error("FBM_DISCORD_TOKEN environment variable is required.")
+        raise typer.Exit(code=1)
+    with build_chat_context(data_dir, check_same_thread=False) as ctx:
+        agent = build_agent(ctx.container, model=model)
+        FBMDiscordBot(agent).run(token)
 
 
 runs_app = typer.Typer(name="runs", help="Manage first-party model runs")

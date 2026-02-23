@@ -525,7 +525,7 @@ class TestBuildChatContext:
     def test_yields_chat_context_with_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.factory.create_connection",
-            lambda path: create_connection(":memory:"),
+            lambda path, **kwargs: create_connection(":memory:"),
         )
         with build_chat_context("./data") as ctx:
             assert isinstance(ctx.container, AnalysisContainer)
@@ -533,7 +533,7 @@ class TestBuildChatContext:
     def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             "fantasy_baseball_manager.cli.factory.create_connection",
-            lambda path: create_connection(":memory:"),
+            lambda path, **kwargs: create_connection(":memory:"),
         )
         with build_chat_context("./data") as ctx:
             conn = ctx.conn
