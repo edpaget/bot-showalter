@@ -71,7 +71,7 @@ class _ToolCallingFakeLLM(BaseChatModel):
 class TestBuildAgent:
     def test_returns_compiled_graph(self, conn: sqlite3.Connection) -> None:
         container = AnalysisContainer(conn)
-        agent = build_agent(container, llm=_FakeChatModel())
+        agent = build_agent(container, season=2025, llm=_FakeChatModel())
         assert isinstance(agent, CompiledStateGraph)
 
     def test_default_model_is_haiku(self) -> None:
@@ -79,14 +79,14 @@ class TestBuildAgent:
 
     def test_agent_has_tools_bound(self, conn: sqlite3.Connection) -> None:
         container = AnalysisContainer(conn)
-        agent = build_agent(container, llm=_FakeChatModel())
+        agent = build_agent(container, season=2025, llm=_FakeChatModel())
         node_names = set(agent.get_graph().nodes.keys())
         assert "agent" in node_names
         assert "tools" in node_names
 
     def test_agent_processes_simple_message(self, conn: sqlite3.Connection) -> None:
         container = AnalysisContainer(conn)
-        agent = build_agent(container, llm=_FakeChatModel())
+        agent = build_agent(container, season=2025, llm=_FakeChatModel())
         result = agent.invoke({"messages": [("user", "Hello")]})
         messages = result["messages"]
         ai_messages = [m for m in messages if isinstance(m, AIMessage)]
@@ -95,7 +95,7 @@ class TestBuildAgent:
     def test_agent_executes_tool_and_responds(self, conn: sqlite3.Connection) -> None:
         container = AnalysisContainer(conn)
         container.player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
-        agent = build_agent(container, llm=_ToolCallingFakeLLM())
+        agent = build_agent(container, season=2025, llm=_ToolCallingFakeLLM())
         result = agent.invoke({"messages": [("user", "Tell me about Trout")]})
         messages = result["messages"]
         tool_messages = [m for m in messages if isinstance(m, ToolMessage)]

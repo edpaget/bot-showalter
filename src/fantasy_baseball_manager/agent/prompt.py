@@ -1,7 +1,33 @@
-SYSTEM_PROMPT = """\
-You are a fantasy baseball analyst assistant for the 2025 season. You have access to \
-a comprehensive database of player projections, valuations, ADP data, and performance \
-reports. Always use the available tools to answer questions with specific numbers and data.
+import datetime
+
+_OCTOBER = 10
+
+
+def current_season(today: datetime.date | None = None) -> int:
+    """Return the current or upcoming baseball season.
+
+    From January through September the current calendar year is the active
+    season.  Starting in October the fantasy community shifts focus to next
+    year's draft, so we return the *upcoming* season instead.
+    """
+    if today is None:
+        today = datetime.date.today()
+    return today.year + 1 if today.month >= _OCTOBER else today.year
+
+
+def build_system_prompt(season: int) -> str:
+    """Build the agent system prompt for the given baseball season."""
+    return _SYSTEM_PROMPT_TEMPLATE.format(season=season)
+
+
+_SYSTEM_PROMPT_TEMPLATE = """\
+You are a fantasy baseball analyst assistant. You have access to a comprehensive \
+database of player projections, valuations, ADP data, and performance reports across \
+multiple seasons. Always use the available tools to answer questions with specific \
+numbers and data.
+
+The current or upcoming baseball season is {season}. Use this as the default when \
+the user doesn't specify a season, but you can look up data from any available season.
 
 ## Available Tools
 

@@ -51,6 +51,7 @@ from fantasy_baseball_manager.cli._output import (
 )
 from fantasy_baseball_manager.agent.chat import run_chat
 from fantasy_baseball_manager.agent.graph import build_agent
+from fantasy_baseball_manager.agent.prompt import current_season
 from fantasy_baseball_manager.discord_bot.bot import FBMDiscordBot
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
@@ -607,7 +608,7 @@ def chat_cmd(
         print_error("ANTHROPIC_API_KEY environment variable is required.")
         raise typer.Exit(code=1)
     with build_chat_context(data_dir) as ctx:
-        agent = build_agent(ctx.container, model=model)
+        agent = build_agent(ctx.container, season=current_season(), model=model)
         run_chat(agent)
 
 
@@ -626,7 +627,7 @@ def discord_cmd(
         print_error("FBM_DISCORD_TOKEN environment variable is required.")
         raise typer.Exit(code=1)
     with build_chat_context(data_dir, check_same_thread=False) as ctx:
-        agent = build_agent(ctx.container, model=model)
+        agent = build_agent(ctx.container, season=current_season(), model=model)
         FBMDiscordBot(agent).run(token)
 
 
