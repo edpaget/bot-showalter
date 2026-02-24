@@ -65,10 +65,7 @@ class FakeAssembler:
         return self.get_or_materialize(feature_set)
 
     def get_or_materialize(self, feature_set: FeatureSet) -> DatasetHandle:
-        if "pitching" in feature_set.name:
-            rows = self._pitching_rows
-        else:
-            rows = self._batting_rows
+        rows = self._pitching_rows if "pitching" in feature_set.name else self._batting_rows
         handle = DatasetHandle(
             dataset_id=self._next_id,
             feature_set_id=self._next_id,

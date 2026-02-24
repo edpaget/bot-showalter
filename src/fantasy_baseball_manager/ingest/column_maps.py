@@ -1,3 +1,4 @@
+import contextlib
 import math
 from collections.abc import Callable
 from typing import Any
@@ -421,10 +422,8 @@ def _resolve_fg_projection_id(
     if fg_id is not None and not (isinstance(fg_id, float) and math.isnan(fg_id)):
         fg_str = str(fg_id)
         if not fg_str.startswith("sa"):
-            try:
+            with contextlib.suppress(ValueError, OverflowError):
                 player_id = fg_lookup.get(int(float(fg_str)))
-            except ValueError, OverflowError:
-                pass
     if player_id is not None:
         return player_id
     mlbam_id = row.get("MLBAMID")

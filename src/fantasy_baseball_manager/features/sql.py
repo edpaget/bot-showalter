@@ -129,9 +129,8 @@ def _plan_joins(features: tuple[AnyFeature, ...]) -> list[JoinSpec]:
         if dist_key not in dist_seen:
             dist_seen[dist_key] = None
 
-    pd_counter = 0
-    for source, lag, system, version, stat in sorted(
-        dist_seen, key=lambda k: (k[0].value, k[1], k[2] or "", k[3] or "", k[4])
+    for pd_counter, (source, lag, system, version, stat) in enumerate(
+        sorted(dist_seen, key=lambda k: (k[0].value, k[1], k[2] or "", k[3] or "", k[4]))
     ):
         proj_join = proj_lookup[(source, lag, system, version)]
         joins.append(
@@ -146,7 +145,6 @@ def _plan_joins(features: tuple[AnyFeature, ...]) -> list[JoinSpec]:
                 projection_alias=proj_join.alias,
             )
         )
-        pd_counter += 1
 
     return joins
 

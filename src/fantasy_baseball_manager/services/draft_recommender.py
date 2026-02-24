@@ -79,9 +79,7 @@ def _is_recommendable(
     # Flex: UTIL for batters, P for pitchers
     if player.player_type == "batter" and "UTIL" in needs:
         return True
-    if player.player_type == "pitcher" and "P" in needs:
-        return True
-    return False
+    return player.player_type == "pitcher" and "P" in needs
 
 
 def _need_bonus(player: DraftBoardRow, needs: dict[str, int]) -> float:

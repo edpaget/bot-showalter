@@ -242,10 +242,9 @@ class TestBuildModelContext:
             lambda path: create_connection(":memory:"),
         )
         config = ModelConfig()
-        with pytest.raises(RuntimeError):
-            with build_model_context("witharg", config) as ctx:
-                conn = ctx.conn
-                raise RuntimeError("boom")
+        with pytest.raises(RuntimeError), build_model_context("witharg", config) as ctx:
+            conn = ctx.conn
+            raise RuntimeError("boom")
         with pytest.raises(ProgrammingError):
             conn.execute("SELECT 1")
 

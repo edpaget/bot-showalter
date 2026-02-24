@@ -388,10 +388,7 @@ def compute_cv_permutation_importance(
     for col in feature_columns:
         fold_means = [fr[col].mean for fr in fold_feature_results]
         mean_val = sum(fold_means) / n_folds
-        if n_folds > 1:
-            se_val = statistics.stdev(fold_means) / math.sqrt(n_folds)
-        else:
-            se_val = fold_feature_results[0][col].se
+        se_val = statistics.stdev(fold_means) / math.sqrt(n_folds) if n_folds > 1 else fold_feature_results[0][col].se
         averaged_features[col] = FeatureImportance(mean=mean_val, se=se_val)
 
     # Average group importance across folds

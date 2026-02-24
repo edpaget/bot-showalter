@@ -712,10 +712,7 @@ def datasets_list(
 ) -> None:
     """Show all materialized feature sets and their datasets."""
     with build_datasets_context(data_dir) as ctx:
-        if name:
-            datasets = ctx.catalog.list_by_feature_set_name(name)
-        else:
-            datasets = ctx.catalog.list_all()
+        datasets = ctx.catalog.list_by_feature_set_name(name) if name else ctx.catalog.list_all()
     print_dataset_list(datasets)
 
 

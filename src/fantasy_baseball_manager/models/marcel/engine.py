@@ -90,19 +90,13 @@ def project_player(
     """Regress, age-adjust, project PT, and multiply to produce a projection."""
     pitcher = _is_pitcher(marcel_input.seasons)
 
-    if pitcher:
-        regression_n = config.pitching_regression_ip
-    else:
-        regression_n = config.batting_regression_pa
+    regression_n = config.pitching_regression_ip if pitcher else config.batting_regression_pa
 
     league = LeagueAverages(rates=marcel_input.league_rates)
     regressed = regress_to_mean(marcel_input.weighted_rates, league, marcel_input.weighted_pt, regression_n)
     adjusted = age_adjust(regressed, marcel_input.age, config)
 
-    if projected_pt is not None:
-        pt = projected_pt
-    else:
-        pt = project_playing_time(marcel_input.seasons, config)
+    pt = projected_pt if projected_pt is not None else project_playing_time(marcel_input.seasons, config)
 
     projected_stats = {cat: adjusted[cat] * pt for cat in adjusted}
 

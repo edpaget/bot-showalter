@@ -57,9 +57,7 @@ class _TableParser(HTMLParser):
             self._current_row = []
 
     def handle_data(self, data: str) -> None:
-        if self._in_th:
-            self._current_cell += data
-        elif self._in_td:
+        if self._in_th or self._in_td:
             self._current_cell += data
 
 

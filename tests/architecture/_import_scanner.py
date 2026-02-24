@@ -30,9 +30,8 @@ def collect_internal_imports(directory: Path) -> list[ImportInfo]:
                 for alias in node.names:
                     if alias.name.startswith(f"{PACKAGE_NAME}."):
                         imports.append(ImportInfo(module=alias.name, file=py_file, line=node.lineno))
-            elif isinstance(node, ast.ImportFrom):
-                if node.module and node.module.startswith(f"{PACKAGE_NAME}."):
-                    imports.append(ImportInfo(module=node.module, file=py_file, line=node.lineno))
+            elif isinstance(node, ast.ImportFrom) and node.module and node.module.startswith(f"{PACKAGE_NAME}."):
+                imports.append(ImportInfo(module=node.module, file=py_file, line=node.lineno))
     return imports
 
 

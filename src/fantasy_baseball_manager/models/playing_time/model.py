@@ -420,10 +420,7 @@ class PlayingTimeModel:
                 auto_alpha=use_auto_alpha,
             )
             for i, entry in enumerate(bat_results):
-                if i == 0:
-                    delta = entry["rmse"]
-                else:
-                    delta = bat_results[i - 1]["rmse"] - entry["rmse"]
+                delta = entry["rmse"] if i == 0 else bat_results[i - 1]["rmse"] - entry["rmse"]
                 feature_impacts[f"batter:{entry['group']}"] = delta
 
         if pitch_train and pitch_holdout:
@@ -437,10 +434,7 @@ class PlayingTimeModel:
                 auto_alpha=use_auto_alpha,
             )
             for i, entry in enumerate(pitch_results):
-                if i == 0:
-                    delta = entry["rmse"]
-                else:
-                    delta = pitch_results[i - 1]["rmse"] - entry["rmse"]
+                delta = entry["rmse"] if i == 0 else pitch_results[i - 1]["rmse"] - entry["rmse"]
                 feature_impacts[f"pitcher:{entry['group']}"] = delta
 
         return AblationResult(model_name=self.name, feature_impacts=feature_impacts)

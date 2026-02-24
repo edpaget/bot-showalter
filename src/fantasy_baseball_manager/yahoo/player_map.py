@@ -58,18 +58,21 @@ class YahooPlayerMapper:
                 candidates = self._player_repo.get_by_last_name(last_name)
                 # Try exact first+last match
                 for candidate in candidates:
-                    if candidate.name_first and candidate.name_first.lower() == first_name.lower():
-                        if candidate.id is not None:
-                            mapping = YahooPlayerMap(
-                                yahoo_player_key=yahoo_key,
-                                player_id=candidate.id,
-                                player_type=player_type,
-                                yahoo_name=name,
-                                yahoo_team=team,
-                                yahoo_positions=positions_str,
-                            )
-                            self._map_repo.upsert(mapping)
-                            return self._map_repo.get_by_yahoo_key(yahoo_key)
+                    if (
+                        candidate.name_first
+                        and candidate.name_first.lower() == first_name.lower()
+                        and candidate.id is not None
+                    ):
+                        mapping = YahooPlayerMap(
+                            yahoo_player_key=yahoo_key,
+                            player_id=candidate.id,
+                            player_type=player_type,
+                            yahoo_name=name,
+                            yahoo_team=team,
+                            yahoo_positions=positions_str,
+                        )
+                        self._map_repo.upsert(mapping)
+                        return self._map_repo.get_by_yahoo_key(yahoo_key)
                 # Single last-name match as fallback
                 if len(candidates) == 1 and candidates[0].id is not None:
                     mapping = YahooPlayerMap(

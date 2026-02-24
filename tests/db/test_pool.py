@@ -41,9 +41,8 @@ class TestConnectionPool:
 
     def test_context_manager_releases_on_exception(self) -> None:
         pool = ConnectionPool(":memory:", size=1)
-        with pytest.raises(ValueError, match="test error"):
-            with pool.connection() as _conn:
-                raise ValueError("test error")
+        with pytest.raises(ValueError, match="test error"), pool.connection() as _conn:
+            raise ValueError("test error")
         # Connection should be released back, so we can get it again
         conn = pool.get(timeout=0.1)
         assert isinstance(conn, sqlite3.Connection)

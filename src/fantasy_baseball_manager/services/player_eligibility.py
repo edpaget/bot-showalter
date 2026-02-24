@@ -105,9 +105,8 @@ class PlayerEligibilityService:
                     positions.append("rp")
                 if positions and "p" in config:
                     positions.append("p")
-            if not positions:
+            if not positions and "p" in config:
                 # Rookie / no stats — get flex "p" if available
-                if "p" in config:
-                    positions = ["p"]
+                positions = ["p"]
             result[pid] = positions
         return result

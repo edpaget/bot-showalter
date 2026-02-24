@@ -58,10 +58,7 @@ class ResidualPersistenceDiagnostic:
         player_by_id: dict[int, Player] = {p.id: p for p in players if p.id is not None}
 
         target_stats: tuple[str, ...] | list[str]
-        if stats is not None:
-            target_stats = stats
-        else:
-            target_stats = BATTER_TARGETS
+        target_stats = stats if stats is not None else BATTER_TARGETS
 
         stat_metrics_list: list[StatResidualPersistence] = []
 

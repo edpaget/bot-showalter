@@ -101,9 +101,7 @@ class TestBatterTrainingSet:
         fs = build_batter_training_set([2023])
         names: list[str] = []
         for f in fs.features:
-            if isinstance(f, TransformFeature):
-                names.append(f.name)
-            elif isinstance(f, Feature):
+            if isinstance(f, (TransformFeature, Feature)):
                 names.append(f.name)
         assert "age" in names
         assert "pa_1" in names
@@ -194,9 +192,7 @@ class TestPitcherTrainingSet:
         fs = build_pitcher_training_set([2023])
         names: list[str] = []
         for f in fs.features:
-            if isinstance(f, TransformFeature):
-                names.append(f.name)
-            elif isinstance(f, Feature):
+            if isinstance(f, (TransformFeature, Feature)):
                 names.append(f.name)
         assert "age" in names
         assert "ip_1" in names
@@ -429,9 +425,7 @@ class TestLiveBatterCuratedColumns:
         fs = build_live_batter_feature_set([])
         live_only_outputs: set[str] = set()
         for f in fs.features:
-            if isinstance(f, DerivedTransformFeature):
-                live_only_outputs.update(f.outputs)
-            elif isinstance(f, TransformFeature) and set(f.outputs) - full:
+            if isinstance(f, DerivedTransformFeature) or isinstance(f, TransformFeature) and set(f.outputs) - full:
                 live_only_outputs.update(f.outputs)
         assert curated <= (full | live_only_outputs)
 

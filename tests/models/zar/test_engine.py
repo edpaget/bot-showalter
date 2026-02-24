@@ -315,7 +315,7 @@ class TestComputeReplacementLevel:
         positions = [["DH"]]
         roster_spots = {"C": 1}
         result = compute_replacement_level(z_scores, positions, roster_spots, num_teams=12)
-        assert "C" == pytest.approx(0.0) or result.get("C") == 0.0
+        assert result.get("C") == 0.0
         assert "DH" not in result
 
     def test_no_players_at_position(self) -> None:

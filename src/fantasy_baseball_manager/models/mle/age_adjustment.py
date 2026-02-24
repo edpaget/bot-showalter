@@ -12,10 +12,7 @@ def compute_age_adjustment(*, age: float, level: str, config: AgeAdjustmentConfi
     benchmark = config.benchmarks.get(level, age)
     age_diff = benchmark - age  # positive = young for level
 
-    if age_diff > 0:
-        age_component = age_diff * config.young_bonus_per_year
-    else:
-        age_component = age_diff * config.old_penalty_per_year
+    age_component = age_diff * config.young_bonus_per_year if age_diff > 0 else age_diff * config.old_penalty_per_year
 
     years_to_peak = max(0.0, config.peak_age - age)
     dev_bonus = years_to_peak * config.development_rate_per_year

@@ -81,9 +81,7 @@ def _is_dataclass_decorator(decorator: ast.expr) -> bool:
         return True
     if isinstance(decorator, ast.Call):
         return _is_dataclass_decorator(decorator.func)
-    if isinstance(decorator, ast.Attribute) and decorator.attr == "dataclass":
-        return True
-    return False
+    return isinstance(decorator, ast.Attribute) and decorator.attr == "dataclass"
 
 
 # ---------------------------------------------------------------------------
@@ -118,9 +116,8 @@ class TestNoCustomMethods:
                 if not isinstance(node, ast.ClassDef):
                     continue
                 for item in node.body:
-                    if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
-                        if item.name not in _ALLOWED_METHODS:
-                            violations.append(f"  {_relative(path)}:{item.lineno} {node.name}.{item.name}")
+                    if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef) and item.name not in _ALLOWED_METHODS:
+                        violations.append(f"  {_relative(path)}:{item.lineno} {node.name}.{item.name}")
         assert not violations, "Domain classes must not define custom methods:\n" + "\n".join(violations)
 
 

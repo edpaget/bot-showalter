@@ -164,10 +164,7 @@ class PerformanceReportService:
             n = len(entries)
             for i, (player_id, player_name, actual_val, expected, delta) in enumerate(entries):
                 perf_delta = perf_deltas[i]
-                if n <= 1:
-                    percentile = 50.0
-                else:
-                    percentile = (ranks[i] - 1) / (n - 1) * 100
+                percentile = 50.0 if n <= 1 else (ranks[i] - 1) / (n - 1) * 100
 
                 result.append(
                     PlayerStatDelta(

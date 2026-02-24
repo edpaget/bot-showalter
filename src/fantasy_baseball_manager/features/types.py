@@ -233,10 +233,7 @@ class SourceRef:
 
 
 def _transform_feature_to_dict(f: TransformFeature) -> dict[str, object]:
-    if f.version is not None:
-        identity = f.version
-    else:
-        identity = inspect.getsource(f.transform)
+    identity = f.version if f.version is not None else inspect.getsource(f.transform)
     return {
         "type": "transform",
         "name": f.name,
@@ -252,10 +249,7 @@ def _transform_feature_to_dict(f: TransformFeature) -> dict[str, object]:
 
 
 def _derived_transform_feature_to_dict(f: DerivedTransformFeature) -> dict[str, object]:
-    if f.version is not None:
-        identity = f.version
-    else:
-        identity = inspect.getsource(f.transform)
+    identity = f.version if f.version is not None else inspect.getsource(f.transform)
     return {
         "type": "derived_transform",
         "name": f.name,
