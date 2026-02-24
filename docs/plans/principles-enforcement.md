@@ -8,9 +8,10 @@ Automate enforcement of the architectural principles documented in `docs/princip
 |-------|--------|
 | 1 — Layer dependency tests | done (2026-02-23) |
 | 2 — Domain purity tests | done (2026-02-23) |
-| 3 — Ruff rule expansion | not started |
+| 3 — Ruff rule expansion | done (2026-02-23) |
 | 4 — Module re-export audit tests | not started |
 | 5 — LLM adversarial review agent | not started |
+| 6 — TC (type-checking imports) | not started |
 
 ## Phase 1: Layer dependency tests
 
@@ -159,6 +160,35 @@ Principles 4 (model generality), 5 (interaction mode generality), and 11 (simple
 - GitHub Actions workflow posts findings on PRs.
 - The agent references specific principle numbers in its output.
 
+## Phase 6: TC (type-checking imports)
+
+Move type-only imports behind `if TYPE_CHECKING:` guards to reduce runtime import weight and make the dependency graph between modules more precise.
+
+### Context
+
+The TC rule set (formerly TCH — flake8-type-checking) flags imports that are only used in type annotations and could be deferred behind `if TYPE_CHECKING:`. This reduces startup time and avoids circular import issues. With 416 violations across 206 files (231 TC001 first-party, 169 TC003 stdlib, 16 TC002 third-party), this is a large mechanical refactor. All violations are auto-fixable via `ruff --fix --unsafe-fixes`, but the unsafe fix requires careful validation because it can break runtime code that actually uses the imported name at runtime (e.g., `isinstance` checks, default argument values, or base classes). The project's "all imports at top level" convention (PLC0415) is compatible — `TYPE_CHECKING` blocks are still at module scope.
+
+### Steps
+
+1. Enable `"TC"` in `pyproject.toml` ruff select.
+2. Run `uv run ruff check --select TC --fix --unsafe-fixes src tests` to auto-fix all violations.
+3. Review every file touched for runtime breakage:
+   - Imports used in `isinstance()` / `issubclass()` calls must stay at runtime.
+   - Imports used as base classes, default argument values, or in decorators must stay at runtime.
+   - Add `from __future__ import annotations` to files that need string-form annotations for forward references, or use explicit `"ClassName"` string annotations where needed.
+4. Run `uv run ruff check src tests` — must pass clean.
+5. Run `uv run pytest` — must pass (catches any runtime import breakage).
+6. Run `uv run ty check src tests` — must pass (catches any type-checker regressions).
+7. Fix any failures by reverting specific imports out of the `TYPE_CHECKING` block and adding `# noqa: TC001` (or TC002/TC003) with a justifying comment.
+
+### Acceptance criteria
+
+- `TC` rule set enabled in `pyproject.toml`.
+- `uv run ruff check src tests` passes with zero violations.
+- `uv run pytest` passes — no runtime import errors.
+- `uv run ty check src tests` passes — no type-checking regressions.
+- Every `noqa: TC0xx` comment has a justifying inline comment explaining why the import must remain at runtime.
+
 ## Ordering
 
 **Phase 1 → 2** can be done in either order — both are independent pytest architecture tests. Phase 1 is recommended first since layer violations are the highest-risk architectural defect.
@@ -169,9 +199,11 @@ Principles 4 (model generality), 5 (interaction mode generality), and 11 (simple
 
 **Phase 5** depends on all prior phases being complete. The LLM agent is most valuable when the static checks already handle the easy cases — it focuses on the semantic violations that escape linting and architecture tests. It also benefits from the principles being battle-tested through phases 1-4.
 
+**Phase 6** is independent and can be done at any time after phase 3. It extends the ruff lint config with a deferred rule set that was too large to include in phase 3. Should be done before phase 4 (re-exports) since moving imports behind `TYPE_CHECKING` changes the module's public API surface.
+
 ```
 Phase 1 (layer deps) ──┐
                         ├──► Phase 4 (re-exports) ──► Phase 5 (LLM agent)
-Phase 2 (domain) ──────┘
-Phase 3 (ruff) ─────────────────────────────────────►
+Phase 2 (domain) ──────┘         ▲
+Phase 3 (ruff) ──► Phase 6 (TC) ─┘
 ```

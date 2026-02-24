@@ -17,7 +17,7 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | not started | keeper-surplus-value |
 | [LLM Agent](llm-agent.md) | 3 | phases 1-2 done | none |
 | [Player Eligibility](player-eligibility.md) | 3 | all phases done | none |
-| [Principles Enforcement](principles-enforcement.md) | 5 | phases 1-2 done | none |
+| [Principles Enforcement](principles-enforcement.md) | 6 | phases 1-3 done | none |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 | not started | none |
 | [Live Draft Tracker](live-draft-tracker.md) | 4 | phases 1-2 done | valuations (done) |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | not started | draft board (done), ADP (done) |
@@ -31,6 +31,7 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Tier Generator](tier-generator.md) | 3 | all phases done | none |
 | [Top-300 Tuning](top-300-tuning.md) | 6 | phases 1-5 done | none |
+| [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | phases 1-2 done | live-draft-tracker, keeper-surplus-value |
 
 ## Dependency Graph
@@ -55,3 +56,4 @@ These aren't hard blockers but enhance the consuming roadmap when available:
 - **Player eligibility** enhances: positional scarcity (depends on correct position assignments)
 - **Positional scarcity** enhances: roster optimizer, keeper optimization solver
 - **Category balance tracker** enhances: live draft tracker, mock draft simulator, positional upgrade calculator
+- **Web UI foundation** enables: future web-based views for LLM chat, live draft tracker UI, charts/visualizations
