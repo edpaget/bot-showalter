@@ -16,9 +16,14 @@ Implement a specific phase from an existing roadmap document.
 4. Check if the phase has any blockers (other roadmap phases listed as dependencies in the Ordering section). If blocked, inform the user and stop.
 5. Update the roadmap's Status table to mark the phase `in progress`.
 6. Enter plan mode — explore the codebase, design the implementation approach against the roadmap's steps and acceptance criteria, and present the plan for user approval.
-7. After plan-mode approval, create a worktree via `EnterWorktree` (named `roadmap/<topic>/phase-<N>`).
+7. After plan-mode approval, set up the worktree following CLAUDE.md's Worktree Workflow:
+   - If **not** already in a worktree, create one via `EnterWorktree` with the roadmap name (e.g., `name: "player-eligibility"`).
+   - If **already** in a worktree from a previous phase of the same roadmap, you're already in the right place — just ensure you're on a fresh branch for this phase.
 8. Implement following the project's Implementation Discipline (TDD, run tests after each step, verify all acceptance criteria before committing).
-9. After the final commit, update the roadmap's Status table to mark the phase `done (<date>)`.
+9. After the final commit, follow the post-phase steps from CLAUDE.md's Worktree Workflow:
+   - Update the roadmap's Status table to mark the phase `done (<date>)`.
+   - Update `docs/plans/INDEX.md` progress.
+   - Merge back to main from inside the worktree (`git push . HEAD:main`, then `git checkout main`).
 
 ## Argument parsing
 
