@@ -4,14 +4,6 @@ import sqlite3
 import pytest
 
 import fantasy_baseball_manager.features.group_library
-from tests.features.conftest import (
-    seed_batting_data,
-    seed_marcel_projection,
-    seed_mle_projection,
-    seed_pitching_data,
-    seed_statcast_gbm_projection,
-)
-
 from fantasy_baseball_manager.features.group_library import (
     make_batting_counting_lags,
     make_batting_rate_lags,
@@ -20,6 +12,13 @@ from fantasy_baseball_manager.features.group_library import (
 from fantasy_baseball_manager.features.groups import _clear, get_group, list_groups
 from fantasy_baseball_manager.features.sql import generate_sql
 from fantasy_baseball_manager.features.types import Feature, FeatureSet, Source, SpineFilter, TransformFeature
+from tests.features.conftest import (
+    seed_batting_data,
+    seed_marcel_projection,
+    seed_mle_projection,
+    seed_pitching_data,
+    seed_statcast_gbm_projection,
+)
 
 
 @pytest.fixture(autouse=True)

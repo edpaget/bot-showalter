@@ -4,6 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.features.group_library import (
     make_batting_counting_lags,
     make_batting_rate_lags,
@@ -12,7 +13,6 @@ from fantasy_baseball_manager.features.group_library import (
 from fantasy_baseball_manager.features.groups import FeatureGroup, compose_feature_set, get_group
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import FeatureSet
-from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.composite.convert import extract_projected_pt
 from fantasy_baseball_manager.models.composite.engine import CompositeEngine, EngineConfig, GBMEngine, MarcelEngine
@@ -22,6 +22,8 @@ from fantasy_baseball_manager.models.composite.features import (
     feature_columns,
     pitcher_target_features,
 )
+from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
+from fantasy_baseball_manager.models.gbm_training import build_cv_folds, extract_sample_weights, grid_search_cv
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_league_averages,
     build_batting_weighted_rates,
@@ -29,8 +31,6 @@ from fantasy_baseball_manager.models.marcel.features import (
     build_pitching_weighted_rates,
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
-from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
-from fantasy_baseball_manager.models.gbm_training import build_cv_folds, extract_sample_weights, grid_search_cv
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     Evaluator,

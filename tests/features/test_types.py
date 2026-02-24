@@ -1,8 +1,7 @@
 import dataclasses
+import re
 
 import pytest
-
-import re
 
 from fantasy_baseball_manager.features.types import (
     AnyFeature,

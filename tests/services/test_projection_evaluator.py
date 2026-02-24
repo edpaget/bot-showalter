@@ -1,13 +1,13 @@
 import sqlite3
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.evaluation import StratifiedComparisonResult
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.pt_normalization import ConsensusLookup
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
-from fantasy_baseball_manager.domain.evaluation import StratifiedComparisonResult
-from fantasy_baseball_manager.domain.pt_normalization import ConsensusLookup
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from tests.helpers import seed_player
 

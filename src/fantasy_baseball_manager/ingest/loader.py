@@ -2,7 +2,7 @@ import logging
 import sqlite3
 import time
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fantasy_baseball_manager.domain.errors import IngestError
@@ -37,7 +37,7 @@ class Loader:
         self._post_upsert = post_upsert
 
     def load(self, **fetch_params: Any) -> Result[LoadLog, IngestError]:
-        started_at = datetime.now(timezone.utc).isoformat()
+        started_at = datetime.now(UTC).isoformat()
         t0 = time.perf_counter()
         logger.info("Loading %s from %s", self._target_table, self._source.source_detail)
 
@@ -45,7 +45,7 @@ class Loader:
             rows = self._source.fetch(**fetch_params)
         except Exception as exc:
             logger.error("Fetch failed for %s: %s", self._target_table, exc)
-            finished_at = datetime.now(timezone.utc).isoformat()
+            finished_at = datetime.now(UTC).isoformat()
             log = LoadLog(
                 source_type=self._source.source_type,
                 source_detail=self._source.source_detail,
@@ -82,7 +82,7 @@ class Loader:
         except Exception as exc:
             logger.error("Processing failed for %s after %d rows: %s", self._target_table, rows_loaded, exc)
             self._conn.rollback()
-            finished_at = datetime.now(timezone.utc).isoformat()
+            finished_at = datetime.now(UTC).isoformat()
             log = LoadLog(
                 source_type=self._source.source_type,
                 source_detail=self._source.source_detail,
@@ -104,7 +104,7 @@ class Loader:
                 )
             )
 
-        finished_at = datetime.now(timezone.utc).isoformat()
+        finished_at = datetime.now(UTC).isoformat()
         log = LoadLog(
             source_type=self._source.source_type,
             source_detail=self._source.source_detail,

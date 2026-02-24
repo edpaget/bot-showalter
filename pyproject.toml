@@ -42,7 +42,7 @@ build-backend = "hatchling.build"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "PLC0415"]
+select = ["E", "F", "I", "PLC0415", "UP"]
 
 [tool.coverage.run]
 source = ["src"]

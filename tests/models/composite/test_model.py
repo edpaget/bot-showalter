@@ -5,9 +5,10 @@ from typing import Any
 import pytest
 
 import fantasy_baseball_manager.features.group_library  # noqa: F401 — trigger registration
+import fantasy_baseball_manager.models.composite  # noqa: F401 — trigger alias registration
+from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
 from fantasy_baseball_manager.features.groups import FeatureGroup, get_group, list_groups
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
-import fantasy_baseball_manager.models.composite  # noqa: F401 — trigger alias registration
 from fantasy_baseball_manager.models.composite.engine import EngineConfig, GBMEngine, MarcelEngine
 from fantasy_baseball_manager.models.composite.features import (
     build_composite_batting_features,
@@ -25,7 +26,6 @@ from fantasy_baseball_manager.models.composite.targets import (
     PITCHER_TARGETS,
 )
 from fantasy_baseball_manager.models.marcel.types import MarcelConfig
-from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -35,8 +35,8 @@ from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
     Predictable,
     Preparable,
-    TrainResult,
     Trainable,
+    TrainResult,
     Tunable,
     TuneResult,
 )

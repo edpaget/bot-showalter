@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
 
-_REGISTRY: dict[str, "FeatureGroup"] = {}
+_REGISTRY: dict[str, FeatureGroup] = {}
 
 
 @dataclass(frozen=True)

@@ -14,8 +14,8 @@ from fantasy_baseball_manager.models.mle.engine import (
     translate_rates,
 )
 from fantasy_baseball_manager.models.mle.types import (
-    AgeAdjustmentConfig,
     DEFAULT_AGE_BENCHMARKS,
+    AgeAdjustmentConfig,
     MLEConfig,
     TranslatedBattingLine,
 )

@@ -1,7 +1,7 @@
 import sqlite3
 from collections.abc import Generator
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 

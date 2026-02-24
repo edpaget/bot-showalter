@@ -17,12 +17,11 @@ from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from tests.fakes.repos import (
     FakeBattingStatsRepo,
-    FakePlayerRepo,
     FakePitchingStatsRepo,
+    FakePlayerRepo,
     FakePositionAppearanceRepo,
     FakeValuationRepo,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

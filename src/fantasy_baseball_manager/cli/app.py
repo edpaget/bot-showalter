@@ -7,10 +7,14 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from rich.table import Table
 
 import fantasy_baseball_manager.models  # noqa: F401 — trigger model registration
+from fantasy_baseball_manager.agent.chat import run_chat
+from fantasy_baseball_manager.agent.graph import build_agent
+from fantasy_baseball_manager.agent.prompt import current_season
 from fantasy_baseball_manager.cli._dispatcher import dispatch
-from fantasy_baseball_manager.domain.result import Err, Ok
+from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.cli._logging import configure_logging
 from fantasy_baseball_manager.cli._output import (
     console,
@@ -25,35 +29,32 @@ from fantasy_baseball_manager.cli._output import (
     print_features,
     print_import_result,
     print_ingest_result,
+    print_performance_report,
     print_player_projections,
     print_player_valuations,
     print_predict_result,
     print_prepare_result,
+    print_projection_confidence,
+    print_residual_analysis_report,
+    print_residual_persistence_report,
     print_run_detail,
     print_run_list,
     print_stratified_comparison_result,
+    print_system_disagreements,
     print_system_metrics,
-    print_performance_report,
     print_system_summaries,
     print_talent_delta_report,
-    print_residual_analysis_report,
-    print_residual_persistence_report,
     print_talent_quality_report,
+    print_tier_summary,
     print_train_result,
     print_tune_result,
-    print_projection_confidence,
-    print_system_disagreements,
-    print_tier_summary,
-    print_value_over_adp,
     print_valuation_eval_result,
     print_valuation_rankings,
+    print_value_over_adp,
     print_variance_targets,
 )
-from fantasy_baseball_manager.agent.chat import run_chat
-from fantasy_baseball_manager.agent.graph import build_agent
-from fantasy_baseball_manager.agent.prompt import current_season
-from fantasy_baseball_manager.discord_bot.bot import FBMDiscordBot
 from fantasy_baseball_manager.cli.factory import (
+    EvalContext,
     IngestContainer,
     build_adp_accuracy_context,
     build_adp_movers_context,
@@ -75,36 +76,23 @@ from fantasy_baseball_manager.cli.factory import (
     build_yahoo_context,
     create_model,
 )
-from fantasy_baseball_manager.cli.factory import EvalContext
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config, resolve_default_league
-from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-from fantasy_baseball_manager.domain.projection_accuracy import BATTING_RATE_STATS, PITCHING_RATE_STATS
-from fantasy_baseball_manager.domain.pt_normalization import build_consensus_lookup
-from fantasy_baseball_manager.services.cohort import (
-    assign_age_cohorts,
-    assign_experience_cohorts,
-    assign_top300_cohorts,
-)
-from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport, VarianceClassification
-from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
-from fantasy_baseball_manager.domain.draft_board import DraftBoard
-from fantasy_baseball_manager.cli._live_server import create_live_draft_app
+from fantasy_baseball_manager.discord_bot.bot import FBMDiscordBot
 from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain.draft_board import DraftBoard
+from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
+from fantasy_baseball_manager.domain.projection_accuracy import BATTING_RATE_STATS, PITCHING_RATE_STATS
+from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport, VarianceClassification
+from fantasy_baseball_manager.domain.pt_normalization import build_consensus_lookup
+from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
-from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
-from fantasy_baseball_manager.services.projection_confidence import classify_variance, compute_confidence
-from fantasy_baseball_manager.services.tier_generator import generate_tiers, tier_summary
-from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
-from fantasy_baseball_manager.yahoo.auth import YahooAuth
-from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
-from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
-from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
-from rich.table import Table
+from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
 from fantasy_baseball_manager.ingest.column_maps import (
     chadwick_row_to_player,
     lahman_team_row_to_team,
@@ -133,6 +121,18 @@ from fantasy_baseball_manager.models.protocols import (
 )
 from fantasy_baseball_manager.models.registry import list_models
 from fantasy_baseball_manager.models.run_manager import RunManager
+from fantasy_baseball_manager.services.cohort import (
+    assign_age_cohorts,
+    assign_experience_cohorts,
+    assign_top300_cohorts,
+)
+from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
+from fantasy_baseball_manager.services.projection_confidence import classify_variance, compute_confidence
+from fantasy_baseball_manager.services.tier_generator import generate_tiers, tier_summary
+from fantasy_baseball_manager.yahoo.auth import YahooAuth
+from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
+from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
+from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,6 @@ from fantasy_baseball_manager.models.mle.model import MLEModel
 from fantasy_baseball_manager.models.mle.types import DEFAULT_AGE_BENCHMARKS
 from fantasy_baseball_manager.models.protocols import ModelConfig
 
-
 # --- Fake repos (constructor injection, no monkeypatching) ---
 
 

@@ -136,7 +136,7 @@ class TestFetchMlbActiveTeams:
                     return _FakeResponse(teams_json)
                 return _FakeResponse(players_json)
 
-            def __enter__(self) -> "_FakeClient":
+            def __enter__(self) -> _FakeClient:
                 return self
 
             def __exit__(self, *args: object) -> None:

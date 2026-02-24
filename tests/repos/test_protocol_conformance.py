@@ -5,13 +5,11 @@ from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueE
 from fantasy_baseball_manager.repos.level_factor_repo import SqliteLevelFactorRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
-from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
-from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
+from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
-from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from fantasy_baseball_manager.repos.protocols import (
     ADPRepo,
     BattingStatsRepo,
@@ -29,6 +27,8 @@ from fantasy_baseball_manager.repos.protocols import (
     StatcastPitchRepo,
     TeamRepo,
 )
+from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
+from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 
 
 class TestProtocolConformance:

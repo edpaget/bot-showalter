@@ -19,7 +19,6 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 
-
 # -- Fixtures ----------------------------------------------------------------
 
 

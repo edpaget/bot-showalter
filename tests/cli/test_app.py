@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -547,7 +547,7 @@ def _seed_model_run(conn: sqlite3.Connection, system: str = "marcel", version: s
             git_commit="abc123",
             tags_json={"env": "test"},
             metrics_json={"rmse": 0.5},
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
     )
 

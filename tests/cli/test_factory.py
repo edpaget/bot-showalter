@@ -2,8 +2,8 @@ from sqlite3 import ProgrammingError
 
 import pytest
 
-from fantasy_baseball_manager.cli._dispatcher import dispatch
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.cli._dispatcher import dispatch
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
     build_chat_context,
@@ -16,10 +16,10 @@ from fantasy_baseball_manager.cli.factory import (
     build_valuations_context,
     create_model,
 )
-from fantasy_baseball_manager.domain.errors import ConfigError
-from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
+from fantasy_baseball_manager.domain.errors import ConfigError
+from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.models.composite.engine import GBMEngine, MarcelEngine
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
 from fantasy_baseball_manager.models.registry import _clear, register

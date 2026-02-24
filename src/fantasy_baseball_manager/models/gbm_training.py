@@ -5,9 +5,9 @@ import os
 import random
 import statistics
 import time
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from collections.abc import Callable
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -422,7 +422,7 @@ def build_cv_folds(
     test_top_n: int | None = None,
     test_rank_column: str | None = None,
     train_row_filter: RowFilter | None = None,
-) -> list["CVFold"]:
+) -> list[CVFold]:
     """Build CV folds from rows by grouping by season and applying splits.
 
     Groups all_rows by their "season" key, then for each (train_seasons,

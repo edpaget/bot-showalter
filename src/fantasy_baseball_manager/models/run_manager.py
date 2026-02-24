@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +91,7 @@ class RunManager:
             version=context.version,
             config_json=config_json,
             artifact_type=context.artifact_type,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             operation=context.operation,
             artifact_path=str(context.run_dir),
             git_commit=git_commit,

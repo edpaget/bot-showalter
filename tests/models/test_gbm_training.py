@@ -6,8 +6,8 @@ import pytest
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 from fantasy_baseball_manager.models.gbm_training import (
-    CVFold,
     CorrelationGroup,
+    CVFold,
     FeatureImportance,
     GridSearchResult,
     GroupedImportanceResult,

@@ -30,7 +30,6 @@ from fantasy_baseball_manager.models.protocols import (
 )
 from fantasy_baseball_manager.models.registry import register
 
-
 _PROJ_PA = projection.col("pa").system("playing_time").lag(0).alias("proj_pa")
 _PROJ_IP = projection.col("ip").system("playing_time").lag(0).alias("proj_ip")
 

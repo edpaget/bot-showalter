@@ -7,12 +7,12 @@ from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     Evaluable,
     FineTunable,
+    Model,
     ModelConfig,
     Predictable,
     PredictResult,
     Preparable,
     PrepareResult,
-    Model,
     Trainable,
     TrainResult,
 )

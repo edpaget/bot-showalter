@@ -1,9 +1,9 @@
 import pytest
 
 from fantasy_baseball_manager.models.composite.convert import (
+    batter_rates_to_counting,
     best_rows_per_player,
     composite_projection_to_domain,
-    batter_rates_to_counting,
     extract_projected_pt,
     pitcher_rates_to_counting,
 )

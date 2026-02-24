@@ -1,9 +1,7 @@
 import logging
-from typing import TypeVar
-
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from collections import defaultdict
 
+from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.evaluation import (
     ComparisonResult,
     StratifiedComparisonResult,
@@ -31,10 +29,8 @@ from fantasy_baseball_manager.repos.protocols import (
 
 logger = logging.getLogger(__name__)
 
-_T = TypeVar("_T", BattingStats, PitchingStats)
 
-
-def _top_by_war(items: list[_T], top: int) -> list[_T]:
+def _top_by_war[T: (BattingStats, PitchingStats)](items: list[T], top: int) -> list[T]:
     return sorted(items, key=lambda x: x.war if x.war is not None else 0.0, reverse=True)[:top]
 
 

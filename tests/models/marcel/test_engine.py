@@ -1,17 +1,17 @@
 import pytest
 
-from fantasy_baseball_manager.models.marcel.types import (
-    LeagueAverages,
-    MarcelConfig,
-    MarcelInput,
-    SeasonLine,
-)
 from fantasy_baseball_manager.models.marcel.engine import (
     age_adjust,
     project_all,
     project_player,
     project_playing_time,
     regress_to_mean,
+)
+from fantasy_baseball_manager.models.marcel.types import (
+    LeagueAverages,
+    MarcelConfig,
+    MarcelInput,
+    SeasonLine,
 )
 
 

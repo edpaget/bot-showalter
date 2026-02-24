@@ -1,6 +1,6 @@
 import pytest
 
-from fantasy_baseball_manager.models.registry import get, list_models, register, register_alias, _clear
+from fantasy_baseball_manager.models.registry import _clear, get, list_models, register, register_alias
 
 
 class _DummyModel:

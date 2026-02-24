@@ -48,8 +48,7 @@ from fantasy_baseball_manager.domain.evaluation import (
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
-from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
-from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain.projection import PlayerProjection, Projection, SystemSummary
 from fantasy_baseball_manager.domain.projection_confidence import (
     ClassifiedPlayer,
     ConfidenceReport,

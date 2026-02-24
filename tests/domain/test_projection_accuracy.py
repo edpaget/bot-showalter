@@ -4,13 +4,13 @@ from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.projection_accuracy import (
+    _BATTING_STAT_FIELDS,
+    _PITCHING_STAT_FIELDS,
     BATTING_COUNTING_STATS,
     BATTING_RATE_STATS,
     PITCHING_COUNTING_STATS,
     PITCHING_RATE_STATS,
     ProjectionComparison,
-    _BATTING_STAT_FIELDS,
-    _PITCHING_STAT_FIELDS,
     compare_to_batting_actuals,
     compare_to_pitching_actuals,
     missing_batting_comparisons,

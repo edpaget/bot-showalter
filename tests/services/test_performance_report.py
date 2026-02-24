@@ -12,7 +12,6 @@ from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from tests.helpers import seed_player
 
-
 _ServiceTuple = tuple[
     PerformanceReportService, SqliteProjectionRepo, SqlitePlayerRepo, SqliteBattingStatsRepo, SqlitePitchingStatsRepo
 ]

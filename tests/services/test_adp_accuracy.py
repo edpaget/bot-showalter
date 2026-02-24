@@ -17,12 +17,11 @@ from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
 from tests.fakes.repos import (
     FakeADPRepo,
     FakeBattingStatsRepo,
-    FakePlayerRepo,
     FakePitchingStatsRepo,
+    FakePlayerRepo,
     FakePositionAppearanceRepo,
     FakeValuationRepo,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

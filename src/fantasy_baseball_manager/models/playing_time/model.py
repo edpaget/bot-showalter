@@ -6,7 +6,6 @@ from typing import Any
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
-from fantasy_baseball_manager.models.sampling import temporal_holdout_split
 from fantasy_baseball_manager.models.playing_time.aging import (
     enrich_rows_with_age_pt_factor,
     fit_playing_time_aging_curve,
@@ -48,6 +47,7 @@ from fantasy_baseball_manager.models.protocols import (
     TrainResult,
 )
 from fantasy_baseball_manager.models.registry import register
+from fantasy_baseball_manager.models.sampling import temporal_holdout_split
 
 _ARTIFACT_FILENAME = "pt_coefficients.joblib"
 _AGING_CURVES_FILENAME = "pt_aging_curves.joblib"

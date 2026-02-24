@@ -20,7 +20,6 @@ from fantasy_baseball_manager.services.draft_state import (
     build_draft_roster_slots,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

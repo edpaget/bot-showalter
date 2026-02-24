@@ -2,8 +2,8 @@ import pytest
 
 from fantasy_baseball_manager.models.mle.age_adjustment import compute_age_adjustment
 from fantasy_baseball_manager.models.mle.types import (
-    AgeAdjustmentConfig,
     DEFAULT_AGE_BENCHMARKS,
+    AgeAdjustmentConfig,
 )
 
 

@@ -66,7 +66,7 @@ class _MockPlaywright:
     def __init__(self, html: str) -> None:
         self.chromium = _MockBrowserType(html)
 
-    def __enter__(self) -> "_MockPlaywright":
+    def __enter__(self) -> _MockPlaywright:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -107,7 +107,7 @@ class _TimeoutPlaywright:
     def __init__(self) -> None:
         self.chromium = _TimeoutBrowserType()
 
-    def __enter__(self) -> "_TimeoutPlaywright":
+    def __enter__(self) -> _TimeoutPlaywright:
         return self
 
     def __exit__(self, *args: object) -> None:

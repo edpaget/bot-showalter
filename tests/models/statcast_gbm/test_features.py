@@ -37,8 +37,8 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     pitcher_feature_columns,
     pitcher_preseason_averaged_feature_columns,
     pitcher_preseason_feature_columns,
-    preseason_batter_curated_columns,
     preseason_averaged_pitcher_curated_columns,
+    preseason_batter_curated_columns,
     preseason_pitcher_curated_columns,
     preseason_weighted_batter_curated_columns,
 )

@@ -2,10 +2,12 @@ from fantasy_baseball_manager.features import RowTransform, batting, pitching, p
 from fantasy_baseball_manager.features.types import (
     Feature,
     FeatureSet,
-    RowTransform as RowTransformDirect,
     Source,
     SourceRef,
     SpineFilter,
+)
+from fantasy_baseball_manager.features.types import (
+    RowTransform as RowTransformDirect,
 )
 
 
