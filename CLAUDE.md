@@ -40,7 +40,7 @@ When implementing from a roadmap, use the `/implement` skill (e.g., `/implement 
 2. Enter plan mode to explore the code and design the implementation approach.
 3. After plan-mode approval, implement in a worktree (see Worktree Workflow).
 4. Do not expand scope beyond the roadmap phase unless asked.
-5. After the phase lands, update the roadmap's Status table (mark the phase `done (<date>)`) and update `docs/plans/INDEX.md` if progress changes affect the dependency graph or status summary.
+5. After the phase lands, update plan tracking and merge back to main (see Worktree Workflow).
 
 ## Implementation Discipline
 
@@ -57,14 +57,24 @@ When executing a plan (after plan-mode approval):
 
 ## Worktree Workflow
 
-Implement each roadmap phase in its own worktree to avoid working directly on `main`. Use the built-in `EnterWorktree` tool to create an isolated worktree and switch into it. After the phase is complete, **`cd` back to the main repo directory before** merging or cleaning up:
+Use one worktree per roadmap, not per phase. This avoids losing the session's working directory — `EnterWorktree` switches the cwd into the worktree, and there is no way to switch back, so removing the worktree mid-session breaks things.
+
+**Starting a roadmap:** Use `EnterWorktree` with the roadmap name (e.g., `name: "player-eligibility"`). This creates the worktree and switches the session into it.
+
+**After each phase lands:**
+
+1. **Update plan tracking.** Mark the phase `done (<date>)` in the roadmap's Status table and update `docs/plans/INDEX.md` progress (e.g., "phase 1 done" → "phases 1-2 done", or "all phases done"). Commit these doc changes alongside the implementation or as a separate `docs:` commit.
+2. **Merge back to main from inside the worktree:**
 
 ```bash
-cd /Users/edward/Projects/fbm
-git merge --ff-only <branch-name>   # rebase first if needed to keep history linear
-git worktree remove .claude/worktrees/<name>
-git branch -d <branch-name>
+git push . HEAD:main          # fast-forward main to the worktree branch tip
+git checkout main             # switch the worktree to main so the next phase starts clean
+git checkout -b <roadmap>     # create a fresh branch for the next phase
 ```
+
+If `push . HEAD:main` fails (non-fast-forward), rebase onto main first: `git fetch . main && git rebase FETCH_HEAD`.
+
+3. Continue with the next phase in the same worktree, or end the session. The worktree stays alive — the user will be prompted to keep or remove it when the session exits.
 
 ## Git Conventions
 

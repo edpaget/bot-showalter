@@ -7,8 +7,8 @@ Provide a generic player eligibility service that extrapolates position data fro
 | Phase | Status |
 |-------|--------|
 | 1 — Batter position eligibility with season fallback | done (2026-02-21) |
-| 2 — Pitcher SP/RP classification and roster slots | not started |
-| 3 — Player profile service | not started |
+| 2 — Pitcher SP/RP classification and roster slots | done (2026-02-22) |
+| 3 — Player profile service | done (2026-02-23) |
 
 ## Phase 1: Batter position eligibility with season fallback
 

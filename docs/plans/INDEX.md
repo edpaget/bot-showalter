@@ -10,18 +10,21 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | not started | ADP, projections, valuations (all done) |
 | [Category Balance Tracker](category-balance-tracker.md) | 3 | not started | none |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
+| [Discord Bot](discord-bot.md) | 1 | not started | LLM Agent (all phases done) |
 | [Draft Board Export](draft-board-export.md) | 3 | all phases done | valuations (done) |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | not started | ADP (done), draft board (done) |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | not started | keeper-surplus-value |
 | [LLM Agent](llm-agent.md) | 3 | phases 1-2 done | none |
-| [Player Eligibility](player-eligibility.md) | 3 | phase 1 done | none |
+| [Player Eligibility](player-eligibility.md) | 3 | all phases done | none |
+| [Principles Enforcement](principles-enforcement.md) | 5 | phases 1-2 done | none |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 | not started | none |
 | [Live Draft Tracker](live-draft-tracker.md) | 4 | not started | valuations (done) |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | not started | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
+| [Preseason Spine](preseason-spine.md) | 3 | not started | none |
 | [Projection Confidence Report](projection-confidence-report.md) | 3 | phases 1-2 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
