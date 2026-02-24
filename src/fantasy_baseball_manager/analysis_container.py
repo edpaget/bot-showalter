@@ -17,6 +17,7 @@ from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
 from fantasy_baseball_manager.services.player_profile import PlayerProfileService
+from fantasy_baseball_manager.services.player_universe import StatsBasedPlayerUniverse
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.residual_analysis_diagnostic import ResidualAnalysisDiagnostic
@@ -168,4 +169,11 @@ class AnalysisContainer:
             batting_repo=self.batting_stats_repo,
             pitching_repo=self.pitching_stats_repo,
             position_repo=self.position_appearance_repo,
+        )
+
+    @functools.cached_property
+    def player_universe(self) -> StatsBasedPlayerUniverse:
+        return StatsBasedPlayerUniverse(
+            batting_repo=self.batting_stats_repo,
+            pitching_repo=self.pitching_stats_repo,
         )

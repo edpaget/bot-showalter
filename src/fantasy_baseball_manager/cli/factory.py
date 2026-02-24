@@ -53,6 +53,7 @@ from fantasy_baseball_manager.services.league_environment_service import LeagueE
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 from fantasy_baseball_manager.services.player_profile import PlayerProfileService
+from fantasy_baseball_manager.services.player_universe import StatsBasedPlayerUniverse
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.residual_analysis_diagnostic import ResidualAnalysisDiagnostic
@@ -108,10 +109,15 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
         )
         engine = resolve_engine(config.model_params)
         position_appearance_repo = SqlitePositionAppearanceRepo(conn)
+        batting_stats_repo = SqliteBattingStatsRepo(conn)
         pitching_stats_repo = SqlitePitchingStatsRepo(conn)
         eligibility_service = PlayerEligibilityService(
             position_appearance_repo,
             pitching_stats_repo=pitching_stats_repo,
+        )
+        player_universe = StatsBasedPlayerUniverse(
+            batting_repo=batting_stats_repo,
+            pitching_repo=pitching_stats_repo,
         )
         result = create_model(
             model_name,
@@ -126,6 +132,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             position_repo=position_appearance_repo,
             valuation_repo=SqliteValuationRepo(conn),
             eligibility_service=eligibility_service,
+            player_universe=player_universe,
         )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)
