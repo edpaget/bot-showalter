@@ -72,7 +72,7 @@ class TestBasicMovers:
     def test_risers_sorted_descending(self, conn: sqlite3.Connection) -> None:
         pids = [seed_player(conn, name_first=f"R{i}", name_last="Player") for i in range(3)]
         deltas = [10, 30, 20]  # expected sort: 30, 20, 10
-        for pid, d in zip(pids, deltas):
+        for pid, d in zip(pids, deltas, strict=True):
             _seed_adp(conn, pid, as_of="2026-02-01", rank=50, overall_pick=50.0)
             _seed_adp(conn, pid, as_of="2026-02-20", rank=50 - d, overall_pick=float(50 - d))
 
@@ -87,7 +87,7 @@ class TestBasicMovers:
     def test_fallers_sorted_ascending(self, conn: sqlite3.Connection) -> None:
         pids = [seed_player(conn, name_first=f"F{i}", name_last="Player") for i in range(3)]
         deltas = [-10, -30, -20]  # expected sort: -30, -20, -10
-        for pid, d in zip(pids, deltas):
+        for pid, d in zip(pids, deltas, strict=True):
             _seed_adp(conn, pid, as_of="2026-02-01", rank=20, overall_pick=20.0)
             _seed_adp(conn, pid, as_of="2026-02-20", rank=20 - d, overall_pick=float(20 - d))
 
@@ -154,7 +154,7 @@ class TestNewAndDropped:
     def test_new_sorted_by_rank(self, conn: sqlite3.Connection) -> None:
         pids = [seed_player(conn, name_first=f"N{i}", name_last="P") for i in range(3)]
         ranks = [50, 10, 30]
-        for pid, r in zip(pids, ranks):
+        for pid, r in zip(pids, ranks, strict=True):
             _seed_adp(conn, pid, as_of="2026-02-20", rank=r, overall_pick=float(r))
 
         svc = _make_service(conn)
@@ -168,7 +168,7 @@ class TestNewAndDropped:
     def test_dropped_sorted_by_rank(self, conn: sqlite3.Connection) -> None:
         pids = [seed_player(conn, name_first=f"D{i}", name_last="P") for i in range(3)]
         ranks = [50, 10, 30]
-        for pid, r in zip(pids, ranks):
+        for pid, r in zip(pids, ranks, strict=True):
             _seed_adp(conn, pid, as_of="2026-02-01", rank=r, overall_pick=float(r))
 
         svc = _make_service(conn)

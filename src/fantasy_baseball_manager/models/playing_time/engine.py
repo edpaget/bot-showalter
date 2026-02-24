@@ -139,7 +139,7 @@ def select_alpha(
                 if actual is None:
                     continue
                 predicted = coeff.intercept
-                for name, c in zip(coeff.feature_names, coeff.coefficients):
+                for name, c in zip(coeff.feature_names, coeff.coefficients, strict=True):
                     val = row.get(name)
                     predicted += c * (float(val) if val is not None else 0.0)
                 sse += (float(actual) - predicted) ** 2
@@ -170,7 +170,7 @@ def compute_residual_buckets(
             continue
         # Raw (unclamped) prediction
         predicted = coefficients.intercept
-        for name, coeff in zip(coefficients.feature_names, coefficients.coefficients):
+        for name, coeff in zip(coefficients.feature_names, coefficients.coefficients, strict=True):
             val = row.get(name)
             predicted += coeff * (float(val) if val is not None else 0.0)
         residual = float(actual) - predicted
@@ -220,7 +220,7 @@ def evaluate_holdout(
     for i, row in enumerate(filtered):
         y_actual[i] = float(row[target_column])
         pred = coeff.intercept
-        for name, c in zip(coeff.feature_names, coeff.coefficients):
+        for name, c in zip(coeff.feature_names, coeff.coefficients, strict=True):
             val = row.get(name)
             pred += c * (float(val) if val is not None else 0.0)
         y_pred[i] = pred
@@ -233,7 +233,7 @@ def coefficient_report(
 ) -> list[dict[str, float | str]]:
     """Return feature coefficients sorted by |coefficient| descending, including intercept."""
     entries: list[dict[str, float | str]] = []
-    for name, coeff in zip(coefficients.feature_names, coefficients.coefficients):
+    for name, coeff in zip(coefficients.feature_names, coefficients.coefficients, strict=True):
         entries.append({"feature": name, "coefficient": coeff})
     entries.append({"feature": "intercept", "coefficient": coefficients.intercept})
     entries.sort(key=lambda e: abs(float(e["coefficient"])), reverse=True)
@@ -288,7 +288,7 @@ def predict_playing_time(
     None feature values are treated as 0.0. Result is clamped to [clamp_min, clamp_max].
     """
     total = coefficients.intercept
-    for name, coeff in zip(coefficients.feature_names, coefficients.coefficients):
+    for name, coeff in zip(coefficients.feature_names, coefficients.coefficients, strict=True):
         val = features.get(name)
         total += coeff * (float(val) if val is not None else 0.0)
     return max(clamp_min, min(clamp_max, total))

@@ -76,12 +76,12 @@ def parse_category(raw: dict[str, Any]) -> CategoryConfig:
     try:
         stat_type = StatType(raw_stat_type)
     except ValueError:
-        raise LeagueConfigError(f"Category '{key}': invalid stat_type '{raw_stat_type}'")
+        raise LeagueConfigError(f"Category '{key}': invalid stat_type '{raw_stat_type}'") from None
 
     try:
         direction = Direction(raw_direction)
     except ValueError:
-        raise LeagueConfigError(f"Category '{key}': invalid direction '{raw_direction}'")
+        raise LeagueConfigError(f"Category '{key}': invalid direction '{raw_direction}'") from None
 
     return CategoryConfig(
         key=key,
@@ -100,7 +100,7 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
     try:
         league_format = LeagueFormat(raw_format)
     except ValueError:
-        raise LeagueConfigError(f"{context}: invalid format '{raw_format}'")
+        raise LeagueConfigError(f"{context}: invalid format '{raw_format}'") from None
 
     teams: int = _require_field(raw, "teams", context)
     budget: int = _require_field(raw, "budget", context)

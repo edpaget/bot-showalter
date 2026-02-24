@@ -191,7 +191,7 @@ class TestProjectionGroupRoundTrip:
         sql, params = generate_sql(fs)
         cursor = conn.execute(sql, params)
         columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
     def test_mle_materializes_for_player_with_projection(self, conn: sqlite3.Connection) -> None:
         seed_batting_data(conn)

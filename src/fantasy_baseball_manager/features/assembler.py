@@ -173,7 +173,7 @@ class SqliteDatasetAssembler:
             sql, params = self._build_raw_query(tf, table_name, player_type=player_type)
             cursor = self._conn.execute(sql, params)
             columns = [desc[0] for desc in cursor.description]
-            all_rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            all_rows = [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
             # Group by the transform's group_by key
             groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
@@ -227,7 +227,7 @@ class SqliteDatasetAssembler:
             sql = f"SELECT {group_cols}, {input_cols} FROM [{table_name}]"
             cursor = self._conn.execute(sql)
             columns = [desc[0] for desc in cursor.description]
-            all_rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            all_rows = [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
             groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
             for row in all_rows:
@@ -360,4 +360,4 @@ class SqliteDatasetAssembler:
     def read(self, handle: DatasetHandle) -> list[dict[str, Any]]:
         cursor = self._conn.execute(f"SELECT * FROM [{handle.table_name}]")
         columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]

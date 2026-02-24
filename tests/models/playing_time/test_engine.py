@@ -85,7 +85,7 @@ class TestFitPlayingTimeRidge:
         rows = self._ols_rows()
         ols = fit_playing_time(rows, ["x1", "x2"], "target", "batter", alpha=0.0)
         ridge = fit_playing_time(rows, ["x1", "x2"], "target", "batter", alpha=1000.0)
-        for ols_c, ridge_c in zip(ols.coefficients, ridge.coefficients):
+        for ols_c, ridge_c in zip(ols.coefficients, ridge.coefficients, strict=True):
             assert abs(ridge_c) < abs(ols_c)
 
     def test_ridge_stores_alpha_in_result(self) -> None:

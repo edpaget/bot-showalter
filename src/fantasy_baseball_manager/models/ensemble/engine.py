@@ -75,8 +75,8 @@ def weighted_spread(
         p90 = _weighted_percentile(values, cum_weights, 0.90)
 
         # Weighted mean and std
-        w_mean = sum(v * w for v, w in zip(values, weights)) / total_weight
-        w_var = sum(w * (v - w_mean) ** 2 for v, w in zip(values, weights)) / total_weight
+        w_mean = sum(v * w for v, w in zip(values, weights, strict=True)) / total_weight
+        w_var = sum(w * (v - w_mean) ** 2 for v, w in zip(values, weights, strict=True)) / total_weight
         w_std = math.sqrt(w_var)
 
         result[stat] = StatDistribution(

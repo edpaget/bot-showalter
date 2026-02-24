@@ -221,7 +221,7 @@ class ValuationEvaluator:
 
         result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
 
-        return {(pid, player_type): val for pid, val in zip(player_ids, result.dollar_values)}
+        return {(pid, player_type): val for pid, val in zip(player_ids, result.dollar_values, strict=True)}
 
     def _build_player_name_map(self) -> dict[int, str]:
         """Build a mapping of player_id to display name."""

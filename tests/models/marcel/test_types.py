@@ -1,3 +1,5 @@
+import pytest
+
 from fantasy_baseball_manager.models.marcel.types import (
     LeagueAverages,
     MarcelConfig,
@@ -30,7 +32,7 @@ class TestSeasonLine:
         line = SeasonLine(stats={"hr": 30.0})
         try:
             line.pa = 100  # type: ignore[misc]
-            assert False, "Should raise"
+            pytest.fail("Should raise")
         except AttributeError:
             pass
 
@@ -44,7 +46,7 @@ class TestLeagueAverages:
         avg = LeagueAverages(rates={})
         try:
             avg.rates = {"hr": 0.1}  # type: ignore[misc]
-            assert False, "Should raise"
+            pytest.fail("Should raise")
         except AttributeError:
             pass
 
@@ -88,7 +90,7 @@ class TestMarcelProjection:
         proj = MarcelProjection(player_id=1, projected_season=2024, age=30, stats={}, rates={})
         try:
             proj.player_id = 2  # type: ignore[misc]
-            assert False, "Should raise"
+            pytest.fail("Should raise")
         except AttributeError:
             pass
 
@@ -120,6 +122,6 @@ class TestMarcelConfig:
         cfg = MarcelConfig()
         try:
             cfg.age_peak = 30  # type: ignore[misc]
-            assert False, "Should raise"
+            pytest.fail("Should raise")
         except AttributeError:
             pass

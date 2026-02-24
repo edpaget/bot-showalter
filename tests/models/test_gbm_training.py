@@ -747,7 +747,7 @@ class TestBuildCVFolds:
         )
         assert folds[0].sample_weights is not None
         raw_weights = extract_sample_weights([r for r in rows if r["season"] == 2021], "pa_1")
-        for actual, raw_w in zip(folds[0].sample_weights, raw_weights):
+        for actual, raw_w in zip(folds[0].sample_weights, raw_weights, strict=True):
             assert math.isclose(actual, math.sqrt(raw_w), abs_tol=1e-9)
 
     def test_top_n_filters_test_rows_by_weight(self) -> None:
@@ -1077,7 +1077,7 @@ class TestGridSearchCV:
         parallel = grid_search_cv(folds, param_grid, max_workers=2)
         assert sequential.best_params == parallel.best_params
         assert len(sequential.all_results) == len(parallel.all_results)
-        for seq_entry, par_entry in zip(sequential.all_results, parallel.all_results):
+        for seq_entry, par_entry in zip(sequential.all_results, parallel.all_results, strict=True):
             assert seq_entry["params"] == par_entry["params"]
             assert math.isclose(seq_entry["mean_rmse"], par_entry["mean_rmse"], rel_tol=1e-9)
 

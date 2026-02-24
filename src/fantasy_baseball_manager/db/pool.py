@@ -35,7 +35,7 @@ class ConnectionPool:
             return self._pool.get(timeout=timeout)
         except queue.Empty:
             logger.warning("Connection pool exhausted")
-            raise TimeoutError("No connection available in pool")
+            raise TimeoutError("No connection available in pool") from None
 
     def release(self, conn: sqlite3.Connection) -> None:
         """Return a connection to the pool."""

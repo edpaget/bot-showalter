@@ -526,7 +526,7 @@ def grid_search_cv(
     """
     param_names = list(param_grid.keys())
     param_values = list(param_grid.values())
-    combos = [dict(zip(param_names, combo)) for combo in itertools.product(*param_values)]
+    combos = [dict(zip(param_names, combo, strict=True)) for combo in itertools.product(*param_values)]
 
     effective_workers = min(max_workers or os.cpu_count() or 1, len(combos))
     logger.info("Grid search: %d combos, %d folds, %d workers", len(combos), len(folds), effective_workers)
@@ -627,7 +627,7 @@ def sweep_cv(
     """
     param_names = list(sweep_grid.keys())
     param_values = list(sweep_grid.values())
-    combos = [dict(zip(param_names, c)) for c in itertools.product(*param_values)]
+    combos = [dict(zip(param_names, c, strict=True)) for c in itertools.product(*param_values)]
 
     effective_workers = min(max_workers or os.cpu_count() or 1, len(combos))
     logger.info("Sweep: %d combos, %d splits, %d workers", len(combos), len(cv_splits), effective_workers)

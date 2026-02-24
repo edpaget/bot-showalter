@@ -1023,7 +1023,7 @@ class TestRoundTrip:
         sql, params = generate_sql(fs)
         cursor = self._conn.execute(sql, params)
         columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
     def test_direct_column_lag1(self) -> None:
         fs = FeatureSet(
@@ -1212,7 +1212,7 @@ class TestProjectionRoundTrip:
         sql, params = generate_sql(fs)
         cursor = self._conn.execute(sql, params)
         columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
     def test_projection_direct_column(self) -> None:
         fs = FeatureSet(
@@ -1340,7 +1340,7 @@ class TestDistributionRoundTrip:
         sql, params = generate_sql(fs)
         cursor = self._conn.execute(sql, params)
         columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
     def test_distribution_percentile_round_trip(self) -> None:
         fs = FeatureSet(
@@ -1473,7 +1473,7 @@ class TestILStintRoundTrip:
         sql, params = generate_sql(fs)
         cursor = self._conn.execute(sql, params)
         columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
     def test_il_days_lag1(self) -> None:
         """Player 1 had 77 days in 2022 (2 stints), so lag=1 from 2023 -> 77."""
@@ -1540,7 +1540,7 @@ class TestExplicitPlayerIdsRoundTrip:
         sql, params = generate_sql(fs)
         cursor = self._conn.execute(sql, params)
         columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
     def test_explicit_player_ids_future_season(self) -> None:
         """Request season 2024 (no batting data) with explicit player_ids.

@@ -96,7 +96,7 @@ def compute_calibration_bins(
         return []
 
     # Sort by predicted value
-    paired = sorted(zip(predictions, actuals), key=lambda x: x[0])
+    paired = sorted(zip(predictions, actuals, strict=True), key=lambda x: x[0])
 
     # Split into approximately equal-count bins
     actual_bins = min(n_bins, n)

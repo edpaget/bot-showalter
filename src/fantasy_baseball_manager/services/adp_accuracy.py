@@ -340,8 +340,8 @@ class ADPAccuracyEvaluator:
 
         # Top-N precision
         top_n_precision: dict[int, float] = {}
-        pred_sorted = sorted(zip(matched_keys, matched_pred_ranks), key=lambda x: x[1])
-        actual_sorted = sorted(zip(matched_keys, matched_actual_ranks), key=lambda x: x[1])
+        pred_sorted = sorted(zip(matched_keys, matched_pred_ranks, strict=True), key=lambda x: x[1])
+        actual_sorted = sorted(zip(matched_keys, matched_actual_ranks, strict=True), key=lambda x: x[1])
 
         for n in _TOP_N_THRESHOLDS:
             capped_n = min(n, n_matched)
@@ -383,7 +383,7 @@ class ADPAccuracyEvaluator:
 
         result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
 
-        return {(pid, player_type): val for pid, val in zip(player_ids, result.dollar_values)}
+        return {(pid, player_type): val for pid, val in zip(player_ids, result.dollar_values, strict=True)}
 
     def _build_player_name_map(self) -> dict[int, str]:
         players = self._player_repo.all()

@@ -115,7 +115,7 @@ def compute_replacement_level(
     result: dict[str, float] = {}
     for position, spots in roster_spots.items():
         eligible = sorted(
-            [pz.composite_z for pz, pos in zip(z_scores, positions) if position in pos],
+            [pz.composite_z for pz, pos in zip(z_scores, positions, strict=True) if position in pos],
             reverse=True,
         )
         if not eligible:
@@ -141,7 +141,7 @@ def compute_var(
     max_replacement = max(replacement.values()) if replacement else 0.0
 
     result: list[float] = []
-    for pz, pos_list in zip(z_scores, positions):
+    for pz, pos_list in zip(z_scores, positions, strict=True):
         if pos_list:
             # Best position = lowest replacement level → highest VAR
             best_repl = min(
