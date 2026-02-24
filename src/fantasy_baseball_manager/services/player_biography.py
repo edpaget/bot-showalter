@@ -56,7 +56,7 @@ class PlayerBiographyService:
         return len(seasons)
 
     def _build_summary(self, player: Player, season: int) -> PlayerSummary:
-        assert player.id is not None
+        assert player.id is not None  # noqa: S101 - type narrowing
         team_map = self._get_team_map()
 
         stints = self._roster_stint_repo.get_by_player_season(player.id, season)
@@ -103,7 +103,7 @@ class PlayerBiographyService:
 
         results: list[PlayerSummary] = []
         for player in players:
-            assert player.id is not None
+            assert player.id is not None  # noqa: S101 - type narrowing
 
             if min_age is not None or max_age is not None:
                 age = compute_age(player.birth_date, season)

@@ -739,7 +739,7 @@ def datasets_drop(
         if all_:
             count = ctx.catalog.drop_all()
         else:
-            assert name is not None
+            assert name is not None  # noqa: S101 - type narrowing
             count = ctx.catalog.drop_by_feature_set_name(name)
 
         ctx.conn.commit()
@@ -2110,7 +2110,7 @@ def yahoo_map_player(
             raise typer.Exit(code=1)
 
         player = matches[0]
-        assert player.id is not None
+        assert player.id is not None  # noqa: S101 - type narrowing
 
         mapping = YahooPlayerMap(
             yahoo_player_key=yahoo_key,

@@ -262,7 +262,7 @@ def _select_expr(
         right_sql, right_params = _raw_expr(feature.right, joins_dict, source_filter, dist_joins_dict=dist_joins_dict)
         return f"({left_sql} - {right_sql}) AS [{feature.name}]", left_params + right_params
 
-    assert isinstance(feature, Feature)
+    assert isinstance(feature, Feature)  # noqa: S101 - type narrowing
     expr, params = _raw_expr(feature, joins_dict, source_filter, dist_joins_dict=dist_joins_dict)
     return f"{expr} AS [{feature.name}]", params
 

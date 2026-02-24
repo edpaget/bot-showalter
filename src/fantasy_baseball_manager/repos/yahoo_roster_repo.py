@@ -21,7 +21,7 @@ class SqliteYahooRosterRepo:
             (roster.team_key, roster.league_key, roster.season, roster.week, as_of_str),
         )
         snapshot_id = cursor.lastrowid
-        assert snapshot_id is not None
+        assert snapshot_id is not None  # noqa: S101 - type narrowing
 
         # Delete existing entries and re-insert
         self._conn.execute(

@@ -12,7 +12,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _AUTH_URL = "https://api.login.yahoo.com/oauth2/request_auth"
-_TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token"
+_TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token"  # noqa: S105 - URL constant, not a password
 _DEFAULT_TOKEN_PATH = Path.home() / ".config" / "fbm" / "yahoo_tokens.json"
 
 

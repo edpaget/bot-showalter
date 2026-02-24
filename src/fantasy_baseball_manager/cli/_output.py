@@ -843,7 +843,7 @@ def print_adp_accuracy_report(report: ADPAccuracyReport) -> None:
         result = report.adp_results[0]
 
         if has_comparison:
-            assert report.comparison is not None
+            assert report.comparison is not None  # noqa: S101 - type narrowing
             sys_result = report.comparison[0]
             console.print(f"[bold]ADP Accuracy[/bold] — season {result.season} | provider {report.provider}")
             console.print()
@@ -1164,7 +1164,7 @@ def print_draft_tiers(tiers: list[PlayerTier], adp_by_player: dict[int, ADP] | N
                 f"${pt.value:.1f}",
             ]
             if has_adp:
-                assert adp_by_player is not None
+                assert adp_by_player is not None  # noqa: S101 - type narrowing
                 adp = adp_by_player.get(pt.player_id)
                 row.append(f"{adp.overall_pick:.1f}" if adp else "")
 

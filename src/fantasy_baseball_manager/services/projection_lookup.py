@@ -29,7 +29,7 @@ class ProjectionLookupService:
 
         results: list[PlayerProjection] = []
         for player in players:
-            assert player.id is not None
+            assert player.id is not None  # noqa: S101 - type narrowing
             projections = self._projection_repo.get_by_player_season(player.id, season, system)
             for proj in projections:
                 results.append(

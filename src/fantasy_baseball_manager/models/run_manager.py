@@ -115,7 +115,7 @@ class RunManager:
     def _capture_git_commit() -> str | None:
         try:
             result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
+                ["git", "rev-parse", "HEAD"],  # noqa: S607 - git expected on PATH
                 capture_output=True,
                 text=True,
                 check=False,

@@ -42,7 +42,18 @@ build-backend = "hatchling.build"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["B", "E", "F", "I", "PLC0415", "UP"]
+select = ["B", "E", "F", "I", "PLC0415", "S", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106", "S107", "S108", "S110", "S311"]
+"src/fantasy_baseball_manager/features/assembler.py" = ["S608"]
+"src/fantasy_baseball_manager/features/sql.py" = ["S608"]
+"src/fantasy_baseball_manager/repos/player_repo.py" = ["S608"]
+"src/fantasy_baseball_manager/repos/projection_repo.py" = ["S608"]
+"src/fantasy_baseball_manager/services/adp_accuracy.py" = ["S608"]
+"src/fantasy_baseball_manager/services/dataset_catalog.py" = ["S608"]
+"tests/db/test_statcast_connection.py" = ["S608"]
+"tests/features/test_assembler.py" = ["S608"]
 
 [tool.coverage.run]
 source = ["src"]

@@ -81,7 +81,7 @@ class ADPAccuracyEvaluator:
             if compare_system is not None:
                 sys_name, version = compare_system
                 sys_result = self._evaluate_system(season, sys_name, version, actual_values)
-                assert comparison is not None
+                assert comparison is not None  # noqa: S101 - type narrowing
                 comparison.append(sys_result)
 
         # Aggregate across seasons

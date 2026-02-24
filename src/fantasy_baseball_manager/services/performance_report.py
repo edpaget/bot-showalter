@@ -137,10 +137,10 @@ class PerformanceReportService:
                     continue
 
                 if player_type == "pitcher":
-                    assert isinstance(actual, PitchingStats)
+                    assert isinstance(actual, PitchingStats)  # noqa: S101 - type narrowing
                     actual_val = _get_pitcher_actual(actual, stat_name)
                 else:
-                    assert isinstance(actual, BattingStats)
+                    assert isinstance(actual, BattingStats)  # noqa: S101 - type narrowing
                     actual_val = _get_batter_actual(actual, stat_name)
 
                 if actual_val is None:

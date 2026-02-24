@@ -278,7 +278,7 @@ def _feature_to_dict(f: AnyFeature) -> dict[str, object]:
             "left": _feature_to_dict(f.left),
             "right": _feature_to_dict(f.right),
         }
-    assert isinstance(f, Feature)
+    assert isinstance(f, Feature)  # noqa: S101 - type narrowing
     return {
         "name": f.name,
         "source": f.source.value,

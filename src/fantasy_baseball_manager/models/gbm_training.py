@@ -254,7 +254,7 @@ def compute_permutation_importance(
     baseline_metrics = score_predictions(models, X, targets_dict)
     baseline_rmses = {t: baseline_metrics[f"rmse_{t}"] for t in targets_dict}
     n_targets = len(targets_dict)
-    rng = random.Random(rng_seed)
+    rng = random.Random(rng_seed)  # noqa: S311 - ML reproducibility seed
     n_rows = len(X)
 
     importances: dict[str, FeatureImportance] = {}
@@ -299,7 +299,7 @@ def compute_grouped_permutation_importance(
     baseline_rmses = {t: baseline_metrics[f"rmse_{t}"] for t in targets_dict}
     n_targets = len(targets_dict)
     n_rows = len(X)
-    rng = random.Random(rng_seed)
+    rng = random.Random(rng_seed)  # noqa: S311 - ML reproducibility seed
 
     col_index = {col: idx for idx, col in enumerate(feature_columns)}
     group_importance: dict[str, FeatureImportance] = {}

@@ -236,7 +236,7 @@ class IngestContainer:
 
     @property
     def statcast_conn(self) -> sqlite3.Connection:
-        assert self._statcast_conn is not None, "statcast_conn not configured"
+        assert self._statcast_conn is not None, "statcast_conn not configured"  # noqa: S101 - type narrowing
         return self._statcast_conn
 
     @functools.cached_property
