@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import io
 
 from flask import Flask, Response
 
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+from fantasy_baseball_manager.domain.player_profile import PlayerProfile
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.services.draft_board import build_draft_board, export_html
 
@@ -13,6 +16,7 @@ def create_live_draft_app(
     league: LeagueSettings,
     player_names: dict[int, str],
     adp: list[ADP] | None = None,
+    profiles: dict[int, PlayerProfile] | None = None,
 ) -> Flask:
     """Create a Flask app for live draft tracking.
 
@@ -29,7 +33,7 @@ def create_live_draft_app(
     def index() -> Response:
         remaining = [v for v in valuations if v.player_id not in drafted_ids]
         remaining_names = {pid: name for pid, name in player_names.items() if pid not in drafted_ids}
-        board = build_draft_board(remaining, league, remaining_names, adp=adp)
+        board = build_draft_board(remaining, league, remaining_names, adp=adp, profiles=profiles)
         buf = io.StringIO()
         export_html(board, league, buf, auto_refresh=5)
         return Response(buf.getvalue(), mimetype="text/html")

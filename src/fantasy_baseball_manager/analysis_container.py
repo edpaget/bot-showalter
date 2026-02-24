@@ -16,6 +16,7 @@ from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
+from fantasy_baseball_manager.services.player_profile import PlayerProfileService
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.residual_analysis_diagnostic import ResidualAnalysisDiagnostic
@@ -74,6 +75,10 @@ class AnalysisContainer:
         return SqliteRosterStintRepo(self._conn)
 
     # --- Services ---
+
+    @functools.cached_property
+    def player_profile_service(self) -> PlayerProfileService:
+        return PlayerProfileService(player_repo=self.player_repo)
 
     @functools.cached_property
     def player_bio_service(self) -> PlayerBiographyService:

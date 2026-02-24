@@ -929,12 +929,18 @@ def print_draft_board(board: DraftBoard) -> None:
         console.print("No players on draft board.")
         return
 
+    has_age = any(r.age is not None for r in board.rows)
+    has_bt = any(r.bats_throws is not None for r in board.rows)
     has_tier = any(r.tier is not None for r in board.rows)
     has_adp = any(r.adp_overall is not None for r in board.rows)
 
     table = Table(show_edge=False, pad_edge=False)
     table.add_column("Rank", justify="right")
     table.add_column("Player")
+    if has_age:
+        table.add_column("Age", justify="right")
+    if has_bt:
+        table.add_column("B/T")
     table.add_column("Type")
     table.add_column("Pos")
     table.add_column("Value", justify="right")
@@ -954,10 +960,18 @@ def print_draft_board(board: DraftBoard) -> None:
         cells: list[str] = [
             str(row.rank),
             row.player_name,
-            row.player_type,
-            row.position,
-            f"${row.value:.1f}",
         ]
+        if has_age:
+            cells.append(str(row.age) if row.age is not None else "")
+        if has_bt:
+            cells.append(row.bats_throws if row.bats_throws is not None else "")
+        cells.extend(
+            [
+                row.player_type,
+                row.position,
+                f"${row.value:.1f}",
+            ]
+        )
         if has_tier:
             cells.append(str(row.tier) if row.tier is not None else "")
         for cat in board.batting_categories:

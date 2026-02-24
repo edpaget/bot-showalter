@@ -60,6 +60,7 @@ from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
+from fantasy_baseball_manager.services.player_profile import PlayerProfileService
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
 
@@ -469,6 +470,7 @@ class DraftBoardContext:
     player_repo: SqlitePlayerRepo
     valuation_repo: SqliteValuationRepo
     adp_repo: SqliteADPRepo
+    profile_service: PlayerProfileService
 
 
 @contextmanager
@@ -482,6 +484,7 @@ def build_draft_board_context(data_dir: str) -> Iterator[DraftBoardContext]:
             player_repo=container.player_repo,
             valuation_repo=container.valuation_repo,
             adp_repo=container.adp_repo,
+            profile_service=container.player_profile_service,
         )
     finally:
         conn.close()

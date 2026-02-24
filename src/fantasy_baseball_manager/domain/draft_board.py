@@ -16,6 +16,8 @@ class DraftBoardRow:
     position: str
     value: float
     category_z_scores: dict[str, float]
+    age: int | None = None
+    bats_throws: str | None = None
     tier: int | None = None
     adp_overall: float | None = None
     adp_rank: int | None = None

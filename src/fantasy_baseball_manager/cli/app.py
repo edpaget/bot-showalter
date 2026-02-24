@@ -1843,8 +1843,11 @@ def _fetch_draft_board_data(
         player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
 
         adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+        profiles = ctx.profile_service.enrich_valuations(valuations, season)
 
-        board = build_draft_board(valuations, league, player_names, adp=adp_list if adp_list else None)
+        board = build_draft_board(
+            valuations, league, player_names, adp=adp_list if adp_list else None, profiles=profiles
+        )
 
         if top is not None:
             board = DraftBoard(
@@ -1930,11 +1933,14 @@ def draft_live(
         player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
 
         adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+        profiles = ctx.profile_service.enrich_valuations(valuations, season)
 
     if top is not None:
         valuations = sorted(valuations, key=lambda v: v.value, reverse=True)[:top]
 
-    flask_app = create_live_draft_app(valuations, league, player_names, adp=adp_list if adp_list else None)
+    flask_app = create_live_draft_app(
+        valuations, league, player_names, adp=adp_list if adp_list else None, profiles=profiles
+    )
     console.print(f"Live draft server running at http://{host}:{port}/")
     flask_app.run(host=host, port=port)
 

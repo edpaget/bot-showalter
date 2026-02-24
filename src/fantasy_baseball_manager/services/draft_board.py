@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import csv
 import html
 from typing import TextIO
@@ -5,6 +7,7 @@ from typing import TextIO
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow, TierAssignment
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+from fantasy_baseball_manager.domain.player_profile import PlayerProfile
 from fantasy_baseball_manager.domain.valuation import Valuation
 
 _PITCHER_POSITIONS = {"SP", "RP"}
@@ -40,6 +43,7 @@ def build_draft_board(
     *,
     tiers: list[TierAssignment] | None = None,
     adp: list[ADP] | None = None,
+    profiles: dict[int, PlayerProfile] | None = None,
 ) -> DraftBoard:
     batting_categories = tuple(c.key for c in league.batting_categories)
     pitching_categories = tuple(c.key for c in league.pitching_categories)
@@ -74,6 +78,15 @@ def build_draft_board(
 
         player_name = player_names.get(val.player_id, f"Unknown ({val.player_id})")
 
+        age: int | None = None
+        bats_throws: str | None = None
+        if profiles is not None:
+            profile = profiles.get(val.player_id)
+            if profile is not None:
+                age = profile.age
+                if profile.bats is not None and profile.throws is not None:
+                    bats_throws = f"{profile.bats}/{profile.throws}"
+
         rows.append(
             DraftBoardRow(
                 player_id=val.player_id,
@@ -83,6 +96,8 @@ def build_draft_board(
                 position=val.position,
                 value=val.value,
                 category_z_scores=category_z_scores,
+                age=age,
+                bats_throws=bats_throws,
                 tier=tier,
                 adp_overall=adp_overall,
                 adp_rank=adp_rank,
@@ -99,10 +114,17 @@ def build_draft_board(
 
 def export_csv(board: DraftBoard, output: TextIO) -> None:
     """Write a draft board to CSV format."""
+    has_age = any(r.age is not None for r in board.rows)
+    has_bt = any(r.bats_throws is not None for r in board.rows)
     has_tier = any(r.tier is not None for r in board.rows)
     has_adp = any(r.adp_overall is not None for r in board.rows)
 
-    fieldnames: list[str] = ["Rank", "Player", "Type", "Pos", "Value"]
+    fieldnames: list[str] = ["Rank", "Player"]
+    if has_age:
+        fieldnames.append("Age")
+    if has_bt:
+        fieldnames.append("B/T")
+    fieldnames.extend(["Type", "Pos", "Value"])
     if has_tier:
         fieldnames.append("Tier")
     fieldnames.extend(board.batting_categories)
@@ -122,6 +144,10 @@ def export_csv(board: DraftBoard, output: TextIO) -> None:
             "Pos": row.position,
             "Value": f"${row.value:.1f}",
         }
+        if has_age:
+            record["Age"] = str(row.age) if row.age is not None else ""
+        if has_bt:
+            record["B/T"] = row.bats_throws if row.bats_throws is not None else ""
         if has_tier:
             record["Tier"] = str(row.tier) if row.tier is not None else ""
 
@@ -186,11 +212,18 @@ def export_html(
     auto_refresh: int | None = None,
 ) -> None:
     """Write a draft board to styled HTML format."""
+    has_age = any(r.age is not None for r in board.rows)
+    has_bt = any(r.bats_throws is not None for r in board.rows)
     has_tier = any(r.tier is not None for r in board.rows)
     has_adp = any(r.adp_overall is not None for r in board.rows)
     e = html.escape
 
-    headers: list[str] = ["Rank", "Player", "Pos", "Value"]
+    headers: list[str] = ["Rank", "Player"]
+    if has_age:
+        headers.append("Age")
+    if has_bt:
+        headers.append("B/T")
+    headers.extend(["Pos", "Value"])
     if has_tier:
         headers.append("Tier")
     headers.extend(board.batting_categories)
@@ -248,6 +281,10 @@ def export_html(
                 is_pitcher = row.player_type == "pitcher"
                 w(f"<td>{row.rank}</td>")
                 w(f"<td>{e(row.player_name)}</td>")
+                if has_age:
+                    w(f"<td>{row.age}</td>" if row.age is not None else "<td></td>")
+                if has_bt:
+                    w(f"<td>{e(row.bats_throws)}</td>" if row.bats_throws is not None else "<td></td>")
                 w(f"<td>{e(row.position)}</td>")
                 w(f"<td>${row.value:.1f}</td>")
 

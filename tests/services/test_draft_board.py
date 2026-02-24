@@ -14,6 +14,7 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.domain.player_profile import PlayerProfile
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
 
@@ -1284,3 +1285,150 @@ class TestExportHtmlSmoke:
         # Print CSS
         assert "@media print" in html
         assert "landscape" in html
+
+
+# --- Profile enrichment tests ---
+
+
+def _profile(
+    player_id: int,
+    age: int | None = 30,
+    bats: str | None = "L",
+    throws: str | None = "R",
+) -> PlayerProfile:
+    return PlayerProfile(
+        player_id=player_id,
+        name=f"Player {player_id}",
+        age=age,
+        bats=bats,
+        throws=throws,
+    )
+
+
+class TestProfileEnrichment:
+    def test_profiles_populate_age_and_bats_throws(self) -> None:
+        valuations = [_valuation(1, value=10.0)]
+        profiles = {1: _profile(1, age=30, bats="L", throws="R")}
+        board = build_draft_board(valuations, _league(), _names(1), profiles=profiles)
+
+        row = board.rows[0]
+        assert row.age == 30
+        assert row.bats_throws == "L/R"
+
+    def test_absent_profiles_yield_none(self) -> None:
+        valuations = [_valuation(1, value=10.0)]
+        board = build_draft_board(valuations, _league(), _names(1))
+
+        row = board.rows[0]
+        assert row.age is None
+        assert row.bats_throws is None
+
+    def test_missing_player_in_profiles_yields_none(self) -> None:
+        valuations = [_valuation(1, value=20.0), _valuation(2, value=10.0)]
+        profiles = {1: _profile(1, age=28, bats="R", throws="R")}
+        board = build_draft_board(valuations, _league(), _names(1, 2), profiles=profiles)
+
+        assert board.rows[0].age == 28
+        assert board.rows[0].bats_throws == "R/R"
+        assert board.rows[1].age is None
+        assert board.rows[1].bats_throws is None
+
+    def test_none_bats_or_throws_gives_none_bats_throws(self) -> None:
+        valuations = [_valuation(1, value=10.0)]
+        profiles = {1: _profile(1, age=25, bats=None, throws="R")}
+        board = build_draft_board(valuations, _league(), _names(1), profiles=profiles)
+
+        row = board.rows[0]
+        assert row.age == 25
+        assert row.bats_throws is None
+
+
+class TestExportCsvAgeBatsThrows:
+    def test_includes_age_bt_when_data_present(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Mike Trout",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=42.5,
+                category_z_scores={"hr": 2.1},
+                age=34,
+                bats_throws="R/R",
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        fieldnames = reader.fieldnames or []
+        assert "Age" in fieldnames
+        assert "B/T" in fieldnames
+        csv_rows = list(reader)
+        assert csv_rows[0]["Age"] == "34"
+        assert csv_rows[0]["B/T"] == "R/R"
+
+    def test_omits_age_bt_when_all_none(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Test",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=10.0,
+                category_z_scores={},
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_csv(board, buf)
+        buf.seek(0)
+        reader = csv.DictReader(buf)
+        fieldnames = reader.fieldnames or []
+        assert "Age" not in fieldnames
+        assert "B/T" not in fieldnames
+
+
+class TestExportHtmlAgeBatsThrows:
+    def test_includes_age_bt_headers_when_data_present(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="A",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=10.0,
+                category_z_scores={},
+                age=30,
+                bats_throws="L/R",
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_html(board, _league(), buf)
+        html_out = buf.getvalue()
+        assert "<th>Age</th>" in html_out
+        assert "<th>B/T</th>" in html_out
+
+    def test_no_age_bt_headers_when_absent(self) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="A",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=10.0,
+                category_z_scores={},
+            ),
+        ]
+        board = _board_with_rows(rows)
+        buf = io.StringIO()
+        export_html(board, _league(), buf)
+        html_out = buf.getvalue()
+        assert "<th>Age</th>" not in html_out
+        assert "<th>B/T</th>" not in html_out

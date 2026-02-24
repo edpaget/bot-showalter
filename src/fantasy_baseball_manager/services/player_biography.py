@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import datetime
-
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.player_bio import PlayerSummary
+from fantasy_baseball_manager.domain.player_profile import compute_age
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.repos.protocols import (
     BattingStatsRepo,
@@ -15,14 +14,6 @@ from fantasy_baseball_manager.repos.protocols import (
 )
 
 _EXPERIENCE_YEAR_RANGE = range(2000, 2030)
-
-
-def _compute_age(birth_date: str | None, season: int) -> int | None:
-    if birth_date is None:
-        return None
-    born = datetime.date.fromisoformat(birth_date)
-    july_1 = datetime.date(season, 7, 1)
-    return july_1.year - born.year - ((july_1.month, july_1.day) < (born.month, born.day))
 
 
 def _primary_position(appearances: list[PositionAppearance]) -> str:
@@ -77,7 +68,7 @@ class PlayerBiographyService:
             player_id=player.id,
             name=f"{player.name_first} {player.name_last}",
             team=team,
-            age=_compute_age(player.birth_date, season),
+            age=compute_age(player.birth_date, season),
             primary_position=_primary_position(appearances),
             bats=player.bats,
             throws=player.throws,
@@ -115,7 +106,7 @@ class PlayerBiographyService:
             assert player.id is not None
 
             if min_age is not None or max_age is not None:
-                age = _compute_age(player.birth_date, season)
+                age = compute_age(player.birth_date, season)
                 if age is None:
                     continue
                 if min_age is not None and age < min_age:
