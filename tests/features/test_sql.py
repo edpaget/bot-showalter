@@ -1,31 +1,22 @@
 from __future__ import annotations
 
+import json
 import sqlite3
+from typing import Any
 
 import pytest
-
-from tests.features.conftest import (
-    seed_batting_data,
-    seed_distribution_data,
-    seed_il_stint_data,
-    seed_projection_data,
-    seed_projection_pitcher_data,
-    seed_projection_v2_data,
-)
 
 from fantasy_baseball_manager.features.sql import (
     JoinSpec,
     _join_alias,
+    _join_clause,
     _plan_joins,
     _raw_expr,
     _select_expr,
     _source_table,
-    _join_clause,
     _spine_cte,
     generate_sql,
 )
-from typing import Any
-
 from fantasy_baseball_manager.features.types import (
     DeltaFeature,
     Feature,
@@ -33,6 +24,14 @@ from fantasy_baseball_manager.features.types import (
     Source,
     SpineFilter,
     TransformFeature,
+)
+from tests.features.conftest import (
+    seed_batting_data,
+    seed_distribution_data,
+    seed_il_stint_data,
+    seed_projection_data,
+    seed_projection_pitcher_data,
+    seed_projection_v2_data,
 )
 
 
@@ -785,6 +784,90 @@ class TestSpineCte:
         sql, _ = _spine_cte(fs)
         assert "FROM batting_stats" in sql
 
+    def test_player_ids_uses_json_each(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
+            seasons=(2023,),
+            spine_filter=SpineFilter(player_ids=(1, 2)),
+        )
+        sql, params = _spine_cte(fs)
+        assert "json_each(?)" in sql
+        assert "batting_stats" not in sql
+        assert "pitching_stats" not in sql
+
+    def test_player_ids_skips_stats_filters(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
+            seasons=(2023,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_ids=(1, 2), min_pa=50, min_ip=30.0),
+        )
+        sql, params = _spine_cte(fs)
+        assert "json_each(?)" in sql
+        assert "source = ?" not in sql
+        assert "pa >= ?" not in sql
+        assert "ip >= ?" not in sql
+
+    def test_player_ids_multiple_seasons(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
+            seasons=(2024, 2025),
+            spine_filter=SpineFilter(player_ids=(1, 2)),
+        )
+        sql, params = _spine_cte(fs)
+        assert sql.count("json_each(?)") == 2
+        assert "UNION ALL" in sql
+
+    def test_player_ids_params_order(self) -> None:
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
+            seasons=(2024, 2025),
+            spine_filter=SpineFilter(player_ids=(3, 1)),
+        )
+        sql, params = _spine_cte(fs)
+        ids_json = json.dumps(sorted([3, 1]))
+        assert params == [2024, ids_json, 2025, ids_json]
+
+
+class TestVersionHash:
+    def test_version_hash_order_independent(self) -> None:
+        features = (Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),)
+        fs1 = FeatureSet(
+            name="test",
+            features=features,
+            seasons=(2023,),
+            spine_filter=SpineFilter(player_ids=(1, 2)),
+        )
+        fs2 = FeatureSet(
+            name="test",
+            features=features,
+            seasons=(2023,),
+            spine_filter=SpineFilter(player_ids=(2, 1)),
+        )
+        assert fs1.version == fs2.version
+
+    def test_version_hash_unchanged_when_none(self) -> None:
+        features = (Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),)
+        fs_no_ids = FeatureSet(
+            name="test",
+            features=features,
+            seasons=(2023,),
+            spine_filter=SpineFilter(),
+        )
+        fs_explicit_none = FeatureSet(
+            name="test",
+            features=features,
+            seasons=(2023,),
+            spine_filter=SpineFilter(player_ids=None),
+        )
+        assert fs_no_ids.version == fs_explicit_none.version
+        # Pre-computed value — ensures adding player_ids field didn't change existing hashes
+        assert fs_no_ids.version == "3f1cf9bfc276"
+
 
 class TestJoinClause:
     def test_batting_lag1_with_source_filter(self) -> None:
@@ -1443,3 +1526,40 @@ class TestILStintRoundTrip:
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
         assert trout["il_days_2"] == 15
+
+
+class TestExplicitPlayerIdsRoundTrip:
+    """Integration test: spine from explicit player_ids for a future season."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self, conn: sqlite3.Connection) -> None:
+        seed_batting_data(conn)
+        self._conn = conn
+
+    def _execute_dicts(self, fs: FeatureSet) -> list[dict[str, object]]:
+        sql, params = generate_sql(fs)
+        cursor = self._conn.execute(sql, params)
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def test_explicit_player_ids_future_season(self) -> None:
+        """Request season 2024 (no batting data) with explicit player_ids.
+
+        Spine should produce 2 rows. Lag=1 feature references season 2023
+        batting data (which exists in seed data).
+        """
+        fs = FeatureSet(
+            name="test",
+            features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
+            seasons=(2024,),
+            source_filter="fangraphs",
+            spine_filter=SpineFilter(player_ids=(1, 2)),
+        )
+        rows = self._execute_dicts(fs)
+        assert len(rows) == 2
+        trout = next(r for r in rows if r["player_id"] == 1)
+        # lag=1 from 2024 → 2023 data: Trout had 35 HR
+        assert trout["hr_1"] == 35
+        betts = next(r for r in rows if r["player_id"] == 2)
+        # lag=1 from 2024 → 2023 data: Betts had 32 HR
+        assert betts["hr_1"] == 32

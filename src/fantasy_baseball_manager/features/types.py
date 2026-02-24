@@ -23,6 +23,7 @@ class SpineFilter:
     min_pa: int | None = None
     min_ip: float | None = None
     player_type: str | None = None
+    player_ids: tuple[int, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -294,11 +295,15 @@ def _feature_to_dict(f: AnyFeature) -> dict[str, object]:
 
 
 def _spine_filter_to_dict(sf: SpineFilter) -> dict[str, object]:
-    return {
+    result: dict[str, object] = {
         "min_pa": sf.min_pa,
         "min_ip": sf.min_ip,
         "player_type": sf.player_type,
     }
+    if sf.player_ids is not None:
+        ids_str = str(sorted(sf.player_ids))
+        result["player_ids_hash"] = hashlib.sha256(ids_str.encode()).hexdigest()[:12]
+    return result
 
 
 def _compute_version(

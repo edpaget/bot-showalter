@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from fantasy_baseball_manager.features.types import (
@@ -279,6 +280,16 @@ def _infer_spine_table(feature_set: FeatureSet) -> str:
 
 
 def _spine_cte(feature_set: FeatureSet) -> tuple[str, list[object]]:
+    sf = feature_set.spine_filter
+    if sf.player_ids is not None:
+        ids_json = json.dumps(sorted(sf.player_ids))
+        parts: list[str] = []
+        params: list[object] = []
+        for season in feature_set.seasons:
+            parts.append("SELECT CAST(value AS INTEGER) AS player_id, ? AS season FROM json_each(?)")
+            params.extend([season, ids_json])
+        return " UNION ALL ".join(parts), params
+
     table = _infer_spine_table(feature_set)
     placeholders = ", ".join("?" for _ in feature_set.seasons)
     parts = [
@@ -291,7 +302,6 @@ def _spine_cte(feature_set: FeatureSet) -> tuple[str, list[object]]:
         parts.append(" AND source = ?")
         params.append(feature_set.source_filter)
 
-    sf = feature_set.spine_filter
     if sf.min_pa is not None:
         parts.append(" AND pa >= ?")
         params.append(sf.min_pa)
