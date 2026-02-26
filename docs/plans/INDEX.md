@@ -18,7 +18,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
 | [Principles Enforcement](principles-enforcement.md) | 6 | phases 1-3 done | none |
-| [Projection Confidence Report](projection-confidence-report.md) | 3 | phases 1-2 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
@@ -36,6 +35,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Draft Board Export](draft-board-export.md) | 3 |
 | [Live Draft Tracker](live-draft-tracker.md) | 4 |
 | [Player Eligibility](player-eligibility.md) | 3 |
+| [Projection Confidence Report](projection-confidence-report.md) | 3 |
 | [Preseason Spine](preseason-spine.md) | 3 |
 | [Tier Generator](tier-generator.md) | 3 |
 
