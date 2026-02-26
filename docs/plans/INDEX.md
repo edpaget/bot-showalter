@@ -10,11 +10,13 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Category Balance Tracker](category-balance-tracker.md) | 3 | not started | none |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | not started | ADP (done), draft board (done) |
+| [Evaluation Guardrails](evaluation-guardrails.md) | 4 | not started | none |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | not started | keeper-surplus-value |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 | not started | none |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | not started | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
+| [Pitcher Calibration](pitcher-calibration.md) | 4 | not started | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
 | [Principles Enforcement](principles-enforcement.md) | 6 | phases 1-3 done | none |
