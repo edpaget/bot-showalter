@@ -11,7 +11,7 @@ This is the capstone draft-day tool. It depends on the valuation system (already
 | 1 — Draft state engine | done (2026-02-20) |
 | 2 — Recommendation engine | done (2026-02-23) |
 | 3 — Interactive CLI session | done (2026-02-25) |
-| 4 — Draft log and post-draft analysis | not started |
+| 4 — Draft log and post-draft analysis | done (2026-02-25) |
 
 ## Phase 1: Draft state engine
 
