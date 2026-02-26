@@ -147,3 +147,16 @@ class Sweepable(Protocol):
 class FeatureIntrospectable(Protocol):
     @property
     def declared_features(self) -> tuple[AnyFeature, ...]: ...
+
+
+@runtime_checkable
+class PlayerUniverseProvider(Protocol):
+    def get_player_ids(
+        self,
+        season: int,
+        player_type: str,
+        *,
+        source: str | None = None,
+        min_pa: int | None = None,
+        min_ip: float | None = None,
+    ) -> set[int]: ...

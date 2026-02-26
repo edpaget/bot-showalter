@@ -15,6 +15,7 @@ from fantasy_baseball_manager.models.protocols import (
     FineTunable,
     Model,
     ModelConfig,
+    PlayerUniverseProvider,
     Predictable,
     PredictResult,
     Preparable,
@@ -93,10 +94,15 @@ class FakeAssembler:
         self,
         rows_by_season: dict[int, list[dict[str, Any]]] | None = None,
         pitcher_rows_by_season: dict[int, list[dict[str, Any]]] | None = None,
+        *,
+        player_id_rows_by_season: dict[int, list[dict[str, Any]]] | None = None,
+        pitcher_player_id_rows_by_season: dict[int, list[dict[str, Any]]] | None = None,
     ) -> None:
         self._next_id = 1
         self._rows_by_season = rows_by_season or {}
         self._pitcher_rows_by_season = pitcher_rows_by_season or {}
+        self._player_id_rows_by_season = player_id_rows_by_season or {}
+        self._pitcher_player_id_rows_by_season = pitcher_player_id_rows_by_season or {}
         self._handles: dict[int, FeatureSet] = {}
 
     def _select_rows(self, feature_set_name: str) -> dict[int, list[dict[str, Any]]]:
@@ -104,11 +110,19 @@ class FakeAssembler:
             return self._pitcher_rows_by_season
         return self._rows_by_season
 
+    def _select_player_id_rows(self, feature_set_name: str) -> dict[int, list[dict[str, Any]]]:
+        if "pitching" in feature_set_name:
+            return self._pitcher_player_id_rows_by_season
+        return self._player_id_rows_by_season
+
     def materialize(self, feature_set: FeatureSet) -> DatasetHandle:
         return self.get_or_materialize(feature_set)
 
     def get_or_materialize(self, feature_set: FeatureSet) -> DatasetHandle:
-        source = self._select_rows(feature_set.name)
+        if feature_set.spine_filter.player_ids:
+            source = self._select_player_id_rows(feature_set.name)
+        else:
+            source = self._select_rows(feature_set.name)
         all_rows = []
         for s in feature_set.seasons:
             all_rows.extend(source.get(s, []))
@@ -158,7 +172,11 @@ class FakeAssembler:
         return DatasetSplits(train=train_handle, validation=None, holdout=holdout_handle)
 
     def read(self, handle: DatasetHandle) -> list[dict[str, Any]]:
-        source = self._select_rows(handle.table_name)
+        feature_set = self._handles.get(handle.dataset_id)
+        if feature_set and feature_set.spine_filter.player_ids:
+            source = self._select_player_id_rows(handle.table_name)
+        else:
+            source = self._select_rows(handle.table_name)
         rows: list[dict[str, Any]] = []
         for s in handle.seasons:
             rows.extend(source.get(s, []))
@@ -2039,3 +2057,150 @@ class TestMinActivitySweepFilter:
         # The filter should exclude low-PA rows
         filtered = captured_filters[0](bat_rows)
         assert len(filtered) == 15
+
+
+class FakePlayerUniverseProvider:
+    """Test double for PlayerUniverseProvider that records calls."""
+
+    def __init__(self, ids_by_key: dict[tuple[int, str], set[int]] | None = None) -> None:
+        self._ids = ids_by_key or {}
+        self.calls: list[tuple[int, str]] = []
+
+    def get_player_ids(
+        self,
+        season: int,
+        player_type: str,
+        *,
+        source: str | None = None,
+        min_pa: int | None = None,
+        min_ip: float | None = None,
+    ) -> set[int]:
+        self.calls.append((season, player_type))
+        return self._ids.get((season, player_type), set())
+
+
+# Verify FakePlayerUniverseProvider satisfies the protocol
+assert isinstance(FakePlayerUniverseProvider(), PlayerUniverseProvider)
+
+
+class TestPreseasonPredictFallback:
+    def test_fallback_activates_on_zero_rows(self, tmp_path: Path) -> None:
+        """When predict season has no rows, fallback uses player_ids from provider."""
+        train_bat = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        train_pit = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        # Fallback rows available when player_ids is set on the spine filter
+        fallback_bat = {2026: [_make_preseason_row(f"p_{i}", 2026) for i in range(5)]}
+        fallback_pit = {2026: [_make_preseason_pitcher_row(f"pit_{i}", 2026) for i in range(5)]}
+
+        assembler = FakeAssembler(
+            train_bat,
+            train_pit,
+            player_id_rows_by_season=fallback_bat,
+            pitcher_player_id_rows_by_season=fallback_pit,
+        )
+        provider = FakePlayerUniverseProvider(
+            {
+                (2026, "batter"): {1, 2, 3},
+                (2026, "pitcher"): {4, 5, 6},
+            }
+        )
+        model = StatcastGBMPreseasonModel(
+            assembler=assembler,
+            evaluator=_NULL_EVALUATOR,
+            player_universe=provider,
+        )
+
+        # Train on historical seasons
+        train_config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+        )
+        model.train(train_config)
+
+        # Predict on future season with no rows
+        predict_config = ModelConfig(
+            seasons=[2026],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.predict(predict_config)
+
+        assert len(result.predictions) > 0
+        # Provider should have been called for both player types
+        assert (2026, "batter") in provider.calls
+        assert (2026, "pitcher") in provider.calls
+
+    def test_fallback_not_used_when_rows_exist(self, tmp_path: Path) -> None:
+        """When predict season has rows, provider is never called."""
+        rows = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows, pitcher_rows)
+        provider = FakePlayerUniverseProvider(
+            {
+                (2023, "batter"): {1, 2, 3},
+                (2023, "pitcher"): {4, 5, 6},
+            }
+        )
+        model = StatcastGBMPreseasonModel(
+            assembler=assembler,
+            evaluator=_NULL_EVALUATOR,
+            player_universe=provider,
+        )
+
+        train_config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+        )
+        model.train(train_config)
+
+        # Predict on a season that HAS rows
+        predict_config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.predict(predict_config)
+
+        assert len(result.predictions) > 0
+        assert len(provider.calls) == 0
+
+    def test_no_provider_zero_rows_returns_empty(self, tmp_path: Path) -> None:
+        """When no provider is set and spine returns zero rows, predict returns empty."""
+        rows = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows, pitcher_rows)
+        model = StatcastGBMPreseasonModel(
+            assembler=assembler,
+            evaluator=_NULL_EVALUATOR,
+            # No player_universe
+        )
+
+        train_config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+        )
+        model.train(train_config)
+
+        predict_config = ModelConfig(
+            seasons=[2026],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.predict(predict_config)
+
+        assert result.predictions == []

@@ -1,21 +1,10 @@
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
-
+from fantasy_baseball_manager.models.protocols import PlayerUniverseProvider
 from fantasy_baseball_manager.repos.protocols import BattingStatsRepo, PitchingStatsRepo
 
-
-@runtime_checkable
-class PlayerUniverseProvider(Protocol):
-    def get_player_ids(
-        self,
-        season: int,
-        player_type: str,
-        *,
-        source: str | None = None,
-        min_pa: int | None = None,
-        min_ip: float | None = None,
-    ) -> set[int]: ...
+# Re-export for backward compatibility
+__all__ = ["PlayerUniverseProvider", "StatsBasedPlayerUniverse"]
 
 
 class StatsBasedPlayerUniverse:

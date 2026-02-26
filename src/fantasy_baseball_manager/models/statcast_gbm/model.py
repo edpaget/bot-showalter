@@ -1,3 +1,4 @@
+import dataclasses
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -5,7 +6,7 @@ from typing import Any
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
-from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
+from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
 from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.gbm_training import (
     MinValueFilter,
@@ -23,6 +24,7 @@ from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     Evaluator,
     ModelConfig,
+    PlayerUniverseProvider,
     PredictResult,
     PrepareResult,
     TrainResult,
@@ -78,9 +80,11 @@ class _StatcastGBMBase:
         self,
         assembler: DatasetAssembler,
         evaluator: Evaluator,
+        player_universe: PlayerUniverseProvider | None = None,
     ) -> None:
         self._assembler = assembler
         self._evaluator = evaluator
+        self._player_universe = player_universe
 
     @property
     def name(self) -> str:
@@ -179,6 +183,32 @@ class _StatcastGBMBase:
 
     def _calibration_method(self, player_params: dict[str, Any]) -> str:
         return str(player_params.get("calibration_method", "affine"))
+
+    def _materialize_with_fallback(
+        self,
+        feature_set: FeatureSet,
+        seasons: Sequence[int],
+        player_type: str,
+    ) -> list[dict[str, Any]]:
+        """Materialize a feature set, falling back to player_ids if no rows."""
+        handle = self._assembler.get_or_materialize(feature_set)
+        rows = self._assembler.read(handle)
+        if rows or self._player_universe is None:
+            return rows
+        all_ids: set[int] = set()
+        for season in seasons:
+            all_ids |= self._player_universe.get_player_ids(season, player_type)
+        if not all_ids:
+            return rows
+        fallback_fs = dataclasses.replace(
+            feature_set,
+            spine_filter=SpineFilter(
+                player_type=feature_set.spine_filter.player_type,
+                player_ids=tuple(sorted(all_ids)),
+            ),
+        )
+        fb_handle = self._assembler.get_or_materialize(fallback_fs)
+        return self._assembler.read(fb_handle)
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)
@@ -310,57 +340,57 @@ class _StatcastGBMBase:
 
         # --- Batter predictions ---
         bat_fs = self._batter_feature_set_builder(config.seasons)
-        bat_handle = self._assembler.get_or_materialize(bat_fs)
-        bat_rows = self._assembler.read(bat_handle)
-        bat_models = load_models(artifact_path / "batter_models.joblib")
-        bat_feature_cols = self._batter_columns
-        bat_X = extract_features(bat_rows, bat_feature_cols)
+        bat_rows = self._materialize_with_fallback(bat_fs, config.seasons, "batter")
+        if bat_rows:
+            bat_models = load_models(artifact_path / "batter_models.joblib")
+            bat_feature_cols = self._batter_columns
+            bat_X = extract_features(bat_rows, bat_feature_cols)
 
-        bat_target_preds: dict[str, list[float]] = {}
-        for target_name, model in bat_models.items():
-            bat_target_preds[target_name] = list(model.predict(bat_X))
+            bat_target_preds: dict[str, list[float]] = {}
+            for target_name, model in bat_models.items():
+                bat_target_preds[target_name] = list(model.predict(bat_X))
 
-        bat_cal_path = artifact_path / "batter_calibrators.joblib"
-        if bat_cal_path.exists():
-            bat_calibrators = load_calibrators(bat_cal_path)
-            bat_target_preds = apply_calibrators(bat_target_preds, bat_calibrators)
+            bat_cal_path = artifact_path / "batter_calibrators.joblib"
+            if bat_cal_path.exists():
+                bat_calibrators = load_calibrators(bat_cal_path)
+                bat_target_preds = apply_calibrators(bat_target_preds, bat_calibrators)
 
-        for i, row in enumerate(bat_rows):
-            pred: dict[str, Any] = {
-                "player_id": row["player_id"],
-                "season": row["season"],
-                "player_type": "batter",
-            }
-            for target_name in bat_models:
-                pred[target_name] = bat_target_preds[target_name][i]
-            predictions_by_row.append(pred)
+            for i, row in enumerate(bat_rows):
+                pred: dict[str, Any] = {
+                    "player_id": row["player_id"],
+                    "season": row["season"],
+                    "player_type": "batter",
+                }
+                for target_name in bat_models:
+                    pred[target_name] = bat_target_preds[target_name][i]
+                predictions_by_row.append(pred)
 
         # --- Pitcher predictions ---
         pit_fs = self._pitcher_feature_set_builder(config.seasons)
-        pit_handle = self._assembler.get_or_materialize(pit_fs)
-        pit_rows = self._assembler.read(pit_handle)
-        pit_models = load_models(artifact_path / "pitcher_models.joblib")
-        pit_feature_cols = self._pitcher_columns
-        pit_X = extract_features(pit_rows, pit_feature_cols)
+        pit_rows = self._materialize_with_fallback(pit_fs, config.seasons, "pitcher")
+        if pit_rows:
+            pit_models = load_models(artifact_path / "pitcher_models.joblib")
+            pit_feature_cols = self._pitcher_columns
+            pit_X = extract_features(pit_rows, pit_feature_cols)
 
-        pit_target_preds: dict[str, list[float]] = {}
-        for target_name, model in pit_models.items():
-            pit_target_preds[target_name] = list(model.predict(pit_X))
+            pit_target_preds: dict[str, list[float]] = {}
+            for target_name, model in pit_models.items():
+                pit_target_preds[target_name] = list(model.predict(pit_X))
 
-        pit_cal_path = artifact_path / "pitcher_calibrators.joblib"
-        if pit_cal_path.exists():
-            pit_calibrators = load_calibrators(pit_cal_path)
-            pit_target_preds = apply_calibrators(pit_target_preds, pit_calibrators)
+            pit_cal_path = artifact_path / "pitcher_calibrators.joblib"
+            if pit_cal_path.exists():
+                pit_calibrators = load_calibrators(pit_cal_path)
+                pit_target_preds = apply_calibrators(pit_target_preds, pit_calibrators)
 
-        for i, row in enumerate(pit_rows):
-            pred = {
-                "player_id": row["player_id"],
-                "season": row["season"],
-                "player_type": "pitcher",
-            }
-            for target_name in pit_models:
-                pred[target_name] = pit_target_preds[target_name][i]
-            predictions_by_row.append(pred)
+            for i, row in enumerate(pit_rows):
+                pred = {
+                    "player_id": row["player_id"],
+                    "season": row["season"],
+                    "player_type": "pitcher",
+                }
+                for target_name in pit_models:
+                    pred[target_name] = pit_target_preds[target_name][i]
+                predictions_by_row.append(pred)
 
         return PredictResult(
             model_name=self.name,
