@@ -8,7 +8,7 @@ Enable projections for future seasons where no stats data exists yet. The featur
 |-------|--------|
 | 1 — Extend SpineFilter with explicit player IDs | done (2026-02-23) |
 | 2 — Create PlayerUniverseProvider | done (2026-02-23) |
-| 3 — Wire into model predict() | not started |
+| 3 — Wire into model predict() | done (2026-02-25) |
 
 ## Phase 1: Extend SpineFilter with explicit player IDs
 
