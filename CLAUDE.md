@@ -63,7 +63,7 @@ Use one worktree per roadmap, not per phase. This avoids losing the session's wo
 
 **After each phase lands:**
 
-1. **Update plan tracking.** Mark the phase `done (<date>)` in the roadmap's Status table and update `docs/plans/INDEX.md` progress (e.g., "phase 1 done" → "phases 1-2 done", or "all phases done"). Commit these doc changes alongside the implementation or as a separate `docs:` commit.
+1. **Update plan tracking.** Mark the phase `done (<date>)` in the roadmap's Status table and update `docs/plans/INDEX.md` progress (e.g., "phase 1 done" → "phases 1-2 done"). When all phases are done, move the roadmap from the **Active Roadmaps** table to the **Completed Roadmaps** table. Commit these doc changes alongside the implementation or as a separate `docs:` commit.
 2. **Merge back to main from the main repo checkout:**
 
 ```bash
