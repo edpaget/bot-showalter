@@ -6,7 +6,7 @@ Connect the LangGraph agent to Discord so users can @-mention the bot and get fa
 
 | Phase | Status |
 |-------|--------|
-| 1 — Discord bot with agent integration | in progress |
+| 1 — Discord bot with agent integration | done (2026-02-25) |
 
 ## Phase 1: Discord bot with agent integration
 

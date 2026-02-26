@@ -9,12 +9,10 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | not started | ADP, projections, valuations (all done) |
 | [Category Balance Tracker](category-balance-tracker.md) | 3 | not started | none |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
-| [Discord Bot](discord-bot.md) | 1 | not started | LLM Agent (all phases done) |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | not started | ADP (done), draft board (done) |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | not started | keeper-surplus-value |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 | not started | none |
-| [LLM Agent](llm-agent.md) | 3 | phases 1-2 done | none |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | not started | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
@@ -33,6 +31,8 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases |
 |---------|--------|
 | [ADP Integration](adp-integration.md) | 5 |
+| [Discord Bot](discord-bot.md) | 1 |
+| [LLM Agent](llm-agent.md) | 3 |
 | [Draft Board Export](draft-board-export.md) | 3 |
 | [Live Draft Tracker](live-draft-tracker.md) | 4 |
 | [Player Eligibility](player-eligibility.md) | 3 |

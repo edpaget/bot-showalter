@@ -6,7 +6,7 @@
 |-------|-------------|--------|
 | 1 | Shared analysis container and player biography service | done (2026-02-20) |
 | 2 | LangChain tool definitions | done (2026-02-21) |
-| 3 | Agent loop and CLI entry point | pending |
+| 3 | Agent loop and CLI entry point | done (2026-02-21) |
 
 Expose the project's draft and roster analysis capabilities as tools callable by an LLM agent. The agent will answer natural-language questions about player valuation, projection comparison, draft strategy, and player biography (team, age, experience). The tool implementations share their service wiring with the existing CLI so that business logic is defined once and consumed from both surfaces. The agent loop uses LangChain/LangGraph targeting a small model (Claude Haiku) to keep cost and latency low.
 
