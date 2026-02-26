@@ -8,6 +8,20 @@ argument-hint: <roadmap> [phase N]
 
 Implement a specific phase from an existing roadmap document.
 
+## CRITICAL — Worktree Requirement
+
+ALL implementation work MUST happen inside a worktree. After plan-mode approval, the VERY FIRST action is calling `EnterWorktree`. Writing ANY code, tests, or file edits before `EnterWorktree` is a bug.
+
+Plan mode erases the skill context you are reading right now. The ONLY way to ensure the worktree step happens is to write it into the plan. Your plan MUST begin with:
+
+> **Step 0 — Worktree setup:** Call `EnterWorktree` with `name: "<roadmap>"` (e.g., `name: "preseason-spine"`). Wait for confirmation before proceeding. ALL subsequent steps happen inside the worktree.
+
+And your plan MUST end with:
+
+> **Final step — Land the phase:** Update the roadmap Status table to `done (<date>)`, update `docs/plans/INDEX.md` progress, commit the doc changes, and merge back to main: `git push . HEAD:main && git checkout main`.
+
+If already in a worktree from a previous phase in the same session, skip `EnterWorktree` and ensure you are on a fresh branch.
+
 ## Behavior
 
 1. Parse `$ARGUMENTS` to identify the roadmap name (kebab-case, matching a file in `docs/plans/`) and the phase number. If the phase number is omitted, read the roadmap's Status table and pick the first phase that is `not started`.
@@ -15,10 +29,7 @@ Implement a specific phase from an existing roadmap document.
 3. Verify the phase is not already marked `done` or `in progress` in the Status table. If it is, inform the user and stop.
 4. Check if the phase has any blockers (other roadmap phases listed as dependencies in the Ordering section). If blocked, inform the user and stop.
 5. Update the roadmap's Status table to mark the phase `in progress`.
-6. Enter plan mode — explore the codebase, design the implementation approach against the roadmap's steps and acceptance criteria, and present the plan for user approval. The plan you write **must** include these steps (context will be lost after plan mode, so they must be in the plan itself):
-   - **First step of the plan:** Call `EnterWorktree` with `name: "<roadmap>"` (e.g., `name: "preseason-spine"`) to create an isolated worktree. No code, tests, or edits until the session is inside the worktree. (Skip if already in a worktree from a previous phase — just ensure a fresh branch.)
-   - **Implementation steps:** Follow TDD, run tests after each step, verify all acceptance criteria before committing.
-   - **Final step of the plan:** After the last commit, update the roadmap Status table to `done (<date>)`, update `docs/plans/INDEX.md` progress, and merge back to main: `git push . HEAD:main && git checkout main`.
+6. Enter plan mode — explore the codebase, design the implementation approach against the roadmap's steps and acceptance criteria, and present the plan for user approval. Write the `EnterWorktree` and "Land the phase" steps into the plan exactly as specified in the **Worktree Requirement** section above.
 
 ## Argument parsing
 
@@ -29,7 +40,7 @@ Implement a specific phase from an existing roadmap document.
 ## Rules
 
 - Always read the full roadmap before entering plan mode.
-- **Never write code outside a worktree.** The plan's first step must be `EnterWorktree`. If you find yourself about to write code and you haven't called `EnterWorktree`, stop and call it first.
+- **Never write code outside a worktree.** If you are about to write code and have not called `EnterWorktree`, stop and call it first.
 - Do not expand scope beyond what the roadmap phase specifies.
 - Follow all instructions in CLAUDE.md (TDD, worktree workflow, git conventions, AC verification).
 - If the roadmap has no Status table (older roadmaps created before this convention), add one before proceeding.
