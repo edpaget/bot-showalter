@@ -9,6 +9,7 @@ from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport
 from fantasy_baseball_manager.domain.adp_movers import ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
 from fantasy_baseball_manager.domain.draft_board import DraftBoard
+from fantasy_baseball_manager.domain.draft_report import DraftReport
 from fantasy_baseball_manager.domain.evaluation import ComparisonResult, StratifiedComparisonResult, SystemMetrics
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
@@ -1413,3 +1414,84 @@ def print_residual_analysis_report(report: ResidualAnalysisReport) -> None:
     else:
         console.print("  [green]No calibration needed[/green]")
     console.print()
+
+
+def print_draft_report(report: DraftReport, out: Console | None = None) -> None:
+    """Print a post-draft analysis report."""
+    c = out or console
+    c.print("\n[bold]═══ Draft Report ═══[/bold]\n")
+
+    # Roster value summary
+    c.print("[bold]Roster Value[/bold]")
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Metric", justify="left")
+    table.add_column("Value", justify="right")
+    table.add_row("Total value", f"{report.total_value:.1f}")
+    table.add_row("Optimal", f"{report.optimal_value:.1f}")
+    table.add_row("Efficiency", f"{report.value_efficiency:.1%}")
+    if report.budget is not None:
+        table.add_row("Budget", f"${report.budget}")
+        table.add_row("Spent", f"${report.total_spent}")
+    c.print(table)
+    c.print()
+
+    # Category standings
+    if report.category_standings:
+        c.print("[bold]Category Standings[/bold]")
+        cat_table = Table(show_edge=False, pad_edge=False)
+        cat_table.add_column("Category", justify="left")
+        cat_table.add_column("Z-Total", justify="right")
+        cat_table.add_column("Rank", justify="right")
+        for s in report.category_standings:
+            cat_table.add_row(s.category, f"{s.total_z:+.2f}", f"{s.rank}/{s.teams}")
+        c.print(cat_table)
+        c.print()
+
+    # Pick grades
+    if report.pick_grades:
+        c.print(f"[bold]Pick Grades[/bold]  (mean: {report.mean_grade:.2f})")
+        grade_table = Table(show_edge=False, pad_edge=False)
+        grade_table.add_column("Pick#", justify="right")
+        grade_table.add_column("Player", justify="left")
+        grade_table.add_column("Pos", justify="left")
+        grade_table.add_column("Value", justify="right")
+        grade_table.add_column("Best Avail", justify="right")
+        grade_table.add_column("Grade", justify="right")
+        for g in report.pick_grades:
+            color = "green" if g.grade >= 0.9 else "yellow" if g.grade >= 0.7 else "red"
+            grade_table.add_row(
+                str(g.pick_number),
+                g.player_name,
+                g.position,
+                f"{g.value:.1f}",
+                f"{g.best_available_value:.1f}",
+                f"[{color}]{g.grade:.2f}[/{color}]",
+            )
+        c.print(grade_table)
+        c.print()
+
+    # Steals
+    if report.steals:
+        c.print("[bold green]Steals[/bold green]")
+        steal_table = Table(show_edge=False, pad_edge=False)
+        steal_table.add_column("Pick#", justify="right")
+        steal_table.add_column("Player", justify="left")
+        steal_table.add_column("Pos", justify="left")
+        steal_table.add_column("Delta", justify="right")
+        for s in report.steals:
+            steal_table.add_row(str(s.pick_number), s.player_name, s.position, f"+{s.pick_delta}")
+        c.print(steal_table)
+        c.print()
+
+    # Reaches
+    if report.reaches:
+        c.print("[bold red]Reaches[/bold red]")
+        reach_table = Table(show_edge=False, pad_edge=False)
+        reach_table.add_column("Pick#", justify="right")
+        reach_table.add_column("Player", justify="left")
+        reach_table.add_column("Pos", justify="left")
+        reach_table.add_column("Delta", justify="right")
+        for r in report.reaches:
+            reach_table.add_row(str(r.pick_number), r.player_name, r.position, str(r.pick_delta))
+        c.print(reach_table)
+        c.print()

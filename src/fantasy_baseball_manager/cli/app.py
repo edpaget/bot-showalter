@@ -1,5 +1,6 @@
 import csv
 import datetime
+import functools
 import logging
 import math
 import os
@@ -24,6 +25,7 @@ from fantasy_baseball_manager.cli._output import (
     print_comparison_result,
     print_dataset_list,
     print_draft_board,
+    print_draft_report,
     print_draft_tiers,
     print_error,
     print_features,
@@ -128,6 +130,7 @@ from fantasy_baseball_manager.services.cohort import (
 )
 from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
 from fantasy_baseball_manager.services.draft_recommender import recommend
+from fantasy_baseball_manager.services.draft_report import draft_report as compute_draft_report
 from fantasy_baseball_manager.services.draft_session import DraftSession, load_draft
 from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
@@ -2001,14 +2004,58 @@ def draft_start(
 
     save_path = resume or Path(f"draft-{league_name}-{season}.json")
 
+    report_fn = functools.partial(
+        compute_draft_report,
+        batting_categories=board.batting_categories,
+        pitching_categories=board.pitching_categories,
+    )
+
     session = DraftSession(
         engine=engine,
         players=draft_players,
         console=console,
         recommend_fn=recommend,
+        report_fn=report_fn,
         save_path=save_path,
     )
     session.run()
+
+
+@draft_app.command("report")
+def draft_report_cmd(
+    draft_file: Annotated[Path, typer.Argument(help="Path to saved draft JSON file")],
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Generate a post-draft analysis report from a saved draft file."""
+    league = load_league(league_name, Path.cwd())
+
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players_list = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players_list if p.id is not None}
+
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+        profiles = ctx.profile_service.enrich_valuations(valuations, season)
+
+    board = build_draft_board(valuations, league, player_names, adp=adp_list if adp_list else None, profiles=profiles)
+    draft_players: list[DraftBoardRow] = board.rows
+
+    engine = load_draft(draft_file, draft_players)
+    report = compute_draft_report(
+        engine.state,
+        draft_players,
+        batting_categories=board.batting_categories,
+        pitching_categories=board.pitching_categories,
+    )
+    print_draft_report(report)
 
 
 # --- yahoo subcommand group ---

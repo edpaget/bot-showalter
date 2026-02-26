@@ -8,6 +8,7 @@ from rich.console import Console
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
+from fantasy_baseball_manager.domain.draft_report import DraftReport
 from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
     DraftEngine,
@@ -64,6 +65,10 @@ class HelpCommand: ...
 
 
 @dataclass(frozen=True)
+class ReportCommand: ...
+
+
+@dataclass(frozen=True)
 class QuitCommand: ...
 
 
@@ -76,6 +81,7 @@ Command = (
     | PoolCommand
     | StatusCommand
     | SaveCommand
+    | ReportCommand
     | HelpCommand
     | QuitCommand
 )
@@ -118,6 +124,8 @@ def parse_command(
         return StatusCommand()
     if verb == "save":
         return SaveCommand()
+    if verb == "report":
+        return ReportCommand()
     if verb == "help":
         return HelpCommand()
     if verb in ("quit", "exit"):
@@ -284,6 +292,10 @@ class RecommendFn(Protocol):
     def __call__(self, state: DraftState, *, limit: int = 10) -> list[Recommendation]: ...
 
 
+class ReportFn(Protocol):
+    def __call__(self, state: DraftState, full_pool: list[DraftBoardRow]) -> DraftReport: ...
+
+
 # ---------------------------------------------------------------------------
 # REPL output helpers
 # ---------------------------------------------------------------------------
@@ -298,6 +310,7 @@ Commands:
   pool [position]                   — Show available players
   status                            — Show current draft status
   save                              — Save draft to file
+  report                            — Show post-draft analysis
   help                              — Show this help
   quit                              — Exit the session
 """
@@ -316,6 +329,7 @@ class DraftSession:
         *,
         console: Console,
         recommend_fn: RecommendFn,
+        report_fn: ReportFn | None = None,
         input_fn: Callable[[str], str] | None = None,
         save_path: Path | None = None,
     ) -> None:
@@ -323,6 +337,7 @@ class DraftSession:
         self.players = players
         self.console = console
         self.recommend_fn = recommend_fn
+        self.report_fn = report_fn
         self.input_fn = input_fn or (lambda prompt: input(prompt))
         self.save_path = save_path
         self._unsaved = False
@@ -375,6 +390,8 @@ class DraftSession:
             self._show_status()
         elif isinstance(cmd, SaveCommand):
             self._handle_save()
+        elif isinstance(cmd, ReportCommand):
+            self._handle_report()
         return True
 
     # --- Command handlers ---
@@ -502,6 +519,60 @@ class DraftSession:
             self.console.print(
                 f"  {i}. {rec.player_name} ({rec.position}) — ${rec.value:.1f} | score {rec.score:.2f} | {rec.reason}"
             )
+
+    def _handle_report(self) -> None:
+        if self.report_fn is None:
+            self.console.print("[yellow]Report not available (no report function configured).[/yellow]")
+            return
+        report = self.report_fn(self.engine.state, self.players)
+        self._print_report(report)
+
+    def _print_report(self, report: DraftReport) -> None:
+        c = self.console
+        c.print("\n[bold]═══ Draft Report ═══[/bold]\n")
+
+        # Roster value summary
+        c.print("[bold]Roster Value[/bold]")
+        c.print(f"  Total value:  {report.total_value:.1f}")
+        c.print(f"  Optimal:      {report.optimal_value:.1f}")
+        c.print(f"  Efficiency:   {report.value_efficiency:.1%}")
+        if report.budget is not None:
+            c.print(f"  Budget:       ${report.budget}")
+            c.print(f"  Spent:        ${report.total_spent}")
+        c.print()
+
+        # Category standings
+        if report.category_standings:
+            c.print("[bold]Category Standings[/bold]")
+            for s in report.category_standings:
+                c.print(f"  {s.category:<6} z={s.total_z:+.2f}  rank {s.rank}/{s.teams}")
+            c.print()
+
+        # Pick grades
+        if report.pick_grades:
+            c.print(f"[bold]Pick Grades[/bold]  (mean: {report.mean_grade:.2f})")
+            for g in report.pick_grades:
+                color = "green" if g.grade >= 0.9 else "yellow" if g.grade >= 0.7 else "red"
+                c.print(
+                    f"  #{g.pick_number:<3} {g.player_name:<20} {g.position:<4} "
+                    f"val={g.value:.1f}  best={g.best_available_value:.1f}  "
+                    f"[{color}]grade={g.grade:.2f}[/{color}]"
+                )
+            c.print()
+
+        # Steals
+        if report.steals:
+            c.print("[bold green]Steals[/bold green]")
+            for s in report.steals:
+                c.print(f"  #{s.pick_number:<3} {s.player_name:<20} {s.position:<4} delta=+{s.pick_delta}")
+            c.print()
+
+        # Reaches
+        if report.reaches:
+            c.print("[bold red]Reaches[/bold red]")
+            for r in report.reaches:
+                c.print(f"  #{r.pick_number:<3} {r.player_name:<20} {r.position:<4} delta={r.pick_delta}")
+            c.print()
 
     def _handle_save(self) -> None:
         if self.save_path is None:

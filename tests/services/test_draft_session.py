@@ -7,6 +7,7 @@ from rich.console import Console
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
+from fantasy_baseball_manager.domain.draft_report import DraftReport
 from fantasy_baseball_manager.services.draft_session import (
     BestCommand,
     DraftSession,
@@ -15,6 +16,8 @@ from fantasy_baseball_manager.services.draft_session import (
     PickCommand,
     PoolCommand,
     QuitCommand,
+    ReportCommand,
+    ReportFn,
     RosterCommand,
     SaveCommand,
     StatusCommand,
@@ -28,6 +31,7 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
     DraftEngine,
     DraftFormat,
+    DraftState,
 )
 
 # ---------------------------------------------------------------------------
@@ -421,3 +425,84 @@ class TestDraftSessionREPL:
         session.save_path = save_path
         session.run()
         assert save_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# Report command parsing + REPL integration
+# ---------------------------------------------------------------------------
+
+
+class TestParseCommandReport:
+    def test_report_command(self) -> None:
+        cmd = parse_command("report", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, ReportCommand)
+
+    def test_report_case_insensitive(self) -> None:
+        cmd = parse_command("REPORT", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, ReportCommand)
+
+
+class TestDraftSessionReport:
+    """Test the report command in the REPL."""
+
+    def _make_session_with_report(
+        self,
+        commands: list[str],
+        report_fn: ReportFn | None = None,
+    ) -> tuple[StringIO, DraftSession]:
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+
+        cmd_iter = iter(commands)
+
+        def fake_input(_prompt: str = "") -> str:
+            return next(cmd_iter)
+
+        def fake_recommend(state: DraftState, *, limit: int = 10) -> list[Recommendation]:
+            return []
+
+        session = DraftSession(
+            engine=engine,
+            players=PLAYERS,
+            console=test_console,
+            recommend_fn=fake_recommend,
+            report_fn=report_fn,
+            input_fn=fake_input,
+        )
+        return buf, session
+
+    def test_report_no_fn_shows_message(self) -> None:
+        buf, session = self._make_session_with_report(["report", "quit"])
+        session.run()
+        output = buf.getvalue()
+        assert "not available" in output.lower()
+
+    def test_report_with_fn_shows_output(self) -> None:
+        def fake_report(state: DraftState, full_pool: list[DraftBoardRow]) -> DraftReport:
+            return DraftReport(
+                total_value=100.0,
+                optimal_value=120.0,
+                value_efficiency=0.833,
+                budget=None,
+                total_spent=None,
+                category_standings=[],
+                pick_grades=[],
+                mean_grade=0.0,
+                steals=[],
+                reaches=[],
+            )
+
+        buf, session = self._make_session_with_report(["report", "quit"], report_fn=fake_report)
+        session.run()
+        output = buf.getvalue()
+        assert "Draft Report" in output
+        assert "100.0" in output
+        assert "Efficiency" in output
+
+    def test_help_includes_report(self) -> None:
+        buf, session = self._make_session_with_report(["help", "quit"])
+        session.run()
+        output = buf.getvalue()
+        assert "report" in output.lower()
