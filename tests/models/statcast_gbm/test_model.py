@@ -1,6 +1,5 @@
 import math
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -34,6 +33,9 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
 )
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel, StatcastGBMPreseasonModel
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _FEATURE_COLUMNS = live_batter_curated_columns()
 _PITCHER_FEATURE_COLUMNS = live_pitcher_curated_columns()

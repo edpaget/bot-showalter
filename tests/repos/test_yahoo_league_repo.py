@@ -1,7 +1,10 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
 from fantasy_baseball_manager.repos.yahoo_league_repo import SqliteYahooLeagueRepo, SqliteYahooTeamRepo
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_yahoo_league(**overrides: object) -> YahooLeague:

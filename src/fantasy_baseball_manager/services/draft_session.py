@@ -1,14 +1,7 @@
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from rich.console import Console
-
-from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
-from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
-from fantasy_baseball_manager.domain.draft_report import DraftReport
 from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
     DraftEngine,
@@ -17,6 +10,16 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftState,
 )
 from fantasy_baseball_manager.services.player_resolver import resolve_player
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
+
+    from rich.console import Console
+
+    from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+    from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
+    from fantasy_baseball_manager.domain.draft_report import DraftReport
 
 # ---------------------------------------------------------------------------
 # Command types (tagged union)

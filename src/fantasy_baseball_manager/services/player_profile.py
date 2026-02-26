@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.domain.player_profile import PlayerProfile, compute_age
-from fantasy_baseball_manager.domain.valuation import Valuation
-from fantasy_baseball_manager.repos.protocols import PlayerRepo
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.valuation import Valuation
+    from fantasy_baseball_manager.repos.protocols import PlayerRepo
 
 _PITCHER_POSITIONS = {"SP", "RP"}
 

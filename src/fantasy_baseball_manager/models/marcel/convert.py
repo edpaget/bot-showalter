@@ -1,5 +1,5 @@
 import math
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel.types import MarcelInput, MarcelProjection, SeasonLine
@@ -8,6 +8,9 @@ from fantasy_baseball_manager.models.stat_utils import (
     compute_batter_rates,
     compute_pitcher_rates,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def extract_pt_from_rows(rows: list[dict], col: str) -> dict[int, float]:

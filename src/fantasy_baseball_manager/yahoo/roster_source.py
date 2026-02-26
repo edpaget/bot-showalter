@@ -1,10 +1,13 @@
-import datetime
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.roster import Roster, RosterEntry
-from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
-from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
+
+if TYPE_CHECKING:
+    import datetime
+
+    from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
+    from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 
 logger = logging.getLogger(__name__)
 

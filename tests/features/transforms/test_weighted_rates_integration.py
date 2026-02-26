@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import sqlite3
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -13,6 +13,9 @@ from fantasy_baseball_manager.models.marcel.features import (
     build_batting_features,
     build_batting_weighted_rates,
 )
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class TestWeightedRatesMaterialization:

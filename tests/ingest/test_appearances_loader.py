@@ -1,5 +1,4 @@
-import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.player import Team
 from fantasy_baseball_manager.domain.result import Ok
@@ -14,6 +13,9 @@ from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositi
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from tests.helpers import seed_player
 from tests.ingest.conftest import FakeDataSource
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _seed_team(conn: sqlite3.Connection) -> int:

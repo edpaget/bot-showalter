@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.protocols import DatasetAssembler
@@ -11,6 +11,9 @@ from fantasy_baseball_manager.features.types import (
     Source,
     SourceRef,
 )
+
+if TYPE_CHECKING:
+    import sqlite3
 
 batting = SourceRef(Source.BATTING)
 player = SourceRef(Source.PLAYER)

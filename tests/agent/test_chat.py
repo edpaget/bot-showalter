@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
-import pytest
 from langchain_core.messages import AIMessageChunk
 
 from fantasy_baseball_manager.agent.chat import _print_chunk_content, run_chat
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def _build_fake_agent() -> MagicMock:

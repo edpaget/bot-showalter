@@ -1,8 +1,7 @@
 """Composite engine protocol and implementations."""
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.models.composite.convert import (
@@ -22,6 +21,9 @@ from fantasy_baseball_manager.models.marcel.convert import rows_to_marcel_inputs
 from fantasy_baseball_manager.models.marcel.engine import age_adjust, regress_to_mean
 from fantasy_baseball_manager.models.marcel.types import LeagueAverages, MarcelConfig
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass(frozen=True)

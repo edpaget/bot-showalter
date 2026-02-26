@@ -1,7 +1,11 @@
-import pytest
+from typing import TYPE_CHECKING
+
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
+
+if TYPE_CHECKING:
+    import pytest
 
 runner = CliRunner()
 

@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.evaluation import StratifiedComparisonResult
@@ -10,6 +10,9 @@ from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingSta
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_evaluator(

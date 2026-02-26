@@ -1,9 +1,8 @@
 import math
 import random
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from sklearn.ensemble import HistGradientBoostingRegressor
 
 from fantasy_baseball_manager.models.gbm_training import (
     CorrelationGroup,
@@ -34,6 +33,9 @@ from fantasy_baseball_manager.models.protocols import (
     ValidationResult,
 )
 from fantasy_baseball_manager.models.sample_weight_transforms import sqrt as sqrt_transform
+
+if TYPE_CHECKING:
+    from sklearn.ensemble import HistGradientBoostingRegressor
 
 
 class TestTargetComparison:

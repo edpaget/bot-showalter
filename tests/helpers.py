@@ -1,7 +1,10 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def seed_player(

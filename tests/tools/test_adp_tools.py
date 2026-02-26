@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.domain.adp import ADP
@@ -7,6 +7,9 @@ from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from fantasy_baseball_manager.tools.adp_tools import create_get_value_over_adp_tool
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _seed_valuation(

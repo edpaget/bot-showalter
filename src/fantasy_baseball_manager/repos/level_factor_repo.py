@@ -1,6 +1,9 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.level_factor import LevelFactor
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class SqliteLevelFactorRepo:

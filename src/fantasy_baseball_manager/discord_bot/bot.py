@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import TYPE_CHECKING
 
 import discord
-from langgraph.graph.state import CompiledStateGraph
 
 from fantasy_baseball_manager.discord_bot.agent_handler import handle_message
+
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
 
 logger = logging.getLogger(__name__)
 

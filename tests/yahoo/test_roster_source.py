@@ -1,12 +1,14 @@
 import datetime
-import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class FakeClient:

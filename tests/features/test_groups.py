@@ -1,5 +1,5 @@
 import importlib
-from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -13,6 +13,9 @@ from fantasy_baseball_manager.features.groups import (
     register_group,
 )
 from fantasy_baseball_manager.features.types import Feature, Source, SpineFilter
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 def _make_feature(name: str) -> Feature:

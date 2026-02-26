@@ -1,12 +1,15 @@
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.ingest.column_maps import (
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from fantasy_baseball_manager.domain.projection import Projection
 
 
 def _trout() -> Player:

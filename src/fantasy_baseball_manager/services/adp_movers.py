@@ -1,9 +1,12 @@
 from datetime import date, timedelta
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
-from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.repos.protocols import ADPRepo, PlayerRepo
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.adp import ADP
+    from fantasy_baseball_manager.domain.player import Player
+    from fantasy_baseball_manager.repos.protocols import ADPRepo, PlayerRepo
 
 
 class ADPMoversService:

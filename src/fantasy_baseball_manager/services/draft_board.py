@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import csv
 import html
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
 
-from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow, TierAssignment
-from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-from fantasy_baseball_manager.domain.player_profile import PlayerProfile
-from fantasy_baseball_manager.domain.valuation import Valuation
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.adp import ADP
+    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+    from fantasy_baseball_manager.domain.player_profile import PlayerProfile
+    from fantasy_baseball_manager.domain.valuation import Valuation
 
 _PITCHER_POSITIONS = {"SP", "RP"}
 

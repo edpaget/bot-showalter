@@ -1,4 +1,7 @@
-from fantasy_baseball_manager.models.mle.types import AgeAdjustmentConfig
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.models.mle.types import AgeAdjustmentConfig
 
 
 def compute_age_adjustment(*, age: float, level: str, config: AgeAdjustmentConfig) -> float:

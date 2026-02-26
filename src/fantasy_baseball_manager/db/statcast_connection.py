@@ -1,7 +1,10 @@
-import sqlite3
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.connection import create_connection
+
+if TYPE_CHECKING:
+    import sqlite3
 
 _STATCAST_MIGRATIONS_DIR = Path(__file__).parent / "statcast_migrations"
 

@@ -1,6 +1,4 @@
-import sqlite3
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -24,6 +22,10 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from tests.helpers import seed_player
 from tests.ingest.conftest import FakeDataSource
+
+if TYPE_CHECKING:
+    import sqlite3
+    from pathlib import Path
 
 
 def _batting_projection_rows() -> list[dict[str, Any]]:

@@ -1,16 +1,21 @@
 """Ensemble model — weighted-average ensemble of multiple projection systems."""
 
 from collections import defaultdict
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
-from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.pt_normalization import ConsensusLookup, build_consensus_lookup
 from fantasy_baseball_manager.models.ensemble.engine import blend_rates, weighted_average, weighted_spread
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
-from fantasy_baseball_manager.repos.protocols import ProjectionRepo
+from fantasy_baseball_manager.repos.protocols import (
+    ProjectionRepo,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from fantasy_baseball_manager.domain.projection import Projection
 
 
 @register("ensemble")

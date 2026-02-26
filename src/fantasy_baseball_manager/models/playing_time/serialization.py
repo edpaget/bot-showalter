@@ -1,11 +1,14 @@
 """Save/load playing-time coefficients and aging curves via joblib."""
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import joblib
 
-from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
-from fantasy_baseball_manager.models.playing_time.engine import PlayingTimeCoefficients, ResidualBuckets
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
+    from fantasy_baseball_manager.models.playing_time.engine import PlayingTimeCoefficients, ResidualBuckets
 
 
 def save_coefficients(

@@ -1,8 +1,10 @@
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.player import Player
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.batting_stats import BattingStats
+    from fantasy_baseball_manager.domain.player import Player
 
 logger = logging.getLogger(__name__)
 

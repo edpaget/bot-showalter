@@ -1,11 +1,14 @@
 import logging
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from fantasy_baseball_manager.ingest._retry import default_http_retry
-from fantasy_baseball_manager.yahoo.auth import YahooAuth
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from fantasy_baseball_manager.yahoo.auth import YahooAuth
 
 logger = logging.getLogger(__name__)
 

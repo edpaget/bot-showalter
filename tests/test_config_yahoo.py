@@ -1,4 +1,4 @@
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -9,6 +9,9 @@ from fantasy_baseball_manager.config_yahoo import (
     load_yahoo_config,
     resolve_default_league,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_toml(tmp_path: Path, content: str) -> None:

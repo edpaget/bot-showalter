@@ -1,8 +1,11 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class TestSqliteBattingStatsRepo:

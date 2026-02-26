@@ -1,9 +1,12 @@
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
 from fantasy_baseball_manager.ingest.protocols import DataSource
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestCsvSource:

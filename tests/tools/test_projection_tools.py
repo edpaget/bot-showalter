@@ -1,10 +1,13 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.tools.projection_tools import create_lookup_projections_tool
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _seed_projection(

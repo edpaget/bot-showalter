@@ -1,4 +1,4 @@
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -10,6 +10,9 @@ from fantasy_baseball_manager.models.statcast_gbm.calibration import (
     load_calibrators,
     save_calibrators,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestFitCalibratorsIsotonic:

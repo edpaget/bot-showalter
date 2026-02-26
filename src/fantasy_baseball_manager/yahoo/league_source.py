@@ -1,7 +1,8 @@
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
 
 logger = logging.getLogger(__name__)
 

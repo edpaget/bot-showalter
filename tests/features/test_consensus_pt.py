@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import math
-import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -18,6 +17,9 @@ from tests.features.conftest import (
     seed_pitching_data,
     seed_projection_data,
 )
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class TestMakeConsensusTransform:

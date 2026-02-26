@@ -1,8 +1,11 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_adp(player_id: int, **overrides: object) -> ADP:

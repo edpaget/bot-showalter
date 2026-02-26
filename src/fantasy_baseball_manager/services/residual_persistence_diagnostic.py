@@ -1,5 +1,5 @@
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.player import Player
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.domain.residual_persistence import (
     ResidualPersistenceReport,
     ResidualPersistenceSummary,
@@ -10,8 +10,12 @@ from fantasy_baseball_manager.domain.residual_persistence import (
 )
 from fantasy_baseball_manager.domain.talent_quality import compute_residual_yoy_correlation
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS
-from fantasy_baseball_manager.repos.protocols import BattingStatsRepo, PlayerRepo, ProjectionRepo
 from fantasy_baseball_manager.services.performance_report import _get_batter_actual
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.batting_stats import BattingStats
+    from fantasy_baseball_manager.domain.player import Player
+    from fantasy_baseball_manager.repos.protocols import BattingStatsRepo, PlayerRepo, ProjectionRepo
 
 _BUCKET_EDGES = (200.0, 400.0)
 _BUCKET_LABELS = ("<200", "200-400", "400+")

@@ -5,11 +5,13 @@ import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
-from fantasy_baseball_manager.models.protocols import Model, ModelConfig
-from fantasy_baseball_manager.repos.protocols import ModelRunRepo
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.models.protocols import Model, ModelConfig
+    from fantasy_baseball_manager.repos.protocols import ModelRunRepo
 
 logger = logging.getLogger(__name__)
 

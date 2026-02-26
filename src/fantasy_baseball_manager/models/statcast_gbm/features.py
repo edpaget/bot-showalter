@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.features import batting, pitching, player
 from fantasy_baseball_manager.features.transforms import (
@@ -20,6 +20,9 @@ from fantasy_baseball_manager.features.types import (
     SpineFilter,
     TransformFeature,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 _BATTER_LAG_STATS = ("pa", "hr", "h", "doubles", "triples", "bb", "so", "sb")
 _BATTER_LAG_RATE_STATS = ("avg", "obp", "slg")

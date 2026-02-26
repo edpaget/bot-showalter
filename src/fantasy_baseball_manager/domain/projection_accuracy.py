@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-from fantasy_baseball_manager.domain.projection import Projection
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.batting_stats import BattingStats
+    from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
+    from fantasy_baseball_manager.domain.projection import Projection
 
 # Stat names that map to BattingStats fields (same names as used in projection stat_json)
 _BATTING_STAT_FIELDS: tuple[str, ...] = (

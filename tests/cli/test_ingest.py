@@ -1,9 +1,6 @@
-import sqlite3
-from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli._output import print_ingest_result
@@ -11,7 +8,6 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import IngestContainer
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.load_log import LoadLog
-from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
@@ -19,6 +15,14 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteT
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Iterator
+
+    import pytest
+
+    from fantasy_baseball_manager.ingest.protocols import DataSource
 
 runner = CliRunner()
 

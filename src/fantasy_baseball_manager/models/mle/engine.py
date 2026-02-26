@@ -1,18 +1,22 @@
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
-from fantasy_baseball_manager.domain.level_factor import LevelFactor
-from fantasy_baseball_manager.domain.minor_league_batting_stats import (
-    MinorLeagueBattingStats,
-)
 from fantasy_baseball_manager.models.mle.age_adjustment import compute_age_adjustment
 from fantasy_baseball_manager.models.mle.types import (
     AgeAdjustmentConfig,
     MLEConfig,
     TranslatedBattingLine,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
+    from fantasy_baseball_manager.domain.level_factor import LevelFactor
+    from fantasy_baseball_manager.domain.minor_league_batting_stats import (
+        MinorLeagueBattingStats,
+    )
 
 
 @dataclass(frozen=True)

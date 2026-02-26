@@ -1,13 +1,15 @@
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.projection_accuracy import (
     BATTING_COUNTING_STATS,
     BATTING_RATE_STATS,
     PITCHING_COUNTING_STATS,
     PITCHING_RATE_STATS,
 )
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.projection import Projection
 
 _BATTER_COUNTING_SET = set(BATTING_COUNTING_STATS)
 _BATTER_RATE_SET = set(BATTING_RATE_STATS)

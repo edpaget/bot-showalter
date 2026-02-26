@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.features import batting, pitching, player, projection
 from fantasy_baseball_manager.features.types import (
@@ -14,6 +14,9 @@ from fantasy_baseball_manager.models.marcel.features import (
     build_pitching_league_averages,
     build_pitching_weighted_rates,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def build_composite_batting_features(

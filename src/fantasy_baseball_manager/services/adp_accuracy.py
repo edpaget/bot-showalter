@@ -1,28 +1,30 @@
 import dataclasses
 import logging
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from scipy.stats import spearmanr
 
-from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.adp_accuracy import (
     ADPAccuracyPlayer,
     ADPAccuracyReport,
     ADPAccuracyResult,
     SystemAccuracyResult,
 )
-from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import build_position_map, build_roster_spots
-from fantasy_baseball_manager.repos.protocols import (
-    ADPRepo,
-    BattingStatsRepo,
-    PitchingStatsRepo,
-    PlayerRepo,
-    PositionAppearanceRepo,
-    ValuationRepo,
-)
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.adp import ADP
+    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+    from fantasy_baseball_manager.repos.protocols import (
+        ADPRepo,
+        BattingStatsRepo,
+        PitchingStatsRepo,
+        PlayerRepo,
+        PositionAppearanceRepo,
+        ValuationRepo,
+    )
 
 logger = logging.getLogger(__name__)
 

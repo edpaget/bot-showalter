@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.models.marcel.types import (
     LeagueAverages,
@@ -7,6 +7,9 @@ from fantasy_baseball_manager.models.marcel.types import (
     MarcelProjection,
     SeasonLine,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def regress_to_mean(

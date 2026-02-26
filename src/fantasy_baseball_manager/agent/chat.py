@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import AIMessageChunk
-from langgraph.graph.state import CompiledStateGraph
 
 from fantasy_baseball_manager.agent.stream import extract_text
+
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
 
 
 def run_chat(agent: CompiledStateGraph) -> None:

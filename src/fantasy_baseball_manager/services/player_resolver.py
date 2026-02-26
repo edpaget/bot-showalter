@@ -1,6 +1,8 @@
 import difflib
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 
 
 def resolve_player(query: str, pool: list[DraftBoardRow]) -> list[DraftBoardRow]:

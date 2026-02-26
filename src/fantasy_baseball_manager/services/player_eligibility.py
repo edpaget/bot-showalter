@@ -1,7 +1,11 @@
-from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.models.zar.positions import build_position_map
-from fantasy_baseball_manager.repos.protocols import PitchingStatsRepo, PositionAppearanceRepo
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+    from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
+    from fantasy_baseball_manager.repos.protocols import PitchingStatsRepo, PositionAppearanceRepo
 
 
 class PlayerEligibilityService:

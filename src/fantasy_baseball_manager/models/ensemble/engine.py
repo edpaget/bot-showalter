@@ -1,8 +1,10 @@
 import math
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.projection import StatDistribution
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def _weighted_percentile(sorted_values: list[float], cum_weights: list[float], percentile: float) -> float:

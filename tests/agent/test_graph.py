@@ -1,18 +1,21 @@
 from __future__ import annotations
 
-import sqlite3
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_core.runnables import Runnable
 from langgraph.graph.state import CompiledStateGraph
 
 from fantasy_baseball_manager.agent.graph import _DEFAULT_MODEL, build_agent
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.domain.player import Player
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Sequence
+
+    from langchain_core.runnables import Runnable
 
 
 class _FakeChatModel(BaseChatModel):

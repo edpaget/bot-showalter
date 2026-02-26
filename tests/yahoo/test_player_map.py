@@ -1,10 +1,13 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class TestExactLookup:

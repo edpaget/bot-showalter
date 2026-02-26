@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
@@ -12,6 +12,9 @@ from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositi
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_service(conn: sqlite3.Connection) -> PlayerBiographyService:

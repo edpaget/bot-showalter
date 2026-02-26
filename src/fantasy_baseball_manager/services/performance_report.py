@@ -1,17 +1,20 @@
 import logging
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
-from fantasy_baseball_manager.repos.protocols import (
-    BattingStatsRepo,
-    PitchingStatsRepo,
-    PlayerRepo,
-    ProjectionRepo,
-)
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.player import Player
+    from fantasy_baseball_manager.domain.projection import Projection
+    from fantasy_baseball_manager.repos.protocols import (
+        BattingStatsRepo,
+        PitchingStatsRepo,
+        PlayerRepo,
+        ProjectionRepo,
+    )
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -23,6 +23,9 @@ from fantasy_baseball_manager.services.projection_confidence import (
     compute_confidence,
 )
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _seed_projection(

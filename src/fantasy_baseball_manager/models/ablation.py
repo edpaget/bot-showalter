@@ -1,13 +1,10 @@
 """Shared helpers for model evaluation and feature-ablation analysis."""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from threadpoolctl import threadpool_limits
 
-from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-from fantasy_baseball_manager.features.protocols import DatasetAssembler
-from fantasy_baseball_manager.features.types import FeatureSet
 from fantasy_baseball_manager.models.gbm_training import (
     compute_cv_permutation_importance,
     compute_grouped_permutation_importance,
@@ -23,6 +20,11 @@ from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
     ValidationResult,
 )
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.evaluation import SystemMetrics
+    from fantasy_baseball_manager.features.protocols import DatasetAssembler
+    from fantasy_baseball_manager.features.types import FeatureSet
 
 
 def evaluate_projections(

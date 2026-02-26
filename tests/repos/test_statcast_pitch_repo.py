@@ -1,7 +1,10 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_pitch(

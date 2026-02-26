@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import builtins
 import subprocess
-from pathlib import Path
-
-import pytest
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.cli._dispatcher import dispatch
 from fantasy_baseball_manager.domain.errors import DispatchError
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.models.protocols import (
     ModelConfig,
@@ -18,6 +15,13 @@ from fantasy_baseball_manager.models.protocols import (
     TrainResult,
 )
 from fantasy_baseball_manager.models.run_manager import RunManager
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pytest
+
+    from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 
 
 class _FakePreparableOnly:

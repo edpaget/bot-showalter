@@ -1,6 +1,4 @@
-from typing import Any
-
-import pytest
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
@@ -91,6 +89,9 @@ from fantasy_baseball_manager.models.protocols import (
     ValidationResult,
 )
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def _plain_feature() -> Feature:

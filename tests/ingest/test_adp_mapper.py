@@ -1,6 +1,4 @@
-import sqlite3
-
-import pytest
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
@@ -13,6 +11,11 @@ from fantasy_baseball_manager.ingest.adp_mapper import (
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
+
+    import pytest
 
 
 def _seed_players(conn: sqlite3.Connection) -> dict[str, int]:

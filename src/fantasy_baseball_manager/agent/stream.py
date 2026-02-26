@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import AIMessageChunk
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 def extract_text(content: str | list[dict[str, Any]]) -> str:

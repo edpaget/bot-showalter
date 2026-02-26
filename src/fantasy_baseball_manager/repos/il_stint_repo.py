@@ -1,6 +1,9 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.il_stint import ILStint
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class SqliteILStintRepo:

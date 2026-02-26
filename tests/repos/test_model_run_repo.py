@@ -1,7 +1,10 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_record(**overrides: object) -> ModelRunRecord:

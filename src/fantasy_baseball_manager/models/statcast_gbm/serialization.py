@@ -1,7 +1,9 @@
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import joblib
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def save_models(models: dict[str, Any], path: Path) -> None:

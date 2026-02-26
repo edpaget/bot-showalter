@@ -1,15 +1,18 @@
 import logging
-import sqlite3
 import time
-from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.errors import IngestError
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.result import Err, Ok, Result
-from fantasy_baseball_manager.ingest.protocols import DataSource
-from fantasy_baseball_manager.repos.protocols import LoadLogRepo
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Callable
+
+    from fantasy_baseball_manager.ingest.protocols import DataSource
+    from fantasy_baseball_manager.repos.protocols import LoadLogRepo
 
 logger = logging.getLogger(__name__)
 

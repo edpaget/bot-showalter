@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-import builtins
 import json
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
+
+if TYPE_CHECKING:
+    import builtins
+    import sqlite3
 
 
 class SqliteModelRunRepo:

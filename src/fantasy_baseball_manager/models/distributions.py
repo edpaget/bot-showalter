@@ -1,8 +1,11 @@
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from fantasy_baseball_manager.domain.projection import StatDistribution
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def samples_to_distribution(stat: str, samples: Sequence[float]) -> StatDistribution:

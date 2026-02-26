@@ -1,5 +1,4 @@
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -27,6 +26,9 @@ from fantasy_baseball_manager.models.protocols import (
     Preparable,
     Trainable,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 pytestmark = pytest.mark.slow
 

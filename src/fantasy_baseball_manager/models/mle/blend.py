@@ -1,9 +1,11 @@
 """Blend MLE translations with MLB stats using reliability-weighted regression."""
 
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.models.mle.types import BlendConfig, BlendedStatLine
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def blend_rate(

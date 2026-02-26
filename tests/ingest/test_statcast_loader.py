@@ -1,6 +1,4 @@
-import sqlite3
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.db.connection import attach_database, create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
@@ -13,6 +11,10 @@ from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
 from tests.ingest.conftest import ErrorDataSource, FakeDataSource
+
+if TYPE_CHECKING:
+    import sqlite3
+    from pathlib import Path
 
 
 def _statcast_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:

@@ -1,11 +1,14 @@
 import logging
 import queue
-import sqlite3
-from collections.abc import Generator
 from contextlib import contextmanager
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.connection import create_connection
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Generator
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

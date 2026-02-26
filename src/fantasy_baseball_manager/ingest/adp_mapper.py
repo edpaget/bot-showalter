@@ -2,13 +2,15 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.repos.protocols import ADPRepo, PlayerRepo
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.repos.protocols import ADPRepo, PlayerRepo
 
 logger = logging.getLogger(__name__)
 

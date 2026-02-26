@@ -1,6 +1,5 @@
-import sqlite3
-from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 from typer.testing import CliRunner
 
@@ -12,6 +11,10 @@ from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Iterator
 
 runner = CliRunner()
 

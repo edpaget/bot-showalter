@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -9,6 +9,9 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.residual_persistence_diagnostic import ResidualPersistenceDiagnostic
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_service(

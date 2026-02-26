@@ -1,10 +1,13 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _seed_valuation(

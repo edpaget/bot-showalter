@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.domain.player import Team
@@ -13,6 +13,9 @@ from fantasy_baseball_manager.tools.player_tools import (
     create_search_players_tool,
 )
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _seed_team(conn: sqlite3.Connection, abbreviation: str = "NYY", name: str = "Yankees") -> int:

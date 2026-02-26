@@ -1,7 +1,10 @@
 import dataclasses
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
+
+if TYPE_CHECKING:
+    import sqlite3
 
 _STAT_COLUMNS: tuple[str, ...] = (
     "pa",

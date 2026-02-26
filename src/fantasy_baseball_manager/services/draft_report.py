@@ -1,4 +1,5 @@
-from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.domain.draft_report import (
     CategoryStanding,
     DraftReport,
@@ -6,6 +7,9 @@ from fantasy_baseball_manager.domain.draft_report import (
     StealOrReach,
 )
 from fantasy_baseball_manager.services.draft_state import DraftFormat, DraftState
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 
 # Flex slot mappings: batter positions can flex to UTIL, pitcher to P
 _BATTER_FLEX = "UTIL"

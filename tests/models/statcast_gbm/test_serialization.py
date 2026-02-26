@@ -1,6 +1,9 @@
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestSerialization:

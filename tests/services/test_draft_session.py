@@ -1,6 +1,6 @@
 import json
 from io import StringIO
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from rich.console import Console
@@ -33,6 +33,9 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftFormat,
     DraftState,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Helpers

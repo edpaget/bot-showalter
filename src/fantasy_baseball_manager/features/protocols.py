@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from fantasy_baseball_manager.features.types import (
-    DatasetHandle,
-    DatasetSplits,
-    FeatureSet,
-)
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.features.types import (
+        DatasetHandle,
+        DatasetSplits,
+        FeatureSet,
+    )
 
 
 @runtime_checkable

@@ -1,7 +1,10 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.tools import create_tools
+
+if TYPE_CHECKING:
+    import sqlite3
 
 EXPECTED_TOOL_NAMES = {
     "search_players",

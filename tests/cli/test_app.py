@@ -1,8 +1,6 @@
-import sqlite3
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import _parse_params, _set_nested, app
@@ -33,6 +31,12 @@ from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositi
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
+    from pathlib import Path
+
+    import pytest
 
 runner = CliRunner()
 

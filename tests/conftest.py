@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import os
-import sqlite3
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Generator
 
 # Disable OpenMP multi-threading in tests.  scikit-learn's
 # HistGradientBoostingRegressor spawns OpenMP threads whose management

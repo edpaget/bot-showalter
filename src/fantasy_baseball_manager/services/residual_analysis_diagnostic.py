@@ -1,8 +1,6 @@
 import statistics
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.residual_analysis import (
     ResidualAnalysisReport,
     ResidualAnalysisSummary,
@@ -12,13 +10,17 @@ from fantasy_baseball_manager.domain.residual_analysis import (
     compute_mean_bias,
 )
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
-from fantasy_baseball_manager.repos.protocols import (
-    BattingStatsRepo,
-    PitchingStatsRepo,
-    PlayerRepo,
-    ProjectionRepo,
-)
 from fantasy_baseball_manager.services.performance_report import _get_batter_actual, _get_pitcher_actual
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.batting_stats import BattingStats
+    from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
+    from fantasy_baseball_manager.repos.protocols import (
+        BattingStatsRepo,
+        PitchingStatsRepo,
+        PlayerRepo,
+        ProjectionRepo,
+    )
 
 
 def _top_by_war_batting(items: list[BattingStats], top: int) -> list[BattingStats]:

@@ -1,5 +1,9 @@
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
-from fantasy_baseball_manager.repos.protocols import LeagueEnvironmentRepo, MinorLeagueBattingStatsRepo
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.repos.protocols import LeagueEnvironmentRepo, MinorLeagueBattingStatsRepo
 
 
 class LeagueEnvironmentService:

@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.features import batting, player
 from fantasy_baseball_manager.features.transforms import (
     BATTED_BALL,
@@ -6,7 +8,9 @@ from fantasy_baseball_manager.features.transforms import (
     PLATE_DISCIPLINE,
     SPIN_PROFILE,
 )
-from fantasy_baseball_manager.features.types import Feature, TransformFeature
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.features.types import Feature, TransformFeature
 
 _COUNTING_STATS = ("pa", "ab", "h", "hr", "rbi", "r", "sb", "cs", "bb", "so")
 

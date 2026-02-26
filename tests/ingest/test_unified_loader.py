@@ -1,13 +1,15 @@
 import sqlite3
-from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.loader import Loader
 from tests.ingest.conftest import ErrorDataSource, FakeDataSource
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @dataclass(frozen=True)

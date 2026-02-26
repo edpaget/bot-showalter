@@ -1,7 +1,10 @@
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 _REGISTRY: dict[str, FeatureGroup] = {}
 

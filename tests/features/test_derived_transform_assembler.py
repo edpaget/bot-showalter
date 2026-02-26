@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -14,6 +13,9 @@ from fantasy_baseball_manager.features.types import (
     SpineFilter,
     TransformFeature,
 )
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _sum_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:

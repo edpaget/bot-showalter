@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -25,6 +25,9 @@ from fantasy_baseball_manager.services.residual_persistence_diagnostic import Re
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class AnalysisContainer:

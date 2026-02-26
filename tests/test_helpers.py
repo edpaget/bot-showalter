@@ -1,6 +1,9 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class TestSeedPlayerAutoId:

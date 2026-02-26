@@ -1,7 +1,10 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 from fantasy_baseball_manager.repos.sprint_speed_repo import SqliteSprintSpeedRepo
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_sprint_speed(**overrides: object) -> SprintSpeed:

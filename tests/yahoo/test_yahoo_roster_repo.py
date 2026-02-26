@@ -1,8 +1,11 @@
 import datetime
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.roster import Roster, RosterEntry
 from fantasy_baseball_manager.repos.yahoo_roster_repo import SqliteYahooRosterRepo
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_entry(**overrides: object) -> RosterEntry:

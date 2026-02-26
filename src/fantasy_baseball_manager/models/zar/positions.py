@@ -1,5 +1,8 @@
-from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+    from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 
 # Maps PositionAppearance position codes to league-settings keys.
 POSITION_ALIASES: dict[str, str] = {

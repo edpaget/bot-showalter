@@ -1,7 +1,9 @@
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.config import _deep_merge, load_config
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestLoadConfigDefaults:

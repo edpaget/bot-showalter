@@ -1,9 +1,12 @@
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.features import batting, pitching, player
 from fantasy_baseball_manager.features.transforms.league_averages import make_league_avg_transform
 from fantasy_baseball_manager.features.transforms.weighted_rates import make_weighted_rates_transform
 from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def build_batting_features(categories: Sequence[str], lags: int = 3) -> list[Feature]:

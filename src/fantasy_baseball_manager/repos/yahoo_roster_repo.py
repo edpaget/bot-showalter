@@ -1,7 +1,10 @@
 import datetime
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.roster import Roster, RosterEntry
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class SqliteYahooRosterRepo:

@@ -3,12 +3,14 @@ import fnmatch
 import io
 import logging
 import zipfile
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from fantasy_baseball_manager.ingest._retry import default_http_retry
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 

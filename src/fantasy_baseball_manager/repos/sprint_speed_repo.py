@@ -1,6 +1,9 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
+if TYPE_CHECKING:
+    import sqlite3
+
+    from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 
 
 class SqliteSprintSpeedRepo:

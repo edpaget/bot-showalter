@@ -1,10 +1,13 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 import pytest
 
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.repos.errors import PlayerConflictError
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class TestSqlitePlayerRepo:

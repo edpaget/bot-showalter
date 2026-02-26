@@ -1,10 +1,13 @@
 """Shared splitting and evaluation utilities for model training."""
 
-from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from numpy.typing import NDArray
 
 
 def holdout_metrics(

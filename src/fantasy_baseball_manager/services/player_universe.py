@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.models.protocols import PlayerUniverseProvider
-from fantasy_baseball_manager.repos.protocols import BattingStatsRepo, PitchingStatsRepo
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.repos.protocols import BattingStatsRepo, PitchingStatsRepo
 
 # Re-export for backward compatibility
 __all__ = ["PlayerUniverseProvider", "StatsBasedPlayerUniverse"]

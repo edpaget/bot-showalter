@@ -1,12 +1,13 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.adp import ADP
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
-from fantasy_baseball_manager.domain.projection import Projection
-from fantasy_baseball_manager.domain.valuation import Valuation
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.adp import ADP
+    from fantasy_baseball_manager.domain.batting_stats import BattingStats
+    from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
+    from fantasy_baseball_manager.domain.player import Player
+    from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
+    from fantasy_baseball_manager.domain.projection import Projection
+    from fantasy_baseball_manager.domain.valuation import Valuation
 
 
 class FakePlayerRepo:

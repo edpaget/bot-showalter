@@ -2,8 +2,10 @@ import math
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.projection_accuracy import ProjectionComparison
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.projection_accuracy import ProjectionComparison
 
 
 @dataclass(frozen=True)

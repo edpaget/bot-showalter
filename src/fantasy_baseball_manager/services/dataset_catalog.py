@@ -1,7 +1,10 @@
 import json
 import logging
-import sqlite3
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import sqlite3
 
 logger = logging.getLogger(__name__)
 

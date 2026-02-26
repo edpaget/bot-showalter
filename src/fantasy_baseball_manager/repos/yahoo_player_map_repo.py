@@ -1,6 +1,9 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class SqliteYahooPlayerMapRepo:

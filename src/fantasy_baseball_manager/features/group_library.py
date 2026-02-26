@@ -3,7 +3,7 @@
 Import this module to register all static groups in the feature group registry.
 """
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.features import batting, pitching, player, projection
 from fantasy_baseball_manager.features.consensus_pt import batting_consensus_features, pitching_consensus_features
@@ -15,7 +15,11 @@ from fantasy_baseball_manager.features.library import (
     STATCAST_PLATE_DISCIPLINE,
     STATCAST_SPIN_PROFILE,
 )
-from fantasy_baseball_manager.features.types import AnyFeature, Feature
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from fantasy_baseball_manager.features.types import AnyFeature, Feature
 
 # ---------------------------------------------------------------------------
 # Static groups — registered at import time

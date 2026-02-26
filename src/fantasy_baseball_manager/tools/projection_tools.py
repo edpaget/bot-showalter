@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from langchain_core.tools import BaseTool, tool
 
-from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.tools._formatting import format_no_results
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.analysis_container import AnalysisContainer
 
 
 def create_lookup_projections_tool(container: AnalysisContainer) -> BaseTool:

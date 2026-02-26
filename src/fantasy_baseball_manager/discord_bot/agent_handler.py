@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-
-from langgraph.graph.state import CompiledStateGraph
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.agent.stream import collect_agent_response
+
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
 
 
 def split_message(text: str, limit: int = 2000) -> list[str]:

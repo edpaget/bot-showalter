@@ -42,7 +42,7 @@ build-backend = "hatchling.build"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["B", "E", "F", "I", "INP", "PLC0415", "S", "SIM", "T20", "UP"]
+select = ["B", "E", "F", "I", "INP", "PLC0415", "S", "SIM", "T20", "TC", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S105", "S106", "S107", "S108", "S110", "S311"]

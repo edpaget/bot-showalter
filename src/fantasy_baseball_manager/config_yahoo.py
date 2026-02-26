@@ -1,10 +1,12 @@
 import os
 import tomllib
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.exceptions import FbmException
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _CONFIG_FILENAME = "fbm.toml"
 

@@ -1,8 +1,7 @@
 import statistics
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.league_settings import LeagueSettings, StatType
-from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.projection_confidence import (
     ClassifiedPlayer,
     ConfidenceReport,
@@ -10,7 +9,11 @@ from fantasy_baseball_manager.domain.projection_confidence import (
     StatSpread,
     VarianceClassification,
 )
-from fantasy_baseball_manager.domain.valuation import Valuation
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.adp import ADP
+    from fantasy_baseball_manager.domain.projection import Projection
+    from fantasy_baseball_manager.domain.valuation import Valuation
 
 
 def compute_confidence(

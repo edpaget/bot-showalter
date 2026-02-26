@@ -1,6 +1,9 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.minor_league_batting_stats import MinorLeagueBattingStats
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class SqliteMinorLeagueBattingStatsRepo:

@@ -1,6 +1,9 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class SqliteLeagueEnvironmentRepo:

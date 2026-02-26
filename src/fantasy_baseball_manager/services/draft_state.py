@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
-from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 
 
 class DraftFormat(StrEnum):

@@ -1,5 +1,4 @@
-import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_milb_batting_mapper
@@ -9,6 +8,9 @@ from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import Sqlit
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from tests.helpers import seed_player
 from tests.ingest.conftest import FakeDataSource
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _milb_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:

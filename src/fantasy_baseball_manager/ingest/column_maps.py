@@ -1,7 +1,6 @@
 import contextlib
 import math
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.il_stint import ILStint
@@ -14,6 +13,9 @@ from fantasy_baseball_manager.domain.roster_stint import RosterStint
 from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 from fantasy_baseball_manager.ingest.il_parser import parse_il_transaction
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _to_optional_int(value: Any) -> int | None:

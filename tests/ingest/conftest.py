@@ -1,11 +1,13 @@
-import sqlite3
-from collections.abc import Generator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Generator
 
 
 class FakeDataSource:

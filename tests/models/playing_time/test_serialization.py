@@ -1,4 +1,4 @@
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -16,6 +16,9 @@ from fantasy_baseball_manager.models.playing_time.serialization import (
     save_coefficients,
     save_residual_buckets,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestSerialization:

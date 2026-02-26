@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -7,6 +7,9 @@ from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueE
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.services.league_environment_service import LeagueEnvironmentService
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_stats(player_id: int, **overrides: object) -> MinorLeagueBattingStats:

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from langchain_anthropic import ChatAnthropic
-from langchain_core.language_models import BaseChatModel
-from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from fantasy_baseball_manager.agent.prompt import build_system_prompt
-from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.tools import create_tools
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
+    from langgraph.graph.state import CompiledStateGraph
+
+    from fantasy_baseball_manager.analysis_container import AnalysisContainer
 
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 

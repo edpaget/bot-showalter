@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -11,6 +11,9 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 _ServiceTuple = tuple[
     PerformanceReportService, SqliteProjectionRepo, SqlitePlayerRepo, SqliteBattingStatsRepo, SqlitePitchingStatsRepo

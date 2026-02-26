@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from collections import defaultdict
 from statistics import mean
+from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool, tool
 
-from fantasy_baseball_manager.analysis_container import AnalysisContainer
-from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.tools._formatting import format_no_results, format_table
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.analysis_container import AnalysisContainer
+    from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 
 
 def _aggregate_deltas(deltas: list[PlayerStatDelta]) -> dict[str, list[PlayerStatDelta]]:

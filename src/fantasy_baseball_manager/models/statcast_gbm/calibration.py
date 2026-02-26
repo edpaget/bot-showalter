@@ -1,10 +1,12 @@
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import joblib
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _MIN_OBSERVATIONS = 50
 

@@ -1,6 +1,9 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.load_log import LoadLog
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class SqliteLoadLogRepo:

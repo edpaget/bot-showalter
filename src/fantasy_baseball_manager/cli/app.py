@@ -5,7 +5,7 @@ import logging
 import math
 import os
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from rich.table import Table
@@ -82,10 +82,8 @@ from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config, resolve_default_league
 from fantasy_baseball_manager.discord_bot.bot import FBMDiscordBot
-from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
 from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.domain.projection_accuracy import BATTING_RATE_STATS, PITCHING_RATE_STATS
@@ -144,6 +142,10 @@ from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.adp import ADP
+    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,9 @@
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.models.protocols import Model
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from fantasy_baseball_manager.models.protocols import Model
 
 _REGISTRY: dict[str, Callable[..., Model]] = {}
 

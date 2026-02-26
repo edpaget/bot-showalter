@@ -1,4 +1,4 @@
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -18,6 +18,9 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # -- Fixtures ----------------------------------------------------------------
 

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -33,6 +32,9 @@ from tests.features.conftest import (
     seed_projection_pitcher_data,
     seed_projection_v2_data,
 )
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class TestSourceTable:

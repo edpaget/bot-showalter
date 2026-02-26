@@ -1,11 +1,12 @@
 import dataclasses
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 from fantasy_baseball_manager.domain.model_run import ArtifactType
-from fantasy_baseball_manager.features.protocols import DatasetAssembler
+from fantasy_baseball_manager.features.protocols import (
+    DatasetAssembler,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
+)
 from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
 from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.gbm_training import (
@@ -63,6 +64,9 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.evaluation import SystemMetrics
 
 _FeatureSetBuilder = Callable[[Sequence[int]], FeatureSet]
 

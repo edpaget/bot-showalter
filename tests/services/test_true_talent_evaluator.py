@@ -1,4 +1,4 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -10,6 +10,9 @@ from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingSta
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
 from tests.helpers import seed_player
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_service(

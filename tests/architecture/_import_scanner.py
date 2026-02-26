@@ -2,7 +2,10 @@
 
 import ast
 import dataclasses
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 PACKAGE_NAME = "fantasy_baseball_manager"
 

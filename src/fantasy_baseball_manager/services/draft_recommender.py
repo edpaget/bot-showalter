@@ -1,9 +1,13 @@
-from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.domain.draft_recommendation import (
     Recommendation,
     RecommendationWeights,
 )
 from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftFormat, DraftState
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 
 
 def recommend(

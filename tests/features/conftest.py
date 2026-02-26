@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-import sqlite3
 import tempfile
-from collections.abc import Generator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Generator
 
 _STATCAST_MIGRATIONS_DIR = (
     Path(__file__).parent.parent.parent / "src" / "fantasy_baseball_manager" / "db" / "statcast_migrations"

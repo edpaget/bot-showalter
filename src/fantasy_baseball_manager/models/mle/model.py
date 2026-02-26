@@ -1,7 +1,7 @@
 """MLE projection model — translates minor league stats to MLB-equivalent projections."""
 
 from collections import defaultdict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.models.mle.engine import (
@@ -18,11 +18,13 @@ from fantasy_baseball_manager.models.mle.types import (
 )
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, PrepareResult
 from fantasy_baseball_manager.models.registry import register
-from fantasy_baseball_manager.repos.protocols import (
-    LeagueEnvironmentRepo,
-    LevelFactorRepo,
-    MinorLeagueBattingStatsRepo,
-)
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.repos.protocols import (
+        LeagueEnvironmentRepo,
+        LevelFactorRepo,
+        MinorLeagueBattingStatsRepo,
+    )
 
 
 @register("mle")

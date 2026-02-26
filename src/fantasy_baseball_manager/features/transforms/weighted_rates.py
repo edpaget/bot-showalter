@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.features.types import RowTransform
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from fantasy_baseball_manager.features.types import RowTransform
 
 
 def make_weighted_rates_transform(

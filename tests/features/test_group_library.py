@@ -1,5 +1,5 @@
 import importlib
-import sqlite3
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -19,6 +19,9 @@ from tests.features.conftest import (
     seed_pitching_data,
     seed_statcast_gbm_projection,
 )
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 @pytest.fixture(autouse=True)

@@ -1,11 +1,14 @@
 import json
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
 
 from fantasy_baseball_manager.yahoo.auth import YahooAuth, YahooTokens
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class FakeTransport(httpx.BaseTransport):

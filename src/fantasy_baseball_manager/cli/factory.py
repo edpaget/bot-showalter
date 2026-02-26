@@ -1,11 +1,9 @@
 import functools
 import inspect
-import sqlite3
-from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
@@ -19,11 +17,9 @@ from fantasy_baseball_manager.ingest.fangraphs_source import FgStatsSource
 from fantasy_baseball_manager.ingest.lahman_source import LahmanAppearancesSource, LahmanPeopleSource, LahmanTeamsSource
 from fantasy_baseball_manager.ingest.mlb_milb_stats_source import MLBMinorLeagueBattingSource
 from fantasy_baseball_manager.ingest.mlb_transactions_source import MLBTransactionsSource
-from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.sprint_speed_source import SprintSpeedSource
 from fantasy_baseball_manager.ingest.statcast_savant_source import StatcastSavantSource
 from fantasy_baseball_manager.models.composite.engine import resolve_engine
-from fantasy_baseball_manager.models.protocols import Model, ModelConfig
 from fantasy_baseball_manager.models.registry import get
 from fantasy_baseball_manager.models.run_manager import RunManager
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
@@ -45,24 +41,31 @@ from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from fantasy_baseball_manager.repos.yahoo_league_repo import SqliteYahooLeagueRepo, SqliteYahooTeamRepo
 from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
 from fantasy_baseball_manager.repos.yahoo_roster_repo import SqliteYahooRosterRepo
-from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
-from fantasy_baseball_manager.services.adp_movers import ADPMoversService
-from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.dataset_catalog import DatasetCatalogService
 from fantasy_baseball_manager.services.league_environment_service import LeagueEnvironmentService
-from fantasy_baseball_manager.services.performance_report import PerformanceReportService
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
-from fantasy_baseball_manager.services.player_profile import PlayerProfileService
 from fantasy_baseball_manager.services.player_universe import StatsBasedPlayerUniverse
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
-from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
-from fantasy_baseball_manager.services.residual_analysis_diagnostic import ResidualAnalysisDiagnostic
-from fantasy_baseball_manager.services.residual_persistence_diagnostic import ResidualPersistenceDiagnostic
-from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
-from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
-from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Iterator
+
+    from fantasy_baseball_manager.ingest.protocols import DataSource
+    from fantasy_baseball_manager.models.protocols import Model, ModelConfig
+    from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
+    from fantasy_baseball_manager.services.adp_movers import ADPMoversService
+    from fantasy_baseball_manager.services.adp_report import ADPReportService
+    from fantasy_baseball_manager.services.performance_report import PerformanceReportService
+    from fantasy_baseball_manager.services.player_profile import PlayerProfileService
+    from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
+    from fantasy_baseball_manager.services.residual_analysis_diagnostic import ResidualAnalysisDiagnostic
+    from fantasy_baseball_manager.services.residual_persistence_diagnostic import ResidualPersistenceDiagnostic
+    from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
+    from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
+    from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
 
 def create_model(name: str, **kwargs: Any) -> Result[Model, ConfigError]:

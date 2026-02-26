@@ -3,12 +3,15 @@ from __future__ import annotations
 import builtins
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.models.protocols import ModelConfig
 from fantasy_baseball_manager.models.run_manager import RunContext, RunManager
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 
 
 class FakeModelRunRepo:

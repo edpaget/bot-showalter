@@ -1,7 +1,10 @@
-import sqlite3
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def _make_env(**overrides: object) -> LeagueEnvironment:
