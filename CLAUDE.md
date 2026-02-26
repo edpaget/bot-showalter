@@ -11,7 +11,7 @@ Fantasy baseball manager. Python 3.14+, uses `uv` for dependency management. Tes
 - **Lint:** `uv run ruff check src tests`
 - **Format:** `uv run ruff format src tests`
 - **Type check:** `uv run ty check src tests`
-- **Coverage report:** `uv run pytest --cov` (add `--cov-report=html` for HTML output in `htmlcov/`)
+- **Coverage report:** `uv run pytest --cov` (add `--cov-report=html` for HTML output in `htmlcov/`). Always include slow tests when checking coverage — do **not** combine `--cov` with `-m "not slow"`, as that lowers the total and fails the `fail_under` threshold.
 - **Fast tests only:** `uv run pytest -m "not slow"` (skips ML model training tests)
 - **Install deps:** `uv sync`
 - **CI:** GitHub Actions runs the full quality gate (format, lint, type check, tests + coverage) on every push to main and on PRs.
@@ -64,15 +64,17 @@ Use one worktree per roadmap, not per phase. This avoids losing the session's wo
 **After each phase lands:**
 
 1. **Update plan tracking.** Mark the phase `done (<date>)` in the roadmap's Status table and update `docs/plans/INDEX.md` progress (e.g., "phase 1 done" → "phases 1-2 done", or "all phases done"). Commit these doc changes alongside the implementation or as a separate `docs:` commit.
-2. **Merge back to main from inside the worktree:**
+2. **Merge back to main from the main repo checkout:**
 
 ```bash
-git push . HEAD:main          # fast-forward main to the worktree branch tip
-git checkout main             # switch the worktree to main so the next phase starts clean
-git checkout -b <roadmap>     # create a fresh branch for the next phase
+cd /Users/edward/Projects/fbm  # switch to the main repo where main is checked out
+git merge --ff-only <branch>    # fast-forward main to the worktree branch tip
+cd -                            # return to the worktree
+git checkout main               # switch the worktree to main so the next phase starts clean
+git checkout -b <roadmap>       # create a fresh branch for the next phase
 ```
 
-If `push . HEAD:main` fails (non-fast-forward), rebase onto main first: `git fetch . main && git rebase FETCH_HEAD`.
+If `merge --ff-only` fails (non-fast-forward), rebase in the worktree first: `git rebase main`, then retry.
 
 3. Continue with the next phase in the same worktree, or end the session. The worktree stays alive — the user will be prompted to keep or remove it when the session exits.
 
