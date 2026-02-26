@@ -50,6 +50,10 @@ class DraftEngine:
     def __init__(self) -> None:
         self._removed_rows = {}
 
+    @property
+    def state(self) -> DraftState:
+        return self._require_state()
+
     def _require_state(self) -> DraftState:
         if self._state is None:
             msg = "Draft not started"

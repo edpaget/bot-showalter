@@ -655,6 +655,28 @@ class TestMyRoster:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Step 12a: state property
+# ---------------------------------------------------------------------------
+
+
+class TestStateProperty:
+    def test_returns_state_after_start(self) -> None:
+        engine = DraftEngine()
+        started = engine.start(PLAYERS, SNAKE_CONFIG)
+        assert engine.state is started
+
+    def test_raises_before_start(self) -> None:
+        engine = DraftEngine()
+        with pytest.raises(DraftError, match="not started"):
+            engine.state  # noqa: B018
+
+
+# ---------------------------------------------------------------------------
+# Step 12b: my_needs()
+# ---------------------------------------------------------------------------
+
+
 class TestMyNeeds:
     def test_all_slots_unfilled(self) -> None:
         engine = DraftEngine()
