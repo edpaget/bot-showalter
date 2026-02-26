@@ -19,7 +19,7 @@ Overview of all active roadmaps, their status, and cross-roadmap dependencies.
 | [Player Eligibility](player-eligibility.md) | 3 | all phases done | none |
 | [Principles Enforcement](principles-enforcement.md) | 6 | phases 1-3 done | none |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 | not started | none |
-| [Live Draft Tracker](live-draft-tracker.md) | 4 | phases 1-2 done | valuations (done) |
+| [Live Draft Tracker](live-draft-tracker.md) | 4 | phases 1-3 done | valuations (done) |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | not started | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
