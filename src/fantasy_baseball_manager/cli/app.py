@@ -15,6 +15,7 @@ from fantasy_baseball_manager.agent.chat import run_chat
 from fantasy_baseball_manager.agent.graph import build_agent
 from fantasy_baseball_manager.agent.prompt import current_season
 from fantasy_baseball_manager.cli._dispatcher import dispatch
+from fantasy_baseball_manager.cli._helpers import parse_params, parse_tags
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.cli._logging import configure_logging
 from fantasy_baseball_manager.cli._output import (
@@ -166,6 +167,7 @@ def main(
 _ModelArg = Annotated[str, typer.Argument(help="Name of the projection model")]
 _OutputDirOpt = Annotated[str | None, typer.Option("--output-dir", help="Output directory for artifacts")]
 _SeasonOpt = Annotated[list[int] | None, typer.Option("--season", help="Season year(s) to include")]
+_ParamOpt = Annotated[list[str] | None, typer.Option("--param", help="Model param as key=value (repeatable)")]
 
 
 def _run_action(operation: str, model_name: str, output_dir: str | None, seasons: list[int] | None) -> None:
@@ -192,7 +194,7 @@ def prepare(
     model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None, param: _ParamOpt = None
 ) -> None:
     """Prepare data for a projection model."""
-    params = _parse_params(param)
+    params = parse_params(param)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
     with build_model_context(model, config) as ctx:
         match dispatch("prepare", ctx.model, config):
@@ -207,54 +209,6 @@ _VersionOpt = Annotated[str | None, typer.Option("--version", help="Run version 
 _TagOpt = Annotated[list[str] | None, typer.Option("--tag", help="Tag as key=value (repeatable)")]
 
 
-def _parse_tags(raw_tags: list[str] | None) -> dict[str, str] | None:
-    if not raw_tags:
-        return None
-    parsed: dict[str, str] = {}
-    for tag in raw_tags:
-        key, _, value = tag.partition("=")
-        parsed[key] = value
-    return parsed
-
-
-_ParamOpt = Annotated[list[str] | None, typer.Option("--param", help="Model param as key=value (repeatable)")]
-
-
-def _coerce_value(value: str) -> Any:
-    """Coerce a CLI string value to bool, int, float, or leave as str."""
-    if value.lower() in ("true", "false"):
-        return value.lower() == "true"
-    try:
-        return int(value)
-    except ValueError:
-        pass
-    try:
-        return float(value)
-    except ValueError:
-        pass
-    return value
-
-
-def _set_nested(target: dict[str, Any], dotted_key: str, value: Any) -> None:
-    """Set a value in a nested dict using a dotted key like 'pitcher.learning_rate'."""
-    keys = dotted_key.split(".")
-    for key in keys[:-1]:
-        if key not in target or not isinstance(target[key], dict):
-            target[key] = {}
-        target = target[key]
-    target[keys[-1]] = value
-
-
-def _parse_params(raw_params: list[str] | None) -> dict[str, Any] | None:
-    if not raw_params:
-        return None
-    parsed: dict[str, Any] = {}
-    for param in raw_params:
-        key, _, value = param.partition("=")
-        _set_nested(parsed, key, _coerce_value(value))
-    return parsed
-
-
 @app.command()
 def train(
     model: _ModelArg,
@@ -265,8 +219,8 @@ def train(
     param: _ParamOpt = None,
 ) -> None:
     """Train a projection model."""
-    tags = _parse_tags(tag)
-    params = _parse_params(param)
+    tags = parse_tags(tag)
+    params = parse_params(param)
     config = load_config(
         model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
     )
@@ -313,8 +267,8 @@ def predict(
     param: _ParamOpt = None,
 ) -> None:
     """Generate predictions from a projection model."""
-    tags = _parse_tags(tag)
-    params = _parse_params(param)
+    tags = parse_tags(tag)
+    params = parse_params(param)
     if params and "league" in params and isinstance(params["league"], str):
         params["league"] = load_league(params["league"], Path.cwd())
     config = load_config(
@@ -381,7 +335,7 @@ def ablate(
     model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None, param: _ParamOpt = None
 ) -> None:
     """Run ablation study on a projection model."""
-    params = _parse_params(param)
+    params = parse_params(param)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
     with build_model_context(model, config) as ctx:
         match dispatch("ablate", ctx.model, config):
@@ -401,7 +355,7 @@ def tune(
     top: _TopOpt = None,
 ) -> None:
     """Tune hyperparameters for a projection model."""
-    params = _parse_params(param)
+    params = parse_params(param)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params, top=top)
     with build_model_context(model, config) as ctx:
         match dispatch("tune", ctx.model, config):
@@ -421,7 +375,7 @@ def sweep(
     top: _TopOpt = None,
 ) -> None:
     """Sweep meta-parameters (e.g. weight transforms) for a projection model."""
-    params = _parse_params(param)
+    params = parse_params(param)
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params, top=top)
     with build_model_context(model, config) as ctx:
         match dispatch("sweep", ctx.model, config):
