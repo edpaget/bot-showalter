@@ -11,7 +11,7 @@ Automate enforcement of the architectural principles documented in `docs/princip
 | 3 — Ruff rule expansion | done (2026-02-23) |
 | 4 — Module re-export audit tests | not started |
 | 5 — LLM adversarial review agent | not started |
-| 6 — TC (type-checking imports) | not started |
+| 6 — TC (type-checking imports) | done (2026-02-25) |
 
 ## Phase 1: Layer dependency tests
 
