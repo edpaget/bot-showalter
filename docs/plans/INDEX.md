@@ -16,7 +16,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 | not started | none |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | not started | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
-| [Pitcher Calibration](pitcher-calibration.md) | 4 | not started | none |
+| [Pitcher Calibration](pitcher-calibration.md) | 4 | phase 1 done | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
 | [Principles Enforcement](principles-enforcement.md) | 6 | phases 1-3, 6 done | none |
