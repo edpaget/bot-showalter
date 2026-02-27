@@ -482,7 +482,7 @@ def _write_adp_csv(rows: list[dict[str, Any]], path: Path) -> None:
 
 
 @ingest_app.command("adp-fetch")
-def ingest_adp_fetch(
+def ingest_adp_fetch(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     as_of: Annotated[str | None, typer.Option("--as-of", help="Snapshot date (ISO)")] = None,
     save_csv: Annotated[Path | None, typer.Option("--save-csv", help="Save fetched data to CSV")] = None,

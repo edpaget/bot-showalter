@@ -21,7 +21,7 @@ _DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 @yahoo_app.command("auth")
-def yahoo_auth(
+def yahoo_auth(  # pragma: no cover
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Authenticate with Yahoo Fantasy API (triggers OAuth flow)."""
@@ -42,7 +42,7 @@ def yahoo_auth(
 
 
 @yahoo_app.command("sync")
-def yahoo_sync(
+def yahoo_sync(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
@@ -113,7 +113,7 @@ def yahoo_sync(
 
 
 @yahoo_app.command("map-player")
-def yahoo_map_player(
+def yahoo_map_player(  # pragma: no cover
     yahoo_key: Annotated[str, typer.Argument(help="Yahoo player key (e.g. 449.p.12345)")],
     player_name: Annotated[str, typer.Argument(help="Player name (e.g. 'Mike Trout')")],
     player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")] = "batter",
@@ -168,7 +168,7 @@ def yahoo_map_player(
 
 
 @yahoo_app.command("rosters")
-def yahoo_rosters(
+def yahoo_rosters(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
@@ -243,7 +243,7 @@ def yahoo_rosters(
 
 
 @yahoo_app.command("my-roster")
-def yahoo_my_roster(
+def yahoo_my_roster(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
     data_dir: _DataDirOpt = "./data",

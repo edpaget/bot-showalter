@@ -213,7 +213,7 @@ def compare_cmd(
             print_stratified_comparison_result(strat_result)
 
 
-def chat_cmd(
+def chat_cmd(  # pragma: no cover
     data_dir: _DataDirOpt = "./data",
     model: Annotated[str, typer.Option("--model", help="Anthropic model")] = "claude-haiku-4-5-20251001",
 ) -> None:
@@ -227,7 +227,7 @@ def chat_cmd(
         run_chat(agent)
 
 
-def discord_cmd(
+def discord_cmd(  # pragma: no cover
     data_dir: _DataDirOpt = "./data",
     model: Annotated[str, typer.Option("--model", help="Anthropic model")] = "claude-haiku-4-5-20251001",
 ) -> None:

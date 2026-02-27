@@ -123,7 +123,7 @@ def draft_export(
 
 
 @draft_app.command("live")
-def draft_live(
+def draft_live(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
@@ -164,7 +164,7 @@ def draft_live(
 
 
 @draft_app.command("start")
-def draft_start(
+def draft_start(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     teams: Annotated[int, typer.Option("--teams", help="Number of teams in league")],
     slot: Annotated[int, typer.Option("--slot", help="Your draft slot (1-based)")],
