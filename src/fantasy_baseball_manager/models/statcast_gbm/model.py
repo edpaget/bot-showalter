@@ -194,25 +194,30 @@ class _StatcastGBMBase:
         seasons: Sequence[int],
         player_type: str,
     ) -> list[dict[str, Any]]:
-        """Materialize a feature set, falling back to player_ids if no rows."""
+        """Materialize a feature set, falling back to player_ids for missing seasons."""
         handle = self._assembler.get_or_materialize(feature_set)
         rows = self._assembler.read(handle)
-        if rows or self._player_universe is None:
+        if self._player_universe is None:
+            return rows
+        present_seasons = {row["season"] for row in rows}
+        missing_seasons = [s for s in seasons if s not in present_seasons]
+        if not missing_seasons:
             return rows
         all_ids: set[int] = set()
-        for season in seasons:
+        for season in missing_seasons:
             all_ids |= self._player_universe.get_player_ids(season, player_type)
         if not all_ids:
             return rows
         fallback_fs = dataclasses.replace(
             feature_set,
+            seasons=tuple(missing_seasons),
             spine_filter=SpineFilter(
                 player_type=feature_set.spine_filter.player_type,
                 player_ids=tuple(sorted(all_ids)),
             ),
         )
         fb_handle = self._assembler.get_or_materialize(fallback_fs)
-        return self._assembler.read(fb_handle)
+        return rows + self._assembler.read(fb_handle)
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)

@@ -2206,3 +2206,58 @@ class TestPreseasonPredictFallback:
         result = model.predict(predict_config)
 
         assert result.predictions == []
+
+    def test_fallback_supplements_missing_seasons(self, tmp_path: Path) -> None:
+        """When some predict seasons have rows and others don't, fallback fills gaps."""
+        # Season 2023 has regular rows; season 2026 only via player_id fallback
+        rows = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        fallback_bat = {2026: [_make_preseason_row(f"p_{i}", 2026) for i in range(5)]}
+        fallback_pit = {2026: [_make_preseason_pitcher_row(f"pit_{i}", 2026) for i in range(5)]}
+
+        assembler = FakeAssembler(
+            rows,
+            pitcher_rows,
+            player_id_rows_by_season=fallback_bat,
+            pitcher_player_id_rows_by_season=fallback_pit,
+        )
+        provider = FakePlayerUniverseProvider(
+            {
+                (2026, "batter"): {1, 2, 3},
+                (2026, "pitcher"): {4, 5, 6},
+            }
+        )
+        model = StatcastGBMPreseasonModel(
+            assembler=assembler,
+            evaluator=_NULL_EVALUATOR,
+            player_universe=provider,
+        )
+
+        train_config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+        )
+        model.train(train_config)
+
+        # Predict on mix of historical (has rows) and future (needs fallback)
+        predict_config = ModelConfig(
+            seasons=[2023, 2026],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.predict(predict_config)
+
+        # Both seasons should appear in predictions
+        result_seasons = {p["season"] for p in result.predictions}
+        assert 2023 in result_seasons
+        assert 2026 in result_seasons
+
+        # Provider should have been called for 2026 but NOT for 2023
+        called_seasons = {s for s, _ in provider.calls}
+        assert 2026 in called_seasons
+        assert 2023 not in called_seasons
