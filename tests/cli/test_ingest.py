@@ -183,7 +183,7 @@ class TestIngestPlayers:
         fake_source = _FakeSource(player_rows, "chadwick_bureau", "chadwick_register")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(conn, fake_source),
         )
 
@@ -215,7 +215,7 @@ class TestIngestPlayers:
             yield _TestIngestContainer(conn, fake_source)
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             _capturing_container,
         )
 
@@ -290,7 +290,7 @@ class TestIngestBatting:
         fake_source = _FakeSource(batting_rows, "fangraphs", "batting")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(conn, fake_source),
         )
 
@@ -316,7 +316,7 @@ class TestIngestBatting:
         fake_source = _FakeSource(batting_rows, "fangraphs", "batting")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(conn, fake_source),
         )
 
@@ -366,7 +366,7 @@ class TestIngestPitching:
         fake_source = _FakeSource(pitching_rows, "fangraphs", "pitching")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(conn, fake_source),
         )
 
@@ -392,7 +392,7 @@ class TestIngestPitching:
         fake_source = _FakeSource(pitching_rows, "fangraphs", "pitching")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(conn, fake_source),
         )
 
@@ -451,7 +451,7 @@ class TestIngestBio:
         fake_player_source = _FakeSource([], "chadwick_bureau", "chadwick_register")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(conn, fake_player_source, fake_bio_source),
         )
 
@@ -496,7 +496,7 @@ class TestIngestBio:
         fake_player_source = _FakeSource([], "chadwick_bureau", "chadwick_register")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(conn, fake_player_source, fake_bio_source),
         )
 
@@ -538,7 +538,7 @@ class TestIngestAppearances:
         fake_appearances = _FakeSource(appearances_data, "lahman", "appearances")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(
                 conn,
                 _FakeSource([], "chadwick_bureau", "chadwick_register"),
@@ -572,7 +572,7 @@ class TestIngestRoster:
         fake_teams = _FakeSource(teams_data, "lahman", "teams")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(
                 conn,
                 _FakeSource([], "chadwick_bureau", "chadwick_register"),
@@ -646,7 +646,7 @@ class TestIngestMilbBatting:
         fake_milb = _FakeSource(milb_rows, "mlb_api", "milb_batting")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(
                 conn,
                 _FakeSource([], "chadwick_bureau", "chadwick_register"),
@@ -676,7 +676,7 @@ class TestIngestMilbBatting:
         fake_milb = _FakeSource(milb_rows, "mlb_api", "milb_batting")
 
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.build_ingest_container",
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
             lambda data_dir: _build_test_container(
                 conn,
                 _FakeSource([], "chadwick_bureau", "chadwick_register"),

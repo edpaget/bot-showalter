@@ -147,7 +147,7 @@ class TestActionCommands:
             lambda path: seeded_conn,
         )
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.load_config",
+            "fantasy_baseball_manager.cli.commands.model.load_config",
             lambda **kwargs: ModelConfig(
                 seasons=[2023],
                 model_params={
@@ -181,7 +181,7 @@ class TestActionCommands:
             captured.update(kwargs)
             return original_load(**kwargs)
 
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_config", spy_load)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.commands.model.load_config", spy_load)
         runner.invoke(app, ["ablate", "marcel", "--param", "mode=preseason"])
         assert captured.get("model_params") == {"mode": "preseason"}
 
@@ -986,7 +986,7 @@ class TestPredictLeagueResolution:
             lambda path: create_connection(":memory:"),
         )
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.load_league",
+            "fantasy_baseball_manager.cli.commands.model.load_league",
             lambda name, path: _eval_league(),
         )
         monkeypatch.setattr(ZarModel, "predict", fake_predict)
@@ -1014,9 +1014,9 @@ class TestPredictLeagueResolution:
         def load_league_should_not_be_called(name: str, path: Path) -> LeagueSettings:
             raise AssertionError("load_league should not be called when no league param is set")
 
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", load_league_should_not_be_called)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.commands.model.load_league", load_league_should_not_be_called)
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.app.load_config",
+            "fantasy_baseball_manager.cli.commands.model.load_config",
             lambda **kwargs: ModelConfig(
                 seasons=[2023],
                 model_params={
@@ -1236,7 +1236,9 @@ class TestValuationsEvaluateCommand:
         db_conn = create_connection(":memory:")
         _seed_valuation_eval_data(db_conn)
         monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _eval_league())
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.valuations.load_league", lambda name, path: _eval_league()
+        )
 
         result = runner.invoke(
             app,
@@ -1248,7 +1250,9 @@ class TestValuationsEvaluateCommand:
     def test_valuations_evaluate_no_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
         monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _eval_league())
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.valuations.load_league", lambda name, path: _eval_league()
+        )
 
         result = runner.invoke(
             app,
@@ -1328,7 +1332,9 @@ class TestDraftBoardCommand:
         db_conn = create_connection(":memory:")
         _seed_draft_board_data(db_conn)
         monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _draft_board_league()
+        )
 
         result = runner.invoke(
             app,
@@ -1341,7 +1347,9 @@ class TestDraftBoardCommand:
     def test_draft_board_empty_season(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
         monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _draft_board_league()
+        )
 
         result = runner.invoke(
             app,
@@ -1354,7 +1362,9 @@ class TestDraftBoardCommand:
         db_conn = create_connection(":memory:")
         _seed_draft_board_data(db_conn)
         monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _draft_board_league()
+        )
 
         result = runner.invoke(
             app,
@@ -1370,7 +1380,9 @@ class TestDraftExportCommand:
         db_conn = create_connection(":memory:")
         _seed_draft_board_data(db_conn)
         monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _draft_board_league()
+        )
 
         output_file = tmp_path / "board.csv"
         result = runner.invoke(
@@ -1387,7 +1399,9 @@ class TestDraftExportCommand:
     def test_draft_export_empty_season(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         db_conn = create_connection(":memory:")
         monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
-        monkeypatch.setattr("fantasy_baseball_manager.cli.app.load_league", lambda name, path: _draft_board_league())
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _draft_board_league()
+        )
 
         output_file = tmp_path / "empty.csv"
         result = runner.invoke(

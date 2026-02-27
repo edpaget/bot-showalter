@@ -68,7 +68,7 @@ class TestComputeLeagueEnv:
         _seed_milb_stats(conn)
 
         monkeypatch.setattr(  # type: ignore[union-attr]
-            "fantasy_baseball_manager.cli.app.build_compute_container",
+            "fantasy_baseball_manager.cli.commands.compute.build_compute_container",
             lambda data_dir: _build_test_compute_container(conn),
         )
 
@@ -88,7 +88,7 @@ class TestComputeLeagueEnv:
         conn = create_connection(":memory:")
 
         monkeypatch.setattr(  # type: ignore[union-attr]
-            "fantasy_baseball_manager.cli.app.build_compute_container",
+            "fantasy_baseball_manager.cli.commands.compute.build_compute_container",
             lambda data_dir: _build_test_compute_container(conn),
         )
 
