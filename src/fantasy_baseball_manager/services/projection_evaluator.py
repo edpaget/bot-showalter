@@ -13,6 +13,7 @@ from fantasy_baseball_manager.domain import (
     compare_to_batting_actuals,
     compare_to_pitching_actuals,
     compute_stat_metrics,
+    compute_tail_accuracy,
     missing_batting_comparisons,
     missing_pitching_comparisons,
     normalize_projection_pt,
@@ -54,6 +55,7 @@ class ProjectionEvaluator:
         normalize_pt: ConsensusLookup | None = None,
         min_pa: int | None = None,
         min_ip: int | None = None,
+        tail_ns: tuple[int, ...] | None = None,
     ) -> SystemMetrics:
         logger.info("Evaluating %s/%s for season %d", system, version, season)
         projections = self._projection_repo.get_by_system_version(system, version)
@@ -107,6 +109,7 @@ class ProjectionEvaluator:
             pitching_actuals,
         )
 
+        tail = compute_tail_accuracy(comparisons, tail_ns, stats) if tail_ns is not None else None
         metrics = compute_stat_metrics(comparisons, stats)
         logger.info("Evaluation complete: %d metrics", len(metrics))
 
@@ -115,6 +118,7 @@ class ProjectionEvaluator:
             version=version,
             source_type=source_type,
             metrics=metrics,
+            tail=tail,
         )
 
     def _build_comparisons(
@@ -149,6 +153,7 @@ class ProjectionEvaluator:
         normalize_pt: ConsensusLookup | None = None,
         min_pa: int | None = None,
         min_ip: int | None = None,
+        tail_ns: tuple[int, ...] | None = None,
     ) -> ComparisonResult:
         logger.info("Comparing %d systems for season %d", len(systems), season)
         system_metrics: list[SystemMetrics] = []
@@ -165,6 +170,7 @@ class ProjectionEvaluator:
                 normalize_pt=normalize_pt,
                 min_pa=min_pa,
                 min_ip=min_ip,
+                tail_ns=tail_ns,
             )
             system_metrics.append(metrics)
             all_stat_names.update(metrics.metrics.keys())

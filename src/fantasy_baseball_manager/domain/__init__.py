@@ -36,7 +36,9 @@ from fantasy_baseball_manager.domain.evaluation import (
     StatMetrics,
     StratifiedComparisonResult,
     SystemMetrics,
+    TailAccuracy,
     compute_stat_metrics,
+    compute_tail_accuracy,
     summarize_comparison,
 )
 from fantasy_baseball_manager.domain.il_stint import ILStint
@@ -213,6 +215,7 @@ __all__ = [
     "SystemAccuracyResult",
     "SystemMetrics",
     "SystemSummary",
+    "TailAccuracy",
     "TalentQualitySummary",
     "Team",
     "TierAssignment",
@@ -242,6 +245,7 @@ __all__ = [
     "compute_rmse_ceiling",
     "compute_shrinkage",
     "compute_stat_metrics",
+    "compute_tail_accuracy",
     "identify_chronic_performers",
     "missing_batting_comparisons",
     "missing_pitching_comparisons",

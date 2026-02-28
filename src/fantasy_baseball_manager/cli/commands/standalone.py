@@ -167,6 +167,7 @@ def compare_cmd(
     rate_only: Annotated[bool, typer.Option("--rate-only", help="Evaluate rate stats only")] = False,
     min_pa: Annotated[int | None, typer.Option("--min-pa", help="Minimum PA for batters")] = None,
     min_ip: Annotated[int | None, typer.Option("--min-ip", help="Minimum IP for pitchers")] = None,
+    tail: Annotated[bool, typer.Option("--tail", help="Show top-N tail accuracy")] = False,
 ) -> None:
     """Compare multiple projection systems against actuals."""
     if stratify is not None and stratify not in _STRATIFY_CHOICES:
@@ -195,9 +196,17 @@ def compare_cmd(
             zips_projs = ctx.projection_repo.get_by_season(season, system="zips")
             consensus = build_consensus_lookup(steamer_projs, zips_projs)
 
+        tail_ns = (25, 50) if tail else None
         if stratify is None:
             result = ctx.evaluator.compare(
-                parsed, season, stats=stat, top=top, normalize_pt=consensus, min_pa=min_pa, min_ip=min_ip
+                parsed,
+                season,
+                stats=stat,
+                top=top,
+                normalize_pt=consensus,
+                min_pa=min_pa,
+                min_ip=min_ip,
+                tail_ns=tail_ns,
             )
             print_comparison_result(result)
         else:

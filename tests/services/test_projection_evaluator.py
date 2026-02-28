@@ -520,6 +520,49 @@ class TestCompareStratified:
         assert len(result.cohorts["veteran"].systems) == 2
 
 
+class TestEvaluateWithTailNs:
+    def test_evaluate_with_tail_ns_populates_tail(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in range(1, 6):
+            seed_player(conn, player_id=pid)
+        for pid in range(1, 6):
+            _seed_batter_projection(proj_repo, pid, hr=30 + pid, avg=0.280)
+            _seed_batting_actuals(batting_repo, pid, hr=28 + pid, avg=0.265)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025, tail_ns=(3, 5))
+        assert result.tail is not None
+        assert result.tail.ns == (3, 5)
+        assert "hr" in result.tail.rmse_by_stat
+
+    def test_evaluate_without_tail_ns_returns_none(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        seed_player(conn, player_id=1)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265)
+
+        result = evaluator.evaluate("steamer", "2025.1", 2025)
+        assert result.tail is None
+
+    def test_compare_passes_tail_ns_through(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
+        for pid in range(1, 6):
+            seed_player(conn, player_id=pid)
+        for system in ("steamer", "zips"):
+            for pid in range(1, 6):
+                _seed_batter_projection(proj_repo, pid, hr=30 + pid, avg=0.280, system=system)
+        for pid in range(1, 6):
+            _seed_batting_actuals(batting_repo, pid, hr=28 + pid, avg=0.265)
+
+        result = evaluator.compare(
+            [("steamer", "2025.1"), ("zips", "2025.1")],
+            season=2025,
+            tail_ns=(3,),
+        )
+        for sys_metrics in result.systems:
+            assert sys_metrics.tail is not None
+            assert sys_metrics.tail.ns == (3,)
+
+
 class TestEvaluateWithNormalizePt:
     def test_evaluate_with_normalize_pt_rescales_counting(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)

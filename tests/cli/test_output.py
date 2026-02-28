@@ -45,6 +45,7 @@ from fantasy_baseball_manager.domain.evaluation import (
     StatMetrics,
     StratifiedComparisonResult,
     SystemMetrics,
+    TailAccuracy,
 )
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
@@ -406,10 +407,13 @@ def _make_stat_metrics(
     rmse: float = 0.05,
     mae: float = 0.04,
     correlation: float = 0.9,
+    rank_correlation: float = 0.9,
     r_squared: float = 0.75,
     n: int = 100,
 ) -> StatMetrics:
-    return StatMetrics(rmse=rmse, mae=mae, correlation=correlation, r_squared=r_squared, n=n)
+    return StatMetrics(
+        rmse=rmse, mae=mae, correlation=correlation, rank_correlation=rank_correlation, r_squared=r_squared, n=n
+    )
 
 
 def _make_system_metrics(
@@ -427,7 +431,7 @@ class TestPrintSystemMetrics:
     def test_r_squared_header_in_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         print_system_metrics(_make_system_metrics())
         captured = capsys.readouterr()
-        assert "R²" in captured.out
+        assert "R\u00b2" in captured.out
 
     def test_r_squared_value_in_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         print_system_metrics(_make_system_metrics())
@@ -435,15 +439,28 @@ class TestPrintSystemMetrics:
         assert "0.7500" in captured.out
         assert "0.6500" in captured.out
 
+    def test_system_metrics_shows_rho(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_system_metrics(_make_system_metrics())
+        captured = capsys.readouterr()
+        assert "\u03c1" in captured.out
+
+    def test_system_metrics_shows_rank_correlation_value(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_system_metrics(_make_system_metrics(stats={"hr": _make_stat_metrics(rank_correlation=0.85)}))
+        captured = capsys.readouterr()
+        assert "0.8500" in captured.out
+
 
 class TestPrintComparisonResult:
-    def test_comparison_shows_r_squared(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_comparison_shows_r_squared(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
         sys_a = _make_system_metrics(system="steamer", version="2025", stats={"hr": _make_stat_metrics(r_squared=0.60)})
         sys_b = _make_system_metrics(system="zips", version="2025", stats={"hr": _make_stat_metrics(r_squared=0.45)})
         result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
         print_comparison_result(result)
         captured = capsys.readouterr()
-        assert "R²" in captured.out
+        assert "R\u00b2" in captured.out
         assert "0.6000" in captured.out
         assert "0.4500" in captured.out
 
@@ -497,6 +514,84 @@ class TestPrintComparisonResult:
         print_comparison_result(result)
         captured = capsys.readouterr()
         assert "\x1b[31m" in captured.out  # ANSI red
+
+    def test_two_system_shows_rank_correlation_delta(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        sys_a = _make_system_metrics(
+            system="steamer", version="2025", stats={"hr": _make_stat_metrics(rank_correlation=0.80)}
+        )
+        sys_b = _make_system_metrics(
+            system="zips", version="2025", stats={"hr": _make_stat_metrics(rank_correlation=0.90)}
+        )
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "\u03c1" in captured.out
+        assert "0.8000" in captured.out
+        assert "0.9000" in captured.out
+
+    def test_summary_footer_includes_rank_correlation(self, capsys: pytest.CaptureFixture[str]) -> None:
+        sys_a = _make_system_metrics(
+            system="steamer", version="2025", stats={"hr": _make_stat_metrics(rank_correlation=0.70)}
+        )
+        sys_b = _make_system_metrics(
+            system="zips", version="2025", stats={"hr": _make_stat_metrics(rank_correlation=0.85)}
+        )
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "on \u03c1" in captured.out
+
+    def test_three_system_shows_rank_correlation(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        sys_a = _make_system_metrics(
+            system="steamer", version="2025", stats={"hr": _make_stat_metrics(rank_correlation=0.80)}
+        )
+        sys_b = _make_system_metrics(
+            system="zips", version="2025", stats={"hr": _make_stat_metrics(rank_correlation=0.85)}
+        )
+        sys_c = _make_system_metrics(
+            system="marcel", version="latest", stats={"hr": _make_stat_metrics(rank_correlation=0.75)}
+        )
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b, sys_c])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "\u03c1" in captured.out
+        assert "0.8000" in captured.out
+        assert "0.8500" in captured.out
+        assert "0.7500" in captured.out
+
+    def test_tail_section_shown_when_tail_data_present(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        tail = TailAccuracy(ns=(25,), rmse_by_stat={"hr": {25: 5.1234}})
+        sys_a = _make_system_metrics(system="steamer", version="2025", stats={"hr": _make_stat_metrics()})
+        sys_a_with_tail = SystemMetrics(
+            system=sys_a.system, version=sys_a.version, source_type=sys_a.source_type, metrics=sys_a.metrics, tail=tail
+        )
+        sys_b = _make_system_metrics(system="zips", version="2025", stats={"hr": _make_stat_metrics()})
+        sys_b_with_tail = SystemMetrics(
+            system=sys_b.system, version=sys_b.version, source_type=sys_b.source_type, metrics=sys_b.metrics, tail=tail
+        )
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a_with_tail, sys_b_with_tail])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "Tail accuracy" in captured.out
+        assert "top-25" in captured.out
+        assert "5.1234" in captured.out
+
+    def test_tail_section_absent_when_no_tail_data(self, capsys: pytest.CaptureFixture[str]) -> None:
+        sys_a = _make_system_metrics(system="steamer", version="2025", stats={"hr": _make_stat_metrics()})
+        sys_b = _make_system_metrics(system="zips", version="2025", stats={"hr": _make_stat_metrics()})
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "Tail accuracy" not in captured.out
 
 
 class TestPrintStratifiedComparisonResult:

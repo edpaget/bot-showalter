@@ -597,6 +597,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "playwright" },
     { name = "scikit-learn" },
+    { name = "scipy" },
     { name = "tenacity" },
     { name = "typer" },
 ]
@@ -625,6 +626,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=0.3" },
     { name = "playwright", specifier = ">=1.49.0" },
     { name = "scikit-learn", specifier = ">=1.6.0" },
+    { name = "scipy", specifier = ">=1.17.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "typer", specifier = ">=0.15.0" },
 ]

@@ -1,8 +1,11 @@
 import math
 import statistics
+import warnings
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from scipy.stats import ConstantInputWarning, spearmanr
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain.projection_accuracy import ProjectionComparison
@@ -13,8 +16,15 @@ class StatMetrics:
     rmse: float
     mae: float
     correlation: float
+    rank_correlation: float
     r_squared: float
     n: int
+
+
+@dataclass(frozen=True)
+class TailAccuracy:
+    ns: tuple[int, ...]
+    rmse_by_stat: dict[str, dict[int, float]]
 
 
 @dataclass(frozen=True)
@@ -23,6 +33,7 @@ class SystemMetrics:
     version: str
     source_type: str
     metrics: dict[str, StatMetrics]
+    tail: TailAccuracy | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +56,11 @@ class StatComparisonRecord:
     r_squared_delta: float
     r_squared_pct_delta: float
     r_squared_winner: str
+    baseline_rank_correlation: float
+    candidate_rank_correlation: float
+    rank_correlation_delta: float
+    rank_correlation_pct_delta: float
+    rank_correlation_winner: str
 
 
 @dataclass(frozen=True)
@@ -58,6 +74,9 @@ class ComparisonSummary:
     r_squared_wins: int
     r_squared_losses: int
     r_squared_ties: int
+    rank_correlation_wins: int
+    rank_correlation_losses: int
+    rank_correlation_ties: int
 
 
 @dataclass(frozen=True)
@@ -100,6 +119,7 @@ def summarize_comparison(
     records: list[StatComparisonRecord] = []
     rmse_wins = rmse_losses = rmse_ties = 0
     r_squared_wins = r_squared_losses = r_squared_ties = 0
+    rc_wins = rc_losses = rc_ties = 0
 
     for stat_name in result.stats:
         b_metrics = baseline.metrics.get(stat_name)
@@ -112,6 +132,9 @@ def summarize_comparison(
 
         r_sq_delta = c_metrics.r_squared - b_metrics.r_squared
         r_sq_winner = _determine_winner(r_sq_delta, lower_is_better=False)
+
+        rc_delta = c_metrics.rank_correlation - b_metrics.rank_correlation
+        rc_winner = _determine_winner(rc_delta, lower_is_better=False)
 
         records.append(
             StatComparisonRecord(
@@ -126,6 +149,11 @@ def summarize_comparison(
                 r_squared_delta=r_sq_delta,
                 r_squared_pct_delta=_pct_delta(r_sq_delta, b_metrics.r_squared),
                 r_squared_winner=r_sq_winner,
+                baseline_rank_correlation=b_metrics.rank_correlation,
+                candidate_rank_correlation=c_metrics.rank_correlation,
+                rank_correlation_delta=rc_delta,
+                rank_correlation_pct_delta=_pct_delta(rc_delta, b_metrics.rank_correlation),
+                rank_correlation_winner=rc_winner,
             )
         )
 
@@ -143,6 +171,13 @@ def summarize_comparison(
         else:
             r_squared_ties += 1
 
+        if rc_winner == "candidate":
+            rc_wins += 1
+        elif rc_winner == "baseline":
+            rc_losses += 1
+        else:
+            rc_ties += 1
+
     return ComparisonSummary(
         baseline_label=baseline_label,
         candidate_label=candidate_label,
@@ -153,6 +188,9 @@ def summarize_comparison(
         r_squared_wins=r_squared_wins,
         r_squared_losses=r_squared_losses,
         r_squared_ties=r_squared_ties,
+        rank_correlation_wins=rc_wins,
+        rank_correlation_losses=rc_losses,
+        rank_correlation_ties=rc_ties,
     )
 
 
@@ -176,6 +214,7 @@ def compute_stat_metrics(
 
         if n < 2:
             correlation = 0.0
+            rank_correlation = 0.0
         else:
             projected = [c.projected for c in comps]
             actual = [c.actual for c in comps]
@@ -183,12 +222,49 @@ def compute_stat_metrics(
                 correlation = statistics.correlation(projected, actual)
             except statistics.StatisticsError:
                 correlation = 0.0
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", ConstantInputWarning)
+                rho: float = spearmanr(projected, actual)[0]  # type: ignore[assignment]
+            rank_correlation = 0.0 if math.isnan(rho) else rho
 
         ss_res = sum(e * e for e in errors)
         mean_actual = sum(c.actual for c in comps) / n
         ss_tot = sum((c.actual - mean_actual) ** 2 for c in comps)
         r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
 
-        result[stat_name] = StatMetrics(rmse=rmse, mae=mae, correlation=correlation, r_squared=r_squared, n=n)
+        result[stat_name] = StatMetrics(
+            rmse=rmse, mae=mae, correlation=correlation, rank_correlation=rank_correlation, r_squared=r_squared, n=n
+        )
 
     return result
+
+
+def compute_tail_accuracy(
+    comparisons: list[ProjectionComparison],
+    ns: tuple[int, ...] = (25, 50),
+    stats: list[str] | None = None,
+) -> TailAccuracy:
+    """Compute RMSE on the top-N players (by projected value) for each stat."""
+    by_stat: dict[str, list[ProjectionComparison]] = defaultdict(list)
+    for comp in comparisons:
+        if stats is not None and comp.stat_name not in stats:
+            continue
+        by_stat[comp.stat_name].append(comp)
+
+    min_n = min(ns)
+    rmse_by_stat: dict[str, dict[int, float]] = {}
+    for stat_name, comps in by_stat.items():
+        if len(comps) < min_n:
+            continue
+        sorted_comps = sorted(comps, key=lambda c: c.projected, reverse=True)
+        stat_rmse: dict[int, float] = {}
+        for n in ns:
+            if len(sorted_comps) < n:
+                continue
+            top_n = sorted_comps[:n]
+            errors = [c.error for c in top_n]
+            stat_rmse[n] = math.sqrt(sum(e * e for e in errors) / n)
+        if stat_rmse:
+            rmse_by_stat[stat_name] = stat_rmse
+
+    return TailAccuracy(ns=ns, rmse_by_stat=rmse_by_stat)

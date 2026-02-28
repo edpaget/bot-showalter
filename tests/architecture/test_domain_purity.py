@@ -25,8 +25,10 @@ _ALLOWED_STDLIB = frozenset(
         "enum",
         "math",
         "re",
+        "scipy",
         "statistics",
         "typing",
+        "warnings",
     }
 )
 

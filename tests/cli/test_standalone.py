@@ -229,6 +229,18 @@ class TestCompareCommand:
         result = runner.invoke(app, ["compare", "--help"])
         assert result.exit_code == 0
 
+    def test_compare_with_tail_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_eval_data(db_conn, system="steamer", version="2025.1")
+        _seed_eval_data(db_conn, system="zips", version="2025.1")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["compare", "steamer/2025.1", "zips/2025.1", "--season", "2025", "--tail"],
+        )
+        assert result.exit_code == 0, result.output
+
     def test_compare_with_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
         _seed_eval_data(db_conn, system="steamer", version="2025.1")

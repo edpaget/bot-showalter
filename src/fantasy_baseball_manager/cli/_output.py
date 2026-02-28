@@ -217,12 +217,19 @@ def print_system_metrics(metrics: SystemMetrics) -> None:
     table.add_column("RMSE", justify="right")
     table.add_column("MAE", justify="right")
     table.add_column("r", justify="right")
-    table.add_column("R²", justify="right")
+    table.add_column("\u03c1", justify="right")
+    table.add_column("R\u00b2", justify="right")
     table.add_column("N", justify="right")
     for stat_name in sorted(metrics.metrics):
         m = metrics.metrics[stat_name]
         table.add_row(
-            stat_name, f"{m.rmse:.4f}", f"{m.mae:.4f}", f"{m.correlation:.4f}", f"{m.r_squared:.4f}", str(m.n)
+            stat_name,
+            f"{m.rmse:.4f}",
+            f"{m.mae:.4f}",
+            f"{m.correlation:.4f}",
+            f"{m.rank_correlation:.4f}",
+            f"{m.r_squared:.4f}",
+            str(m.n),
         )
     console.print(table)
 
@@ -245,6 +252,9 @@ def _format_delta(delta: float, pct_delta: float, winner: str) -> tuple[str, str
 def _build_two_system_row(rec: StatComparisonRecord) -> list[str]:
     rmse_d, rmse_pct = _format_delta(rec.rmse_delta, rec.rmse_pct_delta, rec.rmse_winner)
     r2_d, r2_pct = _format_delta(rec.r_squared_delta, rec.r_squared_pct_delta, rec.r_squared_winner)
+    rc_d, rc_pct = _format_delta(
+        rec.rank_correlation_delta, rec.rank_correlation_pct_delta, rec.rank_correlation_winner
+    )
     return [
         rec.stat_name,
         f"{rec.baseline_rmse:.4f}",
@@ -255,7 +265,48 @@ def _build_two_system_row(rec: StatComparisonRecord) -> list[str]:
         f"{rec.candidate_r_squared:.4f}",
         r2_d,
         r2_pct,
+        f"{rec.baseline_rank_correlation:.4f}",
+        f"{rec.candidate_rank_correlation:.4f}",
+        rc_d,
+        rc_pct,
     ]
+
+
+def _print_tail_accuracy_section(result: ComparisonResult) -> None:
+    """Print tail accuracy table when systems have tail data."""
+    systems_with_tail = [s for s in result.systems if s.tail is not None]
+    if not systems_with_tail:
+        return
+
+    console.print()
+    console.print("[bold]Tail accuracy (top-N RMSE)[/bold]")
+
+    # Collect all stats and ns
+    all_stats: set[str] = set()
+    ns: tuple[int, ...] = ()
+    for s in systems_with_tail:
+        assert s.tail is not None  # noqa: S101 — type narrowing
+        ns = s.tail.ns
+        all_stats.update(s.tail.rmse_by_stat.keys())
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Stat")
+    for s in systems_with_tail:
+        label = f"{s.system}/{s.version}"
+        for n in sorted(ns):
+            table.add_column(f"{label} top-{n}", justify="right")
+
+    for stat_name in sorted(all_stats):
+        values: list[str] = []
+        for s in systems_with_tail:
+            assert s.tail is not None  # noqa: S101
+            stat_rmse = s.tail.rmse_by_stat.get(stat_name, {})
+            for n in sorted(ns):
+                rmse = stat_rmse.get(n)
+                values.append(f"{rmse:.4f}" if rmse is not None else "\u2014")
+        table.add_row(stat_name, *values)
+
+    console.print(table)
 
 
 def print_comparison_result(result: ComparisonResult) -> None:
@@ -268,12 +319,16 @@ def print_comparison_result(result: ComparisonResult) -> None:
         table.add_column("Stat")
         table.add_column(f"{summary.baseline_label} RMSE", justify="right")
         table.add_column(f"{summary.candidate_label} RMSE", justify="right")
-        table.add_column("Δ", justify="right")
-        table.add_column("%Δ", justify="right")
-        table.add_column(f"{summary.baseline_label} R²", justify="right")
-        table.add_column(f"{summary.candidate_label} R²", justify="right")
-        table.add_column("Δ", justify="right")
-        table.add_column("%Δ", justify="right")
+        table.add_column("\u0394", justify="right")
+        table.add_column("%\u0394", justify="right")
+        table.add_column(f"{summary.baseline_label} R\u00b2", justify="right")
+        table.add_column(f"{summary.candidate_label} R\u00b2", justify="right")
+        table.add_column("\u0394", justify="right")
+        table.add_column("%\u0394", justify="right")
+        table.add_column(f"{summary.baseline_label} \u03c1", justify="right")
+        table.add_column(f"{summary.candidate_label} \u03c1", justify="right")
+        table.add_column("\u0394", justify="right")
+        table.add_column("%\u0394", justify="right")
         for rec in summary.records:
             table.add_row(*_build_two_system_row(rec))
         console.print(table)
@@ -281,8 +336,10 @@ def print_comparison_result(result: ComparisonResult) -> None:
         console.print(
             f"[bold]{summary.candidate_label} vs {summary.baseline_label}:[/bold]"
             f" wins {summary.rmse_wins}/{total} stats on RMSE,"
-            f" {summary.r_squared_wins}/{total} on R²"
+            f" {summary.r_squared_wins}/{total} on R\u00b2,"
+            f" {summary.rank_correlation_wins}/{total} on \u03c1"
         )
+        _print_tail_accuracy_section(result)
         return
 
     table = Table(show_edge=False, pad_edge=False)
@@ -290,15 +347,18 @@ def print_comparison_result(result: ComparisonResult) -> None:
     for sys_metrics in result.systems:
         label = f"{sys_metrics.system}/{sys_metrics.version}"
         table.add_column(f"{label} RMSE", justify="right")
-        table.add_column(f"{label} R²", justify="right")
+        table.add_column(f"{label} R\u00b2", justify="right")
+        table.add_column(f"{label} \u03c1", justify="right")
     for stat_name in result.stats:
         values: list[str] = []
         for sys_metrics in result.systems:
             m = sys_metrics.metrics.get(stat_name)
-            values.append(f"{m.rmse:.4f}" if m else "—")
-            values.append(f"{m.r_squared:.4f}" if m else "—")
+            values.append(f"{m.rmse:.4f}" if m else "\u2014")
+            values.append(f"{m.r_squared:.4f}" if m else "\u2014")
+            values.append(f"{m.rank_correlation:.4f}" if m else "\u2014")
         table.add_row(stat_name, *values)
     console.print(table)
+    _print_tail_accuracy_section(result)
 
 
 def print_stratified_comparison_result(result: StratifiedComparisonResult) -> None:
