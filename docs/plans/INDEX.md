@@ -18,7 +18,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Pitcher Calibration](pitcher-calibration.md) | 4 | phase 1 done | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
-| [Principles Enforcement](principles-enforcement.md) | 6 | phases 1-4, 6 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
@@ -39,6 +38,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Player Eligibility](player-eligibility.md) | 3 |
 | [Projection Confidence Report](projection-confidence-report.md) | 3 |
 | [Preseason Spine](preseason-spine.md) | 3 |
+| [Principles Enforcement](principles-enforcement.md) | 6 |
 | [Tier Generator](tier-generator.md) | 3 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
