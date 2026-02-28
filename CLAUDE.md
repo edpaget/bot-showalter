@@ -59,6 +59,8 @@ When executing a plan (after plan-mode approval):
 
 Use one worktree per roadmap, not per phase. This avoids losing the session's working directory — `EnterWorktree` switches the cwd into the worktree, and there is no way to switch back, so removing the worktree mid-session breaks things.
 
+When working in a worktree, all file reads, searches, and code exploration must use the worktree's working directory — never read from `/Users/edward/Projects/fbm` directly. The only reason to `cd` to the main repo is to run `git merge --ff-only` when landing a phase.
+
 **Starting a roadmap:** Use `EnterWorktree` with the roadmap name (e.g., `name: "player-eligibility"`). This creates the worktree and switches the session into it. Do not update the roadmap status to mark a phase as in-progress until after entering the worktree — plan tracking changes should be committed on the worktree branch, not on main.
 
 **After each phase lands:**
