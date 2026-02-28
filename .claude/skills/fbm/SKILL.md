@@ -110,3 +110,39 @@ For first-party models (marcel), the version is typically `latest`.
 After running the command, summarize the results for the user in a clear, readable format. Highlight key takeaways and notable comparisons.
 
 If $ARGUMENTS is provided, map it to the appropriate subcommand and run it. Otherwise, ask the user what they'd like to do.
+
+## Interpreting evaluation results
+
+### Before/after protocol
+
+After any model training or tuning change, always run **both** commands before declaring the change an improvement:
+
+```
+uv run fbm compare old/ver new/ver --season YEAR --top 300 --check
+uv run fbm compare old/ver new/ver --season YEAR
+```
+
+Run on at least two holdout seasons. Both the top-300 (fantasy-relevant subset) and full-population comparisons must pass. If either `--check` invocation exits non-zero on any season, the change is a regression.
+
+### Reading the summary
+
+The summary footer line and delta columns (`Δ`, `%Δ`) are the primary signal. Do not override them with per-stat cherry-picking — a change that helps one stat but hurts five is a regression regardless of how important the one stat seems. The `--check` flag's pass/fail verdict is authoritative.
+
+### What "better" means
+
+- **RMSE**: lower is better.
+- **R²**: higher is better.
+- **Rank correlation (ρ)**: higher is better.
+
+A change must win a **majority** of stats to be considered an improvement. Winning one stat while losing several others is a regression, not an improvement.
+
+### Tail accuracy
+
+Use `--tail` to check top-25 and top-50 RMSE. A model that improves full-cohort RMSE but degrades top-N accuracy may not be useful for fantasy — the best players are the most important to predict correctly.
+
+### Common pitfalls
+
+- **Single-stat or single-season success**: always check multiple stats across multiple seasons before declaring improvement.
+- **Confusing diagnosis with cure**: identifying a problem in the diagnostic output does not mean the next change fixed it — re-run the comparison to verify.
+- **Ignoring full-population regressions**: always run without `--top` as well. Regressions outside the top-300 can indicate overfitting.
+- **Ignoring rank correlation**: a model with lower RMSE but worse player ordering (lower ρ) is worse for fantasy, where correct rankings matter more than absolute accuracy.

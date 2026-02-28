@@ -54,6 +54,7 @@ When executing a plan (after plan-mode approval):
 - Commit with a conventional commit message referencing what was done.
 - Coverage is enforced in CI via `fail_under`. Run `uv run pytest --cov` locally to check before pushing.
 - **Before the final commit, verify each acceptance criterion from the roadmap phase.** Walk the list explicitly — confirm each one is satisfied by the implementation or tests. If a criterion isn't met, finish it before committing.
+- **After any model training or tuning change**, run the before/after comparison protocol from the fbm skill: `compare old new --season YEAR --top 300 --check` and `compare old new --season YEAR` (full population) on at least two holdout seasons. Do not declare improvement unless `--check` passes on all tested seasons for both top-300 and full population.
 
 ## Worktree Workflow
 
