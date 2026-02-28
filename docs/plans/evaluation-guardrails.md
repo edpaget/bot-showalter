@@ -8,7 +8,7 @@ The fix is two-pronged: enhance the tooling to surface clearer signals, then upd
 
 | Phase | Status |
 |-------|--------|
-| 1 — Comparison summary and delta signals | not started |
+| 1 — Comparison summary and delta signals | done (2026-02-27) |
 | 2 — Rank-order and tail-accuracy metrics | not started |
 | 3 — Regression gate CLI mode | not started |
 | 4 — Skill file and CLAUDE.md guardrails | not started |
