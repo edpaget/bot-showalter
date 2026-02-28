@@ -1,7 +1,7 @@
 import json
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.valuation import Valuation
+from fantasy_baseball_manager.domain import Valuation
 
 if TYPE_CHECKING:
     import sqlite3

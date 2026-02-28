@@ -5,21 +5,25 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 if TYPE_CHECKING:
     import builtins
 
-    from fantasy_baseball_manager.domain.adp import ADP
-    from fantasy_baseball_manager.domain.batting_stats import BattingStats
-    from fantasy_baseball_manager.domain.il_stint import ILStint
-    from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
-    from fantasy_baseball_manager.domain.level_factor import LevelFactor
-    from fantasy_baseball_manager.domain.load_log import LoadLog
-    from fantasy_baseball_manager.domain.minor_league_batting_stats import MinorLeagueBattingStats
-    from fantasy_baseball_manager.domain.model_run import ModelRunRecord
-    from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-    from fantasy_baseball_manager.domain.player import Player, Team
-    from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
-    from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
-    from fantasy_baseball_manager.domain.roster_stint import RosterStint
-    from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
-    from fantasy_baseball_manager.domain.valuation import Valuation
+    from fantasy_baseball_manager.domain import (
+        ADP,
+        BattingStats,
+        ILStint,
+        LeagueEnvironment,
+        LevelFactor,
+        LoadLog,
+        MinorLeagueBattingStats,
+        ModelRunRecord,
+        PitchingStats,
+        Player,
+        PositionAppearance,
+        Projection,
+        RosterStint,
+        StatcastPitch,
+        StatDistribution,
+        Team,
+        Valuation,
+    )
 
 
 @runtime_checkable

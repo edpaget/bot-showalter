@@ -1,8 +1,7 @@
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.model_run import ArtifactType
-from fantasy_baseball_manager.domain.valuation import Valuation
+from fantasy_baseball_manager.domain import ArtifactType, Valuation
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.zar.engine import (
@@ -13,7 +12,7 @@ from fantasy_baseball_manager.models.zar.positions import (
     best_position,
     build_roster_spots,
 )
-from fantasy_baseball_manager.repos.protocols import (  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
+from fantasy_baseball_manager.repos import (  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
     PlayerRepo,
     PositionAppearanceRepo,
     ProjectionRepo,
@@ -22,8 +21,7 @@ from fantasy_baseball_manager.repos.protocols import (  # noqa: TC001 — used i
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-    from fantasy_baseball_manager.domain.projection import Projection
+    from fantasy_baseball_manager.domain import LeagueSettings, Projection
 
 
 def _extract_stats(projections: list[Projection]) -> list[dict[str, float]]:

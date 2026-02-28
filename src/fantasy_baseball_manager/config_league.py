@@ -1,7 +1,7 @@
 import tomllib
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.league_settings import (
+from fantasy_baseball_manager.domain import (
     CategoryConfig,
     Direction,
     LeagueFormat,

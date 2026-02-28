@@ -2,13 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.player_bio import PlayerSummary
-from fantasy_baseball_manager.domain.player_profile import compute_age
+from fantasy_baseball_manager.domain import PlayerSummary, compute_age
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.player import Player
-    from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
-    from fantasy_baseball_manager.repos.protocols import (
+    from fantasy_baseball_manager.domain import Player, PositionAppearance
+    from fantasy_baseball_manager.repos import (
         BattingStatsRepo,
         PitchingStatsRepo,
         PlayerRepo,
@@ -16,7 +14,6 @@ if TYPE_CHECKING:
         RosterStintRepo,
         TeamRepo,
     )
-
 _EXPERIENCE_YEAR_RANGE = range(2000, 2030)
 
 

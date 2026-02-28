@@ -1,21 +1,21 @@
 import logging
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
-from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
+from fantasy_baseball_manager.domain import (
+    BattingStats,
+    PitchingStats,
+    PlayerStatDelta,
+)
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.player import Player
-    from fantasy_baseball_manager.domain.projection import Projection
-    from fantasy_baseball_manager.repos.protocols import (
+    from fantasy_baseball_manager.domain import Player, Projection
+    from fantasy_baseball_manager.repos import (
         BattingStatsRepo,
         PitchingStatsRepo,
         PlayerRepo,
         ProjectionRepo,
     )
-
 logger = logging.getLogger(__name__)
 
 _INVERTED_STATS: frozenset[str] = frozenset({"era", "fip", "whip", "bb_per_9", "hr_per_9"})

@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 
-from fantasy_baseball_manager.domain.projection import StatDistribution
+from fantasy_baseball_manager.domain import StatDistribution
 from fantasy_baseball_manager.models.sampling import holdout_metrics, season_kfold
 
 

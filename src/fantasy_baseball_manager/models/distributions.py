@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from fantasy_baseball_manager.domain.projection import StatDistribution
+from fantasy_baseball_manager.domain import StatDistribution
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

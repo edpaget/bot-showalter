@@ -5,13 +5,15 @@ from typing import TYPE_CHECKING
 
 from flask import Flask, Response
 
-from fantasy_baseball_manager.services.draft_board import build_draft_board, export_html
+from fantasy_baseball_manager.services import build_draft_board, export_html
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.adp import ADP
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-    from fantasy_baseball_manager.domain.player_profile import PlayerProfile
-    from fantasy_baseball_manager.domain.valuation import Valuation
+    from fantasy_baseball_manager.domain import (
+        ADP,
+        LeagueSettings,
+        PlayerProfile,
+        Valuation,
+    )
 
 
 def create_live_draft_app(

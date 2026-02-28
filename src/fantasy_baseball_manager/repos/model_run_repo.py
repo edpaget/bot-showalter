@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.model_run import ModelRunRecord
+from fantasy_baseball_manager.domain import ModelRunRecord
 
 if TYPE_CHECKING:
     import builtins

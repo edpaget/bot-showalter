@@ -9,11 +9,18 @@ import typer
 
 from fantasy_baseball_manager.cli._output import console, print_error, print_ingest_result
 from fantasy_baseball_manager.cli.factory import IngestContainer, build_ingest_container
-from fantasy_baseball_manager.domain.player import Player
-from fantasy_baseball_manager.domain.result import Err, Ok
-from fantasy_baseball_manager.ingest.adp_mapper import fetch_mlb_active_teams, ingest_fantasypros_adp
-from fantasy_baseball_manager.ingest.column_maps import (
+from fantasy_baseball_manager.domain import (
+    Err,
+    Ok,
+    Player,
+)
+from fantasy_baseball_manager.ingest import (
+    CsvSource,
+    FantasyProsADPSource,
+    Loader,
     chadwick_row_to_player,
+    fetch_mlb_active_teams,
+    ingest_fantasypros_adp,
     lahman_team_row_to_team,
     make_fg_batting_mapper,
     make_fg_pitching_mapper,
@@ -25,9 +32,6 @@ from fantasy_baseball_manager.ingest.column_maps import (
     make_sprint_speed_mapper,
     statcast_pitch_mapper,
 )
-from fantasy_baseball_manager.ingest.csv_source import CsvSource
-from fantasy_baseball_manager.ingest.fantasypros_adp_source import FantasyProsADPSource
-from fantasy_baseball_manager.ingest.loader import Loader
 
 logger = logging.getLogger(__name__)
 

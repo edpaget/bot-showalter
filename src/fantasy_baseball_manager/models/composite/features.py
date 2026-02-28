@@ -1,12 +1,15 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.features import batting, pitching, player, projection
-from fantasy_baseball_manager.features.types import (
+from fantasy_baseball_manager.features import (
     AnyFeature,
     DerivedTransformFeature,
     Feature,
     FeatureSet,
     TransformFeature,
+    batting,
+    pitching,
+    player,
+    projection,
 )
 from fantasy_baseball_manager.models.marcel.features import (
     build_batting_league_averages,

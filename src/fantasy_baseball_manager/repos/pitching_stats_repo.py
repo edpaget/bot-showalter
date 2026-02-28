@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
+from fantasy_baseball_manager.domain import PitchingStats
 
 if TYPE_CHECKING:
     import sqlite3

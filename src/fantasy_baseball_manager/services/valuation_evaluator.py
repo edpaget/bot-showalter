@@ -4,10 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from scipy.stats import spearmanr
 
-from fantasy_baseball_manager.domain.valuation import (
-    ValuationAccuracy,
-    ValuationEvalResult,
-)
+from fantasy_baseball_manager.domain import ValuationAccuracy, ValuationEvalResult
 from fantasy_baseball_manager.models.zar.engine import (
     compute_budget_split,
     run_zar_pipeline,
@@ -15,15 +12,14 @@ from fantasy_baseball_manager.models.zar.engine import (
 from fantasy_baseball_manager.models.zar.positions import build_position_map, build_roster_spots
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-    from fantasy_baseball_manager.repos.protocols import (
+    from fantasy_baseball_manager.domain import LeagueSettings
+    from fantasy_baseball_manager.repos import (
         BattingStatsRepo,
         PitchingStatsRepo,
         PlayerRepo,
         PositionAppearanceRepo,
         ValuationRepo,
     )
-
 logger = logging.getLogger(__name__)
 
 _METADATA_FIELDS = frozenset({"id", "player_id", "season", "source", "team_id", "loaded_at"})

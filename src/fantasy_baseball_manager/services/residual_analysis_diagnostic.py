@@ -1,7 +1,7 @@
 import statistics
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.residual_analysis import (
+from fantasy_baseball_manager.domain import (
     ResidualAnalysisReport,
     ResidualAnalysisSummary,
     StatResidualAnalysis,
@@ -13,9 +13,8 @@ from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS,
 from fantasy_baseball_manager.services.performance_report import _get_batter_actual, _get_pitcher_actual
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.batting_stats import BattingStats
-    from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-    from fantasy_baseball_manager.repos.protocols import (
+    from fantasy_baseball_manager.domain import BattingStats, PitchingStats
+    from fantasy_baseball_manager.repos import (
         BattingStatsRepo,
         PitchingStatsRepo,
         PlayerRepo,

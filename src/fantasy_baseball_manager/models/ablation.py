@@ -22,9 +22,8 @@ from fantasy_baseball_manager.models.protocols import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-    from fantasy_baseball_manager.features.protocols import DatasetAssembler
-    from fantasy_baseball_manager.features.types import FeatureSet
+    from fantasy_baseball_manager.domain import SystemMetrics
+    from fantasy_baseball_manager.features import DatasetAssembler, FeatureSet
 
 
 def evaluate_projections(

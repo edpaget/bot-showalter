@@ -3,7 +3,7 @@
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.model_run import ArtifactType
+from fantasy_baseball_manager.domain import ArtifactType
 from fantasy_baseball_manager.models.mle.engine import (
     apply_recency_weights,
     clamp_xbh,
@@ -20,7 +20,7 @@ from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.repos.protocols import (
+    from fantasy_baseball_manager.repos import (
         LeagueEnvironmentRepo,
         LevelFactorRepo,
         MinorLeagueBattingStatsRepo,

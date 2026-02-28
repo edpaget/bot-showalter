@@ -6,12 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from fantasy_baseball_manager.domain.adp import ADP
-from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain import ADP, Player
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.repos.protocols import ADPRepo, PlayerRepo
-
+    from fantasy_baseball_manager.repos import ADPRepo, PlayerRepo
 logger = logging.getLogger(__name__)
 
 _MLB_API_BASE = "https://statsapi.mlb.com/api/v1"

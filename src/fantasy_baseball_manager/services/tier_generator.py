@@ -2,11 +2,15 @@ import statistics
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.tier import PlayerTier, TierSummaryEntry, TierSummaryReport
+from fantasy_baseball_manager.domain import (
+    PlayerTier,
+    TierSummaryEntry,
+    TierSummaryReport,
+)
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.valuation import Valuation
-    from fantasy_baseball_manager.repos.protocols import PlayerRepo
+    from fantasy_baseball_manager.domain import Valuation
+    from fantasy_baseball_manager.repos import PlayerRepo
 
 
 def generate_tiers(

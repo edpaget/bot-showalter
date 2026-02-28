@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.il_stint import ILStint
+from fantasy_baseball_manager.domain import ILStint
 
 if TYPE_CHECKING:
     import sqlite3

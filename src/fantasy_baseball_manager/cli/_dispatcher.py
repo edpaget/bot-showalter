@@ -4,10 +4,14 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.errors import DispatchError
-from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-from fantasy_baseball_manager.domain.result import Err, Ok, Result
-from fantasy_baseball_manager.models.protocols import (
+from fantasy_baseball_manager.domain import (
+    DispatchError,
+    Err,
+    Ok,
+    Result,
+    SystemMetrics,
+)
+from fantasy_baseball_manager.models import (
     Ablatable,
     AblationResult,
     Evaluable,
@@ -26,8 +30,7 @@ from fantasy_baseball_manager.models.protocols import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.models.run_manager import RunManager
-
+    from fantasy_baseball_manager.models import RunManager
 logger = logging.getLogger(__name__)
 
 

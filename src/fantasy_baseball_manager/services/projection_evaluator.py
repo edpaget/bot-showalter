@@ -2,34 +2,29 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.batting_stats import BattingStats
-from fantasy_baseball_manager.domain.evaluation import (
+from fantasy_baseball_manager.domain import (
+    BattingStats,
     ComparisonResult,
+    ConsensusLookup,
+    PitchingStats,
+    ProjectionComparison,
     StratifiedComparisonResult,
     SystemMetrics,
-    compute_stat_metrics,
-)
-from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
-from fantasy_baseball_manager.domain.projection_accuracy import (
-    ProjectionComparison,
     compare_to_batting_actuals,
     compare_to_pitching_actuals,
+    compute_stat_metrics,
     missing_batting_comparisons,
     missing_pitching_comparisons,
-)
-from fantasy_baseball_manager.domain.pt_normalization import (
-    ConsensusLookup,
     normalize_projection_pt,
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.projection import Projection
-    from fantasy_baseball_manager.repos.protocols import (
+    from fantasy_baseball_manager.domain import Projection
+    from fantasy_baseball_manager.repos import (
         BattingStatsRepo,
         PitchingStatsRepo,
         ProjectionRepo,
     )
-
 logger = logging.getLogger(__name__)
 
 

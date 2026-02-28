@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.roster import Roster, RosterEntry
+from fantasy_baseball_manager.domain import Roster, RosterEntry
 
 if TYPE_CHECKING:
     import datetime

@@ -10,7 +10,7 @@ from fantasy_baseball_manager.tools._formatting import format_no_results, format
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.analysis_container import AnalysisContainer
-    from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
+    from fantasy_baseball_manager.domain import PlayerStatDelta
 
 
 def _aggregate_deltas(deltas: list[PlayerStatDelta]) -> dict[str, list[PlayerStatDelta]]:

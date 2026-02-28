@@ -17,10 +17,11 @@ if TYPE_CHECKING:
 
     from rich.console import Console
 
-    from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
-    from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
-    from fantasy_baseball_manager.domain.draft_report import DraftReport
-
+    from fantasy_baseball_manager.domain import (
+        DraftBoardRow,
+        DraftReport,
+        Recommendation,
+    )
 # ---------------------------------------------------------------------------
 # Command types (tagged union)
 # ---------------------------------------------------------------------------

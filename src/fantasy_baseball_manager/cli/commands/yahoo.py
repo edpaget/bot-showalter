@@ -8,8 +8,11 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._output import console, print_error
 from fantasy_baseball_manager.cli.factory import build_yahoo_context
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config, resolve_default_league
-from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
-from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
+from fantasy_baseball_manager.domain import (
+    YahooLeague,
+    YahooPlayerMap,
+    YahooTeam,
+)
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper

@@ -2,11 +2,10 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.projection import PlayerProjection, SystemSummary
+from fantasy_baseball_manager.domain import PlayerProjection, SystemSummary
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.repos.protocols import PlayerRepo, ProjectionRepo
-
+    from fantasy_baseball_manager.repos import PlayerRepo, ProjectionRepo
 logger = logging.getLogger(__name__)
 
 

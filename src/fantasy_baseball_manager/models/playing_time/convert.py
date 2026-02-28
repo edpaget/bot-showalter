@@ -1,4 +1,4 @@
-from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.domain import Projection
 
 
 def pt_projection_to_domain(

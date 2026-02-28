@@ -23,19 +23,22 @@ from fantasy_baseball_manager.cli.factory import (
     create_model,
 )
 from fantasy_baseball_manager.discord_bot.bot import FBMDiscordBot
-from fantasy_baseball_manager.domain.projection import Projection  # noqa: TC001 — used at runtime in closure
-from fantasy_baseball_manager.domain.projection_accuracy import BATTING_RATE_STATS, PITCHING_RATE_STATS
-from fantasy_baseball_manager.domain.pt_normalization import build_consensus_lookup
-from fantasy_baseball_manager.domain.result import Err, Ok
-from fantasy_baseball_manager.ingest.column_maps import (
+from fantasy_baseball_manager.domain import (
+    BATTING_RATE_STATS,
+    PITCHING_RATE_STATS,
+    Err,
+    Ok,
+    Projection,
+    build_consensus_lookup,
+)
+from fantasy_baseball_manager.ingest import (
+    CsvSource,
+    Loader,
     make_fg_projection_batting_mapper,
     make_fg_projection_pitching_mapper,
 )
-from fantasy_baseball_manager.ingest.csv_source import CsvSource
-from fantasy_baseball_manager.ingest.loader import Loader
-from fantasy_baseball_manager.models.protocols import FeatureIntrospectable
-from fantasy_baseball_manager.models.registry import list_models
-from fantasy_baseball_manager.services.cohort import (
+from fantasy_baseball_manager.models import FeatureIntrospectable, list_models
+from fantasy_baseball_manager.services import (
     assign_age_cohorts,
     assign_experience_cohorts,
     assign_top300_cohorts,

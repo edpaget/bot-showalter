@@ -3,11 +3,13 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.model_run import ArtifactType
-from fantasy_baseball_manager.features.protocols import (
-    DatasetAssembler,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
+from fantasy_baseball_manager.domain import ArtifactType
+from fantasy_baseball_manager.features import (
+    AnyFeature,
+    DatasetAssembler,
+    FeatureSet,
+    SpineFilter,
 )
-from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
 from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.gbm_training import (
     MinValueFilter,
@@ -66,8 +68,7 @@ from fantasy_baseball_manager.models.statcast_gbm.serialization import load_mode
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-
+    from fantasy_baseball_manager.domain import SystemMetrics
 _FeatureSetBuilder = Callable[[Sequence[int]], FeatureSet]
 
 DEFAULT_PARAM_GRID: dict[str, list[Any]] = {

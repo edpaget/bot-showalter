@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from scipy.stats import spearmanr
 
-from fantasy_baseball_manager.domain.adp_accuracy import (
+from fantasy_baseball_manager.domain import (
     ADPAccuracyPlayer,
     ADPAccuracyReport,
     ADPAccuracyResult,
@@ -15,9 +15,8 @@ from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run
 from fantasy_baseball_manager.models.zar.positions import build_position_map, build_roster_spots
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.adp import ADP
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-    from fantasy_baseball_manager.repos.protocols import (
+    from fantasy_baseball_manager.domain import ADP, LeagueSettings
+    from fantasy_baseball_manager.repos import (
         ADPRepo,
         BattingStatsRepo,
         PitchingStatsRepo,
@@ -25,7 +24,6 @@ if TYPE_CHECKING:
         PositionAppearanceRepo,
         ValuationRepo,
     )
-
 logger = logging.getLogger(__name__)
 
 _PITCHER_POSITIONS = {"SP", "RP"}

@@ -12,9 +12,9 @@ from fantasy_baseball_manager.models.mle.types import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
-    from fantasy_baseball_manager.domain.level_factor import LevelFactor
-    from fantasy_baseball_manager.domain.minor_league_batting_stats import (
+    from fantasy_baseball_manager.domain import (
+        LeagueEnvironment,
+        LevelFactor,
         MinorLeagueBattingStats,
     )
 

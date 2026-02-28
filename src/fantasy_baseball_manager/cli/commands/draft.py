@@ -14,23 +14,27 @@ from fantasy_baseball_manager.cli._output import (
 )
 from fantasy_baseball_manager.cli.factory import build_draft_board_context
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
-from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
-from fantasy_baseball_manager.services.draft_recommender import recommend
-from fantasy_baseball_manager.services.draft_report import draft_report as compute_draft_report
-from fantasy_baseball_manager.services.draft_session import DraftSession, load_draft
-from fantasy_baseball_manager.services.draft_state import (
+from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow
+from fantasy_baseball_manager.services import (
     DraftConfig,
     DraftEngine,
     DraftFormat,
+    DraftSession,
+    build_draft_board,
     build_draft_roster_slots,
+    export_csv,
+    export_html,
+    generate_tiers,
+    load_draft,
+    recommend,
+    tier_summary,
 )
-from fantasy_baseball_manager.services.tier_generator import generate_tiers, tier_summary
+from fantasy_baseball_manager.services import (
+    draft_report as compute_draft_report,
+)
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.adp import ADP
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-
+    from fantasy_baseball_manager.domain import ADP, LeagueSettings
 draft_app = typer.Typer(name="draft", help="Draft board display and export")
 
 _DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]

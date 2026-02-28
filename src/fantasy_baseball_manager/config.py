@@ -2,7 +2,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from fantasy_baseball_manager.models.protocols import ModelConfig
+from fantasy_baseball_manager.models import ModelConfig
 
 _CONFIG_FILENAME = "fbm.toml"
 

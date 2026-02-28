@@ -5,33 +5,47 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
-from fantasy_baseball_manager.domain.evaluation import StatComparisonRecord, summarize_comparison
-from fantasy_baseball_manager.domain.projection_confidence import (
+from fantasy_baseball_manager.domain import (
     ClassifiedPlayer,
     ConfidenceReport,
     PlayerConfidence,
+    StatComparisonRecord,
     VarianceClassification,
+    summarize_comparison,
 )
-from fantasy_baseball_manager.features.types import AnyFeature, DeltaFeature, DerivedTransformFeature, TransformFeature
+from fantasy_baseball_manager.features import (
+    AnyFeature,
+    DeltaFeature,
+    DerivedTransformFeature,
+    TransformFeature,
+)
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.adp import ADP
-    from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport
-    from fantasy_baseball_manager.domain.adp_movers import ADPMoversReport
-    from fantasy_baseball_manager.domain.adp_report import ValueOverADPReport
-    from fantasy_baseball_manager.domain.draft_board import DraftBoard
-    from fantasy_baseball_manager.domain.draft_report import DraftReport
-    from fantasy_baseball_manager.domain.evaluation import ComparisonResult, StratifiedComparisonResult, SystemMetrics
-    from fantasy_baseball_manager.domain.load_log import LoadLog
-    from fantasy_baseball_manager.domain.model_run import ModelRunRecord
-    from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
-    from fantasy_baseball_manager.domain.projection import PlayerProjection, Projection, SystemSummary
-    from fantasy_baseball_manager.domain.residual_analysis import ResidualAnalysisReport
-    from fantasy_baseball_manager.domain.residual_persistence import ResidualPersistenceReport
-    from fantasy_baseball_manager.domain.talent_quality import TrueTalentQualityReport
-    from fantasy_baseball_manager.domain.tier import PlayerTier, TierSummaryReport
-    from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationEvalResult
-    from fantasy_baseball_manager.models.protocols import (
+    from fantasy_baseball_manager.domain import (
+        ADP,
+        ADPAccuracyReport,
+        ADPMoversReport,
+        ComparisonResult,
+        DraftBoard,
+        DraftReport,
+        LoadLog,
+        ModelRunRecord,
+        PlayerProjection,
+        PlayerStatDelta,
+        PlayerTier,
+        PlayerValuation,
+        Projection,
+        ResidualAnalysisReport,
+        ResidualPersistenceReport,
+        StratifiedComparisonResult,
+        SystemMetrics,
+        SystemSummary,
+        TierSummaryReport,
+        TrueTalentQualityReport,
+        ValuationEvalResult,
+        ValueOverADPReport,
+    )
+    from fantasy_baseball_manager.models import (
         AblationResult,
         PredictResult,
         PrepareResult,
@@ -39,8 +53,7 @@ if TYPE_CHECKING:
         TuneResult,
         ValidationResult,
     )
-    from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
-
+    from fantasy_baseball_manager.services import DatasetInfo
 console = Console(highlight=False)
 err_console = Console(stderr=True, highlight=False)
 

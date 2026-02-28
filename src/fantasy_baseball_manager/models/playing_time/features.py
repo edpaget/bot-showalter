@@ -1,4 +1,12 @@
-from fantasy_baseball_manager.features import batting, il_stint, pitching, player
+from fantasy_baseball_manager.features import (
+    AnyFeature,
+    DerivedTransformFeature,
+    Feature,
+    batting,
+    il_stint,
+    pitching,
+    player,
+)
 from fantasy_baseball_manager.features.consensus_pt import (
     CONSENSUS_IP,
     CONSENSUS_PA,
@@ -15,7 +23,6 @@ from fantasy_baseball_manager.features.transforms.playing_time import (
     make_starter_ratio_transform,
     make_war_threshold_transform,
 )
-from fantasy_baseball_manager.features.types import AnyFeature, DerivedTransformFeature, Feature
 
 
 def build_batting_pt_features(lags: int = 3) -> list[Feature]:

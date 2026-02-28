@@ -4,14 +4,14 @@ from collections.abc import Callable  # noqa: TC003 — used in __init__ signatu
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.features.group_library import (
+from fantasy_baseball_manager.features import (
+    DatasetAssembler,
+    FeatureGroup,
+    compose_feature_set,
+    get_group,
     make_batting_counting_lags,
     make_batting_rate_lags,
     make_pitching_counting_lags,
-)
-from fantasy_baseball_manager.features.groups import FeatureGroup, compose_feature_set, get_group
-from fantasy_baseball_manager.features.protocols import (
-    DatasetAssembler,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
 )
 from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
 from fantasy_baseball_manager.models.composite.convert import extract_projected_pt
@@ -45,9 +45,8 @@ from fantasy_baseball_manager.models.sample_weight_transforms import get_transfo
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-    from fantasy_baseball_manager.features.types import FeatureSet
-
+    from fantasy_baseball_manager.domain import SystemMetrics
+    from fantasy_baseball_manager.features import FeatureSet
 DEFAULT_PARAM_GRID: dict[str, list[Any]] = {
     "max_iter": [100, 200, 500, 1000],
     "max_depth": [3, 5, 7, None],

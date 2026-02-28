@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Never
 
-from fantasy_baseball_manager.domain.player import Player, Team
+from fantasy_baseball_manager.domain import Player, Team
 from fantasy_baseball_manager.repos.errors import PlayerConflictError
 
 _SECONDARY_KEYS = ("fangraphs_id", "bbref_id", "retro_id")

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import sqlite3
 
-    from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
+    from fantasy_baseball_manager.domain import SprintSpeed
 
 
 class SqliteSprintSpeedRepo:

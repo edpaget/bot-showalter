@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.exceptions import FbmException
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.player import Player
+    from fantasy_baseball_manager.domain import Player
 
 
 class PlayerConflictError(FbmException):

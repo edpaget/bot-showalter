@@ -17,10 +17,14 @@ from fantasy_baseball_manager.cli._output import (
 from fantasy_baseball_manager.cli.factory import build_model_context
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
-from fantasy_baseball_manager.domain.result import Err, Ok
-from fantasy_baseball_manager.models.protocols import (
+from fantasy_baseball_manager.domain import (
+    Err,
+    Ok,
+    Projection,
+    StatDistribution,
+    SystemMetrics,
+)
+from fantasy_baseball_manager.models import (
     AblationResult,
     PredictResult,
     PrepareResult,

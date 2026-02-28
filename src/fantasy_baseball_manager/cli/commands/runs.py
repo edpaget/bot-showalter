@@ -5,7 +5,7 @@ import typer
 
 from fantasy_baseball_manager.cli._output import console, print_error, print_run_detail, print_run_list
 from fantasy_baseball_manager.cli.factory import build_runs_context
-from fantasy_baseball_manager.models.run_manager import RunManager
+from fantasy_baseball_manager.models import RunManager
 
 runs_app = typer.Typer(name="runs", help="Manage first-party model runs")
 

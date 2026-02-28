@@ -27,8 +27,8 @@ from fantasy_baseball_manager.cli.factory import (
     build_report_context,
 )
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain.projection_confidence import ConfidenceReport, VarianceClassification
-from fantasy_baseball_manager.services.projection_confidence import classify_variance, compute_confidence
+from fantasy_baseball_manager.domain import ConfidenceReport, VarianceClassification
+from fantasy_baseball_manager.services import classify_variance, compute_confidence
 
 report_app = typer.Typer(name="report", help="Over/underperformance reports vs model predictions")
 

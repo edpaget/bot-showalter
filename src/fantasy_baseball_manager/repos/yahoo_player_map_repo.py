@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
+from fantasy_baseball_manager.domain import YahooPlayerMap
 
 if TYPE_CHECKING:
     import sqlite3

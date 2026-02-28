@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
+from fantasy_baseball_manager.domain import LeagueEnvironment
 
 if TYPE_CHECKING:
     import sqlite3

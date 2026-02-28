@@ -1,13 +1,15 @@
 import logging
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverADPReport
+from fantasy_baseball_manager.domain import ValueOverADP, ValueOverADPReport
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.adp import ADP
-    from fantasy_baseball_manager.domain.player import Player
-    from fantasy_baseball_manager.repos.protocols import ADPRepo, PlayerRepo, ValuationRepo
-
+    from fantasy_baseball_manager.domain import ADP, Player
+    from fantasy_baseball_manager.repos import (
+        ADPRepo,
+        PlayerRepo,
+        ValuationRepo,
+    )
 logger = logging.getLogger(__name__)
 
 _PITCHER_POSITIONS = {"SP", "RP"}

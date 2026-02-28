@@ -1,6 +1,15 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.features import batting, pitching, player
+from fantasy_baseball_manager.features import (
+    AnyFeature,
+    Feature,
+    FeatureSet,
+    SpineFilter,
+    TransformFeature,
+    batting,
+    pitching,
+    player,
+)
 from fantasy_baseball_manager.features.transforms import (
     BATTED_BALL,
     BATTED_BALL_AGAINST,
@@ -12,13 +21,6 @@ from fantasy_baseball_manager.features.transforms import (
     SPIN_PROFILE,
     SPRAY_ANGLE,
     SPRINT_SPEED_TRANSFORM,
-)
-from fantasy_baseball_manager.features.types import (
-    AnyFeature,
-    Feature,
-    FeatureSet,
-    SpineFilter,
-    TransformFeature,
 )
 
 if TYPE_CHECKING:

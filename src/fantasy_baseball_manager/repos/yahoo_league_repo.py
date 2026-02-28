@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
+from fantasy_baseball_manager.domain import YahooLeague, YahooTeam
 
 if TYPE_CHECKING:
     import sqlite3

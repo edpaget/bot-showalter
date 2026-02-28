@@ -1,12 +1,11 @@
 import logging
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.valuation import PlayerValuation
+from fantasy_baseball_manager.domain import PlayerValuation
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.player import Player
-    from fantasy_baseball_manager.repos.protocols import PlayerRepo, ValuationRepo
-
+    from fantasy_baseball_manager.domain import Player
+    from fantasy_baseball_manager.repos import PlayerRepo, ValuationRepo
 logger = logging.getLogger(__name__)
 
 

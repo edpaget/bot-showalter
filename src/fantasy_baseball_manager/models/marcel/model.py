@@ -1,12 +1,14 @@
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.model_run import ArtifactType
-from fantasy_baseball_manager.features import projection
-from fantasy_baseball_manager.features.consensus_pt import batting_consensus_features, pitching_consensus_features
-from fantasy_baseball_manager.features.protocols import (
-    DatasetAssembler,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
+from fantasy_baseball_manager.domain import ArtifactType
+from fantasy_baseball_manager.features import (
+    AnyFeature,
+    DatasetAssembler,
+    FeatureSet,
+    batting_consensus_features,
+    pitching_consensus_features,
+    projection,
 )
-from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet
 from fantasy_baseball_manager.models.marcel.convert import (
     extract_pt_from_rows,
     projection_to_domain,
@@ -33,9 +35,7 @@ from fantasy_baseball_manager.models.registry import register
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-
-
+    from fantasy_baseball_manager.domain import SystemMetrics
 _PROJ_PA = projection.col("pa").system("playing_time").lag(0).alias("proj_pa")
 _PROJ_IP = projection.col("ip").system("playing_time").lag(0).alias("proj_ip")
 

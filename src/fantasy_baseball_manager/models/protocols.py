@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.evaluation import SystemMetrics
-    from fantasy_baseball_manager.features.types import AnyFeature
+    from fantasy_baseball_manager.domain import SystemMetrics
+    from fantasy_baseball_manager.features import AnyFeature
 
 
 @dataclass(frozen=True)

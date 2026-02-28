@@ -6,8 +6,8 @@ from fantasy_baseball_manager.cli._dispatcher import dispatch
 from fantasy_baseball_manager.cli._output import console, print_dataset_list, print_error, print_prepare_result
 from fantasy_baseball_manager.cli.factory import build_datasets_context, build_model_context
 from fantasy_baseball_manager.config import load_config
-from fantasy_baseball_manager.domain.result import Err, Ok
-from fantasy_baseball_manager.models.protocols import PrepareResult
+from fantasy_baseball_manager.domain import Err, Ok
+from fantasy_baseball_manager.models import PrepareResult
 
 datasets_app = typer.Typer(name="datasets", help="Manage cached feature-set datasets")
 

@@ -1,7 +1,7 @@
 import statistics
 from dataclasses import dataclass
 
-from fantasy_baseball_manager.domain.league_settings import (
+from fantasy_baseball_manager.domain import (
     CategoryConfig,
     Direction,
     LeagueSettings,

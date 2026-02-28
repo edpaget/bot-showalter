@@ -7,12 +7,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
+from fantasy_baseball_manager.domain import ArtifactType, ModelRunRecord
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.models.protocols import Model, ModelConfig
-    from fantasy_baseball_manager.repos.protocols import ModelRunRepo
-
+    from fantasy_baseball_manager.repos import ModelRunRepo
 logger = logging.getLogger(__name__)
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.player_bio import PlayerSummary
+    from fantasy_baseball_manager.domain import PlayerSummary
 
 
 def format_table(

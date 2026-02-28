@@ -3,8 +3,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+    from fantasy_baseball_manager.domain import DraftBoardRow, LeagueSettings
 
 
 class DraftFormat(StrEnum):

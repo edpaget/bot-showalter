@@ -1,12 +1,10 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
+from fantasy_baseball_manager.domain import YahooPlayerMap
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
-    from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
-
+    from fantasy_baseball_manager.repos import SqlitePlayerRepo, SqliteYahooPlayerMapRepo
 logger = logging.getLogger(__name__)
 
 _PITCHING_POSITIONS = {"SP", "RP", "P"}

@@ -3,11 +3,13 @@
 from pathlib import Path
 from typing import Any
 
-from fantasy_baseball_manager.domain.model_run import ArtifactType
-from fantasy_baseball_manager.features.protocols import (
-    DatasetAssembler,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
+from fantasy_baseball_manager.domain import ArtifactType
+from fantasy_baseball_manager.features import (
+    AnyFeature,
+    DatasetAssembler,
+    FeatureSet,
+    SpineFilter,
 )
-from fantasy_baseball_manager.features.types import AnyFeature, FeatureSet, SpineFilter
 from fantasy_baseball_manager.models.playing_time.aging import (
     enrich_rows_with_age_pt_factor,
     fit_playing_time_aging_curve,

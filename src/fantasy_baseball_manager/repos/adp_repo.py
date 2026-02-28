@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain import ADP
 
 if TYPE_CHECKING:
     import sqlite3

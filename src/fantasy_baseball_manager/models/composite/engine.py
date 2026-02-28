@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from fantasy_baseball_manager.domain.model_run import ArtifactType
+from fantasy_baseball_manager.domain import ArtifactType
 from fantasy_baseball_manager.models.composite.convert import (
     batter_rates_to_counting,
     best_rows_per_player,
