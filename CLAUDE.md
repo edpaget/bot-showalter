@@ -59,7 +59,7 @@ When executing a plan (after plan-mode approval):
 
 Use one worktree per roadmap, not per phase. This avoids losing the session's working directory — `EnterWorktree` switches the cwd into the worktree, and there is no way to switch back, so removing the worktree mid-session breaks things.
 
-**Starting a roadmap:** Use `EnterWorktree` with the roadmap name (e.g., `name: "player-eligibility"`). This creates the worktree and switches the session into it.
+**Starting a roadmap:** Use `EnterWorktree` with the roadmap name (e.g., `name: "player-eligibility"`). This creates the worktree and switches the session into it. Do not update the roadmap status to mark a phase as in-progress until after entering the worktree — plan tracking changes should be committed on the worktree branch, not on main.
 
 **After each phase lands:**
 
@@ -67,13 +67,12 @@ Use one worktree per roadmap, not per phase. This avoids losing the session's wo
 2. **Merge back to main from the main repo checkout:**
 
 ```bash
+git rebase main                 # rebase onto main to ensure fast-forward is possible
 cd /Users/edward/Projects/fbm  # switch to the main repo where main is checked out
 git merge --ff-only <branch>    # fast-forward main to the worktree branch tip
 cd -                            # return to the worktree
 git checkout -B <roadmap> main  # create a fresh branch for the next phase, based on main's tip
 ```
-
-If `merge --ff-only` fails (non-fast-forward), rebase in the worktree first: `git rebase main`, then retry.
 
 3. Continue with the next phase in the same worktree, or end the session. The worktree stays alive — the user will be prompted to keep or remove it when the session exits.
 

@@ -18,7 +18,7 @@ Plan mode erases the skill context you are reading right now. The ONLY way to en
 
 And your plan MUST end with:
 
-> **Final step — Land the phase:** Update the roadmap Status table to `done (<date>)`, update `docs/plans/INDEX.md` progress, commit the doc changes, and merge back to main: `git push . HEAD:main && git checkout main`.
+> **Final step — Land the phase:** Update the roadmap Status table to `done (<date>)`, update `docs/plans/INDEX.md` progress, commit the doc changes, then rebase onto main and merge: `git rebase main && cd /Users/edward/Projects/fbm && git merge --ff-only <branch> && cd -`.
 
 If already in a worktree from a previous phase in the same session, skip `EnterWorktree` and ensure you are on a fresh branch.
 
@@ -28,8 +28,7 @@ If already in a worktree from a previous phase in the same session, skip `EnterW
 2. Read `docs/plans/<roadmap>.md` and extract the target phase's steps and acceptance criteria.
 3. Verify the phase is not already marked `done` or `in progress` in the Status table. If it is, inform the user and stop.
 4. Check if the phase has any blockers (other roadmap phases listed as dependencies in the Ordering section). If blocked, inform the user and stop.
-5. Update the roadmap's Status table to mark the phase `in progress`.
-6. Enter plan mode — explore the codebase, design the implementation approach against the roadmap's steps and acceptance criteria, and present the plan for user approval. Write the `EnterWorktree` and "Land the phase" steps into the plan exactly as specified in the **Worktree Requirement** section above.
+5. Enter plan mode — explore the codebase, design the implementation approach against the roadmap's steps and acceptance criteria, and present the plan for user approval. Write the `EnterWorktree` and "Land the phase" steps into the plan exactly as specified in the **Worktree Requirement** section above. Include a step immediately after `EnterWorktree` to mark the phase `in progress` in the roadmap's Status table — this must happen on the worktree branch, not on main.
 
 ## Argument parsing
 
