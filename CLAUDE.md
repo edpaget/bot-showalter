@@ -70,8 +70,7 @@ Use one worktree per roadmap, not per phase. This avoids losing the session's wo
 cd /Users/edward/Projects/fbm  # switch to the main repo where main is checked out
 git merge --ff-only <branch>    # fast-forward main to the worktree branch tip
 cd -                            # return to the worktree
-git checkout main               # switch the worktree to main so the next phase starts clean
-git checkout -b <roadmap>       # create a fresh branch for the next phase
+git checkout -B <roadmap> main  # create a fresh branch for the next phase, based on main's tip
 ```
 
 If `merge --ff-only` fails (non-fast-forward), rebase in the worktree first: `git rebase main`, then retry.
