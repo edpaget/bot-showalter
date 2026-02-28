@@ -35,6 +35,7 @@ if TYPE_CHECKING:
         PlayerTier,
         PlayerValuation,
         Projection,
+        RegressionCheckResult,
         ResidualAnalysisReport,
         ResidualPersistenceReport,
         StratifiedComparisonResult,
@@ -384,6 +385,15 @@ def print_stratified_comparison_result(result: StratifiedComparisonResult) -> No
             table.add_row(stat_name, *values)
         console.print(table)
         console.print()
+
+
+def print_regression_check_result(check: RegressionCheckResult) -> None:
+    """Print a pass/fail regression check verdict."""
+    console.print()
+    if check.passed:
+        console.print(f"[bold green]PASS[/bold green]: {check.explanation}")
+    else:
+        console.print(f"[bold red]FAIL[/bold red]: {check.explanation}")
 
 
 def print_run_list(records: list[ModelRunRecord]) -> None:

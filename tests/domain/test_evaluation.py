@@ -6,6 +6,7 @@ from fantasy_baseball_manager.domain.evaluation import (
     ComparisonResult,
     StatMetrics,
     SystemMetrics,
+    check_regression,
     compute_stat_metrics,
     compute_tail_accuracy,
     summarize_comparison,
@@ -214,6 +215,183 @@ class TestRankCorrelation:
         ]
         result = compute_stat_metrics(comparisons)
         assert result["hr"].rank_correlation == 0.0
+
+
+class TestCheckRegression:
+    def test_candidate_wins_majority_on_both_passes(self) -> None:
+        """Candidate wins majority on both RMSE and ρ → passes."""
+        baseline = _system(
+            system="steamer",
+            metrics={
+                "hr": _metrics(rmse=4.0, rank_correlation=0.70),
+                "avg": _metrics(rmse=3.5, rank_correlation=0.60),
+                "sb": _metrics(rmse=5.0, rank_correlation=0.90),
+            },
+        )
+        candidate = _system(
+            system="zips",
+            metrics={
+                "hr": _metrics(rmse=3.0, rank_correlation=0.80),
+                "avg": _metrics(rmse=2.5, rank_correlation=0.70),
+                "sb": _metrics(rmse=6.0, rank_correlation=0.80),
+            },
+        )
+        result = _comparison(stats=["hr", "avg", "sb"], systems=[baseline, candidate])
+        summary = summarize_comparison(result)
+        check = check_regression(summary)
+
+        assert check.passed is True
+        assert check.rmse_passed is True
+        assert check.rank_correlation_passed is True
+        assert "PASS" in check.explanation
+
+    def test_candidate_loses_majority_rmse_fails(self) -> None:
+        """Candidate loses majority on RMSE but wins ρ → fails (rmse_passed=False)."""
+        baseline = _system(
+            system="steamer",
+            metrics={
+                "hr": _metrics(rmse=3.0, rank_correlation=0.70),
+                "avg": _metrics(rmse=2.5, rank_correlation=0.60),
+                "sb": _metrics(rmse=5.0, rank_correlation=0.80),
+            },
+        )
+        candidate = _system(
+            system="zips",
+            metrics={
+                "hr": _metrics(rmse=4.0, rank_correlation=0.80),
+                "avg": _metrics(rmse=3.5, rank_correlation=0.70),
+                "sb": _metrics(rmse=4.0, rank_correlation=0.90),
+            },
+        )
+        result = _comparison(stats=["hr", "avg", "sb"], systems=[baseline, candidate])
+        summary = summarize_comparison(result)
+        check = check_regression(summary)
+
+        assert check.passed is False
+        assert check.rmse_passed is False
+        assert check.rank_correlation_passed is True
+        assert "FAIL" in check.explanation
+
+    def test_candidate_wins_rmse_loses_majority_rank_correlation_fails(self) -> None:
+        """Candidate wins RMSE but loses majority on ρ → fails (rank_correlation_passed=False)."""
+        baseline = _system(
+            system="steamer",
+            metrics={
+                "hr": _metrics(rmse=4.0, rank_correlation=0.90),
+                "avg": _metrics(rmse=3.5, rank_correlation=0.80),
+                "sb": _metrics(rmse=5.0, rank_correlation=0.70),
+            },
+        )
+        candidate = _system(
+            system="zips",
+            metrics={
+                "hr": _metrics(rmse=3.0, rank_correlation=0.80),
+                "avg": _metrics(rmse=2.5, rank_correlation=0.70),
+                "sb": _metrics(rmse=4.0, rank_correlation=0.80),
+            },
+        )
+        result = _comparison(stats=["hr", "avg", "sb"], systems=[baseline, candidate])
+        summary = summarize_comparison(result)
+        check = check_regression(summary)
+
+        assert check.passed is False
+        assert check.rmse_passed is True
+        assert check.rank_correlation_passed is False
+        assert "FAIL" in check.explanation
+
+    def test_candidate_loses_majority_on_both_fails(self) -> None:
+        """Candidate loses majority on both RMSE and ρ → fails."""
+        baseline = _system(
+            system="steamer",
+            metrics={
+                "hr": _metrics(rmse=3.0, rank_correlation=0.90),
+                "avg": _metrics(rmse=2.5, rank_correlation=0.80),
+                "sb": _metrics(rmse=5.0, rank_correlation=0.70),
+            },
+        )
+        candidate = _system(
+            system="zips",
+            metrics={
+                "hr": _metrics(rmse=4.0, rank_correlation=0.80),
+                "avg": _metrics(rmse=3.5, rank_correlation=0.70),
+                "sb": _metrics(rmse=4.0, rank_correlation=0.80),
+            },
+        )
+        result = _comparison(stats=["hr", "avg", "sb"], systems=[baseline, candidate])
+        summary = summarize_comparison(result)
+        check = check_regression(summary)
+
+        assert check.passed is False
+        assert check.rmse_passed is False
+        assert check.rank_correlation_passed is False
+
+    def test_even_split_passes(self) -> None:
+        """Even split (no strict majority lost) → passes."""
+        baseline = _system(
+            system="steamer",
+            metrics={
+                "hr": _metrics(rmse=3.0, rank_correlation=0.80),
+                "avg": _metrics(rmse=4.0, rank_correlation=0.70),
+            },
+        )
+        candidate = _system(
+            system="zips",
+            metrics={
+                "hr": _metrics(rmse=4.0, rank_correlation=0.70),
+                "avg": _metrics(rmse=3.0, rank_correlation=0.80),
+            },
+        )
+        result = _comparison(stats=["hr", "avg"], systems=[baseline, candidate])
+        summary = summarize_comparison(result)
+        check = check_regression(summary)
+
+        assert check.passed is True
+        assert check.rmse_passed is True
+        assert check.rank_correlation_passed is True
+
+    def test_all_ties_passes(self) -> None:
+        """All ties → passes."""
+        baseline = _system(
+            system="steamer",
+            metrics={
+                "hr": _metrics(rmse=3.0, rank_correlation=0.80),
+                "avg": _metrics(rmse=4.0, rank_correlation=0.70),
+            },
+        )
+        candidate = _system(
+            system="zips",
+            metrics={
+                "hr": _metrics(rmse=3.0, rank_correlation=0.80),
+                "avg": _metrics(rmse=4.0, rank_correlation=0.70),
+            },
+        )
+        result = _comparison(stats=["hr", "avg"], systems=[baseline, candidate])
+        summary = summarize_comparison(result)
+        check = check_regression(summary)
+
+        assert check.passed is True
+        assert check.rmse_passed is True
+        assert check.rank_correlation_passed is True
+
+    def test_single_stat_candidate_wins_passes(self) -> None:
+        """Single stat, candidate wins → passes."""
+        baseline = _system(system="steamer", metrics={"hr": _metrics(rmse=4.0, rank_correlation=0.70)})
+        candidate = _system(system="zips", metrics={"hr": _metrics(rmse=3.0, rank_correlation=0.80)})
+        result = _comparison(stats=["hr"], systems=[baseline, candidate])
+        summary = summarize_comparison(result)
+        check = check_regression(summary)
+
+        assert check.passed is True
+
+    def test_single_stat_candidate_loses_fails(self) -> None:
+        """Single stat, candidate loses → fails."""
+        baseline = _system(system="steamer", metrics={"hr": _metrics(rmse=3.0, rank_correlation=0.80)})
+        candidate = _system(system="zips", metrics={"hr": _metrics(rmse=4.0, rank_correlation=0.70)})
+        result = _comparison(stats=["hr"], systems=[baseline, candidate])
+        summary = summarize_comparison(result)
+        check = check_regression(summary)
+
+        assert check.passed is False
 
 
 class TestComputeStatMetricsBasic:

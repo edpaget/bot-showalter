@@ -87,6 +87,14 @@ class StratifiedComparisonResult:
     cohorts: dict[str, ComparisonResult]
 
 
+@dataclass(frozen=True)
+class RegressionCheckResult:
+    passed: bool
+    rmse_passed: bool
+    rank_correlation_passed: bool
+    explanation: str
+
+
 _TIE_TOLERANCE = 1e-6
 
 
@@ -191,6 +199,38 @@ def summarize_comparison(
         rank_correlation_wins=rc_wins,
         rank_correlation_losses=rc_losses,
         rank_correlation_ties=rc_ties,
+    )
+
+
+def check_regression(summary: ComparisonSummary) -> RegressionCheckResult:
+    """Check whether the candidate regresses vs the baseline.
+
+    A candidate **fails** if it loses on a strict majority of stats for RMSE
+    or loses on a strict majority for rank correlation.
+    """
+    total = len(summary.records)
+    rmse_passed = summary.rmse_losses <= total / 2
+    rank_correlation_passed = summary.rank_correlation_losses <= total / 2
+    passed = rmse_passed and rank_correlation_passed
+
+    parts: list[str] = []
+    parts.append(
+        f"RMSE {summary.rmse_wins}/{total} wins" if rmse_passed else f"RMSE {summary.rmse_losses}/{total} losses"
+    )
+    parts.append(
+        f"\u03c1 {summary.rank_correlation_wins}/{total} wins"
+        if rank_correlation_passed
+        else f"\u03c1 {summary.rank_correlation_losses}/{total} losses"
+    )
+
+    verdict = "PASS" if passed else "FAIL"
+    explanation = f"{verdict}: candidate {', '.join(parts)}"
+
+    return RegressionCheckResult(
+        passed=passed,
+        rmse_passed=rmse_passed,
+        rank_correlation_passed=rank_correlation_passed,
+        explanation=explanation,
     )
 
 

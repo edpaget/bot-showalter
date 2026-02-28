@@ -20,6 +20,7 @@ from fantasy_baseball_manager.cli._output import (
     print_predict_result,
     print_prepare_result,
     print_projection_confidence,
+    print_regression_check_result,
     print_residual_analysis_report,
     print_residual_persistence_report,
     print_run_detail,
@@ -42,6 +43,7 @@ from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverAD
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
 from fantasy_baseball_manager.domain.evaluation import (
     ComparisonResult,
+    RegressionCheckResult,
     StatMetrics,
     StratifiedComparisonResult,
     SystemMetrics,
@@ -1984,6 +1986,30 @@ def _make_residual_analysis_report(
         stat_analyses=stat_analyses,
         summary=summary,
     )
+
+
+class TestPrintRegressionCheckResult:
+    def test_pass_shows_green(self, capsys: pytest.CaptureFixture[str]) -> None:
+        check = RegressionCheckResult(
+            passed=True,
+            rmse_passed=True,
+            rank_correlation_passed=True,
+            explanation="PASS: candidate RMSE 5/8 wins, \u03c1 6/8 wins",
+        )
+        print_regression_check_result(check)
+        captured = capsys.readouterr()
+        assert "PASS" in captured.out
+
+    def test_fail_shows_red(self, capsys: pytest.CaptureFixture[str]) -> None:
+        check = RegressionCheckResult(
+            passed=False,
+            rmse_passed=False,
+            rank_correlation_passed=True,
+            explanation="FAIL: candidate RMSE 5/8 losses, \u03c1 3/8 wins",
+        )
+        print_regression_check_result(check)
+        captured = capsys.readouterr()
+        assert "FAIL" in captured.out
 
 
 class TestPrintResidualAnalysisReport:

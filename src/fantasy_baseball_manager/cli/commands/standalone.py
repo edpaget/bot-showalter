@@ -13,6 +13,7 @@ from fantasy_baseball_manager.cli._output import (
     print_error,
     print_features,
     print_import_result,
+    print_regression_check_result,
     print_stratified_comparison_result,
 )
 from fantasy_baseball_manager.cli.factory import (
@@ -30,6 +31,8 @@ from fantasy_baseball_manager.domain import (
     Ok,
     Projection,
     build_consensus_lookup,
+    check_regression,
+    summarize_comparison,
 )
 from fantasy_baseball_manager.ingest import (
     CsvSource,
@@ -168,8 +171,17 @@ def compare_cmd(
     min_pa: Annotated[int | None, typer.Option("--min-pa", help="Minimum PA for batters")] = None,
     min_ip: Annotated[int | None, typer.Option("--min-ip", help="Minimum IP for pitchers")] = None,
     tail: Annotated[bool, typer.Option("--tail", help="Show top-N tail accuracy")] = False,
+    check: Annotated[bool, typer.Option("--check", help="Exit non-zero on regression")] = False,
 ) -> None:
     """Compare multiple projection systems against actuals."""
+    if check:
+        if len(systems) != 2:
+            print_error("--check requires exactly 2 systems")
+            raise typer.Exit(code=1)
+        if stratify is not None:
+            print_error("--check is incompatible with --stratify")
+            raise typer.Exit(code=1)
+
     if stratify is not None and stratify not in _STRATIFY_CHOICES:
         print_error(f"invalid stratify dimension '{stratify}', expected one of: {', '.join(_STRATIFY_CHOICES)}")
         raise typer.Exit(code=1)
@@ -209,6 +221,12 @@ def compare_cmd(
                 tail_ns=tail_ns,
             )
             print_comparison_result(result)
+            if check:
+                summary = summarize_comparison(result)
+                check_result = check_regression(summary)
+                print_regression_check_result(check_result)
+                if not check_result.passed:
+                    raise typer.Exit(code=1)
         else:
             cohort_assignments = _build_cohort_assignments(ctx, stratify, season)
             strat_result = ctx.evaluator.compare_stratified(

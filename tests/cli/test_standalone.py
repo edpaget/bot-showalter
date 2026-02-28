@@ -224,6 +224,64 @@ def _seed_eval_data(conn: sqlite3.Connection, system: str = "steamer", version: 
     conn.commit()
 
 
+def _seed_better_system(conn: sqlite3.Connection) -> None:
+    """Seed a 'better' system that predicts closer to actuals than steamer."""
+    proj_repo = SqliteProjectionRepo(conn)
+    # Closer to actuals: Trout actual=28/0.265, Judge actual=40/0.300
+    proj_repo.upsert(
+        Projection(
+            player_id=1,
+            season=2025,
+            system="better",
+            version="v2",
+            player_type="batter",
+            stat_json={"hr": 28, "avg": 0.265},
+            source_type="third_party",
+        )
+    )
+    proj_repo.upsert(
+        Projection(
+            player_id=2,
+            season=2025,
+            system="better",
+            version="v2",
+            player_type="batter",
+            stat_json={"hr": 40, "avg": 0.300},
+            source_type="third_party",
+        )
+    )
+    conn.commit()
+
+
+def _seed_worse_system(conn: sqlite3.Connection) -> None:
+    """Seed a 'worse' system that predicts farther from actuals than steamer."""
+    proj_repo = SqliteProjectionRepo(conn)
+    # Farther from actuals: Trout actual=28/0.265, Judge actual=40/0.300
+    proj_repo.upsert(
+        Projection(
+            player_id=1,
+            season=2025,
+            system="worse",
+            version="v2",
+            player_type="batter",
+            stat_json={"hr": 10, "avg": 0.180},
+            source_type="third_party",
+        )
+    )
+    proj_repo.upsert(
+        Projection(
+            player_id=2,
+            season=2025,
+            system="worse",
+            version="v2",
+            player_type="batter",
+            stat_json={"hr": 15, "avg": 0.200},
+            source_type="third_party",
+        )
+    )
+    conn.commit()
+
+
 class TestCompareCommand:
     def test_compare_command_exists(self) -> None:
         result = runner.invoke(app, ["compare", "--help"])
@@ -254,3 +312,37 @@ class TestCompareCommand:
         assert result.exit_code == 0, result.output
         assert "steamer" in result.output
         assert "zips" in result.output
+
+    def test_check_passes_on_improvement(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_eval_data(db_conn, system="steamer", version="2025.1")
+        _seed_better_system(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["compare", "steamer/2025.1", "better/v2", "--season", "2025", "--check"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "PASS" in result.output
+
+    def test_check_fails_on_regression(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_eval_data(db_conn, system="steamer", version="2025.1")
+        _seed_worse_system(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["compare", "steamer/2025.1", "worse/v2", "--season", "2025", "--check"],
+        )
+        assert result.exit_code == 1
+        assert "FAIL" in result.output
+
+    def test_check_requires_two_systems(self) -> None:
+        result = runner.invoke(
+            app,
+            ["compare", "steamer/2025.1", "--season", "2025", "--check"],
+        )
+        assert result.exit_code == 1
+        assert "requires exactly 2 systems" in result.output
