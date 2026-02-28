@@ -33,6 +33,15 @@
             "command": "uv run ruff format --quiet $CLAUDE_FILE_PATHS"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys,json; d=json.load(sys.stdin); cmd=d.get('tool_input',{}).get('command','') if isinstance(d.get('tool_input'),dict) else ''; print('Commit detected. Run /review to check against architectural principles.') if 'git commit' in cmd and '--amend' not in cmd else None\" 2>/dev/null || true"
+          }
+        ]
       }
     ]
   }
