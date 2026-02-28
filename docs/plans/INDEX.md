@@ -19,7 +19,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Pitcher Calibration](pitcher-calibration.md) | 4 | phase 1 done | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
-| [Principles Enforcement](principles-enforcement.md) | 6 | phases 1-3, 6 done | none |
+| [Principles Enforcement](principles-enforcement.md) | 6 | phases 1-4, 6 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
