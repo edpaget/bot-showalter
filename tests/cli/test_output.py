@@ -1,5 +1,8 @@
 from typing import TYPE_CHECKING, Any
 
+from rich.console import Console
+
+from fantasy_baseball_manager.cli import _output
 from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
     print_adp_accuracy_report,
@@ -443,6 +446,57 @@ class TestPrintComparisonResult:
         assert "R²" in captured.out
         assert "0.6000" in captured.out
         assert "0.4500" in captured.out
+
+    def test_two_system_comparison_shows_delta_columns(self, capsys: pytest.CaptureFixture[str]) -> None:
+        sys_a = _make_system_metrics(system="steamer", version="2025", stats={"hr": _make_stat_metrics(rmse=0.10)})
+        sys_b = _make_system_metrics(system="zips", version="2025", stats={"hr": _make_stat_metrics(rmse=0.08)})
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "Δ" in captured.out
+        assert "%Δ" in captured.out
+
+    def test_two_system_comparison_shows_summary_footer(self, capsys: pytest.CaptureFixture[str]) -> None:
+        sys_a = _make_system_metrics(
+            system="steamer", version="2025", stats={"hr": _make_stat_metrics(rmse=0.10, r_squared=0.60)}
+        )
+        sys_b = _make_system_metrics(
+            system="zips", version="2025", stats={"hr": _make_stat_metrics(rmse=0.08, r_squared=0.70)}
+        )
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "zips/2025 vs steamer/2025" in captured.out
+        assert "RMSE" in captured.out
+
+    def test_three_system_comparison_no_deltas(self, capsys: pytest.CaptureFixture[str]) -> None:
+        sys_a = _make_system_metrics(system="steamer", version="2025")
+        sys_b = _make_system_metrics(system="zips", version="2025")
+        sys_c = _make_system_metrics(system="marcel", version="latest")
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b, sys_c])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "Δ" not in captured.out
+
+    def test_improvement_colored_green(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(force_terminal=True, highlight=False, width=200))
+        sys_a = _make_system_metrics(system="steamer", version="2025", stats={"hr": _make_stat_metrics(rmse=0.10)})
+        sys_b = _make_system_metrics(system="zips", version="2025", stats={"hr": _make_stat_metrics(rmse=0.05)})
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "\x1b[32m" in captured.out  # ANSI green
+
+    def test_regression_colored_red(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        monkeypatch.setattr(_output, "console", Console(force_terminal=True, highlight=False, width=200))
+        sys_a = _make_system_metrics(system="steamer", version="2025", stats={"hr": _make_stat_metrics(rmse=0.05)})
+        sys_b = _make_system_metrics(system="zips", version="2025", stats={"hr": _make_stat_metrics(rmse=0.10)})
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "\x1b[31m" in captured.out  # ANSI red
 
 
 class TestPrintStratifiedComparisonResult:

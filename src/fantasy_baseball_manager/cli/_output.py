@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
+from fantasy_baseball_manager.domain.evaluation import StatComparisonRecord, summarize_comparison
 from fantasy_baseball_manager.domain.projection_confidence import (
     ClassifiedPlayer,
     ConfidenceReport,
@@ -213,9 +214,64 @@ def print_system_metrics(metrics: SystemMetrics) -> None:
     console.print(table)
 
 
+def _color_delta(value: str, winner: str) -> str:
+    if winner == "candidate":
+        return f"[green]{value}[/green]"
+    if winner == "baseline":
+        return f"[red]{value}[/red]"
+    return value
+
+
+def _format_delta(delta: float, pct_delta: float, winner: str) -> tuple[str, str]:
+    sign = "+" if delta >= 0 else ""
+    delta_str = _color_delta(f"{sign}{delta:.4f}", winner)
+    pct_str = _color_delta(f"{sign}{pct_delta:.1f}%", winner)
+    return delta_str, pct_str
+
+
+def _build_two_system_row(rec: StatComparisonRecord) -> list[str]:
+    rmse_d, rmse_pct = _format_delta(rec.rmse_delta, rec.rmse_pct_delta, rec.rmse_winner)
+    r2_d, r2_pct = _format_delta(rec.r_squared_delta, rec.r_squared_pct_delta, rec.r_squared_winner)
+    return [
+        rec.stat_name,
+        f"{rec.baseline_rmse:.4f}",
+        f"{rec.candidate_rmse:.4f}",
+        rmse_d,
+        rmse_pct,
+        f"{rec.baseline_r_squared:.4f}",
+        f"{rec.candidate_r_squared:.4f}",
+        r2_d,
+        r2_pct,
+    ]
+
+
 def print_comparison_result(result: ComparisonResult) -> None:
     """Print comparison table across systems."""
     console.print(f"Comparison — season [bold]{result.season}[/bold]")
+
+    if len(result.systems) == 2:
+        summary = summarize_comparison(result)
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Stat")
+        table.add_column(f"{summary.baseline_label} RMSE", justify="right")
+        table.add_column(f"{summary.candidate_label} RMSE", justify="right")
+        table.add_column("Δ", justify="right")
+        table.add_column("%Δ", justify="right")
+        table.add_column(f"{summary.baseline_label} R²", justify="right")
+        table.add_column(f"{summary.candidate_label} R²", justify="right")
+        table.add_column("Δ", justify="right")
+        table.add_column("%Δ", justify="right")
+        for rec in summary.records:
+            table.add_row(*_build_two_system_row(rec))
+        console.print(table)
+        total = len(summary.records)
+        console.print(
+            f"[bold]{summary.candidate_label} vs {summary.baseline_label}:[/bold]"
+            f" wins {summary.rmse_wins}/{total} stats on RMSE,"
+            f" {summary.r_squared_wins}/{total} on R²"
+        )
+        return
+
     table = Table(show_edge=False, pad_edge=False)
     table.add_column("Stat")
     for sys_metrics in result.systems:
