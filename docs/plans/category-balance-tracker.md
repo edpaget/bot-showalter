@@ -8,7 +8,7 @@ This builds on the league settings (which define scoring categories) and the pro
 
 | Phase | Status |
 |-------|--------|
-| 1 — Roster category projection | not started |
+| 1 — Roster category projection | in progress |
 | 2 — Category need identification | not started |
 | 3 — Draft integration and running balance | not started |
 
