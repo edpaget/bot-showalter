@@ -33,7 +33,11 @@ from fantasy_baseball_manager.services.draft_translation import (
     build_team_map,
     ingest_yahoo_pick,
 )
-from fantasy_baseball_manager.services.keeper_service import compute_surplus, set_keeper_cost
+from fantasy_baseball_manager.services.keeper_service import (
+    compute_adjusted_valuations,
+    compute_surplus,
+    set_keeper_cost,
+)
 from fantasy_baseball_manager.services.league_environment_service import (
     LeagueEnvironmentService,
 )
@@ -104,6 +108,7 @@ __all__ = [
     "build_draft_roster_slots",
     "build_team_map",
     "classify_variance",
+    "compute_adjusted_valuations",
     "compute_surplus",
     "compute_confidence",
     "draft_report",

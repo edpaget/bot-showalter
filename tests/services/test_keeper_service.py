@@ -1,8 +1,22 @@
 import pytest
 
-from fantasy_baseball_manager.domain import KeeperCost, Player, Valuation
+from fantasy_baseball_manager.domain import (
+    CategoryConfig,
+    Direction,
+    KeeperCost,
+    LeagueFormat,
+    LeagueSettings,
+    Player,
+    Projection,
+    StatType,
+    Valuation,
+)
 from fantasy_baseball_manager.domain.result import Err, Ok
-from fantasy_baseball_manager.services.keeper_service import compute_surplus, set_keeper_cost
+from fantasy_baseball_manager.services.keeper_service import (
+    compute_adjusted_valuations,
+    compute_surplus,
+    set_keeper_cost,
+)
 from tests.fakes.repos import FakeKeeperCostRepo, FakePlayerRepo
 
 
@@ -225,3 +239,224 @@ class TestComputeSurplus:
 
         assert result[0].projected_value == 25.0
         assert result[0].surplus == 15.0
+
+
+def _adj_league() -> LeagueSettings:
+    """Minimal league for adjusted valuation tests."""
+    return LeagueSettings(
+        name="test",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=2,
+        budget=100,
+        roster_batters=3,
+        roster_pitchers=0,
+        batting_categories=(
+            CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        pitching_categories=(),
+        positions={"c": 1, "of": 1},
+        roster_util=0,
+    )
+
+
+def _adj_proj(player_id: int, hr: float) -> Projection:
+    return Projection(
+        player_id=player_id,
+        season=2026,
+        system="composite",
+        version="v1",
+        player_type="batter",
+        stat_json={"pa": 600, "hr": hr},
+    )
+
+
+def _adj_projections() -> list[Projection]:
+    """4 catchers + 2 outfielders with varied HR values."""
+    return [
+        _adj_proj(1, hr=40),  # best catcher
+        _adj_proj(2, hr=30),
+        _adj_proj(3, hr=20),
+        _adj_proj(4, hr=10),  # worst catcher
+        _adj_proj(5, hr=25),  # best OF
+        _adj_proj(6, hr=15),  # 2nd OF
+    ]
+
+
+def _adj_batter_positions() -> dict[int, list[str]]:
+    return {1: ["c"], 2: ["c"], 3: ["c"], 4: ["c"], 5: ["of"], 6: ["of"]}
+
+
+def _adj_players() -> list[Player]:
+    return [
+        Player(name_first="P", name_last="One", id=1),
+        Player(name_first="P", name_last="Two", id=2),
+        Player(name_first="P", name_last="Three", id=3),
+        Player(name_first="P", name_last="Four", id=4),
+        Player(name_first="P", name_last="Five", id=5),
+        Player(name_first="P", name_last="Six", id=6),
+    ]
+
+
+class TestComputeAdjustedValuations:
+    def test_kept_players_excluded(self) -> None:
+        original_vals = [_valuation(pid, 10.0) for pid in range(1, 7)]
+
+        result = compute_adjusted_valuations(
+            kept_player_ids={1},
+            projections=_adj_projections(),
+            batter_positions=_adj_batter_positions(),
+            pitcher_positions={},
+            league=_adj_league(),
+            original_valuations=original_vals,
+            players=_adj_players(),
+        )
+
+        result_ids = {r.player_id for r in result}
+        assert 1 not in result_ids
+        assert len(result) == 5
+
+    def test_replacement_level_shifts(self) -> None:
+        league = _adj_league()
+        projections = _adj_projections()
+        batter_positions = _adj_batter_positions()
+        players = _adj_players()
+
+        # Get baseline values (no keepers) to use as original valuations
+        baseline = compute_adjusted_valuations(
+            kept_player_ids=set(),
+            projections=projections,
+            batter_positions=batter_positions,
+            pitcher_positions={},
+            league=league,
+            original_valuations=[],
+            players=players,
+        )
+        original_vals = [
+            Valuation(
+                player_id=a.player_id,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type=a.player_type,
+                position=a.position,
+                value=a.adjusted_value,
+                rank=0,
+                category_scores={},
+            )
+            for a in baseline
+        ]
+
+        # Keep best catcher (pid 1)
+        adjusted = compute_adjusted_valuations(
+            kept_player_ids={1},
+            projections=projections,
+            batter_positions=batter_positions,
+            pitcher_positions={},
+            league=league,
+            original_valuations=original_vals,
+            players=players,
+        )
+
+        # Above-replacement catchers should see value increase
+        catcher_results = [a for a in adjusted if a.player_id in {2, 3}]
+        assert len(catcher_results) == 2
+        for c in catcher_results:
+            assert c.value_change > 0, f"Catcher {c.player_id} should see positive value change"
+
+    def test_value_change_computed(self) -> None:
+        original_vals = [_valuation(pid, float(pid * 5)) for pid in range(1, 7)]
+
+        result = compute_adjusted_valuations(
+            kept_player_ids={1},
+            projections=_adj_projections(),
+            batter_positions=_adj_batter_positions(),
+            pitcher_positions={},
+            league=_adj_league(),
+            original_valuations=original_vals,
+            players=_adj_players(),
+        )
+
+        for a in result:
+            assert a.value_change == pytest.approx(a.adjusted_value - a.original_value)
+
+    def test_sorted_by_adjusted_value(self) -> None:
+        original_vals = [_valuation(pid, 10.0) for pid in range(1, 7)]
+
+        result = compute_adjusted_valuations(
+            kept_player_ids=set(),
+            projections=_adj_projections(),
+            batter_positions=_adj_batter_positions(),
+            pitcher_positions={},
+            league=_adj_league(),
+            original_valuations=original_vals,
+            players=_adj_players(),
+        )
+
+        values = [r.adjusted_value for r in result]
+        assert values == sorted(values, reverse=True)
+
+    def test_empty_kept_ids(self) -> None:
+        league = _adj_league()
+        projections = _adj_projections()
+        batter_positions = _adj_batter_positions()
+        players = _adj_players()
+
+        # First call to get baseline adjusted values
+        baseline = compute_adjusted_valuations(
+            kept_player_ids=set(),
+            projections=projections,
+            batter_positions=batter_positions,
+            pitcher_positions={},
+            league=league,
+            original_valuations=[],
+            players=players,
+        )
+        original_vals = [
+            Valuation(
+                player_id=a.player_id,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type=a.player_type,
+                position=a.position,
+                value=a.adjusted_value,
+                rank=0,
+                category_scores={},
+            )
+            for a in baseline
+        ]
+
+        # Second call: same empty keepers, but with original vals set
+        result = compute_adjusted_valuations(
+            kept_player_ids=set(),
+            projections=projections,
+            batter_positions=batter_positions,
+            pitcher_positions={},
+            league=league,
+            original_valuations=original_vals,
+            players=players,
+        )
+
+        assert len(result) == 6
+        for r in result:
+            assert r.value_change == pytest.approx(0.0, abs=0.01)
+
+    def test_all_kept(self) -> None:
+        all_ids = {p.player_id for p in _adj_projections()}
+        original_vals = [_valuation(pid, 10.0) for pid in range(1, 7)]
+
+        result = compute_adjusted_valuations(
+            kept_player_ids=all_ids,
+            projections=_adj_projections(),
+            batter_positions=_adj_batter_positions(),
+            pitcher_positions={},
+            league=_adj_league(),
+            original_valuations=original_vals,
+            players=_adj_players(),
+        )
+
+        assert result == []

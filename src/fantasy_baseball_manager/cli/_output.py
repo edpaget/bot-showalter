@@ -23,6 +23,7 @@ from fantasy_baseball_manager.features import (
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         ADP,
+        AdjustedValuation,
         ADPAccuracyReport,
         ADPMoversReport,
         ComparisonResult,
@@ -1664,6 +1665,41 @@ def print_keeper_decisions(decisions: list[KeeperDecision]) -> None:
             f"${d.surplus:.1f}",
             str(d.years_remaining),
             d.recommendation,
+            style=style,
+        )
+
+    console.print(table)
+
+
+def print_adjusted_rankings(rankings: list[AdjustedValuation], *, top: int | None = None) -> None:
+    table = Table(title="Keeper-Adjusted Rankings", show_edge=False, pad_edge=False)
+    table.add_column("Rank", justify="right")
+    table.add_column("Player", justify="left")
+    table.add_column("Type", justify="left")
+    table.add_column("Pos", justify="left")
+    table.add_column("Original", justify="right")
+    table.add_column("Adjusted", justify="right")
+    table.add_column("Change", justify="right")
+
+    display = rankings[:top] if top is not None else rankings
+    for i, r in enumerate(display, 1):
+        if abs(r.value_change) > 3:
+            style = "bold green" if r.value_change > 0 else "bold red"
+        elif r.value_change > 0:
+            style = "green"
+        elif r.value_change < 0:
+            style = "red"
+        else:
+            style = ""
+        sign = "+" if r.value_change > 0 else ""
+        table.add_row(
+            str(i),
+            r.player_name,
+            r.player_type,
+            r.position,
+            f"${r.original_value:.1f}",
+            f"${r.adjusted_value:.1f}",
+            f"{sign}${r.value_change:.1f}",
             style=style,
         )
 

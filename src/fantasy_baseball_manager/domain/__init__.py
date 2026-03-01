@@ -48,7 +48,7 @@ from fantasy_baseball_manager.domain.evaluation import (
     summarize_comparison,
 )
 from fantasy_baseball_manager.domain.il_stint import ILStint
-from fantasy_baseball_manager.domain.keeper import KeeperCost, KeeperDecision
+from fantasy_baseball_manager.domain.keeper import AdjustedValuation, KeeperCost, KeeperDecision
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -147,6 +147,7 @@ from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 
 __all__ = [
     "ADP",
+    "AdjustedValuation",
     "ADPAccuracyPlayer",
     "ADPAccuracyReport",
     "ADPAccuracyResult",

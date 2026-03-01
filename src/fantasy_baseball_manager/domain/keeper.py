@@ -23,3 +23,14 @@ class KeeperDecision:
     surplus: float
     years_remaining: int
     recommendation: str  # "keep" | "release"
+
+
+@dataclass(frozen=True)
+class AdjustedValuation:
+    player_id: int
+    player_name: str
+    player_type: str
+    position: str
+    original_value: float
+    adjusted_value: float
+    value_change: float

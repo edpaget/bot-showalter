@@ -4,11 +4,12 @@ from typing import Annotated
 
 import typer
 
-from fantasy_baseball_manager.cli._output import print_keeper_decisions
+from fantasy_baseball_manager.cli._output import print_adjusted_rankings, print_keeper_decisions
 from fantasy_baseball_manager.cli.factory import build_keeper_context
+from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain import Err, Ok
 from fantasy_baseball_manager.ingest import import_keeper_costs
-from fantasy_baseball_manager.services import compute_surplus, set_keeper_cost
+from fantasy_baseball_manager.services import compute_adjusted_valuations, compute_surplus, set_keeper_cost
 
 keeper_app = typer.Typer(name="keeper", help="Keeper league cost management")
 
@@ -86,3 +87,55 @@ def decisions_cmd(
         decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 
     print_keeper_decisions(decisions)
+
+
+@keeper_app.command("adjusted-rankings")
+def adjusted_rankings_cmd(
+    season: Annotated[int, typer.Option(help="Season year")],
+    league: Annotated[str, typer.Option(help="League name (must match fbm.toml)")],
+    system: Annotated[str, typer.Option(help="Valuation system name")],
+    threshold: Annotated[float, typer.Option(help="Minimum surplus for keep recommendation")] = 0.0,
+    decay: Annotated[float, typer.Option(help="Decay factor for multi-year surplus")] = 0.85,
+    top: Annotated[int | None, typer.Option(help="Show only top N players")] = None,
+    data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
+) -> None:
+    """Show post-keeper adjusted rankings with recalculated replacement levels."""
+    league_settings = load_league(league, Path.cwd())
+
+    with build_keeper_context(data_dir) as ctx:
+        keeper_costs = ctx.keeper_repo.find_by_season_league(season, league)
+        if not keeper_costs:
+            typer.echo("No keeper costs found for the specified season and league.")
+            return
+
+        valuations = ctx.valuation_repo.get_by_season(season, system)
+        players = ctx.player_repo.all()
+        decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
+        kept_player_ids = {d.player_id for d in decisions if d.recommendation == "keep"}
+
+        if not kept_player_ids:
+            typer.echo("No players recommended for keeping. Adjusted rankings match original.")
+            return
+
+        # Determine projection system from valuations
+        if not valuations:
+            typer.echo("No valuations found for the specified season and system.")
+            return
+        proj_system = valuations[0].projection_system
+
+        projections = ctx.projection_repo.get_by_season(season, system=proj_system)
+        batter_positions = ctx.eligibility_service.get_batter_positions(season, league_settings)
+        pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
+        pitcher_positions = ctx.eligibility_service.get_pitcher_positions(season, league_settings, pitcher_ids)
+
+        results = compute_adjusted_valuations(
+            kept_player_ids=kept_player_ids,
+            projections=projections,
+            batter_positions=batter_positions,
+            pitcher_positions=pitcher_positions,
+            league=league_settings,
+            original_valuations=valuations,
+            players=players,
+        )
+
+    print_adjusted_rankings(results, top=top)

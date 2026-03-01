@@ -640,6 +640,8 @@ class KeeperContext:
     keeper_repo: SqliteKeeperCostRepo
     player_repo: SqlitePlayerRepo
     valuation_repo: SqliteValuationRepo
+    projection_repo: SqliteProjectionRepo
+    eligibility_service: PlayerEligibilityService
 
 
 @contextmanager
@@ -647,11 +649,19 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:
     """Composition-root context manager for keeper commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
+        position_repo = SqlitePositionAppearanceRepo(conn)
+        pitching_stats_repo = SqlitePitchingStatsRepo(conn)
+        eligibility_service = PlayerEligibilityService(
+            position_repo,
+            pitching_stats_repo=pitching_stats_repo,
+        )
         yield KeeperContext(
             conn=conn,
             keeper_repo=SqliteKeeperCostRepo(conn),
             player_repo=SqlitePlayerRepo(conn),
             valuation_repo=SqliteValuationRepo(conn),
+            projection_repo=SqliteProjectionRepo(conn),
+            eligibility_service=eligibility_service,
         )
     finally:
         conn.close()
