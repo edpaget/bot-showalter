@@ -5,8 +5,9 @@ from typing import Annotated
 import typer
 
 from fantasy_baseball_manager.cli.factory import build_keeper_context
-from fantasy_baseball_manager.domain import KeeperCost
+from fantasy_baseball_manager.domain import Err, Ok
 from fantasy_baseball_manager.ingest import import_keeper_costs
+from fantasy_baseball_manager.services import set_keeper_cost
 
 keeper_app = typer.Typer(name="keeper", help="Keeper league cost management")
 
@@ -52,25 +53,13 @@ def set_cmd(
 ) -> None:
     """Set a keeper cost for a single player."""
     with build_keeper_context(data_dir) as ctx:
-        matches = ctx.player_repo.search_by_name(player_name)
-        if len(matches) == 0:
-            typer.echo(f"Error: no player found matching '{player_name}'", err=True)
-            raise typer.Exit(code=1)
-        if len(matches) > 1:
-            names = [f"{p.name_first} {p.name_last}" for p in matches]
-            typer.echo(f"Error: ambiguous name '{player_name}', matches: {', '.join(names)}", err=True)
-            raise typer.Exit(code=1)
-
-        player = matches[0]
-        assert player.id is not None  # noqa: S101
-        keeper_cost = KeeperCost(
-            player_id=player.id,
-            season=season,
-            league=league,
-            cost=cost,
-            years_remaining=years,
-            source=source,
-        )
-        ctx.keeper_repo.upsert_batch([keeper_cost])
-        ctx.conn.commit()
-        typer.echo(f"Set keeper cost for {player.name_first} {player.name_last}: ${cost:.0f} ({source}, {years}yr)")
+        result = set_keeper_cost(player_name, cost, season, league, ctx.player_repo, ctx.keeper_repo, years, source)
+        match result:
+            case Ok(kc):
+                ctx.conn.commit()
+                player = ctx.player_repo.get_by_id(kc.player_id)
+                name = f"{player.name_first} {player.name_last}" if player else "Unknown"
+                typer.echo(f"Set keeper cost for {name}: ${cost:.0f} ({source}, {years}yr)")
+            case Err(msg):
+                typer.echo(f"Error: {msg}", err=True)
+                raise typer.Exit(code=1)

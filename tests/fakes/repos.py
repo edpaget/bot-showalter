@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain.adp import ADP
     from fantasy_baseball_manager.domain.batting_stats import BattingStats
+    from fantasy_baseball_manager.domain.keeper import KeeperCost
     from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
     from fantasy_baseball_manager.domain.player import Player
     from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
@@ -30,7 +31,8 @@ class FakePlayerRepo:
         return None
 
     def search_by_name(self, name: str) -> list[Player]:
-        return []
+        query = name.lower()
+        return [p for p in self._players if query in p.name_first.lower() or query in p.name_last.lower()]
 
     def get_by_last_name(self, last_name: str) -> list[Player]:
         return []
@@ -178,3 +180,24 @@ class FakePitchingStatsRepo:
         if source is not None:
             result = [s for s in result if s.source == source]
         return result
+
+
+class FakeKeeperCostRepo:
+    def __init__(self, costs: list[KeeperCost] | None = None) -> None:
+        self._costs: list[KeeperCost] = list(costs) if costs else []
+
+    def upsert_batch(self, costs: list[KeeperCost]) -> int:
+        for cost in costs:
+            self._costs = [
+                c
+                for c in self._costs
+                if not (c.player_id == cost.player_id and c.season == cost.season and c.league == cost.league)
+            ]
+            self._costs.append(cost)
+        return len(costs)
+
+    def find_by_season_league(self, season: int, league: str) -> list[KeeperCost]:
+        return [c for c in self._costs if c.season == season and c.league == league]
+
+    def find_by_player(self, player_id: int) -> list[KeeperCost]:
+        return [c for c in self._costs if c.player_id == player_id]

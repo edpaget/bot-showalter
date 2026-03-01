@@ -31,6 +31,7 @@ from fantasy_baseball_manager.services.draft_translation import (
     build_team_map,
     ingest_yahoo_pick,
 )
+from fantasy_baseball_manager.services.keeper_service import set_keeper_cost
 from fantasy_baseball_manager.services.league_environment_service import (
     LeagueEnvironmentService,
 )
@@ -110,5 +111,6 @@ __all__ = [
     "load_draft",
     "recommend",
     "resolve_player",
+    "set_keeper_cost",
     "tier_summary",
 ]
