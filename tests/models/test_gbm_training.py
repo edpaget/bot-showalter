@@ -10,6 +10,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     FeatureImportance,
     GridSearchResult,
     GroupedImportanceResult,
+    PerTargetBest,
     TargetVector,
     _evaluate_combination,
     _find_correlated_groups,
@@ -18,6 +19,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     compute_grouped_permutation_importance,
     compute_permutation_importance,
     extract_features,
+    extract_per_target_best,
     extract_sample_weights,
     extract_targets,
     fit_models,
@@ -431,6 +433,36 @@ class TestFitModels:
         models = fit_models(X, targets, {})
         assert "avg" in models
         assert hasattr(models["avg"], "predict")
+
+    def test_loss_param_passed_through(self) -> None:
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"avg": TargetVector(indices=[0, 1, 2, 3], values=[0.250, 0.300, 0.275, 0.280])}
+        models = fit_models(X, targets, {"loss": "absolute_error"})
+        assert "avg" in models
+        assert models["avg"].loss == "absolute_error"
+
+    def test_fit_models_per_target_params_override(self) -> None:
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {
+            "era": TargetVector(indices=[0, 1, 2, 3], values=[3.50, 4.00, 3.75, 3.80]),
+            "whip": TargetVector(indices=[0, 1, 2, 3], values=[1.10, 1.20, 1.15, 1.18]),
+        }
+        models = fit_models(
+            X,
+            targets,
+            {"max_iter": 100},
+            per_target_params={"era": {"max_iter": 200, "loss": "absolute_error"}},
+        )
+        assert models["era"].max_iter == 200
+        assert models["era"].loss == "absolute_error"
+        assert models["whip"].max_iter == 100
+
+    def test_fit_models_per_target_params_none_is_noop(self) -> None:
+        X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        targets = {"avg": TargetVector(indices=[0, 1, 2, 3], values=[0.250, 0.300, 0.275, 0.280])}
+        models_with_none = fit_models(X, targets, {"max_iter": 100}, per_target_params=None)
+        models_without = fit_models(X, targets, {"max_iter": 100})
+        assert models_with_none["avg"].max_iter == models_without["avg"].max_iter
 
     def test_fit_with_sample_weights(self) -> None:
         X = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
@@ -1088,6 +1120,70 @@ class TestGridSearchCV:
         result = grid_search_cv(folds, {"max_iter": [100]})
         assert isinstance(result, GridSearchResult)
         assert result.best_mean_rmse >= 0
+
+    def test_result_has_per_target_best(self) -> None:
+        folds = _make_cv_folds()
+        result = grid_search_cv(folds, {"max_iter": [50, 100]})
+        assert isinstance(result.per_target_best, dict)
+        assert "y" in result.per_target_best
+        ptb = result.per_target_best["y"]
+        assert isinstance(ptb, PerTargetBest)
+        assert ptb.best_rmse <= ptb.joint_rmse
+        assert ptb.delta_pct >= 0.0
+
+
+class TestExtractPerTargetBest:
+    def test_finds_optimal_per_target(self) -> None:
+        all_results = [
+            {
+                "params": {"max_iter": 100, "max_depth": 3},
+                "mean_rmse": 0.50,
+                "per_target_rmse": {"era": 0.80, "whip": 0.20},
+            },
+            {
+                "params": {"max_iter": 200, "max_depth": 5},
+                "mean_rmse": 0.55,
+                "per_target_rmse": {"era": 0.60, "whip": 0.50},
+            },
+            {
+                "params": {"max_iter": 500, "max_depth": 7},
+                "mean_rmse": 0.52,
+                "per_target_rmse": {"era": 0.70, "whip": 0.34},
+            },
+        ]
+        # Joint best is combo 0 (mean_rmse=0.50)
+        joint_best_params = {"max_iter": 100, "max_depth": 3}
+        result = extract_per_target_best(all_results, joint_best_params)
+        assert "era" in result
+        assert "whip" in result
+        # ERA best is combo 1 (0.60)
+        assert result["era"].best_rmse == 0.60
+        assert result["era"].best_params == {"max_iter": 200, "max_depth": 5}
+        # WHIP best is combo 0 (0.20)
+        assert result["whip"].best_rmse == 0.20
+        assert result["whip"].best_params == {"max_iter": 100, "max_depth": 3}
+
+    def test_computes_delta_pct(self) -> None:
+        all_results = [
+            {
+                "params": {"max_iter": 100},
+                "mean_rmse": 0.50,
+                "per_target_rmse": {"era": 0.80, "whip": 0.20},
+            },
+            {
+                "params": {"max_iter": 200},
+                "mean_rmse": 0.55,
+                "per_target_rmse": {"era": 0.60, "whip": 0.50},
+            },
+        ]
+        joint_best_params = {"max_iter": 100}
+        result = extract_per_target_best(all_results, joint_best_params)
+        # ERA: joint_rmse=0.80 (combo 0), best=0.60 (combo 1)
+        # delta = (0.80 - 0.60) / 0.60 * 100 = 33.33%
+        assert result["era"].joint_rmse == 0.80
+        assert result["era"].delta_pct == pytest.approx(33.333, rel=0.01)
+        # WHIP: joint is already best, delta = 0
+        assert result["whip"].delta_pct == pytest.approx(0.0)
 
 
 def _make_validate_data() -> tuple[

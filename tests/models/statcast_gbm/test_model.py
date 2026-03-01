@@ -763,6 +763,12 @@ class TestStatcastGBMPreseasonTune:
         for target in PITCHER_TARGETS:
             assert target in tune_result.pitcher_cv_rmse
 
+    def test_tune_result_has_per_target_best(self, tune_result: TuneResult) -> None:
+        assert isinstance(tune_result.batter_per_target_best, dict)
+        assert isinstance(tune_result.pitcher_per_target_best, dict)
+        assert len(tune_result.pitcher_per_target_best) > 0
+        assert len(tune_result.batter_per_target_best) > 0
+
     def test_tune_raises_with_fewer_than_3_seasons(self) -> None:
         assembler = FakeAssembler()
         model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
@@ -952,6 +958,49 @@ class TestStatcastGBMTrainPerTypeParams:
         assert len(captured_params) == 2
         assert captured_params[0] == {"max_iter": 50}
         assert captured_params[1] == {"max_iter": 50}
+
+
+@pytest.mark.slow
+class TestTrainPerTargetParams:
+    def test_train_passes_per_target_params(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_per_target: list[dict[str, dict[str, Any]] | None] = []
+        original_fit = statcast_gbm_model_mod.fit_models
+
+        def spy_fit(X: Any, y: Any, params: dict[str, Any], **kwargs: Any) -> Any:
+            captured_per_target.append(kwargs.get("per_target_params"))
+            return original_fit(X, y, params, **kwargs)
+
+        monkeypatch.setattr(statcast_gbm_model_mod, "fit_models", spy_fit)
+
+        rows_by_season = {
+            2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+        }
+        pitcher_rows = {
+            2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
+            2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows)
+        model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={
+                "pitcher": {
+                    "max_iter": 100,
+                    "per_target": {"era": {"max_iter": 200, "loss": "absolute_error"}},
+                },
+            },
+        )
+        model.train(config)
+        # First call is batter, second is pitcher
+        assert len(captured_per_target) == 2
+        # Batter should have no per_target_params
+        assert captured_per_target[0] is None
+        # Pitcher should have per_target params
+        assert captured_per_target[1] is not None
+        assert "era" in captured_per_target[1]
+        assert captured_per_target[1]["era"]["max_iter"] == 200
 
 
 @pytest.mark.slow

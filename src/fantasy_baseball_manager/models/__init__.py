@@ -7,6 +7,10 @@ from fantasy_baseball_manager.models import (
     statcast_gbm,  # noqa: F401
     zar,  # noqa: F401
 )
+from fantasy_baseball_manager.models.gbm_training import (
+    PerTargetBest,
+    extract_per_target_best,
+)
 from fantasy_baseball_manager.models.protocols import (
     Ablatable,
     AblationResult,
@@ -40,6 +44,8 @@ from fantasy_baseball_manager.models.run_manager import RunContext, RunManager
 __all__ = [
     "Ablatable",
     "AblationResult",
+    "PerTargetBest",
+    "extract_per_target_best",
     "Evaluable",
     "Evaluator",
     "FeatureIntrospectable",

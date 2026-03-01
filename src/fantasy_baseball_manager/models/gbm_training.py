@@ -7,7 +7,7 @@ import statistics
 import time
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -214,14 +214,19 @@ def fit_models(
     model_params: dict[str, Any],
     *,
     sample_weights: list[float] | None = None,
+    per_target_params: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, HistGradientBoostingRegressor]:
-    allowed_params = {"max_iter", "max_depth", "learning_rate", "min_samples_leaf", "max_leaf_nodes"}
+    allowed_params = {"max_iter", "max_depth", "learning_rate", "min_samples_leaf", "max_leaf_nodes", "loss"}
     filtered_params = {k: v for k, v in model_params.items() if k in allowed_params}
     logger.info("Fitting %d targets with params %s", len(targets_dict), filtered_params)
     t0 = time.perf_counter()
     models: dict[str, HistGradientBoostingRegressor] = {}
     for target_name, tv in targets_dict.items():
-        model = HistGradientBoostingRegressor(**filtered_params)
+        target_params = dict(filtered_params)
+        if per_target_params and target_name in per_target_params:
+            overrides = {k: v for k, v in per_target_params[target_name].items() if k in allowed_params}
+            target_params.update(overrides)
+        model = HistGradientBoostingRegressor(**target_params)
         filtered_w = [sample_weights[i] for i in tv.indices] if sample_weights else None
         model.fit(_filter_X(X, tv.indices), tv.values, sample_weight=filtered_w)
         models[target_name] = model
@@ -478,6 +483,54 @@ class GridSearchResult:
     best_mean_rmse: float
     per_target_rmse: dict[str, float]
     all_results: list[dict[str, Any]]
+    per_target_best: dict[str, PerTargetBest] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PerTargetBest:
+    target: str
+    best_params: dict[str, Any]
+    best_rmse: float
+    joint_rmse: float
+    delta_pct: float
+
+
+def extract_per_target_best(
+    all_results: list[dict[str, Any]],
+    joint_best_params: dict[str, Any],
+) -> dict[str, PerTargetBest]:
+    """Find the per-target optimal params and compare to joint-best.
+
+    For each target, finds the parameter combination with the lowest RMSE,
+    then computes how much worse the joint-best is for that target.
+    """
+    if not all_results:
+        return {}
+
+    targets = list(all_results[0]["per_target_rmse"].keys())
+
+    # Find joint-best RMSE per target
+    joint_per_target: dict[str, float] = {}
+    for entry in all_results:
+        if entry["params"] == joint_best_params:
+            joint_per_target = entry["per_target_rmse"]
+            break
+
+    result: dict[str, PerTargetBest] = {}
+    for target in targets:
+        best_entry = min(all_results, key=lambda e: e["per_target_rmse"][target])
+        best_rmse = best_entry["per_target_rmse"][target]
+        joint_rmse = joint_per_target.get(target, best_rmse)
+        delta_pct = (joint_rmse - best_rmse) / best_rmse * 100 if best_rmse > 0 else 0.0
+        result[target] = PerTargetBest(
+            target=target,
+            best_params=best_entry["params"],
+            best_rmse=best_rmse,
+            joint_rmse=joint_rmse,
+            delta_pct=delta_pct,
+        )
+
+    return result
 
 
 def _evaluate_combination(folds: list[CVFold], params: dict[str, Any]) -> dict[str, Any]:
@@ -549,11 +602,13 @@ def grid_search_cv(
     logger.info(
         "Grid search done in %.1fs: best RMSE=%.4f params=%s", time.perf_counter() - t0, best_mean_rmse, best_params
     )
+    per_target_best = extract_per_target_best(all_results, best_params)
     return GridSearchResult(
         best_params=best_params,
         best_mean_rmse=best_mean_rmse,
         per_target_rmse=best_per_target,
         all_results=all_results,
+        per_target_best=per_target_best,
     )
 
 
@@ -670,11 +725,13 @@ def sweep_cv(
     logger.info(
         "Sweep done in %.1fs: best RMSE=%.4f params=%s", time.perf_counter() - t0, best["mean_rmse"], best["params"]
     )
+    per_target_best = extract_per_target_best(all_results, best["params"])
     return GridSearchResult(
         best_params=best["params"],
         best_mean_rmse=best["mean_rmse"],
         per_target_rmse=best["per_target_rmse"],
         all_results=all_results,
+        per_target_best=per_target_best,
     )
 
 

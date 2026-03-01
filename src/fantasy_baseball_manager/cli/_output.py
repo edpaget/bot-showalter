@@ -177,6 +177,25 @@ def print_tune_result(result: TuneResult) -> None:
         console.print(f"  {target}: {rmse:.4f}")
     console.print()
 
+    # Per-target optimal breakdown
+    for label, per_target_best in [
+        ("Batter", result.batter_per_target_best),
+        ("Pitcher", result.pitcher_per_target_best),
+    ]:
+        if not per_target_best:
+            continue
+        has_divergence = any(ptb.delta_pct > 0.0 for ptb in per_target_best.values())
+        if not has_divergence:
+            continue
+        console.print(f"[bold]{label} per-target optimal params:[/bold]")
+        for target_name, ptb in sorted(per_target_best.items()):
+            if ptb.delta_pct > 0.0:
+                params_str = ", ".join(f"{k}={v!r}" for k, v in sorted(ptb.best_params.items()))
+                console.print(f"  {target_name}: RMSE {ptb.best_rmse:.4f} (joint +{ptb.delta_pct:.1f}%) — {params_str}")
+            else:
+                console.print(f"  {target_name}: RMSE {ptb.best_rmse:.4f} (joint is optimal)")
+        console.print()
+
     # TOML snippet
     console.print("[bold]TOML snippet (copy into fbm.toml):[/bold]")
     console.print("[dim]# Batter params[/dim]")

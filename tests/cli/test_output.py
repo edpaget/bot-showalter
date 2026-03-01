@@ -85,6 +85,7 @@ from fantasy_baseball_manager.features.types import (
     Source,
     TransformFeature,
 )
+from fantasy_baseball_manager.models.gbm_training import PerTargetBest
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     PredictResult,
@@ -1711,6 +1712,39 @@ class TestPrintTuneResultPitcherNone:
         captured = capsys.readouterr()
         # Both the batter (int) and pitcher (None) branches in TOML section
         assert captured.out.count("unlimited") == 1
+
+
+class TestPrintTuneResultPerTargetBest:
+    def test_shows_per_target_optimal(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = TuneResult(
+            model_name="xgb-v1",
+            batter_params={"max_depth": 4},
+            pitcher_params={"max_depth": 3},
+            batter_cv_rmse={"hr": 0.05},
+            pitcher_cv_rmse={"era": 0.50, "whip": 0.08},
+            pitcher_per_target_best={
+                "era": PerTargetBest(
+                    target="era",
+                    best_params={"max_depth": 5, "loss": "absolute_error"},
+                    best_rmse=0.45,
+                    joint_rmse=0.50,
+                    delta_pct=11.1,
+                ),
+                "whip": PerTargetBest(
+                    target="whip",
+                    best_params={"max_depth": 3},
+                    best_rmse=0.08,
+                    joint_rmse=0.08,
+                    delta_pct=0.0,
+                ),
+            },
+        )
+        print_tune_result(result)
+        captured = capsys.readouterr()
+        assert "per-target optimal" in captured.out
+        assert "era" in captured.out
+        assert "11.1" in captured.out
+        assert "max_depth" in captured.out
 
 
 class TestPrintPlayerProjectionsIntStat:

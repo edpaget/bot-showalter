@@ -132,6 +132,8 @@ class TuneResult:
     pitcher_params: dict[str, Any]
     batter_cv_rmse: dict[str, float]
     pitcher_cv_rmse: dict[str, float]
+    batter_per_target_best: dict[str, Any] = field(default_factory=dict)
+    pitcher_per_target_best: dict[str, Any] = field(default_factory=dict)
 
 
 @runtime_checkable

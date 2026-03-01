@@ -345,7 +345,10 @@ class _StatcastGBMBase:
         bat_transform = self._resolve_weight_transform(batter_params)
         if bat_sw is not None and bat_transform is not None:
             bat_sw = bat_transform(bat_sw)
-        bat_models = fit_models(bat_X_train, bat_y_train, batter_params, sample_weights=bat_sw)
+        bat_per_target = batter_params.get("per_target")
+        bat_models = fit_models(
+            bat_X_train, bat_y_train, batter_params, sample_weights=bat_sw, per_target_params=bat_per_target
+        )
 
         if bat_splits.holdout is not None:
             bat_holdout_rows = self._assembler.read(bat_splits.holdout)
@@ -409,7 +412,10 @@ class _StatcastGBMBase:
         pit_transform = self._resolve_weight_transform(pitcher_params)
         if pit_sw is not None and pit_transform is not None:
             pit_sw = pit_transform(pit_sw)
-        pit_models = fit_models(pit_X_train, pit_y_train, pitcher_params, sample_weights=pit_sw)
+        pit_per_target = pitcher_params.get("per_target")
+        pit_models = fit_models(
+            pit_X_train, pit_y_train, pitcher_params, sample_weights=pit_sw, per_target_params=pit_per_target
+        )
 
         if pit_splits.holdout is not None:
             pit_holdout_rows = self._assembler.read(pit_splits.holdout)
@@ -581,6 +587,8 @@ class _StatcastGBMBase:
             pitcher_params=pit_result.best_params,
             batter_cv_rmse=bat_result.per_target_rmse,
             pitcher_cv_rmse=pit_result.per_target_rmse,
+            batter_per_target_best=bat_result.per_target_best,
+            pitcher_per_target_best=pit_result.per_target_best,
         )
 
     def sweep(self, config: ModelConfig) -> TuneResult:
@@ -641,6 +649,8 @@ class _StatcastGBMBase:
             pitcher_params=pit_result.best_params,
             batter_cv_rmse=bat_result.per_target_rmse,
             pitcher_cv_rmse=pit_result.per_target_rmse,
+            batter_per_target_best=bat_result.per_target_best,
+            pitcher_per_target_best=pit_result.per_target_best,
         )
 
     def ablate(self, config: ModelConfig) -> AblationResult:
