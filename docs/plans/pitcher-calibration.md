@@ -20,7 +20,7 @@ For comparison, Steamer's 2026 min ERA is 2.39; our model's is 2.83.
 |-------|--------|
 | 1 — Fix multi-season predict fallback | done (2026-02-27) |
 | 2 — Multi-fold calibration | done (2026-02-28) |
-| 3 — Evaluate bias-correction methods | in progress |
+| 3 — Evaluate bias-correction methods | done (2026-03-01) — no-go |
 | 4 — Pitcher regularization review | not started |
 
 ## Phase 1: Fix multi-season predict fallback
@@ -112,6 +112,32 @@ The evaluation must use truly held-out data — calibrators fit on folds 2017–
 - Winning method (if any) reduces mean ERA bias to <+0.15 without increasing RMSE by more than 5%
 - If no method wins, document the negative result and leave calibration disabled
 - Go/no-go decision recorded in the status table
+
+### Experiment results (2025 holdout, trained on 2017–2024)
+
+**Full population** — all three methods improve RMSE and reduce bias:
+
+| Stat | Uncal. RMSE | Uncal. Bias | Mean-Shift RMSE (Δ%) | Mean-Shift Bias | Affine RMSE (Δ%) | Affine Bias | Isotonic RMSE (Δ%) | Isotonic Bias |
+|------|-------------|-------------|----------------------|-----------------|------------------|-------------|---------------------|---------------|
+| era | 6.62 | -1.31 | 6.49 (-2.0%) | +0.14 | 6.44 (-2.7%) | -0.01 | 6.41 (-3.2%) | -0.10 |
+| fip | 3.63 | -0.83 | 3.53 (-2.7%) | +0.07 | 3.50 (-3.6%) | -0.06 | 3.49 (-3.8%) | -0.11 |
+| whip | 0.93 | -0.23 | 0.90 (-3.1%) | -0.00 | 0.89 (-3.9%) | -0.03 | 0.88 (-4.9%) | -0.05 |
+| k_per_9 | 3.12 | +1.09 | 2.98 (-4.6%) | +0.56 | 2.97 (-5.0%) | +0.57 | 2.96 (-5.2%) | +0.59 |
+| bb_per_9 | 3.09 | -0.47 | 3.07 (-0.8%) | +0.27 | 3.06 (-1.1%) | +0.19 | 3.06 (-1.0%) | +0.12 |
+
+**Top-300** — all three methods catastrophically worsen RMSE:
+
+| Stat | Uncal. RMSE | Uncal. Bias | Mean-Shift RMSE (Δ%) | Affine RMSE (Δ%) | Isotonic RMSE (Δ%) |
+|------|-------------|-------------|----------------------|------------------|---------------------|
+| era | 1.20 | +0.52 | 2.24 (+87.6%) | 2.06 (+72.6%) | 1.94 (+62.3%) |
+| fip | 0.81 | +0.44 | 1.51 (+85.5%) | 1.36 (+67.2%) | 1.33 (+63.5%) |
+| whip | 0.19 | +0.09 | 0.35 (+84.2%) | 0.32 (+69.2%) | 0.31 (+61.7%) |
+| k_per_9 | 1.44 | +0.11 | 1.50 (+3.9%) | 1.49 (+3.6%) | 1.50 (+4.2%) |
+| bb_per_9 | 0.87 | +0.36 | 1.35 (+54.9%) | 1.33 (+51.9%) | 1.27 (+46.0%) |
+
+**Root cause:** Full-population bias is negative (model underpredicts ERA) while top-300 bias is positive (model overpredicts ERA for top pitchers). Calibrators trained on full-pop data shift predictions in the wrong direction for top-300.
+
+**Decision: NO-GO.** No method wins. All fail the top-300 regression check (RMSE increases 46–88%, far exceeding the 5% threshold). Calibration remains disabled. The bias problem requires a different approach — likely per-stratum calibration or model regularization changes (Phase 4).
 
 ## Phase 4: Pitcher regularization review
 
