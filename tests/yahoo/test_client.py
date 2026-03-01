@@ -214,8 +214,58 @@ class TestYahooFantasyClientRetry:
             yahoo_client.get_league_settings("449.l.12345")
 
 
+_DRAFT_RESULTS_RESPONSE: dict[str, object] = {
+    "fantasy_content": {
+        "league": [
+            {"league_key": "449.l.12345"},
+            {
+                "draft_results": {
+                    "0": {
+                        "draft_result": {
+                            "pick": 1,
+                            "round": 1,
+                            "team_key": "449.l.12345.t.1",
+                            "player_key": "449.p.1234",
+                        }
+                    },
+                    "count": 1,
+                }
+            },
+        ]
+    }
+}
+
 _ROSTER_RESPONSE: dict[str, object] = {"fantasy_content": {"team": [{"roster": "data"}]}}
 _PLAYERS_RESPONSE: dict[str, object] = {"fantasy_content": {"league": [{"players": "data"}]}}
+
+
+class TestGetDraftResults:
+    def test_sends_correct_request(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_DRAFT_RESULTS_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client)  # type: ignore[arg-type]
+        yahoo_client.get_draft_results("449.l.12345")
+
+        assert transport.last_request is not None
+        url = str(transport.last_request.url)
+        assert "league/449.l.12345/draftresults" in url
+        assert "format=json" in url
+
+    def test_includes_auth_header(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_DRAFT_RESULTS_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(token="my-token"), client=client)  # type: ignore[arg-type]
+        yahoo_client.get_draft_results("449.l.12345")
+
+        assert transport.last_request is not None
+        assert transport.last_request.headers["authorization"] == "Bearer my-token"
+
+    def test_returns_parsed_response(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_DRAFT_RESULTS_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client)  # type: ignore[arg-type]
+        result = yahoo_client.get_draft_results("449.l.12345")
+        assert "fantasy_content" in result
 
 
 class TestYahooFantasyClientGetRoster:

@@ -1,4 +1,5 @@
 import json
+import queue
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -9,6 +10,7 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftFormat,
     DraftState,
 )
+from fantasy_baseball_manager.services.draft_translation import ingest_yahoo_pick
 from fantasy_baseball_manager.services.player_resolver import resolve_player
 
 if TYPE_CHECKING:
@@ -21,6 +23,7 @@ if TYPE_CHECKING:
         DraftBoardRow,
         DraftReport,
         Recommendation,
+        YahooDraftPick,
     )
 # ---------------------------------------------------------------------------
 # Command types (tagged union)
@@ -336,6 +339,8 @@ class DraftSession:
         report_fn: ReportFn | None = None,
         input_fn: Callable[[str], str] | None = None,
         save_path: Path | None = None,
+        yahoo_pick_queue: queue.Queue[YahooDraftPick] | None = None,
+        team_map: dict[str, int] | None = None,
     ) -> None:
         self.engine = engine
         self.players = players
@@ -346,6 +351,8 @@ class DraftSession:
         self.save_path = save_path
         self._unsaved = False
         self._valid_positions = set(engine.state.config.roster_slots.keys())
+        self._yahoo_pick_queue = yahoo_pick_queue
+        self._team_map = team_map or {}
 
     def run(self) -> None:
         """Main REPL loop."""
@@ -358,6 +365,7 @@ class DraftSession:
 
         _input_errors = (EOFError, StopIteration)
         while True:
+            self._drain_yahoo_picks()
             try:
                 line = self.input_fn("draft> ")
             except _input_errors:
@@ -371,6 +379,34 @@ class DraftSession:
 
             if not self._handle_command(cmd):
                 break
+
+    def _drain_yahoo_picks(self) -> None:
+        if self._yahoo_pick_queue is None:
+            return
+
+        ingested = False
+        while True:
+            try:
+                yahoo_pick = self._yahoo_pick_queue.get_nowait()
+            except queue.Empty:
+                break
+
+            result = ingest_yahoo_pick(self.engine, yahoo_pick, self._team_map)
+            if result is not None:
+                self._unsaved = True
+                price_str = f" for ${result.price}" if result.price is not None else ""
+                self.console.print(
+                    f"[cyan]Yahoo pick: {result.player_name} ({result.position}) "
+                    f"— team {result.team}, pick #{result.pick_number}{price_str}[/cyan]"
+                )
+                ingested = True
+            else:
+                self.console.print(
+                    f"[dim]Yahoo pick skipped: {yahoo_pick.player_name} ({yahoo_pick.yahoo_player_key})[/dim]"
+                )
+
+        if ingested:
+            self._show_recommendations()
 
     def _handle_command(self, cmd: Command) -> bool:
         """Dispatch a command. Returns False to quit."""

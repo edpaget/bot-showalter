@@ -48,6 +48,7 @@ from fantasy_baseball_manager.repos import (
     SqliteStatcastPitchRepo,
     SqliteTeamRepo,
     SqliteValuationRepo,
+    SqliteYahooDraftRepo,
     SqliteYahooLeagueRepo,
     SqliteYahooPlayerMapRepo,
     SqliteYahooRosterRepo,
@@ -600,9 +601,11 @@ class YahooContext:
     yahoo_team_repo: SqliteYahooTeamRepo
     yahoo_player_map_repo: SqliteYahooPlayerMapRepo
     yahoo_roster_repo: SqliteYahooRosterRepo
+    yahoo_draft_repo: SqliteYahooDraftRepo
     player_repo: SqlitePlayerRepo
     projection_repo: SqliteProjectionRepo
     valuation_repo: SqliteValuationRepo
+    adp_repo: SqliteADPRepo
     client: YahooFantasyClient
 
 
@@ -620,9 +623,11 @@ def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContex
             yahoo_team_repo=SqliteYahooTeamRepo(conn),
             yahoo_player_map_repo=SqliteYahooPlayerMapRepo(conn),
             yahoo_roster_repo=SqliteYahooRosterRepo(conn),
+            yahoo_draft_repo=SqliteYahooDraftRepo(conn),
             player_repo=SqlitePlayerRepo(conn),
             projection_repo=SqliteProjectionRepo(conn),
             valuation_repo=SqliteValuationRepo(conn),
+            adp_repo=SqliteADPRepo(conn),
             client=client,
         )
     finally:

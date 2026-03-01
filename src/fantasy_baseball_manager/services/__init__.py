@@ -27,6 +27,10 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftState,
     build_draft_roster_slots,
 )
+from fantasy_baseball_manager.services.draft_translation import (
+    build_team_map,
+    ingest_yahoo_pick,
+)
 from fantasy_baseball_manager.services.league_environment_service import (
     LeagueEnvironmentService,
 )
@@ -94,6 +98,7 @@ __all__ = [
     "assign_top300_cohorts",
     "build_draft_board",
     "build_draft_roster_slots",
+    "build_team_map",
     "classify_variance",
     "compute_confidence",
     "draft_report",
@@ -101,6 +106,7 @@ __all__ = [
     "export_html",
     "generate_tiers",
     "grouped_projections",
+    "ingest_yahoo_pick",
     "load_draft",
     "recommend",
     "resolve_player",

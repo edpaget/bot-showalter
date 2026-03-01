@@ -137,6 +137,7 @@ from fantasy_baseball_manager.domain.valuation import (
     ValuationAccuracy,
     ValuationEvalResult,
 )
+from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 
@@ -233,6 +234,7 @@ __all__ = [
     "ValueOverADP",
     "ValueOverADPReport",
     "VarianceClassification",
+    "YahooDraftPick",
     "YahooLeague",
     "YahooPlayerMap",
     "YahooTeam",

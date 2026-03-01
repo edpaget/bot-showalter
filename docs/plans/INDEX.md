@@ -23,7 +23,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Top-300 Tuning](top-300-tuning.md) | 6 | phases 1-5 done | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
-| [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | phases 1-2 done | live-draft-tracker, keeper-surplus-value |
+| [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | phases 1-3 done | live-draft-tracker, keeper-surplus-value |
 
 ## Completed Roadmaps
 
