@@ -38,6 +38,18 @@ class TestCoerceValue:
     def test_string(self) -> None:
         assert coerce_value("hello") == "hello"
 
+    def test_json_dict(self) -> None:
+        result = coerce_value('{"max_iter":[100,200]}')
+        assert result == {"max_iter": [100, 200]}
+
+    def test_json_list(self) -> None:
+        result = coerce_value("[1,2,3]")
+        assert result == [1, 2, 3]
+
+    def test_invalid_json_remains_string(self) -> None:
+        result = coerce_value("{not json}")
+        assert result == "{not json}"
+
 
 class TestSetNested:
     def test_flat_key(self) -> None:

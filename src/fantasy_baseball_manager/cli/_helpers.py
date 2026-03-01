@@ -1,5 +1,6 @@
 """Shared CLI parsing utilities."""
 
+import json
 from typing import Any
 
 import typer
@@ -19,8 +20,8 @@ def parse_system_version(system: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
-def coerce_value(value: str) -> bool | int | float | str:
-    """Coerce a CLI string value to bool, int, float, or leave as str."""
+def coerce_value(value: str) -> Any:
+    """Coerce a CLI string value to bool, int, float, JSON object, or leave as str."""
     if value.lower() in ("true", "false"):
         return value.lower() == "true"
     try:
@@ -31,6 +32,11 @@ def coerce_value(value: str) -> bool | int | float | str:
         return float(value)
     except ValueError:
         pass
+    if value.startswith(("{", "[")):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            pass
     return value
 
 
