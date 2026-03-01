@@ -8,6 +8,10 @@ from fantasy_baseball_manager.domain.adp_accuracy import (
 from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverADPReport
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.category_tracker import (
+    RosterAnalysis,
+    TeamCategoryProjection,
+)
 from fantasy_baseball_manager.domain.draft_board import (
     DraftBoard,
     DraftBoardRow,
@@ -153,6 +157,7 @@ __all__ = [
     "BATTING_RATE_STATS",
     "BattingStats",
     "CalibrationBin",
+    "RosterAnalysis",
     "CategoryConfig",
     "CategoryStanding",
     "ChronicPerformer",
@@ -222,6 +227,7 @@ __all__ = [
     "SystemAccuracyResult",
     "SystemMetrics",
     "SystemSummary",
+    "TeamCategoryProjection",
     "TailAccuracy",
     "TalentQualitySummary",
     "Team",
