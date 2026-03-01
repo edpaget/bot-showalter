@@ -2,6 +2,7 @@ from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.errors import PlayerConflictError
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
+from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
 from fantasy_baseball_manager.repos.league_environment_repo import (
     SqliteLeagueEnvironmentRepo,
 )
@@ -21,6 +22,7 @@ from fantasy_baseball_manager.repos.protocols import (
     ADPRepo,
     BattingStatsRepo,
     ILStintRepo,
+    KeeperCostRepo,
     LeagueEnvironmentRepo,
     LevelFactorRepo,
     LoadLogRepo,
@@ -52,6 +54,7 @@ __all__ = [
     "ADPRepo",
     "BattingStatsRepo",
     "ILStintRepo",
+    "KeeperCostRepo",
     "LeagueEnvironmentRepo",
     "LevelFactorRepo",
     "LoadLogRepo",
@@ -66,6 +69,7 @@ __all__ = [
     "SqliteADPRepo",
     "SqliteBattingStatsRepo",
     "SqliteILStintRepo",
+    "SqliteKeeperCostRepo",
     "SqliteLeagueEnvironmentRepo",
     "SqliteLevelFactorRepo",
     "SqliteLoadLogRepo",

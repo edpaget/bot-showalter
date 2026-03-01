@@ -26,6 +26,10 @@ from fantasy_baseball_manager.ingest.date_utils import chunk_date_range
 from fantasy_baseball_manager.ingest.fangraphs_source import FgStatsSource
 from fantasy_baseball_manager.ingest.fantasypros_adp_source import FantasyProsADPSource
 from fantasy_baseball_manager.ingest.il_parser import ILParseResult, parse_il_transaction
+from fantasy_baseball_manager.ingest.keeper_mapper import (
+    KeeperImportResult,
+    import_keeper_costs,
+)
 from fantasy_baseball_manager.ingest.lahman_source import (
     LahmanAppearancesSource,
     LahmanCsvSource,
@@ -51,6 +55,7 @@ __all__ = [
     "FantasyProsADPSource",
     "FgStatsSource",
     "ILParseResult",
+    "KeeperImportResult",
     "LahmanAppearancesSource",
     "LahmanCsvSource",
     "LahmanPeopleSource",
@@ -65,6 +70,7 @@ __all__ = [
     "default_http_retry",
     "extract_distributions",
     "fetch_mlb_active_teams",
+    "import_keeper_costs",
     "ingest_fantasypros_adp",
     "lahman_team_row_to_team",
     "make_fg_batting_mapper",

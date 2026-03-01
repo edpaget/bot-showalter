@@ -33,6 +33,7 @@ from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
     SqliteBattingStatsRepo,
     SqliteILStintRepo,
+    SqliteKeeperCostRepo,
     SqliteLeagueEnvironmentRepo,
     SqliteLevelFactorRepo,
     SqliteLoadLogRepo,
@@ -623,6 +624,27 @@ def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContex
             projection_repo=SqliteProjectionRepo(conn),
             valuation_repo=SqliteValuationRepo(conn),
             client=client,
+        )
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class KeeperContext:
+    conn: sqlite3.Connection
+    keeper_repo: SqliteKeeperCostRepo
+    player_repo: SqlitePlayerRepo
+
+
+@contextmanager
+def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:
+    """Composition-root context manager for keeper commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield KeeperContext(
+            conn=conn,
+            keeper_repo=SqliteKeeperCostRepo(conn),
+            player_repo=SqlitePlayerRepo(conn),
         )
     finally:
         conn.close()
