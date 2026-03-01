@@ -9,7 +9,7 @@ This is a new capability with no existing keeper/dynasty infrastructure in the c
 | Phase | Status |
 |-------|--------|
 | 1 — Keeper cost storage and import | done (2026-02-28) |
-| 2 — Surplus value calculation | not started |
+| 2 — Surplus value calculation | done (2026-02-28) |
 | 3 — Keeper-adjusted draft pool | not started |
 | 4 — Trade value calculator | not started |
 

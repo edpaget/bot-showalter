@@ -4,10 +4,11 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._output import print_keeper_decisions
 from fantasy_baseball_manager.cli.factory import build_keeper_context
 from fantasy_baseball_manager.domain import Err, Ok
 from fantasy_baseball_manager.ingest import import_keeper_costs
-from fantasy_baseball_manager.services import set_keeper_cost
+from fantasy_baseball_manager.services import compute_surplus, set_keeper_cost
 
 keeper_app = typer.Typer(name="keeper", help="Keeper league cost management")
 
@@ -63,3 +64,25 @@ def set_cmd(
             case Err(msg):
                 typer.echo(f"Error: {msg}", err=True)
                 raise typer.Exit(code=1)
+
+
+@keeper_app.command("decisions")
+def decisions_cmd(
+    season: Annotated[int, typer.Option(help="Season year")],
+    league: Annotated[str, typer.Option(help="League name")],
+    system: Annotated[str, typer.Option(help="Valuation system name")],
+    threshold: Annotated[float, typer.Option(help="Minimum surplus for keep recommendation")] = 0.0,
+    decay: Annotated[float, typer.Option(help="Decay factor for multi-year surplus")] = 0.85,
+    data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
+) -> None:
+    """Show keeper decisions ranked by surplus value."""
+    with build_keeper_context(data_dir) as ctx:
+        keeper_costs = ctx.keeper_repo.find_by_season_league(season, league)
+        if not keeper_costs:
+            typer.echo("No keeper costs found for the specified season and league.")
+            return
+        valuations = ctx.valuation_repo.get_by_season(season, system)
+        players = ctx.player_repo.all()
+        decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
+
+    print_keeper_decisions(decisions)

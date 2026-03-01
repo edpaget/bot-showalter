@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         ComparisonResult,
         DraftBoard,
         DraftReport,
+        KeeperDecision,
         LoadLog,
         ModelRunRecord,
         PlayerProjection,
@@ -1637,3 +1638,29 @@ def print_draft_report(report: DraftReport, out: Console | None = None) -> None:
             reach_table.add_row(str(r.pick_number), r.player_name, r.position, str(r.pick_delta))
         c.print(reach_table)
         c.print()
+
+
+def print_keeper_decisions(decisions: list[KeeperDecision]) -> None:
+    table = Table(title="Keeper Decisions", show_edge=False, pad_edge=False)
+    table.add_column("Player", justify="left")
+    table.add_column("Pos", justify="left")
+    table.add_column("Cost", justify="right")
+    table.add_column("Value", justify="right")
+    table.add_column("Surplus", justify="right")
+    table.add_column("Yrs", justify="right")
+    table.add_column("Rec", justify="left")
+
+    for d in decisions:
+        style = "green" if d.surplus >= 0 else "red"
+        table.add_row(
+            d.player_name,
+            d.position,
+            f"${d.cost:.0f}",
+            f"${d.projected_value:.0f}",
+            f"${d.surplus:.1f}",
+            str(d.years_remaining),
+            d.recommendation,
+            style=style,
+        )
+
+    console.print(table)

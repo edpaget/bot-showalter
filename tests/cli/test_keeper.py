@@ -7,8 +7,10 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import KeeperContext
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.domain import KeeperCost, Valuation
 from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from tests.helpers import seed_player
 
 if TYPE_CHECKING:
@@ -27,6 +29,7 @@ def _build_test_keeper_context(conn: sqlite3.Connection) -> Any:
             conn=conn,
             keeper_repo=SqliteKeeperCostRepo(conn),
             player_repo=SqlitePlayerRepo(conn),
+            valuation_repo=SqliteValuationRepo(conn),
         )
 
     return _ctx
@@ -148,4 +151,81 @@ class TestKeeperSet:
         )
         assert result.exit_code == 1
         assert "ambiguous" in result.output
+        conn.close()
+
+
+class TestKeeperDecisions:
+    def test_decisions_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        pid1 = seed_player(conn, name_first="Mike", name_last="Trout")
+        pid2 = seed_player(conn, name_first="Shohei", name_last="Ohtani")
+
+        keeper_repo = SqliteKeeperCostRepo(conn)
+        keeper_repo.upsert_batch(
+            [
+                KeeperCost(player_id=pid1, season=2026, league="dynasty", cost=10.0, source="auction"),
+                KeeperCost(player_id=pid2, season=2026, league="dynasty", cost=30.0, source="auction"),
+            ]
+        )
+
+        val_repo = SqliteValuationRepo(conn)
+        val_repo.upsert(
+            Valuation(
+                player_id=pid1,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type="batter",
+                position="CF",
+                value=25.0,
+                rank=1,
+                category_scores={},
+            )
+        )
+        val_repo.upsert(
+            Valuation(
+                player_id=pid2,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type="batter",
+                position="DH",
+                value=20.0,
+                rank=2,
+                category_scores={},
+            )
+        )
+        conn.commit()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app, ["keeper", "decisions", "--season", "2026", "--league", "dynasty", "--system", "zar"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+        assert "Shohei Ohtani" in result.output
+        assert "$15.0" in result.output  # Trout surplus: 25-10=15
+        conn.close()
+
+    def test_decisions_no_keepers(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app, ["keeper", "decisions", "--season", "2026", "--league", "dynasty", "--system", "zar"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "No keeper costs found" in result.output
         conn.close()

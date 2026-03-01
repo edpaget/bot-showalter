@@ -1,6 +1,8 @@
-from fantasy_baseball_manager.domain import Player
+import pytest
+
+from fantasy_baseball_manager.domain import KeeperCost, Player, Valuation
 from fantasy_baseball_manager.domain.result import Err, Ok
-from fantasy_baseball_manager.services.keeper_service import set_keeper_cost
+from fantasy_baseball_manager.services.keeper_service import compute_surplus, set_keeper_cost
 from tests.fakes.repos import FakeKeeperCostRepo, FakePlayerRepo
 
 
@@ -93,3 +95,133 @@ class TestSetKeeperCost:
         assert "ambiguous name 'Smith'" in result.error
         assert "Mike Smith" in result.error
         assert "John Smith" in result.error
+
+
+def _valuation(player_id: int, value: float, position: str = "SS") -> Valuation:
+    return Valuation(
+        player_id=player_id,
+        season=2026,
+        system="zar",
+        version="v1",
+        projection_system="composite",
+        projection_version="v1",
+        player_type="batter",
+        position=position,
+        value=value,
+        rank=1,
+        category_scores={},
+    )
+
+
+def _keeper_cost(player_id: int, cost: float, years: int = 1) -> KeeperCost:
+    return KeeperCost(
+        player_id=player_id, season=2026, league="dynasty", cost=cost, source="auction", years_remaining=years
+    )
+
+
+class TestComputeSurplus:
+    def test_positive_surplus(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [_keeper_cost(1, 10.0)]
+        valuations = [_valuation(1, 25.0)]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert len(result) == 1
+        assert result[0].surplus == 15.0
+        assert result[0].recommendation == "keep"
+
+    def test_negative_surplus(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [_keeper_cost(1, 30.0)]
+        valuations = [_valuation(1, 10.0)]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert len(result) == 1
+        assert result[0].surplus == -20.0
+        assert result[0].recommendation == "release"
+
+    def test_threshold_filters(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [_keeper_cost(1, 18.0)]
+        valuations = [_valuation(1, 20.0)]
+
+        result = compute_surplus(keepers, valuations, players, threshold=5.0)
+
+        assert len(result) == 1
+        assert result[0].surplus == 2.0
+        assert result[0].recommendation == "release"
+
+    def test_multi_year_discount(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [_keeper_cost(1, 15.0, years=3)]
+        valuations = [_valuation(1, 25.0)]
+
+        result = compute_surplus(keepers, valuations, players, decay=0.85)
+
+        # single-year surplus = 25 - 15 = 10
+        # total = 10 + 10*0.85 + 10*0.85^2 = 10 + 8.5 + 7.225 = 25.725
+        assert len(result) == 1
+        assert result[0].surplus == pytest.approx(25.725)
+        assert result[0].recommendation == "keep"
+
+    def test_sorted_by_surplus_descending(self) -> None:
+        players = [
+            Player(name_first="Mike", name_last="Trout", id=1),
+            Player(name_first="Shohei", name_last="Ohtani", id=2),
+            Player(name_first="Aaron", name_last="Judge", id=3),
+        ]
+        keepers = [_keeper_cost(1, 10.0), _keeper_cost(2, 5.0), _keeper_cost(3, 20.0)]
+        valuations = [_valuation(1, 25.0), _valuation(2, 30.0), _valuation(3, 22.0)]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        surpluses = [d.surplus for d in result]
+        assert surpluses == sorted(surpluses, reverse=True)
+        assert surpluses == [25.0, 15.0, 2.0]
+
+    def test_missing_valuation(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [_keeper_cost(1, 10.0)]
+        valuations: list[Valuation] = []
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert len(result) == 1
+        assert result[0].projected_value == 0.0
+        assert result[0].surplus == -10.0
+        assert result[0].recommendation == "release"
+
+    def test_empty_inputs(self) -> None:
+        result = compute_surplus([], [], [])
+        assert result == []
+
+    def test_player_name_and_position(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [_keeper_cost(1, 10.0)]
+        valuations = [_valuation(1, 25.0, position="CF")]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert result[0].player_name == "Mike Trout"
+        assert result[0].position == "CF"
+
+    def test_missing_player_uses_unknown(self) -> None:
+        keepers = [_keeper_cost(1, 10.0)]
+        valuations = [_valuation(1, 25.0)]
+
+        result = compute_surplus(keepers, valuations, [])
+
+        assert result[0].player_name == "Unknown"
+        assert result[0].position == "SS"
+
+    def test_highest_valuation_used(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [_keeper_cost(1, 10.0)]
+        valuations = [_valuation(1, 20.0), _valuation(1, 25.0)]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert result[0].projected_value == 25.0
+        assert result[0].surplus == 15.0

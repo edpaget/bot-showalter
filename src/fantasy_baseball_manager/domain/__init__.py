@@ -44,7 +44,7 @@ from fantasy_baseball_manager.domain.evaluation import (
     summarize_comparison,
 )
 from fantasy_baseball_manager.domain.il_stint import ILStint
-from fantasy_baseball_manager.domain.keeper import KeeperCost
+from fantasy_baseball_manager.domain.keeper import KeeperCost, KeeperDecision
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -173,6 +173,7 @@ __all__ = [
     "ILStint",
     "IngestError",
     "KeeperCost",
+    "KeeperDecision",
     "LeagueEnvironment",
     "LeagueFormat",
     "LeagueSettings",

@@ -639,6 +639,7 @@ class KeeperContext:
     conn: sqlite3.Connection
     keeper_repo: SqliteKeeperCostRepo
     player_repo: SqlitePlayerRepo
+    valuation_repo: SqliteValuationRepo
 
 
 @contextmanager
@@ -650,6 +651,7 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:
             conn=conn,
             keeper_repo=SqliteKeeperCostRepo(conn),
             player_repo=SqlitePlayerRepo(conn),
+            valuation_repo=SqliteValuationRepo(conn),
         )
     finally:
         conn.close()
