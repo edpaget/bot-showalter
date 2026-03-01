@@ -28,6 +28,7 @@ from fantasy_baseball_manager.services.draft_state import (
     build_draft_roster_slots,
 )
 from fantasy_baseball_manager.services.draft_translation import (
+    PickFn,
     build_team_map,
     ingest_yahoo_pick,
 )
@@ -107,6 +108,7 @@ __all__ = [
     "export_html",
     "generate_tiers",
     "grouped_projections",
+    "PickFn",
     "ingest_yahoo_pick",
     "load_draft",
     "recommend",

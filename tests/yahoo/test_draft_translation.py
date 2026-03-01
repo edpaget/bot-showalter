@@ -87,7 +87,7 @@ class TestIngestYahooPick:
         engine.start(players, _SNAKE_CONFIG)
 
         yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1")
-        result = ingest_yahoo_pick(engine, yahoo_pick, _TEAM_MAP)
+        result = ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP)
 
         assert result is not None
         assert result.player_id == 100
@@ -100,39 +100,28 @@ class TestIngestYahooPick:
         engine.start(players, _AUCTION_CONFIG)
 
         yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1", cost=55)
-        result = ingest_yahoo_pick(engine, yahoo_pick, _TEAM_MAP)
+        result = ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP)
 
         assert result is not None
         assert result.price == 55
         assert result.player_id == 100
 
     def test_unmapped_player_skipped(self) -> None:
-        players = [_make_player(100, "Mike Trout", "OF")]
-        engine = DraftEngine()
-        engine.start(players, _SNAKE_CONFIG)
-
         yahoo_pick = _make_yahoo_pick(player_id=None)
-        result = ingest_yahoo_pick(engine, yahoo_pick, _TEAM_MAP)
+        result = ingest_yahoo_pick(lambda *a, **kw: None, frozenset(), yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
 
         assert result is None
 
     def test_player_not_in_pool_skipped(self) -> None:
-        players = [_make_player(200, "Aaron Judge", "OF")]
-        engine = DraftEngine()
-        engine.start(players, _SNAKE_CONFIG)
-
-        # player_id 100 is not in the pool
+        available = frozenset({200})  # player_id 100 is not in the pool
         yahoo_pick = _make_yahoo_pick(player_id=100)
-        result = ingest_yahoo_pick(engine, yahoo_pick, _TEAM_MAP)
+        result = ingest_yahoo_pick(lambda *a, **kw: None, available, yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
 
         assert result is None
 
     def test_unknown_team_key_skipped(self) -> None:
-        players = [_make_player(100, "Mike Trout", "OF")]
-        engine = DraftEngine()
-        engine.start(players, _SNAKE_CONFIG)
-
+        available = frozenset({100})
         yahoo_pick = _make_yahoo_pick(team_key="449.l.99999.t.99")
-        result = ingest_yahoo_pick(engine, yahoo_pick, _TEAM_MAP)
+        result = ingest_yahoo_pick(lambda *a, **kw: None, available, yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
 
         assert result is None

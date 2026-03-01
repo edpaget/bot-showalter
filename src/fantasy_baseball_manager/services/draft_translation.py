@@ -1,13 +1,26 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from fantasy_baseball_manager.services.draft_state import DraftError
 
 if TYPE_CHECKING:
+    from collections.abc import Set
+
     from fantasy_baseball_manager.domain import YahooDraftPick, YahooTeam
-    from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftPick
+    from fantasy_baseball_manager.services.draft_state import DraftPick
 
 logger = logging.getLogger(__name__)
+
+
+class PickFn(Protocol):
+    def __call__(
+        self,
+        player_id: int,
+        team: int,
+        position: str,
+        *,
+        price: int | None = None,
+    ) -> DraftPick: ...
 
 
 def build_team_map(teams: list[YahooTeam]) -> dict[str, int]:
@@ -15,7 +28,8 @@ def build_team_map(teams: list[YahooTeam]) -> dict[str, int]:
 
 
 def ingest_yahoo_pick(
-    engine: DraftEngine,
+    pick_fn: PickFn,
+    available_ids: Set[int],
     yahoo_pick: YahooDraftPick,
     team_map: dict[str, int],
 ) -> DraftPick | None:
@@ -36,7 +50,7 @@ def ingest_yahoo_pick(
         )
         return None
 
-    if yahoo_pick.player_id not in engine.state.available_pool:
+    if yahoo_pick.player_id not in available_ids:
         logger.warning(
             "Player %s (id=%d) not in available pool — skipping",
             yahoo_pick.player_name,
@@ -45,7 +59,7 @@ def ingest_yahoo_pick(
         return None
 
     try:
-        return engine.pick(
+        return pick_fn(
             yahoo_pick.player_id,
             team,
             yahoo_pick.position,

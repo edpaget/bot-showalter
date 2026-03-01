@@ -391,7 +391,9 @@ class DraftSession:
             except queue.Empty:
                 break
 
-            result = ingest_yahoo_pick(self.engine, yahoo_pick, self._team_map)
+            result = ingest_yahoo_pick(
+                self.engine.pick, set(self.engine.state.available_pool), yahoo_pick, self._team_map
+            )
             if result is not None:
                 self._unsaved = True
                 price_str = f" for ${result.price}" if result.price is not None else ""

@@ -196,6 +196,31 @@ class TestYahooDraftSource:
         picks = source.fetch_draft_results("449.l.12345", 2026)
         assert picks == []
 
+    def test_malformed_response_returns_empty(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+
+        # Missing fantasy_content entirely
+        client = FakeClient({})
+        source = YahooDraftSource(client, mapper)  # type: ignore[arg-type]
+        assert source.fetch_draft_results("449.l.12345", 2026) == []
+
+        # league is not a list
+        client = FakeClient({"fantasy_content": {"league": "bad"}})
+        source = YahooDraftSource(client, mapper)  # type: ignore[arg-type]
+        assert source.fetch_draft_results("449.l.12345", 2026) == []
+
+        # league list too short
+        client = FakeClient({"fantasy_content": {"league": [{}]}})
+        source = YahooDraftSource(client, mapper)  # type: ignore[arg-type]
+        assert source.fetch_draft_results("449.l.12345", 2026) == []
+
+        # No draft_results key
+        client = FakeClient({"fantasy_content": {"league": [{}, {"other": "data"}]}})
+        source = YahooDraftSource(client, mapper)  # type: ignore[arg-type]
+        assert source.fetch_draft_results("449.l.12345", 2026) == []
+
     def test_unmapped_player_has_none_id(self, conn: sqlite3.Connection) -> None:
         player_repo = SqlitePlayerRepo(conn)
         map_repo = SqliteYahooPlayerMapRepo(conn)

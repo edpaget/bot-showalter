@@ -1,6 +1,8 @@
 import datetime
 import functools
+import logging
 import queue
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -8,11 +10,13 @@ import typer
 from rich.table import Table
 
 from fantasy_baseball_manager.cli._output import console, print_error
-from fantasy_baseball_manager.cli.factory import build_yahoo_context
+from fantasy_baseball_manager.cli.factory import YahooContext, build_yahoo_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config, resolve_default_league
 from fantasy_baseball_manager.domain import (
+    DraftBoard,
     DraftBoardRow,
+    LeagueSettings,
     YahooDraftPick,
     YahooLeague,
     YahooPlayerMap,
@@ -39,9 +43,97 @@ from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
 
+logger = logging.getLogger(__name__)
+
 yahoo_app = typer.Typer(name="yahoo", help="Yahoo Fantasy integration")
 
 _DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
+
+
+# ---------------------------------------------------------------------------
+# Yahoo draft setup helper
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class YahooDraftSetup:
+    engine: DraftEngine
+    board: DraftBoard
+    team_map: dict[str, int]
+    source: YahooDraftSource
+    replayed_count: int
+
+
+def _build_yahoo_draft_setup(
+    ctx: YahooContext,
+    league_key: str,
+    season: int,
+    fbm_league: LeagueSettings,
+    system: str,
+    version: str,
+    provider: str,
+) -> YahooDraftSetup:
+    teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
+    if not teams:
+        msg = f"No teams found for league key '{league_key}'. Run 'fbm yahoo sync' first."
+        raise ValueError(msg)
+
+    team_map = build_team_map(teams)
+
+    user_team = ctx.yahoo_team_repo.get_user_team(league_key)
+    if user_team is None:
+        msg = "No user team found. Run 'fbm yahoo sync' first."
+        raise ValueError(msg)
+
+    valuations = ctx.valuation_repo.get_by_season(season, system=system)
+    valuations = [v for v in valuations if v.version == version]
+
+    player_ids = [v.player_id for v in valuations]
+    players_list = ctx.player_repo.get_by_ids(player_ids)
+    player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players_list if p.id is not None}
+
+    adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+
+    board = build_draft_board(valuations, fbm_league, player_names, adp=adp_list if adp_list else None)
+    draft_players: list[DraftBoardRow] = board.rows
+
+    yahoo_league = ctx.yahoo_league_repo.get_by_league_key(league_key)
+    if yahoo_league is None:
+        msg = "League metadata not found. Run 'fbm yahoo sync' first."
+        raise ValueError(msg)
+
+    roster_slots = build_draft_roster_slots(fbm_league)
+    draft_type = yahoo_league.draft_type
+    draft_format = DraftFormat.AUCTION if "auction" in draft_type.lower() else DraftFormat.SNAKE
+    draft_config = DraftConfig(
+        teams=yahoo_league.num_teams,
+        roster_slots=roster_slots,
+        format=draft_format,
+        user_team=user_team.team_id,
+        season=season,
+        budget=260 if draft_format == DraftFormat.AUCTION else 0,
+    )
+
+    engine = DraftEngine()
+    engine.start(draft_players, draft_config)
+
+    mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
+    source = YahooDraftSource(ctx.client, mapper)
+
+    existing_picks = source.fetch_draft_results(league_key, season)
+    for pick in existing_picks:
+        ctx.yahoo_draft_repo.upsert(pick)
+        ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), pick, team_map)
+
+    ctx.conn.commit()
+
+    return YahooDraftSetup(
+        engine=engine,
+        board=board,
+        team_map=team_map,
+        source=source,
+        replayed_count=len(existing_picks),
+    )
 
 
 @yahoo_app.command("auth")
@@ -463,76 +555,21 @@ def yahoo_draft_live(  # pragma: no cover
     fbm_league = load_league(league_name, Path.cwd())
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        # Resolve game key and league key
         game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
-        # Get teams for team map
-        teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
-        if not teams:
-            print_error(f"No teams found for league '{league}'. Run 'fbm yahoo sync' first.")
-            raise typer.Exit(code=1)
+        try:
+            setup = _build_yahoo_draft_setup(ctx, league_key, season, fbm_league, system, version, provider)
+        except ValueError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
 
-        team_map = build_team_map(teams)
+    if setup.replayed_count:
+        console.print(f"[green]Replayed {setup.replayed_count} existing picks.[/green]")
 
-        # Find user team
-        user_team = ctx.yahoo_team_repo.get_user_team(league_key)
-        if user_team is None:
-            print_error("No user team found. Run 'fbm yahoo sync' first.")
-            raise typer.Exit(code=1)
-
-        # Build draft board from valuations
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
-
-        player_ids = [v.player_id for v in valuations]
-        players_list = ctx.player_repo.get_by_ids(player_ids)
-        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players_list if p.id is not None}
-
-        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
-
-        board = build_draft_board(valuations, fbm_league, player_names, adp=adp_list if adp_list else None)
-        draft_players: list[DraftBoardRow] = board.rows
-
-        # Build draft config from Yahoo league settings
-        yahoo_league = ctx.yahoo_league_repo.get_by_league_key(league_key)
-        if yahoo_league is None:
-            print_error("League metadata not found. Run 'fbm yahoo sync' first.")
-            raise typer.Exit(code=1)
-
-        roster_slots = build_draft_roster_slots(fbm_league)
-        draft_type = yahoo_league.draft_type
-        draft_format = DraftFormat.AUCTION if "auction" in draft_type.lower() else DraftFormat.SNAKE
-        draft_config = DraftConfig(
-            teams=yahoo_league.num_teams,
-            roster_slots=roster_slots,
-            format=draft_format,
-            user_team=user_team.team_id,
-            season=season,
-            budget=260 if draft_format == DraftFormat.AUCTION else 0,
-        )
-
-        # Create engine and replay existing picks (partial draft recovery)
-        engine = DraftEngine()
-        engine.start(draft_players, draft_config)
-
-        mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        source = YahooDraftSource(ctx.client, mapper)
-
-        existing_picks = source.fetch_draft_results(league_key, season)
-        for pick in existing_picks:
-            ctx.yahoo_draft_repo.upsert(pick)
-            ingest_yahoo_pick(engine, pick, team_map)
-
-        ctx.conn.commit()
-
-    if existing_picks:
-        console.print(f"[green]Replayed {len(existing_picks)} existing picks.[/green]")
-
-    # Create poller and session
     pick_queue: queue.Queue[YahooDraftPick] = queue.Queue()
     poller = YahooDraftPoller(
-        source=source,
+        source=setup.source,
         league_key=league_key,
         season=season,
         interval=poll_interval,
@@ -541,18 +578,18 @@ def yahoo_draft_live(  # pragma: no cover
 
     report_fn = functools.partial(
         compute_draft_report,
-        batting_categories=board.batting_categories,
-        pitching_categories=board.pitching_categories,
+        batting_categories=setup.board.batting_categories,
+        pitching_categories=setup.board.pitching_categories,
     )
 
     session = DraftSession(
-        engine=engine,
-        players=draft_players,
+        engine=setup.engine,
+        players=setup.board.rows,
         console=console,
         recommend_fn=recommend,
         report_fn=report_fn,
         yahoo_pick_queue=pick_queue,
-        team_map=team_map,
+        team_map=setup.team_map,
     )
 
     console.print(f"[bold]Starting live Yahoo draft[/bold] — polling every {poll_interval}s")

@@ -59,8 +59,15 @@ class YahooDraftSource:
 
     @staticmethod
     def _parse_raw_picks(data: dict[str, Any]) -> list[dict[str, Any]]:
-        league_section = data["fantasy_content"]["league"]
-        draft_results = league_section[1]["draft_results"]
+        league_data = data.get("fantasy_content", {}).get("league")
+        if not isinstance(league_data, list) or len(league_data) < 2:
+            logger.warning("Unexpected draft results response structure")
+            return []
+
+        draft_results = league_data[1].get("draft_results")
+        if not isinstance(draft_results, dict):
+            logger.warning("No draft_results found in response")
+            return []
 
         raw_picks: list[dict[str, Any]] = []
         for key, value in draft_results.items():
@@ -87,8 +94,8 @@ class YahooDraftSource:
         data: dict[str, Any],
     ) -> dict[str, dict[str, Any]]:
         result: dict[str, dict[str, Any]] = {}
-        league_section = data["fantasy_content"]["league"]
-        if len(league_section) < 2:
+        league_section = data.get("fantasy_content", {}).get("league")
+        if not isinstance(league_section, list) or len(league_section) < 2:
             return result
 
         players_section = league_section[1].get("players", {})
