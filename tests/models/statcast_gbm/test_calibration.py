@@ -6,6 +6,7 @@ import pytest
 from fantasy_baseball_manager.models.statcast_gbm.calibration import (
     AffineCalibrator,
     FoldData,
+    MeanShiftCalibrator,
     apply_calibrators,
     fit_calibrators,
     fit_multifold_calibrators,
@@ -304,6 +305,122 @@ class TestFitMultifoldCalibratorsIsotonic:
         calibrators = fit_multifold_calibrators(folds, method="isotonic")
 
         assert "era" not in calibrators
+
+
+class TestMeanShiftCalibrator:
+    def test_predict_applies_shift(self) -> None:
+        cal = MeanShiftCalibrator(shift=-0.3)
+        result = cal.predict(np.array([4.0, 3.5, 5.0]))
+        expected = np.array([3.7, 3.2, 4.7])
+        np.testing.assert_allclose(result, expected)
+
+    def test_preserves_ranking(self) -> None:
+        cal = MeanShiftCalibrator(shift=-0.5)
+        preds = np.array([2.0, 3.0, 4.0, 5.0])
+        result = cal.predict(preds)
+        for i in range(len(result) - 1):
+            assert result[i] < result[i + 1]
+
+
+class TestFitCalibratorsMeanShift:
+    def test_mean_shift_computes_correct_shift(self) -> None:
+        """shift ≈ mean(actuals) - mean(preds)."""
+        model = _FakeModel(bias=-0.3)
+        models = {"era": model}
+        n = 100
+        rng = np.random.default_rng(42)
+        X_cal = rng.standard_normal((n, 5))
+        actuals = [3.5 + i * 0.01 for i in range(n)]
+        y_cal = {"era": actuals}
+
+        calibrators = fit_calibrators(models, X_cal, y_cal, method="mean_shift")
+
+        assert "era" in calibrators
+        cal = calibrators["era"]
+        assert isinstance(cal, MeanShiftCalibrator)
+        # shift should correct the -0.3 bias
+        raw_preds = model.predict(X_cal)
+        expected_shift = float(np.mean(actuals) - np.mean(raw_preds))
+        assert cal.shift == pytest.approx(expected_shift, abs=0.01)
+
+    def test_mean_shift_skips_too_few_observations(self) -> None:
+        models = {"era": _FakeModel(bias=0.0)}
+        X_cal = np.zeros((10, 5))
+        y_cal = {"era": [3.5] * 10}
+
+        calibrators = fit_calibrators(models, X_cal, y_cal, method="mean_shift")
+
+        assert "era" not in calibrators
+
+
+class TestFitMultifoldCalibratorsMeanShift:
+    def test_averages_per_fold_shifts(self) -> None:
+        """3 folds with known shifts; verify average."""
+        shifts = [-0.2, -0.4, -0.3]
+        folds: list[FoldData] = []
+        rng = np.random.default_rng(42)
+        for shift in shifts:
+            preds = rng.uniform(3.0, 5.0, 100)
+            actuals = preds + shift
+            folds.append({"era": (preds, actuals)})
+
+        calibrators = fit_multifold_calibrators(folds, method="mean_shift")
+
+        assert "era" in calibrators
+        cal = calibrators["era"]
+        assert isinstance(cal, MeanShiftCalibrator)
+        expected_shift = sum(shifts) / len(shifts)
+        assert cal.shift == pytest.approx(expected_shift, abs=0.01)
+
+    def test_skips_folds_with_too_few_observations(self) -> None:
+        """All folds <50 → excluded."""
+        rng = np.random.default_rng(42)
+        folds: list[FoldData] = []
+        for _ in range(3):
+            preds = rng.uniform(3.0, 5.0, 30)
+            actuals = preds - 0.3
+            folds.append({"era": (preds, actuals)})
+
+        calibrators = fit_multifold_calibrators(folds, method="mean_shift")
+
+        assert "era" not in calibrators
+
+    def test_uses_only_qualifying_folds(self) -> None:
+        """3 folds, 1 small → average of 2."""
+        rng = np.random.default_rng(42)
+        shifts = [-0.2, -0.4]
+        folds: list[FoldData] = []
+        for shift in shifts:
+            preds = rng.uniform(3.0, 5.0, 100)
+            actuals = preds + shift
+            folds.append({"era": (preds, actuals)})
+        # Small fold that should be skipped
+        small_preds = rng.uniform(3.0, 5.0, 30)
+        folds.append({"era": (small_preds, small_preds - 0.1)})
+
+        calibrators = fit_multifold_calibrators(folds, method="mean_shift")
+
+        assert "era" in calibrators
+        cal = calibrators["era"]
+        assert isinstance(cal, MeanShiftCalibrator)
+        expected_shift = sum(shifts) / len(shifts)
+        assert cal.shift == pytest.approx(expected_shift, abs=0.01)
+
+
+class TestSaveLoadMeanShiftCalibrator:
+    def test_round_trip_mean_shift(self, tmp_path: Path) -> None:
+        calibrators = {"era": MeanShiftCalibrator(shift=-0.35)}
+
+        path = tmp_path / "calibrators.joblib"
+        save_calibrators(calibrators, path)
+        loaded = load_calibrators(path)
+
+        raw_preds = {"era": [4.0, 3.5, 5.0]}
+        result1 = apply_calibrators(raw_preds, calibrators)
+        result2 = apply_calibrators(raw_preds, loaded)
+
+        for i in range(len(raw_preds["era"])):
+            assert result1["era"][i] == pytest.approx(result2["era"][i])
 
 
 class _FakeModel:

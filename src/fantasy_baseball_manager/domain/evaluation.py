@@ -18,6 +18,7 @@ class StatMetrics:
     correlation: float
     rank_correlation: float
     r_squared: float
+    mean_error: float
     n: int
 
 
@@ -272,8 +273,16 @@ def compute_stat_metrics(
         ss_tot = sum((c.actual - mean_actual) ** 2 for c in comps)
         r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
 
+        mean_error = sum(errors) / n
+
         result[stat_name] = StatMetrics(
-            rmse=rmse, mae=mae, correlation=correlation, rank_correlation=rank_correlation, r_squared=r_squared, n=n
+            rmse=rmse,
+            mae=mae,
+            correlation=correlation,
+            rank_correlation=rank_correlation,
+            r_squared=r_squared,
+            mean_error=mean_error,
+            n=n,
         )
 
     return result

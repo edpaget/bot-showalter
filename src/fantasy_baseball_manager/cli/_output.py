@@ -221,6 +221,7 @@ def print_system_metrics(metrics: SystemMetrics) -> None:
     table.add_column("r", justify="right")
     table.add_column("\u03c1", justify="right")
     table.add_column("R\u00b2", justify="right")
+    table.add_column("Bias", justify="right")
     table.add_column("N", justify="right")
     for stat_name in sorted(metrics.metrics):
         m = metrics.metrics[stat_name]
@@ -231,6 +232,7 @@ def print_system_metrics(metrics: SystemMetrics) -> None:
             f"{m.correlation:.4f}",
             f"{m.rank_correlation:.4f}",
             f"{m.r_squared:.4f}",
+            f"{m.mean_error:+.4f}",
             str(m.n),
         )
     console.print(table)
@@ -351,6 +353,7 @@ def print_comparison_result(result: ComparisonResult) -> None:
         table.add_column(f"{label} RMSE", justify="right")
         table.add_column(f"{label} R\u00b2", justify="right")
         table.add_column(f"{label} \u03c1", justify="right")
+        table.add_column(f"{label} Bias", justify="right")
     for stat_name in result.stats:
         values: list[str] = []
         for sys_metrics in result.systems:
@@ -358,6 +361,7 @@ def print_comparison_result(result: ComparisonResult) -> None:
             values.append(f"{m.rmse:.4f}" if m else "\u2014")
             values.append(f"{m.r_squared:.4f}" if m else "\u2014")
             values.append(f"{m.rank_correlation:.4f}" if m else "\u2014")
+            values.append(f"{m.mean_error:+.4f}" if m else "\u2014")
         table.add_row(stat_name, *values)
     console.print(table)
     _print_tail_accuracy_section(result)

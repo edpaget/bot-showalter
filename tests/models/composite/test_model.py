@@ -115,7 +115,9 @@ class FakeEvaluator:
             version=version,
             source_type="test",
             metrics={
-                "avg": StatMetrics(rmse=0.01, mae=0.008, correlation=0.9, rank_correlation=0.9, r_squared=0.81, n=100)
+                "avg": StatMetrics(
+                    rmse=0.01, mae=0.008, correlation=0.9, rank_correlation=0.9, r_squared=0.81, mean_error=0.0, n=100
+                )
             },
         )
 

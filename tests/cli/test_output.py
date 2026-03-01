@@ -411,10 +411,17 @@ def _make_stat_metrics(
     correlation: float = 0.9,
     rank_correlation: float = 0.9,
     r_squared: float = 0.75,
+    mean_error: float = 0.0,
     n: int = 100,
 ) -> StatMetrics:
     return StatMetrics(
-        rmse=rmse, mae=mae, correlation=correlation, rank_correlation=rank_correlation, r_squared=r_squared, n=n
+        rmse=rmse,
+        mae=mae,
+        correlation=correlation,
+        rank_correlation=rank_correlation,
+        r_squared=r_squared,
+        mean_error=mean_error,
+        n=n,
     )
 
 
@@ -450,6 +457,13 @@ class TestPrintSystemMetrics:
         print_system_metrics(_make_system_metrics(stats={"hr": _make_stat_metrics(rank_correlation=0.85)}))
         captured = capsys.readouterr()
         assert "0.8500" in captured.out
+
+    def test_bias_column_in_system_metrics(self, capsys: pytest.CaptureFixture[str]) -> None:
+        metrics = _make_stat_metrics()
+        print_system_metrics(_make_system_metrics(stats={"hr": metrics}))
+        captured = capsys.readouterr()
+        assert "Bias" in captured.out
+        assert "+0.0000" in captured.out
 
 
 class TestPrintComparisonResult:

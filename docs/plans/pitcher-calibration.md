@@ -20,7 +20,7 @@ For comparison, Steamer's 2026 min ERA is 2.39; our model's is 2.83.
 |-------|--------|
 | 1 — Fix multi-season predict fallback | done (2026-02-27) |
 | 2 — Multi-fold calibration | done (2026-02-28) |
-| 3 — Evaluate bias-correction methods | not started |
+| 3 — Evaluate bias-correction methods | in progress |
 | 4 — Pitcher regularization review | not started |
 
 ## Phase 1: Fix multi-season predict fallback

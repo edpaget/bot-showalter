@@ -31,6 +31,19 @@ class AffineCalibrator:
         return self.slope * X + self.intercept
 
 
+@dataclass(frozen=True)
+class MeanShiftCalibrator:
+    """Constant-shift calibrator: calibrated = raw + shift.
+
+    Corrects systematic bias without affecting ranking order or scale.
+    """
+
+    shift: float
+
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
+        return X + self.shift
+
+
 def _filter_X(X: _FeatureMatrix, indices: list[int]) -> list[list[float]]:  # noqa: N802
     """Select rows from feature matrix by index."""
     if isinstance(X, np.ndarray):
@@ -58,19 +71,23 @@ def _extract_actuals_and_features(
     return actuals, X_filtered
 
 
+Calibrator = AffineCalibrator | MeanShiftCalibrator | IsotonicRegression
+
+
 def fit_calibrators(
     models: dict[str, Any],
     X_cal: _FeatureMatrix,
     y_cal: dict[str, Any],
     method: str = "affine",
-) -> dict[str, AffineCalibrator | IsotonicRegression]:
+) -> dict[str, Calibrator]:
     """Fit per-target calibrators on holdout (predicted, actual) pairs.
 
-    method: "affine" (linear, preserves ranking) or "isotonic" (step function).
+    method: "affine" (linear), "mean_shift" (constant bias correction),
+            or "isotonic" (step function).
     y_cal values can be either list[float] or TargetVector (with .indices/.values).
     Skips targets with fewer than _MIN_OBSERVATIONS observations.
     """
-    calibrators: dict[str, AffineCalibrator | IsotonicRegression] = {}
+    calibrators: dict[str, Calibrator] = {}
 
     for target_name, model in models.items():
         target = y_cal.get(target_name)
@@ -88,6 +105,11 @@ def fit_calibrators(
             iso = IsotonicRegression(out_of_bounds="clip")
             iso.fit(raw_predictions, actuals)
             calibrators[target_name] = iso
+        elif method == "mean_shift":
+            actuals_arr = np.asarray(actuals)
+            preds_arr = np.asarray(raw_predictions)
+            shift = float(np.mean(actuals_arr) - np.mean(preds_arr))
+            calibrators[target_name] = MeanShiftCalibrator(shift=shift)
         else:
             # Affine: fit y = slope * x + intercept via least squares
             actuals_arr = np.asarray(actuals)
@@ -102,10 +124,11 @@ def fit_calibrators(
 def fit_multifold_calibrators(
     folds: list[FoldData],
     method: str = "affine",
-) -> dict[str, AffineCalibrator | IsotonicRegression]:
+) -> dict[str, Calibrator]:
     """Fit calibrators aggregated across multiple CV folds.
 
     Affine: average per-fold slopes and intercepts (skipping folds with <50 obs).
+    Mean shift: average per-fold shifts (skipping folds with <50 obs).
     Isotonic: pool all fold data and fit a single regression (skip if pooled <50).
     """
     # Collect all target names across folds
@@ -113,7 +136,7 @@ def fit_multifold_calibrators(
     for fold in folds:
         all_targets.update(fold.keys())
 
-    calibrators: dict[str, AffineCalibrator | IsotonicRegression] = {}
+    calibrators: dict[str, Calibrator] = {}
 
     for target_name in sorted(all_targets):
         if method == "isotonic":
@@ -134,6 +157,20 @@ def fit_multifold_calibrators(
             iso = IsotonicRegression(out_of_bounds="clip")
             iso.fit(pooled_preds, pooled_actuals)
             calibrators[target_name] = iso
+        elif method == "mean_shift":
+            fold_shifts: list[float] = []
+            for fold in folds:
+                if target_name not in fold:
+                    continue
+                preds, actuals = fold[target_name]
+                preds_arr = np.asarray(preds)
+                actuals_arr = np.asarray(actuals)
+                if len(preds_arr) < _MIN_OBSERVATIONS:
+                    continue
+                fold_shifts.append(float(np.mean(actuals_arr) - np.mean(preds_arr)))
+            if not fold_shifts:
+                continue
+            calibrators[target_name] = MeanShiftCalibrator(shift=sum(fold_shifts) / len(fold_shifts))
         else:
             # Affine: fit per-fold, then average
             fold_slopes: list[float] = []

@@ -16,7 +16,13 @@ from fantasy_baseball_manager.domain.projection_accuracy import ProjectionCompar
 
 def _metrics(rmse: float = 3.0, r_squared: float = 0.75, rank_correlation: float = 0.9) -> StatMetrics:
     return StatMetrics(
-        rmse=rmse, mae=2.0, correlation=0.9, rank_correlation=rank_correlation, r_squared=r_squared, n=100
+        rmse=rmse,
+        mae=2.0,
+        correlation=0.9,
+        rank_correlation=rank_correlation,
+        r_squared=r_squared,
+        mean_error=0.0,
+        n=100,
     )
 
 
@@ -488,6 +494,28 @@ class TestComputeStatMetricsBasic:
         assert "hr" in result
         assert "avg" in result
         assert "sb" not in result
+
+
+class TestMeanError:
+    def test_mean_error_positive_bias(self) -> None:
+        """mean_error is the signed average of (projected - actual)."""
+        comparisons = [
+            ProjectionComparison(stat_name="hr", projected=30.0, actual=28.0, error=2.0),
+            ProjectionComparison(stat_name="hr", projected=25.0, actual=20.0, error=5.0),
+            ProjectionComparison(stat_name="hr", projected=15.0, actual=18.0, error=-3.0),
+        ]
+        result = compute_stat_metrics(comparisons)
+        # errors = [2, 5, -3], mean_error = (2+5-3)/3 = 4/3
+        assert result["hr"].mean_error == pytest.approx(4.0 / 3.0)
+
+    def test_mean_error_zero_for_perfect(self) -> None:
+        comparisons = [
+            ProjectionComparison(stat_name="hr", projected=30.0, actual=30.0, error=0.0),
+            ProjectionComparison(stat_name="hr", projected=25.0, actual=25.0, error=0.0),
+            ProjectionComparison(stat_name="hr", projected=15.0, actual=15.0, error=0.0),
+        ]
+        result = compute_stat_metrics(comparisons)
+        assert result["hr"].mean_error == pytest.approx(0.0)
 
 
 class TestComputeTailAccuracy:
