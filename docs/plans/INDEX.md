@@ -7,7 +7,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases | Progress | Hard Dependencies |
 |---------|--------|----------|-------------------|
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | not started | ADP, projections, valuations (all done) |
-| [Category Balance Tracker](category-balance-tracker.md) | 3 | not started | none |
+| [Category Balance Tracker](category-balance-tracker.md) | 3 | phase 1 done | none |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | not started | ADP (done), draft board (done) |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
