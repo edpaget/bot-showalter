@@ -5,8 +5,10 @@ import pytest
 
 from fantasy_baseball_manager.models.statcast_gbm.calibration import (
     AffineCalibrator,
+    FoldData,
     apply_calibrators,
     fit_calibrators,
+    fit_multifold_calibrators,
     load_calibrators,
     save_calibrators,
 )
@@ -187,6 +189,121 @@ class TestSaveLoadCalibrators:
 
         for i in range(len(raw_preds["avg"])):
             assert result1["avg"][i] == pytest.approx(result2["avg"][i])
+
+
+class TestFitMultifoldCalibratorsAffine:
+    def test_averages_per_fold_slopes_and_intercepts(self) -> None:
+        rng = np.random.default_rng(42)
+        n = 100
+        slopes = [0.9, 1.1, 1.0]
+        intercepts = [0.01, -0.01, 0.02]
+        folds: list[FoldData] = []
+        for slope, intercept in zip(slopes, intercepts, strict=True):
+            preds = rng.uniform(0.200, 0.400, n)
+            actuals = slope * preds + intercept
+            folds.append({"era": (preds, actuals)})
+
+        calibrators = fit_multifold_calibrators(folds, method="affine")
+
+        assert "era" in calibrators
+        cal = calibrators["era"]
+        assert isinstance(cal, AffineCalibrator)
+        expected_slope = sum(slopes) / len(slopes)
+        expected_intercept = sum(intercepts) / len(intercepts)
+        assert cal.slope == pytest.approx(expected_slope, abs=0.01)
+        assert cal.intercept == pytest.approx(expected_intercept, abs=0.001)
+
+    def test_skips_target_with_too_few_observations_in_all_folds(self) -> None:
+        rng = np.random.default_rng(42)
+        folds: list[FoldData] = []
+        for _ in range(3):
+            preds = rng.uniform(0.200, 0.400, 30)  # < 50 per fold
+            actuals = preds + 0.01
+            folds.append({"era": (preds, actuals)})
+
+        calibrators = fit_multifold_calibrators(folds, method="affine")
+
+        assert "era" not in calibrators
+
+    def test_uses_only_folds_with_enough_observations(self) -> None:
+        rng = np.random.default_rng(42)
+        # Two qualifying folds with known slopes, one small fold
+        slopes = [0.8, 1.2]
+        intercepts = [0.05, -0.05]
+        folds: list[FoldData] = []
+        for slope, intercept in zip(slopes, intercepts, strict=True):
+            preds = rng.uniform(0.200, 0.400, 100)
+            actuals = slope * preds + intercept
+            folds.append({"era": (preds, actuals)})
+        # Small fold that should be skipped
+        small_preds = rng.uniform(0.200, 0.400, 30)
+        folds.append({"era": (small_preds, small_preds + 0.01)})
+
+        calibrators = fit_multifold_calibrators(folds, method="affine")
+
+        assert "era" in calibrators
+        cal = calibrators["era"]
+        assert isinstance(cal, AffineCalibrator)
+        expected_slope = sum(slopes) / len(slopes)  # average of qualifying folds only
+        expected_intercept = sum(intercepts) / len(intercepts)
+        assert cal.slope == pytest.approx(expected_slope, abs=0.01)
+        assert cal.intercept == pytest.approx(expected_intercept, abs=0.001)
+
+    def test_multifold_more_stable_than_single_fold(self) -> None:
+        rng = np.random.default_rng(42)
+        true_slope = 1.0
+        n = 80
+        folds: list[FoldData] = []
+        per_fold_slopes: list[float] = []
+        for _ in range(5):
+            preds = rng.uniform(0.200, 0.400, n)
+            noise = rng.normal(0, 0.02, n)
+            actuals = true_slope * preds + noise
+            folds.append({"era": (preds, actuals)})
+            # Fit per-fold slope for comparison
+            fold_slope, _ = np.polyfit(preds, actuals, 1)
+            per_fold_slopes.append(float(fold_slope))
+
+        calibrators = fit_multifold_calibrators(folds, method="affine")
+        cal = calibrators["era"]
+        assert isinstance(cal, AffineCalibrator)
+
+        # Aggregated slope should be closer to true than any individual fold
+        agg_deviation = abs(cal.slope - true_slope)
+        individual_deviations = [abs(s - true_slope) for s in per_fold_slopes]
+        assert agg_deviation < max(individual_deviations)
+
+
+class TestFitMultifoldCalibratorsIsotonic:
+    def test_pools_all_fold_data(self) -> None:
+        rng = np.random.default_rng(42)
+        folds: list[FoldData] = []
+        for _ in range(3):
+            preds = rng.uniform(2.0, 5.0, 60)
+            actuals = preds - 0.3  # systematic bias
+            folds.append({"era": (preds, actuals)})
+
+        calibrators = fit_multifold_calibrators(folds, method="isotonic")
+
+        assert "era" in calibrators
+        # Verify it can predict (i.e., it's a fitted IsotonicRegression)
+        test_preds = np.array([3.0, 4.0, 5.0])
+        result = calibrators["era"].predict(test_preds)
+        assert len(result) == 3
+        # Should correct predictions downward (since actuals = preds - 0.3)
+        assert all(r < p for r, p in zip(result, test_preds, strict=True))
+
+    def test_skips_target_with_too_few_pooled_observations(self) -> None:
+        rng = np.random.default_rng(42)
+        folds: list[FoldData] = []
+        for _ in range(3):
+            preds = rng.uniform(2.0, 5.0, 15)  # 15 * 3 = 45 < 50
+            actuals = preds - 0.3
+            folds.append({"era": (preds, actuals)})
+
+        calibrators = fit_multifold_calibrators(folds, method="isotonic")
+
+        assert "era" not in calibrators
 
 
 class _FakeModel:

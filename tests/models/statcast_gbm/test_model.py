@@ -2261,3 +2261,86 @@ class TestPreseasonPredictFallback:
         called_seasons = {s for s, _ in provider.calls}
         assert 2026 in called_seasons
         assert 2023 not in called_seasons
+
+
+def _make_pitcher_rows_varied(n: int, season: int) -> list[dict[str, Any]]:
+    """Create pitcher rows with varied features and targets for calibration tests."""
+    rows: list[dict[str, Any]] = []
+    for i in range(n):
+        row = _make_pitcher_row(f"pitcher_{i}", season)
+        # Add variation so model predictions differ across rows
+        for j, col in enumerate(_PITCHER_FEATURE_COLUMNS):
+            row[col] = 1.0 + (i + j) * 0.01
+        row["target_era"] = 3.50 + (i - n / 2) * 0.03
+        row["target_fip"] = 3.40 + (i - n / 2) * 0.03
+        rows.append(row)
+    return rows
+
+
+def _make_rows_varied(n: int, season: int) -> list[dict[str, Any]]:
+    """Create batter rows with varied features and targets for calibration tests."""
+    rows: list[dict[str, Any]] = []
+    for i in range(n):
+        row = _make_row(f"player_{i}", season)
+        for j, col in enumerate(_FEATURE_COLUMNS):
+            row[col] = 1.0 + (i + j) * 0.01
+        row["target_avg"] = 0.275 + (i - n / 2) * 0.002
+        row["target_obp"] = 0.350 + (i - n / 2) * 0.002
+        rows.append(row)
+    return rows
+
+
+@pytest.mark.slow
+class TestMultifoldCalibrationTrain:
+    def test_train_with_enough_seasons_saves_calibrators(self, tmp_path: Path) -> None:
+        n = 60
+        rows_by_season = {s: _make_rows_varied(n, s) for s in range(2020, 2024)}
+        pitcher_rows_by_season = {s: _make_pitcher_rows_varied(n, s) for s in range(2020, 2024)}
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2020, 2021, 2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"calibrate": True, "calibration_method": "affine"},
+        )
+
+        model.train(config)
+
+        artifact_dir = tmp_path / "statcast-gbm" / "latest"
+        assert (artifact_dir / "pitcher_calibrators.joblib").exists()
+        assert (artifact_dir / "batter_calibrators.joblib").exists()
+
+    def test_train_with_two_seasons_uses_single_fold_fallback(self, tmp_path: Path) -> None:
+        n = 60
+        rows_by_season = {s: _make_rows_varied(n, s) for s in range(2022, 2024)}
+        pitcher_rows_by_season = {s: _make_pitcher_rows_varied(n, s) for s in range(2022, 2024)}
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"calibrate": True, "calibration_method": "affine"},
+        )
+
+        model.train(config)
+
+        artifact_dir = tmp_path / "statcast-gbm" / "latest"
+        assert (artifact_dir / "pitcher_calibrators.joblib").exists()
+        assert (artifact_dir / "batter_calibrators.joblib").exists()
+
+    def test_train_without_calibrate_skips_calibration(self, tmp_path: Path) -> None:
+        n = 60
+        rows_by_season = {s: _make_rows_varied(n, s) for s in range(2020, 2024)}
+        pitcher_rows_by_season = {s: _make_pitcher_rows_varied(n, s) for s in range(2020, 2024)}
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2020, 2021, 2022, 2023],
+            artifacts_dir=str(tmp_path),
+        )
+
+        model.train(config)
+
+        artifact_dir = tmp_path / "statcast-gbm" / "latest"
+        assert not (artifact_dir / "pitcher_calibrators.joblib").exists()
+        assert not (artifact_dir / "batter_calibrators.joblib").exists()

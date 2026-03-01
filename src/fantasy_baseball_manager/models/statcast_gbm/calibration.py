@@ -13,6 +13,9 @@ _MIN_OBSERVATIONS = 50
 # Support both list[list[float]] (from extract_features) and np.ndarray
 _FeatureMatrix = list[list[float]] | np.ndarray
 
+# Per-target (predictions, actuals) pairs from a single CV fold.
+FoldData = dict[str, tuple[np.ndarray, np.ndarray]]
+
 
 @dataclass(frozen=True)
 class AffineCalibrator:
@@ -92,6 +95,65 @@ def fit_calibrators(
             # np.polyfit(x, y, 1) returns [slope, intercept]
             slope, intercept = np.polyfit(preds_arr, actuals_arr, 1)
             calibrators[target_name] = AffineCalibrator(slope=float(slope), intercept=float(intercept))
+
+    return calibrators
+
+
+def fit_multifold_calibrators(
+    folds: list[FoldData],
+    method: str = "affine",
+) -> dict[str, AffineCalibrator | IsotonicRegression]:
+    """Fit calibrators aggregated across multiple CV folds.
+
+    Affine: average per-fold slopes and intercepts (skipping folds with <50 obs).
+    Isotonic: pool all fold data and fit a single regression (skip if pooled <50).
+    """
+    # Collect all target names across folds
+    all_targets: set[str] = set()
+    for fold in folds:
+        all_targets.update(fold.keys())
+
+    calibrators: dict[str, AffineCalibrator | IsotonicRegression] = {}
+
+    for target_name in sorted(all_targets):
+        if method == "isotonic":
+            all_preds: list[np.ndarray] = []
+            all_actuals: list[np.ndarray] = []
+            for fold in folds:
+                if target_name not in fold:
+                    continue
+                preds, actuals = fold[target_name]
+                all_preds.append(np.asarray(preds))
+                all_actuals.append(np.asarray(actuals))
+            if not all_preds:
+                continue
+            pooled_preds = np.concatenate(all_preds)
+            pooled_actuals = np.concatenate(all_actuals)
+            if len(pooled_preds) < _MIN_OBSERVATIONS:
+                continue
+            iso = IsotonicRegression(out_of_bounds="clip")
+            iso.fit(pooled_preds, pooled_actuals)
+            calibrators[target_name] = iso
+        else:
+            # Affine: fit per-fold, then average
+            fold_slopes: list[float] = []
+            fold_intercepts: list[float] = []
+            for fold in folds:
+                if target_name not in fold:
+                    continue
+                preds, actuals = fold[target_name]
+                preds_arr = np.asarray(preds)
+                actuals_arr = np.asarray(actuals)
+                if len(preds_arr) < _MIN_OBSERVATIONS:
+                    continue
+                slope, intercept = np.polyfit(preds_arr, actuals_arr, 1)
+                fold_slopes.append(float(slope))
+                fold_intercepts.append(float(intercept))
+            if not fold_slopes:
+                continue
+            avg_slope = sum(fold_slopes) / len(fold_slopes)
+            avg_intercept = sum(fold_intercepts) / len(fold_intercepts)
+            calibrators[target_name] = AffineCalibrator(slope=avg_slope, intercept=avg_intercept)
 
     return calibrators
 

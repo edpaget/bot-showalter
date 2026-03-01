@@ -3,6 +3,8 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from fantasy_baseball_manager.domain import ArtifactType
 from fantasy_baseball_manager.features import (
     AnyFeature,
@@ -43,8 +45,10 @@ from fantasy_baseball_manager.models.sample_weight_transforms import (
 )
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 from fantasy_baseball_manager.models.statcast_gbm.calibration import (
+    FoldData,
     apply_calibrators,
     fit_calibrators,
+    fit_multifold_calibrators,
     load_calibrators,
     save_calibrators,
 )
@@ -78,6 +82,81 @@ DEFAULT_PARAM_GRID: dict[str, list[Any]] = {
     "min_samples_leaf": [5, 10, 20, 50],
     "max_leaf_nodes": [15, 31, 63, None],
 }
+
+
+def _collect_calibration_fold_data(
+    all_rows: list[dict[str, Any]],
+    feature_columns: list[str],
+    targets: list[str],
+    cv_splits: list[tuple[list[int], int]],
+    model_params: dict[str, Any],
+    *,
+    train_row_filter: RowFilter | None = None,
+    sample_weight_column: str | None = None,
+    weight_transform: WeightTransform | None = None,
+    calibration_top: int | None = None,
+) -> list[FoldData]:
+    """Collect (predictions, actuals) per target from each CV fold.
+
+    For each fold, train models on the fold's train seasons and predict on
+    the fold's test season. Returns a list of FoldData dicts (one per fold).
+    """
+    rows_by_season: dict[int, list[dict[str, Any]]] = {}
+    for row in all_rows:
+        season = row["season"]
+        rows_by_season.setdefault(season, []).append(row)
+
+    fold_data_list: list[FoldData] = []
+    for train_seasons, test_season in cv_splits:
+        train_rows: list[dict[str, Any]] = []
+        for s in train_seasons:
+            train_rows.extend(rows_by_season.get(s, []))
+        if train_row_filter is not None:
+            train_rows = train_row_filter(train_rows)
+        if not train_rows:
+            continue
+
+        test_rows = rows_by_season.get(test_season, [])
+        if not test_rows:
+            continue
+
+        X_train = extract_features(train_rows, feature_columns)
+        y_train = extract_targets(train_rows, targets)
+        sw = extract_sample_weights(train_rows, sample_weight_column) if sample_weight_column else None
+        if sw is not None and weight_transform is not None:
+            sw = weight_transform(sw)
+        models = fit_models(X_train, y_train, model_params, sample_weights=sw)
+
+        # Apply calibration_top filter to test rows
+        cal_rows = test_rows
+        if calibration_top is not None:
+            cal_rows = sorted(cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:calibration_top]
+        if not cal_rows:
+            continue
+
+        X_test = extract_features(cal_rows, feature_columns)
+        y_test = extract_targets(cal_rows, targets)
+
+        fold_data: FoldData = {}
+        for target_name, model in models.items():
+            target = y_test.get(target_name)
+            if target is None:
+                continue
+            if hasattr(target, "indices") and hasattr(target, "values"):
+                if not target.values:
+                    continue
+                X_filtered = [X_test[i] for i in target.indices]
+                preds = model.predict(X_filtered)
+                fold_data[target_name] = (np.asarray(preds), np.asarray(target.values))
+            else:
+                if not target:
+                    continue
+                preds = model.predict(X_test)
+                fold_data[target_name] = (np.asarray(preds), np.asarray(target))
+        if fold_data:
+            fold_data_list.append(fold_data)
+
+    return fold_data_list
 
 
 class _StatcastGBMBase:
@@ -278,16 +357,36 @@ class _StatcastGBMBase:
 
         save_models(bat_models, artifact_path / "batter_models.joblib")
 
-        if self._calibrate(batter_params) and bat_splits.holdout is not None:
-            bat_cal_rows = bat_holdout_rows
-            bat_cal_top = self._calibration_top(batter_params)
-            if bat_cal_top is not None:
-                bat_cal_rows = sorted(bat_cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:bat_cal_top]
-            bat_X_cal = extract_features(bat_cal_rows, bat_feature_cols)
-            bat_y_cal = extract_targets(bat_cal_rows, bat_targets)
-            bat_calibrators = fit_calibrators(
-                bat_models, bat_X_cal, bat_y_cal, method=self._calibration_method(batter_params)
-            )
+        if self._calibrate(batter_params):
+            bat_calibrators: dict[str, Any] = {}
+            if len(config.seasons) >= 3:
+                cv_splits = list(temporal_expanding_cv(config.seasons))
+                bat_all_rows = self._assembler.read(bat_handle)
+                fold_data = _collect_calibration_fold_data(
+                    bat_all_rows,
+                    bat_feature_cols,
+                    bat_targets,
+                    cv_splits,
+                    batter_params,
+                    train_row_filter=self._make_pa_filter(batter_params),
+                    sample_weight_column=self._batter_sample_weight_column,
+                    weight_transform=bat_transform,
+                    calibration_top=self._calibration_top(batter_params),
+                )
+                if fold_data:
+                    bat_calibrators = fit_multifold_calibrators(
+                        fold_data, method=self._calibration_method(batter_params)
+                    )
+            elif bat_splits.holdout is not None:
+                bat_cal_rows = bat_holdout_rows
+                bat_cal_top = self._calibration_top(batter_params)
+                if bat_cal_top is not None:
+                    bat_cal_rows = sorted(bat_cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:bat_cal_top]
+                bat_X_cal = extract_features(bat_cal_rows, bat_feature_cols)
+                bat_y_cal = extract_targets(bat_cal_rows, bat_targets)
+                bat_calibrators = fit_calibrators(
+                    bat_models, bat_X_cal, bat_y_cal, method=self._calibration_method(batter_params)
+                )
             if bat_calibrators:
                 save_calibrators(bat_calibrators, artifact_path / "batter_calibrators.joblib")
 
@@ -322,16 +421,36 @@ class _StatcastGBMBase:
 
         save_models(pit_models, artifact_path / "pitcher_models.joblib")
 
-        if self._calibrate(pitcher_params) and pit_splits.holdout is not None:
-            pit_cal_rows = pit_holdout_rows
-            pit_cal_top = self._calibration_top(pitcher_params)
-            if pit_cal_top is not None:
-                pit_cal_rows = sorted(pit_cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:pit_cal_top]
-            pit_X_cal = extract_features(pit_cal_rows, pit_feature_cols)
-            pit_y_cal = extract_targets(pit_cal_rows, pit_targets)
-            pit_calibrators = fit_calibrators(
-                pit_models, pit_X_cal, pit_y_cal, method=self._calibration_method(pitcher_params)
-            )
+        if self._calibrate(pitcher_params):
+            pit_calibrators: dict[str, Any] = {}
+            if len(config.seasons) >= 3:
+                cv_splits = list(temporal_expanding_cv(config.seasons))
+                pit_all_rows = self._assembler.read(pit_handle)
+                fold_data = _collect_calibration_fold_data(
+                    pit_all_rows,
+                    pit_feature_cols,
+                    pit_targets,
+                    cv_splits,
+                    pitcher_params,
+                    train_row_filter=self._make_ip_filter(pitcher_params),
+                    sample_weight_column=self._pitcher_sample_weight_column,
+                    weight_transform=pit_transform,
+                    calibration_top=self._calibration_top(pitcher_params),
+                )
+                if fold_data:
+                    pit_calibrators = fit_multifold_calibrators(
+                        fold_data, method=self._calibration_method(pitcher_params)
+                    )
+            elif pit_splits.holdout is not None:
+                pit_cal_rows = pit_holdout_rows
+                pit_cal_top = self._calibration_top(pitcher_params)
+                if pit_cal_top is not None:
+                    pit_cal_rows = sorted(pit_cal_rows, key=lambda r: r.get("war") or 0, reverse=True)[:pit_cal_top]
+                pit_X_cal = extract_features(pit_cal_rows, pit_feature_cols)
+                pit_y_cal = extract_targets(pit_cal_rows, pit_targets)
+                pit_calibrators = fit_calibrators(
+                    pit_models, pit_X_cal, pit_y_cal, method=self._calibration_method(pitcher_params)
+                )
             if pit_calibrators:
                 save_calibrators(pit_calibrators, artifact_path / "pitcher_calibrators.joblib")
 
