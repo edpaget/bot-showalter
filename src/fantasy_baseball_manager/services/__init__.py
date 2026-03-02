@@ -11,7 +11,12 @@ from fantasy_baseball_manager.services.cohort import (
     assign_experience_cohorts,
     assign_top300_cohorts,
 )
-from fantasy_baseball_manager.services.data_profiler import NUMERIC_COLUMNS, StatcastColumnProfiler
+from fantasy_baseball_manager.services.data_profiler import (
+    NUMERIC_COLUMNS,
+    CorrelationScanner,
+    StatcastColumnProfiler,
+    rank_columns,
+)
 from fantasy_baseball_manager.services.dataset_catalog import (
     DatasetCatalogService,
     DatasetInfo,
@@ -128,6 +133,7 @@ __all__ = [
     "BestValueBot",
     "CategoryNeedRule",
     "CompositeBot",
+    "CorrelationScanner",
     "DatasetCatalogService",
     "DatasetInfo",
     "DraftBot",
@@ -195,6 +201,7 @@ __all__ = [
     "identify_needs",
     "ingest_yahoo_pick",
     "load_draft",
+    "rank_columns",
     "recommend",
     "resolve_player",
     "run_mock_draft",

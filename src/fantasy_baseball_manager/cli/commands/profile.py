@@ -2,9 +2,14 @@ from typing import Annotated
 
 import typer
 
-from fantasy_baseball_manager.cli._output import print_column_profiles, print_error
+from fantasy_baseball_manager.cli._output import (
+    print_column_profiles,
+    print_column_ranking,
+    print_correlation_results,
+    print_error,
+)
 from fantasy_baseball_manager.cli.factory import build_profile_context
-from fantasy_baseball_manager.services import NUMERIC_COLUMNS
+from fantasy_baseball_manager.services import NUMERIC_COLUMNS, rank_columns
 
 profile_app = typer.Typer(name="profile", help="Profile statcast data distributions")
 
@@ -34,3 +39,26 @@ def profile_columns_cmd(
             raise typer.Exit(code=1) from e
 
     print_column_profiles(profiles)
+
+
+@profile_app.command("correlate")
+def correlate_cmd(
+    columns: Annotated[list[str], typer.Argument(help="Column spec(s) to correlate")],
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s)")] = ...,  # type: ignore[assignment]
+    player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")] = ...,  # type: ignore[assignment]
+    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+) -> None:
+    """Correlate statcast columns against model targets."""
+    with build_profile_context(data_dir) as ctx:
+        try:
+            results = ctx.scanner.scan_multiple(columns, season, player_type)
+        except ValueError as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from e
+
+    for result in results:
+        print_correlation_results(result)
+
+    if len(results) > 1:
+        rankings = rank_columns(results)
+        print_column_ranking(rankings)

@@ -9,7 +9,7 @@ These tools answer the question: "What columns in `statcast_pitch` are worth tur
 | Phase | Status |
 |-------|--------|
 | 1 — Column profiler | done (2026-03-02) |
-| 2 — Target correlation scanner | not started |
+| 2 — Target correlation scanner | in progress |
 | 3 — Temporal stability checker | not started |
 
 ## Phase 1: Column profiler

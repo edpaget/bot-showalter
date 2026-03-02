@@ -29,11 +29,13 @@ if TYPE_CHECKING:
         CategoryNeed,
         ColumnProfile,
         ComparisonResult,
+        CorrelationScanResult,
         DraftBoard,
         DraftReport,
         KeeperDecision,
         LoadLog,
         ModelRunRecord,
+        MultiColumnRanking,
         PlayerProjection,
         PlayerStatDelta,
         PlayerTier,
@@ -1939,3 +1941,51 @@ def print_marginal_value_results(results: list[MarginalValueResult]) -> None:
             rank_table.add_row(str(i), r.candidate, pct_str, f"{r.n_improved}/{r.n_total}")
 
         console.print(rank_table)
+
+
+def print_correlation_results(result: CorrelationScanResult) -> None:
+    """Print correlation scan results as Rich tables."""
+    for season_result in result.per_season:
+        console.print(f"\n[bold]Season {season_result.season}[/bold]")
+        _print_correlation_table(season_result.correlations)
+
+    console.print("\n[bold]Pooled (all seasons)[/bold]")
+    _print_correlation_table(result.pooled.correlations)
+
+
+def _print_correlation_table(correlations: tuple) -> None:
+    """Print a single correlation table."""
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Target", justify="left")
+    table.add_column("Pearson r", justify="right")
+    table.add_column("Spearman rho", justify="right")
+    table.add_column("p-value", justify="right")
+    table.add_column("n", justify="right")
+
+    for c in correlations:
+        table.add_row(
+            c.target,
+            f"{c.pearson_r:.3f}",
+            f"{c.spearman_rho:.3f}",
+            f"{c.pearson_p:.4f}",
+            str(c.n),
+        )
+
+    console.print(table)
+
+
+def print_column_ranking(rankings: list[MultiColumnRanking]) -> None:
+    """Print column ranking summary table."""
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Column", justify="left")
+    table.add_column("Avg |Pearson|", justify="right")
+    table.add_column("Avg |Spearman|", justify="right")
+
+    for r in rankings:
+        table.add_row(
+            r.column_spec,
+            f"{r.avg_abs_pearson:.3f}",
+            f"{r.avg_abs_spearman:.3f}",
+        )
+
+    console.print(table)

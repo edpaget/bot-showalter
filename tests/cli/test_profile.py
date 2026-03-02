@@ -5,8 +5,9 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import ProfileContext
+from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
-from fantasy_baseball_manager.services.data_profiler import StatcastColumnProfiler
+from fantasy_baseball_manager.services.data_profiler import CorrelationScanner, StatcastColumnProfiler
 
 if TYPE_CHECKING:
     import sqlite3
@@ -16,8 +17,15 @@ runner = CliRunner()
 
 
 @contextmanager
-def _build_test_profile_context(conn: sqlite3.Connection) -> Iterator[ProfileContext]:
-    yield ProfileContext(profiler=StatcastColumnProfiler(conn))
+def _build_test_profile_context(
+    conn: sqlite3.Connection, stats_conn: sqlite3.Connection | None = None
+) -> Iterator[ProfileContext]:
+    if stats_conn is None:
+        stats_conn = create_connection(":memory:")
+    yield ProfileContext(
+        profiler=StatcastColumnProfiler(conn),
+        scanner=CorrelationScanner(conn, stats_conn),
+    )
 
 
 class TestProfileColumnsCommand:
@@ -140,3 +148,94 @@ class TestProfileColumnsCommand:
         # Rich table may truncate column names
         assert "rel" in result.output
         conn.close()
+
+
+def _setup_correlate_test_data(statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection) -> None:
+    """Set up minimal test data for correlate command tests."""
+    for i in range(1, 6):
+        mlbam_id = 1000 + i
+        statcast_conn.execute(
+            """INSERT INTO statcast_pitch
+               (game_pk, game_date, batter_id, pitcher_id, at_bat_number, pitch_number, launch_speed)
+               VALUES (?, '2023-06-01', ?, 9999, 1, 1, ?)""",
+            (i, mlbam_id, 80.0 + i),
+        )
+        stats_conn.execute(
+            "INSERT INTO player (id, name_first, name_last, mlbam_id) VALUES (?, 'Test', 'Player', ?)",
+            (i, mlbam_id),
+        )
+        stats_conn.execute(
+            """INSERT INTO batting_stats
+               (player_id, season, source, avg, obp, slg, woba, h, hr, ab, so, sf)
+               VALUES (?, 2023, 'fangraphs', ?, ?, ?, 0.320, 150, 20, 500, 100, 5)""",
+            (i, 0.250 + i * 0.01, 0.330 + i * 0.01, 0.400 + i * 0.01),
+        )
+    statcast_conn.commit()
+    stats_conn.commit()
+
+
+class TestCorrelateCommand:
+    def test_basic_invocation(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+        stats_conn = create_connection(":memory:")
+        _setup_correlate_test_data(statcast_conn, stats_conn)
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.profile.build_profile_context",
+            lambda data_dir: _build_test_profile_context(statcast_conn, stats_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            ["profile", "correlate", "launch_speed", "--season", "2023", "--player-type", "batter"],
+        )
+        assert result.exit_code == 0, result.output
+        # Should show target names in output
+        assert "avg" in result.output
+        assert "slg" in result.output
+        assert "Pooled" in result.output
+        statcast_conn.close()
+        stats_conn.close()
+
+    def test_missing_season(self) -> None:
+        result = runner.invoke(
+            app,
+            ["profile", "correlate", "launch_speed", "--player-type", "batter"],
+        )
+        assert result.exit_code != 0
+
+    def test_missing_player_type(self) -> None:
+        result = runner.invoke(
+            app,
+            ["profile", "correlate", "launch_speed", "--season", "2023"],
+        )
+        assert result.exit_code != 0
+
+    def test_multiple_columns_shows_ranking(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+        stats_conn = create_connection(":memory:")
+        _setup_correlate_test_data(statcast_conn, stats_conn)
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.profile.build_profile_context",
+            lambda data_dir: _build_test_profile_context(statcast_conn, stats_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "profile",
+                "correlate",
+                "launch_speed",
+                "release_speed",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Should show ranking table for multiple columns
+        assert "Avg" in result.output
+        statcast_conn.close()
+        stats_conn.close()

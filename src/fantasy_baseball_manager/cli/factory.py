@@ -56,6 +56,7 @@ from fantasy_baseball_manager.repos import (
     SqliteYahooTeamRepo,
 )
 from fantasy_baseball_manager.services import (
+    CorrelationScanner,
     DatasetCatalogService,
     LeagueEnvironmentService,
     PlayerEligibilityService,
@@ -711,13 +712,19 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:
 @dataclass(frozen=True)
 class ProfileContext:
     profiler: StatcastColumnProfiler
+    scanner: CorrelationScanner
 
 
 @contextmanager
 def build_profile_context(data_dir: str) -> Iterator[ProfileContext]:
     """Composition-root context manager for profile commands."""
     statcast_conn = create_statcast_connection(Path(data_dir) / "statcast.db")
+    stats_conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        yield ProfileContext(profiler=StatcastColumnProfiler(statcast_conn))
+        yield ProfileContext(
+            profiler=StatcastColumnProfiler(statcast_conn),
+            scanner=CorrelationScanner(statcast_conn, stats_conn),
+        )
     finally:
+        stats_conn.close()
         statcast_conn.close()

@@ -15,6 +15,13 @@ from fantasy_baseball_manager.domain.category_tracker import (
     TeamCategoryProjection,
 )
 from fantasy_baseball_manager.domain.column_profile import ColumnProfile
+from fantasy_baseball_manager.domain.correlation_result import (
+    CorrelationScanResult,
+    MultiColumnRanking,
+    PooledCorrelationResult,
+    SeasonCorrelationResult,
+    TargetCorrelation,
+)
 from fantasy_baseball_manager.domain.draft_board import (
     DraftBoard,
     DraftBoardRow,
@@ -200,6 +207,7 @@ __all__ = [
     "ColumnProfile",
     "ComparisonResult",
     "ComparisonSummary",
+    "CorrelationScanResult",
     "ConfidenceReport",
     "RegressionCheckResult",
     "ConfigError",
@@ -214,6 +222,7 @@ __all__ = [
     "Err",
     "Experiment",
     "FbmError",
+    "MultiColumnRanking",
     "ILStint",
     "IngestError",
     "KeeperConstraints",
@@ -240,6 +249,7 @@ __all__ = [
     "PitchingStats",
     "Player",
     "PlayerConfidence",
+    "PooledCorrelationResult",
     "PlayerProfile",
     "PlayerProjection",
     "PlayerRecommendation",
@@ -260,6 +270,7 @@ __all__ = [
     "Roster",
     "RosterEntry",
     "RosterStint",
+    "SeasonCorrelationResult",
     "SensitivityEntry",
     "SprintSpeed",
     "StatComparisonRecord",
@@ -279,6 +290,7 @@ __all__ = [
     "TeamCategoryProjection",
     "TailAccuracy",
     "TalentQualitySummary",
+    "TargetCorrelation",
     "TargetResult",
     "Team",
     "TierAssignment",
