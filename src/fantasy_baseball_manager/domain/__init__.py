@@ -57,6 +57,12 @@ from fantasy_baseball_manager.domain.keeper import (
     TradeEvaluation,
     TradePlayerDetail,
 )
+from fantasy_baseball_manager.domain.keeper_optimization import (
+    KeeperConstraints,
+    KeeperSet,
+    KeeperSolution,
+    SensitivityEntry,
+)
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -69,6 +75,11 @@ from fantasy_baseball_manager.domain.level_factor import LevelFactor
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.domain.minor_league_batting_stats import (
     MinorLeagueBattingStats,
+)
+from fantasy_baseball_manager.domain.mock_draft import (
+    BotStrategy,
+    DraftPick,
+    DraftResult,
 )
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
@@ -166,6 +177,7 @@ __all__ = [
     "BATTING_COUNTING_STATS",
     "BATTING_RATE_STATS",
     "BattingStats",
+    "BotStrategy",
     "CalibrationBin",
     "CategoryNeed",
     "RosterAnalysis",
@@ -183,13 +195,18 @@ __all__ = [
     "DispatchError",
     "DraftBoard",
     "DraftBoardRow",
+    "DraftPick",
     "DraftReport",
+    "DraftResult",
     "Err",
     "FbmError",
     "ILStint",
     "IngestError",
+    "KeeperConstraints",
     "KeeperCost",
     "KeeperDecision",
+    "KeeperSet",
+    "KeeperSolution",
     "LeagueEnvironment",
     "LeagueFormat",
     "LeagueSettings",
@@ -226,6 +243,7 @@ __all__ = [
     "Roster",
     "RosterEntry",
     "RosterStint",
+    "SensitivityEntry",
     "SprintSpeed",
     "StatComparisonRecord",
     "StatDistribution",

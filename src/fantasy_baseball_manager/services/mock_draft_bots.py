@@ -7,9 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import random
 
-    from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
-    from fantasy_baseball_manager.domain.mock_draft import DraftPick
+    from fantasy_baseball_manager.domain import DraftBoardRow, DraftPick, LeagueSettings
 
 
 class ADPBot:

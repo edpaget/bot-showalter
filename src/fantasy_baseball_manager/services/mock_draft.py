@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
-from fantasy_baseball_manager.domain.mock_draft import DraftPick, DraftResult
+from fantasy_baseball_manager.domain import DraftPick, DraftResult
 from fantasy_baseball_manager.services.draft_state import build_draft_roster_slots
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+    from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, LeagueSettings
 
 
 class DraftBot(Protocol):

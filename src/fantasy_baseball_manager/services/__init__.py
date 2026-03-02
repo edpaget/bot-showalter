@@ -37,6 +37,7 @@ from fantasy_baseball_manager.services.draft_translation import (
     build_team_map,
     ingest_yahoo_pick,
 )
+from fantasy_baseball_manager.services.keeper_optimizer import solve_keepers
 from fantasy_baseball_manager.services.keeper_service import (
     compute_adjusted_valuations,
     compute_surplus,
@@ -45,6 +46,13 @@ from fantasy_baseball_manager.services.keeper_service import (
 )
 from fantasy_baseball_manager.services.league_environment_service import (
     LeagueEnvironmentService,
+)
+from fantasy_baseball_manager.services.mock_draft import DraftBot, run_mock_draft
+from fantasy_baseball_manager.services.mock_draft_bots import (
+    ADPBot,
+    BestValueBot,
+    PositionalNeedBot,
+    RandomBot,
 )
 from fantasy_baseball_manager.services.performance_report import (
     PerformanceReportService,
@@ -82,10 +90,13 @@ from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupSe
 
 __all__ = [
     "ADPAccuracyEvaluator",
+    "ADPBot",
     "ADPMoversService",
     "ADPReportService",
     "DatasetCatalogService",
     "DatasetInfo",
+    "BestValueBot",
+    "DraftBot",
     "DraftConfig",
     "DraftEngine",
     "DraftError",
@@ -114,6 +125,7 @@ __all__ = [
     "build_draft_roster_slots",
     "build_team_map",
     "classify_variance",
+    "solve_keepers",
     "compute_adjusted_valuations",
     "compute_surplus",
     "compute_category_balance_scores",
@@ -127,9 +139,12 @@ __all__ = [
     "grouped_projections",
     "identify_needs",
     "PickFn",
+    "PositionalNeedBot",
     "ingest_yahoo_pick",
     "load_draft",
+    "RandomBot",
     "recommend",
+    "run_mock_draft",
     "resolve_player",
     "set_keeper_cost",
     "tier_summary",
