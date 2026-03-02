@@ -2,8 +2,10 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import (
     CategoryConfig,
+    CategoryNeed,
     Direction,
     LeagueSettings,
+    PlayerRecommendation,
     RosterAnalysis,
     StatType,
     TeamCategoryProjection,
@@ -141,3 +143,121 @@ def analyze_roster(
         strongest_categories=strongest,
         weakest_categories=weakest,
     )
+
+
+def _find_category_config(key: str, league: LeagueSettings) -> CategoryConfig | None:
+    """Look up a CategoryConfig by key from league settings."""
+    for cat in league.batting_categories:
+        if cat.key == key:
+            return cat
+    for cat in league.pitching_categories:
+        if cat.key == key:
+            return cat
+    return None
+
+
+def _is_batting_category(key: str, league: LeagueSettings) -> bool:
+    """Return True if key is a batting category."""
+    return any(cat.key == key for cat in league.batting_categories)
+
+
+def identify_needs(
+    roster_ids: list[int],
+    available_ids: list[int],
+    projections: list[Projection],
+    league: LeagueSettings,
+    player_names: dict[int, str] | None = None,
+    *,
+    top_n: int = 5,
+) -> list[CategoryNeed]:
+    """Identify weak categories and recommend available players to address them.
+
+    For each weak category, finds the available players that improve it the most
+    and flags tradeoffs where improving one weak category hurts another.
+    """
+    analysis = analyze_roster(roster_ids, projections, league)
+    names = player_names or {}
+    num_teams = league.teams
+    target_rank = int(2 * num_teams / 3)
+
+    # Collect weak categories sorted by worst rank first
+    weak_projections = [p for p in analysis.projections if p.strength == "weak"]
+    weak_projections.sort(key=lambda p: p.league_rank_estimate, reverse=True)
+    weak_keys = {p.category for p in weak_projections}
+
+    proj_lookup: dict[int, Projection] = {p.player_id: p for p in projections}
+    roster_projections = [proj_lookup[pid] for pid in set(roster_ids) if pid in proj_lookup]
+    roster_batters = [p for p in roster_projections if p.player_type == "batter"]
+    roster_pitchers = [p for p in roster_projections if p.player_type == "pitcher"]
+
+    available_projections = [proj_lookup[pid] for pid in available_ids if pid in proj_lookup]
+    available_batters = [p for p in available_projections if p.player_type == "batter"]
+    available_pitchers = [p for p in available_projections if p.player_type == "pitcher"]
+
+    result: list[CategoryNeed] = []
+
+    for weak_proj in weak_projections:
+        cat_config = _find_category_config(weak_proj.category, league)
+        if cat_config is None:
+            continue
+
+        is_batting = _is_batting_category(weak_proj.category, league)
+        roster_pool = roster_batters if is_batting else roster_pitchers
+        available_pool = available_batters if is_batting else available_pitchers
+
+        # Compute impact for each available player
+        current_value = _compute_category_value(cat_config, roster_pool)
+        candidates: list[tuple[Projection, float]] = []
+        for candidate in available_pool:
+            with_player = _compute_category_value(cat_config, [*roster_pool, candidate])
+            if cat_config.direction == Direction.LOWER:
+                impact = current_value - with_player  # lower is better → positive impact
+            else:
+                impact = with_player - current_value
+            candidates.append((candidate, impact))
+
+        # Sort by impact descending, take top_n
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        top_candidates = candidates[:top_n]
+
+        # Build recommendations with tradeoff detection
+        # Identify other weak categories of the same type (batting/pitching)
+        other_weak_same_type = [
+            k for k in weak_keys if k != weak_proj.category and _is_batting_category(k, league) == is_batting
+        ]
+
+        recommendations: list[PlayerRecommendation] = []
+        for candidate, impact in top_candidates:
+            tradeoffs: list[str] = []
+            for other_key in other_weak_same_type:
+                other_config = _find_category_config(other_key, league)
+                if other_config is None:
+                    continue
+                other_current = _compute_category_value(other_config, roster_pool)
+                other_with = _compute_category_value(other_config, [*roster_pool, candidate])
+                if other_config.direction == Direction.LOWER:
+                    other_impact = other_current - other_with
+                else:
+                    other_impact = other_with - other_current
+                if other_impact < 0:
+                    tradeoffs.append(other_key)
+
+            recommendations.append(
+                PlayerRecommendation(
+                    player_id=candidate.player_id,
+                    player_name=names.get(candidate.player_id, ""),
+                    category_impact=impact,
+                    tradeoff_categories=tuple(tradeoffs),
+                )
+            )
+
+        result.append(
+            CategoryNeed(
+                category=weak_proj.category,
+                current_rank=weak_proj.league_rank_estimate,
+                target_rank=target_rank,
+                best_available=tuple(recommendations),
+            )
+        )
+
+    return result

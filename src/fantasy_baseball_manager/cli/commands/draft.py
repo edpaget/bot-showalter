@@ -7,12 +7,13 @@ import typer
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.cli._output import (
     console,
+    print_category_needs,
     print_draft_board,
     print_draft_report,
     print_draft_tiers,
     print_tier_summary,
 )
-from fantasy_baseball_manager.cli.factory import build_draft_board_context
+from fantasy_baseball_manager.cli.factory import build_category_needs_context, build_draft_board_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow
 from fantasy_baseball_manager.services import (
@@ -25,6 +26,7 @@ from fantasy_baseball_manager.services import (
     export_csv,
     export_html,
     generate_tiers,
+    identify_needs,
     load_draft,
     recommend,
     tier_summary,
@@ -318,3 +320,37 @@ def draft_tier_summary(
         tiers = generate_tiers(valuations, ctx.player_repo, method=method, max_tiers=max_tiers)
         report = tier_summary(tiers)
         print_tier_summary(report)
+
+
+@draft_app.command("needs")
+def draft_needs(
+    roster: Annotated[str, typer.Option("--roster", help="Comma-separated player names")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str, typer.Option("--system", help="Projection system")] = "steamer",
+    league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Identify category weaknesses and recommend available players."""
+    league = load_league(league_name, Path.cwd())
+    roster_names = [name.strip() for name in roster.split(",")]
+
+    with build_category_needs_context(data_dir) as ctx:
+        roster_ids: list[int] = []
+        for name in roster_names:
+            matches = ctx.player_repo.search_by_name(name)
+            if len(matches) == 1 and matches[0].id is not None:
+                roster_ids.append(matches[0].id)
+            elif len(matches) > 1:
+                console.print(f"[yellow]Ambiguous name '{name}', skipping[/yellow]")
+            else:
+                console.print(f"[yellow]Player '{name}' not found, skipping[/yellow]")
+
+        projections = ctx.projection_repo.get_by_season(season, system)
+        all_projected_ids = {p.player_id for p in projections}
+        available_ids = [pid for pid in all_projected_ids if pid not in set(roster_ids)]
+
+        players = ctx.player_repo.get_by_ids(roster_ids + available_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        needs = identify_needs(roster_ids, available_ids, projections, league, player_names=player_names)
+        print_category_needs(needs, league.teams)

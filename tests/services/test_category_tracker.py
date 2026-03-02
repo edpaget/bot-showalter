@@ -8,7 +8,7 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 from fantasy_baseball_manager.domain.projection import Projection
-from fantasy_baseball_manager.services.category_tracker import analyze_roster
+from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
 
 
 def _league(
@@ -306,3 +306,212 @@ class TestStrongestWeakest:
         result = analyze_roster(roster_ids, projections, league)
         assert "hr" in result.strongest_categories
         assert "sb" in result.weakest_categories
+
+
+class TestIdentifyNeeds:
+    """Tests for identify_needs()."""
+
+    def test_weak_category_identified_strong_excluded(self) -> None:
+        """Weak categories appear in result; strong/average do not."""
+        league = _league(teams=12, batting=(HR_CAT, SB_CAT))
+        # League pool: 168 batters with avg stats
+        projections = [_proj(i, "batter", {"hr": 20, "sb": 15}) for i in range(1, 169)]
+        # Roster: strong HR, weak SB
+        roster_ids = list(range(200, 214))
+        projections += [_proj(pid, "batter", {"hr": 35, "sb": 5}) for pid in roster_ids]
+        # Available player who helps SB
+        projections.append(_proj(300, "batter", {"hr": 10, "sb": 30}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        categories = [n.category for n in needs]
+        assert "sb" in categories
+        assert "hr" not in categories
+
+    def test_no_weak_categories_empty_result(self) -> None:
+        """When all categories are strong/average, result is empty."""
+        league = _league(teams=12, batting=(HR_CAT,))
+        projections = [_proj(i, "batter", {"hr": 20}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        # Strong HR
+        projections += [_proj(pid, "batter", {"hr": 35}) for pid in roster_ids]
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        assert needs == []
+
+    def test_best_available_sorted_by_impact_limited_to_top_n(self) -> None:
+        """Best available sorted by impact descending, limited to top_n."""
+        league = _league(teams=12, batting=(SB_CAT,))
+        projections = [_proj(i, "batter", {"sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        projections += [_proj(pid, "batter", {"sb": 5}) for pid in roster_ids]
+        # 7 available players with varying SB
+        available_ids = list(range(300, 307))
+        for i, aid in enumerate(available_ids):
+            projections.append(_proj(aid, "batter", {"sb": 10.0 + i * 5}))
+
+        needs = identify_needs(roster_ids, available_ids, projections, league, top_n=3)
+        sb_need = needs[0]
+        assert len(sb_need.best_available) == 3
+        # Highest impact first
+        assert sb_need.best_available[0].category_impact >= sb_need.best_available[1].category_impact
+        assert sb_need.best_available[1].category_impact >= sb_need.best_available[2].category_impact
+
+    def test_counting_stat_impact_is_player_value(self) -> None:
+        """For counting stats, impact is the player's stat value."""
+        league = _league(teams=12, batting=(SB_CAT,))
+        projections = [_proj(i, "batter", {"sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        projections += [_proj(pid, "batter", {"sb": 5}) for pid in roster_ids]
+        projections.append(_proj(300, "batter", {"sb": 25}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        sb_need = needs[0]
+        # Impact for counting stat = player's SB value
+        assert sb_need.best_available[0].category_impact == pytest.approx(25.0)
+
+    def test_rate_stat_low_avg_player_negative_impact(self) -> None:
+        """A low-AVG player hurts roster AVG (negative impact)."""
+        league = _league(teams=12, batting=(AVG_CAT,))
+        # League pool: 168 batters with .260 avg (130 H / 500 AB)
+        projections = [_proj(i, "batter", {"h": 130, "ab": 500}) for i in range(1, 169)]
+        # Roster: 14 batters with low AVG (.200) → weak
+        roster_ids = list(range(200, 214))
+        projections += [_proj(pid, "batter", {"h": 100, "ab": 500}) for pid in roster_ids]
+        # Available player with even worse AVG (.150)
+        projections.append(_proj(300, "batter", {"h": 75, "ab": 500}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        avg_need = [n for n in needs if n.category == "avg"][0]
+        # Low-AVG player should have negative impact (hurts the roster)
+        assert avg_need.best_available[0].category_impact < 0
+
+    def test_tradeoff_detected_helps_sb_hurts_avg(self) -> None:
+        """When both SB and AVG are weak, a high-SB low-AVG player flags AVG tradeoff."""
+        league = _league(teams=12, batting=(SB_CAT, AVG_CAT))
+        projections = [_proj(i, "batter", {"sb": 15, "h": 140, "ab": 500}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        # Weak in both SB and AVG
+        projections += [_proj(pid, "batter", {"sb": 5, "h": 100, "ab": 500}) for pid in roster_ids]
+        # Available: great SB but terrible AVG
+        projections.append(_proj(300, "batter", {"sb": 40, "h": 50, "ab": 500}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        sb_need = [n for n in needs if n.category == "sb"][0]
+        rec = sb_need.best_available[0]
+        assert "avg" in rec.tradeoff_categories
+
+    def test_tradeoff_not_flagged_for_strong_category(self) -> None:
+        """Worsening a strong category does not produce a tradeoff warning."""
+        league = _league(teams=12, batting=(SB_CAT, HR_CAT))
+        projections = [_proj(i, "batter", {"sb": 15, "hr": 20}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        # Weak SB, strong HR
+        projections += [_proj(pid, "batter", {"sb": 5, "hr": 35}) for pid in roster_ids]
+        # Available: good SB, low HR (would hurt HR, but HR is strong)
+        projections.append(_proj(300, "batter", {"sb": 30, "hr": 5}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        sb_need = [n for n in needs if n.category == "sb"][0]
+        rec = sb_need.best_available[0]
+        # HR is strong, so not a tradeoff
+        assert "hr" not in rec.tradeoff_categories
+
+    def test_counting_stat_no_tradeoff(self) -> None:
+        """Counting stats can't have negative impact (sum never decreases)."""
+        league = _league(teams=12, batting=(HR_CAT, SB_CAT))
+        projections = [_proj(i, "batter", {"hr": 20, "sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        # Weak in both
+        projections += [_proj(pid, "batter", {"hr": 10, "sb": 5}) for pid in roster_ids]
+        # Available: helps HR, has no SB
+        projections.append(_proj(300, "batter", {"hr": 25, "sb": 0}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        hr_need = [n for n in needs if n.category == "hr"][0]
+        rec = hr_need.best_available[0]
+        # SB is weak but adding a player can't decrease the SB sum
+        assert "sb" not in rec.tradeoff_categories
+
+    def test_partial_roster_works(self) -> None:
+        """With only 2 players instead of 14, identify_needs still works."""
+        league = _league(teams=12, batting=(SB_CAT,))
+        projections = [_proj(i, "batter", {"sb": 15}) for i in range(1, 169)]
+        roster_ids = [200, 201]
+        projections += [_proj(pid, "batter", {"sb": 3}) for pid in roster_ids]
+        projections.append(_proj(300, "batter", {"sb": 20}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        assert len(needs) >= 1
+        assert needs[0].category == "sb"
+
+    def test_empty_available_pool_empty_best_available(self) -> None:
+        """No available players → empty best_available."""
+        league = _league(teams=12, batting=(SB_CAT,))
+        projections = [_proj(i, "batter", {"sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        projections += [_proj(pid, "batter", {"sb": 5}) for pid in roster_ids]
+
+        needs = identify_needs(roster_ids, [], projections, league)
+        assert len(needs) >= 1
+        assert needs[0].best_available == ()
+
+    def test_pitching_category_era_weak_pitchers_recommended(self) -> None:
+        """ERA is weak → pitchers recommended (not batters)."""
+        league = _league(teams=12, pitching=(ERA_CAT,))
+        # League pool: 120 pitchers with ERA ratio 0.2
+        projections = [_proj(i, "pitcher", {"er": 40, "ip": 200}) for i in range(1, 121)]
+        # Roster: 10 pitchers with bad ERA (ratio 0.3)
+        roster_ids = list(range(200, 210))
+        projections += [_proj(pid, "pitcher", {"er": 60, "ip": 200}) for pid in roster_ids]
+        # Available pitcher with good ERA
+        projections.append(_proj(300, "pitcher", {"er": 15, "ip": 200}))
+        # Available batter (should not appear for pitching category)
+        projections.append(_proj(301, "batter", {"hr": 30}))
+
+        needs = identify_needs(roster_ids, [300, 301], projections, league)
+        era_need = needs[0]
+        assert era_need.category == "era"
+        player_ids = [r.player_id for r in era_need.best_available]
+        assert 300 in player_ids
+        assert 301 not in player_ids
+
+    def test_lower_is_better_low_era_positive_impact(self) -> None:
+        """For LOWER-is-better stats, a pitcher with low ERA has positive impact."""
+        league = _league(teams=12, pitching=(ERA_CAT,))
+        projections = [_proj(i, "pitcher", {"er": 40, "ip": 200}) for i in range(1, 121)]
+        roster_ids = list(range(200, 210))
+        projections += [_proj(pid, "pitcher", {"er": 60, "ip": 200}) for pid in roster_ids]
+        # Available pitcher with great ERA (low ER)
+        projections.append(_proj(300, "pitcher", {"er": 10, "ip": 200}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        era_need = needs[0]
+        # Good pitcher should have positive impact (lowers ERA)
+        assert era_need.best_available[0].category_impact > 0
+
+    def test_player_names_populated(self) -> None:
+        """player_names dict populates PlayerRecommendation.player_name."""
+        league = _league(teams=12, batting=(SB_CAT,))
+        projections = [_proj(i, "batter", {"sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        projections += [_proj(pid, "batter", {"sb": 5}) for pid in roster_ids]
+        projections.append(_proj(300, "batter", {"sb": 25}))
+
+        names = {300: "Rickey Henderson"}
+        needs = identify_needs(roster_ids, [300], projections, league, player_names=names)
+        rec = needs[0].best_available[0]
+        assert rec.player_name == "Rickey Henderson"
+
+    def test_multiple_weak_categories_sorted_by_worst_rank(self) -> None:
+        """Multiple weak categories sorted by worst rank first."""
+        league = _league(teams=12, batting=(HR_CAT, SB_CAT))
+        projections = [_proj(i, "batter", {"hr": 20, "sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        # Very weak SB (rank ~12), somewhat weak HR (rank ~10)
+        projections += [_proj(pid, "batter", {"hr": 13, "sb": 2}) for pid in roster_ids]
+        projections.append(_proj(300, "batter", {"hr": 20, "sb": 20}))
+
+        needs = identify_needs(roster_ids, [300], projections, league)
+        assert len(needs) >= 2
+        # Worst rank first
+        assert needs[0].current_rank >= needs[1].current_rank

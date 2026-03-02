@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         AdjustedValuation,
         ADPAccuracyReport,
         ADPMoversReport,
+        CategoryNeed,
         ComparisonResult,
         DraftBoard,
         DraftReport,
@@ -1723,3 +1724,38 @@ def print_adjusted_rankings(rankings: list[AdjustedValuation], *, top: int | Non
         )
 
     console.print(table)
+
+
+def print_category_needs(needs: list[CategoryNeed], num_teams: int) -> None:
+    """Print category needs analysis with recommendations."""
+    if not needs:
+        console.print("[green]No weak categories identified.[/green]")
+        return
+
+    console.print("\n[bold]═══ Category Needs ═══[/bold]\n")
+
+    for need in needs:
+        console.print(
+            f"[bold red]{need.category.upper()}[/bold red]"
+            f"  rank {need.current_rank}/{num_teams} → target {need.target_rank}/{num_teams}"
+        )
+
+        if not need.best_available:
+            console.print("  No available players found.\n")
+            continue
+
+        table = Table(show_edge=False, pad_edge=False)
+        table.add_column("Player", justify="left")
+        table.add_column("Impact", justify="right")
+        table.add_column("Tradeoffs", justify="left")
+
+        for rec in need.best_available:
+            impact_color = "green" if rec.category_impact > 0 else "red"
+            impact_str = f"[{impact_color}]{rec.category_impact:+.2f}[/{impact_color}]"
+            tradeoff_str = ", ".join(rec.tradeoff_categories) if rec.tradeoff_categories else "-"
+            if rec.tradeoff_categories:
+                tradeoff_str = f"[yellow]{tradeoff_str}[/yellow]"
+            table.add_row(rec.player_name or str(rec.player_id), impact_str, tradeoff_str)
+
+        console.print(table)
+        console.print()

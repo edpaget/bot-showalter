@@ -9,6 +9,8 @@ from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverADPReport
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.category_tracker import (
+    CategoryNeed,
+    PlayerRecommendation,
     RosterAnalysis,
     TeamCategoryProjection,
 )
@@ -158,6 +160,7 @@ __all__ = [
     "BATTING_RATE_STATS",
     "BattingStats",
     "CalibrationBin",
+    "CategoryNeed",
     "RosterAnalysis",
     "CategoryConfig",
     "CategoryStanding",
@@ -196,6 +199,7 @@ __all__ = [
     "PlayerConfidence",
     "PlayerProfile",
     "PlayerProjection",
+    "PlayerRecommendation",
     "PlayerStatDelta",
     "PlayerSummary",
     "PlayerTier",

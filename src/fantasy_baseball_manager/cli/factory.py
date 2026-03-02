@@ -518,6 +518,27 @@ def build_draft_board_context(data_dir: str) -> Iterator[DraftBoardContext]:
 
 
 @dataclass(frozen=True)
+class CategoryNeedsContext:
+    conn: sqlite3.Connection
+    player_repo: SqlitePlayerRepo
+    projection_repo: SqliteProjectionRepo
+
+
+@contextmanager
+def build_category_needs_context(data_dir: str) -> Iterator[CategoryNeedsContext]:
+    """Composition-root context manager for category needs commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield CategoryNeedsContext(
+            conn=conn,
+            player_repo=SqlitePlayerRepo(conn),
+            projection_repo=SqliteProjectionRepo(conn),
+        )
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
 class ADPAccuracyContext:
     conn: sqlite3.Connection
     evaluator: ADPAccuracyEvaluator

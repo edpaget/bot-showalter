@@ -1,7 +1,7 @@
 from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
 from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
-from fantasy_baseball_manager.services.category_tracker import analyze_roster
+from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
 from fantasy_baseball_manager.services.cohort import (
     assign_age_cohorts,
     assign_experience_cohorts,
@@ -116,6 +116,7 @@ __all__ = [
     "export_html",
     "generate_tiers",
     "grouped_projections",
+    "identify_needs",
     "PickFn",
     "ingest_yahoo_pick",
     "load_draft",

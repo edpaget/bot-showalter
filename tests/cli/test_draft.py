@@ -12,8 +12,10 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 
 if TYPE_CHECKING:
@@ -345,3 +347,156 @@ class TestDraftTierSummaryCommand:
         # The seeded data has 5 OF and 3 SP players
         # Total row should appear
         assert "Total" in result.output
+
+
+def _needs_league() -> LeagueSettings:
+    return LeagueSettings(
+        name="Test League",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=12,
+        budget=260,
+        roster_batters=14,
+        roster_pitchers=10,
+        batting_categories=(
+            CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            CategoryConfig(key="sb", name="SB", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        pitching_categories=(),
+    )
+
+
+def _seed_needs_data(conn: sqlite3.Connection) -> None:
+    """Seed player + projection data for draft needs tests."""
+    player_repo = SqlitePlayerRepo(conn)
+    proj_repo = SqliteProjectionRepo(conn)
+
+    # Roster player: strong HR, weak SB
+    pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+    proj_repo.upsert(
+        Projection(
+            player_id=pid1,
+            season=2026,
+            system="steamer",
+            version="1.0",
+            player_type="batter",
+            stat_json={"hr": 35.0, "sb": 3.0},
+        )
+    )
+
+    # Available player: great SB
+    pid2 = player_repo.upsert(Player(name_first="Rickey", name_last="Henderson", mlbam_id=100001))
+    proj_repo.upsert(
+        Projection(
+            player_id=pid2,
+            season=2026,
+            system="steamer",
+            version="1.0",
+            player_type="batter",
+            stat_json={"hr": 5.0, "sb": 40.0},
+        )
+    )
+
+    # League pool: enough batters so league averages work
+    for i in range(3, 170):
+        pid = player_repo.upsert(Player(name_first=f"Player{i}", name_last=f"Last{i}", mlbam_id=100000 + i))
+        proj_repo.upsert(
+            Projection(
+                player_id=pid,
+                season=2026,
+                system="steamer",
+                version="1.0",
+                player_type="batter",
+                stat_json={"hr": 20.0, "sb": 15.0},
+            )
+        )
+
+    conn.commit()
+
+
+class TestDraftNeedsCommand:
+    def test_draft_needs_shows_weak_category(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_needs_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _needs_league()
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "draft",
+                "needs",
+                "--roster",
+                "Trout",
+                "--season",
+                "2026",
+                "--data-dir",
+                "./data",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # SB is weak, so it should appear
+        assert "SB" in result.output
+        # Rickey Henderson should be recommended
+        assert "Rickey Henderson" in result.output
+
+    def test_draft_needs_no_weak_categories(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        player_repo = SqlitePlayerRepo(db_conn)
+        proj_repo = SqliteProjectionRepo(db_conn)
+
+        # Roster player with very high stats
+        pid = player_repo.upsert(Player(name_first="Mega", name_last="Star", mlbam_id=999999))
+        proj_repo.upsert(
+            Projection(
+                player_id=pid,
+                season=2026,
+                system="steamer",
+                version="1.0",
+                player_type="batter",
+                stat_json={"hr": 500.0, "sb": 400.0},
+            )
+        )
+        # Small league pool — roster player dominates
+        for i in range(2, 15):
+            p = player_repo.upsert(Player(name_first=f"P{i}", name_last=f"L{i}", mlbam_id=100000 + i))
+            proj_repo.upsert(
+                Projection(
+                    player_id=p,
+                    season=2026,
+                    system="steamer",
+                    version="1.0",
+                    player_type="batter",
+                    stat_json={"hr": 20.0, "sb": 15.0},
+                )
+            )
+        db_conn.commit()
+
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league",
+            lambda name, path: _needs_league(),
+        )
+
+        result = runner.invoke(
+            app,
+            ["draft", "needs", "--roster", "Mega", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "No weak categories identified" in result.output
+
+    def test_draft_needs_unknown_player(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_needs_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _needs_league()
+        )
+
+        result = runner.invoke(
+            app,
+            ["draft", "needs", "--roster", "NonExistentPlayer", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "not found" in result.output
