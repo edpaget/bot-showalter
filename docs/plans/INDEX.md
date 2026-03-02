@@ -18,7 +18,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Top-300 Tuning](top-300-tuning.md) | 6 | phases 1-5 done | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | phases 1-3 done | live-draft-tracker, keeper-surplus-value |
 
@@ -40,6 +39,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Pitcher Calibration](pitcher-calibration.md) | 4 |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 |
 | [Tier Generator](tier-generator.md) | 3 |
+| [Top-300 Tuning](top-300-tuning.md) | 6 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
 

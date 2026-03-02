@@ -52,7 +52,7 @@ Reduce RMSE ratio to Steamer to ≤1.05x on batting rate stats (AVG, OBP, SLG, w
 | 3 — Hyperparameter re-tuning | done |
 | 4 — Expanded training window | done (2026-02-21) |
 | 5 — Residual analysis and calibration | done (2026-02-21) |
-| 6 — Feature engineering for top-300 differentiation | in progress |
+| 6 — Feature engineering for top-300 differentiation | done (2026-03-01) |
 
 ## Phase 1: PA/IP-weighted training
 
@@ -360,9 +360,21 @@ Among top-300 players, the current features may lack the granularity needed for 
 
 ### Acceptance criteria
 
-- At least one new feature type improves top-300 accuracy via ablation
-- Feature additions don't degrade full-population accuracy
-- New features have test coverage following established curated-column patterns
+- At least one new feature type improves top-300 accuracy via ablation ✅
+- Feature additions don't degrade full-population accuracy ✅
+- New features have test coverage following established curated-column patterns ✅
+
+### Phase 6 results
+
+Three feature types were implemented and tested via ablation on 2024 and 2025 holdout years (top-300):
+
+1. **Trend features** (avg_trend, obp_trend, slg_trend): Year-over-year deltas. Inconsistent — helped AVG on 2024 (-2.3%) but hurt on 2025 (+0.7%). **Pruned.**
+2. **Stability features** (avg_stability, obp_stability, slg_stability): Absolute YoY change. Also inconsistent — helped wOBA on 2025 (-1.6%) but neutral/worse elsewhere. **Pruned.**
+3. **Age interaction features** (age_avg/obp/slg_interact): (age - 29) × lag-1 stat. Consistently improved AVG (-1.3%/2024, -0.5%/2025) and wOBA (-0.9%/2024, -0.8%/2025). **Kept.**
+
+All three transforms remain in the feature registry for future experimentation. Only age interactions are included in the curated column lists used by the production model.
+
+Full-population accuracy was not degraded — AVG and OBP improved slightly on both holdout years.
 
 ## Ordering
 
