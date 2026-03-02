@@ -7,7 +7,7 @@ Give an autonomous agent a lightweight train-and-evaluate cycle for rapid iterat
 | Phase | Status |
 |-------|--------|
 | 1 — Single-target quick-eval | done (2026-03-01) |
-| 2 — Marginal value estimator | not started |
+| 2 — Marginal value estimator | in progress |
 | 3 — Feature set A/B comparator | not started |
 
 ## Phase 1: Single-target quick-eval
