@@ -44,7 +44,9 @@ from fantasy_baseball_manager.services.draft_translation import (
     ingest_yahoo_pick,
 )
 from fantasy_baseball_manager.services.keeper_optimizer import (
+    compare_scenarios,
     compute_adjusted_draft_pool,
+    keeper_trade_impact,
     parse_league_keepers,
     solve_keepers,
     solve_keepers_with_pool,
@@ -206,7 +208,9 @@ __all__ = [
     "resolve_player",
     "run_mock_draft",
     "set_keeper_cost",
+    "compare_scenarios",
     "compute_adjusted_draft_pool",
+    "keeper_trade_impact",
     "parse_league_keepers",
     "solve_keepers",
     "solve_keepers_with_pool",

@@ -7,8 +7,10 @@ from collections import Counter, defaultdict
 from fantasy_baseball_manager.domain import (
     KeeperConstraints,
     KeeperDecision,
+    KeeperScenario,
     KeeperSet,
     KeeperSolution,
+    KeeperTradeImpact,
     LeagueSettings,
     Player,
     SensitivityEntry,
@@ -385,6 +387,74 @@ def solve_keepers_with_pool(
         optimal=optimal,
         alternatives=alternatives,
         sensitivity=sensitivity,
+    )
+
+
+def compare_scenarios(
+    scenarios: list[tuple[str, list[int]]],
+    candidates: list[KeeperDecision],
+    constraints: KeeperConstraints,
+) -> list[KeeperScenario]:
+    """Score and rank multiple keeper configurations side-by-side."""
+    by_id: dict[int, KeeperDecision] = {c.player_id: c for c in candidates}
+
+    scored: list[KeeperScenario] = []
+    for name, keeper_ids in scenarios:
+        for pid in keeper_ids:
+            if pid not in by_id:
+                msg = f"player_id={pid} not in candidates"
+                raise ValueError(msg)
+        selected = tuple(by_id[pid] for pid in keeper_ids)
+        keeper_set = _build_keeper_set(selected)
+        # Placeholder delta — will be computed after finding the max score
+        scored.append(
+            KeeperScenario(
+                name=name,
+                keepers=keeper_ids,
+                keeper_set=keeper_set,
+                delta_vs_optimal=0.0,
+            )
+        )
+
+    max_score = max(s.keeper_set.score for s in scored)
+
+    result = [
+        KeeperScenario(
+            name=s.name,
+            keepers=s.keepers,
+            keeper_set=s.keeper_set,
+            delta_vs_optimal=max_score - s.keeper_set.score,
+        )
+        for s in scored
+    ]
+    result.sort(key=lambda s: s.keeper_set.score, reverse=True)
+    return result
+
+
+def keeper_trade_impact(
+    candidates: list[KeeperDecision],
+    constraints: KeeperConstraints,
+    acquire: list[KeeperDecision],
+    release: list[int],
+) -> KeeperTradeImpact:
+    """Show how acquiring/releasing players changes the optimal keeper set."""
+    candidate_ids = {c.player_id for c in candidates}
+    for pid in release:
+        if pid not in candidate_ids:
+            msg = f"player_id={pid} not in candidates"
+            raise ValueError(msg)
+
+    before = solve_keepers(candidates, constraints)
+
+    release_set = set(release)
+    new_candidates = [c for c in candidates if c.player_id not in release_set] + list(acquire)
+
+    after = solve_keepers(new_candidates, constraints)
+
+    return KeeperTradeImpact(
+        before=before,
+        after=after,
+        score_delta=after.optimal.score - before.optimal.score,
     )
 
 

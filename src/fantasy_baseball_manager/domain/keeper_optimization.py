@@ -40,6 +40,21 @@ class KeeperSolution:
 
 
 @dataclass(frozen=True)
+class KeeperScenario:
+    name: str
+    keepers: list[int]
+    keeper_set: KeeperSet
+    delta_vs_optimal: float
+
+
+@dataclass(frozen=True)
+class KeeperTradeImpact:
+    before: KeeperSolution
+    after: KeeperSolution
+    score_delta: float
+
+
+@dataclass(frozen=True)
 class LeagueKeeperState:
     my_keepers: list[int]
     league_keepers: list[int]

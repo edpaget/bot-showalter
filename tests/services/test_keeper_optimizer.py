@@ -9,7 +9,9 @@ from fantasy_baseball_manager.domain import (
     Valuation,
 )
 from fantasy_baseball_manager.services import (
+    compare_scenarios,
     compute_adjusted_draft_pool,
+    keeper_trade_impact,
     parse_league_keepers,
     solve_keepers,
     solve_keepers_with_pool,
@@ -615,3 +617,144 @@ class TestParseLeagueKeepers:
 
         assert matched == set()
         assert unmatched == []
+
+
+# ── compare_scenarios tests ──────────────────────────────────────────────────
+
+
+class TestCompareScenarios:
+    def test_ranks_scenarios_by_score_descending(self) -> None:
+        candidates = [
+            _decision(1, 30.0),
+            _decision(2, 20.0),
+            _decision(3, 10.0),
+            _decision(4, 5.0),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+        scenarios = [
+            ("worst", [3, 4]),
+            ("best", [1, 2]),
+            ("middle", [1, 3]),
+        ]
+
+        result = compare_scenarios(scenarios, candidates, constraints)
+
+        assert [s.name for s in result] == ["best", "middle", "worst"]
+
+    def test_delta_vs_optimal_zero_for_best(self) -> None:
+        candidates = [
+            _decision(1, 30.0),
+            _decision(2, 20.0),
+            _decision(3, 10.0),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+        scenarios = [
+            ("best", [1, 2]),
+            ("worse", [1, 3]),
+        ]
+
+        result = compare_scenarios(scenarios, candidates, constraints)
+
+        assert result[0].delta_vs_optimal == pytest.approx(0.0)
+        assert result[1].delta_vs_optimal == pytest.approx(10.0)
+
+    def test_single_scenario(self) -> None:
+        candidates = [
+            _decision(1, 20.0),
+            _decision(2, 10.0),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+        scenarios = [("only", [1, 2])]
+
+        result = compare_scenarios(scenarios, candidates, constraints)
+
+        assert len(result) == 1
+        assert result[0].delta_vs_optimal == pytest.approx(0.0)
+
+    def test_invalid_player_id_raises(self) -> None:
+        candidates = [_decision(1, 20.0)]
+        constraints = KeeperConstraints(max_keepers=1)
+        scenarios = [("bad", [99])]
+
+        with pytest.raises(ValueError, match="player_id=99"):
+            compare_scenarios(scenarios, candidates, constraints)
+
+    def test_keepers_list_matches_input(self) -> None:
+        candidates = [
+            _decision(1, 30.0),
+            _decision(2, 20.0),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+        scenarios = [("test", [2, 1])]
+
+        result = compare_scenarios(scenarios, candidates, constraints)
+
+        assert result[0].keepers == [2, 1]
+
+
+# ── keeper_trade_impact tests ────────────────────────────────────────────────
+
+
+class TestKeeperTradeImpact:
+    def test_acquiring_high_surplus_player_improves_score(self) -> None:
+        candidates = [
+            _decision(1, 20.0),
+            _decision(2, 15.0),
+            _decision(3, 10.0),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+        new_player = _decision(4, 30.0)
+
+        result = keeper_trade_impact(candidates, constraints, acquire=[new_player], release=[3])
+
+        assert result.score_delta > 0
+        after_ids = {p.player_id for p in result.after.optimal.players}
+        assert 4 in after_ids
+
+    def test_releasing_valuable_player_hurts_score(self) -> None:
+        candidates = [
+            _decision(1, 30.0),
+            _decision(2, 20.0),
+            _decision(3, 10.0),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+
+        result = keeper_trade_impact(candidates, constraints, acquire=[], release=[1])
+
+        assert result.score_delta < 0
+
+    def test_score_delta_is_correct(self) -> None:
+        candidates = [
+            _decision(1, 20.0),
+            _decision(2, 10.0),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+        new_player = _decision(3, 25.0)
+
+        result = keeper_trade_impact(candidates, constraints, acquire=[new_player], release=[2])
+
+        expected_delta = result.after.optimal.score - result.before.optimal.score
+        assert result.score_delta == pytest.approx(expected_delta)
+
+    def test_release_nonexistent_player_raises(self) -> None:
+        candidates = [_decision(1, 20.0)]
+        constraints = KeeperConstraints(max_keepers=1)
+
+        with pytest.raises(ValueError, match="player_id=99"):
+            keeper_trade_impact(candidates, constraints, acquire=[], release=[99])
+
+    def test_before_and_after_are_valid_solutions(self) -> None:
+        candidates = [
+            _decision(1, 25.0),
+            _decision(2, 15.0),
+            _decision(3, 10.0),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+        new_player = _decision(4, 20.0)
+
+        result = keeper_trade_impact(candidates, constraints, acquire=[new_player], release=[3])
+
+        assert result.before.optimal is not None
+        assert result.after.optimal is not None
+        assert len(result.before.optimal.players) == 2
+        assert len(result.after.optimal.players) == 2
