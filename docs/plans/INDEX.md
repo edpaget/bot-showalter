@@ -12,7 +12,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Draft Pick Keeper Support](draft-pick-keeper-support.md) | 3 | not started | draft-pick-trade-evaluator phase 1, keeper-surplus-value (done) |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | phases 1-2 done | ADP (done), draft board (done) |
 | [Experiment Journal](experiment-journal.md) | 3 | phase 1 done | none |
-| [Fast Feedback Loop](fast-feedback-loop.md) | 3 | phase 1 done | none |
+| [Fast Feedback Loop](fast-feedback-loop.md) | 3 | phases 1-2 done | none |
 | [Feature Candidate Factory](feature-candidate-factory.md) | 3 | not started | none |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
