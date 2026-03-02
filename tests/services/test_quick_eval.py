@@ -1,5 +1,9 @@
+import pytest
+
 from fantasy_baseball_manager.services.quick_eval import (
+    FeatureSetComparisonResult,
     QuickEvalResult,
+    compare_feature_sets,
     marginal_value,
     quick_eval,
 )
@@ -283,3 +287,128 @@ class TestMarginalValueCustomParams:
         # Should complete successfully with custom params
         assert result.candidate == "feature_c"
         assert len(result.deltas) == 1
+
+
+# ---------------------------------------------------------------------------
+# compare_feature_sets() tests
+# ---------------------------------------------------------------------------
+
+
+class TestCompareFeatureSetsSingleHoldout:
+    def test_set_b_superset_improves_slg(self) -> None:
+        rows = _make_rows_with_candidate(50, [2022, 2023])
+        result = compare_feature_sets(
+            columns_a=["feature_a", "feature_b"],
+            columns_b=["feature_a", "feature_b", "feature_c"],
+            targets=["slg"],
+            rows_by_season=rows,
+            seasons=[2022, 2023],
+        )
+        assert isinstance(result, FeatureSetComparisonResult)
+        assert result.columns_a == ("feature_a", "feature_b")
+        assert result.columns_b == ("feature_a", "feature_b", "feature_c")
+        assert result.n_folds == 1
+        assert result.n_total == 1
+        # feature_c is predictive of slg, so B should win
+        slg_delta = [d for d in result.deltas if d.target == "slg"][0]
+        assert slg_delta.delta < 0
+        assert result.n_improved >= 1
+
+    def test_raises_with_fewer_than_2_seasons(self) -> None:
+        rows = _make_rows_with_candidate(50, [2022])
+        with pytest.raises(ValueError, match="at least 2 seasons"):
+            compare_feature_sets(
+                columns_a=["feature_a", "feature_b"],
+                columns_b=["feature_a", "feature_b", "feature_c"],
+                targets=["slg"],
+                rows_by_season=rows,
+                seasons=[2022],
+            )
+
+
+class TestCompareFeatureSetsCVMode:
+    def test_cv_mode_evaluates_all_targets(self) -> None:
+        rows = _make_rows_with_candidate(50, [2021, 2022, 2023, 2024])
+        result = compare_feature_sets(
+            columns_a=["feature_a", "feature_b"],
+            columns_b=["feature_a", "feature_b", "feature_c"],
+            targets=["slg", "avg", "obp"],
+            rows_by_season=rows,
+            seasons=[2021, 2022, 2023, 2024],
+        )
+        assert result.n_folds > 1
+        assert result.n_total == 3
+        target_names = {d.target for d in result.deltas}
+        assert target_names == {"slg", "avg", "obp"}
+
+
+class TestCompareFeatureSetsIdenticalSets:
+    def test_identical_sets_near_zero_deltas(self) -> None:
+        rows = _make_rows_with_candidate(50, [2022, 2023])
+        result = compare_feature_sets(
+            columns_a=["feature_a", "feature_b"],
+            columns_b=["feature_a", "feature_b"],
+            targets=["slg", "avg"],
+            rows_by_season=rows,
+            seasons=[2022, 2023],
+        )
+        for d in result.deltas:
+            assert abs(d.delta) < 1e-10
+            assert abs(d.delta_pct) < 1e-6
+
+
+class TestCompareFeatureSetsConsistentWithMarginalValue:
+    def test_matches_marginal_value_for_single_feature_addition(self) -> None:
+        rows = _make_rows_with_candidate(50, [2022, 2023])
+        # marginal_value: train on [2022], holdout on 2023
+        mv_result = marginal_value(
+            candidate_column="feature_c",
+            feature_columns=["feature_a", "feature_b"],
+            targets=["slg"],
+            rows_by_season=rows,
+            train_seasons=[2022],
+            holdout_season=2023,
+        )
+        # compare_feature_sets with 2 seasons: single-holdout (train 2022, holdout 2023)
+        cfs_result = compare_feature_sets(
+            columns_a=["feature_a", "feature_b"],
+            columns_b=["feature_a", "feature_b", "feature_c"],
+            targets=["slg"],
+            rows_by_season=rows,
+            seasons=[2022, 2023],
+        )
+        mv_slg = [d for d in mv_result.deltas if d.target == "slg"][0]
+        cfs_slg = [d for d in cfs_result.deltas if d.target == "slg"][0]
+        # Same train/holdout split → identical results
+        assert abs(mv_slg.baseline_rmse - cfs_slg.baseline_rmse) < 1e-10
+        assert abs(mv_slg.candidate_rmse - cfs_slg.candidate_rmse) < 1e-10
+        assert abs(mv_slg.delta - cfs_slg.delta) < 1e-10
+
+
+class TestCompareFeatureSetsCustomParams:
+    def test_params_forwarded_to_both_models(self) -> None:
+        rows = _make_rows_with_candidate(50, [2022, 2023])
+        result = compare_feature_sets(
+            columns_a=["feature_a", "feature_b"],
+            columns_b=["feature_a", "feature_b", "feature_c"],
+            targets=["slg"],
+            rows_by_season=rows,
+            seasons=[2022, 2023],
+            params={"max_iter": 50, "max_depth": 3},
+        )
+        assert result.n_total == 1
+        assert len(result.deltas) == 1
+
+
+class TestCompareFeatureSetsCVAveraging:
+    def test_three_seasons_gives_two_folds(self) -> None:
+        rows = _make_rows_with_candidate(50, [2022, 2023, 2024])
+        result = compare_feature_sets(
+            columns_a=["feature_a", "feature_b"],
+            columns_b=["feature_a", "feature_b", "feature_c"],
+            targets=["slg"],
+            rows_by_season=rows,
+            seasons=[2022, 2023, 2024],
+        )
+        # 3 seasons → expanding CV: (train=[2022], test=2023), (train=[2022,2023], test=2024)
+        assert result.n_folds == 2

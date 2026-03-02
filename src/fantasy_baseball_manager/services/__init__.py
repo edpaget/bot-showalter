@@ -106,9 +106,11 @@ from fantasy_baseball_manager.services.projection_confidence import (
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
 from fantasy_baseball_manager.services.quick_eval import (
+    FeatureSetComparisonResult,
     MarginalValueResult,
     QuickEvalResult,
     TargetDelta,
+    compare_feature_sets,
     marginal_value,
     quick_eval,
 )
@@ -162,10 +164,12 @@ __all__ = [
     "PositionalNeedBot",
     "ProjectionEvaluator",
     "ProjectionLookupService",
+    "FeatureSetComparisonResult",
     "MarginalValueResult",
     "QuickEvalResult",
     "RandomBot",
     "TargetDelta",
+    "compare_feature_sets",
     "marginal_value",
     "quick_eval",
     "ResidualAnalysisDiagnostic",

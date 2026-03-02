@@ -4,6 +4,7 @@ import typer
 
 import fantasy_baseball_manager.models  # noqa: F401 — trigger model registration
 from fantasy_baseball_manager.cli._logging import configure_logging
+from fantasy_baseball_manager.cli.commands.compare_features import compare_features_cmd
 from fantasy_baseball_manager.cli.commands.compute import compute_app
 from fantasy_baseball_manager.cli.commands.datasets import datasets_app
 from fantasy_baseball_manager.cli.commands.draft import draft_app
@@ -65,6 +66,7 @@ app.command()(sweep)
 app.command()(gate)
 app.command("quick-eval")(quick_eval_cmd)
 app.command("marginal-value")(marginal_value_cmd)
+app.command("compare-features")(compare_features_cmd)
 app.command("list")(list_cmd)
 app.command()(info)
 app.command()(features)

@@ -34,6 +34,17 @@ class TargetDelta:
 
 
 @dataclass(frozen=True)
+class FeatureSetComparisonResult:
+    columns_a: tuple[str, ...]
+    columns_b: tuple[str, ...]
+    deltas: tuple[TargetDelta, ...]  # baseline_rmse = set A, candidate_rmse = set B
+    n_improved: int  # targets where delta < 0 (B better)
+    n_total: int
+    avg_delta_pct: float
+    n_folds: int  # 1 for single holdout, >1 for CV
+
+
+@dataclass(frozen=True)
 class MarginalValueResult:
     candidate: str
     deltas: tuple[TargetDelta, ...]
@@ -164,4 +175,104 @@ def marginal_value(
         n_improved=n_improved,
         n_total=len(deltas),
         avg_delta_pct=avg_delta_pct,
+    )
+
+
+def _score_feature_set(
+    columns: list[str],
+    targets: list[str],
+    train_rows: list[dict[str, Any]],
+    holdout_rows: list[dict[str, Any]],
+    model_params: dict[str, Any],
+) -> dict[str, float]:
+    """Train on train_rows with given columns, return per-target RMSE on holdout."""
+    X_train = extract_features(train_rows, columns)
+    y_train = extract_targets(train_rows, targets)
+    models = fit_models(X_train, y_train, model_params)
+
+    X_holdout = extract_features(holdout_rows, columns)
+    y_holdout = extract_targets(holdout_rows, targets)
+
+    rmses: dict[str, float] = {}
+    for target in targets:
+        tv = y_holdout[target]
+        X_filtered = [X_holdout[i] for i in tv.indices]
+        y_pred = models[target].predict(X_filtered)
+        metrics = holdout_metrics(np.array(tv.values), y_pred)
+        rmses[target] = metrics["rmse"]
+    return rmses
+
+
+def compare_feature_sets(
+    columns_a: list[str],
+    columns_b: list[str],
+    targets: list[str],
+    rows_by_season: dict[int, list[dict[str, Any]]],
+    seasons: list[int],
+    params: dict[str, Any] | None = None,
+) -> FeatureSetComparisonResult:
+    """Compare two feature sets on identical data splits.
+
+    With 2 seasons: single-holdout mode (train on first, test on last).
+    With 3+ seasons: temporal expanding CV averaged across folds.
+
+    Pure computation — no files written, no database changes.
+    """
+    sorted_seasons = sorted(seasons)
+    if len(sorted_seasons) < 2:
+        msg = f"Need at least 2 seasons for comparison (got {len(sorted_seasons)})"
+        raise ValueError(msg)
+
+    model_params = params or {}
+
+    # Build folds: list of (train_seasons, holdout_season)
+    if len(sorted_seasons) == 2:
+        folds = [(sorted_seasons[:1], sorted_seasons[-1])]
+    else:
+        # Temporal expanding CV: for [s0, s1, ..., sN], yield (train=[s0..si-1], test=si)
+        folds = [(sorted_seasons[:i], sorted_seasons[i]) for i in range(1, len(sorted_seasons))]
+
+    # Collect per-target RMSEs across folds
+    rmses_a_by_target: dict[str, list[float]] = {t: [] for t in targets}
+    rmses_b_by_target: dict[str, list[float]] = {t: [] for t in targets}
+
+    for train_seasons, holdout_season in folds:
+        train_rows = [row for s in train_seasons for row in rows_by_season.get(s, [])]
+        holdout_rows = rows_by_season.get(holdout_season, [])
+
+        fold_rmses_a = _score_feature_set(columns_a, targets, train_rows, holdout_rows, model_params)
+        fold_rmses_b = _score_feature_set(columns_b, targets, train_rows, holdout_rows, model_params)
+
+        for target in targets:
+            rmses_a_by_target[target].append(fold_rmses_a[target])
+            rmses_b_by_target[target].append(fold_rmses_b[target])
+
+    # Average RMSEs across folds, build TargetDeltas
+    deltas: list[TargetDelta] = []
+    for target in targets:
+        avg_a = float(np.mean(rmses_a_by_target[target]))
+        avg_b = float(np.mean(rmses_b_by_target[target]))
+        delta = avg_b - avg_a
+        delta_pct = delta / avg_a * 100 if avg_a > 0 else 0.0
+        deltas.append(
+            TargetDelta(
+                target=target,
+                baseline_rmse=avg_a,
+                candidate_rmse=avg_b,
+                delta=delta,
+                delta_pct=delta_pct,
+            )
+        )
+
+    n_improved = sum(1 for d in deltas if d.delta < 0)
+    avg_delta_pct = float(np.mean([d.delta_pct for d in deltas]))
+
+    return FeatureSetComparisonResult(
+        columns_a=tuple(columns_a),
+        columns_b=tuple(columns_b),
+        deltas=tuple(deltas),
+        n_improved=n_improved,
+        n_total=len(deltas),
+        avg_delta_pct=avg_delta_pct,
+        n_folds=len(folds),
     )
