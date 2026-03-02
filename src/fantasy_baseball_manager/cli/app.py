@@ -7,6 +7,7 @@ from fantasy_baseball_manager.cli._logging import configure_logging
 from fantasy_baseball_manager.cli.commands.compute import compute_app
 from fantasy_baseball_manager.cli.commands.datasets import datasets_app
 from fantasy_baseball_manager.cli.commands.draft import draft_app
+from fantasy_baseball_manager.cli.commands.experiment import experiment_app
 from fantasy_baseball_manager.cli.commands.ingest import ingest_app
 from fantasy_baseball_manager.cli.commands.keeper import keeper_app
 from fantasy_baseball_manager.cli.commands.model import (
@@ -74,5 +75,6 @@ app.add_typer(ingest_app, name="ingest")
 app.add_typer(compute_app, name="compute")
 app.add_typer(report_app, name="report")
 app.add_typer(draft_app, name="draft")
+app.add_typer(experiment_app, name="experiment")
 app.add_typer(keeper_app, name="keeper")
 app.add_typer(yahoo_app, name="yahoo")

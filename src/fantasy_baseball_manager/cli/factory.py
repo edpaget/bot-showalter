@@ -32,6 +32,7 @@ from fantasy_baseball_manager.models.composite.engine import resolve_engine
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
     SqliteBattingStatsRepo,
+    SqliteExperimentRepo,
     SqliteILStintRepo,
     SqliteKeeperCostRepo,
     SqliteLeagueEnvironmentRepo,
@@ -207,6 +208,22 @@ def build_runs_context(data_dir: str) -> Iterator[RunsContext]:
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
         yield RunsContext(conn=conn, repo=SqliteModelRunRepo(conn))
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class ExperimentContext:
+    conn: sqlite3.Connection
+    repo: SqliteExperimentRepo
+
+
+@contextmanager
+def build_experiment_context(data_dir: str) -> Iterator[ExperimentContext]:
+    """Composition-root context manager for experiment subcommands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield ExperimentContext(conn=conn, repo=SqliteExperimentRepo(conn))
     finally:
         conn.close()
 

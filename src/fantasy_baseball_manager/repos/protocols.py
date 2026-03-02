@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         ADP,
         BattingStats,
+        Experiment,
         ILStint,
         KeeperCost,
         LeagueEnvironment,
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
         Team,
         Valuation,
     )
+    from fantasy_baseball_manager.repos.experiment_repo import ExperimentFilter
 
 
 @runtime_checkable
@@ -160,6 +162,14 @@ class ADPRepo(Protocol):
     def get_by_season(self, season: int, provider: str | None = None) -> list[ADP]: ...
     def get_snapshots(self, season: int, provider: str) -> list[str]: ...
     def get_by_snapshot(self, season: int, provider: str, as_of: str) -> list[ADP]: ...
+
+
+@runtime_checkable
+class ExperimentRepo(Protocol):
+    def save(self, experiment: Experiment) -> int: ...
+    def get(self, experiment_id: int) -> Experiment | None: ...
+    def list(self, filter: ExperimentFilter | None = None) -> builtins.list[Experiment]: ...
+    def delete(self, experiment_id: int) -> None: ...
 
 
 @runtime_checkable
