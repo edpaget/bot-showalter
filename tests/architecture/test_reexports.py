@@ -151,6 +151,9 @@ _BYPASS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("models/zar/model.py", "PlayerEligibilityService"),
         # services.player_universe -> models: circular via services.__init__ -> player_universe -> models.__init__
         ("services/player_universe.py", "PlayerUniverseProvider"),
+        # services.regression_gate -> models: circular via services.__init__ -> regression_gate -> models.__init__
+        ("services/regression_gate.py", "ModelConfig"),
+        ("services/regression_gate.py", "PredictResult"),
     }
 )
 

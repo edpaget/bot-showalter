@@ -60,7 +60,7 @@ if TYPE_CHECKING:
         TuneResult,
         ValidationResult,
     )
-    from fantasy_baseball_manager.services import DatasetInfo
+    from fantasy_baseball_manager.services import DatasetInfo, GateResult
 console = Console(highlight=False)
 err_console = Console(stderr=True, highlight=False)
 
@@ -423,6 +423,36 @@ def print_regression_check_result(check: RegressionCheckResult) -> None:
         console.print(f"[bold green]PASS[/bold green]: {check.explanation}")
     else:
         console.print(f"[bold red]FAIL[/bold red]: {check.explanation}")
+
+
+def print_gate_result(result: GateResult) -> None:
+    """Print a regression gate summary table."""
+    console.print()
+    console.print(f"[bold]Regression Gate — {result.model_name}[/bold]")
+    console.print(f"Baseline: {result.baseline}")
+    console.print()
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Season", justify="right")
+    table.add_column("Segment")
+    table.add_column("RMSE")
+    table.add_column("ρ")
+    table.add_column("Verdict")
+
+    for seg in result.segments:
+        rmse_label = "[green]PASS[/green]" if seg.check.rmse_passed else "[red]FAIL[/red]"
+        rho_label = "[green]PASS[/green]" if seg.check.rank_correlation_passed else "[red]FAIL[/red]"
+        verdict_label = "[bold green]PASS[/bold green]" if seg.check.passed else "[bold red]FAIL[/bold red]"
+        table.add_row(str(seg.season), seg.segment, rmse_label, rho_label, verdict_label)
+
+    console.print(table)
+    console.print()
+
+    failed_count = sum(1 for s in result.segments if not s.check.passed)
+    if result.passed:
+        console.print("[bold green]OVERALL: PASS[/bold green]")
+    else:
+        console.print(f"[bold red]OVERALL: FAIL[/bold red] — {failed_count} check(s) failed")
 
 
 def print_run_list(records: list[ModelRunRecord]) -> None:

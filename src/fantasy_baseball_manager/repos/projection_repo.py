@@ -124,6 +124,18 @@ class SqliteProjectionRepo:
         ).fetchall()
         return [self._row_to_projection(row) for row in rows]
 
+    def delete_by_system_version(self, system: str, version: str) -> int:
+        self._conn.execute(
+            "DELETE FROM projection_distribution WHERE projection_id IN"
+            " (SELECT id FROM projection WHERE system = ? AND version = ?)",
+            (system, version),
+        )
+        cursor = self._conn.execute(
+            "DELETE FROM projection WHERE system = ? AND version = ?",
+            (system, version),
+        )
+        return cursor.rowcount
+
     def upsert_distributions(self, projection_id: int, distributions: list[StatDistribution]) -> None:
         self._conn.executemany(
             "INSERT INTO projection_distribution"

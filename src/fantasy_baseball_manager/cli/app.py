@@ -14,6 +14,7 @@ from fantasy_baseball_manager.cli.commands.model import (
     ablate,
     evaluate,
     finetune,
+    gate,
     predict,
     prepare,
     sweep,
@@ -59,6 +60,7 @@ app.command()(finetune)
 app.command()(ablate)
 app.command()(tune)
 app.command()(sweep)
+app.command()(gate)
 app.command("list")(list_cmd)
 app.command()(info)
 app.command()(features)

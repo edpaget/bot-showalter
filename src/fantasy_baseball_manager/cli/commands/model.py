@@ -8,13 +8,14 @@ from fantasy_baseball_manager.cli._helpers import parse_params, parse_tags
 from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
     print_error,
+    print_gate_result,
     print_predict_result,
     print_prepare_result,
     print_system_metrics,
     print_train_result,
     print_tune_result,
 )
-from fantasy_baseball_manager.cli.factory import build_model_context
+from fantasy_baseball_manager.cli.factory import build_eval_context, build_model_context
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain import (
@@ -31,6 +32,7 @@ from fantasy_baseball_manager.models import (
     TrainResult,
     TuneResult,
 )
+from fantasy_baseball_manager.services import GateConfig, RegressionGateRunner
 
 _ModelArg = Annotated[str, typer.Argument(help="Name of the projection model")]
 _OutputDirOpt = Annotated[str | None, typer.Option("--output-dir", help="Output directory for artifacts")]
@@ -39,6 +41,9 @@ _ParamOpt = Annotated[list[str] | None, typer.Option("--param", help="Model para
 _VersionOpt = Annotated[str | None, typer.Option("--version", help="Run version for tracking")]
 _TagOpt = Annotated[list[str] | None, typer.Option("--tag", help="Tag as key=value (repeatable)")]
 _TopOpt = Annotated[int | None, typer.Option("--top", help="Top N players by WAR to include")]
+_HoldoutOpt = Annotated[list[int], typer.Option("--holdout", help="Holdout season(s) to test (repeatable)")]
+_BaselineOpt = Annotated[str, typer.Option("--baseline", help="Baseline version to compare against")]
+_KeepOpt = Annotated[bool, typer.Option("--keep", help="Retain candidate predictions in DB after gate finishes")]
 
 
 def _run_action(operation: str, model_name: str, output_dir: str | None, seasons: list[int] | None) -> None:
@@ -240,3 +245,60 @@ def sweep(
             case Err(e):
                 print_error(e.message)
                 raise typer.Exit(code=1)
+
+
+def gate(
+    model: _ModelArg,
+    holdout: _HoldoutOpt,
+    output_dir: _OutputDirOpt = None,
+    season: _SeasonOpt = None,
+    baseline: _BaselineOpt = "latest",
+    top: _TopOpt = None,
+    param: _ParamOpt = None,
+    keep: _KeepOpt = False,
+) -> None:
+    """Run multi-season regression gate to verify model changes."""
+    params = parse_params(param)
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
+
+    with build_model_context(model, config) as model_ctx, build_eval_context(config.data_dir) as eval_ctx:
+        # Validate holdouts don't overlap with training seasons
+        for h in holdout:
+            if h in config.seasons:
+                print_error(f"Holdout season {h} overlaps with training seasons {config.seasons}")
+                raise typer.Exit(code=1)
+
+        # Validate baseline predictions exist
+        baseline_projs = eval_ctx.projection_repo.get_by_system_version(model, baseline)
+        if not baseline_projs:
+            print_error(f"No baseline predictions found for {model}/{baseline}")
+            raise typer.Exit(code=1)
+
+        gate_config = GateConfig(
+            model_name=model,
+            base_training_seasons=config.seasons,
+            holdout_seasons=holdout,
+            baseline_system=model,
+            baseline_version=baseline,
+            top=top,
+            model_params=params or {},
+            data_dir=config.data_dir,
+            artifacts_dir=config.artifacts_dir,
+        )
+
+        runner = RegressionGateRunner(
+            model=model_ctx.model,
+            evaluator=eval_ctx.evaluator,
+            projection_repo=eval_ctx.projection_repo,
+        )
+
+        result = runner.run(gate_config)
+        model_ctx.conn.commit()
+        print_gate_result(result)
+
+        if not keep:
+            runner.cleanup(gate_config)
+            model_ctx.conn.commit()
+
+        if not result.passed:
+            raise typer.Exit(code=1)

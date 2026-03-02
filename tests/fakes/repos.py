@@ -107,6 +107,11 @@ class FakeProjectionRepo:
     def get_by_system_version(self, system: str, version: str) -> list[Projection]:
         return [p for p in self._projections if p.system == system and p.version == version]
 
+    def delete_by_system_version(self, system: str, version: str) -> int:
+        before = len(self._projections)
+        self._projections = [p for p in self._projections if not (p.system == system and p.version == version)]
+        return before - len(self._projections)
+
     def upsert_distributions(self, projection_id: int, distributions: list[Any]) -> None:
         pass
 

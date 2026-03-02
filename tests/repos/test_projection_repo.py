@@ -333,6 +333,88 @@ class TestProjectionDistributions:
         assert results[0].distributions is None
 
 
+class TestDeleteBySystemVersion:
+    def test_delete_by_system_version(self, conn: sqlite3.Connection) -> None:
+        player_id = seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="gate-model",
+                version="gate-h2024",
+                player_type="batter",
+                stat_json={"hr": 30},
+            )
+        )
+        count = repo.delete_by_system_version("gate-model", "gate-h2024")
+        assert count == 1
+        assert repo.get_by_system_version("gate-model", "gate-h2024") == []
+
+    def test_delete_preserves_other_versions(self, conn: sqlite3.Connection) -> None:
+        player_id = seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="gate-model",
+                version="gate-h2024",
+                player_type="batter",
+                stat_json={"hr": 30},
+            )
+        )
+        repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="gate-model",
+                version="latest",
+                player_type="batter",
+                stat_json={"hr": 28},
+            )
+        )
+        repo.delete_by_system_version("gate-model", "gate-h2024")
+        assert len(repo.get_by_system_version("gate-model", "latest")) == 1
+
+    def test_delete_returns_count(self, conn: sqlite3.Connection) -> None:
+        player_id = seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        for i in range(3):
+            repo.upsert(
+                Projection(
+                    player_id=seed_player(conn) if i > 0 else player_id,
+                    season=2025,
+                    system="gate-model",
+                    version="gate-h2024",
+                    player_type="batter",
+                    stat_json={"hr": 30 + i},
+                )
+            )
+        count = repo.delete_by_system_version("gate-model", "gate-h2024")
+        assert count == 3
+
+    def test_delete_removes_distributions(self, conn: sqlite3.Connection) -> None:
+        player_id = seed_player(conn)
+        repo = SqliteProjectionRepo(conn)
+        proj_id = repo.upsert(
+            Projection(
+                player_id=player_id,
+                season=2025,
+                system="gate-model",
+                version="gate-h2024",
+                player_type="batter",
+                stat_json={"hr": 30},
+            )
+        )
+        repo.upsert_distributions(
+            proj_id,
+            [StatDistribution(stat="hr", p10=15.0, p25=22.0, p50=30.0, p75=38.0, p90=45.0)],
+        )
+        repo.delete_by_system_version("gate-model", "gate-h2024")
+        assert repo.get_distributions(proj_id) == []
+
+
 class TestPctStatsRoundTrip:
     def test_k_pct_bb_pct_round_trip(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)

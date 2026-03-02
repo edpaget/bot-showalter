@@ -87,6 +87,12 @@ from fantasy_baseball_manager.services.projection_confidence import (
 )
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
+from fantasy_baseball_manager.services.regression_gate import (
+    GateConfig,
+    GateResult,
+    GateSegmentResult,
+    RegressionGateRunner,
+)
 from fantasy_baseball_manager.services.residual_analysis_diagnostic import (
     ResidualAnalysisDiagnostic,
 )
@@ -142,6 +148,10 @@ __all__ = [
     "ValuationEvaluator",
     "ValuationLookupService",
     "WeightedRule",
+    "GateConfig",
+    "GateResult",
+    "GateSegmentResult",
+    "RegressionGateRunner",
     "analyze_roster",
     "assign_age_cohorts",
     "assign_experience_cohorts",
