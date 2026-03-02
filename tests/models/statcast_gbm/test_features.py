@@ -533,12 +533,6 @@ class TestPreseasonBatterCuratedColumns:
             "pull_pct",
             "oppo_pct",
             "center_pct",
-            "avg_trend",
-            "obp_trend",
-            "slg_trend",
-            "avg_stability",
-            "obp_stability",
-            "slg_stability",
             "age_avg_interact",
             "age_obp_interact",
             "age_slg_interact",
@@ -559,6 +553,12 @@ class TestPreseasonBatterCuratedColumns:
             "called_strike_pct",
             "hard_hit_pct",
             "avg_launch_angle",
+            "avg_trend",
+            "obp_trend",
+            "slg_trend",
+            "avg_stability",
+            "obp_stability",
+            "slg_stability",
         }
         assert columns & pruned == set()
 
@@ -687,6 +687,9 @@ class TestPreseasonWeightedBatterCuratedColumns:
             "pull_pct",
             "oppo_pct",
             "center_pct",
+            "age_avg_interact",
+            "age_obp_interact",
+            "age_slg_interact",
         ]
         assert columns == expected
 
@@ -695,13 +698,25 @@ class TestPreseasonWeightedBatterCuratedColumns:
         pruned = {
             "pitch_clock_era",
             "barrel_pct",
+            "avg_trend",
+            "obp_trend",
+            "slg_trend",
+            "avg_stability",
+            "obp_stability",
+            "slg_stability",
         }
         assert columns & pruned == set()
 
     def test_subset_of_full_columns(self) -> None:
         curated = set(preseason_weighted_batter_curated_columns())
         full = set(batter_preseason_weighted_feature_columns())
-        assert curated <= full
+        # Derived transform outputs are only in the weighted set
+        fs = build_batter_preseason_weighted_set([])
+        weighted_only_outputs: set[str] = set()
+        for f in fs.features:
+            if isinstance(f, DerivedTransformFeature):
+                weighted_only_outputs.update(f.outputs)
+        assert curated <= (full | weighted_only_outputs)
 
 
 class TestPreseasonAveragedPitcherCuratedColumns:
@@ -1150,6 +1165,20 @@ class TestBatterPreseasonWeightedSet:
         single = build_batter_preseason_set([2023])
         weighted = build_batter_preseason_weighted_set([2023])
         assert single.version != weighted.version
+
+    def test_includes_lag2_rate_features(self) -> None:
+        fs = build_batter_preseason_weighted_set([2023])
+        names = [f.name for f in fs.features]
+        assert "avg_2" in names
+        assert "obp_2" in names
+        assert "slg_2" in names
+
+    def test_includes_derived_transforms(self) -> None:
+        fs = build_batter_preseason_weighted_set([2023])
+        derived_names = [f.name for f in fs.features if isinstance(f, DerivedTransformFeature)]
+        assert "batter_trends" in derived_names
+        assert "batter_stability" in derived_names
+        assert "age_interactions" in derived_names
 
     def test_excludes_pitch_clock_era(self) -> None:
         fs = build_batter_preseason_weighted_set([2023])

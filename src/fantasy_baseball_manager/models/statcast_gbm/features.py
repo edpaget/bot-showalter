@@ -268,9 +268,17 @@ def pitcher_preseason_feature_columns() -> list[str]:
 # --- Weighted preseason (recency-biased blended Statcast) feature sets ---
 
 
+def _batter_lag2_rate_features() -> list[Feature]:
+    features: list[Feature] = []
+    for stat in _BATTER_LAG_RATE_STATS:
+        features.append(batting.col(stat).lag(2).alias(f"{stat}_2"))
+    return features
+
+
 def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = [player.age()]
     features.extend(_batter_lag_features())
+    features.extend(_batter_lag2_rate_features())
     features.extend(
         [
             BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3)),
@@ -279,6 +287,7 @@ def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
             SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
         ]
     )
+    features.extend([BATTER_TRENDS, BATTER_STABILITY, AGE_INTERACTIONS])
     return FeatureSet(
         name="statcast_gbm_batting_preseason_weighted",
         features=tuple(features),
@@ -291,6 +300,7 @@ def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
 def build_batter_preseason_weighted_training_set(seasons: Sequence[int]) -> FeatureSet:
     features: list[AnyFeature] = [player.age()]
     features.extend(_batter_lag_features())
+    features.extend(_batter_lag2_rate_features())
     features.extend(
         [
             BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3)),
@@ -299,6 +309,7 @@ def build_batter_preseason_weighted_training_set(seasons: Sequence[int]) -> Feat
             SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
         ]
     )
+    features.extend([BATTER_TRENDS, BATTER_STABILITY, AGE_INTERACTIONS])
     features.extend(_batter_target_features())
     return FeatureSet(
         name="statcast_gbm_batting_preseason_weighted_train",
@@ -491,9 +502,10 @@ def live_pitcher_curated_columns() -> list[str]:
 def preseason_weighted_batter_curated_columns() -> list[str]:
     """Curated batter columns for the weighted preseason model.
 
-    Derived from multi-holdout ablation (2026-02-19).
+    Derived from multi-holdout ablation (2026-02-19), plus trend/stability/age-
+    interaction features added in Phase 6 (2026-03-01).
     """
-    return [
+    base = [
         "age",
         "pa_1",
         "hr_1",
@@ -529,6 +541,8 @@ def preseason_weighted_batter_curated_columns() -> list[str]:
         "oppo_pct",
         "center_pct",
     ]
+    age_interact = ["age_avg_interact", "age_obp_interact", "age_slg_interact"]
+    return [*base, *age_interact]
 
 
 def preseason_averaged_pitcher_curated_columns() -> list[str]:
@@ -611,12 +625,6 @@ def preseason_batter_curated_columns() -> list[str]:
         "pull_pct",
         "oppo_pct",
         "center_pct",
-        "avg_trend",
-        "obp_trend",
-        "slg_trend",
-        "avg_stability",
-        "obp_stability",
-        "slg_stability",
         "age_avg_interact",
         "age_obp_interact",
         "age_slg_interact",
