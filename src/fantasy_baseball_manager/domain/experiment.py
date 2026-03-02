@@ -11,6 +11,34 @@ class TargetResult:
 
 
 @dataclass(frozen=True)
+class FeatureExplorationResult:
+    feature: str
+    best_delta_pct: float
+    best_experiment_id: int
+    times_tested: int
+
+
+@dataclass(frozen=True)
+class TargetExplorationResult:
+    target: str
+    best_rmse: float
+    best_delta_pct: float
+    best_experiment_id: int
+    experiments_count: int
+
+
+@dataclass(frozen=True)
+class ExplorationSummary:
+    model: str
+    player_type: str
+    total_experiments: int
+    features_tested: list[FeatureExplorationResult]
+    targets_explored: list[TargetExplorationResult]
+    best_experiment_id: int | None
+    best_experiment_delta_pct: float | None
+
+
+@dataclass(frozen=True)
 class Experiment:
     timestamp: str
     hypothesis: str

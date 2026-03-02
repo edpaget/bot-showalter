@@ -57,7 +57,13 @@ from fantasy_baseball_manager.domain.evaluation import (
     compute_tail_accuracy,
     summarize_comparison,
 )
-from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
+from fantasy_baseball_manager.domain.experiment import (
+    Experiment,
+    ExplorationSummary,
+    FeatureExplorationResult,
+    TargetExplorationResult,
+    TargetResult,
+)
 from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.domain.keeper import (
     AdjustedValuation,
@@ -223,6 +229,8 @@ __all__ = [
     "DraftResult",
     "Err",
     "Experiment",
+    "ExplorationSummary",
+    "FeatureExplorationResult",
     "FbmError",
     "MultiColumnRanking",
     "ILStint",
@@ -295,6 +303,7 @@ __all__ = [
     "TailAccuracy",
     "TalentQualitySummary",
     "TargetCorrelation",
+    "TargetExplorationResult",
     "TargetResult",
     "Team",
     "TierAssignment",

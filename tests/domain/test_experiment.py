@@ -1,4 +1,10 @@
-from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
+from fantasy_baseball_manager.domain.experiment import (
+    Experiment,
+    ExplorationSummary,
+    FeatureExplorationResult,
+    TargetExplorationResult,
+    TargetResult,
+)
 
 
 class TestTargetResult:
@@ -79,6 +85,120 @@ class TestExperiment:
         )
         try:
             exp.model = "other"  # type: ignore[misc]
+            raise AssertionError("Should have raised")  # noqa: TRY301
+        except AttributeError:
+            pass
+
+
+class TestFeatureExplorationResult:
+    def test_fields_accessible(self) -> None:
+        r = FeatureExplorationResult(
+            feature="barrel_rate",
+            best_delta_pct=-3.53,
+            best_experiment_id=42,
+            times_tested=5,
+        )
+        assert r.feature == "barrel_rate"
+        assert r.best_delta_pct == -3.53
+        assert r.best_experiment_id == 42
+        assert r.times_tested == 5
+
+    def test_frozen(self) -> None:
+        r = FeatureExplorationResult(
+            feature="barrel_rate",
+            best_delta_pct=-3.53,
+            best_experiment_id=42,
+            times_tested=5,
+        )
+        try:
+            r.feature = "other"  # type: ignore[misc]
+            raise AssertionError("Should have raised")  # noqa: TRY301
+        except AttributeError:
+            pass
+
+
+class TestTargetExplorationResult:
+    def test_fields_accessible(self) -> None:
+        r = TargetExplorationResult(
+            target="slg",
+            best_rmse=0.082,
+            best_delta_pct=-3.53,
+            best_experiment_id=42,
+            experiments_count=10,
+        )
+        assert r.target == "slg"
+        assert r.best_rmse == 0.082
+        assert r.best_delta_pct == -3.53
+        assert r.best_experiment_id == 42
+        assert r.experiments_count == 10
+
+    def test_frozen(self) -> None:
+        r = TargetExplorationResult(
+            target="slg",
+            best_rmse=0.082,
+            best_delta_pct=-3.53,
+            best_experiment_id=42,
+            experiments_count=10,
+        )
+        try:
+            r.target = "other"  # type: ignore[misc]
+            raise AssertionError("Should have raised")  # noqa: TRY301
+        except AttributeError:
+            pass
+
+
+class TestExplorationSummary:
+    def test_fields_accessible(self) -> None:
+        feat = FeatureExplorationResult(
+            feature="barrel_rate", best_delta_pct=-3.53, best_experiment_id=1, times_tested=5
+        )
+        tgt = TargetExplorationResult(
+            target="slg", best_rmse=0.082, best_delta_pct=-3.53, best_experiment_id=1, experiments_count=10
+        )
+        s = ExplorationSummary(
+            model="statcast-gbm-preseason",
+            player_type="batter",
+            total_experiments=10,
+            features_tested=[feat],
+            targets_explored=[tgt],
+            best_experiment_id=1,
+            best_experiment_delta_pct=-3.53,
+        )
+        assert s.model == "statcast-gbm-preseason"
+        assert s.player_type == "batter"
+        assert s.total_experiments == 10
+        assert len(s.features_tested) == 1
+        assert s.features_tested[0].feature == "barrel_rate"
+        assert len(s.targets_explored) == 1
+        assert s.targets_explored[0].target == "slg"
+        assert s.best_experiment_id == 1
+        assert s.best_experiment_delta_pct == -3.53
+
+    def test_none_defaults(self) -> None:
+        s = ExplorationSummary(
+            model="m",
+            player_type="batter",
+            total_experiments=0,
+            features_tested=[],
+            targets_explored=[],
+            best_experiment_id=None,
+            best_experiment_delta_pct=None,
+        )
+        assert s.best_experiment_id is None
+        assert s.best_experiment_delta_pct is None
+
+    def test_frozen(self) -> None:
+        s = ExplorationSummary(
+            model="m",
+            player_type="batter",
+            total_experiments=0,
+            features_tested=[],
+            targets_explored=[],
+            best_experiment_id=None,
+            best_experiment_delta_pct=None,
+        )
+        try:
+            s.model = "other"  # type: ignore[misc]
             raise AssertionError("Should have raised")  # noqa: TRY301
         except AttributeError:
             pass

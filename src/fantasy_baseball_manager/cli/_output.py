@@ -1,5 +1,6 @@
 import json
 from collections import defaultdict
+from statistics import mean
 from typing import TYPE_CHECKING
 
 from rich.console import Console
@@ -32,6 +33,8 @@ if TYPE_CHECKING:
         CorrelationScanResult,
         DraftBoard,
         DraftReport,
+        Experiment,
+        ExplorationSummary,
         KeeperDecision,
         LoadLog,
         ModelRunRecord,
@@ -1989,3 +1992,127 @@ def print_column_ranking(rankings: list[MultiColumnRanking]) -> None:
         )
 
     console.print(table)
+
+
+def print_experiment_search_results(experiments: list[Experiment], target: str | None = None) -> None:
+    if not experiments:
+        console.print("[dim]No experiments found.[/dim]")
+        return
+
+    table = Table(title="Experiment Search Results")
+    table.add_column("ID", style="bold")
+    table.add_column("Timestamp")
+    table.add_column("Model")
+    table.add_column("Hypothesis")
+    table.add_column("Delta %", justify="right")
+    table.add_column("Tags")
+
+    for exp in experiments:
+        hypothesis = exp.hypothesis[:40] + "..." if len(exp.hypothesis) > 40 else exp.hypothesis
+        if target and target in exp.target_results:
+            delta = exp.target_results[target].delta_pct
+        elif exp.target_results:
+            delta = mean(tr.delta_pct for tr in exp.target_results.values())
+        else:
+            delta = 0.0
+        style = "green" if delta < 0 else "red"
+        table.add_row(
+            str(exp.id),
+            exp.timestamp,
+            exp.model,
+            hypothesis,
+            f"[{style}]{delta:+.2f}%[/{style}]",
+            ", ".join(exp.tags),
+        )
+    console.print(table)
+
+
+def print_experiment_detail(experiment: Experiment) -> None:
+    console.print(f"[bold]Experiment #{experiment.id}[/bold]")
+    console.print()
+
+    info = Table(show_header=False, box=None, padding=(0, 2))
+    info.add_column("Field", style="bold")
+    info.add_column("Value")
+    info.add_row("Timestamp", experiment.timestamp)
+    info.add_row("Model", experiment.model)
+    info.add_row("Player type", experiment.player_type)
+    info.add_row("Hypothesis", experiment.hypothesis)
+    info.add_row("Conclusion", experiment.conclusion)
+    info.add_row("Features added", ", ".join(experiment.feature_diff.get("added", [])) or "—")
+    info.add_row("Features removed", ", ".join(experiment.feature_diff.get("removed", [])) or "—")
+    info.add_row("Train seasons", ", ".join(str(s) for s in experiment.seasons.get("train", [])))
+    info.add_row("Holdout seasons", ", ".join(str(s) for s in experiment.seasons.get("holdout", [])))
+    info.add_row("Params", json.dumps(experiment.params, indent=2))
+    info.add_row("Tags", ", ".join(experiment.tags) or "—")
+    if experiment.parent_id is not None:
+        info.add_row("Parent", str(experiment.parent_id))
+    console.print(info)
+
+    if experiment.target_results:
+        console.print()
+        tr_table = Table(title="Target Results")
+        tr_table.add_column("Target")
+        tr_table.add_column("RMSE", justify="right")
+        tr_table.add_column("Baseline", justify="right")
+        tr_table.add_column("Delta", justify="right")
+        tr_table.add_column("Delta %", justify="right")
+        for target, tr in sorted(experiment.target_results.items()):
+            style = "green" if tr.delta_pct < 0 else "red"
+            tr_table.add_row(
+                target,
+                f"{tr.rmse:.4f}",
+                f"{tr.baseline_rmse:.4f}",
+                f"[{style}]{tr.delta:+.4f}[/{style}]",
+                f"[{style}]{tr.delta_pct:+.2f}%[/{style}]",
+            )
+        console.print(tr_table)
+
+
+def print_experiment_summary(summary: ExplorationSummary) -> None:
+    console.print(f"[bold]Exploration Summary: {summary.model} ({summary.player_type})[/bold]")
+    console.print(f"Total experiments: {summary.total_experiments}")
+    console.print()
+
+    if summary.features_tested:
+        feat_table = Table(title="Features Tested")
+        feat_table.add_column("Feature")
+        feat_table.add_column("Times Tested", justify="right")
+        feat_table.add_column("Best Delta %", justify="right")
+        feat_table.add_column("Best Experiment", justify="right")
+        for f in sorted(summary.features_tested, key=lambda x: x.best_delta_pct):
+            style = "green" if f.best_delta_pct < 0 else "red"
+            feat_table.add_row(
+                f.feature,
+                str(f.times_tested),
+                f"[{style}]{f.best_delta_pct:+.2f}%[/{style}]",
+                f"#{f.best_experiment_id}",
+            )
+        console.print(feat_table)
+        console.print()
+
+    if summary.targets_explored:
+        tgt_table = Table(title="Targets Explored")
+        tgt_table.add_column("Target")
+        tgt_table.add_column("Experiments", justify="right")
+        tgt_table.add_column("Best RMSE", justify="right")
+        tgt_table.add_column("Best Delta %", justify="right")
+        tgt_table.add_column("Best Experiment", justify="right")
+        for t in sorted(summary.targets_explored, key=lambda x: x.best_delta_pct):
+            style = "green" if t.best_delta_pct < 0 else "red"
+            tgt_table.add_row(
+                t.target,
+                str(t.experiments_count),
+                f"{t.best_rmse:.4f}",
+                f"[{style}]{t.best_delta_pct:+.2f}%[/{style}]",
+                f"#{t.best_experiment_id}",
+            )
+        console.print(tgt_table)
+        console.print()
+
+    if summary.best_experiment_id is not None:
+        style = "green" if (summary.best_experiment_delta_pct or 0) < 0 else "red"
+        console.print(
+            f"Overall best: [bold]#{summary.best_experiment_id}[/bold] "
+            f"([{style}]{summary.best_experiment_delta_pct:+.2f}%[/{style}] avg delta)"
+        )

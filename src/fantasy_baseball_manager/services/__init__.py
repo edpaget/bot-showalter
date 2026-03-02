@@ -43,6 +43,7 @@ from fantasy_baseball_manager.services.draft_translation import (
     build_team_map,
     ingest_yahoo_pick,
 )
+from fantasy_baseball_manager.services.experiment_summary import summarize_exploration
 from fantasy_baseball_manager.services.keeper_optimizer import (
     compare_scenarios,
     compute_adjusted_draft_pool,
@@ -195,6 +196,7 @@ __all__ = [
     "draft_report",
     "evaluate_pick_trade",
     "evaluate_pick_trade_with_context",
+    "summarize_exploration",
     "evaluate_trade",
     "export_csv",
     "export_html",

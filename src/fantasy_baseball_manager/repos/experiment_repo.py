@@ -98,6 +98,52 @@ class SqliteExperimentRepo:
         rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_experiment(row) for row in rows]
 
+    def find_by_target(self, target: str) -> builtins.list[Experiment]:
+        rows = self._conn.execute(
+            """SELECT e.* FROM experiment e
+               WHERE EXISTS (
+                   SELECT 1 FROM json_each(e.target_results) jt
+                   WHERE jt.key = ?
+               )
+               ORDER BY json_extract(e.target_results, '$.' || ? || '.delta_pct') ASC""",
+            (target, target),
+        ).fetchall()
+        return [self._row_to_experiment(row) for row in rows]
+
+    def find_by_feature(self, column_name: str) -> builtins.list[Experiment]:
+        rows = self._conn.execute(
+            """SELECT e.* FROM experiment e
+               WHERE EXISTS (
+                   SELECT 1 FROM json_each(json_extract(e.feature_diff, '$.added')) ja
+                   WHERE ja.value = ?
+               ) OR EXISTS (
+                   SELECT 1 FROM json_each(json_extract(e.feature_diff, '$.removed')) jr
+                   WHERE jr.value = ?
+               )
+               ORDER BY e.timestamp DESC""",
+            (column_name, column_name),
+        ).fetchall()
+        return [self._row_to_experiment(row) for row in rows]
+
+    def find_by_tag(self, tag: str) -> builtins.list[Experiment]:
+        return self.list(ExperimentFilter(tag=tag))
+
+    def find_by_model(self, model: str) -> builtins.list[Experiment]:
+        return self.list(ExperimentFilter(model=model))
+
+    def find_best(self, target: str, metric: str = "delta_pct") -> Experiment | None:
+        matches = self.find_by_target(target)
+        if not matches:
+            return None
+        return min(matches, key=lambda e: getattr(e.target_results[target], metric))
+
+    def find_recent(self, n: int) -> builtins.list[Experiment]:
+        rows = self._conn.execute(
+            "SELECT * FROM experiment ORDER BY timestamp DESC LIMIT ?",
+            (n,),
+        ).fetchall()
+        return [self._row_to_experiment(row) for row in rows]
+
     def delete(self, experiment_id: int) -> None:
         self._conn.execute("DELETE FROM experiment WHERE id = ?", (experiment_id,))
 
