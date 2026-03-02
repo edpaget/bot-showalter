@@ -63,6 +63,7 @@ from fantasy_baseball_manager.domain.keeper_optimization import (
     KeeperConstraints,
     KeeperSet,
     KeeperSolution,
+    LeagueKeeperState,
     SensitivityEntry,
 )
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
@@ -216,6 +217,7 @@ __all__ = [
     "KeeperDecision",
     "KeeperSet",
     "KeeperSolution",
+    "LeagueKeeperState",
     "LeagueEnvironment",
     "LeagueFormat",
     "LeagueSettings",

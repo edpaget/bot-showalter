@@ -38,7 +38,12 @@ from fantasy_baseball_manager.services.draft_translation import (
     build_team_map,
     ingest_yahoo_pick,
 )
-from fantasy_baseball_manager.services.keeper_optimizer import solve_keepers
+from fantasy_baseball_manager.services.keeper_optimizer import (
+    compute_adjusted_draft_pool,
+    parse_league_keepers,
+    solve_keepers,
+    solve_keepers_with_pool,
+)
 from fantasy_baseball_manager.services.keeper_service import (
     compute_adjusted_valuations,
     compute_surplus,
@@ -183,7 +188,10 @@ __all__ = [
     "resolve_player",
     "run_mock_draft",
     "set_keeper_cost",
+    "compute_adjusted_draft_pool",
+    "parse_league_keepers",
     "solve_keepers",
+    "solve_keepers_with_pool",
     "tier_summary",
     "value_at",
 ]

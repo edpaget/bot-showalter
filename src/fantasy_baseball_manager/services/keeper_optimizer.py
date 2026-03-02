@@ -1,14 +1,18 @@
+import dataclasses
 import heapq
 import itertools
 import math
-from collections import Counter
+from collections import Counter, defaultdict
 
 from fantasy_baseball_manager.domain import (
     KeeperConstraints,
     KeeperDecision,
     KeeperSet,
     KeeperSolution,
+    LeagueSettings,
+    Player,
     SensitivityEntry,
+    Valuation,
 )
 
 
@@ -263,3 +267,147 @@ def _compute_sensitivity(
 
     entries.sort(key=lambda e: e.surplus_gap)
     return entries
+
+
+def compute_adjusted_draft_pool(
+    league_keeper_ids: set[int],
+    valuations: list[Valuation],
+    league: LeagueSettings,
+) -> tuple[list[Valuation], dict[str, float]]:
+    """Remove kept players from the pool and compute replacement-level baselines."""
+    filtered = [v for v in valuations if v.player_id not in league_keeper_ids]
+
+    # Group by position (case-normalized)
+    by_position: dict[str, list[Valuation]] = defaultdict(list)
+    for v in filtered:
+        by_position[v.position.lower()].append(v)
+    for pos_list in by_position.values():
+        pos_list.sort(key=lambda v: v.value, reverse=True)
+
+    # Compute replacement level per position
+    all_positions = {pos.lower(): slots for pos, slots in league.positions.items()}
+    all_positions.update({pos.lower(): slots for pos, slots in league.pitcher_positions.items()})
+
+    replacement_levels: dict[str, float] = {}
+    for pos, slots in all_positions.items():
+        pool = by_position.get(pos, [])
+        rank = slots * league.teams
+        if rank < len(pool):
+            replacement_levels[pos] = pool[rank].value
+        else:
+            replacement_levels[pos] = 0.0
+
+    filtered.sort(key=lambda v: v.value, reverse=True)
+    return filtered, replacement_levels
+
+
+def _estimated_draft_value(
+    keeper_set: KeeperSet,
+    base_pool: list[Valuation],
+    league: LeagueSettings,
+) -> float:
+    """Estimate total value from drafting remaining roster slots."""
+    keeper_ids = {p.player_id for p in keeper_set.players}
+    available = [v for v in base_pool if v.player_id not in keeper_ids]
+
+    # Compute unfilled slots per position
+    all_positions = {pos.lower(): slots for pos, slots in league.positions.items()}
+    all_positions.update({pos.lower(): slots for pos, slots in league.pitcher_positions.items()})
+
+    unfilled: dict[str, int] = {}
+    for pos, slots in all_positions.items():
+        filled = keeper_set.positions_filled.get(pos, 0)
+        unfilled[pos] = max(0, slots - filled)
+
+    # Group available by position
+    by_position: dict[str, list[float]] = defaultdict(list)
+    for v in available:
+        by_position[v.position.lower()].append(v.value)
+
+    total_value = 0.0
+    used_ids: set[int] = set()
+
+    # Fill position-specific slots first
+    for pos, slots_needed in unfilled.items():
+        pos_values = by_position.get(pos, [])
+        for i in range(min(slots_needed, len(pos_values))):
+            total_value += pos_values[i]
+            # Track which position-slot values we've consumed
+            # Find the actual player to mark as used
+        # Mark consumed players as used from available pool
+        consumed = 0
+        for v in available:
+            if v.position.lower() == pos and v.player_id not in used_ids:
+                used_ids.add(v.player_id)
+                consumed += 1
+                if consumed >= min(slots_needed, len(pos_values)):
+                    break
+
+    # Fill UTIL slots with best remaining batters
+    util_slots = max(0, league.roster_util - keeper_set.positions_filled.get("util", 0))
+    if util_slots > 0:
+        remaining = [v for v in available if v.player_id not in used_ids and v.player_type == "batter"]
+        for v in remaining[:util_slots]:
+            total_value += v.value
+
+    return total_value
+
+
+def solve_keepers_with_pool(
+    candidates: list[KeeperDecision],
+    constraints: KeeperConstraints,
+    league_keeper_ids: set[int],
+    valuations: list[Valuation],
+    league: LeagueSettings,
+) -> KeeperSolution:
+    """Find optimal keepers accounting for draft pool depletion."""
+    base_pool, _replacement_levels = compute_adjusted_draft_pool(league_keeper_ids, valuations, league)
+
+    valid_sets = _find_valid_sets(candidates, constraints)
+
+    if not valid_sets:
+        msg = "no valid keeper sets satisfy the given constraints"
+        raise ValueError(msg)
+
+    # Re-score each set: surplus + estimated draft value
+    scored = [
+        dataclasses.replace(ks, score=ks.total_surplus + _estimated_draft_value(ks, base_pool, league))
+        for ks in valid_sets
+    ]
+
+    scored.sort(key=lambda s: s.score, reverse=True)
+
+    optimal = scored[0]
+    alternatives = scored[1:6]
+    sensitivity = _compute_sensitivity(optimal, scored)
+
+    return KeeperSolution(
+        optimal=optimal,
+        alternatives=alternatives,
+        sensitivity=sensitivity,
+    )
+
+
+def parse_league_keepers(
+    rows: list[dict[str, str]],
+    players: list[Player],
+) -> tuple[set[int], list[str]]:
+    """Match player names from CSV rows to player IDs."""
+    name_to_id: dict[str, int] = {}
+    for p in players:
+        full_name = f"{p.name_first} {p.name_last}".lower()
+        if p.id is not None:
+            name_to_id[full_name] = p.id
+
+    matched: set[int] = set()
+    unmatched: list[str] = []
+
+    for row in rows:
+        name = row["player_name"].strip().lower()
+        pid = name_to_id.get(name)
+        if pid is not None:
+            matched.add(pid)
+        else:
+            unmatched.append(row["player_name"].strip())
+
+    return matched, unmatched

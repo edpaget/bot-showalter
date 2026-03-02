@@ -9,7 +9,7 @@ This roadmap depends on: keeper/surplus value (planned — domain types and basi
 | Phase | Status |
 |-------|--------|
 | 1 — Combinatorial keeper selection | done (2026-03-01) |
-| 2 — Draft pool adjustment | not started |
+| 2 — Draft pool adjustment | done (2026-03-02) |
 | 3 — Scenario analysis | not started |
 | 4 — CLI commands | not started |
 

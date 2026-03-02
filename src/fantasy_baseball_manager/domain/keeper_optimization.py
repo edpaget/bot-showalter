@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain.keeper import KeeperDecision
+    from fantasy_baseball_manager.domain.valuation import Valuation
 
 
 @dataclass(frozen=True)
@@ -36,3 +37,10 @@ class KeeperSolution:
     optimal: KeeperSet
     alternatives: list[KeeperSet]
     sensitivity: list[SensitivityEntry]
+
+
+@dataclass(frozen=True)
+class LeagueKeeperState:
+    my_keepers: list[int]
+    league_keepers: list[int]
+    draft_pool: list[Valuation]
