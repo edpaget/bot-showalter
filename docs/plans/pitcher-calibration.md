@@ -21,7 +21,7 @@ For comparison, Steamer's 2026 min ERA is 2.39; our model's is 2.83.
 | 1 — Fix multi-season predict fallback | done (2026-02-27) |
 | 2 — Multi-fold calibration | done (2026-02-28) |
 | 3 — Evaluate bias-correction methods | done (2026-03-01) — no-go |
-| 4 — Pitcher regularization review | in progress |
+| 4 — Pitcher regularization review | done (2026-03-01) — no-go |
 
 ## Phase 1: Fix multi-season predict fallback
 
@@ -163,6 +163,34 @@ The top-300-tuning Phase 3 grid search found these parameters optimal for the *c
 - If per-target configs adopted: ERA prediction range widens (min predicted ERA ≤ 2.5) without WHIP degradation >5%
 - If alternative loss adopted: ERA RMSE improves on top-300 without regression on full population
 - Go/no-go decision recorded in the status table
+
+### Experiment results
+
+**Tuning** (486-combo grid, 2017–2024 expanding CV, top-300):
+
+New joint-optimal pitcher params: `max_depth=7, max_iter=200, loss=absolute_error` (was: `max_depth=3, max_iter=100, loss=squared_error`). Per-target divergence is small (<2.5%) — k_per_9 wants `squared_error` with more iterations, but ERA/FIP/WHIP all prefer L1 loss with deeper trees.
+
+**Comparison vs baseline (2025 holdout):**
+
+| Variant | Population | RMSE wins/5 | ρ wins/5 | Pass? |
+|---------|-----------|-------------|----------|-------|
+| new-optimal (depth=7, L1) | Full pop | 1 | 2 | FAIL |
+| new-optimal (depth=7, L1) | Top 300 | 4 | 2 | FAIL |
+| l1-loss-only (depth=3, L1) | Full pop | 1 | 0 | FAIL |
+| l1-loss-only (depth=3, L1) | Top 300 | 4 | 1 | FAIL |
+
+**Comparison vs baseline (2024 holdout):**
+
+| Variant | Population | RMSE wins/5 | ρ wins/5 | Pass? |
+|---------|-----------|-------------|----------|-------|
+| new-optimal (depth=7, L1) | Full pop | 1 | 2 | FAIL |
+| new-optimal (depth=7, L1) | Top 300 | 4 | 1 | FAIL |
+
+**Key finding:** Deeper trees and L1 loss reduce top-300 RMSE by 3–8% (bringing predictions closer to actual values) but consistently degrade Spearman ρ (ranking accuracy). The RMSE improvement comes from wider prediction range — but the wider range introduces more ranking errors. The current conservative regularization is optimal for ranking quality, which matters more for fantasy baseball.
+
+**Decision: NO-GO.** No variant passes the regression check on both RMSE and ρ for both populations. The production config remains unchanged. ERA range compression (~2.8–5.7 vs actual 1.2–8+) appears to be an inherent limitation of the feature set rather than a regularization problem.
+
+**Infrastructure delivered:** Per-target tuning analysis, L1 loss support, and per-target param overrides are committed and available for future experiments.
 
 ## Ordering
 
