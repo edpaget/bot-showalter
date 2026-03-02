@@ -6,7 +6,7 @@ Give an autonomous agent persistent memory of what it has tried, what worked, an
 
 | Phase | Status |
 |-------|--------|
-| 1 — Experiment logger | not started |
+| 1 — Experiment logger | in progress |
 | 2 — Experiment query tool | not started |
 | 3 — Checkpoint / restore | not started |
 
