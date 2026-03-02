@@ -16,7 +16,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Feature Candidate Factory](feature-candidate-factory.md) | 3 | not started | none |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | phase 1 done | keeper-surplus-value |
-| [Mock Draft Simulator](mock-draft-simulator.md) | 4 | phase 1 done | draft board (done), ADP (done) |
+| [Mock Draft Simulator](mock-draft-simulator.md) | 4 | phases 1-2 done | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
