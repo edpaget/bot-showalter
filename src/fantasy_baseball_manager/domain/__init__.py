@@ -72,6 +72,7 @@ from fantasy_baseball_manager.domain.minor_league_batting_stats import (
 )
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
+from fantasy_baseball_manager.domain.pick_value import PickValue, PickValueCurve, value_at
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.player_bio import PlayerSummary
@@ -200,6 +201,8 @@ __all__ = [
     "PITCHING_COUNTING_STATS",
     "PITCHING_RATE_STATS",
     "PickGrade",
+    "PickValue",
+    "PickValueCurve",
     "PitchingStats",
     "Player",
     "PlayerConfidence",
@@ -279,4 +282,5 @@ __all__ = [
     "missing_pitching_comparisons",
     "normalize_projection_pt",
     "summarize_comparison",
+    "value_at",
 ]

@@ -49,6 +49,7 @@ from fantasy_baseball_manager.services.league_environment_service import (
 from fantasy_baseball_manager.services.performance_report import (
     PerformanceReportService,
 )
+from fantasy_baseball_manager.services.pick_value import compute_pick_value_curve
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
 from fantasy_baseball_manager.services.player_eligibility import (
     PlayerEligibilityService,
@@ -117,6 +118,7 @@ __all__ = [
     "compute_surplus",
     "compute_category_balance_scores",
     "compute_confidence",
+    "compute_pick_value_curve",
     "evaluate_trade",
     "draft_report",
     "export_csv",
