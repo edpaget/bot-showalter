@@ -8,6 +8,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 |---------|--------|----------|-------------------|
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | not started | ADP, projections, valuations (all done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
+| [Draft Pick Keeper Support](draft-pick-keeper-support.md) | 3 | not started | draft-pick-trade-evaluator phase 1, keeper-surplus-value (done) |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | not started | ADP (done), draft board (done) |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | not started | keeper-surplus-value |
@@ -50,6 +51,9 @@ Roadmaps that must complete (at least partially) before others can start.
 ```
 keeper-surplus-value ──► keeper-optimization-solver
                     ──► yahoo-fantasy-integration
+
+draft-pick-trade-evaluator (phase 1) ──► draft-pick-keeper-support
+keeper-optimization-solver (phase 1) ──► draft-pick-keeper-support (phase 3)
 
 live-draft-tracker ────► yahoo-fantasy-integration
 ```
