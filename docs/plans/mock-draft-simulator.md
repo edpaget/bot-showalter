@@ -8,7 +8,7 @@ This roadmap depends on: draft board service (phase 1, done), ADP integration (d
 
 | Phase | Status |
 |-------|--------|
-| 1 — Single-draft engine | not started |
+| 1 — Single-draft engine | in progress |
 | 2 — Human strategy configuration | not started |
 | 3 — Batch simulation and analytics | not started |
 | 4 — CLI commands | not started |
