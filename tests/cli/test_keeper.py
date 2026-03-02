@@ -369,3 +369,140 @@ class TestKeeperAdjustedRankings:
         assert "No keeper costs found" in result.output
         conn.close()
         conn.close()
+
+
+class TestKeeperTradeEval:
+    def test_trade_eval_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        pid1 = seed_player(conn, name_first="Mike", name_last="Trout")
+        pid2 = seed_player(conn, name_first="Shohei", name_last="Ohtani")
+
+        keeper_repo = SqliteKeeperCostRepo(conn)
+        keeper_repo.upsert_batch(
+            [
+                KeeperCost(player_id=pid1, season=2026, league="dynasty", cost=10.0, source="auction"),
+                KeeperCost(player_id=pid2, season=2026, league="dynasty", cost=5.0, source="auction"),
+            ]
+        )
+
+        val_repo = SqliteValuationRepo(conn)
+        val_repo.upsert(
+            Valuation(
+                player_id=pid1,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type="batter",
+                position="CF",
+                value=25.0,
+                rank=1,
+                category_scores={},
+            )
+        )
+        val_repo.upsert(
+            Valuation(
+                player_id=pid2,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type="batter",
+                position="DH",
+                value=30.0,
+                rank=2,
+                category_scores={},
+            )
+        )
+        conn.commit()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "trade-eval",
+                "--gives",
+                "Trout",
+                "--receives",
+                "Ohtani",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+        assert "Shohei Ohtani" in result.output
+        assert "surplus delta" in result.output.lower()
+        conn.close()
+
+    def test_trade_eval_player_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "trade-eval",
+                "--gives",
+                "Nobody",
+                "--receives",
+                "Ohtani",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "no player found" in result.output
+        conn.close()
+
+    def test_trade_eval_ambiguous_player(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, name_first="Mike", name_last="Smith")
+        seed_player(conn, name_first="John", name_last="Smith")
+        seed_player(conn, name_first="Shohei", name_last="Ohtani")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "trade-eval",
+                "--gives",
+                "Smith",
+                "--receives",
+                "Ohtani",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "ambiguous" in result.output
+        conn.close()

@@ -1,6 +1,14 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import AdjustedValuation, Err, KeeperCost, KeeperDecision, Ok
+from fantasy_baseball_manager.domain import (
+    AdjustedValuation,
+    Err,
+    KeeperCost,
+    KeeperDecision,
+    Ok,
+    TradeEvaluation,
+    TradePlayerDetail,
+)
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import best_position, build_roster_spots
 
@@ -110,6 +118,85 @@ def compute_surplus(
 
     decisions.sort(key=lambda d: d.surplus, reverse=True)
     return decisions
+
+
+def evaluate_trade(
+    team_a_gives: list[int],
+    team_b_gives: list[int],
+    keeper_costs: list[KeeperCost],
+    valuations: list[Valuation],
+    players: list[Player],
+    decay: float = 0.85,
+) -> TradeEvaluation:
+    """Evaluate a trade between two teams using surplus value.
+
+    Computes net surplus exchanged by each side.  Team A "gives" the players
+    in *team_a_gives* and "receives" those in *team_b_gives* (and vice-versa).
+    """
+    # Build lookups
+    val_lookup: dict[int, Valuation] = {}
+    for v in valuations:
+        existing = val_lookup.get(v.player_id)
+        if existing is None or v.value > existing.value:
+            val_lookup[v.player_id] = v
+
+    cost_lookup: dict[int, KeeperCost] = {}
+    for kc in keeper_costs:
+        cost_lookup[kc.player_id] = kc
+
+    player_lookup: dict[int, Player] = {}
+    for p in players:
+        if p.id is not None:
+            player_lookup[p.id] = p
+
+    def _build_detail(player_id: int) -> TradePlayerDetail:
+        val = val_lookup.get(player_id)
+        projected_value = val.value if val is not None else 0.0
+        position = val.position if val is not None else "UTIL"
+
+        kc = cost_lookup.get(player_id)
+        cost = kc.cost if kc is not None else 0.0
+        years = kc.years_remaining if kc is not None else 1
+
+        single_year_surplus = projected_value - cost
+        surplus = sum(single_year_surplus * decay**i for i in range(years))
+
+        player = player_lookup.get(player_id)
+        name = f"{player.name_first} {player.name_last}" if player is not None else "Unknown"
+
+        return TradePlayerDetail(
+            player_id=player_id,
+            player_name=name,
+            position=position,
+            cost=cost,
+            projected_value=projected_value,
+            surplus=surplus,
+            years_remaining=years,
+        )
+
+    a_details = [_build_detail(pid) for pid in team_a_gives]
+    b_details = [_build_detail(pid) for pid in team_b_gives]
+
+    a_gives_surplus = sum(d.surplus for d in a_details)
+    b_gives_surplus = sum(d.surplus for d in b_details)
+
+    team_a_delta = b_gives_surplus - a_gives_surplus
+    team_b_delta = -team_a_delta
+
+    if team_a_delta > 0:
+        winner = "team_a"
+    elif team_a_delta < 0:
+        winner = "team_b"
+    else:
+        winner = "even"
+
+    return TradeEvaluation(
+        team_a_gives=a_details,
+        team_b_gives=b_details,
+        team_a_surplus_delta=team_a_delta,
+        team_b_surplus_delta=team_b_delta,
+        winner=winner,
+    )
 
 
 def _extract_stats(projections: list[Projection]) -> list[dict[str, float]]:

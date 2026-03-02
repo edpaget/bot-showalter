@@ -26,6 +26,26 @@ class KeeperDecision:
 
 
 @dataclass(frozen=True)
+class TradePlayerDetail:
+    player_id: int
+    player_name: str
+    position: str
+    cost: float
+    projected_value: float
+    surplus: float
+    years_remaining: int
+
+
+@dataclass(frozen=True)
+class TradeEvaluation:
+    team_a_gives: list[TradePlayerDetail]
+    team_b_gives: list[TradePlayerDetail]
+    team_a_surplus_delta: float
+    team_b_surplus_delta: float
+    winner: str  # "team_a" | "team_b" | "even"
+
+
+@dataclass(frozen=True)
 class AdjustedValuation:
     player_id: int
     player_name: str

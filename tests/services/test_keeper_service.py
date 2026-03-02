@@ -15,6 +15,7 @@ from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.services.keeper_service import (
     compute_adjusted_valuations,
     compute_surplus,
+    evaluate_trade,
     set_keeper_cost,
 )
 from tests.fakes.repos import FakeKeeperCostRepo, FakePlayerRepo
@@ -460,3 +461,149 @@ class TestComputeAdjustedValuations:
         )
 
         assert result == []
+
+
+class TestEvaluateTrade:
+    def test_surplus_exchanged(self) -> None:
+        """Team A gives player with surplus $10, receives player with surplus $20."""
+        players = [
+            Player(name_first="Mike", name_last="Trout", id=1),
+            Player(name_first="Shohei", name_last="Ohtani", id=2),
+        ]
+        keeper_costs = [_keeper_cost(1, 15.0), _keeper_cost(2, 10.0)]
+        valuations = [_valuation(1, 25.0), _valuation(2, 30.0)]
+
+        result = evaluate_trade(
+            team_a_gives=[1],
+            team_b_gives=[2],
+            keeper_costs=keeper_costs,
+            valuations=valuations,
+            players=players,
+        )
+
+        # Player 1 surplus = 25 - 15 = 10, Player 2 surplus = 30 - 10 = 20
+        # Team A gives surplus 10, receives surplus 20 → delta = +10
+        assert result.team_a_surplus_delta == pytest.approx(10.0)
+        assert result.team_b_surplus_delta == pytest.approx(-10.0)
+
+    def test_multi_player_trade(self) -> None:
+        """2-for-1 trade with known surpluses."""
+        players = [
+            Player(name_first="Mike", name_last="Trout", id=1),
+            Player(name_first="Shohei", name_last="Ohtani", id=2),
+            Player(name_first="Aaron", name_last="Judge", id=3),
+        ]
+        keeper_costs = [_keeper_cost(1, 10.0), _keeper_cost(2, 5.0), _keeper_cost(3, 20.0)]
+        valuations = [_valuation(1, 25.0), _valuation(2, 15.0), _valuation(3, 30.0)]
+
+        result = evaluate_trade(
+            team_a_gives=[1, 2],
+            team_b_gives=[3],
+            keeper_costs=keeper_costs,
+            valuations=valuations,
+            players=players,
+        )
+
+        # A gives: surplus 15 + 10 = 25. B gives: surplus 10
+        # A delta = 10 - 25 = -15
+        assert result.team_a_surplus_delta == pytest.approx(-15.0)
+        assert result.team_b_surplus_delta == pytest.approx(15.0)
+        assert len(result.team_a_gives) == 2
+        assert len(result.team_b_gives) == 1
+
+    def test_winner_determination(self) -> None:
+        """Positive delta → team_a wins, negative → team_b, zero → even."""
+        players = [
+            Player(name_first="P", name_last="One", id=1),
+            Player(name_first="P", name_last="Two", id=2),
+        ]
+
+        # Team A wins: receives higher surplus
+        costs = [_keeper_cost(1, 20.0), _keeper_cost(2, 5.0)]
+        vals = [_valuation(1, 25.0), _valuation(2, 25.0)]
+        result = evaluate_trade([1], [2], costs, vals, players)
+        assert result.winner == "team_a"
+
+        # Team B wins: receives lower surplus
+        costs = [_keeper_cost(1, 5.0), _keeper_cost(2, 20.0)]
+        vals = [_valuation(1, 25.0), _valuation(2, 25.0)]
+        result = evaluate_trade([1], [2], costs, vals, players)
+        assert result.winner == "team_b"
+
+        # Even: equal surplus
+        costs = [_keeper_cost(1, 10.0), _keeper_cost(2, 10.0)]
+        vals = [_valuation(1, 25.0), _valuation(2, 25.0)]
+        result = evaluate_trade([1], [2], costs, vals, players)
+        assert result.winner == "even"
+
+    def test_multi_year_contracts(self) -> None:
+        """Multi-year contract uses discounted surplus (same decay as compute_surplus)."""
+        players = [
+            Player(name_first="P", name_last="One", id=1),
+            Player(name_first="P", name_last="Two", id=2),
+        ]
+        costs = [_keeper_cost(1, 15.0, years=3), _keeper_cost(2, 10.0)]
+        vals = [_valuation(1, 25.0), _valuation(2, 30.0)]
+
+        result = evaluate_trade([1], [2], costs, vals, players, decay=0.85)
+
+        # Player 1: surplus = 10/yr, total = 10 + 8.5 + 7.225 = 25.725
+        # Player 2: surplus = 20/yr, total = 20
+        # A delta = 20 - 25.725 = -5.725
+        assert result.team_a_surplus_delta == pytest.approx(-5.725)
+        assert result.team_b_surplus_delta == pytest.approx(5.725)
+        assert result.team_a_gives[0].surplus == pytest.approx(25.725)
+
+    def test_missing_valuation(self) -> None:
+        """Player without valuation → projected_value = 0, surplus = -cost."""
+        players = [
+            Player(name_first="P", name_last="One", id=1),
+            Player(name_first="P", name_last="Two", id=2),
+        ]
+        costs = [_keeper_cost(1, 10.0), _keeper_cost(2, 5.0)]
+        vals = [_valuation(2, 20.0)]  # No valuation for player 1
+
+        result = evaluate_trade([1], [2], costs, vals, players)
+
+        a_detail = result.team_a_gives[0]
+        assert a_detail.projected_value == 0.0
+        assert a_detail.surplus == pytest.approx(-10.0)
+
+    def test_missing_keeper_cost(self) -> None:
+        """Player without keeper cost → cost = 0, surplus = full value."""
+        players = [
+            Player(name_first="P", name_last="One", id=1),
+            Player(name_first="P", name_last="Two", id=2),
+        ]
+        costs = [_keeper_cost(2, 5.0)]  # No cost for player 1
+        vals = [_valuation(1, 25.0), _valuation(2, 20.0)]
+
+        result = evaluate_trade([1], [2], costs, vals, players)
+
+        a_detail = result.team_a_gives[0]
+        assert a_detail.cost == 0.0
+        assert a_detail.surplus == pytest.approx(25.0)
+
+    def test_player_details_populated(self) -> None:
+        """Verify name, position, cost, value fields on TradePlayerDetail."""
+        players = [
+            Player(name_first="Mike", name_last="Trout", id=1),
+            Player(name_first="Shohei", name_last="Ohtani", id=2),
+        ]
+        costs = [_keeper_cost(1, 15.0, years=2), _keeper_cost(2, 10.0)]
+        vals = [_valuation(1, 25.0, position="CF"), _valuation(2, 30.0, position="DH")]
+
+        result = evaluate_trade([1], [2], costs, vals, players)
+
+        a = result.team_a_gives[0]
+        assert a.player_id == 1
+        assert a.player_name == "Mike Trout"
+        assert a.position == "CF"
+        assert a.cost == 15.0
+        assert a.projected_value == 25.0
+        assert a.years_remaining == 2
+
+        b = result.team_b_gives[0]
+        assert b.player_id == 2
+        assert b.player_name == "Shohei Ohtani"
+        assert b.position == "DH"

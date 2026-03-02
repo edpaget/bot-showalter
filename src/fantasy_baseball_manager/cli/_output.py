@@ -45,6 +45,8 @@ if TYPE_CHECKING:
         SystemMetrics,
         SystemSummary,
         TierSummaryReport,
+        TradeEvaluation,
+        TradePlayerDetail,
         TrueTalentQualityReport,
         ValuationEvalResult,
         ValueOverADPReport,
@@ -1759,3 +1761,49 @@ def print_category_needs(needs: list[CategoryNeed], num_teams: int) -> None:
 
         console.print(table)
         console.print()
+
+
+def _trade_player_table(label: str, details: list[TradePlayerDetail]) -> Table:
+    table = Table(title=label, show_edge=False, pad_edge=False)
+    table.add_column("Player", justify="left")
+    table.add_column("Pos", justify="left")
+    table.add_column("Cost", justify="right")
+    table.add_column("Value", justify="right")
+    table.add_column("Surplus", justify="right")
+    table.add_column("Yrs", justify="right")
+
+    for d in details:
+        style = "green" if d.surplus >= 0 else "red"
+        table.add_row(
+            d.player_name,
+            d.position,
+            f"${d.cost:.0f}",
+            f"${d.projected_value:.1f}",
+            f"${d.surplus:.1f}",
+            str(d.years_remaining),
+            style=style,
+        )
+    return table
+
+
+def print_trade_evaluation(evaluation: TradeEvaluation) -> None:
+    console.print()
+    console.print(_trade_player_table("You give", evaluation.team_a_gives))
+    console.print()
+    console.print(_trade_player_table("You receive", evaluation.team_b_gives))
+    console.print()
+
+    a_sign = "+" if evaluation.team_a_surplus_delta >= 0 else ""
+    b_sign = "+" if evaluation.team_b_surplus_delta >= 0 else ""
+    a_style = "green" if evaluation.team_a_surplus_delta >= 0 else "red"
+    b_style = "green" if evaluation.team_b_surplus_delta >= 0 else "red"
+
+    console.print(f"Your surplus delta: [{a_style}]{a_sign}${evaluation.team_a_surplus_delta:.1f}[/{a_style}]")
+    console.print(f"Their surplus delta: [{b_style}]{b_sign}${evaluation.team_b_surplus_delta:.1f}[/{b_style}]")
+
+    if evaluation.winner == "team_a":
+        console.print("[bold green]Verdict: You win this trade[/bold green]")
+    elif evaluation.winner == "team_b":
+        console.print("[bold red]Verdict: They win this trade[/bold red]")
+    else:
+        console.print("[bold]Verdict: Even trade[/bold]")

@@ -36,6 +36,7 @@ from fantasy_baseball_manager.services.draft_translation import (
 from fantasy_baseball_manager.services.keeper_service import (
     compute_adjusted_valuations,
     compute_surplus,
+    evaluate_trade,
     set_keeper_cost,
 )
 from fantasy_baseball_manager.services.league_environment_service import (
@@ -111,6 +112,7 @@ __all__ = [
     "compute_adjusted_valuations",
     "compute_surplus",
     "compute_confidence",
+    "evaluate_trade",
     "draft_report",
     "export_csv",
     "export_html",

@@ -4,12 +4,17 @@ from typing import Annotated
 
 import typer
 
-from fantasy_baseball_manager.cli._output import print_adjusted_rankings, print_keeper_decisions
+from fantasy_baseball_manager.cli._output import print_adjusted_rankings, print_keeper_decisions, print_trade_evaluation
 from fantasy_baseball_manager.cli.factory import build_keeper_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain import Err, Ok
 from fantasy_baseball_manager.ingest import import_keeper_costs
-from fantasy_baseball_manager.services import compute_adjusted_valuations, compute_surplus, set_keeper_cost
+from fantasy_baseball_manager.services import (
+    compute_adjusted_valuations,
+    compute_surplus,
+    evaluate_trade,
+    set_keeper_cost,
+)
 
 keeper_app = typer.Typer(name="keeper", help="Keeper league cost management")
 
@@ -139,3 +144,49 @@ def adjusted_rankings_cmd(
         )
 
     print_adjusted_rankings(results, top=top)
+
+
+@keeper_app.command("trade-eval")
+def trade_eval_cmd(
+    gives: Annotated[list[str], typer.Option("--gives", help="Player(s) you give away")],
+    receives: Annotated[list[str], typer.Option("--receives", help="Player(s) you receive")],
+    season: Annotated[int, typer.Option(help="Season year")],
+    league: Annotated[str, typer.Option(help="League name")],
+    system: Annotated[str, typer.Option(help="Valuation system name")],
+    decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
+    data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
+) -> None:
+    """Evaluate a trade using keeper surplus value."""
+    with build_keeper_context(data_dir) as ctx:
+        give_ids: list[int] = []
+        for name in gives:
+            matches = ctx.player_repo.search_by_name(name)
+            if len(matches) == 0:
+                typer.echo(f"Error: no player found matching '{name}'", err=True)
+                raise typer.Exit(code=1)
+            if len(matches) > 1:
+                names = [f"{p.name_first} {p.name_last}" for p in matches]
+                typer.echo(f"Error: ambiguous name '{name}', matches: {', '.join(names)}", err=True)
+                raise typer.Exit(code=1)
+            assert matches[0].id is not None  # noqa: S101
+            give_ids.append(matches[0].id)
+
+        receive_ids: list[int] = []
+        for name in receives:
+            matches = ctx.player_repo.search_by_name(name)
+            if len(matches) == 0:
+                typer.echo(f"Error: no player found matching '{name}'", err=True)
+                raise typer.Exit(code=1)
+            if len(matches) > 1:
+                names = [f"{p.name_first} {p.name_last}" for p in matches]
+                typer.echo(f"Error: ambiguous name '{name}', matches: {', '.join(names)}", err=True)
+                raise typer.Exit(code=1)
+            assert matches[0].id is not None  # noqa: S101
+            receive_ids.append(matches[0].id)
+
+        keeper_costs = ctx.keeper_repo.find_by_season_league(season, league)
+        valuations = ctx.valuation_repo.get_by_season(season, system)
+        players = ctx.player_repo.all()
+
+    result = evaluate_trade(give_ids, receive_ids, keeper_costs, valuations, players, decay)
+    print_trade_evaluation(result)
