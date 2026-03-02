@@ -8,7 +8,7 @@ This roadmap depends on: ADP integration (done), valuations (done), draft board 
 
 | Phase | Status |
 |-------|--------|
-| 1 — Pick value curves | in progress |
+| 1 — Pick value curves | done (2026-03-01) |
 | 2 — Trade evaluation engine | not started |
 | 3 — Multi-round cascade analysis | not started |
 | 4 — CLI commands | not started |
