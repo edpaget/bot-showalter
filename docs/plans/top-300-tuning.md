@@ -52,7 +52,7 @@ Reduce RMSE ratio to Steamer to ≤1.05x on batting rate stats (AVG, OBP, SLG, w
 | 3 — Hyperparameter re-tuning | done |
 | 4 — Expanded training window | done (2026-02-21) |
 | 5 — Residual analysis and calibration | done (2026-02-21) |
-| 6 — Feature engineering for top-300 differentiation | not started |
+| 6 — Feature engineering for top-300 differentiation | in progress |
 
 ## Phase 1: PA/IP-weighted training
 
