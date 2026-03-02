@@ -9,7 +9,7 @@ This builds on the league settings (which define scoring categories) and the pro
 | Phase | Status |
 |-------|--------|
 | 1 — Roster category projection | done (2026-03-01) |
-| 2 — Category need identification | not started |
+| 2 — Category need identification | in progress |
 | 3 — Draft integration and running balance | not started |
 
 ## Phase 1: Roster category projection
