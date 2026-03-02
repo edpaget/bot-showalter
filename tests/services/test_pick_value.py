@@ -16,6 +16,10 @@ from fantasy_baseball_manager.domain.pick_value import (
 )
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.services.pick_value import (
+    _apply_trade,
+    _run_greedy_draft,
+    _snake_order,
+    cascade_analysis,
     compute_pick_value_curve,
     evaluate_pick_trade,
     evaluate_pick_trade_with_context,
@@ -395,3 +399,232 @@ class TestEvaluatePickTradeWithContext:
         # Pick 15 should show the Mid SS player
         assert ctx.receives_detail[0].player_name == "Mid SS"
         assert ctx.receives_detail[0].expected_value == 20.0
+
+
+class TestSnakeOrder:
+    def test_4_team_12_pick(self) -> None:
+        """4-team snake: picks 1-4 forward, 5-8 reverse, 9-12 forward."""
+        order = _snake_order(teams=4, total_picks=12)
+        # Round 1: 1→0, 2→1, 3→2, 4→3
+        assert order[1] == 0
+        assert order[4] == 3
+        # Round 2 (reversed): 5→3, 6→2, 7→1, 8→0
+        assert order[5] == 3
+        assert order[8] == 0
+        # Round 3: 9→0, 10→1, 11→2, 12→3
+        assert order[9] == 0
+        assert order[12] == 3
+
+    def test_covers_all_picks(self) -> None:
+        order = _snake_order(teams=3, total_picks=9)
+        assert set(order.keys()) == {1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+    def test_each_team_gets_equal_picks(self) -> None:
+        order = _snake_order(teams=4, total_picks=20)
+        per_team = [0] * 4
+        for team in order.values():
+            per_team[team] += 1
+        assert all(count == 5 for count in per_team)
+
+
+class TestApplyTrade:
+    def test_swap_pick_1_and_4(self) -> None:
+        """Swap gives=[1] receives=[4] for user team 0 → pick 1→team 3, pick 4→team 0."""
+        order = _snake_order(teams=4, total_picks=12)
+        trade = PickTrade(gives=[1], receives=[4])
+        new_order = _apply_trade(order, trade, user_team_idx=0)
+        # User (team 0) no longer has pick 1, now has pick 4
+        assert new_order[1] == 3  # partner gets pick 1
+        assert new_order[4] == 0  # user gets pick 4
+
+    def test_gives_pick_not_owned_by_user_raises(self) -> None:
+        """ValueError if gives pick doesn't belong to user."""
+        order = _snake_order(teams=4, total_picks=12)
+        trade = PickTrade(gives=[2], receives=[4])  # pick 2 belongs to team 1
+        with pytest.raises(ValueError, match="does not belong to user"):
+            _apply_trade(order, trade, user_team_idx=0)
+
+    def test_receives_pick_already_owned_raises(self) -> None:
+        """ValueError if receives pick already belongs to user."""
+        order = _snake_order(teams=4, total_picks=12)
+        trade = PickTrade(gives=[1], receives=[9])  # pick 9 also belongs to team 0
+        with pytest.raises(ValueError, match="already belongs to user"):
+            _apply_trade(order, trade, user_team_idx=0)
+
+    def test_receives_from_multiple_partners_raises(self) -> None:
+        """ValueError if receives picks come from multiple partners."""
+        order = _snake_order(teams=4, total_picks=12)
+        # pick 2→team 1, pick 3→team 2: different owners
+        trade = PickTrade(gives=[1, 9], receives=[2, 3])
+        with pytest.raises(ValueError, match="multiple teams"):
+            _apply_trade(order, trade, user_team_idx=0)
+
+
+def _cascade_league() -> LeagueSettings:
+    """4-team league with 3 batter slots (C/1B/OF) + 2 pitcher slots."""
+    batting_cats = tuple(
+        CategoryConfig(key=k, name=k.upper(), stat_type=StatType.COUNTING, direction=Direction.HIGHER)
+        for k in ("hr", "r", "rbi")
+    )
+    pitching_cats = tuple(
+        CategoryConfig(key=k, name=k.upper(), stat_type=StatType.COUNTING, direction=Direction.HIGHER)
+        for k in ("w", "sv")
+    )
+    return LeagueSettings(
+        name="Cascade Test League",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=4,
+        budget=260,
+        roster_batters=3,
+        roster_pitchers=2,
+        batting_categories=batting_cats,
+        pitching_categories=pitching_cats,
+        positions={"C": 1, "1B": 1, "OF": 1},
+    )
+
+
+def _cascade_board() -> DraftBoard:
+    """Board with enough players for a 4-team, 5-round draft (20 picks).
+
+    Batters: 4 C, 4 1B, 4 OF (12 batters for 12 batter slots).
+    Pitchers: 8 P (for 8 pitcher slots).
+    Values are descending so greedy picks are deterministic.
+    """
+    rows: list[DraftBoardRow] = []
+    pid = 1
+    # 4 catchers
+    for i in range(4):
+        rows.append(_board_row(pid, f"C-{i + 1}", rank=pid, position="C", value=50.0 - i * 5))
+        pid += 1
+    # 4 first basemen
+    for i in range(4):
+        rows.append(_board_row(pid, f"1B-{i + 1}", rank=pid, position="1B", value=48.0 - i * 5))
+        pid += 1
+    # 4 outfielders
+    for i in range(4):
+        rows.append(_board_row(pid, f"OF-{i + 1}", rank=pid, position="OF", value=46.0 - i * 5))
+        pid += 1
+    # 8 pitchers
+    for i in range(8):
+        rows.append(
+            DraftBoardRow(
+                player_id=pid,
+                player_name=f"P-{i + 1}",
+                rank=pid,
+                player_type="pitcher",
+                position="SP",
+                value=40.0 - i * 3,
+                category_z_scores={},
+            )
+        )
+        pid += 1
+    return DraftBoard(
+        rows=rows,
+        batting_categories=("hr", "r", "rbi"),
+        pitching_categories=("w", "sv"),
+    )
+
+
+class TestRunGreedyDraft:
+    def test_all_picks_assigned(self) -> None:
+        """4-team, 5-slot league: all 20 picks assigned, no duplicates."""
+        league = _cascade_league()
+        board = _cascade_board()
+        order = _snake_order(teams=4, total_picks=20)
+        rosters = _run_greedy_draft(board, league, order)
+        all_player_ids = [p.player_id for picks in rosters.values() for p in picks]
+        assert len(all_player_ids) == 20
+        assert len(set(all_player_ids)) == 20  # no duplicates
+
+    def test_each_team_gets_5_picks(self) -> None:
+        league = _cascade_league()
+        board = _cascade_board()
+        order = _snake_order(teams=4, total_picks=20)
+        rosters = _run_greedy_draft(board, league, order)
+        for team_idx in range(4):
+            assert len(rosters[team_idx]) == 5
+
+    def test_greedy_picks_highest_value(self) -> None:
+        """Team 0 drafts first and should get the highest-value player."""
+        league = _cascade_league()
+        board = _cascade_board()
+        order = _snake_order(teams=4, total_picks=20)
+        rosters = _run_greedy_draft(board, league, order)
+        # Team 0 picks first; C-1 (value=50) is the highest-value player
+        team0_names = [p.player_name for p in rosters[0]]
+        assert "C-1" in team0_names
+
+    def test_deterministic(self) -> None:
+        """Same inputs produce identical output."""
+        league = _cascade_league()
+        board = _cascade_board()
+        order = _snake_order(teams=4, total_picks=20)
+        r1 = _run_greedy_draft(board, league, order)
+        r2 = _run_greedy_draft(board, league, order)
+        for team_idx in range(4):
+            ids1 = [p.player_id for p in r1[team_idx]]
+            ids2 = [p.player_id for p in r2[team_idx]]
+            assert ids1 == ids2
+
+
+class TestCascadeAnalysis:
+    def test_different_rosters(self) -> None:
+        """AC #1: trade pick 1↔4, before/after user rosters differ."""
+        league = _cascade_league()
+        board = _cascade_board()
+        trade = PickTrade(gives=[1], receives=[4])
+        result = cascade_analysis(trade, board, league, user_team_idx=0)
+        before_ids = {p.player_id for p in result.before.picks}
+        after_ids = {p.player_id for p in result.after.picks}
+        assert before_ids != after_ids
+
+    def test_directional_consistency(self) -> None:
+        """AC #2: value_delta same sign as evaluate_pick_trade() net_value."""
+        league = _cascade_league()
+        board = _cascade_board()
+        # Trade down: give pick 1, receive pick 4
+        trade = PickTrade(gives=[1], receives=[4])
+        cascade_result = cascade_analysis(trade, board, league, user_team_idx=0)
+
+        # Build a simple curve from the board for comparison
+        curve = _steep_curve(num_picks=20)
+        eval_result = evaluate_pick_trade(trade, curve)
+
+        # Both should be negative (trading down)
+        assert (cascade_result.value_delta < 0) == (eval_result.net_value < 0)
+
+    def test_trading_down_decreases_value(self) -> None:
+        """Give pick 1, receive pick 4 → negative delta."""
+        league = _cascade_league()
+        board = _cascade_board()
+        trade = PickTrade(gives=[1], receives=[4])
+        result = cascade_analysis(trade, board, league, user_team_idx=0)
+        assert result.value_delta < 0
+        assert result.recommendation == "reject"
+
+    def test_cascade_affects_other_teams(self) -> None:
+        """Other teams' rosters also change when picks are swapped."""
+        league = _cascade_league()
+        board = _cascade_board()
+        trade = PickTrade(gives=[1], receives=[4])
+
+        # Run both drafts manually to compare all teams
+        order_before = _snake_order(teams=4, total_picks=20)
+        order_after = _apply_trade(order_before, trade, user_team_idx=0)
+        rosters_before = _run_greedy_draft(board, league, order_before)
+        rosters_after = _run_greedy_draft(board, league, order_after)
+
+        # The trade partner (team 3) should also have different rosters
+        partner_before_ids = {p.player_id for p in rosters_before[3]}
+        partner_after_ids = {p.player_id for p in rosters_after[3]}
+        assert partner_before_ids != partner_after_ids
+
+    def test_works_standalone(self) -> None:
+        """AC #3: no run_batch_simulation dependency — import succeeds and runs."""
+        league = _cascade_league()
+        board = _cascade_board()
+        trade = PickTrade(gives=[1], receives=[4])
+        # Just verifying it runs without needing run_batch_simulation
+        result = cascade_analysis(trade, board, league, user_team_idx=0)
+        assert result.before.total_value > 0
+        assert result.after.total_value > 0

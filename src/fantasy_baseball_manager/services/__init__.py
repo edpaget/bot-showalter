@@ -71,6 +71,7 @@ from fantasy_baseball_manager.services.performance_report import (
     PerformanceReportService,
 )
 from fantasy_baseball_manager.services.pick_value import (
+    cascade_analysis,
     compute_pick_value_curve,
     evaluate_pick_trade,
     evaluate_pick_trade_with_context,
@@ -169,6 +170,7 @@ __all__ = [
     "GateResult",
     "GateSegmentResult",
     "RegressionGateRunner",
+    "cascade_analysis",
     "analyze_roster",
     "assign_age_cohorts",
     "assign_experience_cohorts",

@@ -1,4 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.mock_draft import DraftPick
 
 
 @dataclass(frozen=True)
@@ -32,4 +38,19 @@ class PickTradeEvaluation:
     net_value: float
     gives_detail: list[PickValue]
     receives_detail: list[PickValue]
+    recommendation: str
+
+
+@dataclass(frozen=True)
+class CascadeRoster:
+    picks: list[DraftPick]
+    total_value: float
+
+
+@dataclass(frozen=True)
+class CascadeResult:
+    trade: PickTrade
+    before: CascadeRoster
+    after: CascadeRoster
+    value_delta: float
     recommendation: str

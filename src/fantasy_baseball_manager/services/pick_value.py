@@ -3,14 +3,24 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import (
+    CascadeResult,
+    CascadeRoster,
+    DraftPick,
     PickTrade,
     PickTradeEvaluation,
     PickValue,
     PickValueCurve,
 )
+from fantasy_baseball_manager.services.draft_state import build_draft_roster_slots
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import ADP, DraftBoard, LeagueSettings, Valuation
+    from fantasy_baseball_manager.domain import (
+        ADP,
+        DraftBoard,
+        DraftBoardRow,
+        LeagueSettings,
+        Valuation,
+    )
 
 _SMOOTHING_WINDOW = 5
 
@@ -218,6 +228,147 @@ def evaluate_pick_trade(
     )
 
 
+def _snake_order(teams: int, total_picks: int) -> dict[int, int]:
+    """Build a pick_number→team_idx mapping for snake draft order."""
+    order: dict[int, int] = {}
+    for pick_num in range(1, total_picks + 1):
+        zero_based = pick_num - 1
+        round_number = zero_based // teams
+        position_in_round = zero_based % teams
+        if round_number % 2 == 0:
+            order[pick_num] = position_in_round
+        else:
+            order[pick_num] = teams - 1 - position_in_round
+    return order
+
+
+def _apply_trade(
+    pick_order: dict[int, int],
+    trade: PickTrade,
+    user_team_idx: int,
+) -> dict[int, int]:
+    """Return a new pick_order with the trade applied.
+
+    Swaps ownership of gives/receives picks between user and trade partner.
+    Raises ValueError if picks don't belong to expected teams.
+    """
+    # Validate gives picks belong to user
+    for pick in trade.gives:
+        if pick_order[pick] != user_team_idx:
+            msg = f"Pick {pick} does not belong to user (team {user_team_idx})"
+            raise ValueError(msg)
+
+    # Validate receives picks don't belong to user
+    partner_teams: set[int] = set()
+    for pick in trade.receives:
+        if pick_order[pick] == user_team_idx:
+            msg = f"Pick {pick} already belongs to user (team {user_team_idx})"
+            raise ValueError(msg)
+        partner_teams.add(pick_order[pick])
+
+    # Validate all receives come from the same partner
+    if len(partner_teams) > 1:
+        msg = f"Receives picks come from multiple teams: {partner_teams}"
+        raise ValueError(msg)
+
+    partner_team = next(iter(partner_teams))
+    new_order = dict(pick_order)
+    for pick in trade.gives:
+        new_order[pick] = partner_team
+    for pick in trade.receives:
+        new_order[pick] = user_team_idx
+    return new_order
+
+
+# Composite slot eligibility for cascade draft
+_CASCADE_COMPOSITE_SLOTS: dict[str, list[str]] = {
+    "2B": ["MI"],
+    "SS": ["MI"],
+    "1B": ["CI"],
+    "3B": ["CI"],
+}
+
+_PITCHER_TYPES = {"P", "pitcher"}
+
+
+def _cascade_compute_needs(roster: list[DraftPick], slots: dict[str, int]) -> dict[str, int]:
+    """Return unfilled slot counts for a team."""
+    filled: dict[str, int] = {}
+    for pick in roster:
+        filled[pick.position] = filled.get(pick.position, 0) + 1
+    return {pos: total - filled.get(pos, 0) for pos, total in slots.items() if total - filled.get(pos, 0) > 0}
+
+
+def _cascade_find_slot(player: DraftBoardRow, needs: dict[str, int]) -> str | None:
+    """Find a roster slot for a player given current needs.
+
+    Priority: primary position > composite (MI/CI) > flex (UTIL/P).
+    """
+    pos = player.position
+    if pos in needs and needs[pos] > 0:
+        return pos
+    if player.player_type not in _PITCHER_TYPES:
+        for composite in _CASCADE_COMPOSITE_SLOTS.get(pos, []):
+            if composite in needs and needs[composite] > 0:
+                return composite
+        if "UTIL" in needs and needs["UTIL"] > 0:
+            return "UTIL"
+    else:
+        if "P" in needs and needs["P"] > 0:
+            return "P"
+    return None
+
+
+def _run_greedy_draft(
+    board: DraftBoard,
+    league: LeagueSettings,
+    pick_order: dict[int, int],
+) -> dict[int, list[DraftPick]]:
+    """Simulate a greedy draft where each team picks the highest-value fitting player."""
+    slots = build_draft_roster_slots(league)
+    num_teams = len(set(pick_order.values()))
+    total_picks = len(pick_order)
+
+    pool = sorted(board.rows, key=lambda r: r.value, reverse=True)
+    pool_ids: set[int] = {r.player_id for r in pool}
+    rosters: dict[int, list[DraftPick]] = {i: [] for i in range(num_teams)}
+
+    for pick_num in range(1, total_picks + 1):
+        team_idx = pick_order[pick_num]
+        needs = _cascade_compute_needs(rosters[team_idx], slots)
+
+        # Find highest-value assignable player
+        chosen_row: DraftBoardRow | None = None
+        chosen_slot: str | None = None
+        for row in pool:
+            if row.player_id not in pool_ids:
+                continue
+            slot = _cascade_find_slot(row, needs)
+            if slot is not None:
+                chosen_row = row
+                chosen_slot = slot
+                break
+
+        if chosen_row is None or chosen_slot is None:
+            continue  # no assignable player left
+
+        round_num = (pick_num - 1) // num_teams + 1
+        draft_pick = DraftPick(
+            round=round_num,
+            pick=pick_num,
+            team_idx=team_idx,
+            player_id=chosen_row.player_id,
+            player_name=chosen_row.player_name,
+            position=chosen_slot,
+            value=chosen_row.value,
+        )
+        rosters[team_idx].append(draft_pick)
+        pool_ids.discard(chosen_row.player_id)
+        pool = [r for r in pool if r.player_id != chosen_row.player_id]
+
+    return rosters
+
+
 def _best_player_at_pick(
     pick: int,
     board: DraftBoard,
@@ -284,5 +435,46 @@ def evaluate_pick_trade_with_context(
         net_value=net_value,
         gives_detail=gives_detail,
         receives_detail=receives_detail,
+        recommendation=recommendation,
+    )
+
+
+def cascade_analysis(
+    trade: PickTrade,
+    board: DraftBoard,
+    league: LeagueSettings,
+    user_team_idx: int,
+    threshold: float = 1.0,
+) -> CascadeResult:
+    """Analyze how a pick trade affects the entire draft via greedy simulation.
+
+    Runs two full greedy drafts — one with the original pick order, one with the
+    traded pick order — and compares the user's roster quality across scenarios.
+    """
+    total_picks = league.teams * (league.roster_batters + league.roster_pitchers)
+    order_before = _snake_order(league.teams, total_picks)
+    order_after = _apply_trade(order_before, trade, user_team_idx)
+
+    rosters_before = _run_greedy_draft(board, league, order_before)
+    rosters_after = _run_greedy_draft(board, league, order_after)
+
+    before_picks = rosters_before[user_team_idx]
+    after_picks = rosters_after[user_team_idx]
+    before_value = sum(p.value for p in before_picks)
+    after_value = sum(p.value for p in after_picks)
+    value_delta = after_value - before_value
+
+    if value_delta >= threshold:
+        recommendation = "accept"
+    elif value_delta <= -threshold:
+        recommendation = "reject"
+    else:
+        recommendation = "even"
+
+    return CascadeResult(
+        trade=trade,
+        before=CascadeRoster(picks=before_picks, total_value=before_value),
+        after=CascadeRoster(picks=after_picks, total_value=after_value),
+        value_delta=value_delta,
         recommendation=recommendation,
     )

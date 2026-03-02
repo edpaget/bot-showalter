@@ -2,7 +2,10 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from fantasy_baseball_manager.domain.mock_draft import DraftPick
 from fantasy_baseball_manager.domain.pick_value import (
+    CascadeResult,
+    CascadeRoster,
     PickTrade,
     PickTradeEvaluation,
     PickValue,
@@ -124,3 +127,58 @@ class TestPickTradeEvaluation:
         assert len(evaluation.gives_detail) == 1
         assert len(evaluation.receives_detail) == 1
         assert evaluation.recommendation == "reject"
+
+
+class TestCascadeRoster:
+    def test_frozen(self) -> None:
+        roster = CascadeRoster(picks=[], total_value=0.0)
+        with pytest.raises(FrozenInstanceError):
+            roster.total_value = 1.0  # type: ignore[misc]
+
+    def test_fields(self) -> None:
+        pick = DraftPick(
+            round=1,
+            pick=1,
+            team_idx=0,
+            player_id=1,
+            player_name="Player A",
+            position="OF",
+            value=30.0,
+        )
+        roster = CascadeRoster(picks=[pick], total_value=30.0)
+        assert len(roster.picks) == 1
+        assert roster.picks[0].player_name == "Player A"
+        assert roster.total_value == 30.0
+
+
+class TestCascadeResult:
+    def test_frozen(self) -> None:
+        trade = PickTrade(gives=[1], receives=[4])
+        before = CascadeRoster(picks=[], total_value=0.0)
+        after = CascadeRoster(picks=[], total_value=0.0)
+        result = CascadeResult(
+            trade=trade,
+            before=before,
+            after=after,
+            value_delta=0.0,
+            recommendation="even",
+        )
+        with pytest.raises(FrozenInstanceError):
+            result.value_delta = 5.0  # type: ignore[misc]
+
+    def test_fields(self) -> None:
+        trade = PickTrade(gives=[1], receives=[4])
+        before = CascadeRoster(picks=[], total_value=50.0)
+        after = CascadeRoster(picks=[], total_value=40.0)
+        result = CascadeResult(
+            trade=trade,
+            before=before,
+            after=after,
+            value_delta=-10.0,
+            recommendation="reject",
+        )
+        assert result.trade is trade
+        assert result.before.total_value == 50.0
+        assert result.after.total_value == 40.0
+        assert result.value_delta == -10.0
+        assert result.recommendation == "reject"

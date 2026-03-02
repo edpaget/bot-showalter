@@ -87,6 +87,8 @@ from fantasy_baseball_manager.domain.mock_draft import (
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.pick_value import (
+    CascadeResult,
+    CascadeRoster,
     PickTrade,
     PickTradeEvaluation,
     PickValue,
@@ -187,6 +189,8 @@ __all__ = [
     "BattingStats",
     "BotStrategy",
     "CalibrationBin",
+    "CascadeResult",
+    "CascadeRoster",
     "CategoryNeed",
     "RosterAnalysis",
     "CategoryConfig",
