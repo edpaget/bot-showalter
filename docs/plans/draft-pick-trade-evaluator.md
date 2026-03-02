@@ -11,7 +11,7 @@ This roadmap depends on: ADP integration (done), valuations (done), draft board 
 | 1 — Pick value curves | done (2026-03-01) |
 | 2 — Trade evaluation engine | done (2026-03-02) |
 | 3 — Multi-round cascade analysis | done (2026-03-02) |
-| 4 — CLI commands | not started |
+| 4 — CLI commands | in progress |
 
 ## Phase 1: Pick Value Curves
 
