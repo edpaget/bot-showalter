@@ -7,7 +7,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases | Progress | Hard Dependencies |
 |---------|--------|----------|-------------------|
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | not started | ADP, projections, valuations (all done) |
-| [Category Balance Tracker](category-balance-tracker.md) | 3 | phases 1-2 done | none |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | not started | ADP (done), draft board (done) |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
@@ -28,6 +27,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases |
 |---------|--------|
 | [ADP Integration](adp-integration.md) | 5 |
+| [Category Balance Tracker](category-balance-tracker.md) | 3 |
 | [Discord Bot](discord-bot.md) | 1 |
 | [Evaluation Guardrails](evaluation-guardrails.md) | 4 |
 | [LLM Agent](llm-agent.md) | 3 |
@@ -64,5 +64,5 @@ These aren't hard blockers but enhance the consuming roadmap when available:
 - **ADP integration** (done) enhances: tier generator CLI, live draft tracker
 - **Player eligibility** enhances: positional scarcity (depends on correct position assignments)
 - **Positional scarcity** enhances: roster optimizer, keeper optimization solver
-- **Category balance tracker** enhances: live draft tracker, mock draft simulator, positional upgrade calculator
+- **Category balance tracker** (done) enhances: live draft tracker, mock draft simulator, positional upgrade calculator
 - **Web UI foundation** enables: future web-based views for LLM chat, live draft tracker UI, charts/visualizations
