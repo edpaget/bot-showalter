@@ -10,6 +10,7 @@ from fantasy_baseball_manager.cli.commands.draft import draft_app
 from fantasy_baseball_manager.cli.commands.experiment import experiment_app
 from fantasy_baseball_manager.cli.commands.ingest import ingest_app
 from fantasy_baseball_manager.cli.commands.keeper import keeper_app
+from fantasy_baseball_manager.cli.commands.marginal_value import marginal_value_cmd
 from fantasy_baseball_manager.cli.commands.model import (
     ablate,
     evaluate,
@@ -63,6 +64,7 @@ app.command()(tune)
 app.command()(sweep)
 app.command()(gate)
 app.command("quick-eval")(quick_eval_cmd)
+app.command("marginal-value")(marginal_value_cmd)
 app.command("list")(list_cmd)
 app.command()(info)
 app.command()(features)

@@ -1,0 +1,109 @@
+"""CLI command for marginal value estimation."""
+
+from pathlib import Path
+from typing import Annotated, Any
+
+import typer
+
+from fantasy_baseball_manager.cli._output import console, print_error, print_marginal_value_results
+from fantasy_baseball_manager.cli.commands.quick_eval import _parse_params
+from fantasy_baseball_manager.cli.factory import create_model
+from fantasy_baseball_manager.config import load_config
+from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.domain import Err
+from fantasy_baseball_manager.features import SqliteDatasetAssembler
+from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
+from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
+from fantasy_baseball_manager.services import MarginalValueResult, marginal_value
+
+
+def marginal_value_cmd(
+    model: Annotated[str, typer.Argument(help="Name of the projection model")],
+    candidate: Annotated[list[str], typer.Option("--candidate", help="Candidate column(s) to evaluate")],
+    player_type: Annotated[str, typer.Option("--player-type", help="Player type: 'batter' or 'pitcher'")],
+    season: Annotated[list[int] | None, typer.Option("--season", help="Season year(s) to include")] = None,
+    param: Annotated[list[str] | None, typer.Option("--param", help="Model param as key=value")] = None,
+    data_dir: Annotated[str | None, typer.Option("--data-dir", help="Data directory")] = None,
+) -> None:
+    """Estimate the RMSE improvement from adding candidate feature(s)."""
+    if player_type not in ("batter", "pitcher"):
+        print_error(f"Invalid player type '{player_type}'. Must be 'batter' or 'pitcher'.")
+        raise typer.Exit(code=1)
+
+    params = _parse_params(param)
+    config = load_config(model_name=model, seasons=season, model_params=params)
+    resolved_data_dir = data_dir if data_dir is not None else config.data_dir
+
+    conn = create_connection(Path(resolved_data_dir) / "fbm.db")
+    try:
+        assembler = SqliteDatasetAssembler(conn, statcast_path=Path(resolved_data_dir) / "statcast.db")
+        model_result = create_model(model, assembler=assembler)
+        match model_result:
+            case Err(e):
+                print_error(e.message)
+                raise typer.Exit(code=1)
+
+        model_instance = model_result.value
+
+        if not isinstance(model_instance, _StatcastGBMBase):
+            print_error(f"Model '{model}' does not support marginal-value (not a StatcastGBM model)")
+            raise typer.Exit(code=1)
+
+        is_batter = player_type == "batter"
+
+        # Resolve feature columns and targets from model
+        if is_batter:
+            feature_columns = list(model_instance._batter_columns)
+            targets = list(BATTER_TARGETS)
+        else:
+            feature_columns = list(model_instance._pitcher_columns)
+            targets = list(PITCHER_TARGETS)
+
+        # Materialize data
+        if is_batter:
+            fs = model_instance._batter_training_set_builder(config.seasons)
+        else:
+            fs = model_instance._pitcher_training_set_builder(config.seasons)
+
+        handle = assembler.get_or_materialize(fs)
+        all_rows = assembler.read(handle)
+
+        # Group rows by season
+        rows_by_season: dict[int, list[dict[str, Any]]] = {}
+        for row in all_rows:
+            s = row["season"]
+            rows_by_season.setdefault(s, []).append(row)
+
+        # Split: train on all but last season, holdout on last
+        sorted_seasons = sorted(rows_by_season.keys())
+        if len(sorted_seasons) < 2:
+            print_error(f"Need at least 2 seasons for train/holdout split (got {len(sorted_seasons)})")
+            raise typer.Exit(code=1)
+
+        train_seasons = sorted_seasons[:-1]
+        holdout_season = sorted_seasons[-1]
+
+        console.print(f"Marginal value on model [bold]{model}[/bold] ({player_type})")
+        console.print(f"  Train: {train_seasons}  Holdout: {holdout_season}")
+        console.print(f"  Baseline features: {len(feature_columns)} columns")
+        console.print(f"  Candidates: {', '.join(candidate)}")
+
+        results: list[MarginalValueResult] = []
+        for cand in candidate:
+            result = marginal_value(
+                candidate_column=cand,
+                feature_columns=feature_columns,
+                targets=targets,
+                rows_by_season=rows_by_season,
+                train_seasons=train_seasons,
+                holdout_season=holdout_season,
+                params=params,
+            )
+            results.append(result)
+
+        # Sort by avg_delta_pct (ascending — most negative/best first)
+        results.sort(key=lambda r: r.avg_delta_pct)
+
+        print_marginal_value_results(results)
+    finally:
+        conn.close()
