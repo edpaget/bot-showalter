@@ -23,6 +23,7 @@ from fantasy_baseball_manager.cli.commands.model import (
 )
 from fantasy_baseball_manager.cli.commands.profile import profile_app
 from fantasy_baseball_manager.cli.commands.projections import projections_app
+from fantasy_baseball_manager.cli.commands.quick_eval import quick_eval_cmd
 from fantasy_baseball_manager.cli.commands.report import report_app
 from fantasy_baseball_manager.cli.commands.runs import runs_app
 from fantasy_baseball_manager.cli.commands.standalone import (
@@ -61,6 +62,7 @@ app.command()(ablate)
 app.command()(tune)
 app.command()(sweep)
 app.command()(gate)
+app.command("quick-eval")(quick_eval_cmd)
 app.command("list")(list_cmd)
 app.command()(info)
 app.command()(features)

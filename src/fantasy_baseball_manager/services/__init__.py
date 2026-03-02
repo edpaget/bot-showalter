@@ -87,6 +87,7 @@ from fantasy_baseball_manager.services.projection_confidence import (
 )
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.projection_lookup import ProjectionLookupService
+from fantasy_baseball_manager.services.quick_eval import QuickEvalResult, quick_eval
 from fantasy_baseball_manager.services.regression_gate import (
     GateConfig,
     GateResult,
@@ -136,7 +137,9 @@ __all__ = [
     "PositionalNeedBot",
     "ProjectionEvaluator",
     "ProjectionLookupService",
+    "QuickEvalResult",
     "RandomBot",
+    "quick_eval",
     "ResidualAnalysisDiagnostic",
     "ResidualPersistenceDiagnostic",
     "NUMERIC_COLUMNS",

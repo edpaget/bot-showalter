@@ -60,7 +60,7 @@ if TYPE_CHECKING:
         TuneResult,
         ValidationResult,
     )
-    from fantasy_baseball_manager.services import DatasetInfo, GateResult
+    from fantasy_baseball_manager.services import DatasetInfo, GateResult, QuickEvalResult
 console = Console(highlight=False)
 err_console = Console(stderr=True, highlight=False)
 
@@ -1877,3 +1877,14 @@ def print_column_profiles(profiles: list[ColumnProfile]) -> None:
         )
 
     console.print(table)
+
+
+def print_quick_eval_result(result: QuickEvalResult) -> None:
+    console.print(f"\n  Target: [bold]{result.target}[/bold]")
+    console.print(f"  RMSE:   {result.rmse:.4f}")
+    console.print(f"  R²:     {result.r_squared:.4f}")
+    console.print(f"  n:      {result.n}")
+    if result.baseline_rmse is not None and result.delta is not None and result.delta_pct is not None:
+        color = "green" if result.delta < 0 else "red"
+        console.print(f"  Baseline RMSE: {result.baseline_rmse:.4f}")
+        console.print(f"  Delta:  [{color}]{result.delta:+.4f}[/{color}] ({result.delta_pct:+.1f}%)")
