@@ -11,9 +11,12 @@ from fantasy_baseball_manager.features import (
     player,
 )
 from fantasy_baseball_manager.features.transforms import (
+    AGE_INTERACTIONS,
     BATTED_BALL,
     BATTED_BALL_AGAINST,
     BATTED_BALL_INTERACTIONS,
+    BATTER_STABILITY,
+    BATTER_TRENDS,
     COMMAND,
     EXPECTED_STATS,
     PITCH_MIX,
@@ -608,6 +611,15 @@ def preseason_batter_curated_columns() -> list[str]:
         "pull_pct",
         "oppo_pct",
         "center_pct",
+        "avg_trend",
+        "obp_trend",
+        "slg_trend",
+        "avg_stability",
+        "obp_stability",
+        "slg_stability",
+        "age_avg_interact",
+        "age_obp_interact",
+        "age_slg_interact",
     ]
 
 
@@ -670,12 +682,15 @@ def _curated_batter_lag_features(
     stats: tuple[str, ...],
     rate_stats: tuple[str, ...] = (),
     derived_rates: tuple[tuple[str, str, str], ...] = (),
+    lag2_rate_stats: tuple[str, ...] = (),
 ) -> list[Feature]:
     features: list[Feature] = []
     for stat in (*stats, *rate_stats):
         features.append(batting.col(stat).lag(1).alias(f"{stat}_1"))
     for name, numerator, denominator in derived_rates:
         features.append(batting.col(numerator).lag(1).per(denominator).alias(f"{name}_1"))
+    for stat in lag2_rate_stats:
+        features.append(batting.col(stat).lag(2).alias(f"{stat}_2"))
     return features
 
 
@@ -751,6 +766,7 @@ def build_preseason_batter_curated_set(seasons: Sequence[int]) -> FeatureSet:
             _PRESEASON_BATTER_LAG_STATS,
             _PRESEASON_BATTER_LAG_RATE_STATS,
             _BATTER_LAG_DERIVED_RATES,
+            lag2_rate_stats=_PRESEASON_BATTER_LAG_RATE_STATS,
         )
     )
     features.extend(
@@ -761,6 +777,7 @@ def build_preseason_batter_curated_set(seasons: Sequence[int]) -> FeatureSet:
             SPRAY_ANGLE.with_lag(1),
         ]
     )
+    features.extend([BATTER_TRENDS, BATTER_STABILITY, AGE_INTERACTIONS])
     return FeatureSet(
         name="statcast_gbm_batting_preseason_curated",
         features=tuple(features),
@@ -777,6 +794,7 @@ def build_preseason_batter_curated_training_set(seasons: Sequence[int]) -> Featu
             _PRESEASON_BATTER_LAG_STATS,
             _PRESEASON_BATTER_LAG_RATE_STATS,
             _BATTER_LAG_DERIVED_RATES,
+            lag2_rate_stats=_PRESEASON_BATTER_LAG_RATE_STATS,
         )
     )
     features.extend(
@@ -787,6 +805,7 @@ def build_preseason_batter_curated_training_set(seasons: Sequence[int]) -> Featu
             SPRAY_ANGLE.with_lag(1),
         ]
     )
+    features.extend([BATTER_TRENDS, BATTER_STABILITY, AGE_INTERACTIONS])
     features.extend(_batter_target_features())
     return FeatureSet(
         name="statcast_gbm_batting_preseason_curated_train",

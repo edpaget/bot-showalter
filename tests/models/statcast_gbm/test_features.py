@@ -533,6 +533,15 @@ class TestPreseasonBatterCuratedColumns:
             "pull_pct",
             "oppo_pct",
             "center_pct",
+            "avg_trend",
+            "obp_trend",
+            "slg_trend",
+            "avg_stability",
+            "obp_stability",
+            "slg_stability",
+            "age_avg_interact",
+            "age_obp_interact",
+            "age_slg_interact",
         ]
         assert columns == expected
 
@@ -556,7 +565,13 @@ class TestPreseasonBatterCuratedColumns:
     def test_subset_of_full_columns(self) -> None:
         curated = set(preseason_batter_curated_columns())
         full = set(batter_preseason_feature_columns())
-        assert curated <= full
+        # Derived transform outputs are only in the curated set
+        fs = build_preseason_batter_curated_set([])
+        curated_only_outputs: set[str] = set()
+        for f in fs.features:
+            if isinstance(f, DerivedTransformFeature):
+                curated_only_outputs.update(f.outputs)
+        assert curated <= (full | curated_only_outputs)
 
 
 class TestPreseasonPitcherCuratedColumns:
@@ -899,6 +914,20 @@ class TestPreseasonBatterCuratedFeatureSet:
         names = [f.name for f in fs.features]
         assert "pa_1" in names
         assert "so_1" in names
+
+    def test_includes_lag2_rate_features(self) -> None:
+        fs = build_preseason_batter_curated_set([2023])
+        names = [f.name for f in fs.features]
+        assert "avg_2" in names
+        assert "obp_2" in names
+        assert "slg_2" in names
+
+    def test_includes_derived_transforms(self) -> None:
+        fs = build_preseason_batter_curated_set([2023])
+        derived_names = [f.name for f in fs.features if isinstance(f, DerivedTransformFeature)]
+        assert "batter_trends" in derived_names
+        assert "batter_stability" in derived_names
+        assert "age_interactions" in derived_names
 
     def test_transforms_are_lagged(self) -> None:
         fs = build_preseason_batter_curated_set([2023])
