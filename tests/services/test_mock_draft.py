@@ -10,13 +10,20 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.domain.mock_draft import DraftPick
 from fantasy_baseball_manager.services.draft_state import build_draft_roster_slots
 from fantasy_baseball_manager.services.mock_draft import run_mock_draft
 from fantasy_baseball_manager.services.mock_draft_bots import (
     ADPBot,
     BestValueBot,
+    CategoryNeedRule,
+    CompositeBot,
+    FallbackBestValueRule,
     PositionalNeedBot,
+    PositionTargetRule,
     RandomBot,
+    TierValueRule,
+    WeightedRule,
 )
 
 # ---------------------------------------------------------------------------
@@ -334,3 +341,232 @@ class TestDraftResult:
 
         player_ids = [p.player_id for p in result.picks]
         assert len(player_ids) == len(set(player_ids))
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: CompositeBot acceptance criteria
+# ---------------------------------------------------------------------------
+
+
+def _ac_league() -> LeagueSettings:
+    """4-team league with C, 1B, OF slots + UTIL for AC tests."""
+    return LeagueSettings(
+        name="AC Test",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=4,
+        budget=260,
+        roster_batters=3,
+        roster_pitchers=1,
+        batting_categories=(_BATTING_CAT,),
+        pitching_categories=(_PITCHING_CAT,),
+        positions={"C": 1, "1B": 1, "OF": 1},
+        roster_util=1,
+    )
+
+
+def _ac_board() -> DraftBoard:
+    """Board for AC tests: catchers are low-valued so BestValue bots won't
+    take them early, but PositionTargetRule can boost them."""
+    rows: list[DraftBoardRow] = []
+    # Non-catchers with high values
+    non_c_positions = ["1B", "OF", "SP"]
+    pid = 1
+    for i in range(30):
+        pos = non_c_positions[i % len(non_c_positions)]
+        ptype = "B" if pos != "SP" else "P"
+        rows.append(
+            DraftBoardRow(
+                player_id=pid,
+                player_name=f"AC Player {pid}",
+                rank=pid,
+                player_type=ptype,
+                position=pos,
+                value=40.0 - i,
+                category_z_scores={},
+                adp_overall=float(pid),
+            )
+        )
+        pid += 1
+    # Catchers with distinctly lower values (5.0, 4.0, 3.0, ...)
+    for i in range(10):
+        rows.append(
+            DraftBoardRow(
+                player_id=pid,
+                player_name=f"Catcher {pid}",
+                rank=pid,
+                player_type="B",
+                position="C",
+                value=5.0 - i * 0.5,
+                category_z_scores={},
+                adp_overall=float(pid),
+            )
+        )
+        pid += 1
+    return DraftBoard(rows=rows, batting_categories=("HR",), pitching_categories=("K",))
+
+
+class TestCompositeBotPositionTarget:
+    """AC1: CompositeBot with PositionTargetRule drafts a catcher in the target window."""
+
+    def test_drafts_catcher_in_target_rounds(self) -> None:
+        league = _ac_league()
+        board = _ac_board()
+
+        # Team 0 uses CompositeBot with PositionTargetRule for catchers in rounds 3-4
+        composite = CompositeBot(
+            rules=[
+                WeightedRule(rule=PositionTargetRule(position="C", rounds=(3, 4)), weight=100.0),
+                WeightedRule(rule=FallbackBestValueRule(), weight=1.0),
+            ],
+            rng=random.Random(42),
+        )
+
+        # Teams 1-3 are BestValue bots
+        bots: list[CompositeBot | BestValueBot] = [composite]
+        for i in range(3):
+            bots.append(BestValueBot(rng=random.Random(i + 100)))
+
+        result = run_mock_draft(board, league, bots, seed=42)
+
+        # Team 0's roster should have a catcher drafted in round 3 or 4
+        team0_roster = result.rosters[0]
+        catcher_picks = [p for p in team0_roster if p.position == "C"]
+        assert len(catcher_picks) >= 1
+        catcher_rounds = {p.round for p in catcher_picks}
+        assert catcher_rounds & {3, 4}, f"Expected catcher in round 3 or 4, got rounds {catcher_rounds}"
+
+
+class TestCompositeBotCategoryNeed:
+    """AC2: CategoryNeedRule shifts picks toward players improving the weakest category."""
+
+    def test_category_need_picks_weak_category_player(self) -> None:
+        """Build a board where CategoryNeedRule should prefer the SB-strong player."""
+        # Players with distinct HR/SB z-scores
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="HR Star",
+                rank=1,
+                player_type="B",
+                position="1B",
+                value=20.0,
+                category_z_scores={"HR": 3.0, "SB": 0.0},
+                adp_overall=1.0,
+            ),
+            DraftBoardRow(
+                player_id=2,
+                player_name="SB Star",
+                rank=2,
+                player_type="B",
+                position="OF",
+                value=19.0,
+                category_z_scores={"HR": 0.0, "SB": 3.0},
+                adp_overall=2.0,
+            ),
+            DraftBoardRow(
+                player_id=3,
+                player_name="Balanced",
+                rank=3,
+                player_type="B",
+                position="C",
+                value=18.0,
+                category_z_scores={"HR": 1.0, "SB": 1.0},
+                adp_overall=3.0,
+            ),
+        ]
+
+        # Roster already has an HR-heavy player (player 10)
+        roster = [
+            DraftPick(round=1, pick=1, team_idx=0, player_id=10, player_name="HR Guy", position="1B", value=25.0),
+        ]
+        z_lookup: dict[int, dict[str, float]] = {
+            10: {"HR": 4.0, "SB": 0.0},
+        }
+
+        rule = CategoryNeedRule(z_score_lookup=z_lookup)
+
+        # Score each player — SB Star should score highest (weakest cat is SB, and SB Star has z=3.0 in SB)
+        league = _ac_league()
+        scores = {row.player_name: rule.score(row, roster, 2, league) for row in rows}
+        assert scores["SB Star"] == 3.0
+        assert scores["HR Star"] is None  # z=0.0 in SB → not positive
+        assert scores["Balanced"] == 1.0  # z=1.0 in SB
+
+        # CompositeBot with CategoryNeedRule picks SB Star
+        bot = CompositeBot(
+            rules=[
+                WeightedRule(rule=CategoryNeedRule(z_score_lookup=z_lookup), weight=10.0),
+                WeightedRule(rule=FallbackBestValueRule(), weight=1.0),
+            ],
+            rng=random.Random(42),
+        )
+        pick_id = bot.pick(rows, roster, league)
+        assert pick_id == 2  # SB Star
+
+
+class TestCompositeBotComposability:
+    """AC3: Rules compose cleanly — adding/removing rules changes behavior."""
+
+    def test_adding_removing_rules_changes_pick(self) -> None:
+        available = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="1B Target",
+                rank=1,
+                player_type="B",
+                position="1B",
+                value=20.0,
+                category_z_scores={},
+                adp_overall=1.0,
+                tier=None,
+            ),
+            DraftBoardRow(
+                player_id=2,
+                player_name="Tier 1 C",
+                rank=2,
+                player_type="B",
+                position="C",
+                value=25.0,
+                category_z_scores={},
+                adp_overall=2.0,
+                tier=1,
+            ),
+            DraftBoardRow(
+                player_id=3,
+                player_name="Good OF",
+                rank=3,
+                player_type="B",
+                position="OF",
+                value=22.0,
+                category_z_scores={},
+                adp_overall=3.0,
+                tier=None,
+            ),
+        ]
+        league = _ac_league()
+
+        rule_a = WeightedRule(rule=FallbackBestValueRule(), weight=1.0)
+        rule_b = WeightedRule(rule=TierValueRule(), weight=10.0)
+        rule_c = WeightedRule(rule=PositionTargetRule(position="1B", rounds=(1, 5)), weight=5.0)
+
+        # A+B+C: Tier1 C wins due to tier boost
+        # id=1(1B): 1*20 + 10*None + 5*20 = 120
+        # id=2(C,t1): 1*25 + 10*(25*2) + 5*None = 525
+        # id=3(OF): 1*22 + 10*None + 5*None = 22
+        bot_abc = CompositeBot(rules=[rule_a, rule_b, rule_c], rng=random.Random(42))
+        pick_abc = bot_abc.pick(available, [], league)
+        assert pick_abc == 2  # Tier 1 C wins
+
+        # Remove rule B (TierValueRule) → 1B Target wins
+        # id=1(1B): 1*20 + 5*20 = 120
+        # id=2(C): 1*25 = 25 (no tier, no position target)
+        # id=3(OF): 1*22 = 22
+        bot_ac = CompositeBot(rules=[rule_a, rule_c], rng=random.Random(42))
+        pick_ac = bot_ac.pick(available, [], league)
+        assert pick_ac == 1  # 1B Target wins
+        assert pick_ac != pick_abc  # Different pick
+
+        # Restore rule B → same as original
+        bot_abc_again = CompositeBot(rules=[rule_a, rule_b, rule_c], rng=random.Random(42))
+        pick_abc_again = bot_abc_again.pick(available, [], league)
+        assert pick_abc_again == pick_abc  # Same pick restored
