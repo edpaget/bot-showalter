@@ -52,7 +52,7 @@ Reduce RMSE ratio to Steamer to ≤1.05x on batting rate stats (AVG, OBP, SLG, w
 | 3 — Hyperparameter re-tuning | done |
 | 4 — Expanded training window | done (2026-02-21) |
 | 5 — Residual analysis and calibration | done (2026-02-21) |
-| 6 — Feature engineering for top-300 differentiation | done (2026-03-01) |
+| 6 — Feature engineering for top-300 differentiation | no-go (2026-03-01) |
 
 ## Phase 1: PA/IP-weighted training
 
@@ -360,8 +360,8 @@ Among top-300 players, the current features may lack the granularity needed for 
 
 ### Acceptance criteria
 
-- At least one new feature type improves top-300 accuracy via ablation ✅
-- Feature additions don't degrade full-population accuracy ✅
+- At least one new feature type improves top-300 accuracy via ablation — partial (age interactions helped on some stats but failed `--check` on 2025 top-300)
+- Feature additions don't degrade full-population accuracy — passed
 - New features have test coverage following established curated-column patterns ✅
 
 ### Phase 6 results
@@ -370,11 +370,13 @@ Three feature types were implemented and tested via ablation on 2024 and 2025 ho
 
 1. **Trend features** (avg_trend, obp_trend, slg_trend): Year-over-year deltas. Inconsistent — helped AVG on 2024 (-2.3%) but hurt on 2025 (+0.7%). **Pruned.**
 2. **Stability features** (avg_stability, obp_stability, slg_stability): Absolute YoY change. Also inconsistent — helped wOBA on 2025 (-1.6%) but neutral/worse elsewhere. **Pruned.**
-3. **Age interaction features** (age_avg/obp/slg_interact): (age - 29) × lag-1 stat. Consistently improved AVG (-1.3%/2024, -0.5%/2025) and wOBA (-0.9%/2024, -0.8%/2025). **Kept.**
+3. **Age interaction features** (age_avg/obp/slg_interact): (age - 29) × lag-1 stat. Showed modest improvements on AVG and wOBA in manual comparison, but **failed `--check` on 2025 top-300** (won only 2/9 stats on RMSE). Passed `--check` on 2024 top-300, 2024 full-pop, and 2025 full-pop.
 
-All three transforms remain in the feature registry for future experimentation. Only age interactions are included in the curated column lists used by the production model.
+Per project rules (`--check` must pass on ALL tested seasons for both top-300 and full population), age interactions were **reverted from curated column lists**.
 
-Full-population accuracy was not degraded — AVG and OBP improved slightly on both holdout years.
+All three transforms remain in the feature registry (`features/transforms/`) for future experimentation, but none are wired into the production model's curated column lists or feature set builders.
+
+**Conclusion:** No-go. The features did not consistently improve accuracy across all holdout seasons and population segments.
 
 ## Ordering
 
