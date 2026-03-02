@@ -37,6 +37,9 @@ if TYPE_CHECKING:
         Experiment,
         ExplorationSummary,
         KeeperDecision,
+        KeeperScenario,
+        KeeperSolution,
+        KeeperTradeImpact,
         LoadLog,
         ModelRunRecord,
         MultiColumnRanking,
@@ -2217,3 +2220,98 @@ def print_cascade_result(result: CascadeResult) -> None:
         console.print("[bold red]Cascade recommendation: Reject[/bold red]")
     else:
         console.print("[bold]Cascade recommendation: Even[/bold]")
+
+
+def print_keeper_solution(solution: KeeperSolution) -> None:
+    """Print the optimal keeper set with alternatives and sensitivity analysis."""
+    optimal = solution.optimal
+
+    # Optimal keeper set table
+    table = Table(title="Optimal Keeper Set", show_edge=False, pad_edge=False)
+    table.add_column("Player", justify="left")
+    table.add_column("Pos", justify="left")
+    table.add_column("Cost", justify="right")
+    table.add_column("Value", justify="right")
+    table.add_column("Surplus", justify="right")
+
+    for p in optimal.players:
+        table.add_row(
+            p.player_name,
+            p.position,
+            f"${p.cost:.0f}",
+            f"${p.projected_value:.0f}",
+            f"${p.surplus:.1f}",
+        )
+
+    console.print(table)
+    console.print(
+        f"Total surplus: ${optimal.total_surplus:.1f}  "
+        f"Total cost: ${optimal.total_cost:.0f}  "
+        f"Score: {optimal.score:.1f}"
+    )
+    console.print()
+
+    # Alternatives
+    if solution.alternatives:
+        console.print("[bold]Alternatives[/bold]")
+        for i, alt in enumerate(solution.alternatives[:3], 1):
+            names = ", ".join(p.player_name for p in alt.players)
+            gap = optimal.score - alt.score
+            console.print(f"  Alt {i}: {names}  (score: {alt.score:.1f}, gap: -{gap:.1f})")
+        console.print()
+
+    # Sensitivity
+    if solution.sensitivity:
+        sens_table = Table(title="Sensitivity", show_edge=False, pad_edge=False)
+        sens_table.add_column("Player", justify="left")
+        sens_table.add_column("Surplus Gap", justify="right")
+
+        for entry in solution.sensitivity:
+            gap_str = f"{entry.surplus_gap:.1f}" if entry.surplus_gap != float("inf") else "inf"
+            sens_table.add_row(entry.player_name, gap_str)
+
+        console.print(sens_table)
+
+
+def print_keeper_scenarios(scenarios: list[KeeperScenario]) -> None:
+    """Print scenario comparison ranked by score."""
+    table = Table(title="Scenario Comparison", show_edge=False, pad_edge=False)
+    table.add_column("Rank", justify="right")
+    table.add_column("Name", justify="left")
+    table.add_column("Score", justify="right")
+    table.add_column("Delta", justify="right")
+    table.add_column("Keepers", justify="left")
+
+    for i, s in enumerate(scenarios, 1):
+        names = ", ".join(p.player_name for p in s.keeper_set.players)
+        delta_str = "-" if s.delta_vs_optimal == 0.0 else f"+${s.delta_vs_optimal:.1f}"
+        style = "green" if i == 1 else ""
+        table.add_row(
+            str(i),
+            s.name,
+            f"{s.keeper_set.score:.1f}",
+            delta_str,
+            names,
+            style=style,
+        )
+
+    console.print(table)
+
+
+def print_keeper_trade_impact(impact: KeeperTradeImpact) -> None:
+    """Print before/after optimal sets and score delta for a trade."""
+    before_names = ", ".join(p.player_name for p in impact.before.optimal.players)
+    after_names = ", ".join(p.player_name for p in impact.after.optimal.players)
+
+    console.print("[bold]Before[/bold]")
+    console.print(f"  Keepers: {before_names}")
+    console.print(f"  Score: {impact.before.optimal.score:.1f}")
+    console.print()
+    console.print("[bold]After[/bold]")
+    console.print(f"  Keepers: {after_names}")
+    console.print(f"  Score: {impact.after.optimal.score:.1f}")
+    console.print()
+
+    color = "green" if impact.score_delta >= 0 else "red"
+    delta_str = f"+${impact.score_delta:.1f}" if impact.score_delta >= 0 else f"-${abs(impact.score_delta):.1f}"
+    console.print(f"Score delta: [{color}]{delta_str}[/{color}]")

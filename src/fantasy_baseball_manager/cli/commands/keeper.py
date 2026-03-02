@@ -4,16 +4,28 @@ from typing import Annotated
 
 import typer
 
-from fantasy_baseball_manager.cli._output import print_adjusted_rankings, print_keeper_decisions, print_trade_evaluation
+from fantasy_baseball_manager.cli._output import (
+    print_adjusted_rankings,
+    print_keeper_decisions,
+    print_keeper_scenarios,
+    print_keeper_solution,
+    print_keeper_trade_impact,
+    print_trade_evaluation,
+)
 from fantasy_baseball_manager.cli.factory import build_keeper_context
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import Err, Ok
+from fantasy_baseball_manager.domain import Err, KeeperConstraints, KeeperDecision, Ok
 from fantasy_baseball_manager.ingest import import_keeper_costs
 from fantasy_baseball_manager.services import (
+    compare_scenarios,
     compute_adjusted_valuations,
     compute_surplus,
     evaluate_trade,
+    keeper_trade_impact,
+    parse_league_keepers,
     set_keeper_cost,
+    solve_keepers,
+    solve_keepers_with_pool,
 )
 
 keeper_app = typer.Typer(name="keeper", help="Keeper league cost management")
@@ -190,3 +202,179 @@ def trade_eval_cmd(
 
     result = evaluate_trade(give_ids, receive_ids, keeper_costs, valuations, players, decay)
     print_trade_evaluation(result)
+
+
+def _resolve_player_id(name: str, player_repo: object) -> int:
+    """Resolve a player name to a single ID, or exit with an error."""
+    matches = player_repo.search_by_name(name)  # type: ignore[union-attr]
+    if len(matches) == 0:
+        typer.echo(f"Error: no player found matching '{name}'", err=True)
+        raise typer.Exit(code=1)
+    if len(matches) > 1:
+        names = [f"{p.name_first} {p.name_last}" for p in matches]
+        typer.echo(f"Error: ambiguous name '{name}', matches: {', '.join(names)}", err=True)
+        raise typer.Exit(code=1)
+    assert matches[0].id is not None  # noqa: S101
+    return matches[0].id
+
+
+def _parse_position_limits(raw: list[str]) -> dict[str, int]:
+    """Parse 'pos=N' strings into a dict."""
+    limits: dict[str, int] = {}
+    for item in raw:
+        pos, _, count = item.partition("=")
+        limits[pos.strip().lower()] = int(count.strip())
+    return limits
+
+
+@keeper_app.command("optimize")
+def optimize_cmd(
+    season: Annotated[int, typer.Option(help="Season year")],
+    league: Annotated[str, typer.Option(help="League name")],
+    system: Annotated[str, typer.Option(help="Valuation system name")],
+    max_keepers: Annotated[int, typer.Option(help="Maximum number of keepers")],
+    max_per_position: Annotated[list[str] | None, typer.Option(help="Position limits, e.g. 'c=1'")] = None,
+    max_cost: Annotated[float | None, typer.Option(help="Maximum total keeper cost")] = None,
+    required: Annotated[list[str] | None, typer.Option(help="Player names that must be kept")] = None,
+    league_keepers: Annotated[
+        Path | None, typer.Option(help="CSV of other teams' keepers for pool-adjusted mode")
+    ] = None,
+    threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
+    decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
+    data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
+) -> None:
+    """Find the optimal keeper set maximizing total surplus."""
+    with build_keeper_context(data_dir) as ctx:
+        keeper_costs = ctx.keeper_repo.find_by_season_league(season, league)
+        if not keeper_costs:
+            typer.echo("No keeper costs found for the specified season and league.")
+            return
+        valuations = ctx.valuation_repo.get_by_season(season, system)
+        players = ctx.player_repo.all()
+        candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
+
+        required_ids: list[int] = []
+        if required:
+            for name in required:
+                required_ids.append(_resolve_player_id(name, ctx.player_repo))
+
+        pos_limits = _parse_position_limits(max_per_position) if max_per_position else None
+        constraints = KeeperConstraints(
+            max_keepers=max_keepers,
+            max_per_position=pos_limits,
+            max_cost=max_cost,
+            required_keepers=required_ids,
+        )
+
+        if league_keepers is not None:
+            with open(league_keepers, newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            league_ids, _unmatched = parse_league_keepers(rows, players)
+            league_settings = load_league(league, Path.cwd())
+            solution = solve_keepers_with_pool(candidates, constraints, league_ids, valuations, league_settings)
+        else:
+            solution = solve_keepers(candidates, constraints)
+
+    print_keeper_solution(solution)
+
+
+@keeper_app.command("scenario")
+def scenario_cmd(
+    season: Annotated[int, typer.Option(help="Season year")],
+    league: Annotated[str, typer.Option(help="League name")],
+    system: Annotated[str, typer.Option(help="Valuation system name")],
+    max_keepers: Annotated[int, typer.Option(help="Maximum number of keepers")],
+    scenario: Annotated[list[str], typer.Option(help="Scenario as 'Name:Player1,Player2'")],
+    threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
+    decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
+    data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
+) -> None:
+    """Compare named keeper scenarios side-by-side."""
+    with build_keeper_context(data_dir) as ctx:
+        keeper_costs = ctx.keeper_repo.find_by_season_league(season, league)
+        if not keeper_costs:
+            typer.echo("No keeper costs found for the specified season and league.")
+            return
+        valuations = ctx.valuation_repo.get_by_season(season, system)
+        players = ctx.player_repo.all()
+        candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
+
+        parsed: list[tuple[str, list[int]]] = []
+        for s in scenario:
+            name, _, player_names_str = s.partition(":")
+            player_names = [n.strip() for n in player_names_str.split(",")]
+            ids: list[int] = []
+            for pname in player_names:
+                ids.append(_resolve_player_id(pname, ctx.player_repo))
+            parsed.append((name.strip(), ids))
+
+        constraints = KeeperConstraints(max_keepers=max_keepers)
+        result = compare_scenarios(parsed, candidates, constraints)
+
+    print_keeper_scenarios(result)
+
+
+@keeper_app.command("trade-impact")
+def trade_impact_cmd(
+    season: Annotated[int, typer.Option(help="Season year")],
+    league: Annotated[str, typer.Option(help="League name")],
+    system: Annotated[str, typer.Option(help="Valuation system name")],
+    max_keepers: Annotated[int, typer.Option(help="Maximum number of keepers")],
+    acquire: Annotated[list[str] | None, typer.Option(help="Player names to acquire")] = None,
+    release: Annotated[list[str] | None, typer.Option(help="Player names to release")] = None,
+    acquire_cost: Annotated[list[float] | None, typer.Option(help="Keeper cost for each acquired player")] = None,
+    threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
+    decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
+    data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
+) -> None:
+    """Show how acquiring/releasing players changes the optimal keeper set."""
+    with build_keeper_context(data_dir) as ctx:
+        keeper_costs = ctx.keeper_repo.find_by_season_league(season, league)
+        if not keeper_costs:
+            typer.echo("No keeper costs found for the specified season and league.")
+            return
+        valuations = ctx.valuation_repo.get_by_season(season, system)
+        players = ctx.player_repo.all()
+        candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
+
+        # Build valuation lookup for acquired players
+        val_lookup: dict[int, float] = {}
+        val_pos: dict[int, str] = {}
+        for v in valuations:
+            if v.player_id not in val_lookup or v.value > val_lookup[v.player_id]:
+                val_lookup[v.player_id] = v.value
+                val_pos[v.player_id] = v.position
+
+        acquire_decisions: list[KeeperDecision] = []
+        if acquire:
+            costs = acquire_cost or [0.0] * len(acquire)
+            for i, name in enumerate(acquire):
+                pid = _resolve_player_id(name, ctx.player_repo)
+                cost = costs[i] if i < len(costs) else 0.0
+                value = val_lookup.get(pid, 0.0)
+                pos = val_pos.get(pid, "util")
+                player = ctx.player_repo.get_by_id(pid)
+                pname = f"{player.name_first} {player.name_last}" if player else name
+                acquire_decisions.append(
+                    KeeperDecision(
+                        player_id=pid,
+                        player_name=pname,
+                        position=pos,
+                        cost=cost,
+                        projected_value=value,
+                        surplus=value - cost,
+                        years_remaining=1,
+                        recommendation="keep" if value - cost >= 0 else "release",
+                    )
+                )
+
+        release_ids: list[int] = []
+        if release:
+            for name in release:
+                release_ids.append(_resolve_player_id(name, ctx.player_repo))
+
+        constraints = KeeperConstraints(max_keepers=max_keepers)
+        impact = keeper_trade_impact(candidates, constraints, acquire_decisions, release_ids)
+
+    print_keeper_trade_impact(impact)

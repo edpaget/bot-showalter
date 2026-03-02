@@ -14,6 +14,9 @@ from fantasy_baseball_manager.cli._output import (
     print_features,
     print_import_result,
     print_ingest_result,
+    print_keeper_scenarios,
+    print_keeper_solution,
+    print_keeper_trade_impact,
     print_performance_report,
     print_player_projections,
     print_player_valuations,
@@ -36,6 +39,14 @@ from fantasy_baseball_manager.cli._output import (
     print_valuation_rankings,
     print_value_over_adp,
     print_variance_targets,
+)
+from fantasy_baseball_manager.domain import (
+    KeeperDecision,
+    KeeperScenario,
+    KeeperSet,
+    KeeperSolution,
+    KeeperTradeImpact,
+    SensitivityEntry,
 )
 from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport, ADPAccuracyResult, SystemAccuracyResult
 from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
@@ -2088,3 +2099,186 @@ class TestPrintResidualAnalysisReport:
         captured = capsys.readouterr()
         assert "Calibration Bins" in captured.out
         assert "0.2500" in captured.out  # bin center
+
+
+def _make_keeper_decision(
+    player_id: int = 1,
+    player_name: str = "Mike Trout",
+    position: str = "cf",
+    cost: float = 10.0,
+    projected_value: float = 25.0,
+    surplus: float = 15.0,
+    years_remaining: int = 1,
+    recommendation: str = "keep",
+) -> KeeperDecision:
+    return KeeperDecision(
+        player_id=player_id,
+        player_name=player_name,
+        position=position,
+        cost=cost,
+        projected_value=projected_value,
+        surplus=surplus,
+        years_remaining=years_remaining,
+        recommendation=recommendation,
+    )
+
+
+def _make_keeper_set(players: tuple[KeeperDecision, ...] | None = None) -> KeeperSet:
+    if players is None:
+        players = (
+            _make_keeper_decision(),
+            _make_keeper_decision(
+                player_id=2, player_name="Aaron Judge", position="of", cost=15.0, projected_value=30.0, surplus=15.0
+            ),
+        )
+    total_surplus = sum(p.surplus for p in players)
+    total_cost = sum(p.cost for p in players)
+    return KeeperSet(
+        players=players,
+        total_surplus=total_surplus,
+        total_cost=total_cost,
+        positions_filled={"cf": 1, "of": 1},
+        score=total_surplus,
+    )
+
+
+def _make_keeper_solution() -> KeeperSolution:
+    optimal = _make_keeper_set()
+    alt_player = _make_keeper_decision(
+        player_id=3, player_name="Mookie Betts", position="of", cost=20.0, projected_value=28.0, surplus=8.0
+    )
+    alt_set = _make_keeper_set(
+        players=(
+            _make_keeper_decision(),
+            alt_player,
+        )
+    )
+    return KeeperSolution(
+        optimal=optimal,
+        alternatives=[alt_set],
+        sensitivity=[
+            SensitivityEntry(player_name="Aaron Judge", player_id=2, surplus_gap=7.0),
+            SensitivityEntry(player_name="Mike Trout", player_id=1, surplus_gap=15.0),
+        ],
+    )
+
+
+class TestPrintKeeperSolution:
+    def test_shows_optimal_set(self, capsys: pytest.CaptureFixture[str]) -> None:
+        solution = _make_keeper_solution()
+        print_keeper_solution(solution)
+        captured = capsys.readouterr()
+        assert "Optimal Keeper Set" in captured.out
+        assert "Mike Trout" in captured.out
+        assert "Aaron Judge" in captured.out
+
+    def test_shows_cost_and_surplus(self, capsys: pytest.CaptureFixture[str]) -> None:
+        solution = _make_keeper_solution()
+        print_keeper_solution(solution)
+        captured = capsys.readouterr()
+        assert "$10" in captured.out  # Trout cost
+        assert "$25" in captured.out  # Trout value
+        assert "$15.0" in captured.out  # Trout surplus
+
+    def test_shows_alternatives(self, capsys: pytest.CaptureFixture[str]) -> None:
+        solution = _make_keeper_solution()
+        print_keeper_solution(solution)
+        captured = capsys.readouterr()
+        assert "Alt 1" in captured.out
+        assert "Mookie Betts" in captured.out
+
+    def test_shows_sensitivity(self, capsys: pytest.CaptureFixture[str]) -> None:
+        solution = _make_keeper_solution()
+        print_keeper_solution(solution)
+        captured = capsys.readouterr()
+        assert "Sensitivity" in captured.out
+        assert "Aaron Judge" in captured.out
+        assert "7.0" in captured.out  # surplus gap
+
+    def test_shows_summary_line(self, capsys: pytest.CaptureFixture[str]) -> None:
+        solution = _make_keeper_solution()
+        print_keeper_solution(solution)
+        captured = capsys.readouterr()
+        assert "$30.0" in captured.out  # total surplus
+        assert "$25" in captured.out  # total cost
+
+
+class TestPrintKeeperScenarios:
+    def test_shows_scenario_ranking(self, capsys: pytest.CaptureFixture[str]) -> None:
+        scenarios = [
+            KeeperScenario(
+                name="Best",
+                keepers=[1, 2],
+                keeper_set=_make_keeper_set(),
+                delta_vs_optimal=0.0,
+            ),
+            KeeperScenario(
+                name="Worse",
+                keepers=[1, 3],
+                keeper_set=_make_keeper_set(
+                    players=(
+                        _make_keeper_decision(),
+                        _make_keeper_decision(player_id=3, player_name="Mookie Betts", position="of", surplus=8.0),
+                    )
+                ),
+                delta_vs_optimal=7.0,
+            ),
+        ]
+        print_keeper_scenarios(scenarios)
+        captured = capsys.readouterr()
+        assert "Scenario Comparison" in captured.out
+        assert "Best" in captured.out
+        assert "Worse" in captured.out
+        assert "+$7.0" in captured.out
+
+    def test_best_scenario_shows_zero_delta(self, capsys: pytest.CaptureFixture[str]) -> None:
+        scenarios = [
+            KeeperScenario(
+                name="Only",
+                keepers=[1],
+                keeper_set=_make_keeper_set(),
+                delta_vs_optimal=0.0,
+            ),
+        ]
+        print_keeper_scenarios(scenarios)
+        captured = capsys.readouterr()
+        assert "Only" in captured.out
+
+
+class TestPrintKeeperTradeImpact:
+    def test_shows_before_and_after(self, capsys: pytest.CaptureFixture[str]) -> None:
+        before = _make_keeper_solution()
+        after_player = _make_keeper_decision(
+            player_id=4, player_name="Juan Soto", position="of", cost=12.0, projected_value=32.0, surplus=20.0
+        )
+        after_set = _make_keeper_set(
+            players=(
+                _make_keeper_decision(),
+                after_player,
+            )
+        )
+        after = KeeperSolution(
+            optimal=after_set,
+            alternatives=[],
+            sensitivity=[],
+        )
+        impact = KeeperTradeImpact(before=before, after=after, score_delta=5.0)
+        print_keeper_trade_impact(impact)
+        captured = capsys.readouterr()
+        assert "Before" in captured.out
+        assert "After" in captured.out
+        assert "5.0" in captured.out
+
+    def test_shows_negative_delta(self, capsys: pytest.CaptureFixture[str]) -> None:
+        solution = _make_keeper_solution()
+        worse_set = _make_keeper_set(
+            players=(
+                _make_keeper_decision(surplus=5.0),
+                _make_keeper_decision(player_id=2, player_name="Aaron Judge", position="of", surplus=5.0),
+            )
+        )
+        worse = KeeperSolution(optimal=worse_set, alternatives=[], sensitivity=[])
+        impact = KeeperTradeImpact(before=solution, after=worse, score_delta=-20.0)
+        print_keeper_trade_impact(impact)
+        captured = capsys.readouterr()
+        assert "-$20.0" in captured.out
