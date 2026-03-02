@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         AdjustedValuation,
         ADPAccuracyReport,
         ADPMoversReport,
+        CascadeResult,
         CategoryNeed,
         ColumnProfile,
         ComparisonResult,
@@ -39,6 +40,9 @@ if TYPE_CHECKING:
         LoadLog,
         ModelRunRecord,
         MultiColumnRanking,
+        PickTradeEvaluation,
+        PickValue,
+        PickValueCurve,
         PlayerProjection,
         PlayerStatDelta,
         PlayerTier,
@@ -2116,3 +2120,100 @@ def print_experiment_summary(summary: ExplorationSummary) -> None:
             f"Overall best: [bold]#{summary.best_experiment_id}[/bold] "
             f"([{style}]{summary.best_experiment_delta_pct:+.2f}%[/{style}] avg delta)"
         )
+
+
+def print_pick_value_curve(curve: PickValueCurve) -> None:
+    """Print pick value curve as a Rich table."""
+    table = Table(title=f"Pick Value Curve ({curve.system} — {curve.provider}, {curve.season})")
+    table.add_column("Pick", justify="right")
+    table.add_column("Value", justify="right")
+    table.add_column("Player", justify="left")
+    table.add_column("Confidence", justify="left")
+
+    confidence_styles = {"high": "green", "medium": "yellow", "low": "dim"}
+
+    for pv in curve.picks:
+        style = confidence_styles.get(pv.confidence, "")
+        table.add_row(
+            str(pv.pick),
+            f"{pv.expected_value:.1f}",
+            pv.player_name or "—",
+            f"[{style}]{pv.confidence}[/{style}]",
+        )
+
+    console.print(table)
+
+
+def _pick_detail_table(label: str, details: list[PickValue]) -> Table:
+    table = Table(title=label, show_edge=False, pad_edge=False)
+    table.add_column("Pick", justify="right")
+    table.add_column("Value", justify="right")
+    table.add_column("Player", justify="left")
+
+    for pv in details:
+        table.add_row(
+            str(pv.pick),
+            f"{pv.expected_value:.1f}",
+            pv.player_name or "—",
+        )
+    return table
+
+
+def print_pick_trade_evaluation(evaluation: PickTradeEvaluation) -> None:
+    """Print pick trade evaluation with gives/receives tables and verdict."""
+    console.print()
+    console.print(_pick_detail_table("You give", evaluation.gives_detail))
+    console.print()
+    console.print(_pick_detail_table("You receive", evaluation.receives_detail))
+    console.print()
+
+    sign = "+" if evaluation.net_value >= 0 else ""
+    style = "green" if evaluation.net_value >= 0 else "red"
+    console.print(f"Net value: [{style}]{sign}{evaluation.net_value:.1f}[/{style}]")
+
+    if evaluation.recommendation == "accept":
+        console.print("[bold green]Recommendation: Accept[/bold green]")
+    elif evaluation.recommendation == "reject":
+        console.print("[bold red]Recommendation: Reject[/bold red]")
+    else:
+        console.print("[bold]Recommendation: Even[/bold]")
+
+
+def print_cascade_result(result: CascadeResult) -> None:
+    """Print cascade analysis showing before/after roster comparison."""
+    before_table = Table(title="Before Trade", show_edge=False, pad_edge=False)
+    before_table.add_column("Round", justify="right")
+    before_table.add_column("Player", justify="left")
+    before_table.add_column("Position", justify="left")
+    before_table.add_column("Value", justify="right")
+
+    for pick in result.before.picks:
+        before_table.add_row(str(pick.round), pick.player_name, pick.position, f"{pick.value:.1f}")
+
+    after_table = Table(title="After Trade", show_edge=False, pad_edge=False)
+    after_table.add_column("Round", justify="right")
+    after_table.add_column("Player", justify="left")
+    after_table.add_column("Position", justify="left")
+    after_table.add_column("Value", justify="right")
+
+    for pick in result.after.picks:
+        after_table.add_row(str(pick.round), pick.player_name, pick.position, f"{pick.value:.1f}")
+
+    console.print()
+    console.print(before_table)
+    console.print(f"  Total: {result.before.total_value:.1f}")
+    console.print()
+    console.print(after_table)
+    console.print(f"  Total: {result.after.total_value:.1f}")
+    console.print()
+
+    sign = "+" if result.value_delta >= 0 else ""
+    style = "green" if result.value_delta >= 0 else "red"
+    console.print(f"Cascade delta: [{style}]{sign}{result.value_delta:.1f}[/{style}]")
+
+    if result.recommendation == "accept":
+        console.print("[bold green]Cascade recommendation: Accept[/bold green]")
+    elif result.recommendation == "reject":
+        console.print("[bold red]Cascade recommendation: Reject[/bold red]")
+    else:
+        console.print("[bold]Cascade recommendation: Even[/bold]")

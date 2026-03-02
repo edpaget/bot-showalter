@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -14,6 +15,7 @@ from fantasy_baseball_manager.domain.league_settings import (
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.valuation import Valuation
+from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
@@ -500,3 +502,193 @@ class TestDraftNeedsCommand:
         )
         assert result.exit_code == 0, result.output
         assert "not found" in result.output
+
+
+def _pick_value_league() -> LeagueSettings:
+    """Small 4-team league for pick value tests (4 teams × 3 roster slots = 12 total picks)."""
+    return LeagueSettings(
+        name="Test League",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=4,
+        budget=260,
+        roster_batters=2,
+        roster_pitchers=1,
+        batting_categories=(
+            CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        pitching_categories=(
+            CategoryConfig(key="w", name="Wins", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+    )
+
+
+def _seed_pick_value_data(conn: sqlite3.Connection) -> None:
+    """Seed player + valuation + ADP data for pick value/trade tests."""
+    player_repo = SqlitePlayerRepo(conn)
+    val_repo = SqliteValuationRepo(conn)
+    adp_repo = SqliteADPRepo(conn)
+
+    players = [
+        ("Mike", "Trout", 545361, "batter", "OF", 40.0),
+        ("Juan", "Soto", 665742, "batter", "OF", 35.0),
+        ("Aaron", "Judge", 592450, "batter", "OF", 30.0),
+        ("Gerrit", "Cole", 543037, "pitcher", "SP", 28.0),
+        ("Shohei", "Ohtani", 660271, "batter", "OF", 25.0),
+        ("Mookie", "Betts", 605141, "batter", "OF", 22.0),
+        ("Trea", "Turner", 607208, "batter", "SS", 20.0),
+        ("Ronald", "Acuna", 660670, "batter", "OF", 18.0),
+        ("Freddie", "Freeman", 518692, "batter", "1B", 16.0),
+        ("Spencer", "Strider", 675911, "pitcher", "SP", 14.0),
+        ("Corey", "Seager", 608369, "batter", "SS", 12.0),
+        ("Bobby", "Witt", 677951, "batter", "SS", 10.0),
+    ]
+    for i, (first, last, mlbam, ptype, pos, value) in enumerate(players, start=1):
+        pid = player_repo.upsert(Player(name_first=first, name_last=last, mlbam_id=mlbam))
+        val_repo.upsert(
+            Valuation(
+                player_id=pid,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type=ptype,
+                position=pos,
+                value=value,
+                rank=i,
+                category_scores={"hr": 1.0},
+            )
+        )
+        adp_repo.upsert(
+            ADP(
+                player_id=pid,
+                season=2026,
+                provider="fantasypros",
+                overall_pick=float(i),
+                rank=i,
+                positions=pos,
+            )
+        )
+    conn.commit()
+
+
+class TestDraftPickValues:
+    def test_pick_values_prints_table(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_pick_value_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _pick_value_league()
+        )
+
+        result = runner.invoke(
+            app,
+            ["draft", "pick-values", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Pick" in result.output
+        assert "Value" in result.output
+        assert "Mike Trout" in result.output
+
+    def test_pick_values_confidence_shown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_pick_value_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _pick_value_league()
+        )
+
+        result = runner.invoke(
+            app,
+            ["draft", "pick-values", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "high" in result.output.lower() or "medium" in result.output.lower()
+
+
+class TestDraftTradePicks:
+    def test_trade_picks_shows_recommendation(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_pick_value_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _pick_value_league()
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "draft",
+                "trade-picks",
+                "--gives",
+                "1",
+                "--receives",
+                "5,6",
+                "--season",
+                "2026",
+                "--data-dir",
+                "./data",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "You give" in result.output
+        assert "You receive" in result.output
+        # Should show a recommendation
+        assert any(word in result.output.lower() for word in ("accept", "reject", "even"))
+
+    def test_trade_picks_net_value_shown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_pick_value_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _pick_value_league()
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "draft",
+                "trade-picks",
+                "--gives",
+                "1",
+                "--receives",
+                "2,3",
+                "--season",
+                "2026",
+                "--data-dir",
+                "./data",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Net value" in result.output
+
+    def test_trade_picks_cascade(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_pick_value_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _pick_value_league()
+        )
+
+        # 4-team snake: team 0 owns {1,8,9}, team 1 owns {2,7,10}
+        # Trade pick 1 (team 0) for picks 2,7 (both team 1)
+        result = runner.invoke(
+            app,
+            [
+                "draft",
+                "trade-picks",
+                "--gives",
+                "1",
+                "--receives",
+                "2,7",
+                "--season",
+                "2026",
+                "--cascade",
+                "--data-dir",
+                "./data",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Cascade output should show before/after
+        assert "Before" in result.output
+        assert "After" in result.output

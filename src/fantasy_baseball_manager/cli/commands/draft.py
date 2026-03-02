@@ -7,15 +7,18 @@ import typer
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.cli._output import (
     console,
+    print_cascade_result,
     print_category_needs,
     print_draft_board,
     print_draft_report,
     print_draft_tiers,
+    print_pick_trade_evaluation,
+    print_pick_value_curve,
     print_tier_summary,
 )
 from fantasy_baseball_manager.cli.factory import build_category_needs_context, build_draft_board_context
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow
+from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade
 from fantasy_baseball_manager.services import (
     DraftConfig,
     DraftEngine,
@@ -23,7 +26,10 @@ from fantasy_baseball_manager.services import (
     DraftSession,
     build_draft_board,
     build_draft_roster_slots,
+    cascade_analysis,
     compute_category_balance_scores,
+    compute_pick_value_curve,
+    evaluate_pick_trade,
     export_csv,
     export_html,
     generate_tiers,
@@ -364,3 +370,71 @@ def draft_needs(
 
         needs = identify_needs(roster_ids, available_ids, projections, league, player_names=player_names)
         print_category_needs(needs, league.teams)
+
+
+@draft_app.command("pick-values")
+def draft_pick_values(
+    season: Annotated[int, typer.Option("--season")],
+    system: Annotated[str, typer.Option("--system")] = "zar",
+    version: Annotated[str, typer.Option("--version")] = "1.0",
+    provider: Annotated[str, typer.Option("--provider")] = "fantasypros",
+    league_name: Annotated[str, typer.Option("--league")] = "default",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Display pick value curve mapping draft picks to expected player value."""
+    league = load_league(league_name, Path.cwd())
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+
+        curve = compute_pick_value_curve(adp_list, valuations, league, player_names=player_names)
+    print_pick_value_curve(curve)
+
+
+@draft_app.command("trade-picks")
+def draft_trade_picks(
+    gives: Annotated[str, typer.Option("--gives", help="Comma-separated pick numbers")],
+    receives: Annotated[str, typer.Option("--receives", help="Comma-separated pick numbers")],
+    season: Annotated[int, typer.Option("--season")],
+    system: Annotated[str, typer.Option("--system")] = "zar",
+    version: Annotated[str, typer.Option("--version")] = "1.0",
+    provider: Annotated[str, typer.Option("--provider")] = "fantasypros",
+    league_name: Annotated[str, typer.Option("--league")] = "default",
+    cascade: Annotated[bool, typer.Option("--cascade")] = False,
+    team: Annotated[int, typer.Option("--team", help="User team index (0-based)")] = 0,
+    threshold: Annotated[float, typer.Option("--threshold")] = 1.0,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Evaluate a draft pick trade by comparing expected value on each side."""
+    give_picks = [int(p.strip()) for p in gives.split(",")]
+    receive_picks = [int(p.strip()) for p in receives.split(",")]
+    trade = PickTrade(gives=give_picks, receives=receive_picks)
+
+    league = load_league(league_name, Path.cwd())
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+
+        curve = compute_pick_value_curve(adp_list, valuations, league, player_names=player_names)
+        evaluation = evaluate_pick_trade(trade, curve, threshold=threshold)
+        print_pick_trade_evaluation(evaluation)
+
+        if cascade:
+            profiles = ctx.profile_service.enrich_valuations(valuations, season)
+            board = build_draft_board(
+                valuations, league, player_names, adp=adp_list if adp_list else None, profiles=profiles
+            )
+            result = cascade_analysis(trade, board, league, team, threshold=threshold)
+            print_cascade_result(result)
