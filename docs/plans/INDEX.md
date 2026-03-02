@@ -8,7 +8,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 |---------|--------|----------|-------------------|
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | not started | ADP, projections, valuations (all done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
-| [Data Profiling Tools](data-profiling-tools.md) | 3 | phase 1 done | none |
+| [Data Profiling Tools](data-profiling-tools.md) | 3 | phases 1-2 done | none |
 | [Draft Pick Keeper Support](draft-pick-keeper-support.md) | 3 | not started | draft-pick-trade-evaluator phase 1, keeper-surplus-value (done) |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | phases 1-3 done | ADP (done), draft board (done) |
 | [Experiment Journal](experiment-journal.md) | 3 | phase 1 done | none |
