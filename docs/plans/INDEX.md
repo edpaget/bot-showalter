@@ -8,17 +8,23 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 |---------|--------|----------|-------------------|
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | not started | ADP, projections, valuations (all done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
+| [Data Profiling Tools](data-profiling-tools.md) | 3 | not started | none |
 | [Draft Pick Keeper Support](draft-pick-keeper-support.md) | 3 | not started | draft-pick-trade-evaluator phase 1, keeper-surplus-value (done) |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 | phase 1 done | ADP (done), draft board (done) |
+| [Experiment Journal](experiment-journal.md) | 3 | not started | none |
+| [Fast Feedback Loop](fast-feedback-loop.md) | 3 | not started | none |
+| [Feature Candidate Factory](feature-candidate-factory.md) | 3 | not started | none |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | not started | keeper-surplus-value |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | phase 1 done | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | not started | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
+| [Residual Analysis Tools](residual-analysis-tools.md) | 3 | not started | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
+| [Validation Gate](validation-gate.md) | 2 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | phases 1-3 done | live-draft-tracker, keeper-surplus-value |
 
@@ -56,6 +62,10 @@ draft-pick-trade-evaluator (phase 1) ──► draft-pick-keeper-support
 keeper-optimization-solver (phase 1) ──► draft-pick-keeper-support (phase 3)
 
 live-draft-tracker ────► yahoo-fantasy-integration
+
+data-profiling-tools (phase 2) ──► feature-candidate-factory (--correlate flag)
+
+fast-feedback-loop ──► validation-gate (CV infrastructure)
 ```
 
 All other dependencies (valuations, ADP, draft board, projections) are already satisfied by completed work.
@@ -70,3 +80,7 @@ These aren't hard blockers but enhance the consuming roadmap when available:
 - **Positional scarcity** enhances: roster optimizer, keeper optimization solver
 - **Category balance tracker** (done) enhances: live draft tracker, mock draft simulator, positional upgrade calculator
 - **Web UI foundation** enables: future web-based views for LLM chat, live draft tracker UI, charts/visualizations
+- **Data profiling tools** enhances: feature-candidate-factory (--correlate flag chains into target correlation scanner)
+- **Feature candidate factory** enhances: fast-feedback-loop (--inject flag uses named candidates)
+- **Fast feedback loop** enhances: experiment-journal (auto-logging from quick-eval/marginal-value), validation-gate (shared CV infrastructure)
+- **Experiment journal** enhances: validation-gate (auto-log full validation results)
