@@ -11,6 +11,7 @@ from fantasy_baseball_manager.services.cohort import (
     assign_experience_cohorts,
     assign_top300_cohorts,
 )
+from fantasy_baseball_manager.services.data_profiler import NUMERIC_COLUMNS, StatcastColumnProfiler
 from fantasy_baseball_manager.services.dataset_catalog import (
     DatasetCatalogService,
     DatasetInfo,
@@ -127,6 +128,8 @@ __all__ = [
     "RandomBot",
     "ResidualAnalysisDiagnostic",
     "ResidualPersistenceDiagnostic",
+    "NUMERIC_COLUMNS",
+    "StatcastColumnProfiler",
     "StatsBasedPlayerUniverse",
     "StrategyRule",
     "TierValueRule",

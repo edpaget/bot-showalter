@@ -60,6 +60,7 @@ from fantasy_baseball_manager.services import (
     LeagueEnvironmentService,
     PlayerEligibilityService,
     ProjectionEvaluator,
+    StatcastColumnProfiler,
     StatsBasedPlayerUniverse,
 )
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
@@ -705,3 +706,18 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:
         )
     finally:
         conn.close()
+
+
+@dataclass(frozen=True)
+class ProfileContext:
+    profiler: StatcastColumnProfiler
+
+
+@contextmanager
+def build_profile_context(data_dir: str) -> Iterator[ProfileContext]:
+    """Composition-root context manager for profile commands."""
+    statcast_conn = create_statcast_connection(Path(data_dir) / "statcast.db")
+    try:
+        yield ProfileContext(profiler=StatcastColumnProfiler(statcast_conn))
+    finally:
+        statcast_conn.close()

@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         ADPAccuracyReport,
         ADPMoversReport,
         CategoryNeed,
+        ColumnProfile,
         ComparisonResult,
         DraftBoard,
         DraftReport,
@@ -1807,3 +1808,42 @@ def print_trade_evaluation(evaluation: TradeEvaluation) -> None:
         console.print("[bold red]Verdict: They win this trade[/bold red]")
     else:
         console.print("[bold]Verdict: Even trade[/bold]")
+
+
+def print_column_profiles(profiles: list[ColumnProfile]) -> None:
+    """Print column profile results as a Rich table."""
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Column", justify="left")
+    table.add_column("Season", justify="right")
+    table.add_column("Count", justify="right")
+    table.add_column("Null%", justify="right")
+    table.add_column("Mean", justify="right")
+    table.add_column("Median", justify="right")
+    table.add_column("Std", justify="right")
+    table.add_column("Min", justify="right")
+    table.add_column("Max", justify="right")
+    table.add_column("P10", justify="right")
+    table.add_column("P25", justify="right")
+    table.add_column("P75", justify="right")
+    table.add_column("P90", justify="right")
+    table.add_column("Skew", justify="right")
+
+    for p in profiles:
+        table.add_row(
+            p.column,
+            str(p.season),
+            str(p.count),
+            f"{p.null_pct:.1f}",
+            f"{p.mean:.3f}",
+            f"{p.median:.3f}",
+            f"{p.std:.3f}",
+            f"{p.min:.3f}",
+            f"{p.max:.3f}",
+            f"{p.p10:.3f}",
+            f"{p.p25:.3f}",
+            f"{p.p75:.3f}",
+            f"{p.p90:.3f}",
+            f"{p.skewness:.3f}",
+        )
+
+    console.print(table)

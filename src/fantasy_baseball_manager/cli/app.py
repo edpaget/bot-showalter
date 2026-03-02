@@ -20,6 +20,7 @@ from fantasy_baseball_manager.cli.commands.model import (
     train,
     tune,
 )
+from fantasy_baseball_manager.cli.commands.profile import profile_app
 from fantasy_baseball_manager.cli.commands.projections import projections_app
 from fantasy_baseball_manager.cli.commands.report import report_app
 from fantasy_baseball_manager.cli.commands.runs import runs_app
@@ -77,4 +78,5 @@ app.add_typer(report_app, name="report")
 app.add_typer(draft_app, name="draft")
 app.add_typer(experiment_app, name="experiment")
 app.add_typer(keeper_app, name="keeper")
+app.add_typer(profile_app, name="profile")
 app.add_typer(yahoo_app, name="yahoo")

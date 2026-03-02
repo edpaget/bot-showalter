@@ -14,6 +14,7 @@ from fantasy_baseball_manager.domain.category_tracker import (
     RosterAnalysis,
     TeamCategoryProjection,
 )
+from fantasy_baseball_manager.domain.column_profile import ColumnProfile
 from fantasy_baseball_manager.domain.draft_board import (
     DraftBoard,
     DraftBoardRow,
@@ -186,6 +187,7 @@ __all__ = [
     "CategoryStanding",
     "ChronicPerformer",
     "ClassifiedPlayer",
+    "ColumnProfile",
     "ComparisonResult",
     "ComparisonSummary",
     "ConfidenceReport",
