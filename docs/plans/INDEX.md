@@ -10,7 +10,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [Data Profiling Tools](data-profiling-tools.md) | 3 | phases 1-2 done | none |
 | [Draft Pick Keeper Support](draft-pick-keeper-support.md) | 3 | not started | draft-pick-trade-evaluator phase 1, keeper-surplus-value (done) |
-| [Fast Feedback Loop](fast-feedback-loop.md) | 3 | phases 1-2 done | none |
 | [Feature Candidate Factory](feature-candidate-factory.md) | 3 | not started | none |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
@@ -47,6 +46,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 |
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 |
 | [Tier Generator](tier-generator.md) | 3 |
+| [Fast Feedback Loop](fast-feedback-loop.md) | 3 |
 | [Top-300 Tuning](top-300-tuning.md) | 6 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
