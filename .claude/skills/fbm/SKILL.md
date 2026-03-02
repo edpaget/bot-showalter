@@ -1,6 +1,6 @@
 ---
 name: fbm
-description: Run fantasy baseball projection commands — predict, evaluate, compare systems, look up player projections/valuations, and manage cached datasets. Use this when the user asks to run projections, compare systems, evaluate accuracy, look up a player, check valuations, or manage/rebuild cached datasets.
+description: Run fantasy baseball projection commands — predict, evaluate, compare systems, look up player projections/valuations, manage cached datasets, and evaluate keeper league trades. Use this when the user asks to run projections, compare systems, evaluate accuracy, look up a player, check valuations, manage/rebuild cached datasets, or evaluate keeper league decisions and trades.
 allowed-tools: Bash(uv run fbm *)
 argument-hint: <command> [args...]
 ---
@@ -86,6 +86,37 @@ Rebuild a model's datasets (drop + re-prepare):
 uv run fbm datasets rebuild <model> [--season <year>...] [--yes]
 ```
 
+### Keeper league management
+
+Import keeper costs from CSV:
+```
+uv run fbm keeper import <csv-path> --season <year> --league <name> [--source <type>]
+```
+CSV columns: `Player`, `Cost`, `Years` (Years optional, defaults to 1).
+
+Set a single player's keeper cost:
+```
+uv run fbm keeper set "<player name>" --cost <n> --season <year> --league <name> [--years <n>] [--source <type>]
+```
+
+Show keeper decisions ranked by surplus:
+```
+uv run fbm keeper decisions --season <year> --league <name> --system <system> [--threshold <n>] [--decay <n>]
+```
+
+Show post-keeper adjusted rankings (recalculated replacement levels):
+```
+uv run fbm keeper adjusted-rankings --season <year> --league <name> --system <system> [--top <N>]
+```
+
+Evaluate a trade using surplus value:
+```
+uv run fbm keeper trade-eval --gives "<player>" [--gives "<player>"] --receives "<player>" [--receives "<player>"] --season <year> --league <name> --system <system> [--decay <n>]
+```
+Example: `uv run fbm keeper trade-eval --gives "Mike Trout" --receives "Shohei Ohtani" --season 2026 --league dynasty --system zar`
+
+Repeat `--gives` / `--receives` for multi-player trades.
+
 ## Argument mapping
 
 When the user says something like:
@@ -101,6 +132,10 @@ When the user says something like:
 - "show top 20 valuations" → `uv run fbm valuations rankings --season 2025 --top 20`
 - "top pitcher valuations" → `uv run fbm valuations rankings --season 2025 --player-type pitcher --top 20`
 - "how accurate were the valuations" → `uv run fbm valuations evaluate --season 2025 --league default`
+- "who should I keep" → `uv run fbm keeper decisions --season 2026 --league dynasty --system zar`
+- "should I trade Trout for Ohtani" → `uv run fbm keeper trade-eval --gives "Trout" --receives "Ohtani" --season 2026 --league dynasty --system zar`
+- "set Trout's keeper cost to $25" → `uv run fbm keeper set "Trout" --cost 25 --season 2026 --league dynasty`
+- "adjusted rankings after keepers" → `uv run fbm keeper adjusted-rankings --season 2026 --league dynasty --system zar --top 50`
 
 For third-party systems (steamer, zips, atc), the version is typically the season year (e.g. `steamer/2025`).
 For first-party models (marcel), the version is typically `latest`.
