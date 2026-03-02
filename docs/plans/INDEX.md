@@ -15,6 +15,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Fast Feedback Loop](fast-feedback-loop.md) | 3 | phase 1 done | none |
 | [Feature Candidate Factory](feature-candidate-factory.md) | 3 | not started | none |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
+| [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [Keeper Optimization Solver](keeper-optimization-solver.md) | 4 | phase 1 done | keeper-surplus-value |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | phases 1-2 done | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
