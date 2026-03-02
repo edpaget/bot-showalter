@@ -8,6 +8,7 @@ class RecommendationWeights:
     scarcity: float = 0.4
     tier: float = 0.2
     adp: float = 0.15
+    category_balance: float = 0.25
 
 
 @dataclass(frozen=True)

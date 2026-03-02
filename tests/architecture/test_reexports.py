@@ -92,6 +92,8 @@ _EXCLUDED: dict[str, set[str]] = {
         "UndoCommand",
         "BestCommand",
         "NeedCommand",
+        "NeedsCommand",
+        "BalanceCommand",
         "RosterCommand",
         "PoolCommand",
         "StatusCommand",
@@ -105,6 +107,8 @@ _EXCLUDED: dict[str, set[str]] = {
         "auto_detect_position",
         "RecommendFn",
         "ReportFn",
+        # draft_recommender.py — internal protocol
+        "CategoryBalanceFn",
     },
     # Features-internal details — not cross-package API
     "features": {

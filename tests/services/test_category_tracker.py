@@ -8,7 +8,11 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 from fantasy_baseball_manager.domain.projection import Projection
-from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
+from fantasy_baseball_manager.services.category_tracker import (
+    analyze_roster,
+    compute_category_balance_scores,
+    identify_needs,
+)
 
 
 def _league(
@@ -515,3 +519,72 @@ class TestIdentifyNeeds:
         assert len(needs) >= 2
         # Worst rank first
         assert needs[0].current_rank >= needs[1].current_rank
+
+
+class TestComputeCategoryBalanceScores:
+    """Tests for compute_category_balance_scores()."""
+
+    def test_high_sb_player_scores_high_when_sb_weak(self) -> None:
+        """A player with high SB gets a high score when SB is weak."""
+        league = _league(teams=12, batting=(HR_CAT, SB_CAT))
+        projections = [_proj(i, "batter", {"hr": 20, "sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        # Strong HR, weak SB
+        projections += [_proj(pid, "batter", {"hr": 35, "sb": 5}) for pid in roster_ids]
+        # Available: one with high SB, one without
+        projections.append(_proj(300, "batter", {"hr": 10, "sb": 30}))
+        projections.append(_proj(301, "batter", {"hr": 30, "sb": 0}))
+
+        scores = compute_category_balance_scores(roster_ids, [300, 301], projections, league)
+        assert scores[300] > scores[301]
+
+    def test_no_weak_categories_all_scores_zero(self) -> None:
+        """When no categories are weak, all scores should be 0.0."""
+        league = _league(teams=12, batting=(HR_CAT,))
+        projections = [_proj(i, "batter", {"hr": 20}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        # Strong HR
+        projections += [_proj(pid, "batter", {"hr": 35}) for pid in roster_ids]
+        projections.append(_proj(300, "batter", {"hr": 25}))
+
+        scores = compute_category_balance_scores(roster_ids, [300], projections, league)
+        assert scores[300] == 0.0
+
+    def test_scores_normalized_zero_to_one(self) -> None:
+        """All scores should be in [0, 1]."""
+        league = _league(teams=12, batting=(HR_CAT, SB_CAT))
+        projections = [_proj(i, "batter", {"hr": 20, "sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        projections += [_proj(pid, "batter", {"hr": 10, "sb": 5}) for pid in roster_ids]
+        available_ids = list(range(300, 310))
+        for i, aid in enumerate(available_ids):
+            projections.append(_proj(aid, "batter", {"hr": float(5 + i * 3), "sb": float(i * 4)}))
+
+        scores = compute_category_balance_scores(roster_ids, available_ids, projections, league)
+        for score in scores.values():
+            assert 0.0 <= score <= 1.0
+        # At least one should be 1.0 (the best) if there are weak categories
+        assert max(scores.values()) == pytest.approx(1.0)
+
+    def test_empty_available_returns_empty(self) -> None:
+        """No available players → empty dict."""
+        league = _league(teams=12, batting=(SB_CAT,))
+        projections = [_proj(i, "batter", {"sb": 15}) for i in range(1, 169)]
+        roster_ids = list(range(200, 214))
+        projections += [_proj(pid, "batter", {"sb": 5}) for pid in roster_ids]
+
+        scores = compute_category_balance_scores(roster_ids, [], projections, league)
+        assert scores == {}
+
+    def test_pitching_category_weak_scores_pitchers(self) -> None:
+        """When a pitching category is weak, pitchers addressing it score higher."""
+        league = _league(teams=12, pitching=(K_CAT,))
+        projections = [_proj(i, "pitcher", {"k": 150}) for i in range(1, 121)]
+        roster_ids = list(range(200, 210))
+        projections += [_proj(pid, "pitcher", {"k": 50}) for pid in roster_ids]
+        # Available: one high-K pitcher, one low-K pitcher
+        projections.append(_proj(300, "pitcher", {"k": 200}))
+        projections.append(_proj(301, "pitcher", {"k": 10}))
+
+        scores = compute_category_balance_scores(roster_ids, [300, 301], projections, league)
+        assert scores[300] > scores[301]

@@ -8,11 +8,21 @@ from rich.console import Console
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
 from fantasy_baseball_manager.domain.draft_report import DraftReport
+from fantasy_baseball_manager.domain.league_settings import (
+    CategoryConfig,
+    Direction,
+    LeagueFormat,
+    LeagueSettings,
+    StatType,
+)
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.services.draft_session import (
+    BalanceCommand,
     BestCommand,
     DraftSession,
     HelpCommand,
     NeedCommand,
+    NeedsCommand,
     PickCommand,
     PoolCommand,
     QuitCommand,
@@ -509,3 +519,164 @@ class TestDraftSessionReport:
         session.run()
         output = buf.getvalue()
         assert "report" in output.lower()
+
+
+# ---------------------------------------------------------------------------
+# Category balance and needs commands
+# ---------------------------------------------------------------------------
+
+
+class TestParseCommandBalance:
+    def test_balance_command(self) -> None:
+        cmd = parse_command("balance", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, BalanceCommand)
+
+    def test_balance_case_insensitive(self) -> None:
+        cmd = parse_command("BALANCE", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, BalanceCommand)
+
+
+class TestParseCommandNeeds:
+    def test_needs_command(self) -> None:
+        cmd = parse_command("needs", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, NeedsCommand)
+
+    def test_needs_case_insensitive(self) -> None:
+        cmd = parse_command("NEEDS", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, NeedsCommand)
+
+    def test_need_still_works(self) -> None:
+        """Singular 'need' still returns NeedCommand (unfilled slots)."""
+        cmd = parse_command("need", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, NeedCommand)
+
+
+class TestCategoryBalanceREPL:
+    """Test balance and needs commands in the REPL."""
+
+    def _make_session_with_projections(
+        self,
+        commands: list[str],
+        *,
+        with_projections: bool = True,
+    ) -> tuple[StringIO, DraftSession]:
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+
+        cmd_iter = iter(commands)
+
+        def fake_input(_prompt: str = "") -> str:
+            return next(cmd_iter)
+
+        def fake_recommend(state: DraftState, *, limit: int = 5) -> list[Recommendation]:
+            return []
+
+        projections: list[Projection] | None = None
+        league: LeagueSettings | None = None
+
+        if with_projections:
+            hr_cat = CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER)
+            sb_cat = CategoryConfig(key="sb", name="SB", stat_type=StatType.COUNTING, direction=Direction.HIGHER)
+            league = LeagueSettings(
+                name="Test",
+                format=LeagueFormat.H2H_CATEGORIES,
+                teams=4,
+                budget=260,
+                roster_batters=14,
+                roster_pitchers=10,
+                batting_categories=(hr_cat, sb_cat),
+                pitching_categories=(),
+            )
+            # League pool
+            projections = [
+                Projection(
+                    player_id=i,
+                    season=2026,
+                    system="steamer",
+                    version="1.0",
+                    player_type="batter",
+                    stat_json={"hr": 20.0, "sb": 15.0},
+                )
+                for i in range(100, 200)
+            ]
+            # All our PLAYERS are batters with stats
+            for p in PLAYERS:
+                projections.append(
+                    Projection(
+                        player_id=p.player_id,
+                        season=2026,
+                        system="steamer",
+                        version="1.0",
+                        player_type=p.player_type,
+                        stat_json={"hr": 10.0, "sb": 5.0},
+                    )
+                )
+
+        session = DraftSession(
+            engine=engine,
+            players=PLAYERS,
+            console=test_console,
+            recommend_fn=fake_recommend,
+            input_fn=fake_input,
+            projections=projections,
+            league=league,
+        )
+        return buf, session
+
+    def test_help_includes_balance_and_needs(self) -> None:
+        buf, session = self._make_session_with_projections(["help", "quit"])
+        session.run()
+        output = buf.getvalue()
+        assert "balance" in output.lower()
+        assert "needs" in output.lower()
+
+    def test_balance_shows_categories(self) -> None:
+        buf, session = self._make_session_with_projections(["pick Mike Trout OF", "balance", "quit"])
+        session.run()
+        output = buf.getvalue()
+        assert "hr" in output.lower()
+        assert "sb" in output.lower()
+
+    def test_balance_without_projections_shows_warning(self) -> None:
+        buf, session = self._make_session_with_projections(["balance", "quit"], with_projections=False)
+        session.run()
+        output = buf.getvalue()
+        assert "not available" in output.lower()
+
+    def test_balance_empty_roster_shows_message(self) -> None:
+        buf, session = self._make_session_with_projections(["balance", "quit"])
+        session.run()
+        output = buf.getvalue()
+        # No picks yet → empty roster message
+        assert "no picks" in output.lower() or "empty" in output.lower()
+
+    def test_needs_shows_weak_categories(self) -> None:
+        buf, session = self._make_session_with_projections(["pick Mike Trout OF", "needs", "quit"])
+        session.run()
+        output = buf.getvalue()
+        # Should show category need info
+        assert "needs" in output.lower() or "weak" in output.lower()
+
+    def test_needs_without_projections_shows_warning(self) -> None:
+        buf, session = self._make_session_with_projections(["needs", "quit"], with_projections=False)
+        session.run()
+        output = buf.getvalue()
+        assert "not available" in output.lower()
+
+    def test_compact_summary_after_pick(self) -> None:
+        """After a pick, a compact category summary line appears."""
+        buf, session = self._make_session_with_projections(["pick Mike Trout OF", "quit"])
+        session.run()
+        output = buf.getvalue()
+        # Should show compact summary with Weak/Strong categories
+        assert "weak" in output.lower() or "strong" in output.lower()
+
+    def test_no_summary_without_projections(self) -> None:
+        """No compact summary when projections not loaded."""
+        buf, session = self._make_session_with_projections(["pick Mike Trout OF", "quit"], with_projections=False)
+        session.run()
+        output = buf.getvalue()
+        # Should not contain category strength labels
+        assert "weak:" not in output.lower() and "strong:" not in output.lower()

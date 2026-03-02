@@ -98,6 +98,7 @@ class TestDomainModels:
         assert w.scarcity == 0.4
         assert w.tier == 0.2
         assert w.adp == 0.15
+        assert w.category_balance == 0.25
 
     def test_recommendation_weights_custom(self) -> None:
         w = RecommendationWeights(value=2.0, need=0.5, scarcity=0.0, tier=0.1, adp=0.0)
@@ -771,3 +772,52 @@ class TestIntegration:
         # C-2's scarcity score should be higher than C-1's was initially
         # (C-1 had a backup in C-2, but C-2 has none)
         assert c2.score > c1_initial.score
+
+
+# ---------------------------------------------------------------------------
+# Step 9: Category balance scoring
+# ---------------------------------------------------------------------------
+
+
+class TestCategoryBalance:
+    def test_category_balance_fn_boosts_weak_category_player(self) -> None:
+        """Player addressing a weak category gets boosted by category_balance_fn."""
+        players = [
+            _make_player(1, "SB Guy", "OF", 18.0),
+            _make_player(2, "HR Guy", "OF", 20.0),
+        ]
+        state = _make_state(players, roster_slots={"OF": 3})
+
+        # SB Guy addresses weak categories, HR Guy doesn't
+        def cat_balance_fn(roster_ids: list[int], available_ids: list[int]) -> dict[int, float]:
+            return {1: 1.0, 2: 0.0}
+
+        w = RecommendationWeights(value=1.0, need=0.0, scarcity=0.0, tier=0.0, adp=0.0, category_balance=2.0)
+        recs = recommend(state, weights=w, category_balance_fn=cat_balance_fn)
+        # SB Guy should outrank HR Guy despite lower value
+        assert recs[0].player_id == 1
+
+    def test_category_balance_fn_none_backward_compatible(self) -> None:
+        """category_balance_fn=None → no effect, backward compatible."""
+        players = [
+            _make_player(1, "Player A", "OF", 25.0),
+            _make_player(2, "Player B", "OF", 20.0),
+        ]
+        state = _make_state(players, roster_slots={"OF": 2})
+        w = RecommendationWeights(value=1.0, need=0.0, scarcity=0.0, tier=0.0, adp=0.0)
+        recs = recommend(state, weights=w)
+        assert recs[0].player_id == 1
+
+    def test_reason_includes_category_balance(self) -> None:
+        """Reason includes 'addresses weak categories' when cat_bal > 0.3."""
+        players = [
+            _make_player(1, "Balance Guy", "OF", 15.0),
+        ]
+        state = _make_state(players, roster_slots={"OF": 2})
+
+        def cat_balance_fn(roster_ids: list[int], available_ids: list[int]) -> dict[int, float]:
+            return {1: 0.8}
+
+        w = RecommendationWeights(value=0.5, need=0.0, scarcity=0.0, tier=0.0, adp=0.0, category_balance=1.0)
+        recs = recommend(state, weights=w, category_balance_fn=cat_balance_fn)
+        assert "addresses weak categories" in recs[0].reason

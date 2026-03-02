@@ -23,6 +23,7 @@ from fantasy_baseball_manager.services import (
     DraftSession,
     build_draft_board,
     build_draft_roster_slots,
+    compute_category_balance_scores,
     export_csv,
     export_html,
     generate_tiers,
@@ -197,6 +198,8 @@ def draft_start(  # pragma: no cover
         adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
         profiles = ctx.profile_service.enrich_valuations(valuations, season)
 
+        projections = ctx.projection_repo.get_by_season(season, "steamer")
+
     board = build_draft_board(valuations, league, player_names, adp=adp_list if adp_list else None, profiles=profiles)
     draft_players: list[DraftBoardRow] = board.rows
     roster_slots = build_draft_roster_slots(league)
@@ -225,13 +228,20 @@ def draft_start(  # pragma: no cover
         pitching_categories=board.pitching_categories,
     )
 
+    def _cat_balance_fn(roster_ids: list[int], available_ids: list[int]) -> dict[int, float]:
+        return compute_category_balance_scores(roster_ids, available_ids, projections, league)
+
+    recommend_fn = functools.partial(recommend, category_balance_fn=_cat_balance_fn)
+
     session = DraftSession(
         engine=engine,
         players=draft_players,
         console=console,
-        recommend_fn=recommend,
+        recommend_fn=recommend_fn,
         report_fn=report_fn,
         save_path=save_path,
+        projections=projections,
+        league=league,
     )
     session.run()
 

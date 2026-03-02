@@ -3,6 +3,7 @@ import queue
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
 from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
     DraftEngine,
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         DraftBoardRow,
         DraftReport,
+        LeagueSettings,
+        Projection,
         Recommendation,
         YahooDraftPick,
     )
@@ -76,6 +79,14 @@ class ReportCommand: ...
 
 
 @dataclass(frozen=True)
+class BalanceCommand: ...
+
+
+@dataclass(frozen=True)
+class NeedsCommand: ...
+
+
+@dataclass(frozen=True)
 class QuitCommand: ...
 
 
@@ -89,6 +100,8 @@ Command = (
     | StatusCommand
     | SaveCommand
     | ReportCommand
+    | BalanceCommand
+    | NeedsCommand
     | HelpCommand
     | QuitCommand
 )
@@ -122,6 +135,10 @@ def parse_command(
         return BestCommand(position=pos)
     if verb == "need":
         return NeedCommand()
+    if verb == "needs":
+        return NeedsCommand()
+    if verb == "balance":
+        return BalanceCommand()
     if verb == "roster":
         return RosterCommand()
     if verb == "pool":
@@ -313,6 +330,8 @@ Commands:
   undo                              — Reverse the last pick
   best [position]                   — Show top recommendations
   need                              — Show unfilled roster slots
+  balance                           — Show category projections and strengths
+  needs                             — Show category needs and recommendations
   roster                            — Show your roster
   pool [position]                   — Show available players
   status                            — Show current draft status
@@ -341,6 +360,8 @@ class DraftSession:
         save_path: Path | None = None,
         yahoo_pick_queue: queue.Queue[YahooDraftPick] | None = None,
         team_map: dict[str, int] | None = None,
+        projections: list[Projection] | None = None,
+        league: LeagueSettings | None = None,
     ) -> None:
         self.engine = engine
         self.players = players
@@ -353,6 +374,8 @@ class DraftSession:
         self._valid_positions = set(engine.state.config.roster_slots.keys())
         self._yahoo_pick_queue = yahoo_pick_queue
         self._team_map = team_map or {}
+        self._projections = projections
+        self._league = league
 
     def run(self) -> None:
         """Main REPL loop."""
@@ -434,6 +457,10 @@ class DraftSession:
             self._handle_save()
         elif isinstance(cmd, ReportCommand):
             self._handle_report()
+        elif isinstance(cmd, BalanceCommand):
+            self._handle_balance()
+        elif isinstance(cmd, NeedsCommand):
+            self._handle_needs()
         return True
 
     # --- Command handlers ---
@@ -485,6 +512,8 @@ class DraftSession:
             f"— team {pick.team}, pick #{pick.pick_number}{price_str}[/green]"
         )
 
+        # Show compact category summary after pick
+        self._show_category_summary()
         # Auto-show recommendations after pick
         self._show_recommendations()
 
@@ -561,6 +590,100 @@ class DraftSession:
             self.console.print(
                 f"  {i}. {rec.player_name} ({rec.position}) — ${rec.value:.1f} | score {rec.score:.2f} | {rec.reason}"
             )
+
+    @property
+    def _has_category_tracking(self) -> bool:
+        return self._projections is not None and self._league is not None
+
+    def _handle_balance(self) -> None:
+        if not self._has_category_tracking:
+            self.console.print("[yellow]Category balance not available (no projections loaded).[/yellow]")
+            return
+
+        assert self._projections is not None  # noqa: S101
+        assert self._league is not None  # noqa: S101
+
+        roster = self.engine.my_roster()
+        if not roster:
+            self.console.print("No picks yet — roster is empty.")
+            return
+
+        roster_ids = [p.player_id for p in roster]
+        analysis = analyze_roster(roster_ids, self._projections, self._league)
+
+        self.console.print("[bold]Category Balance:[/bold]")
+        for proj in analysis.projections:
+            color = "green" if proj.strength == "strong" else "red" if proj.strength == "weak" else "yellow"
+            self.console.print(
+                f"  {proj.category:<6} {proj.projected_value:>8.2f}  "
+                f"rank {proj.league_rank_estimate}/{self._league.teams}  "
+                f"[{color}]{proj.strength}[/{color}]"
+            )
+
+    def _handle_needs(self) -> None:
+        if not self._has_category_tracking:
+            self.console.print("[yellow]Category needs not available (no projections loaded).[/yellow]")
+            return
+
+        assert self._projections is not None  # noqa: S101
+        assert self._league is not None  # noqa: S101
+
+        roster = self.engine.my_roster()
+        if not roster:
+            self.console.print("No picks yet — roster is empty.")
+            return
+
+        roster_ids = [p.player_id for p in roster]
+        available_ids = list(self.engine.state.available_pool.keys())
+        player_names = {p.player_id: p.player_name for p in self.players}
+        needs = identify_needs(
+            roster_ids,
+            available_ids,
+            self._projections,
+            self._league,
+            player_names=player_names,
+            top_n=3,
+        )
+
+        if not needs:
+            self.console.print("No weak categories — roster is well-balanced!")
+            return
+
+        self.console.print("[bold]Category Needs:[/bold]")
+        for need in needs:
+            self.console.print(f"  [red]{need.category}[/red] — rank {need.current_rank}/{self._league.teams}")
+            for rec in need.best_available:
+                tradeoff = (
+                    f" [yellow](hurts {', '.join(rec.tradeoff_categories)})[/yellow]" if rec.tradeoff_categories else ""
+                )
+                self.console.print(f"    {rec.player_name} (+{rec.category_impact:.1f}){tradeoff}")
+
+    def _show_category_summary(self) -> None:
+        """Show a one-line compact category summary after a pick."""
+        if not self._has_category_tracking:
+            return
+
+        assert self._projections is not None  # noqa: S101
+        assert self._league is not None  # noqa: S101
+
+        roster = self.engine.my_roster()
+        if not roster:
+            return
+
+        roster_ids = [p.player_id for p in roster]
+        analysis = analyze_roster(roster_ids, self._projections, self._league)
+
+        weak = [p.category.upper() for p in analysis.projections if p.strength == "weak"]
+        strong = [p.category.upper() for p in analysis.projections if p.strength == "strong"]
+
+        parts: list[str] = []
+        if weak:
+            parts.append(f"Weak: {', '.join(weak)}")
+        if strong:
+            parts.append(f"Strong: {', '.join(strong)}")
+
+        if parts:
+            self.console.print(f"[dim]{' | '.join(parts)}[/dim]")
 
     def _handle_report(self) -> None:
         if self.report_fn is None:

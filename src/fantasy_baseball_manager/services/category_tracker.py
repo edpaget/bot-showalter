@@ -145,6 +145,72 @@ def analyze_roster(
     )
 
 
+def compute_category_balance_scores(
+    roster_ids: list[int],
+    available_ids: list[int],
+    projections: list[Projection],
+    league: LeagueSettings,
+) -> dict[int, float]:
+    """Score available players by how much they address weak categories.
+
+    Returns a dict mapping player_id → score in [0, 1], where 1.0 is the
+    best category-balance improvement and 0.0 means no improvement.
+    """
+    if not available_ids:
+        return {}
+
+    analysis = analyze_roster(roster_ids, projections, league)
+    weak_keys = {p.category for p in analysis.projections if p.strength == "weak"}
+    if not weak_keys:
+        return {pid: 0.0 for pid in available_ids}
+
+    proj_lookup: dict[int, Projection] = {p.player_id: p for p in projections}
+    roster_projections = [proj_lookup[pid] for pid in set(roster_ids) if pid in proj_lookup]
+    roster_batters = [p for p in roster_projections if p.player_type == "batter"]
+    roster_pitchers = [p for p in roster_projections if p.player_type == "pitcher"]
+
+    # Build list of (weak_cat_config, is_batting, roster_pool) tuples
+    weak_cats: list[tuple[CategoryConfig, bool, list[Projection]]] = []
+    for key in weak_keys:
+        cat_config = _find_category_config(key, league)
+        if cat_config is None:
+            continue
+        is_batting = _is_batting_category(key, league)
+        pool = roster_batters if is_batting else roster_pitchers
+        weak_cats.append((cat_config, is_batting, pool))
+
+    # For each available player, sum positive impacts on matching-type weak categories
+    raw_scores: dict[int, float] = {}
+    for pid in available_ids:
+        candidate = proj_lookup.get(pid)
+        if candidate is None:
+            raw_scores[pid] = 0.0
+            continue
+
+        is_batter = candidate.player_type == "batter"
+        total_impact = 0.0
+        for cat_config, is_batting, roster_pool in weak_cats:
+            if is_batter != is_batting:
+                continue
+            current_value = _compute_category_value(cat_config, roster_pool)
+            with_player = _compute_category_value(cat_config, [*roster_pool, candidate])
+            if cat_config.direction == Direction.LOWER:
+                impact = current_value - with_player
+            else:
+                impact = with_player - current_value
+            if impact > 0:
+                total_impact += impact
+
+        raw_scores[pid] = total_impact
+
+    # Normalize to [0, 1]
+    max_score = max(raw_scores.values()) if raw_scores else 0.0
+    if max_score <= 0:
+        return {pid: 0.0 for pid in available_ids}
+
+    return {pid: raw / max_score for pid, raw in raw_scores.items()}
+
+
 def _find_category_config(key: str, league: LeagueSettings) -> CategoryConfig | None:
     """Look up a CategoryConfig by key from league settings."""
     for cat in league.batting_categories:

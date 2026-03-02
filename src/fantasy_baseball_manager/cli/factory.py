@@ -498,6 +498,7 @@ class DraftBoardContext:
     valuation_repo: SqliteValuationRepo
     adp_repo: SqliteADPRepo
     profile_service: PlayerProfileService
+    projection_repo: SqliteProjectionRepo
 
 
 @contextmanager
@@ -512,6 +513,7 @@ def build_draft_board_context(data_dir: str) -> Iterator[DraftBoardContext]:
             valuation_repo=container.valuation_repo,
             adp_repo=container.adp_repo,
             profile_service=container.player_profile_service,
+            projection_repo=container.projection_repo,
         )
     finally:
         conn.close()

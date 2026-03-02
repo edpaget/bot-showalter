@@ -1,7 +1,11 @@
 from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
 from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
-from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
+from fantasy_baseball_manager.services.category_tracker import (
+    analyze_roster,
+    compute_category_balance_scores,
+    identify_needs,
+)
 from fantasy_baseball_manager.services.cohort import (
     assign_age_cohorts,
     assign_experience_cohorts,
@@ -111,6 +115,7 @@ __all__ = [
     "classify_variance",
     "compute_adjusted_valuations",
     "compute_surplus",
+    "compute_category_balance_scores",
     "compute_confidence",
     "evaluate_trade",
     "draft_report",

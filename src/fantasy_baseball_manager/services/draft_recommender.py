@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from fantasy_baseball_manager.domain import Recommendation, RecommendationWeights
 from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftFormat, DraftState
@@ -7,11 +7,18 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import DraftBoardRow
 
 
+class CategoryBalanceFn(Protocol):
+    """Callable that scores available players by how much they address weak categories."""
+
+    def __call__(self, roster_ids: list[int], available_ids: list[int]) -> dict[int, float]: ...
+
+
 def recommend(
     state: DraftState,
     *,
     weights: RecommendationWeights | None = None,
     limit: int = 10,
+    category_balance_fn: CategoryBalanceFn | None = None,
 ) -> list[Recommendation]:
     """Return ranked draft recommendations from the current draft state.
 
@@ -33,11 +40,18 @@ def recommend(
     scarcity = _compute_scarcity(state.available_pool, needs)
     picks_until = _picks_until_next(state)
 
+    # Compute category balance scores once for all available players
+    cat_scores: dict[int, float] = {}
+    if category_balance_fn is not None:
+        roster_ids = [p.player_id for p in state.team_rosters[state.config.user_team]]
+        available_ids = list(state.available_pool.keys())
+        cat_scores = category_balance_fn(roster_ids, available_ids)
+
     scored: list[tuple[float, DraftBoardRow]] = []
     for player in pool:
         if not _is_recommendable(player, needs):
             continue
-        score = _score_player(player, w, max_value, needs, scarcity, pool, state, picks_until)
+        score = _score_player(player, w, max_value, needs, scarcity, pool, state, picks_until, cat_scores)
         scored.append((score, player))
 
     scored.sort(key=lambda t: t[0], reverse=True)
@@ -51,7 +65,7 @@ def recommend(
                 position=player.position,
                 value=player.value,
                 score=round(score, 4),
-                reason=_build_reason(player, w, max_value, needs, scarcity, pool, state, picks_until),
+                reason=_build_reason(player, w, max_value, needs, scarcity, pool, state, picks_until, cat_scores),
             )
         )
     return results
@@ -227,6 +241,7 @@ def _score_player(
     pool: list[DraftBoardRow],
     state: DraftState,
     picks_until: int,
+    cat_scores: dict[int, float] | None = None,
 ) -> float:
     """Compute composite recommendation score for a player."""
     value_norm = player.value / max_value
@@ -234,8 +249,16 @@ def _score_player(
     scar = scarcity.get(player.position, 0.0)
     tier = _tier_urgency(player, pool)
     adp = _adp_availability(player, picks_until, state.current_pick)
+    cat_bal = cat_scores.get(player.player_id, 0.0) if cat_scores else 0.0
 
-    score = w.value * value_norm + w.need * need + w.scarcity * scar + w.tier * tier + w.adp * adp
+    score = (
+        w.value * value_norm
+        + w.need * need
+        + w.scarcity * scar
+        + w.tier * tier
+        + w.adp * adp
+        + w.category_balance * cat_bal
+    )
     return score
 
 
@@ -248,6 +271,7 @@ def _build_reason(
     pool: list[DraftBoardRow],
     state: DraftState,
     picks_until: int,
+    cat_scores: dict[int, float] | None = None,
 ) -> str:
     """Generate human-readable reason from the dominant secondary scoring factors."""
     pos = player.position
@@ -273,6 +297,10 @@ def _build_reason(
     adp_val = _adp_availability(player, picks_until, state.current_pick)
     if w.adp > 0 and adp_val > 0:
         contributions.append((w.adp * adp_val, "ADP value: may be unavailable at next pick"))
+
+    cat_bal = cat_scores.get(player.player_id, 0.0) if cat_scores else 0.0
+    if w.category_balance > 0 and cat_bal > 0.3:
+        contributions.append((w.category_balance * cat_bal, "addresses weak categories"))
 
     if not contributions:
         return "best value available"
