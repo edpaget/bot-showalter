@@ -85,7 +85,12 @@ from fantasy_baseball_manager.domain.mock_draft import (
 )
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
-from fantasy_baseball_manager.domain.pick_value import PickValue, PickValueCurve
+from fantasy_baseball_manager.domain.pick_value import (
+    PickTrade,
+    PickTradeEvaluation,
+    PickValue,
+    PickValueCurve,
+)
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.player_bio import PlayerSummary
@@ -222,6 +227,8 @@ __all__ = [
     "PITCHING_COUNTING_STATS",
     "PITCHING_RATE_STATS",
     "PickGrade",
+    "PickTrade",
+    "PickTradeEvaluation",
     "PickValue",
     "PickValueCurve",
     "PitchingStats",

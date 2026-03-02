@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import PickValue, PickValueCurve
+from fantasy_baseball_manager.domain import (
+    PickTrade,
+    PickTradeEvaluation,
+    PickValue,
+    PickValueCurve,
+)
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import ADP, LeagueSettings, Valuation
+    from fantasy_baseball_manager.domain import ADP, DraftBoard, LeagueSettings, Valuation
 
 _SMOOTHING_WINDOW = 5
 
@@ -172,3 +177,112 @@ def _enforce_monotonicity(values: dict[int, float], total_picks: int) -> dict[in
         result[pick_num] = val
         prev = val
     return result
+
+
+def _pick_value_from_curve(curve: PickValueCurve, pick: int) -> PickValue:
+    """Look up the PickValue entry for a pick number from the curve."""
+    for pv in curve.picks:
+        if pv.pick == pick:
+            return pv
+    return PickValue(pick=pick, expected_value=0.0, player_name=None, confidence="low")
+
+
+def evaluate_pick_trade(
+    trade: PickTrade,
+    curve: PickValueCurve,
+    threshold: float = 1.0,
+) -> PickTradeEvaluation:
+    """Evaluate a draft pick trade by comparing total expected value on each side."""
+    gives_detail = [_pick_value_from_curve(curve, p) for p in trade.gives]
+    receives_detail = [_pick_value_from_curve(curve, p) for p in trade.receives]
+
+    gives_value = sum(pv.expected_value for pv in gives_detail)
+    receives_value = sum(pv.expected_value for pv in receives_detail)
+    net_value = receives_value - gives_value
+
+    if net_value >= threshold:
+        recommendation = "accept"
+    elif net_value <= -threshold:
+        recommendation = "reject"
+    else:
+        recommendation = "even"
+
+    return PickTradeEvaluation(
+        trade=trade,
+        gives_value=gives_value,
+        receives_value=receives_value,
+        net_value=net_value,
+        gives_detail=gives_detail,
+        receives_detail=receives_detail,
+        recommendation=recommendation,
+    )
+
+
+def _best_player_at_pick(
+    pick: int,
+    board: DraftBoard,
+    needed_positions: list[str],
+    window: int = 2,
+) -> PickValue | None:
+    """Find the best player matching a needed position near a pick number.
+
+    Searches board rows whose rank is within [pick - window, pick + window].
+    Returns a PickValue if a matching player is found, otherwise None.
+    """
+    candidates = [row for row in board.rows if abs(row.rank - pick) <= window and row.position in needed_positions]
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda r: r.value)
+    return PickValue(
+        pick=pick,
+        expected_value=best.value,
+        player_name=best.player_name,
+        confidence="high",
+    )
+
+
+def evaluate_pick_trade_with_context(
+    trade: PickTrade,
+    curve: PickValueCurve,
+    board: DraftBoard,
+    needed_positions: list[str],
+    threshold: float = 1.0,
+) -> PickTradeEvaluation:
+    """Evaluate a draft pick trade with positional-need context.
+
+    For each pick, looks for a player at a needed position near that pick.
+    If found, uses that player's actual value; otherwise falls back to curve.
+    """
+    if not needed_positions:
+        return evaluate_pick_trade(trade, curve, threshold)
+
+    gives_detail: list[PickValue] = []
+    for p in trade.gives:
+        player_pv = _best_player_at_pick(p, board, needed_positions)
+        gives_detail.append(player_pv or _pick_value_from_curve(curve, p))
+
+    receives_detail: list[PickValue] = []
+    for p in trade.receives:
+        player_pv = _best_player_at_pick(p, board, needed_positions)
+        receives_detail.append(player_pv or _pick_value_from_curve(curve, p))
+
+    gives_value = sum(pv.expected_value for pv in gives_detail)
+    receives_value = sum(pv.expected_value for pv in receives_detail)
+    net_value = receives_value - gives_value
+
+    if net_value >= threshold:
+        recommendation = "accept"
+    elif net_value <= -threshold:
+        recommendation = "reject"
+    else:
+        recommendation = "even"
+
+    return PickTradeEvaluation(
+        trade=trade,
+        gives_value=gives_value,
+        receives_value=receives_value,
+        net_value=net_value,
+        gives_detail=gives_detail,
+        receives_detail=receives_detail,
+        recommendation=recommendation,
+    )

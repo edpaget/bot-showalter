@@ -2,7 +2,12 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from fantasy_baseball_manager.domain.pick_value import PickValue, PickValueCurve
+from fantasy_baseball_manager.domain.pick_value import (
+    PickTrade,
+    PickTradeEvaluation,
+    PickValue,
+    PickValueCurve,
+)
 from fantasy_baseball_manager.services.pick_value import value_at
 
 
@@ -69,3 +74,53 @@ class TestPickValueCurve:
     def test_value_at_empty_curve(self) -> None:
         curve = self._curve(picks=[])
         assert value_at(curve, 1) == 0.0
+
+
+class TestPickTrade:
+    def test_frozen(self) -> None:
+        trade = PickTrade(gives=[1], receives=[10])
+        with pytest.raises(FrozenInstanceError):
+            trade.gives = [2]  # type: ignore[misc]
+
+    def test_fields(self) -> None:
+        trade = PickTrade(gives=[1, 20], receives=[10, 15])
+        assert trade.gives == [1, 20]
+        assert trade.receives == [10, 15]
+
+
+class TestPickTradeEvaluation:
+    def _pv(self, pick: int, value: float) -> PickValue:
+        return PickValue(pick=pick, expected_value=value, player_name=None, confidence="high")
+
+    def test_frozen(self) -> None:
+        trade = PickTrade(gives=[1], receives=[10])
+        evaluation = PickTradeEvaluation(
+            trade=trade,
+            gives_value=30.0,
+            receives_value=20.0,
+            net_value=-10.0,
+            gives_detail=[self._pv(1, 30.0)],
+            receives_detail=[self._pv(10, 20.0)],
+            recommendation="reject",
+        )
+        with pytest.raises(FrozenInstanceError):
+            evaluation.net_value = 0.0  # type: ignore[misc]
+
+    def test_fields(self) -> None:
+        trade = PickTrade(gives=[1], receives=[10])
+        evaluation = PickTradeEvaluation(
+            trade=trade,
+            gives_value=30.0,
+            receives_value=20.0,
+            net_value=-10.0,
+            gives_detail=[self._pv(1, 30.0)],
+            receives_detail=[self._pv(10, 20.0)],
+            recommendation="reject",
+        )
+        assert evaluation.trade is trade
+        assert evaluation.gives_value == 30.0
+        assert evaluation.receives_value == 20.0
+        assert evaluation.net_value == -10.0
+        assert len(evaluation.gives_detail) == 1
+        assert len(evaluation.receives_detail) == 1
+        assert evaluation.recommendation == "reject"

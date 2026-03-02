@@ -65,7 +65,12 @@ from fantasy_baseball_manager.services.mock_draft_bots import (
 from fantasy_baseball_manager.services.performance_report import (
     PerformanceReportService,
 )
-from fantasy_baseball_manager.services.pick_value import compute_pick_value_curve, value_at
+from fantasy_baseball_manager.services.pick_value import (
+    compute_pick_value_curve,
+    evaluate_pick_trade,
+    evaluate_pick_trade_with_context,
+    value_at,
+)
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
 from fantasy_baseball_manager.services.player_eligibility import (
     PlayerEligibilityService,
@@ -151,6 +156,8 @@ __all__ = [
     "compute_pick_value_curve",
     "compute_surplus",
     "draft_report",
+    "evaluate_pick_trade",
+    "evaluate_pick_trade_with_context",
     "evaluate_trade",
     "export_csv",
     "export_html",

@@ -1,4 +1,7 @@
+import pytest
+
 from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -6,8 +9,18 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.domain.pick_value import (
+    PickTrade,
+    PickValue,
+    PickValueCurve,
+)
 from fantasy_baseball_manager.domain.valuation import Valuation
-from fantasy_baseball_manager.services.pick_value import compute_pick_value_curve, value_at
+from fantasy_baseball_manager.services.pick_value import (
+    compute_pick_value_curve,
+    evaluate_pick_trade,
+    evaluate_pick_trade_with_context,
+    value_at,
+)
 
 
 def _league(teams: int = 4, roster_batters: int = 3, roster_pitchers: int = 2) -> LeagueSettings:
@@ -204,3 +217,181 @@ class TestComputePickValueCurve:
         # Pick 1 should be near the average of 40 and 20 (30), after smoothing
         pick1 = next(pv for pv in curve.picks if pv.pick == 1)
         assert pick1.expected_value > 15.0  # at least higher than pick 2's player
+
+
+def _steep_curve(num_picks: int = 30) -> PickValueCurve:
+    """Build a steep curve where pick 1 is very valuable and value drops fast."""
+    picks = [
+        PickValue(
+            pick=i,
+            expected_value=round(100.0 / i, 2),  # 100, 50, 33.3, 25, 20, ...
+            player_name=f"Player {i}",
+            confidence="high",
+        )
+        for i in range(1, num_picks + 1)
+    ]
+    return PickValueCurve(season=2026, provider="yahoo", system="zar", picks=picks, total_picks=num_picks)
+
+
+class TestEvaluatePickTrade:
+    def test_symmetric_trade(self) -> None:
+        """Trading pick 10 for pick 10 → net_value ≈ 0, recommendation 'even'."""
+        curve = _steep_curve()
+        trade = PickTrade(gives=[10], receives=[10])
+        result = evaluate_pick_trade(trade, curve)
+        assert result.net_value == pytest.approx(0.0)
+        assert result.recommendation == "even"
+
+    def test_obvious_win(self) -> None:
+        """Trading pick 100 for pick 1 → positive net_value, 'accept'."""
+        curve = _steep_curve(num_picks=100)
+        trade = PickTrade(gives=[100], receives=[1])
+        result = evaluate_pick_trade(trade, curve)
+        assert result.net_value > 0.0
+        assert result.recommendation == "accept"
+
+    def test_obvious_loss(self) -> None:
+        """Trading pick 1 for pick 100 → negative net_value, 'reject'."""
+        curve = _steep_curve(num_picks=100)
+        trade = PickTrade(gives=[1], receives=[100])
+        result = evaluate_pick_trade(trade, curve)
+        assert result.net_value < 0.0
+        assert result.recommendation == "reject"
+
+    def test_multi_pick_steep_curve_loss(self) -> None:
+        """Trading pick 1 for picks 20+21 is a loss when curve is steep (AC #1)."""
+        curve = _steep_curve()
+        trade = PickTrade(gives=[1], receives=[20, 21])
+        result = evaluate_pick_trade(trade, curve)
+        # Pick 1 = 100.0, picks 20+21 = 5.0 + 4.76 = 9.76
+        assert result.net_value < 0.0
+        assert result.recommendation == "reject"
+
+    def test_threshold_makes_small_trade_even(self) -> None:
+        """Trade with small net_value below threshold → 'even'."""
+        curve = _steep_curve()
+        # Picks 10 (10.0) vs pick 11 (9.09) → net = -0.91
+        trade = PickTrade(gives=[10], receives=[11])
+        result = evaluate_pick_trade(trade, curve, threshold=1.0)
+        assert abs(result.net_value) < 1.0
+        assert result.recommendation == "even"
+
+    def test_net_value_positive_when_receiving_more(self) -> None:
+        """net_value is positive when receiving side has more total expected value (AC #3)."""
+        curve = _steep_curve()
+        trade = PickTrade(gives=[20], receives=[5])
+        result = evaluate_pick_trade(trade, curve)
+        assert result.receives_value > result.gives_value
+        assert result.net_value > 0.0
+
+    def test_detail_lists_correct(self) -> None:
+        """gives_detail and receives_detail contain correct PickValue entries."""
+        curve = _steep_curve()
+        trade = PickTrade(gives=[1, 5], receives=[3, 10])
+        result = evaluate_pick_trade(trade, curve)
+
+        assert len(result.gives_detail) == 2
+        assert len(result.receives_detail) == 2
+
+        # Verify pick numbers match
+        assert result.gives_detail[0].pick == 1
+        assert result.gives_detail[1].pick == 5
+        assert result.receives_detail[0].pick == 3
+        assert result.receives_detail[1].pick == 10
+
+        # Verify values match what the curve has
+        assert result.gives_detail[0].expected_value == value_at(curve, 1)
+        assert result.gives_detail[1].expected_value == value_at(curve, 5)
+        assert result.receives_detail[0].expected_value == value_at(curve, 3)
+        assert result.receives_detail[1].expected_value == value_at(curve, 10)
+
+
+def _board_row(player_id: int, name: str, rank: int, position: str, value: float) -> DraftBoardRow:
+    return DraftBoardRow(
+        player_id=player_id,
+        player_name=name,
+        rank=rank,
+        player_type="batter",
+        position=position,
+        value=value,
+        category_z_scores={},
+    )
+
+
+def _test_board() -> DraftBoard:
+    """Board with known players at specific ranks/positions."""
+    rows = [
+        _board_row(1, "Elite SS", rank=3, position="SS", value=50.0),
+        _board_row(2, "Elite OF", rank=4, position="OF", value=48.0),
+        _board_row(3, "Good OF", rank=5, position="OF", value=45.0),
+        _board_row(4, "OK 1B", rank=6, position="1B", value=40.0),
+        _board_row(5, "Mid SS", rank=14, position="SS", value=20.0),
+        _board_row(6, "Mid OF", rank=15, position="OF", value=18.0),
+        _board_row(7, "Late 1B", rank=16, position="1B", value=15.0),
+    ]
+    return DraftBoard(
+        rows=rows,
+        batting_categories=("hr", "r", "rbi"),
+        pitching_categories=("w", "sv"),
+    )
+
+
+class TestEvaluatePickTradeWithContext:
+    def test_without_positional_need_matches_basic(self) -> None:
+        """Without positional need, results match basic evaluate_pick_trade()."""
+        curve = _steep_curve()
+        trade = PickTrade(gives=[5], receives=[10])
+        board = _test_board()
+
+        basic = evaluate_pick_trade(trade, curve)
+        ctx = evaluate_pick_trade_with_context(trade, curve, board, needed_positions=[])
+
+        assert ctx.net_value == basic.net_value
+        assert ctx.recommendation == basic.recommendation
+
+    def test_positional_need_changes_value(self) -> None:
+        """With positional need: pick 5 has a needed SS → trading it away costs more (AC #2)."""
+        curve = _steep_curve(num_picks=20)
+        board = _test_board()
+        # Trade pick 5 (where elite SS is ranked) for pick 15
+        trade = PickTrade(gives=[5], receives=[15])
+
+        # Without context: just curve values
+        basic = evaluate_pick_trade(trade, curve)
+
+        # With context needing SS: pick 5 has Elite SS (value=45.0) which is much more
+        # than the curve value at pick 5 (20.0), making the trade worse
+        ctx = evaluate_pick_trade_with_context(trade, curve, board, needed_positions=["SS"])
+
+        # The context-aware net should be worse (more negative) because giving away
+        # a pick with a needed SS hurts more
+        assert ctx.net_value < basic.net_value
+
+    def test_no_matching_position_falls_back_to_curve(self) -> None:
+        """When no player at a pick matches needed position, falls back to curve."""
+        curve = _steep_curve(num_picks=20)
+        board = _test_board()
+        # Need a catcher but nobody in the board is a catcher
+        trade = PickTrade(gives=[5], receives=[15])
+
+        basic = evaluate_pick_trade(trade, curve)
+        ctx = evaluate_pick_trade_with_context(trade, curve, board, needed_positions=["C"])
+
+        # Should fall back to curve values since no catchers exist
+        assert ctx.net_value == basic.net_value
+
+    def test_player_specific_detail(self) -> None:
+        """gives_detail and receives_detail reflect actual player values."""
+        curve = _steep_curve(num_picks=20)
+        board = _test_board()
+        trade = PickTrade(gives=[5], receives=[15])
+
+        ctx = evaluate_pick_trade_with_context(trade, curve, board, needed_positions=["SS"])
+
+        # Pick 5 should show the Elite SS player (rank=3, within window of pick 5)
+        assert ctx.gives_detail[0].player_name == "Elite SS"
+        assert ctx.gives_detail[0].expected_value == 50.0
+
+        # Pick 15 should show the Mid SS player
+        assert ctx.receives_detail[0].player_name == "Mid SS"
+        assert ctx.receives_detail[0].expected_value == 20.0
