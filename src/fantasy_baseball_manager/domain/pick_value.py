@@ -16,11 +16,3 @@ class PickValueCurve:
     system: str
     picks: list[PickValue]
     total_picks: int
-
-
-def value_at(curve: PickValueCurve, pick: int) -> float:
-    """Return expected value for a pick number, 0.0 if out of range."""
-    for pv in curve.picks:
-        if pv.pick == pick:
-            return pv.expected_value
-    return 0.0

@@ -10,6 +10,14 @@ if TYPE_CHECKING:
 _SMOOTHING_WINDOW = 5
 
 
+def value_at(curve: PickValueCurve, pick: int) -> float:
+    """Return expected value for a pick number, 0.0 if out of range."""
+    for pv in curve.picks:
+        if pv.pick == pick:
+            return pv.expected_value
+    return 0.0
+
+
 def compute_pick_value_curve(
     adp: list[ADP],
     valuations: list[Valuation],

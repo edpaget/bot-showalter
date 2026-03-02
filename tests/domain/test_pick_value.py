@@ -2,7 +2,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from fantasy_baseball_manager.domain.pick_value import PickValue, PickValueCurve, value_at
+from fantasy_baseball_manager.domain.pick_value import PickValue, PickValueCurve
+from fantasy_baseball_manager.services.pick_value import value_at
 
 
 class TestPickValue:

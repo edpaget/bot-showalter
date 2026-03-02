@@ -6,9 +6,8 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
-from fantasy_baseball_manager.domain.pick_value import value_at
 from fantasy_baseball_manager.domain.valuation import Valuation
-from fantasy_baseball_manager.services.pick_value import compute_pick_value_curve
+from fantasy_baseball_manager.services.pick_value import compute_pick_value_curve, value_at
 
 
 def _league(teams: int = 4, roster_batters: int = 3, roster_pitchers: int = 2) -> LeagueSettings:

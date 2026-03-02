@@ -49,7 +49,7 @@ from fantasy_baseball_manager.services.league_environment_service import (
 from fantasy_baseball_manager.services.performance_report import (
     PerformanceReportService,
 )
-from fantasy_baseball_manager.services.pick_value import compute_pick_value_curve
+from fantasy_baseball_manager.services.pick_value import compute_pick_value_curve, value_at
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
 from fantasy_baseball_manager.services.player_eligibility import (
     PlayerEligibilityService,
@@ -133,4 +133,5 @@ __all__ = [
     "resolve_player",
     "set_keeper_cost",
     "tier_summary",
+    "value_at",
 ]
