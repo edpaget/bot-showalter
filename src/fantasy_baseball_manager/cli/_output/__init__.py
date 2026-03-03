@@ -68,6 +68,7 @@ from fantasy_baseball_manager.cli._output._reports import (
     print_value_over_adp,
     print_variance_targets,
 )
+from fantasy_baseball_manager.cli._output._residuals import print_error_decomposition_report
 from fantasy_baseball_manager.cli._output._runs import print_run_detail, print_run_list
 from fantasy_baseball_manager.cli._output._valuations import (
     print_player_valuations,
@@ -91,6 +92,7 @@ _SUBMODULE_NAMES = (
     "_projections",
     "_quick_eval",
     "_reports",
+    "_residuals",
     "_runs",
     "_valuations",
 )
@@ -139,6 +141,7 @@ __all__ = [
     "print_draft_report",
     "print_draft_tiers",
     "print_error",
+    "print_error_decomposition_report",
     "print_experiment_detail",
     "print_experiment_search_results",
     "print_experiment_summary",

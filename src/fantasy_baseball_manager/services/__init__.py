@@ -128,6 +128,7 @@ from fantasy_baseball_manager.services.regression_gate import (
 from fantasy_baseball_manager.services.residual_analysis_diagnostic import (
     ResidualAnalysisDiagnostic,
 )
+from fantasy_baseball_manager.services.residual_analyzer import ResidualAnalyzer
 from fantasy_baseball_manager.services.residual_persistence_diagnostic import (
     ResidualPersistenceDiagnostic,
 )
@@ -178,6 +179,7 @@ __all__ = [
     "marginal_value",
     "quick_eval",
     "ResidualAnalysisDiagnostic",
+    "ResidualAnalyzer",
     "ResidualPersistenceDiagnostic",
     "NUMERIC_COLUMNS",
     "StatcastColumnProfiler",

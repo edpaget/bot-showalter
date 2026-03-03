@@ -24,6 +24,7 @@ from fantasy_baseball_manager.services import (
     ProjectionEvaluator,
     ProjectionLookupService,
     ResidualAnalysisDiagnostic,
+    ResidualAnalyzer,
     ResidualPersistenceDiagnostic,
     StatsBasedPlayerUniverse,
     TrueTalentEvaluator,
@@ -166,6 +167,16 @@ class AnalysisContainer:
             self.batting_stats_repo,
             self.pitching_stats_repo,
             self.player_repo,
+        )
+
+    @functools.cached_property
+    def residual_analyzer(self) -> ResidualAnalyzer:
+        return ResidualAnalyzer(
+            self.projection_repo,
+            self.batting_stats_repo,
+            self.pitching_stats_repo,
+            self.player_repo,
+            self.position_appearance_repo,
         )
 
     @functools.cached_property

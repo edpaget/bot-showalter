@@ -84,6 +84,7 @@ if TYPE_CHECKING:
         PlayerProfileService,
         ProjectionLookupService,
         ResidualAnalysisDiagnostic,
+        ResidualAnalyzer,
         ResidualPersistenceDiagnostic,
         TrueTalentEvaluator,
         ValuationEvaluator,
@@ -423,6 +424,23 @@ def build_report_context(data_dir: str) -> Iterator[ReportContext]:
             residual_diagnostic=container.residual_diagnostic,
             residual_analysis_diagnostic=container.residual_analysis_diagnostic,
         )
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class ResidualsContext:
+    conn: sqlite3.Connection
+    analyzer: ResidualAnalyzer
+
+
+@contextmanager
+def build_residuals_context(data_dir: str) -> Iterator[ResidualsContext]:
+    """Composition-root context manager for residuals commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        container = AnalysisContainer(conn)
+        yield ResidualsContext(conn=conn, analyzer=container.residual_analyzer)
     finally:
         conn.close()
 

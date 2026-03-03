@@ -28,6 +28,7 @@ from fantasy_baseball_manager.cli.commands.profile import profile_app
 from fantasy_baseball_manager.cli.commands.projections import projections_app
 from fantasy_baseball_manager.cli.commands.quick_eval import quick_eval_cmd
 from fantasy_baseball_manager.cli.commands.report import report_app
+from fantasy_baseball_manager.cli.commands.residuals import residuals_app
 from fantasy_baseball_manager.cli.commands.runs import runs_app
 from fantasy_baseball_manager.cli.commands.standalone import (
     chat_cmd,
@@ -84,6 +85,7 @@ app.add_typer(valuations_app, name="valuations")
 app.add_typer(ingest_app, name="ingest")
 app.add_typer(compute_app, name="compute")
 app.add_typer(report_app, name="report")
+app.add_typer(residuals_app, name="residuals")
 app.add_typer(draft_app, name="draft")
 app.add_typer(experiment_app, name="experiment")
 app.add_typer(feature_app, name="feature")
