@@ -6,7 +6,7 @@ Enable an autonomous agent to understand *where* the statcast GBM model fails, s
 
 | Phase | Status |
 |-------|--------|
-| 1 — Error decomposition | in progress (2026-03-03) |
+| 1 — Error decomposition | done (2026-03-03) |
 | 2 — Feature gap detector | not started |
 | 3 — Bias-by-cohort report | not started |
 
