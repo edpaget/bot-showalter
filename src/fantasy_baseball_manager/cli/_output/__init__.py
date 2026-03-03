@@ -70,6 +70,7 @@ from fantasy_baseball_manager.cli._output._reports import (
 )
 from fantasy_baseball_manager.cli._output._residuals import print_error_decomposition_report
 from fantasy_baseball_manager.cli._output._runs import print_run_detail, print_run_list
+from fantasy_baseball_manager.cli._output._validate import print_preflight_result
 from fantasy_baseball_manager.cli._output._valuations import (
     print_player_valuations,
     print_valuation_eval_result,
@@ -94,6 +95,7 @@ _SUBMODULE_NAMES = (
     "_reports",
     "_residuals",
     "_runs",
+    "_validate",
     "_valuations",
 )
 
@@ -155,6 +157,7 @@ __all__ = [
     "print_keeper_trade_impact",
     "print_marginal_value_results",
     "print_performance_report",
+    "print_preflight_result",
     "print_pick_trade_evaluation",
     "print_pick_value_curve",
     "print_player_projections",

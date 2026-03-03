@@ -39,6 +39,7 @@ from fantasy_baseball_manager.cli.commands.standalone import (
     info,
     list_cmd,
 )
+from fantasy_baseball_manager.cli.commands.validate import validate_app
 from fantasy_baseball_manager.cli.commands.valuations import valuations_app
 from fantasy_baseball_manager.cli.commands.yahoo import yahoo_app
 
@@ -91,4 +92,5 @@ app.add_typer(experiment_app, name="experiment")
 app.add_typer(feature_app, name="feature")
 app.add_typer(keeper_app, name="keeper")
 app.add_typer(profile_app, name="profile")
+app.add_typer(validate_app, name="validate")
 app.add_typer(yahoo_app, name="yahoo")

@@ -137,6 +137,13 @@ from fantasy_baseball_manager.services.tier_generator import (
     tier_summary,
 )
 from fantasy_baseball_manager.services.true_talent_evaluator import TrueTalentEvaluator
+from fantasy_baseball_manager.services.validation_gate import (
+    PreflightResult,
+    PreflightThresholds,
+    TargetPreflightDetail,
+    preflight_check,
+    score_cv_folds,
+)
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
 
@@ -238,4 +245,9 @@ __all__ = [
     "solve_keepers_with_pool",
     "tier_summary",
     "value_at",
+    "PreflightResult",
+    "PreflightThresholds",
+    "TargetPreflightDetail",
+    "preflight_check",
+    "score_cv_folds",
 ]
