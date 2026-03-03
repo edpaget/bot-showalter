@@ -437,3 +437,5 @@ def print_scarcity_report(
             f"[{slope_color}]{ps.dropoff_slope:.2f}[/{slope_color}]",
             steep_display,
         )
+
+    console.print(table)

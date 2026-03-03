@@ -103,8 +103,14 @@ def _detect_elbow(values: list[float]) -> int | None:
     if not second_derivatives:
         return None
 
-    # Find max absolute second derivative
-    max_abs = max(abs(sd) for sd in second_derivatives)
+    # Find index and value of max absolute second derivative
+    max_idx = 0
+    max_abs = abs(second_derivatives[0])
+    for i, sd in enumerate(second_derivatives[1:], start=1):
+        abs_sd = abs(sd)
+        if abs_sd > max_abs:
+            max_abs = abs_sd
+            max_idx = i
 
     # No elbow if second derivatives are negligible
     if max_abs < 1e-9:
@@ -117,10 +123,5 @@ def _detect_elbow(values: list[float]) -> int | None:
         # No significant elbow
         return None
 
-    # Find the index of the max absolute second derivative
-    for i, sd in enumerate(second_derivatives):
-        if abs(sd) == max_abs:
-            # i in second_derivatives corresponds to rank i+1 in values (1-indexed)
-            return i + 1
-
-    return None  # pragma: no cover
+    # max_idx in second_derivatives corresponds to rank max_idx+1 in values (1-indexed)
+    return max_idx + 1
