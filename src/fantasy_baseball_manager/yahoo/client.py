@@ -48,6 +48,19 @@ class YahooFantasyClient:
         url = f"{_BASE_URL}league/{league_key}/draftresults"
         return self._get_with_retry(url)
 
+    def get_available_seasons(self) -> list[tuple[str, int]]:
+        url = f"{_BASE_URL}games;game_codes=mlb"
+        data = self._get_with_retry(url)
+        games = data["fantasy_content"]["games"]
+        result: list[tuple[str, int]] = []
+        for key, value in games.items():
+            if key == "count":
+                continue
+            game = value["game"][0]
+            result.append((game["game_key"], int(game["season"])))
+        result.sort(key=lambda x: x[1], reverse=True)
+        return result
+
     def get_game_key(self, season: int) -> str:
         url = f"{_BASE_URL}games;game_codes=mlb;seasons={season}"
         data = self._get_with_retry(url)

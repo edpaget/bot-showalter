@@ -87,6 +87,7 @@ from fantasy_baseball_manager.domain.keeper import (
     TradeEvaluation,
     TradePlayerDetail,
 )
+from fantasy_baseball_manager.domain.keeper_history import KeeperHistory, KeeperSeasonEntry
 from fantasy_baseball_manager.domain.keeper_optimization import (
     KeeperConstraints,
     KeeperScenario,
@@ -179,6 +180,7 @@ from fantasy_baseball_manager.domain.residual_persistence import (
 from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.domain.roster import Roster, RosterEntry
 from fantasy_baseball_manager.domain.roster_stint import RosterStint
+from fantasy_baseball_manager.domain.season_data import SeasonData
 from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 from fantasy_baseball_manager.domain.talent_quality import (
@@ -262,7 +264,9 @@ __all__ = [
     "KeeperConstraints",
     "KeeperCost",
     "KeeperDecision",
+    "KeeperHistory",
     "KeeperScenario",
+    "KeeperSeasonEntry",
     "KeeperSet",
     "KeeperSolution",
     "KeeperTradeImpact",
@@ -309,6 +313,7 @@ __all__ = [
     "RosterEntry",
     "RosterStint",
     "SeasonCorrelationResult",
+    "SeasonData",
     "SensitivityEntry",
     "SprintSpeed",
     "StatComparisonRecord",

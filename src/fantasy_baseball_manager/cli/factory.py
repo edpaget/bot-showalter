@@ -674,6 +674,7 @@ class YahooContext:
     projection_repo: SqliteProjectionRepo
     valuation_repo: SqliteValuationRepo
     adp_repo: SqliteADPRepo
+    keeper_repo: SqliteKeeperCostRepo
     client: YahooFantasyClient
 
 
@@ -696,6 +697,7 @@ def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContex
             projection_repo=SqliteProjectionRepo(conn),
             valuation_repo=SqliteValuationRepo(conn),
             adp_repo=SqliteADPRepo(conn),
+            keeper_repo=SqliteKeeperCostRepo(conn),
             client=client,
         )
     finally:

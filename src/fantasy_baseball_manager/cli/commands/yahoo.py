@@ -9,14 +9,16 @@ from typing import Annotated, Any
 import typer
 from rich.table import Table
 
-from fantasy_baseball_manager.cli._output import console, print_error
+from fantasy_baseball_manager.cli._output import console, print_error, print_keeper_decisions
 from fantasy_baseball_manager.cli.factory import YahooContext, build_yahoo_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config, resolve_default_league
 from fantasy_baseball_manager.domain import (
     DraftBoard,
     DraftBoardRow,
+    Err,
     LeagueSettings,
+    Ok,
     YahooDraftPick,
     YahooLeague,
     YahooPlayerMap,
@@ -29,9 +31,13 @@ from fantasy_baseball_manager.services import (
     DraftSession,
     build_draft_board,
     build_draft_roster_slots,
+    build_keeper_histories,
     build_team_map,
+    compute_surplus,
+    derive_keeper_costs,
     ingest_yahoo_pick,
     recommend,
+    set_keeper_cost,
 )
 from fantasy_baseball_manager.services import (
     draft_report as compute_draft_report,
@@ -598,3 +604,222 @@ def yahoo_draft_live(  # pragma: no cover
         session.run()
     finally:
         poller.stop()
+
+
+# ---------------------------------------------------------------------------
+# Helpers for keeper commands
+# ---------------------------------------------------------------------------
+
+
+def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, Any]:
+    """Resolve Yahoo config and league name. Returns (league_name, config)."""
+    config = load_yahoo_config(Path(config_dir))
+
+    if league is None:
+        league = resolve_default_league(config)
+
+    if league not in config.leagues:
+        print_error(f"League '{league}' not found in [yahoo.leagues]")
+        raise typer.Exit(code=1)
+
+    return league, config
+
+
+def _derive_and_store_keeper_costs(
+    ctx: YahooContext,
+    league_key: str,
+    season: int,
+    league_name: str,
+    cost_floor: float,
+) -> None:
+    """Derive keeper costs from Yahoo draft/roster and upsert, respecting manual overrides."""
+    prior_season = season - 1
+    prior_game_key = ctx.client.get_game_key(prior_season)
+    prior_league_key = f"{prior_game_key}.l.{league_key.split('.l.')[1]}"
+
+    mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
+    draft_source = YahooDraftSource(ctx.client, mapper)
+    roster_source = YahooRosterSource(ctx.client, mapper)
+
+    draft_picks = draft_source.fetch_draft_results(prior_league_key, prior_season)
+
+    user_team = ctx.yahoo_team_repo.get_user_team(league_key)
+    if user_team is None:
+        print_error("No user team found. Run 'fbm yahoo sync' first.")
+        raise typer.Exit(code=1)
+
+    today = datetime.date.today()
+    roster = roster_source.fetch_team_roster(
+        team_key=user_team.team_key,
+        league_key=league_key,
+        season=season,
+        week=1,
+        as_of=today,
+    )
+
+    derived = derive_keeper_costs(draft_picks, list(roster.entries), league_name, season, cost_floor)
+
+    # Respect manual overrides: skip upserting players with non-yahoo_* source
+    existing = ctx.keeper_repo.find_by_season_league(season, league_name)
+    manual_player_ids = {kc.player_id for kc in existing if not kc.source.startswith("yahoo_")}
+    to_upsert = [kc for kc in derived if kc.player_id not in manual_player_ids]
+
+    if to_upsert:
+        ctx.keeper_repo.upsert_batch(to_upsert)
+        ctx.conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Keeper commands
+# ---------------------------------------------------------------------------
+
+
+@yahoo_app.command("keeper-costs")
+def yahoo_keeper_costs(  # pragma: no cover
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    cost_floor: Annotated[float, typer.Option("--cost-floor", help="Minimum keeper cost for FA pickups")] = 1.0,
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Derive keeper costs from Yahoo draft history and current roster."""
+    league_name, config = _resolve_league_context(league, config_dir)
+    league_config = config.leagues[league_name]
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        game_key = ctx.client.get_game_key(season)
+        league_key = f"{game_key}.l.{league_config.league_id}"
+
+        _derive_and_store_keeper_costs(ctx, league_key, season, league_name, cost_floor)
+
+        # Display results
+        all_costs = ctx.keeper_repo.find_by_season_league(season, league_name)
+        player_ids = [kc.player_id for kc in all_costs]
+        players_list = ctx.player_repo.get_by_ids(player_ids)
+
+    if not all_costs:
+        console.print("[yellow]No keeper costs derived.[/yellow]")
+        return
+
+    player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players_list if p.id is not None}
+
+    table = Table(title=f"Keeper Costs — {league_name} ({season})", show_header=True)
+    table.add_column("Player", justify="left")
+    table.add_column("Cost", justify="right")
+    table.add_column("Source", justify="left")
+
+    for kc in sorted(all_costs, key=lambda c: c.cost, reverse=True):
+        name = player_names.get(kc.player_id, f"ID:{kc.player_id}")
+        table.add_row(name, f"${kc.cost:.0f}", kc.source)
+
+    console.print(table)
+    console.print(f"\n[bold green]Derived {len(all_costs)} keeper costs.[/bold green]")
+
+
+@yahoo_app.command("keeper-decisions")
+def yahoo_keeper_decisions(  # pragma: no cover
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    threshold: Annotated[float, typer.Option("--threshold", help="Minimum surplus for keep recommendation")] = 0.0,
+    decay: Annotated[float, typer.Option("--decay", help="Decay factor for multi-year surplus")] = 0.85,
+    cost_floor: Annotated[float, typer.Option("--cost-floor", help="Minimum keeper cost for FA pickups")] = 1.0,
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Show keeper decisions ranked by surplus value using Yahoo-derived costs."""
+    league_name, config = _resolve_league_context(league, config_dir)
+    league_config = config.leagues[league_name]
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        game_key = ctx.client.get_game_key(season)
+        league_key = f"{game_key}.l.{league_config.league_id}"
+
+        # Auto-derive costs first
+        _derive_and_store_keeper_costs(ctx, league_key, season, league_name, cost_floor)
+
+        keeper_costs = ctx.keeper_repo.find_by_season_league(season, league_name)
+        if not keeper_costs:
+            console.print("[yellow]No keeper costs found.[/yellow]")
+            return
+
+        valuations = ctx.valuation_repo.get_by_season(season, system)
+        players = ctx.player_repo.all()
+
+    decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
+    print_keeper_decisions(decisions)
+
+
+@yahoo_app.command("keeper-history")
+def yahoo_keeper_history(  # pragma: no cover
+    player: Annotated[str, typer.Argument(help="Player name to look up")],
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Show a player's keeper cost history across seasons."""
+    league_name, _config = _resolve_league_context(league, config_dir)
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        matches = ctx.player_repo.search_by_name(player)
+        if not matches:
+            print_error(f"No player found matching '{player}'")
+            raise typer.Exit(code=1)
+        if len(matches) > 1:
+            console.print(f"[yellow]Multiple matches for '{player}':[/yellow]")
+            for m in matches:
+                console.print(f"  id={m.id} {m.name_first} {m.name_last}")
+            print_error("Ambiguous match. Use a more specific name.")
+            raise typer.Exit(code=1)
+
+        resolved = matches[0]
+        assert resolved.id is not None  # noqa: S101 - type narrowing
+
+        all_costs = ctx.keeper_repo.find_by_player(resolved.id)
+        histories = build_keeper_histories(all_costs, [resolved], league_name)
+
+    if not histories:
+        console.print(
+            f"[yellow]No keeper history for {resolved.name_first} {resolved.name_last} in '{league_name}'.[/yellow]"
+        )
+        return
+
+    history = histories[0]
+    table = Table(title=f"Keeper History — {history.player_name} ({league_name})", show_header=True)
+    table.add_column("Season", justify="right")
+    table.add_column("Cost", justify="right")
+    table.add_column("Source", justify="left")
+
+    for entry in history.entries:
+        table.add_row(str(entry.season), f"${entry.cost:.0f}", entry.source)
+
+    console.print(table)
+
+
+@yahoo_app.command("keeper-cost-set")
+def yahoo_keeper_cost_set(  # pragma: no cover
+    player_name: Annotated[str, typer.Argument(help="Player name")],
+    cost: Annotated[float, typer.Option("--cost", help="Keeper cost")],
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    years: Annotated[int, typer.Option("--years", help="Years remaining on contract")] = 1,
+    source: Annotated[str, typer.Option("--source", help="Cost source type")] = "manual",
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Manually set a keeper cost for a player in a Yahoo league."""
+    league_name, _config = _resolve_league_context(league, config_dir)
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        result = set_keeper_cost(
+            player_name, cost, season, league_name, ctx.player_repo, ctx.keeper_repo, years, source
+        )
+        match result:
+            case Ok(kc):
+                ctx.conn.commit()
+                player = ctx.player_repo.get_by_id(kc.player_id)
+                name = f"{player.name_first} {player.name_last}" if player else "Unknown"
+                console.print(f"[bold green]Set keeper cost[/bold green] for {name}: ${cost:.0f} ({source}, {years}yr)")
+            case Err(msg):
+                print_error(str(msg))
+                raise typer.Exit(code=1)

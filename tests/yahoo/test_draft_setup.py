@@ -19,6 +19,7 @@ from fantasy_baseball_manager.domain.league_settings import (
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
+    SqliteKeeperCostRepo,
     SqlitePlayerRepo,
     SqliteProjectionRepo,
     SqliteValuationRepo,
@@ -77,6 +78,7 @@ def _make_ctx(conn: sqlite3.Connection) -> YahooContext:
         projection_repo=SqliteProjectionRepo(conn),
         valuation_repo=SqliteValuationRepo(conn),
         adp_repo=SqliteADPRepo(conn),
+        keeper_repo=SqliteKeeperCostRepo(conn),
         client=FakeClient(),  # type: ignore[arg-type]
     )
 

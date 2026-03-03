@@ -53,6 +53,8 @@ from fantasy_baseball_manager.services.feature_factory import (
     aggregate_candidate,
     validate_expression,
 )
+from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
+from fantasy_baseball_manager.services.keeper_history import build_keeper_histories
 from fantasy_baseball_manager.services.keeper_optimizer import (
     compare_scenarios,
     compute_adjusted_draft_pool,
@@ -211,6 +213,7 @@ __all__ = [
     "assign_top300_cohorts",
     "build_draft_board",
     "build_draft_roster_slots",
+    "build_keeper_histories",
     "build_team_map",
     "classify_variance",
     "compute_adjusted_valuations",
@@ -218,6 +221,7 @@ __all__ = [
     "compute_confidence",
     "compute_pick_value_curve",
     "compute_surplus",
+    "derive_keeper_costs",
     "draft_report",
     "evaluate_pick_trade",
     "evaluate_pick_trade_with_context",
