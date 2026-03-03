@@ -14,6 +14,7 @@ from fantasy_baseball_manager.cli._output import (
     print_draft_tiers,
     print_pick_trade_evaluation,
     print_pick_value_curve,
+    print_scarcity_report,
     print_tier_summary,
 )
 from fantasy_baseball_manager.cli.factory import build_category_needs_context, build_draft_board_context
@@ -29,6 +30,7 @@ from fantasy_baseball_manager.services import (
     cascade_analysis,
     compute_category_balance_scores,
     compute_pick_value_curve,
+    compute_scarcity,
     evaluate_pick_trade,
     export_csv,
     export_html,
@@ -438,3 +440,20 @@ def draft_trade_picks(
             )
             result = cascade_analysis(trade, board, league, team, threshold=threshold)
             print_cascade_result(result)
+
+
+@draft_app.command("scarcity")
+def draft_scarcity(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Display positional scarcity analysis ranked by dropoff severity."""
+    league = load_league(league_name, Path.cwd())
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+        scarcities = compute_scarcity(valuations, league)
+    print_scarcity_report(scarcities, league)

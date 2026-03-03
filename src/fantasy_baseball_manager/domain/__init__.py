@@ -133,6 +133,7 @@ from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.player_bio import PlayerSummary
 from fantasy_baseball_manager.domain.player_profile import PlayerProfile, compute_age
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
+from fantasy_baseball_manager.domain.positional_scarcity import PositionScarcity
 from fantasy_baseball_manager.domain.projection import (
     PlayerProjection,
     Projection,
@@ -305,6 +306,7 @@ __all__ = [
     "PlayerTier",
     "PlayerValuation",
     "PositionAppearance",
+    "PositionScarcity",
     "Projection",
     "ProjectionComparison",
     "Recommendation",

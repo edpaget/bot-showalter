@@ -14,10 +14,12 @@ if TYPE_CHECKING:
         CategoryNeed,
         DraftBoard,
         DraftReport,
+        LeagueSettings,
         PickTradeEvaluation,
         PickValue,
         PickValueCurve,
         PlayerTier,
+        PositionScarcity,
         TierSummaryReport,
     )
 
@@ -395,3 +397,43 @@ def print_cascade_result(result: CascadeResult) -> None:
         console.print("[bold red]Cascade recommendation: Reject[/bold red]")
     else:
         console.print("[bold]Cascade recommendation: Even[/bold]")
+
+
+def print_scarcity_report(
+    scarcities: list[PositionScarcity],
+    league: LeagueSettings,
+) -> None:
+    all_positions: dict[str, int] = dict(league.positions) | dict(league.pitcher_positions)
+
+    console.print(f"\n[bold]Positional Scarcity Report[/bold] — {league.name} ({league.teams} teams)\n")
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Position", style="bold")
+    table.add_column("Slots", justify="right")
+    table.add_column("Tier1$", justify="right")
+    table.add_column("Repl$", justify="right")
+    table.add_column("Surplus", justify="right")
+    table.add_column("Slope", justify="right")
+    table.add_column("Steep Rank", justify="right")
+
+    for ps in scarcities:
+        slots = all_positions.get(ps.position, 0)
+        slope_abs = abs(ps.dropoff_slope)
+        if slope_abs >= 1.5:
+            slope_color = "red"
+        elif slope_abs >= 0.8:
+            slope_color = "yellow"
+        else:
+            slope_color = "green"
+
+        steep_display = str(ps.steep_rank) if ps.steep_rank is not None else "-"
+
+        table.add_row(
+            ps.position.upper(),
+            str(slots),
+            f"${ps.tier_1_value:.1f}",
+            f"${ps.replacement_value:.1f}",
+            f"${ps.total_surplus:.1f}",
+            f"[{slope_color}]{ps.dropoff_slope:.2f}[/{slope_color}]",
+            steep_display,
+        )

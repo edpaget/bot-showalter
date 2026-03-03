@@ -11,6 +11,7 @@ from fantasy_baseball_manager.cli._output._draft import (
     print_draft_tiers,
     print_pick_trade_evaluation,
     print_pick_value_curve,
+    print_scarcity_report,
     print_tier_summary,
 )
 from fantasy_baseball_manager.cli._output._evaluation import (
@@ -172,6 +173,7 @@ __all__ = [
     "print_projection_confidence",
     "print_quick_eval_result",
     "print_regression_check_result",
+    "print_scarcity_report",
     "print_residual_analysis_report",
     "print_residual_persistence_report",
     "print_run_detail",
