@@ -5,7 +5,7 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._output._common import console
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import CandidateValue
+    from fantasy_baseball_manager.domain import CandidateValue, MultiColumnRanking
 
 
 def print_candidate_values(values: list[CandidateValue]) -> None:
@@ -26,3 +26,22 @@ def print_candidate_values(values: list[CandidateValue]) -> None:
 
     console.print(table)
     console.print(f"\n{len(values)} player-seasons ({null_count} with NULL values)")
+
+
+def print_interaction_scan_results(results: list[tuple[str, MultiColumnRanking]]) -> None:
+    """Print ranked interaction scan results as a Rich table."""
+    table = Table(title="Interaction Scan Results", show_edge=False, pad_edge=False)
+    table.add_column("Rank", justify="right")
+    table.add_column("Operation")
+    table.add_column("Avg |Pearson|", justify="right")
+    table.add_column("Avg |Spearman|", justify="right")
+
+    for i, (op, ranking) in enumerate(results, 1):
+        table.add_row(
+            str(i),
+            op,
+            f"{ranking.avg_abs_pearson:.4f}",
+            f"{ranking.avg_abs_spearman:.4f}",
+        )
+
+    console.print(table)

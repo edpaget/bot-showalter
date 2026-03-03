@@ -50,7 +50,11 @@ from fantasy_baseball_manager.services.draft_translation import (
 )
 from fantasy_baseball_manager.services.experiment_summary import summarize_exploration
 from fantasy_baseball_manager.services.feature_factory import (
+    INTERACTION_OPERATIONS,
     aggregate_candidate,
+    candidate_values_to_dict,
+    interact_candidates,
+    resolve_feature,
     validate_expression,
 )
 from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
@@ -238,8 +242,12 @@ __all__ = [
     "identify_needs",
     "ingest_yahoo_pick",
     "load_draft",
+    "INTERACTION_OPERATIONS",
     "aggregate_candidate",
+    "candidate_values_to_dict",
+    "interact_candidates",
     "rank_columns",
+    "resolve_feature",
     "validate_expression",
     "recommend",
     "resolve_player",

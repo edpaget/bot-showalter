@@ -4,16 +4,21 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-if TYPE_CHECKING:
-    import sqlite3
-
+from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import Err, Ok
-from fantasy_baseball_manager.domain.feature_candidate import CandidateValue
+from fantasy_baseball_manager.domain.feature_candidate import CandidateValue, FeatureCandidate
+from fantasy_baseball_manager.repos.feature_candidate_repo import SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.services.feature_factory import (
     aggregate_candidate,
+    candidate_values_to_dict,
+    interact_candidates,
+    resolve_feature,
     validate_expression,
 )
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 class TestValidateExpression:
@@ -265,3 +270,168 @@ class TestAggregateCandidate:
     def test_returns_candidate_value_instances(self, statcast_conn: sqlite3.Connection) -> None:
         results = aggregate_candidate(statcast_conn, "AVG(launch_speed)", [2023], "batter")
         assert all(isinstance(r, CandidateValue) for r in results)
+
+
+class TestInteractCandidates:
+    def test_product(self) -> None:
+        a = [CandidateValue(1, 2023, 2.0), CandidateValue(2, 2023, 3.0)]
+        b = [CandidateValue(1, 2023, 4.0), CandidateValue(2, 2023, 5.0)]
+        result = interact_candidates(a, b, "product")
+        by_pid = {r.player_id: r for r in result}
+        assert by_pid[1].value == pytest.approx(8.0)
+        assert by_pid[2].value == pytest.approx(15.0)
+
+    def test_sum(self) -> None:
+        a = [CandidateValue(1, 2023, 2.0), CandidateValue(2, 2023, 3.0)]
+        b = [CandidateValue(1, 2023, 4.0), CandidateValue(2, 2023, 5.0)]
+        result = interact_candidates(a, b, "sum")
+        by_pid = {r.player_id: r for r in result}
+        assert by_pid[1].value == pytest.approx(6.0)
+        assert by_pid[2].value == pytest.approx(8.0)
+
+    def test_difference(self) -> None:
+        a = [CandidateValue(1, 2023, 10.0), CandidateValue(2, 2023, 3.0)]
+        b = [CandidateValue(1, 2023, 4.0), CandidateValue(2, 2023, 5.0)]
+        result = interact_candidates(a, b, "difference")
+        by_pid = {r.player_id: r for r in result}
+        assert by_pid[1].value == pytest.approx(6.0)
+        assert by_pid[2].value == pytest.approx(-2.0)
+
+    def test_ratio(self) -> None:
+        a = [CandidateValue(1, 2023, 10.0), CandidateValue(2, 2023, 6.0)]
+        b = [CandidateValue(1, 2023, 2.0), CandidateValue(2, 2023, 3.0)]
+        result = interact_candidates(a, b, "ratio")
+        by_pid = {r.player_id: r for r in result}
+        assert by_pid[1].value == pytest.approx(5.0)
+        assert by_pid[2].value == pytest.approx(2.0)
+
+    def test_null_a_propagates(self) -> None:
+        a = [CandidateValue(1, 2023, None)]
+        b = [CandidateValue(1, 2023, 4.0)]
+        result = interact_candidates(a, b, "product")
+        assert result[0].value is None
+
+    def test_null_b_propagates(self) -> None:
+        a = [CandidateValue(1, 2023, 2.0)]
+        b = [CandidateValue(1, 2023, None)]
+        result = interact_candidates(a, b, "sum")
+        assert result[0].value is None
+
+    def test_both_null(self) -> None:
+        a = [CandidateValue(1, 2023, None)]
+        b = [CandidateValue(1, 2023, None)]
+        result = interact_candidates(a, b, "difference")
+        assert result[0].value is None
+
+    def test_ratio_divide_by_zero_returns_none(self) -> None:
+        a = [CandidateValue(1, 2023, 10.0)]
+        b = [CandidateValue(1, 2023, 0.0)]
+        result = interact_candidates(a, b, "ratio")
+        assert result[0].value is None
+
+    def test_ratio_null_denominator_returns_none(self) -> None:
+        a = [CandidateValue(1, 2023, 10.0)]
+        b = [CandidateValue(1, 2023, None)]
+        result = interact_candidates(a, b, "ratio")
+        assert result[0].value is None
+
+    def test_only_matching_keys_included(self) -> None:
+        a = [CandidateValue(1, 2023, 2.0), CandidateValue(3, 2023, 5.0)]
+        b = [CandidateValue(1, 2023, 4.0), CandidateValue(2, 2023, 6.0)]
+        result = interact_candidates(a, b, "product")
+        assert len(result) == 1
+        assert result[0].player_id == 1
+
+    def test_multi_season_join(self) -> None:
+        a = [CandidateValue(1, 2023, 2.0), CandidateValue(1, 2024, 3.0)]
+        b = [CandidateValue(1, 2023, 4.0), CandidateValue(1, 2024, 5.0)]
+        result = interact_candidates(a, b, "product")
+        by_season = {r.season: r for r in result}
+        assert by_season[2023].value == pytest.approx(8.0)
+        assert by_season[2024].value == pytest.approx(15.0)
+
+    def test_invalid_operation_raises(self) -> None:
+        a = [CandidateValue(1, 2023, 2.0)]
+        b = [CandidateValue(1, 2023, 4.0)]
+        with pytest.raises(ValueError, match="operation"):
+            interact_candidates(a, b, "modulo")
+
+
+class TestResolveFeature:
+    @pytest.fixture
+    def statcast_conn(self) -> sqlite3.Connection:
+        conn = create_statcast_connection(":memory:")
+        rows = [
+            (1, "2023-06-01", 100, 200, 1, 1, 90.0, 1, "single", "hit_into_play"),
+            (2, "2023-06-02", 100, 200, 1, 1, 95.0, 0, "field_out", "hit_into_play"),
+            (3, "2023-07-01", 300, 200, 1, 1, 85.0, 0, "field_out", "hit_into_play"),
+        ]
+        for row in rows:
+            conn.execute(
+                """INSERT INTO statcast_pitch
+                   (game_pk, game_date, batter_id, pitcher_id, at_bat_number, pitch_number,
+                    launch_speed, barrel, events, description)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                row,
+            )
+        conn.commit()
+        return conn
+
+    @pytest.fixture
+    def fbm_conn(self) -> sqlite3.Connection:
+        return create_connection(":memory:")
+
+    def test_resolves_named_candidate(self, statcast_conn: sqlite3.Connection, fbm_conn: sqlite3.Connection) -> None:
+        repo = SqliteFeatureCandidateRepo(fbm_conn)
+        repo.save(
+            FeatureCandidate(
+                name="avg_ev",
+                expression="AVG(launch_speed)",
+                player_type="batter",
+                min_pa=None,
+                min_ip=None,
+                created_at="2026-03-03",
+            )
+        )
+        result = resolve_feature("avg_ev", statcast_conn, repo, [2023], "batter")
+        assert len(result) > 0
+        # Batter 100 should have avg(90, 95) or avg(90, 95, ...) depending on data
+        batter_100 = [r for r in result if r.player_id == 100]
+        assert len(batter_100) == 1
+        assert batter_100[0].value is not None
+
+    def test_falls_back_to_expression(self, statcast_conn: sqlite3.Connection, fbm_conn: sqlite3.Connection) -> None:
+        repo = SqliteFeatureCandidateRepo(fbm_conn)
+        result = resolve_feature("AVG(launch_speed)", statcast_conn, repo, [2023], "batter")
+        assert len(result) > 0
+
+    def test_named_candidate_uses_stored_min_pa(
+        self, statcast_conn: sqlite3.Connection, fbm_conn: sqlite3.Connection
+    ) -> None:
+        repo = SqliteFeatureCandidateRepo(fbm_conn)
+        repo.save(
+            FeatureCandidate(
+                name="strict_ev",
+                expression="AVG(launch_speed)",
+                player_type="batter",
+                min_pa=100,
+                min_ip=None,
+                created_at="2026-03-03",
+            )
+        )
+        result = resolve_feature("strict_ev", statcast_conn, repo, [2023], "batter")
+        # min_pa=100 should filter out all players (they have only 2-3 pitches)
+        assert len(result) == 0
+
+
+class TestCandidateValuesToDict:
+    def test_basic_conversion(self) -> None:
+        values = [CandidateValue(1, 2023, 2.0), CandidateValue(2, 2023, 3.0)]
+        result = candidate_values_to_dict(values)
+        assert result == {(1, 2023): 2.0, (2, 2023): 3.0}
+
+    def test_drops_nulls(self) -> None:
+        values = [CandidateValue(1, 2023, 2.0), CandidateValue(2, 2023, None)]
+        result = candidate_values_to_dict(values)
+        assert result == {(1, 2023): 2.0}
+        assert (2, 2023) not in result

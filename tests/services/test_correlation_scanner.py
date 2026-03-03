@@ -536,3 +536,62 @@ class TestPooledAcrossSeasons:
         slg_corr = next(c for c in result.pooled.correlations if c.target == "slg")
         # 10 players * 2 seasons = 20 observations pooled
         assert slg_corr.n == 20
+
+
+class TestScanFromValues:
+    """Test scan_from_values with pre-computed candidate values."""
+
+    def test_returns_correlation_scan_result(
+        self, statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection
+    ) -> None:
+        """Pre-computed values with known linear relationship to slg should show high correlation."""
+        # Set up players and batting stats
+        for i in range(1, 21):
+            mlbam_id = 1000 + i
+            player_id = i
+            slg = 0.300 + i * 0.01
+            _insert_player(stats_conn, player_id=player_id, mlbam_id=mlbam_id)
+            _insert_batting_stats(stats_conn, player_id=player_id, season=2023, slg=slg)
+        stats_conn.commit()
+
+        # Pre-computed candidate values: mlbam_id keyed, linearly related to slg
+        candidate_values: dict[tuple[int, int], float] = {}
+        for i in range(1, 21):
+            mlbam_id = 1000 + i
+            candidate_values[(mlbam_id, 2023)] = 80.0 + i * 1.0
+
+        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        result = scanner.scan_from_values("custom_feature", candidate_values, [2023], "batter")
+
+        assert isinstance(result, CorrelationScanResult)
+        assert result.column_spec == "custom_feature"
+        assert result.player_type == "batter"
+
+        slg_corr = next(c for c in result.pooled.correlations if c.target == "slg")
+        assert slg_corr.pearson_r > 0.95
+        assert slg_corr.n == 20
+
+    def test_per_season_results(self, statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection) -> None:
+        """Multi-season pre-computed values should have per_season and pooled."""
+        for i in range(1, 11):
+            mlbam_id = 1000 + i
+            _insert_player(stats_conn, player_id=i, mlbam_id=mlbam_id)
+            for season in [2022, 2023]:
+                _insert_batting_stats(stats_conn, player_id=i, season=season, slg=0.300 + i * 0.01)
+        stats_conn.commit()
+
+        candidate_values: dict[tuple[int, int], float] = {}
+        for i in range(1, 11):
+            mlbam_id = 1000 + i
+            for season in [2022, 2023]:
+                candidate_values[(mlbam_id, season)] = 80.0 + i
+
+        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        result = scanner.scan_from_values("custom", candidate_values, [2022, 2023], "batter")
+
+        assert len(result.per_season) == 2
+        seasons = {s.season for s in result.per_season}
+        assert seasons == {2022, 2023}
+
+        slg_pooled = next(c for c in result.pooled.correlations if c.target == "slg")
+        assert slg_pooled.n == 20  # 10 players * 2 seasons

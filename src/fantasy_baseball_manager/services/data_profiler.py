@@ -276,6 +276,56 @@ class CorrelationScanner:
         """Scan multiple column specs and return results for each."""
         return [self.scan_target_correlations(spec, seasons, player_type) for spec in column_specs]
 
+    def scan_from_values(
+        self,
+        label: str,
+        candidate_values: dict[tuple[int, int], float],
+        seasons: Sequence[int],
+        player_type: str,
+    ) -> CorrelationScanResult:
+        """Scan pre-computed candidate values against targets.
+
+        Like ``scan_target_correlations`` but skips SQL aggregation —
+        the caller provides the candidate dict directly.
+        """
+        if player_type not in _VALID_PLAYER_TYPES:
+            msg = f"player_type must be 'batter' or 'pitcher', got '{player_type}'"
+            raise ValueError(msg)
+
+        targets = BATTER_TARGETS if player_type == "batter" else PITCHER_TARGETS
+        mlbam_to_pid = self._fetch_mlbam_to_player_id()
+
+        if player_type == "batter":
+            target_values = self._fetch_batter_targets(seasons)
+        else:
+            target_values = self._fetch_pitcher_targets(seasons)
+
+        per_season: list[SeasonCorrelationResult] = []
+        for season in sorted(seasons):
+            correlations = self._correlate_season(candidate_values, target_values, mlbam_to_pid, targets, season)
+            per_season.append(
+                SeasonCorrelationResult(
+                    column_spec=label,
+                    season=season,
+                    player_type=player_type,
+                    correlations=tuple(correlations),
+                )
+            )
+
+        pooled_correlations = self._correlate_pooled(candidate_values, target_values, mlbam_to_pid, targets, seasons)
+        pooled = PooledCorrelationResult(
+            column_spec=label,
+            player_type=player_type,
+            correlations=tuple(pooled_correlations),
+        )
+
+        return CorrelationScanResult(
+            column_spec=label,
+            player_type=player_type,
+            per_season=tuple(per_season),
+            pooled=pooled,
+        )
+
     def _fetch_candidate_values(
         self,
         column_spec: str,
