@@ -10,7 +10,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [Data Profiling Tools](data-profiling-tools.md) | 3 | phases 1-2 done | none |
 | [Draft Pick Keeper Support](draft-pick-keeper-support.md) | 3 | not started | draft-pick-trade-evaluator phase 1, keeper-surplus-value (done) |
-| [Experiment Journal](experiment-journal.md) | 3 | phases 1-2 done | none |
 | [Fast Feedback Loop](fast-feedback-loop.md) | 3 | phases 1-2 done | none |
 | [Feature Candidate Factory](feature-candidate-factory.md) | 3 | not started | none |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
@@ -35,6 +34,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Category Balance Tracker](category-balance-tracker.md) | 3 |
 | [Discord Bot](discord-bot.md) | 1 |
 | [Evaluation Guardrails](evaluation-guardrails.md) | 4 |
+| [Experiment Journal](experiment-journal.md) | 3 |
 | [LLM Agent](llm-agent.md) | 3 |
 | [Draft Board Export](draft-board-export.md) | 3 |
 | [Draft Pick Trade Evaluator](draft-pick-trade-evaluator.md) | 4 |
