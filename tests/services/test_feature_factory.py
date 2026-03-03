@@ -7,11 +7,13 @@ import pytest
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import Err, Ok
-from fantasy_baseball_manager.domain.feature_candidate import CandidateValue, FeatureCandidate
+from fantasy_baseball_manager.domain.feature_candidate import BinnedValue, CandidateValue, FeatureCandidate
 from fantasy_baseball_manager.repos.feature_candidate_repo import SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.services.feature_factory import (
     aggregate_candidate,
+    bin_candidate,
     candidate_values_to_dict,
+    cross_bin_candidates,
     interact_candidates,
     resolve_feature,
     validate_expression,
@@ -435,3 +437,112 @@ class TestCandidateValuesToDict:
         result = candidate_values_to_dict(values)
         assert result == {(1, 2023): 2.0}
         assert (2, 2023) not in result
+
+
+class TestBinCandidate:
+    def test_quantile_4_bins(self) -> None:
+        """20 values should split into 4 bins with ~5 players each."""
+        values = [CandidateValue(i, 2023, float(i)) for i in range(1, 21)]
+        result = bin_candidate(values, "quantile", 4)
+        labels = {r.bin_label for r in result}
+        assert labels == {"Q1", "Q2", "Q3", "Q4"}
+        counts = {label: sum(1 for r in result if r.bin_label == label) for label in labels}
+        # Each bin should have 5 values
+        assert all(c == 5 for c in counts.values())
+
+    def test_uniform_3_bins(self) -> None:
+        """Uniform binning should produce equal-width intervals."""
+        # Values 0.0, 3.0, 6.0, 9.0 -> range 0-9, width 3 -> bins B1=[0,3), B2=[3,6), B3=[6,9]
+        values = [
+            CandidateValue(1, 2023, 0.0),
+            CandidateValue(2, 2023, 3.0),
+            CandidateValue(3, 2023, 6.0),
+            CandidateValue(4, 2023, 9.0),
+        ]
+        result = bin_candidate(values, "uniform", 3)
+        by_pid = {r.player_id: r.bin_label for r in result}
+        assert by_pid[1] == "B1"  # 0.0 in first bin
+        assert by_pid[4] == "B3"  # 9.0 in last bin
+
+    def test_custom_breakpoints(self) -> None:
+        """User-provided breakpoints should assign correct bins."""
+        values = [
+            CandidateValue(1, 2023, 1.0),
+            CandidateValue(2, 2023, 5.0),
+            CandidateValue(3, 2023, 10.0),
+        ]
+        result = bin_candidate(values, "custom", 3, breakpoints=[3.0, 7.0])
+        by_pid = {r.player_id: r.bin_label for r in result}
+        assert by_pid[1] == "C1"  # 1.0 < 3.0
+        assert by_pid[2] == "C2"  # 3.0 <= 5.0 < 7.0
+        assert by_pid[3] == "C3"  # 10.0 >= 7.0
+
+    def test_null_values_excluded(self) -> None:
+        """NULL values should be skipped, not binned."""
+        values = [
+            CandidateValue(1, 2023, 1.0),
+            CandidateValue(2, 2023, None),
+            CandidateValue(3, 2023, 3.0),
+        ]
+        result = bin_candidate(values, "quantile", 2)
+        player_ids = {r.player_id for r in result}
+        assert 2 not in player_ids
+        assert len(result) == 2
+
+    def test_per_season_independent(self) -> None:
+        """Same player in different seasons can get different bins."""
+        values = [
+            # Season 2023: player 1 has lowest value
+            CandidateValue(1, 2023, 1.0),
+            CandidateValue(2, 2023, 10.0),
+            # Season 2024: player 1 has highest value
+            CandidateValue(1, 2024, 100.0),
+            CandidateValue(2, 2024, 1.0),
+        ]
+        result = bin_candidate(values, "quantile", 2)
+        p1_2023 = next(r for r in result if r.player_id == 1 and r.season == 2023)
+        p1_2024 = next(r for r in result if r.player_id == 1 and r.season == 2024)
+        assert p1_2023.bin_label == "Q1"
+        assert p1_2024.bin_label == "Q2"
+
+    def test_invalid_method_raises(self) -> None:
+        values = [CandidateValue(1, 2023, 1.0)]
+        with pytest.raises(ValueError, match="method"):
+            bin_candidate(values, "invalid", 2)
+
+    def test_custom_requires_breakpoints(self) -> None:
+        values = [CandidateValue(1, 2023, 1.0)]
+        with pytest.raises(ValueError, match="breakpoints"):
+            bin_candidate(values, "custom", 2)
+
+    def test_single_value_goes_to_single_bin(self) -> None:
+        """Degenerate case: 1 non-null value should go to a single bin."""
+        values = [CandidateValue(1, 2023, 5.0)]
+        result = bin_candidate(values, "quantile", 4)
+        assert len(result) == 1
+        assert result[0].bin_label == "Q1"
+
+
+class TestCrossBinCandidates:
+    def test_cross_product_labels(self) -> None:
+        bins_a = [BinnedValue(1, 2023, "Q1", 1.0), BinnedValue(2, 2023, "Q2", 2.0)]
+        bins_b = [BinnedValue(1, 2023, "Q3", 3.0), BinnedValue(2, 2023, "Q1", 4.0)]
+        result = cross_bin_candidates(bins_a, bins_b)
+        by_pid = {r.player_id: r.bin_label for r in result}
+        assert by_pid[1] == "Q1__Q3"
+        assert by_pid[2] == "Q2__Q1"
+
+    def test_only_matching_keys(self) -> None:
+        bins_a = [BinnedValue(1, 2023, "Q1", 1.0), BinnedValue(3, 2023, "Q2", 3.0)]
+        bins_b = [BinnedValue(1, 2023, "Q3", 2.0), BinnedValue(2, 2023, "Q1", 4.0)]
+        result = cross_bin_candidates(bins_a, bins_b)
+        assert len(result) == 1
+        assert result[0].player_id == 1
+
+    def test_multi_season(self) -> None:
+        bins_a = [BinnedValue(1, 2023, "Q1", 1.0), BinnedValue(1, 2024, "Q2", 2.0)]
+        bins_b = [BinnedValue(1, 2023, "Q3", 3.0), BinnedValue(1, 2024, "Q1", 4.0)]
+        result = cross_bin_candidates(bins_a, bins_b)
+        by_season = {r.season: r.bin_label for r in result}
+        assert by_season[2023] == "Q1__Q3"
+        assert by_season[2024] == "Q2__Q1"

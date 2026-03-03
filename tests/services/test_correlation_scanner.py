@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain.correlation_result import (
     CorrelationScanResult,
     MultiColumnRanking,
 )
+from fantasy_baseball_manager.domain.feature_candidate import BinnedValue
 from fantasy_baseball_manager.services.data_profiler import CorrelationScanner, rank_columns
 
 if TYPE_CHECKING:
@@ -595,3 +596,79 @@ class TestScanFromValues:
 
         slg_pooled = next(c for c in result.pooled.correlations if c.target == "slg")
         assert slg_pooled.n == 20  # 10 players * 2 seasons
+
+
+class TestComputeBinTargetMeans:
+    """Test compute_bin_target_means with binned values."""
+
+    def test_returns_per_bin_means(self, statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection) -> None:
+        """2 bins with known target values should return correct per-bin means."""
+        # Set up: 4 players, 2 in each bin
+        for i in range(1, 5):
+            mlbam_id = 1000 + i
+            _insert_player(stats_conn, player_id=i, mlbam_id=mlbam_id)
+            # Players 1-2: low slg (0.300, 0.310)
+            # Players 3-4: high slg (0.400, 0.410)
+            slg = 0.300 + (i - 1) * 0.010 if i <= 2 else 0.400 + (i - 3) * 0.010
+            _insert_batting_stats(stats_conn, player_id=i, season=2023, slg=slg)
+        stats_conn.commit()
+
+        # Bin assignment: players 1-2 in Q1, players 3-4 in Q2
+        binned = [
+            BinnedValue(player_id=1001, season=2023, bin_label="Q1", value=80.0),
+            BinnedValue(player_id=1002, season=2023, bin_label="Q1", value=82.0),
+            BinnedValue(player_id=1003, season=2023, bin_label="Q2", value=95.0),
+            BinnedValue(player_id=1004, season=2023, bin_label="Q2", value=97.0),
+        ]
+
+        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        result = scanner.compute_bin_target_means(binned, [2023], "batter")
+
+        # Find slg means per bin
+        q1_slg = next(r for r in result if r.bin_label == "Q1" and r.target == "slg")
+        q2_slg = next(r for r in result if r.bin_label == "Q2" and r.target == "slg")
+
+        assert q1_slg.mean == pytest.approx((0.300 + 0.310) / 2)
+        assert q1_slg.count == 2
+        assert q2_slg.mean == pytest.approx((0.400 + 0.410) / 2)
+        assert q2_slg.count == 2
+
+    def test_multiple_targets(self, statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection) -> None:
+        """All batter targets should be reported per bin."""
+        for i in range(1, 5):
+            mlbam_id = 1000 + i
+            _insert_player(stats_conn, player_id=i, mlbam_id=mlbam_id)
+            _insert_batting_stats(
+                stats_conn,
+                player_id=i,
+                season=2023,
+                avg=0.250 + i * 0.010,
+                obp=0.330 + i * 0.010,
+                slg=0.400 + i * 0.010,
+                woba=0.320 + i * 0.010,
+            )
+        stats_conn.commit()
+
+        binned = [
+            BinnedValue(player_id=1001, season=2023, bin_label="Q1", value=80.0),
+            BinnedValue(player_id=1002, season=2023, bin_label="Q1", value=82.0),
+            BinnedValue(player_id=1003, season=2023, bin_label="Q2", value=95.0),
+            BinnedValue(player_id=1004, season=2023, bin_label="Q2", value=97.0),
+        ]
+
+        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        result = scanner.compute_bin_target_means(binned, [2023], "batter")
+
+        # Should have results for all batter targets per bin
+        targets_reported = {r.target for r in result}
+        assert "avg" in targets_reported
+        assert "obp" in targets_reported
+        assert "slg" in targets_reported
+        assert "woba" in targets_reported
+        assert "iso" in targets_reported
+        assert "babip" in targets_reported
+
+        # Check that each bin has all targets
+        q1_targets = {r.target for r in result if r.bin_label == "Q1"}
+        q2_targets = {r.target for r in result if r.bin_label == "Q2"}
+        assert q1_targets == q2_targets

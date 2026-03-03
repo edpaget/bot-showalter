@@ -1,7 +1,9 @@
 import re
+import statistics
+from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import CandidateValue, Err, Ok, Result
+from fantasy_baseball_manager.domain import BinnedValue, CandidateValue, Err, Ok, Result
 
 if TYPE_CHECKING:
     import sqlite3
@@ -10,6 +12,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import FeatureCandidateRepo
 
 INTERACTION_OPERATIONS: frozenset[str] = frozenset({"product", "ratio", "difference", "sum"})
+BINNING_METHODS: frozenset[str] = frozenset({"quantile", "uniform", "custom"})
 
 _DANGEROUS_KEYWORDS = {
     "DROP",
@@ -218,3 +221,91 @@ def resolve_feature(
 def candidate_values_to_dict(values: list[CandidateValue]) -> dict[tuple[int, int], float]:
     """Convert candidate values to a dict keyed by (player_id, season), dropping NULLs."""
     return {(v.player_id, v.season): v.value for v in values if v.value is not None}
+
+
+_BIN_LABEL_PREFIX = {"quantile": "Q", "uniform": "B", "custom": "C"}
+
+
+def _compute_breakpoints(data: list[float], method: str, n_bins: int, breakpoints: list[float] | None) -> list[float]:
+    """Compute bin breakpoints for a single season's data."""
+    if method == "custom":
+        assert breakpoints is not None  # noqa: S101
+        return sorted(breakpoints)
+
+    if len(data) < 2:
+        return []
+
+    if method == "quantile":
+        return statistics.quantiles(data, n=n_bins)
+
+    # uniform: equal-width intervals
+    lo, hi = min(data), max(data)
+    if lo == hi:
+        return []
+    width = (hi - lo) / n_bins
+    return [lo + width * i for i in range(1, n_bins)]
+
+
+def _assign_bin(value: float, breaks: list[float], prefix: str, n_bins: int) -> str:
+    """Assign a value to its bin label given breakpoints."""
+    if not breaks:
+        return f"{prefix}1"
+    for i, bp in enumerate(breaks):
+        if value < bp:
+            return f"{prefix}{i + 1}"
+    return f"{prefix}{n_bins}"
+
+
+def bin_candidate(
+    values: list[CandidateValue],
+    method: str,
+    n_bins: int,
+    breakpoints: list[float] | None = None,
+) -> list[BinnedValue]:
+    """Bin continuous candidate values into discrete categories.
+
+    Breakpoints are computed per-season to avoid lookahead.
+    """
+    if method not in BINNING_METHODS:
+        msg = f"Invalid method: {method!r}. Must be one of {sorted(BINNING_METHODS)}"
+        raise ValueError(msg)
+
+    if method == "custom" and breakpoints is None:
+        msg = "breakpoints required when method='custom'"
+        raise ValueError(msg)
+
+    prefix = _BIN_LABEL_PREFIX[method]
+
+    # Group non-null values by season
+    by_season: dict[int, list[CandidateValue]] = defaultdict(list)
+    for v in values:
+        if v.value is not None:
+            by_season[v.season].append(v)
+
+    results: list[BinnedValue] = []
+    for season, season_values in sorted(by_season.items()):
+        data: list[float] = [v.value for v in season_values if v.value is not None]
+        breaks = _compute_breakpoints(data, method, n_bins, breakpoints)
+        for v in season_values:
+            val = v.value
+            if val is None:
+                continue
+            label = _assign_bin(val, breaks, prefix, n_bins)
+            results.append(BinnedValue(player_id=v.player_id, season=season, bin_label=label, value=val))
+
+    return results
+
+
+def cross_bin_candidates(bins_a: list[BinnedValue], bins_b: list[BinnedValue]) -> list[BinnedValue]:
+    """Cross-product two binned feature lists on (player_id, season)."""
+    b_index: dict[tuple[int, int], BinnedValue] = {(b.player_id, b.season): b for b in bins_b}
+
+    results: list[BinnedValue] = []
+    for a in bins_a:
+        key = (a.player_id, a.season)
+        b = b_index.get(key)
+        if b is None:
+            continue
+        label = f"{a.bin_label}__{b.bin_label}"
+        results.append(BinnedValue(player_id=a.player_id, season=a.season, bin_label=label, value=a.value))
+    return results

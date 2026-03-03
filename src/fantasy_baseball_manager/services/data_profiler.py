@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from scipy.stats import ConstantInputWarning, pearsonr, spearmanr
 
 from fantasy_baseball_manager.domain import (
+    BinnedValue,
+    BinTargetMean,
     ColumnProfile,
     CorrelationScanResult,
     MultiColumnRanking,
@@ -325,6 +327,65 @@ class CorrelationScanner:
             per_season=tuple(per_season),
             pooled=pooled,
         )
+
+    def compute_bin_target_means(
+        self,
+        binned_values: list[BinnedValue],
+        seasons: Sequence[int],
+        player_type: str,
+    ) -> list[BinTargetMean]:
+        """Compute mean target values within each bin label.
+
+        Groups binned values by bin_label, maps mlbam IDs to player IDs,
+        looks up target values, and computes per-target means.
+        Returns results sorted by (bin_label, target).
+        """
+        if player_type not in _VALID_PLAYER_TYPES:
+            msg = f"player_type must be 'batter' or 'pitcher', got '{player_type}'"
+            raise ValueError(msg)
+
+        targets = BATTER_TARGETS if player_type == "batter" else PITCHER_TARGETS
+        mlbam_to_pid = self._fetch_mlbam_to_player_id()
+
+        if player_type == "batter":
+            target_values = self._fetch_batter_targets(seasons)
+        else:
+            target_values = self._fetch_pitcher_targets(seasons)
+
+        # Group binned values by bin_label
+        by_bin: dict[str, list[BinnedValue]] = defaultdict(list)
+        for bv in binned_values:
+            by_bin[bv.bin_label].append(bv)
+
+        results: list[BinTargetMean] = []
+        for bin_label in sorted(by_bin):
+            bin_members = by_bin[bin_label]
+            # Collect target values for members of this bin
+            target_accum: dict[str, list[float]] = {t: [] for t in targets}
+            for bv in bin_members:
+                pid = mlbam_to_pid.get(bv.player_id)
+                if pid is None:
+                    continue
+                tvals = target_values.get((pid, bv.season))
+                if tvals is None:
+                    continue
+                for t in targets:
+                    if t in tvals:
+                        target_accum[t].append(tvals[t])
+
+            for t in sorted(targets):
+                vals = target_accum[t]
+                if vals:
+                    results.append(
+                        BinTargetMean(
+                            bin_label=bin_label,
+                            target=t,
+                            mean=statistics.mean(vals),
+                            count=len(vals),
+                        )
+                    )
+
+        return results
 
     def _fetch_candidate_values(
         self,

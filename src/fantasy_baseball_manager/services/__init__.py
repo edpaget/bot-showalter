@@ -50,9 +50,12 @@ from fantasy_baseball_manager.services.draft_translation import (
 )
 from fantasy_baseball_manager.services.experiment_summary import summarize_exploration
 from fantasy_baseball_manager.services.feature_factory import (
+    BINNING_METHODS,
     INTERACTION_OPERATIONS,
     aggregate_candidate,
+    bin_candidate,
     candidate_values_to_dict,
+    cross_bin_candidates,
     interact_candidates,
     resolve_feature,
     validate_expression,
@@ -244,9 +247,12 @@ __all__ = [
     "identify_needs",
     "ingest_yahoo_pick",
     "load_draft",
+    "BINNING_METHODS",
     "INTERACTION_OPERATIONS",
     "aggregate_candidate",
+    "bin_candidate",
     "candidate_values_to_dict",
+    "cross_bin_candidates",
     "interact_candidates",
     "rank_columns",
     "resolve_feature",

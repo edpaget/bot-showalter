@@ -350,3 +350,125 @@ class TestFeatureInteractCommand:
             ],
         )
         assert result.exit_code != 0
+
+
+class TestFeatureBinCommand:
+    def test_basic_quantile(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+        _seed_statcast(statcast_conn)
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.feature.build_feature_context",
+            lambda data_dir: _build_test_feature_context(statcast_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "feature",
+                "bin",
+                "AVG(launch_speed)",
+                "--method",
+                "quantile",
+                "--bins",
+                "2",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Binned Summary" in result.output
+
+    def test_cross_flag(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+        _seed_statcast(statcast_conn)
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.feature.build_feature_context",
+            lambda data_dir: _build_test_feature_context(statcast_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "feature",
+                "bin",
+                "AVG(launch_speed)",
+                "--method",
+                "quantile",
+                "--bins",
+                "2",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+                "--cross",
+                "SUM(barrel)",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "__" in result.output  # cross-product separator
+
+    def test_invalid_method(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.feature.build_feature_context",
+            lambda data_dir: _build_test_feature_context(statcast_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "feature",
+                "bin",
+                "AVG(launch_speed)",
+                "--method",
+                "invalid",
+                "--bins",
+                "2",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+            ],
+        )
+        assert result.exit_code != 0
+
+    def test_target_means_shown(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+        _seed_statcast(statcast_conn)
+        fbm_conn = create_connection(":memory:")
+        fbm_conn.execute("INSERT INTO player (id, mlbam_id, name_first, name_last) VALUES (1, 100, 'Test', 'Player')")
+        fbm_conn.execute(
+            """INSERT INTO batting_stats (player_id, season, source, pa, ab, h, hr, rbi, sb, r, bb, so, hbp, sf, ibb)
+               VALUES (1, 2023, 'fangraphs', 500, 450, 130, 25, 80, 10, 70, 50, 100, 5, 3, 2)"""
+        )
+        fbm_conn.commit()
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.feature.build_feature_context",
+            lambda data_dir: _build_test_feature_context(statcast_conn, fbm_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "feature",
+                "bin",
+                "AVG(launch_speed)",
+                "--method",
+                "quantile",
+                "--bins",
+                "2",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Rich may wrap the title across lines; check for key fragment
+        assert "Target" in result.output and "Means" in result.output

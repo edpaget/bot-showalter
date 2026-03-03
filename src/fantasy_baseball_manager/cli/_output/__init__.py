@@ -30,6 +30,8 @@ from fantasy_baseball_manager.cli._output._experiments import (
     print_experiment_summary,
 )
 from fantasy_baseball_manager.cli._output._feature_factory import (
+    print_bin_target_means,
+    print_binned_summary,
     print_candidate_values,
     print_interaction_scan_results,
 )
@@ -132,6 +134,8 @@ __all__ = [
     "print_adjusted_rankings",
     "print_adp_accuracy_report",
     "print_adp_movers_report",
+    "print_bin_target_means",
+    "print_binned_summary",
     "print_candidate_values",
     "print_interaction_scan_results",
     "print_cascade_result",

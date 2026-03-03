@@ -4,6 +4,8 @@ from typing import Annotated
 import typer
 
 from fantasy_baseball_manager.cli._output import (
+    print_bin_target_means,
+    print_binned_summary,
     print_candidate_values,
     print_correlation_results,
     print_error,
@@ -12,9 +14,12 @@ from fantasy_baseball_manager.cli._output import (
 from fantasy_baseball_manager.cli.factory import FeatureContext, build_feature_context
 from fantasy_baseball_manager.domain import CandidateValue, CorrelationScanResult, FeatureCandidate
 from fantasy_baseball_manager.services import (
+    BINNING_METHODS,
     INTERACTION_OPERATIONS,
     aggregate_candidate,
+    bin_candidate,
     candidate_values_to_dict,
+    cross_bin_candidates,
     interact_candidates,
     rank_columns,
     resolve_feature,
@@ -117,6 +122,50 @@ def interact_cmd(
             label = f"{feature_a} {op} {feature_b}"
             scan_result = ctx.scanner.scan_from_values(label, cand_dict, season, player_type)
             print_correlation_results(scan_result)
+
+
+@feature_app.command("bin")
+def bin_cmd(
+    feature: Annotated[str, typer.Argument(help="Feature name or SQL expression")],
+    season: Annotated[list[int], typer.Option("--season", help="Season year(s)")] = ...,  # type: ignore[assignment]
+    player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")] = ...,  # type: ignore[assignment]
+    method: Annotated[str, typer.Option("--method", help="Binning method: quantile, uniform, custom")] = "quantile",
+    bins: Annotated[int, typer.Option("--bins", help="Number of bins")] = 4,
+    cross: Annotated[str | None, typer.Option("--cross", help="Second feature for cross-product binning")] = None,
+    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+) -> None:
+    """Bin a continuous feature into discrete categories and show within-bin target means."""
+    if method not in BINNING_METHODS:
+        print_error(f"Invalid method: {method!r}. Must be one of {sorted(BINNING_METHODS)}")
+        raise typer.Exit(code=1)
+
+    with build_feature_context(data_dir) as ctx:
+        try:
+            values = resolve_feature(feature, ctx.statcast_conn, ctx.candidate_repo, season, player_type)
+        except ValueError as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from e
+
+        try:
+            binned = bin_candidate(values, method, bins)
+        except ValueError as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from e
+
+        if cross is not None:
+            try:
+                cross_values = resolve_feature(cross, ctx.statcast_conn, ctx.candidate_repo, season, player_type)
+            except ValueError as e:
+                print_error(str(e))
+                raise typer.Exit(code=1) from e
+            cross_binned = bin_candidate(cross_values, method, bins)
+            binned = cross_bin_candidates(binned, cross_binned)
+
+        print_binned_summary(binned)
+
+        # Always show target means
+        target_means = ctx.scanner.compute_bin_target_means(binned, season, player_type)
+        print_bin_target_means(target_means)
 
 
 def _run_scan(

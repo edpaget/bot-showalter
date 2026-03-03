@@ -79,6 +79,8 @@ from fantasy_baseball_manager.domain.experiment import (
     TargetResult,
 )
 from fantasy_baseball_manager.domain.feature_candidate import (
+    BinnedValue,
+    BinTargetMean,
     CandidateValue,
     FeatureCandidate,
 )
@@ -227,6 +229,8 @@ __all__ = [
     "BATTING_COUNTING_STATS",
     "BATTING_RATE_STATS",
     "BattingStats",
+    "BinTargetMean",
+    "BinnedValue",
     "BotStrategy",
     "CalibrationBin",
     "CandidateValue",
