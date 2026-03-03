@@ -6,7 +6,7 @@ Enable an autonomous agent to define and test new feature candidates without wri
 
 | Phase | Status |
 |-------|--------|
-| 1 — Ad-hoc aggregation tool | not started |
+| 1 — Ad-hoc aggregation tool | in progress (2026-03-02) |
 | 2 — Interaction feature generator | not started |
 | 3 — Binned feature constructor | not started |
 
