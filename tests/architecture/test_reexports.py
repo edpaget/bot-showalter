@@ -154,6 +154,11 @@ _BYPASS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # services.regression_gate -> models: circular via services.__init__ -> regression_gate -> models.__init__
         ("services/regression_gate.py", "ModelConfig"),
         ("services/regression_gate.py", "PredictResult"),
+        # services.validation_gate -> models: same circular import pattern
+        ("services/validation_gate.py", "ModelConfig"),
+        ("services/validation_gate.py", "PredictResult"),
+        # cli.commands.validate -> models: same circular import pattern
+        ("cli/commands/validate.py", "ModelConfig"),
     }
 )
 

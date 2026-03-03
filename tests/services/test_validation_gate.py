@@ -1,14 +1,27 @@
-"""Tests for the validation gate pre-flight confidence estimator."""
+"""Tests for the validation gate pre-flight confidence estimator and full orchestrator."""
 
 import random as rng
 import statistics
+from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 
+from fantasy_baseball_manager.domain.evaluation import (
+    ComparisonResult,
+    RegressionCheckResult,
+    StatMetrics,
+    SystemMetrics,
+)
+from fantasy_baseball_manager.models import ModelConfig, PredictResult, TrainResult
 from fantasy_baseball_manager.services.validation_gate import (
+    FullValidationConfig,
+    FullValidationRunner,
     PreflightResult,
     PreflightThresholds,
     TargetPreflightDetail,
+    ValidationResult,
+    ValidationSegmentResult,
     preflight_check,
     score_cv_folds,
 )
@@ -252,3 +265,345 @@ class TestScoreCvFolds:
         pf = preflight_check(candidate_result, baseline_result)
         # Both features should be at least as good as one
         assert pf.confidence in ("high", "medium")
+
+
+# ---------------------------------------------------------------------------
+# Fakes for FullValidationRunner tests
+# ---------------------------------------------------------------------------
+
+
+def _make_stat_metrics(rmse: float = 1.0, rank_correlation: float = 0.9) -> StatMetrics:
+    return StatMetrics(
+        rmse=rmse,
+        mae=rmse * 0.8,
+        correlation=rank_correlation,
+        rank_correlation=rank_correlation,
+        r_squared=rank_correlation,
+        mean_error=0.0,
+        n=100,
+    )
+
+
+def _make_comparison(
+    *,
+    baseline_system: str = "test-model",
+    baseline_version: str = "old-h2024",
+    candidate_system: str = "test-model",
+    candidate_version: str = "new-h2024",
+    season: int = 2024,
+    candidate_wins: bool = True,
+) -> ComparisonResult:
+    if candidate_wins:
+        baseline_metrics = {"hr": _make_stat_metrics(rmse=2.0, rank_correlation=0.8)}
+        candidate_metrics = {"hr": _make_stat_metrics(rmse=1.0, rank_correlation=0.9)}
+    else:
+        baseline_metrics = {"hr": _make_stat_metrics(rmse=1.0, rank_correlation=0.9)}
+        candidate_metrics = {"hr": _make_stat_metrics(rmse=2.0, rank_correlation=0.8)}
+
+    return ComparisonResult(
+        season=season,
+        stats=["hr"],
+        systems=[
+            SystemMetrics(
+                system=baseline_system,
+                version=baseline_version,
+                source_type="first_party",
+                metrics=baseline_metrics,
+            ),
+            SystemMetrics(
+                system=candidate_system,
+                version=candidate_version,
+                source_type="first_party",
+                metrics=candidate_metrics,
+            ),
+        ],
+    )
+
+
+@dataclass
+class FakeModel:
+    name: str = "test-model"
+    description: str = "A test model"
+    supported_operations: frozenset[str] = frozenset({"train", "predict"})
+    artifact_type: str = "model"
+    train_calls: list[ModelConfig] = field(default_factory=list)
+    predict_calls: list[ModelConfig] = field(default_factory=list)
+    predict_result: PredictResult = field(
+        default_factory=lambda: PredictResult(
+            model_name="test-model",
+            predictions=[
+                {"player_id": 1, "season": 2024, "player_type": "batter", "hr": 30},
+            ],
+            output_path="out.csv",
+        )
+    )
+
+    def train(self, config: ModelConfig) -> TrainResult:
+        self.train_calls.append(config)
+        return TrainResult(model_name=self.name, metrics={"rmse": 1.0}, artifacts_path="artifacts/")
+
+    def predict(self, config: ModelConfig) -> PredictResult:
+        self.predict_calls.append(config)
+        return self.predict_result
+
+
+@dataclass
+class FakeEvaluator:
+    compare_calls: list[tuple[list[tuple[str, str]], int, int | None]] = field(default_factory=list)
+    _results: dict[tuple[int, int | None], ComparisonResult] = field(default_factory=dict)
+
+    def set_result(self, season: int, top: int | None, result: ComparisonResult) -> None:
+        self._results[(season, top)] = result
+
+    def compare(
+        self,
+        systems: list[tuple[str, str]],
+        season: int,
+        stats: list[str] | None = None,
+        actuals_source: str = "fangraphs",
+        top: int | None = None,
+        **kwargs: Any,
+    ) -> ComparisonResult:
+        self.compare_calls.append((systems, season, top))
+        result = self._results.get((season, top))
+        if result is not None:
+            return result
+        return _make_comparison(season=season, candidate_wins=True)
+
+
+@dataclass
+class FakeProjectionRepo:
+    upserted: list[Any] = field(default_factory=list)
+    deleted: list[tuple[str, str]] = field(default_factory=list)
+    _existing: dict[tuple[str, str], list[Any]] = field(default_factory=dict)
+
+    def upsert(self, projection: Any) -> int:
+        self.upserted.append(projection)
+        return len(self.upserted)
+
+    def get_by_system_version(self, system: str, version: str) -> list[Any]:
+        return self._existing.get((system, version), [])
+
+    def delete_by_system_version(self, system: str, version: str) -> int:
+        self.deleted.append((system, version))
+        return 1
+
+    def upsert_distributions(self, projection_id: int, distributions: list[Any]) -> None:
+        pass
+
+    def set_existing(self, system: str, version: str, data: list[Any]) -> None:
+        self._existing[(system, version)] = data
+
+
+def _make_validation_config(
+    holdout_seasons: list[int] | None = None,
+    train_seasons: list[int] | None = None,
+    top: int | None = None,
+    old_params: dict[str, Any] | None = None,
+    new_params: dict[str, Any] | None = None,
+) -> FullValidationConfig:
+    return FullValidationConfig(
+        model_name="test-model",
+        old_version="old",
+        new_version="new",
+        old_params=old_params or {},
+        new_params=new_params or {},
+        holdout_seasons=holdout_seasons or [2023, 2024],
+        train_seasons=train_seasons or [2019, 2020, 2021, 2022, 2023, 2024],
+        top=top,
+        data_dir="./data",
+        artifacts_dir="./artifacts",
+    )
+
+
+def _make_validation_runner(
+    model: FakeModel | None = None,
+    evaluator: FakeEvaluator | None = None,
+    projection_repo: FakeProjectionRepo | None = None,
+) -> tuple[FullValidationRunner, FakeModel, FakeEvaluator, FakeProjectionRepo]:
+    m = model or FakeModel()
+    e = evaluator or FakeEvaluator()
+    p = projection_repo or FakeProjectionRepo()
+    runner = FullValidationRunner(model=m, evaluator=e, projection_repo=p)
+    return runner, m, e, p
+
+
+# ---------------------------------------------------------------------------
+# Domain type tests
+# ---------------------------------------------------------------------------
+
+
+class TestFullValidationConfig:
+    def test_frozen(self) -> None:
+        config = _make_validation_config()
+        with pytest.raises(AttributeError):
+            config.model_name = "other"  # type: ignore[misc]
+
+
+class TestValidationSegmentResult:
+    def test_creation(self) -> None:
+        check = RegressionCheckResult(passed=True, rmse_passed=True, rank_correlation_passed=True, explanation="ok")
+        seg = ValidationSegmentResult(season=2024, segment="full", check=check)
+        assert seg.season == 2024
+        assert seg.segment == "full"
+        assert seg.check.passed
+
+
+class TestValidationResult:
+    def test_passed_when_all_segments_pass(self) -> None:
+        check = RegressionCheckResult(passed=True, rmse_passed=True, rank_correlation_passed=True, explanation="ok")
+        result = ValidationResult(
+            model_name="m",
+            old_version="v1",
+            new_version="v2",
+            segments=[ValidationSegmentResult(season=2024, segment="full", check=check)],
+        )
+        assert result.passed
+
+    def test_fails_when_any_segment_fails(self) -> None:
+        pass_check = RegressionCheckResult(
+            passed=True, rmse_passed=True, rank_correlation_passed=True, explanation="ok"
+        )
+        fail_check = RegressionCheckResult(
+            passed=False, rmse_passed=False, rank_correlation_passed=True, explanation="rmse regressed"
+        )
+        result = ValidationResult(
+            model_name="m",
+            old_version="v1",
+            new_version="v2",
+            segments=[
+                ValidationSegmentResult(season=2023, segment="full", check=pass_check),
+                ValidationSegmentResult(season=2024, segment="full", check=fail_check),
+            ],
+        )
+        assert not result.passed
+
+    def test_preflight_stored(self) -> None:
+        preflight = PreflightResult(details=(), confidence="high", recommendation="proceed")
+        result = ValidationResult(
+            model_name="m",
+            old_version="v1",
+            new_version="v2",
+            segments=[],
+            preflight=preflight,
+        )
+        assert result.preflight is not None
+        assert result.preflight.confidence == "high"
+
+
+# ---------------------------------------------------------------------------
+# FullValidationRunner tests
+# ---------------------------------------------------------------------------
+
+
+class TestFullValidationRunner:
+    def test_passes_when_all_checks_pass(self) -> None:
+        runner, _model, _eval, _repo = _make_validation_runner()
+        config = _make_validation_config()
+        result = runner.run(config)
+        assert result.passed
+        assert result.model_name == "test-model"
+        assert result.old_version == "old"
+        assert result.new_version == "new"
+
+    def test_fails_when_any_segment_fails(self) -> None:
+        evaluator = FakeEvaluator()
+        evaluator.set_result(
+            2023,
+            None,
+            _make_comparison(season=2023, candidate_wins=True),
+        )
+        evaluator.set_result(
+            2024,
+            None,
+            _make_comparison(season=2024, candidate_wins=False),
+        )
+        runner, _model, _eval, _repo = _make_validation_runner(evaluator=evaluator)
+        config = _make_validation_config()
+        result = runner.run(config)
+        assert not result.passed
+
+    def test_runs_full_and_top_when_top_specified(self) -> None:
+        runner, _model, evaluator, _repo = _make_validation_runner()
+        config = _make_validation_config(top=300)
+        result = runner.run(config)
+        # 2 holdouts × 2 segments (full + top-300) = 4
+        assert len(result.segments) == 4
+        segment_labels = [(s.season, s.segment) for s in result.segments]
+        assert (2023, "full") in segment_labels
+        assert (2023, "top-300") in segment_labels
+        assert (2024, "full") in segment_labels
+        assert (2024, "top-300") in segment_labels
+
+    def test_runs_only_full_when_no_top(self) -> None:
+        runner, _model, _eval, _repo = _make_validation_runner()
+        config = _make_validation_config(top=None)
+        result = runner.run(config)
+        assert len(result.segments) == 2
+        assert all(s.segment == "full" for s in result.segments)
+
+    def test_training_seasons_exclude_holdout(self) -> None:
+        runner, model, _eval, _repo = _make_validation_runner()
+        config = _make_validation_config(
+            holdout_seasons=[2023],
+            train_seasons=[2019, 2020, 2021, 2022, 2023, 2024],
+        )
+        runner.run(config)
+        # Old and new each trained once → 2 train calls
+        assert len(model.train_calls) == 2
+        for call in model.train_calls:
+            assert 2023 not in call.seasons
+            assert call.seasons == [2019, 2020, 2021, 2022, 2024]
+
+    def test_version_tag_format(self) -> None:
+        runner, model, _eval, _repo = _make_validation_runner()
+        config = _make_validation_config(holdout_seasons=[2024])
+        runner.run(config)
+        old_versions = [c.version for c in model.train_calls if c.version and c.version.startswith("old")]
+        new_versions = [c.version for c in model.train_calls if c.version and c.version.startswith("new")]
+        assert "old-h2024" in old_versions
+        assert "new-h2024" in new_versions
+
+    def test_reuses_existing_predictions(self) -> None:
+        repo = FakeProjectionRepo()
+        repo.set_existing("test-model", "old-h2024", [{"player_id": 1, "hr": 30}])
+        runner, model, _eval, _repo = _make_validation_runner(projection_repo=repo)
+        config = _make_validation_config(holdout_seasons=[2024])
+        runner.run(config)
+        # Old version has existing predictions → skip train+predict for old
+        # New version does not → train+predict for new
+        old_train_calls = [c for c in model.train_calls if c.version == "old-h2024"]
+        new_train_calls = [c for c in model.train_calls if c.version == "new-h2024"]
+        assert len(old_train_calls) == 0
+        assert len(new_train_calls) == 1
+
+    def test_cleanup_deletes_all_version_tags(self) -> None:
+        runner, _model, _eval, repo = _make_validation_runner()
+        config = _make_validation_config(holdout_seasons=[2023, 2024])
+        runner.cleanup(config)
+        assert ("test-model", "old-h2023") in repo.deleted
+        assert ("test-model", "new-h2023") in repo.deleted
+        assert ("test-model", "old-h2024") in repo.deleted
+        assert ("test-model", "new-h2024") in repo.deleted
+
+    def test_preflight_passed_through(self) -> None:
+        runner, _model, _eval, _repo = _make_validation_runner()
+        config = _make_validation_config()
+        preflight = PreflightResult(details=(), confidence="high", recommendation="proceed")
+        result = runner.run(config, preflight=preflight)
+        assert result.preflight is preflight
+
+    def test_old_and_new_trained_with_correct_params(self) -> None:
+        runner, model, _eval, _repo = _make_validation_runner()
+        config = _make_validation_config(
+            holdout_seasons=[2024],
+            old_params={"max_depth": 3},
+            new_params={"max_depth": 5},
+        )
+        runner.run(config)
+        old_calls = [c for c in model.train_calls if c.version == "old-h2024"]
+        new_calls = [c for c in model.train_calls if c.version == "new-h2024"]
+        assert len(old_calls) == 1
+        assert len(new_calls) == 1
+        assert old_calls[0].model_params == {"max_depth": 3}
+        assert new_calls[0].model_params == {"max_depth": 5}
