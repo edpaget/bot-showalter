@@ -3,12 +3,15 @@ import pytest
 from fantasy_baseball_manager.domain.error_decomposition import (
     DistinguishingFeature,
     ErrorDecompositionReport,
+    FeatureGap,
+    FeatureGapReport,
     MissPopulationSummary,
     PlayerResidual,
     compute_distinguishing_features,
     compute_miss_summary,
     rank_residuals,
     split_direction,
+    split_residuals_by_quality,
 )
 
 
@@ -255,3 +258,102 @@ class TestDistinguishingFeatureConstruction:
         )
         with pytest.raises(AttributeError):
             df.feature_name = "pa"  # type: ignore[misc]
+
+
+class TestFeatureGapConstruction:
+    def test_construction(self) -> None:
+        gap = FeatureGap(
+            feature_name="barrel_pct",
+            ks_statistic=0.85,
+            p_value=0.001,
+            mean_well=0.08,
+            mean_poor=0.15,
+            in_model=False,
+        )
+        assert gap.feature_name == "barrel_pct"
+        assert gap.ks_statistic == 0.85
+        assert gap.in_model is False
+
+    def test_immutability(self) -> None:
+        gap = FeatureGap(
+            feature_name="age",
+            ks_statistic=0.5,
+            p_value=0.05,
+            mean_well=27.0,
+            mean_poor=34.0,
+            in_model=True,
+        )
+        with pytest.raises(AttributeError):
+            gap.feature_name = "pa"  # type: ignore[misc]
+
+
+class TestFeatureGapReportConstruction:
+    def test_construction(self) -> None:
+        report = FeatureGapReport(
+            target="slg",
+            player_type="batter",
+            season=2024,
+            system="test",
+            version="v1",
+            gaps=[],
+        )
+        assert report.target == "slg"
+        assert report.gaps == []
+
+
+class TestSplitResidualsByQuality:
+    def test_splits_into_well_and_poorly_predicted(self) -> None:
+        # Create 10 players with varying residual magnitudes
+        residuals = [
+            _make_residual(player_id=i, residual=r)
+            for i, r in enumerate(
+                [0.01, -0.02, 0.03, -0.04, 0.05, -0.06, 0.10, -0.15, 0.20, -0.30],
+                start=1,
+            )
+        ]
+        well, poor = split_residuals_by_quality(residuals, miss_percentile=80.0)
+        # Median abs residual ≈ 0.055
+        # Well-predicted: abs(resid) < median → players 1,2,3,4,5
+        assert {r.player_id for r in well} == {1, 2, 3, 4, 5}
+        # Poorly-predicted: abs(resid) > P80 threshold
+        # All poorly-predicted should have large residuals
+        for r in poor:
+            assert abs(r.residual) >= 0.20
+        # Player 10 (|resid|=0.30) should always be poorly predicted
+        assert 10 in {r.player_id for r in poor}
+
+    def test_all_same_residual_returns_empty_groups(self) -> None:
+        residuals = [_make_residual(player_id=i, residual=0.05) for i in range(1, 6)]
+        well, poor = split_residuals_by_quality(residuals)
+        # All residuals the same — none strictly below median, none strictly above P80
+        assert well == []
+        assert poor == []
+
+    def test_single_player_returns_empty_groups(self) -> None:
+        residuals = [_make_residual(player_id=1, residual=0.10)]
+        well, poor = split_residuals_by_quality(residuals)
+        assert well == []
+        assert poor == []
+
+    def test_empty_list_returns_empty_groups(self) -> None:
+        well, poor = split_residuals_by_quality([])
+        assert well == []
+        assert poor == []
+
+    def test_custom_percentile(self) -> None:
+        residuals = [
+            _make_residual(player_id=i, residual=r)
+            for i, r in enumerate(
+                [0.01, -0.02, 0.05, -0.10, 0.15, -0.20, 0.25, -0.30, 0.40, -0.50],
+                start=1,
+            )
+        ]
+        well, poor = split_residuals_by_quality(residuals, miss_percentile=50.0)
+        # P50 = median abs residual, so "poor" = abs(resid) > median
+        # More players should be in the poorly-predicted group with a lower percentile
+        assert len(poor) > 0
+        # All poor should have abs(residual) > all well
+        if well and poor:
+            max_well = max(abs(r.residual) for r in well)
+            min_poor = min(abs(r.residual) for r in poor)
+            assert min_poor > max_well

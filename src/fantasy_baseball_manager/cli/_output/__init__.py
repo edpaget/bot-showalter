@@ -71,7 +71,7 @@ from fantasy_baseball_manager.cli._output._reports import (
     print_value_over_adp,
     print_variance_targets,
 )
-from fantasy_baseball_manager.cli._output._residuals import print_error_decomposition_report
+from fantasy_baseball_manager.cli._output._residuals import print_error_decomposition_report, print_feature_gap_report
 from fantasy_baseball_manager.cli._output._runs import print_run_detail, print_run_list
 from fantasy_baseball_manager.cli._output._validate import print_preflight_result, print_validation_result
 from fantasy_baseball_manager.cli._output._valuations import (
@@ -148,6 +148,7 @@ __all__ = [
     "print_draft_tiers",
     "print_error",
     "print_error_decomposition_report",
+    "print_feature_gap_report",
     "print_experiment_detail",
     "print_experiment_search_results",
     "print_experiment_summary",

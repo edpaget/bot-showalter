@@ -41,12 +41,15 @@ from fantasy_baseball_manager.domain.draft_report import (
 from fantasy_baseball_manager.domain.error_decomposition import (
     DistinguishingFeature,
     ErrorDecompositionReport,
+    FeatureGap,
+    FeatureGapReport,
     MissPopulationSummary,
     PlayerResidual,
     compute_distinguishing_features,
     compute_miss_summary,
     rank_residuals,
     split_direction,
+    split_residuals_by_quality,
 )
 from fantasy_baseball_manager.domain.errors import (
     ConfigError,
@@ -238,6 +241,8 @@ __all__ = [
     "ComparisonResult",
     "DistinguishingFeature",
     "ErrorDecompositionReport",
+    "FeatureGap",
+    "FeatureGapReport",
     "ComparisonSummary",
     "CorrelationScanResult",
     "FeatureCandidate",
@@ -379,5 +384,6 @@ __all__ = [
     "normalize_projection_pt",
     "rank_residuals",
     "split_direction",
+    "split_residuals_by_quality",
     "summarize_comparison",
 ]

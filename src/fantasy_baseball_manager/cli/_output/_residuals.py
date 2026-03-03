@@ -5,7 +5,7 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._output._common import console
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import ErrorDecompositionReport
+    from fantasy_baseball_manager.domain import ErrorDecompositionReport, FeatureGapReport
 
 
 def print_error_decomposition_report(report: ErrorDecompositionReport) -> None:
@@ -71,3 +71,38 @@ def print_error_decomposition_report(report: ErrorDecompositionReport) -> None:
             )
 
         console.print(feat_table)
+
+
+def print_feature_gap_report(report: FeatureGapReport) -> None:
+    title = (
+        f"Feature Gap Analysis — {report.system}/{report.version} "
+        f"{report.target} ({report.player_type}s, {report.season})"
+    )
+    console.print(f"\n[bold]{title}[/bold]\n")
+
+    in_model = [g for g in report.gaps if g.in_model]
+    not_in_model = [g for g in report.gaps if not g.in_model]
+
+    for label, gaps in [("In-Model Features", in_model), ("Not-In-Model Features", not_in_model)]:
+        if not gaps:
+            continue
+        table = Table(title=label)
+        table.add_column("Feature")
+        table.add_column("KS Statistic", justify="right")
+        table.add_column("p-value", justify="right")
+        table.add_column("Mean (Well)", justify="right")
+        table.add_column("Mean (Poor)", justify="right")
+        table.add_column("Sig?", justify="center")
+
+        for gap in gaps:
+            sig = "[bold red]*[/bold red]" if gap.p_value < 0.05 else ""
+            table.add_row(
+                gap.feature_name,
+                f"{gap.ks_statistic:.3f}",
+                f"{gap.p_value:.4f}",
+                f"{gap.mean_well:.3f}",
+                f"{gap.mean_poor:.3f}",
+                sig,
+            )
+
+        console.print(table)

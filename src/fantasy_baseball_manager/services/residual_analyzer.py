@@ -3,9 +3,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from scipy.stats import ks_2samp
+
 from fantasy_baseball_manager.domain import (
     BattingStats,
     ErrorDecompositionReport,
+    FeatureGap,
+    FeatureGapReport,
     MissPopulationSummary,
     PitchingStats,
     PlayerResidual,
@@ -13,6 +17,7 @@ from fantasy_baseball_manager.domain import (
     compute_miss_summary,
     rank_residuals,
     split_direction,
+    split_residuals_by_quality,
 )
 from fantasy_baseball_manager.services.performance_report import _get_batter_actual, _get_pitcher_actual
 
@@ -55,11 +60,138 @@ class ResidualAnalyzer:
         top_n: int = 20,
         direction: str | None = None,
     ) -> ErrorDecompositionReport:
+        all_residuals, primary_positions = self._compute_all_residuals(system, version, season, target, player_type)
+
+        if not all_residuals:
+            return self._empty_report(target, player_type, season, system, version)
+
+        if direction == "over":
+            all_residuals = [r for r in all_residuals if r.residual > 0]
+        elif direction == "under":
+            all_residuals = [r for r in all_residuals if r.residual < 0]
+
+        top_misses = rank_residuals(all_residuals, top_n)
+        over, under = split_direction(all_residuals)
+
+        top_miss_ids = {r.player_id for r in top_misses}
+        rest = [r for r in all_residuals if r.player_id not in top_miss_ids]
+
+        summary = compute_miss_summary(top_misses, rest, primary_positions)
+
+        return ErrorDecompositionReport(
+            target=target,
+            player_type=player_type,
+            season=season,
+            system=system,
+            version=version,
+            top_misses=top_misses,
+            over_predictions=over,
+            under_predictions=under,
+            summary=summary,
+        )
+
+    def detect_feature_gaps(
+        self,
+        system: str,
+        version: str,
+        season: int,
+        target: str,
+        player_type: str,
+        model_feature_names: frozenset[str],
+        miss_percentile: float = 80.0,
+        extra_features: dict[int, dict[str, float]] | None = None,
+    ) -> FeatureGapReport:
+        """Compare feature distributions between well-predicted and poorly-predicted players."""
+        all_residuals, _ = self._compute_all_residuals(system, version, season, target, player_type)
+
+        if not all_residuals:
+            return FeatureGapReport(
+                target=target,
+                player_type=player_type,
+                season=season,
+                system=system,
+                version=version,
+            )
+
+        # Merge extra features into each player's feature dict
+        feature_dicts: dict[int, dict[str, float]] = {}
+        for r in all_residuals:
+            merged = dict(r.feature_values)
+            if extra_features and r.player_id in extra_features:
+                merged.update(extra_features[r.player_id])
+            feature_dicts[r.player_id] = merged
+
+        well, poor = split_residuals_by_quality(all_residuals, miss_percentile)
+
+        if not well or not poor:
+            return FeatureGapReport(
+                target=target,
+                player_type=player_type,
+                season=season,
+                system=system,
+                version=version,
+            )
+
+        well_ids = {r.player_id for r in well}
+        poor_ids = {r.player_id for r in poor}
+
+        # Collect all feature names present in both groups
+        well_feature_names: set[str] = set()
+        for pid in well_ids:
+            well_feature_names.update(feature_dicts[pid].keys())
+        poor_feature_names: set[str] = set()
+        for pid in poor_ids:
+            poor_feature_names.update(feature_dicts[pid].keys())
+        common_features = well_feature_names & poor_feature_names
+
+        gaps: list[FeatureGap] = []
+        for feature in common_features:
+            well_vals = [feature_dicts[pid][feature] for pid in well_ids if feature in feature_dicts[pid]]
+            poor_vals = [feature_dicts[pid][feature] for pid in poor_ids if feature in feature_dicts[pid]]
+
+            if len(well_vals) < 2 or len(poor_vals) < 2:
+                continue
+
+            stat, p_value = ks_2samp(well_vals, poor_vals)
+            gaps.append(
+                FeatureGap(
+                    feature_name=feature,
+                    ks_statistic=float(stat),
+                    p_value=float(p_value),
+                    mean_well=sum(well_vals) / len(well_vals),
+                    mean_poor=sum(poor_vals) / len(poor_vals),
+                    in_model=feature in model_feature_names,
+                )
+            )
+
+        gaps.sort(key=lambda g: g.ks_statistic, reverse=True)
+
+        return FeatureGapReport(
+            target=target,
+            player_type=player_type,
+            season=season,
+            system=system,
+            version=version,
+            gaps=gaps,
+        )
+
+    def _compute_all_residuals(
+        self,
+        system: str,
+        version: str,
+        season: int,
+        target: str,
+        player_type: str,
+    ) -> tuple[list[PlayerResidual], dict[int, str]]:
+        """Compute residuals for all players and return primary positions.
+
+        Returns (residuals, primary_positions).
+        """
         projections = self._projection_repo.get_by_system_version(system, version)
         projections = [p for p in projections if p.season == season and p.player_type == player_type]
 
         if not projections:
-            return self._empty_report(target, player_type, season, system, version)
+            return [], {}
 
         proj_by_player = {p.player_id: p for p in projections}
         player_ids = list(proj_by_player.keys())
@@ -121,33 +253,7 @@ class ResidualAnalyzer:
                 )
             )
 
-        if not all_residuals:
-            return self._empty_report(target, player_type, season, system, version)
-
-        if direction == "over":
-            all_residuals = [r for r in all_residuals if r.residual > 0]
-        elif direction == "under":
-            all_residuals = [r for r in all_residuals if r.residual < 0]
-
-        top_misses = rank_residuals(all_residuals, top_n)
-        over, under = split_direction(all_residuals)
-
-        top_miss_ids = {r.player_id for r in top_misses}
-        rest = [r for r in all_residuals if r.player_id not in top_miss_ids]
-
-        summary = compute_miss_summary(top_misses, rest, primary_positions)
-
-        return ErrorDecompositionReport(
-            target=target,
-            player_type=player_type,
-            season=season,
-            system=system,
-            version=version,
-            top_misses=top_misses,
-            over_predictions=over,
-            under_predictions=under,
-            summary=summary,
-        )
+        return all_residuals, primary_positions
 
     def _build_feature_values(
         self,

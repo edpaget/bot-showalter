@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from statistics import mean
+from dataclasses import dataclass, field
+from statistics import mean, median, quantiles
 
 
 @dataclass(frozen=True)
@@ -132,3 +132,52 @@ def compute_miss_summary(
         mean_volume=mean_volume,
         distinguishing_features=distinguishing_features,
     )
+
+
+@dataclass(frozen=True)
+class FeatureGap:
+    feature_name: str
+    ks_statistic: float
+    p_value: float
+    mean_well: float
+    mean_poor: float
+    in_model: bool
+
+
+@dataclass(frozen=True)
+class FeatureGapReport:
+    target: str
+    player_type: str
+    season: int
+    system: str
+    version: str
+    gaps: list[FeatureGap] = field(default_factory=list)
+
+
+def split_residuals_by_quality(
+    residuals: list[PlayerResidual],
+    miss_percentile: float = 80.0,
+) -> tuple[list[PlayerResidual], list[PlayerResidual]]:
+    """Split into well-predicted and poorly-predicted groups.
+
+    Well-predicted: absolute residual strictly below the median.
+    Poorly-predicted: absolute residual strictly above the ``miss_percentile`` threshold.
+    """
+    if len(residuals) < 2:
+        return [], []
+
+    abs_residuals = [abs(r.residual) for r in residuals]
+    med = median(abs_residuals)
+
+    # quantiles with n-1 cuts gives percentiles at 1/n, 2/n, ... positions.
+    # For miss_percentile, we need to translate to the right quantile cut.
+    n = 100
+    cuts = quantiles(abs_residuals, n=n)
+    # cuts has n-1 values (indices 0..98 for n=100), representing 1st..99th percentiles
+    idx = max(0, min(int(miss_percentile) - 1, len(cuts) - 1))
+    threshold = cuts[idx]
+
+    well = [r for r in residuals if abs(r.residual) < med]
+    poor = [r for r in residuals if abs(r.residual) > threshold]
+
+    return well, poor

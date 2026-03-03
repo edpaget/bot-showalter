@@ -343,3 +343,160 @@ class TestAnalyzePitcher:
         assert len(report.top_misses) == 1
         assert report.top_misses[0].residual == pytest.approx(-0.50)
         assert report.top_misses[0].feature_values["ip"] == 180.0
+
+
+def _seed_many_batters(
+    conn: sqlite3.Connection,
+    proj_repo: SqliteProjectionRepo,
+    batting_repo: SqliteBattingStatsRepo,
+    position_repo: SqlitePositionAppearanceRepo,
+    *,
+    count: int = 20,
+    poor_count: int = 4,
+) -> None:
+    """Seed batters: most well-predicted, a few poorly-predicted.
+
+    Well-predicted players have actual ≈ predicted (small residual).
+    Poorly-predicted players have large residuals.
+    """
+    for i in range(1, count + 1):
+        is_poor = i <= poor_count
+        predicted = 0.400
+        actual_slg = 0.250 if is_poor else 0.400 - (i - poor_count) * 0.001
+
+        _seed_batter_data(
+            conn,
+            proj_repo,
+            batting_repo,
+            position_repo,
+            player_id=i,
+            name_first=f"Player{i}",
+            name_last="Test",
+            predicted_slg=predicted,
+            actual_slg=actual_slg,
+            actual_avg=0.270 if not is_poor else 0.220,
+            pa=500 if not is_poor else 200,
+            birth_date="1995-07-01" if not is_poor else "1988-07-01",
+        )
+    conn.commit()
+
+
+class TestDetectFeatureGaps:
+    def test_feature_with_perfect_separation_has_high_ks(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_many_batters(conn, proj_repo, batting_repo, position_repo)
+
+        # Add extra features: poorly-predicted (ids 1-4) all have high values,
+        # well-predicted all have low values
+        extra_features: dict[int, dict[str, float]] = {}
+        for i in range(1, 21):
+            is_poor = i <= 4
+            extra_features[i] = {
+                "secret_signal": 100.0 if is_poor else 0.0,
+                "noise": float(i),
+            }
+
+        report = analyzer.detect_feature_gaps(
+            system="test-model",
+            version="v1",
+            season=2024,
+            target="slg",
+            player_type="batter",
+            model_feature_names=frozenset(["age", "pa", "avg", "obp", "slg"]),
+            extra_features=extra_features,
+        )
+        assert report.target == "slg"
+        assert report.player_type == "batter"
+        assert len(report.gaps) > 0
+
+        # secret_signal should have one of the highest KS statistics
+        secret_gap = next((g for g in report.gaps if g.feature_name == "secret_signal"), None)
+        assert secret_gap is not None
+        assert secret_gap.ks_statistic > 0.5
+        assert secret_gap.in_model is False
+
+    def test_feature_with_no_gap_has_low_ks(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_many_batters(conn, proj_repo, batting_repo, position_repo)
+
+        # Give all players the same value for "uniform_feature"
+        extra_features: dict[int, dict[str, float]] = {}
+        for i in range(1, 21):
+            extra_features[i] = {"uniform_feature": 42.0}
+
+        report = analyzer.detect_feature_gaps(
+            system="test-model",
+            version="v1",
+            season=2024,
+            target="slg",
+            player_type="batter",
+            model_feature_names=frozenset(["age"]),
+            extra_features=extra_features,
+        )
+        uniform_gap = next((g for g in report.gaps if g.feature_name == "uniform_feature"), None)
+        # Uniform feature should not appear (no variation) or have KS ≈ 0
+        if uniform_gap is not None:
+            assert uniform_gap.ks_statistic == pytest.approx(0.0, abs=0.01)
+
+    def test_in_model_flag(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_many_batters(conn, proj_repo, batting_repo, position_repo)
+
+        model_features = frozenset(["age", "pa"])
+        report = analyzer.detect_feature_gaps(
+            system="test-model",
+            version="v1",
+            season=2024,
+            target="slg",
+            player_type="batter",
+            model_feature_names=model_features,
+        )
+        for gap in report.gaps:
+            if gap.feature_name in model_features:
+                assert gap.in_model is True
+            else:
+                assert gap.in_model is False
+
+    def test_extra_features_merged(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_many_batters(conn, proj_repo, batting_repo, position_repo)
+
+        extra_features: dict[int, dict[str, float]] = {i: {"new_metric": float(i * 10)} for i in range(1, 21)}
+        report = analyzer.detect_feature_gaps(
+            system="test-model",
+            version="v1",
+            season=2024,
+            target="slg",
+            player_type="batter",
+            model_feature_names=frozenset(),
+            extra_features=extra_features,
+        )
+        feature_names = {g.feature_name for g in report.gaps}
+        assert "new_metric" in feature_names
+
+    def test_no_residuals_returns_empty_report(self, conn: sqlite3.Connection) -> None:
+        analyzer, _, _, _, _, _ = _make_service(conn)
+        report = analyzer.detect_feature_gaps(
+            system="nonexistent",
+            version="v1",
+            season=2024,
+            target="slg",
+            player_type="batter",
+            model_feature_names=frozenset(),
+        )
+        assert report.gaps == []
+
+    def test_gaps_sorted_by_ks_descending(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_many_batters(conn, proj_repo, batting_repo, position_repo)
+
+        report = analyzer.detect_feature_gaps(
+            system="test-model",
+            version="v1",
+            season=2024,
+            target="slg",
+            player_type="batter",
+            model_feature_names=frozenset(),
+        )
+        ks_values = [g.ks_statistic for g in report.gaps]
+        assert ks_values == sorted(ks_values, reverse=True)
