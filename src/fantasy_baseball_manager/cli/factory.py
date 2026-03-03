@@ -56,6 +56,7 @@ from fantasy_baseball_manager.repos import (
     SqliteYahooPlayerMapRepo,
     SqliteYahooRosterRepo,
     SqliteYahooTeamRepo,
+    SqliteYahooTransactionRepo,
 )
 from fantasy_baseball_manager.services import (
     CorrelationScanner,
@@ -670,6 +671,7 @@ class YahooContext:
     yahoo_player_map_repo: SqliteYahooPlayerMapRepo
     yahoo_roster_repo: SqliteYahooRosterRepo
     yahoo_draft_repo: SqliteYahooDraftRepo
+    yahoo_transaction_repo: SqliteYahooTransactionRepo
     player_repo: SqlitePlayerRepo
     projection_repo: SqliteProjectionRepo
     valuation_repo: SqliteValuationRepo
@@ -693,6 +695,7 @@ def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContex
             yahoo_player_map_repo=SqliteYahooPlayerMapRepo(conn),
             yahoo_roster_repo=SqliteYahooRosterRepo(conn),
             yahoo_draft_repo=SqliteYahooDraftRepo(conn),
+            yahoo_transaction_repo=SqliteYahooTransactionRepo(conn),
             player_repo=SqlitePlayerRepo(conn),
             projection_repo=SqliteProjectionRepo(conn),
             valuation_repo=SqliteValuationRepo(conn),

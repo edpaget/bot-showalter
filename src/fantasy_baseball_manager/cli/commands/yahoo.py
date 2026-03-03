@@ -48,6 +48,7 @@ from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
 from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
+from fantasy_baseball_manager.yahoo.transaction_source import YahooTransactionSource
 
 logger = logging.getLogger(__name__)
 
@@ -604,6 +605,136 @@ def yahoo_draft_live(  # pragma: no cover
         session.run()
     finally:
         poller.stop()
+
+
+@yahoo_app.command("transactions")
+def yahoo_transactions(  # pragma: no cover
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    days: Annotated[int, typer.Option("--days", help="Show transactions from last N days")] = 7,
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Fetch and display recent league transactions."""
+    league_name, config = _resolve_league_context(league, config_dir)
+    league_config = config.leagues[league_name]
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        game_key = ctx.client.get_game_key(2026)
+        league_key = f"{game_key}.l.{league_config.league_id}"
+
+        mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
+        source = YahooTransactionSource(ctx.client, mapper)
+
+        # Incremental sync
+        latest = ctx.yahoo_transaction_repo.get_latest_timestamp(league_key)
+        new_transactions = source.fetch_transactions(league_key, since=latest)
+        for txn, players in new_transactions:
+            ctx.yahoo_transaction_repo.upsert(txn, players)
+        ctx.conn.commit()
+
+        # Display recent
+        recent = ctx.yahoo_transaction_repo.get_recent(league_key, days=days)
+
+    if not recent:
+        console.print(f"[yellow]No transactions in the last {days} days.[/yellow]")
+        return
+
+    table = Table(title=f"Transactions — {league_name} (last {days} days)", show_header=True)
+    table.add_column("Date")
+    table.add_column("Type")
+    table.add_column("Status")
+    table.add_column("Players")
+    table.add_column("Team")
+
+    for txn, players in recent:
+        date_str = txn.timestamp.strftime("%Y-%m-%d %H:%M")
+        player_strs: list[str] = []
+        for p in players:
+            prefix = "+" if p.type == "add" else "-"
+            player_strs.append(f"{prefix} {p.player_name}")
+        players_str = ", ".join(player_strs) if player_strs else ""
+        team_key_short = txn.trader_team_key.split(".")[-1] if txn.trader_team_key else ""
+        table.add_row(date_str, txn.type, txn.status, players_str, team_key_short)
+
+    console.print(table)
+    console.print(f"\n[bold green]Showing {len(recent)} transactions.[/bold green]")
+
+
+@yahoo_app.command("refresh")
+def yahoo_refresh(  # pragma: no cover
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Incrementally sync all league data (rosters + transactions)."""
+    league_name, config = _resolve_league_context(league, config_dir)
+    league_config = config.leagues[league_name]
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        game_key = ctx.client.get_game_key(2026)
+        league_key = f"{game_key}.l.{league_config.league_id}"
+
+        # Step 1: Ensure teams exist (auto-sync if needed)
+        teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
+        if not teams:
+            console.print("[yellow]No teams found. Running sync first...[/yellow]")
+            league_source = YahooLeagueSource(ctx.client)
+            result = league_source.fetch(league_key=league_key, game_key=game_key)
+
+            league_data = result["league"]
+            yahoo_league = YahooLeague(
+                league_key=league_data["league_key"],
+                name=league_data["name"],
+                season=league_data["season"],
+                num_teams=league_data["num_teams"],
+                draft_type=league_data["draft_type"],
+                is_keeper=league_data["is_keeper"],
+                game_key=league_data["game_key"],
+            )
+            ctx.yahoo_league_repo.upsert(yahoo_league)
+
+            for team_data in result["teams"]:
+                yahoo_team = YahooTeam(
+                    team_key=team_data["team_key"],
+                    league_key=team_data["league_key"],
+                    team_id=team_data["team_id"],
+                    name=team_data["name"],
+                    manager_name=team_data["manager_name"],
+                    is_owned_by_user=team_data["is_owned_by_user"],
+                )
+                ctx.yahoo_team_repo.upsert(yahoo_team)
+            ctx.conn.commit()
+            teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
+
+        # Step 2: Sync rosters
+        mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
+        roster_source = YahooRosterSource(ctx.client, mapper)
+        today = datetime.date.today()
+
+        roster_count = 0
+        for team in teams:
+            roster = roster_source.fetch_team_roster(
+                team_key=team.team_key,
+                league_key=league_key,
+                season=2026,
+                week=1,
+                as_of=today,
+            )
+            ctx.yahoo_roster_repo.save_snapshot(roster)
+            roster_count += 1
+
+        # Step 3: Sync transactions incrementally
+        txn_source = YahooTransactionSource(ctx.client, mapper)
+        latest = ctx.yahoo_transaction_repo.get_latest_timestamp(league_key)
+        new_transactions = txn_source.fetch_transactions(league_key, since=latest)
+        for txn, players in new_transactions:
+            ctx.yahoo_transaction_repo.upsert(txn, players)
+
+        ctx.conn.commit()
+
+    console.print(f"[bold green]Refresh complete[/bold green] — {league_name}")
+    console.print(f"  Rosters synced: {roster_count}")
+    console.print(f"  New transactions: {len(new_transactions)}")
 
 
 # ---------------------------------------------------------------------------

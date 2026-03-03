@@ -28,6 +28,7 @@ from fantasy_baseball_manager.repos import (
     SqliteYahooPlayerMapRepo,
     SqliteYahooRosterRepo,
     SqliteYahooTeamRepo,
+    SqliteYahooTransactionRepo,
 )
 
 if TYPE_CHECKING:
@@ -74,6 +75,7 @@ def _make_ctx(conn: sqlite3.Connection) -> YahooContext:
         yahoo_player_map_repo=SqliteYahooPlayerMapRepo(conn),
         yahoo_roster_repo=SqliteYahooRosterRepo(conn),
         yahoo_draft_repo=SqliteYahooDraftRepo(conn),
+        yahoo_transaction_repo=SqliteYahooTransactionRepo(conn),
         player_repo=SqlitePlayerRepo(conn),
         projection_repo=SqliteProjectionRepo(conn),
         valuation_repo=SqliteValuationRepo(conn),

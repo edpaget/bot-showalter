@@ -214,6 +214,7 @@ from fantasy_baseball_manager.domain.tier import (
     TierSummaryEntry,
     TierSummaryReport,
 )
+from fantasy_baseball_manager.domain.transaction import Transaction, TransactionPlayer
 from fantasy_baseball_manager.domain.valuation import (
     PlayerValuation,
     Valuation,
@@ -362,6 +363,8 @@ __all__ = [
     "TierAssignment",
     "TradeEvaluation",
     "TradePlayerDetail",
+    "Transaction",
+    "TransactionPlayer",
     "TierSummaryEntry",
     "TierSummaryReport",
     "TrueTalentQualityReport",
