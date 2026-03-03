@@ -34,6 +34,9 @@ src/fantasy_baseball_manager/
 ├── features/         # Feature engineering — assembler, transforms, SQL-backed feature sets
 ├── models/           # Projection models (see below)
 ├── services/         # Evaluation, lookup, valuation, and reporting services
+├── agent/            # LangGraph-based LLM agent (Claude) for conversational access
+├── tools/            # Agent tool definitions (ADP, player, projection, valuation lookups)
+├── discord_bot/      # Discord bot for chat-based access to projections and valuations
 └── yahoo/            # Yahoo Fantasy API OAuth client and league sync
 ```
 
@@ -63,6 +66,10 @@ fbm tune <model>                          # hyperparameter search
 fbm sweep <model>                         # meta-parameter sweep (e.g. weight transforms)
 fbm ablate <model>                        # feature ablation study
 fbm finetune <model>                      # fine-tune a trained model
+fbm gate <model>                          # multi-season regression gate
+fbm quick-eval <model>                    # single-target quick evaluation
+fbm marginal-value <model>               # RMSE improvement from candidate features
+fbm compare-features <model>             # compare two feature sets on identical splits
 fbm list                                  # show registered models
 fbm info <model>                          # show model details and supported operations
 fbm features <model>                      # list declared features for a model
@@ -117,6 +124,13 @@ fbm draft board --season 2026                   # terminal draft board
 fbm draft export --season 2026 --output board.csv
 fbm draft export --season 2026 --output board.html --format html
 fbm draft live --season 2026                    # live Flask server with auto-refresh
+fbm draft start --season 2026                   # interactive draft session (REPL)
+fbm draft report draft.json                     # post-draft analysis
+fbm draft tiers --season 2026                   # position-grouped tier assignments
+fbm draft tier-summary --season 2026            # cross-position tier summary matrix
+fbm draft needs --season 2026                   # category weakness recommendations
+fbm draft pick-values --season 2026             # draft pick value curve
+fbm draft trade-picks --season 2026             # evaluate draft pick trades
 ```
 
 Reports:
@@ -127,10 +141,44 @@ fbm report underperformers statcast-gbm/latest --season 2025 --player-type batte
 fbm report talent-delta statcast-gbm/latest --season 2025 --player-type batter --top 20
 fbm report talent-quality statcast-gbm/latest --season 2024 2025
 fbm report residual-persistence statcast-gbm/latest --season 2024 2025
+fbm report residual-analysis statcast-gbm/latest --season 2024 2025
 fbm report value-over-adp --season 2026
 fbm report adp-accuracy --season 2025 --league default
 fbm report adp-movers --season 2026 --window 14
 fbm report projection-confidence --season 2026
+fbm report variance-targets --season 2026
+fbm report system-disagreements "Ohtani" --season 2026
+```
+
+Keeper league management:
+
+```bash
+fbm keeper import keepers.csv --season 2026     # import keeper costs
+fbm keeper set "Soto" 45 --season 2026          # set a single keeper cost
+fbm keeper decisions --season 2026              # rank players by surplus value
+fbm keeper adjusted-rankings --season 2026      # post-keeper adjusted rankings
+fbm keeper trade-eval --season 2026             # evaluate a trade
+fbm keeper optimize --season 2026               # find optimal keeper set
+fbm keeper scenario --season 2026               # compare keeper scenarios
+fbm keeper trade-impact --season 2026           # how trades change optimal keepers
+```
+
+Experiment journal:
+
+```bash
+fbm experiment log                              # log a trial
+fbm experiment search --tag statcast            # search by target, tag, model, feature
+fbm experiment summary statcast-gbm batter      # exploration summary
+fbm experiment show <id>                        # full experiment details
+fbm experiment checkpoint save <name>           # save/restore feature set checkpoints
+```
+
+Data profiling:
+
+```bash
+fbm profile columns --season 2024               # statcast column distributions
+fbm profile correlate --season 2024             # correlate columns against targets
+fbm profile stability --season 2022 2023 2024   # temporal stability of correlations
 ```
 
 Dataset and run management:
@@ -143,11 +191,23 @@ fbm runs show statcast-gbm/v1
 fbm runs delete statcast-gbm/v1
 ```
 
+Conversational access:
+
+```bash
+fbm chat                                        # interactive LLM chat session
+fbm discord                                     # run the Discord bot
+```
+
 Yahoo Fantasy integration:
 
 ```bash
 fbm yahoo auth                                  # OAuth authentication flow
 fbm yahoo sync --league keeper                  # sync league metadata
+fbm yahoo map-player <yahoo-key> <player-name>  # manual player mapping
+fbm yahoo rosters --league keeper               # display all teams' rosters
+fbm yahoo my-roster --league keeper             # your roster with projections
+fbm yahoo draft-results --league keeper         # fetch draft results
+fbm yahoo draft-live --league keeper            # live draft session with auto-pick
 ```
 
 ## Configuration

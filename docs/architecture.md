@@ -10,7 +10,7 @@ External Sources (FanGraphs, Lahman, MLB API, Statcast, FantasyPros, Yahoo)
         -> Models (prepare, train, predict, evaluate)
           -> Projections (per-player stat forecasts)
             -> Valuations (auction dollar values)
-              -> Draft Board / Reports / Yahoo sync
+              -> Draft Board / Reports / Keeper Analysis / Yahoo sync
 ```
 
 ## Layers
@@ -18,10 +18,16 @@ External Sources (FanGraphs, Lahman, MLB API, Statcast, FantasyPros, Yahoo)
 ### Domain (`domain/`)
 
 Immutable value objects (`@dataclass(frozen=True)`) representing the core
-vocabulary: `Player`, `PlayerBio`, `BattingStats`, `PitchingStats`,
-`Projection`, `StatDistribution`, `Valuation`, `ModelRun`,
-`LeagueEnvironment`, `LeagueSettings`, `ADP`, `DraftBoard`, `Tier`,
-`ProjectionConfidence`, `YahooLeague`, `YahooTeam`, etc. No I/O or
+vocabulary: `Player`, `PlayerBio`, `PlayerProfile`, `BattingStats`,
+`PitchingStats`, `Projection`, `ProjectionAccuracy`, `ProjectionConfidence`,
+`StatDistribution`, `Valuation`, `ModelRun`, `LeagueEnvironment`,
+`LeagueSettings`, `ADP`, `ADPMovers`, `ADPAccuracy`, `DraftBoard`, `Tier`,
+`DraftRecommendation`, `DraftReport`, `YahooLeague`, `YahooTeam`,
+`YahooDraftPick`, `YahooPlayer`, `KeeperCost`, `KeeperDecision`,
+`KeeperOptimization`, `Experiment`, `Checkpoint`, `PickValue`, `MockDraft`,
+`ColumnProfile`, `CorrelationResult`, `TemporalStability`,
+`ResidualAnalysis`, `ResidualPersistence`, `TalentQuality`,
+`PerformanceDelta`, `CategoryTracker`, `Result`, etc. No I/O or
 side effects.
 
 ### Repositories (`repos/`)
@@ -37,7 +43,9 @@ Implementations: `SqlitePlayerRepo`, `SqliteBattingStatsRepo`,
 `SqliteSprintSpeedRepo`, `SqliteILStintRepo`, `SqliteLeagueEnvironmentRepo`,
 `SqliteMinorLeagueBattingStatsRepo`, `SqlitePositionAppearanceRepo`,
 `SqliteRosterStintRepo`, `SqliteLoadLogRepo`, `SqliteLevelFactorRepo`,
-`SqliteYahooLeagueRepo`, `SqliteYahooTeamRepo`.
+`SqliteCheckpointRepo`, `SqliteExperimentRepo`, `SqliteKeeperRepo`,
+`SqliteYahooLeagueRepo`, `SqliteYahooTeamRepo`, `SqliteYahooDraftRepo`,
+`SqliteYahooPlayerMapRepo`, `SqliteYahooRosterRepo`.
 
 ### Ingest (`ingest/`)
 
@@ -73,9 +81,10 @@ SQLite table, returning a `DatasetHandle` for downstream reading and
 splitting.
 
 Transform modules in `features/transforms/` compute derived Statcast
-metrics: batted ball profiles, batted ball interactions, pitcher command,
-expected stats (xwOBA etc.), league averages, pitch mix, plate discipline,
-playing time, spin profiles, sprint speed, and weighted rates.
+metrics: age interactions, batted ball profiles, batted ball interactions,
+batter trends, pitcher command, expected stats (xwOBA etc.), league
+averages, pitch mix, plate discipline, playing time, spin profiles,
+sprint speed, and weighted rates.
 
 ### Models (`models/`)
 
@@ -101,34 +110,78 @@ DI. Services include:
 
 - **Evaluation:** `ProjectionEvaluator` (RMSE, bias vs actuals),
   `ValuationEvaluator` (MAE, rank correlation), `TrueTalentEvaluator`
-  (cross-season talent estimation), `ResidualPersistenceDiagnostic`.
+  (cross-season talent estimation), `ResidualPersistenceDiagnostic`,
+  `ResidualAnalysisDiagnostic`, `RegressionGate` (multi-season validation).
 - **Reporting:** `PerformanceReportService` (over/underperformer cohort
   analysis), `ADPReportService` (value-over-ADP), `ADPAccuracyEvaluator`,
-  `ADPMoversService` (ADP ranking changes).
+  `ADPMoversService` (ADP ranking changes), `DraftReportService`
+  (post-draft analysis).
 - **Lookup:** `ProjectionLookupService`, `ValuationLookupService`,
   `ProjectionConfidenceService` (cross-system agreement),
-  `PlayerBiographyService`.
+  `PlayerBiographyService`, `PlayerProfileService`, `PlayerResolverService`.
 - **Draft:** `DraftBoardService` (draft board assembly with ADP overlay),
-  `TierGeneratorService` (tier breaks from valuations).
+  `TierGeneratorService` (tier breaks from valuations), `DraftSessionService`
+  (interactive draft REPL), `DraftRecommenderService` (category need
+  recommendations), `MockDraftService` (simulated drafts with bot
+  strategies), `PickValueService` (draft pick value curve),
+  `DraftTranslationService` (Yahoo draft integration).
+- **Keeper:** `KeeperService` (surplus value, decisions, adjusted rankings),
+  `KeeperOptimizerService` (optimal keeper set solver).
+- **Experiment:** `ExperimentSummaryService` (exploration status),
+  `CheckpointResolverService` (feature set checkpoint save/restore).
 - **Data:** `DatasetCatalogService` (feature set materialization cache),
-  `LeagueEnvironmentService` (minor-league environment computation).
+  `LeagueEnvironmentService` (league environment computation),
+  `DataProfilerService` (column distributions, correlations, temporal
+  stability), `QuickEvalService` (single-target fast evaluation),
+  `PlayerUniverseService` (player filtering and universe selection).
+
+### Agent (`agent/`)
+
+LangGraph-based LLM agent using Claude for conversational access to
+projections, valuations, and analysis. `graph.py` defines the agent
+graph with tool-calling nodes. `chat.py` provides the interactive chat
+loop. `prompt.py` contains the system prompt. `stream.py` handles
+streaming responses.
+
+### Tools (`tools/`)
+
+Agent tool definitions that wrap service calls for the LLM agent.
+Each tool module provides structured tool functions: `adp_tools`
+(ADP lookups and trends), `performance_tools` (over/underperformer
+analysis), `player_tools` (player search and biography),
+`projection_tools` (projection lookups and comparisons),
+`valuation_tools` (valuation rankings and lookups).
+`_formatting.py` provides shared output formatting.
+
+### Discord Bot (`discord_bot/`)
+
+Discord integration for conversational access. `bot.py` sets up the
+Discord client. `agent_handler.py` routes messages to the LLM agent
+and streams responses back to Discord channels.
 
 ### Yahoo (`yahoo/`)
 
 Yahoo Fantasy API integration. `YahooAuth` handles OAuth 2.0
 authentication and token management. `YahooFantasyClient` wraps API
-calls (game keys, league metadata, team rosters). `YahooLeagueSource`
-fetches league and team data for syncing to the local database.
+calls (game keys, league metadata, team rosters, draft results).
+`YahooLeagueSource` fetches league and team data for syncing to the
+local database. Supports live draft tracking with auto-pick ingestion.
 
 ### CLI (`cli/`)
 
 Typer-based commands organized into subcommand groups: core model
 operations (`prepare`, `train`, `predict`, `evaluate`, `tune`, `sweep`,
-`ablate`, `finetune`), `ingest` (data acquisition), `compute` (derived
+`ablate`, `finetune`, `gate`, `quick-eval`, `marginal-value`,
+`compare-features`), `ingest` (data acquisition), `compute` (derived
 data), `projections` (lookup, systems), `valuations` (lookup, rankings,
-evaluate), `draft` (board, export, live server), `report` (12 report
-types), `runs` (model run management), `datasets` (feature set cache),
-`compare` (multi-system comparison), and `yahoo` (auth, sync).
+evaluate), `draft` (board, export, live server, interactive session,
+tiers, needs, pick values, trade picks), `report` (14 report types),
+`runs` (model run management), `datasets` (feature set cache),
+`compare` (multi-system comparison), `keeper` (surplus value, decisions,
+optimization, trade evaluation), `experiment` (journal, search, summary,
+checkpoints), `profile` (column distributions, correlations, temporal
+stability), `yahoo` (auth, sync, rosters, draft), `chat` (LLM agent),
+and `discord` (bot).
 
 `factory.py` is the composition root — context managers
 (`build_model_context`, `build_ingest_container`, etc.) open a DB
@@ -161,6 +214,11 @@ types, making new models a single-file addition.
 **Composition root.** All wiring lives in `cli/factory.py`. Model
 classes, services, and repos are unaware of each other's concrete types —
 they depend only on Protocols.
+
+**Interaction mode generality.** Business logic lives in services, not
+in CLI commands or agent tools. The CLI, LLM agent, Discord bot, and
+live draft server are thin adapters over shared services, so any
+capability exposed in one mode is available in all others.
 
 ## Configuration
 
