@@ -6,7 +6,7 @@ Give an autonomous agent the tools to know *when* a promising result is worth ru
 
 | Phase | Status |
 |-------|--------|
-| 1 — Pre-flight confidence estimator | in progress (2026-03-03) |
+| 1 — Pre-flight confidence estimator | done (2026-03-03) |
 | 2 — Full validation orchestrator | not started |
 
 ## Phase 1: Pre-flight confidence estimator
