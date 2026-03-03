@@ -10,7 +10,7 @@ These tools answer the question: "What columns in `statcast_pitch` are worth tur
 |-------|--------|
 | 1 — Column profiler | done (2026-03-02) |
 | 2 — Target correlation scanner | done (2026-03-02) |
-| 3 — Temporal stability checker | in progress |
+| 3 — Temporal stability checker | done (2026-03-02) |
 
 ## Phase 1: Column profiler
 
