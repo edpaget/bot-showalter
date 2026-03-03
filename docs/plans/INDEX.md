@@ -20,7 +20,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Validation Gate](validation-gate.md) | 2 | phase 1 done | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 | phases 1-4 done | live-draft-tracker, keeper-surplus-value |
 
@@ -48,6 +47,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Tier Generator](tier-generator.md) | 3 |
 | [Fast Feedback Loop](fast-feedback-loop.md) | 3 |
 | [Top-300 Tuning](top-300-tuning.md) | 6 |
+| [Validation Gate](validation-gate.md) | 2 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
 
