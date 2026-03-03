@@ -451,3 +451,250 @@ class TestExperimentShowCommand:
 
         result = runner.invoke(app, ["experiment", "show", "9999", "--data-dir", str(tmp_path)])
         assert result.exit_code == 1
+
+
+# --- Checkpoint CLI tests ---
+
+
+class TestCheckpointSaveHelp:
+    def test_help_exits_zero(self) -> None:
+        result = runner.invoke(app, ["experiment", "checkpoint", "save", "--help"])
+        assert result.exit_code == 0
+
+
+class TestCheckpointListHelp:
+    def test_help_exits_zero(self) -> None:
+        result = runner.invoke(app, ["experiment", "checkpoint", "list", "--help"])
+        assert result.exit_code == 0
+
+
+class TestCheckpointRestoreHelp:
+    def test_help_exits_zero(self) -> None:
+        result = runner.invoke(app, ["experiment", "checkpoint", "restore", "--help"])
+        assert result.exit_code == 0
+
+
+class TestCheckpointDeleteHelp:
+    def test_help_exits_zero(self) -> None:
+        result = runner.invoke(app, ["experiment", "checkpoint", "delete", "--help"])
+        assert result.exit_code == 0
+
+
+class TestCheckpointSaveAndList:
+    def test_save_then_list(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_path = _db_monkeypatch(monkeypatch, tmp_path)
+        _seed_experiments(db_path)
+
+        result = runner.invoke(
+            app,
+            [
+                "experiment",
+                "checkpoint",
+                "save",
+                "best_v3",
+                "--model",
+                "statcast-gbm-preseason",
+                "--from-experiment",
+                "1",
+                "--player-type",
+                "batter",
+                "--notes",
+                "promising",
+                "--data-dir",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "best_v3" in result.output
+
+        list_result = runner.invoke(
+            app,
+            ["experiment", "checkpoint", "list", "--data-dir", str(tmp_path)],
+        )
+        assert list_result.exit_code == 0, list_result.output
+        assert "best_v3" in list_result.output
+
+    def test_save_duplicate_fails(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_path = _db_monkeypatch(monkeypatch, tmp_path)
+        _seed_experiments(db_path)
+
+        args = [
+            "experiment",
+            "checkpoint",
+            "save",
+            "dup",
+            "--model",
+            "statcast-gbm-preseason",
+            "--from-experiment",
+            "1",
+            "--player-type",
+            "batter",
+            "--data-dir",
+            str(tmp_path),
+        ]
+        result1 = runner.invoke(app, args)
+        assert result1.exit_code == 0, result1.output
+
+        result2 = runner.invoke(app, args)
+        assert result2.exit_code == 1
+
+    def test_save_force_overwrite(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_path = _db_monkeypatch(monkeypatch, tmp_path)
+        _seed_experiments(db_path)
+
+        args = [
+            "experiment",
+            "checkpoint",
+            "save",
+            "dup",
+            "--model",
+            "statcast-gbm-preseason",
+            "--from-experiment",
+            "1",
+            "--player-type",
+            "batter",
+            "--data-dir",
+            str(tmp_path),
+        ]
+        runner.invoke(app, args)
+        result = runner.invoke(app, [*args, "--force"])
+        assert result.exit_code == 0, result.output
+
+    def test_save_experiment_not_found(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _db_monkeypatch(monkeypatch, tmp_path)
+
+        result = runner.invoke(
+            app,
+            [
+                "experiment",
+                "checkpoint",
+                "save",
+                "test",
+                "--model",
+                "m",
+                "--from-experiment",
+                "9999",
+                "--player-type",
+                "batter",
+                "--data-dir",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 1
+
+
+class TestCheckpointRestore:
+    def test_restore_found(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_path = _db_monkeypatch(monkeypatch, tmp_path)
+        _seed_experiments(db_path)
+
+        runner.invoke(
+            app,
+            [
+                "experiment",
+                "checkpoint",
+                "save",
+                "best_v3",
+                "--model",
+                "statcast-gbm-preseason",
+                "--from-experiment",
+                "1",
+                "--player-type",
+                "batter",
+                "--data-dir",
+                str(tmp_path),
+            ],
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "experiment",
+                "checkpoint",
+                "restore",
+                "best_v3",
+                "--model",
+                "statcast-gbm-preseason",
+                "--data-dir",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "best_v3" in result.output
+
+    def test_restore_not_found(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _db_monkeypatch(monkeypatch, tmp_path)
+
+        result = runner.invoke(
+            app,
+            [
+                "experiment",
+                "checkpoint",
+                "restore",
+                "nonexistent",
+                "--model",
+                "m",
+                "--data-dir",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 1
+
+
+class TestCheckpointDelete:
+    def test_delete_found(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_path = _db_monkeypatch(monkeypatch, tmp_path)
+        _seed_experiments(db_path)
+
+        runner.invoke(
+            app,
+            [
+                "experiment",
+                "checkpoint",
+                "save",
+                "to_delete",
+                "--model",
+                "statcast-gbm-preseason",
+                "--from-experiment",
+                "1",
+                "--player-type",
+                "batter",
+                "--data-dir",
+                str(tmp_path),
+            ],
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "experiment",
+                "checkpoint",
+                "delete",
+                "to_delete",
+                "--model",
+                "statcast-gbm-preseason",
+                "--data-dir",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "deleted" in result.output.lower()
+
+    def test_delete_not_found(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _db_monkeypatch(monkeypatch, tmp_path)
+
+        result = runner.invoke(
+            app,
+            [
+                "experiment",
+                "checkpoint",
+                "delete",
+                "nonexistent",
+                "--model",
+                "m",
+                "--data-dir",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower()

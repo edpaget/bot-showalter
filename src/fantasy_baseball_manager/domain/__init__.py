@@ -14,6 +14,7 @@ from fantasy_baseball_manager.domain.category_tracker import (
     RosterAnalysis,
     TeamCategoryProjection,
 )
+from fantasy_baseball_manager.domain.checkpoint import FeatureCheckpoint
 from fantasy_baseball_manager.domain.column_profile import ColumnProfile
 from fantasy_baseball_manager.domain.correlation_result import (
     CorrelationScanResult,
@@ -216,6 +217,7 @@ __all__ = [
     "ComparisonResult",
     "ComparisonSummary",
     "CorrelationScanResult",
+    "FeatureCheckpoint",
     "ConfidenceReport",
     "RegressionCheckResult",
     "ConfigError",

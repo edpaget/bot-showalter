@@ -7,13 +7,16 @@ import typer
 
 from fantasy_baseball_manager.cli._output import (
     console,
+    print_checkpoint_detail,
+    print_checkpoint_list,
     print_error,
     print_experiment_detail,
     print_experiment_search_results,
     print_experiment_summary,
 )
 from fantasy_baseball_manager.cli.factory import build_experiment_context
-from fantasy_baseball_manager.domain import Experiment, TargetResult
+from fantasy_baseball_manager.domain import Experiment, FeatureCheckpoint, TargetResult
+from fantasy_baseball_manager.repos import DuplicateCheckpointError
 from fantasy_baseball_manager.services import summarize_exploration
 
 experiment_app = typer.Typer(name="experiment", help="Experiment journal — log and query trials")
@@ -189,3 +192,95 @@ def experiment_show(
         raise typer.Exit(code=1)
 
     print_experiment_detail(experiment)
+
+
+checkpoint_app = typer.Typer(name="checkpoint", help="Manage feature set checkpoints")
+experiment_app.add_typer(checkpoint_app, name="checkpoint")
+
+
+@checkpoint_app.command("save")
+def checkpoint_save(
+    name: Annotated[str, typer.Argument(help="Checkpoint name")],
+    model: Annotated[str, typer.Option("--model", help="Model system name")],
+    from_experiment: Annotated[int, typer.Option("--from-experiment", help="Source experiment ID")],
+    player_type: Annotated[str, typer.Option("--player-type", help="Player type (batter/pitcher)")],
+    notes: Annotated[str, typer.Option("--notes", help="Optional notes")] = "",
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing checkpoint")] = False,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Save a feature set from an experiment as a named checkpoint."""
+    with build_experiment_context(data_dir) as ctx:
+        experiment = ctx.repo.get(from_experiment)
+        if experiment is None:
+            print_error(f"experiment #{from_experiment} not found")
+            raise typer.Exit(code=1)
+
+        feature_columns = experiment.feature_diff.get("added", [])
+
+        checkpoint = FeatureCheckpoint(
+            name=name,
+            model=model,
+            player_type=player_type,
+            feature_columns=feature_columns,
+            params=experiment.params,
+            target_results=experiment.target_results,
+            experiment_id=from_experiment,
+            created_at=datetime.now(UTC).isoformat(),
+            notes=notes,
+        )
+
+        try:
+            ctx.checkpoint_repo.save(checkpoint, force=force)
+        except DuplicateCheckpointError as e:
+            print_error(str(e))
+            raise typer.Exit(code=1) from None
+
+        ctx.conn.commit()
+
+    console.print(f"Saved checkpoint [bold green]{name}[/bold green] (model: {model})")
+
+
+@checkpoint_app.command("list")
+def checkpoint_list(
+    model: Annotated[str | None, typer.Option("--model", help="Filter by model")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """List feature set checkpoints."""
+    with build_experiment_context(data_dir) as ctx:
+        checkpoints = ctx.checkpoint_repo.list(model=model)
+
+    print_checkpoint_list(checkpoints)
+
+
+@checkpoint_app.command("restore")
+def checkpoint_restore(
+    name: Annotated[str, typer.Argument(help="Checkpoint name")],
+    model: Annotated[str, typer.Option("--model", help="Model system name")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show the feature set and params of a checkpoint."""
+    with build_experiment_context(data_dir) as ctx:
+        checkpoint = ctx.checkpoint_repo.get(name, model)
+
+    if checkpoint is None:
+        print_error(f"checkpoint '{name}' not found for model '{model}'")
+        raise typer.Exit(code=1)
+
+    print_checkpoint_detail(checkpoint)
+
+
+@checkpoint_app.command("delete")
+def checkpoint_delete(
+    name: Annotated[str, typer.Argument(help="Checkpoint name")],
+    model: Annotated[str, typer.Option("--model", help="Model system name")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Delete a feature set checkpoint."""
+    with build_experiment_context(data_dir) as ctx:
+        deleted = ctx.checkpoint_repo.delete(name, model)
+        ctx.conn.commit()
+
+    if deleted:
+        console.print(f"Deleted checkpoint [bold]{name}[/bold] (model: {model})")
+    else:
+        console.print(f"[dim]Checkpoint '{name}' not found for model '{model}'.[/dim]")

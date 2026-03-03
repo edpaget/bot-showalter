@@ -6,6 +6,10 @@ from fantasy_baseball_manager.services.category_tracker import (
     compute_category_balance_scores,
     identify_needs,
 )
+from fantasy_baseball_manager.services.checkpoint_resolver import (
+    is_checkpoint_spec,
+    resolve_checkpoint,
+)
 from fantasy_baseball_manager.services.cohort import (
     assign_age_cohorts,
     assign_experience_cohorts,
@@ -180,6 +184,8 @@ __all__ = [
     "GateSegmentResult",
     "RegressionGateRunner",
     "cascade_analysis",
+    "is_checkpoint_spec",
+    "resolve_checkpoint",
     "analyze_roster",
     "assign_age_cohorts",
     "assign_experience_cohorts",

@@ -1,6 +1,7 @@
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
-from fantasy_baseball_manager.repos.errors import PlayerConflictError
+from fantasy_baseball_manager.repos.checkpoint_repo import SqliteCheckpointRepo
+from fantasy_baseball_manager.repos.errors import DuplicateCheckpointError, PlayerConflictError
 from fantasy_baseball_manager.repos.experiment_repo import ExperimentFilter, SqliteExperimentRepo
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
@@ -22,6 +23,7 @@ from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.protocols import (
     ADPRepo,
     BattingStatsRepo,
+    CheckpointRepo,
     ExperimentRepo,
     ILStintRepo,
     KeeperCostRepo,
@@ -55,6 +57,9 @@ from fantasy_baseball_manager.repos.yahoo_roster_repo import SqliteYahooRosterRe
 
 __all__ = [
     "ADPRepo",
+    "CheckpointRepo",
+    "DuplicateCheckpointError",
+    "SqliteCheckpointRepo",
     "BattingStatsRepo",
     "ExperimentFilter",
     "ExperimentRepo",

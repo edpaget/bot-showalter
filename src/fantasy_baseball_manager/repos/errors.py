@@ -6,6 +6,13 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import Player
 
 
+class DuplicateCheckpointError(FbmException):
+    def __init__(self, name: str, model: str) -> None:
+        self.name = name
+        self.model = model
+        super().__init__(f"Checkpoint '{name}' already exists for model '{model}'. Use --force to overwrite.")
+
+
 class PlayerConflictError(FbmException):
     def __init__(self, new_player: Player, existing_player: Player, conflicting_column: str) -> None:
         self.new_player = new_player

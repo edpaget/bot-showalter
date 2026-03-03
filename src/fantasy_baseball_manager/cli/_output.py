@@ -36,6 +36,7 @@ if TYPE_CHECKING:
         DraftReport,
         Experiment,
         ExplorationSummary,
+        FeatureCheckpoint,
         KeeperDecision,
         KeeperScenario,
         KeeperSolution,
@@ -2315,3 +2316,68 @@ def print_keeper_trade_impact(impact: KeeperTradeImpact) -> None:
     color = "green" if impact.score_delta >= 0 else "red"
     delta_str = f"+${impact.score_delta:.1f}" if impact.score_delta >= 0 else f"-${abs(impact.score_delta):.1f}"
     console.print(f"Score delta: [{color}]{delta_str}[/{color}]")
+
+
+def print_checkpoint_list(checkpoints: list[FeatureCheckpoint]) -> None:
+    """Print a table of checkpoints."""
+    if not checkpoints:
+        console.print("[dim]No checkpoints found.[/dim]")
+        return
+
+    table = Table(title="Feature Checkpoints")
+    table.add_column("Name", style="bold")
+    table.add_column("Model")
+    table.add_column("Player Type")
+    table.add_column("Features", justify="right")
+    table.add_column("Experiment", justify="right")
+    table.add_column("Created")
+
+    for cp in checkpoints:
+        table.add_row(
+            cp.name,
+            cp.model,
+            cp.player_type,
+            str(len(cp.feature_columns)),
+            f"#{cp.experiment_id}",
+            cp.created_at,
+        )
+
+    console.print(table)
+
+
+def print_checkpoint_detail(checkpoint: FeatureCheckpoint) -> None:
+    """Print full details of a single checkpoint."""
+    console.print(f"[bold]Checkpoint: {checkpoint.name}[/bold]")
+    console.print()
+
+    info = Table(show_header=False, box=None, padding=(0, 2))
+    info.add_column("Field", style="bold")
+    info.add_column("Value")
+    info.add_row("Model", checkpoint.model)
+    info.add_row("Player type", checkpoint.player_type)
+    info.add_row("Experiment", f"#{checkpoint.experiment_id}")
+    info.add_row("Created", checkpoint.created_at)
+    info.add_row("Features", ", ".join(checkpoint.feature_columns) or "—")
+    info.add_row("Params", json.dumps(checkpoint.params, indent=2))
+    if checkpoint.notes:
+        info.add_row("Notes", checkpoint.notes)
+    console.print(info)
+
+    if checkpoint.target_results:
+        console.print()
+        tr_table = Table(title="Target Results at Checkpoint")
+        tr_table.add_column("Target")
+        tr_table.add_column("RMSE", justify="right")
+        tr_table.add_column("Baseline", justify="right")
+        tr_table.add_column("Delta", justify="right")
+        tr_table.add_column("Delta %", justify="right")
+        for target, tr in sorted(checkpoint.target_results.items()):
+            style = "green" if tr.delta_pct < 0 else "red"
+            tr_table.add_row(
+                target,
+                f"{tr.rmse:.4f}",
+                f"{tr.baseline_rmse:.4f}",
+                f"[{style}]{tr.delta:+.4f}[/{style}]",
+                f"[{style}]{tr.delta_pct:+.2f}%[/{style}]",
+            )
+        console.print(tr_table)
