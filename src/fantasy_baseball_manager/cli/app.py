@@ -9,6 +9,7 @@ from fantasy_baseball_manager.cli.commands.compute import compute_app
 from fantasy_baseball_manager.cli.commands.datasets import datasets_app
 from fantasy_baseball_manager.cli.commands.draft import draft_app
 from fantasy_baseball_manager.cli.commands.experiment import experiment_app
+from fantasy_baseball_manager.cli.commands.feature import feature_app
 from fantasy_baseball_manager.cli.commands.ingest import ingest_app
 from fantasy_baseball_manager.cli.commands.keeper import keeper_app
 from fantasy_baseball_manager.cli.commands.marginal_value import marginal_value_cmd
@@ -85,6 +86,7 @@ app.add_typer(compute_app, name="compute")
 app.add_typer(report_app, name="report")
 app.add_typer(draft_app, name="draft")
 app.add_typer(experiment_app, name="experiment")
+app.add_typer(feature_app, name="feature")
 app.add_typer(keeper_app, name="keeper")
 app.add_typer(profile_app, name="profile")
 app.add_typer(yahoo_app, name="yahoo")

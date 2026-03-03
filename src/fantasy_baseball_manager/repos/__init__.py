@@ -3,6 +3,7 @@ from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStats
 from fantasy_baseball_manager.repos.checkpoint_repo import SqliteCheckpointRepo
 from fantasy_baseball_manager.repos.errors import DuplicateCheckpointError, PlayerConflictError
 from fantasy_baseball_manager.repos.experiment_repo import ExperimentFilter, SqliteExperimentRepo
+from fantasy_baseball_manager.repos.feature_candidate_repo import SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
 from fantasy_baseball_manager.repos.league_environment_repo import (
@@ -25,6 +26,7 @@ from fantasy_baseball_manager.repos.protocols import (
     BattingStatsRepo,
     CheckpointRepo,
     ExperimentRepo,
+    FeatureCandidateRepo,
     ILStintRepo,
     KeeperCostRepo,
     LeagueEnvironmentRepo,
@@ -63,6 +65,7 @@ __all__ = [
     "BattingStatsRepo",
     "ExperimentFilter",
     "ExperimentRepo",
+    "FeatureCandidateRepo",
     "ILStintRepo",
     "KeeperCostRepo",
     "LeagueEnvironmentRepo",
@@ -78,6 +81,7 @@ __all__ = [
     "RosterStintRepo",
     "SqliteADPRepo",
     "SqliteExperimentRepo",
+    "SqliteFeatureCandidateRepo",
     "SqliteBattingStatsRepo",
     "SqliteILStintRepo",
     "SqliteKeeperCostRepo",

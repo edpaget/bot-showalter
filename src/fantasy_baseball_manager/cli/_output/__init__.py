@@ -28,6 +28,7 @@ from fantasy_baseball_manager.cli._output._experiments import (
     print_experiment_search_results,
     print_experiment_summary,
 )
+from fantasy_baseball_manager.cli._output._feature_factory import print_candidate_values
 from fantasy_baseball_manager.cli._output._features import print_features
 from fantasy_baseball_manager.cli._output._ingest import print_import_result, print_ingest_result
 from fantasy_baseball_manager.cli._output._keeper import (
@@ -80,6 +81,7 @@ _SUBMODULE_NAMES = (
     "_draft",
     "_evaluation",
     "_experiments",
+    "_feature_factory",
     "_features",
     "_ingest",
     "_keeper",
@@ -122,6 +124,7 @@ __all__ = [
     "print_adjusted_rankings",
     "print_adp_accuracy_report",
     "print_adp_movers_report",
+    "print_candidate_values",
     "print_cascade_result",
     "print_category_needs",
     "print_checkpoint_detail",

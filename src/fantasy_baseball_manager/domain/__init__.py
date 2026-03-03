@@ -65,6 +65,10 @@ from fantasy_baseball_manager.domain.experiment import (
     TargetExplorationResult,
     TargetResult,
 )
+from fantasy_baseball_manager.domain.feature_candidate import (
+    CandidateValue,
+    FeatureCandidate,
+)
 from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.domain.keeper import (
     AdjustedValuation,
@@ -209,6 +213,7 @@ __all__ = [
     "BattingStats",
     "BotStrategy",
     "CalibrationBin",
+    "CandidateValue",
     "CascadeResult",
     "CascadeRoster",
     "CategoryNeed",
@@ -221,6 +226,7 @@ __all__ = [
     "ComparisonResult",
     "ComparisonSummary",
     "CorrelationScanResult",
+    "FeatureCandidate",
     "FeatureCheckpoint",
     "ConfidenceReport",
     "RegressionCheckResult",

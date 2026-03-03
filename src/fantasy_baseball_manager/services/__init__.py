@@ -49,6 +49,10 @@ from fantasy_baseball_manager.services.draft_translation import (
     ingest_yahoo_pick,
 )
 from fantasy_baseball_manager.services.experiment_summary import summarize_exploration
+from fantasy_baseball_manager.services.feature_factory import (
+    aggregate_candidate,
+    validate_expression,
+)
 from fantasy_baseball_manager.services.keeper_optimizer import (
     compare_scenarios,
     compute_adjusted_draft_pool,
@@ -217,7 +221,9 @@ __all__ = [
     "identify_needs",
     "ingest_yahoo_pick",
     "load_draft",
+    "aggregate_candidate",
     "rank_columns",
+    "validate_expression",
     "recommend",
     "resolve_player",
     "run_mock_draft",

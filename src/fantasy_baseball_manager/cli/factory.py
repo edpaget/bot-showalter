@@ -34,6 +34,7 @@ from fantasy_baseball_manager.repos import (
     SqliteBattingStatsRepo,
     SqliteCheckpointRepo,
     SqliteExperimentRepo,
+    SqliteFeatureCandidateRepo,
     SqliteILStintRepo,
     SqliteKeeperCostRepo,
     SqliteLeagueEnvironmentRepo,
@@ -737,4 +738,29 @@ def build_profile_context(data_dir: str) -> Iterator[ProfileContext]:
         )
     finally:
         stats_conn.close()
+        statcast_conn.close()
+
+
+@dataclass(frozen=True)
+class FeatureContext:
+    statcast_conn: sqlite3.Connection
+    fbm_conn: sqlite3.Connection
+    candidate_repo: SqliteFeatureCandidateRepo
+    scanner: CorrelationScanner
+
+
+@contextmanager
+def build_feature_context(data_dir: str) -> Iterator[FeatureContext]:
+    """Composition-root context manager for feature candidate commands."""
+    statcast_conn = create_statcast_connection(Path(data_dir) / "statcast.db")
+    fbm_conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield FeatureContext(
+            statcast_conn=statcast_conn,
+            fbm_conn=fbm_conn,
+            candidate_repo=SqliteFeatureCandidateRepo(fbm_conn),
+            scanner=CorrelationScanner(statcast_conn, fbm_conn),
+        )
+    finally:
+        fbm_conn.close()
         statcast_conn.close()
