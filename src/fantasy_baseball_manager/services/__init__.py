@@ -19,6 +19,7 @@ from fantasy_baseball_manager.services.data_profiler import (
     NUMERIC_COLUMNS,
     CorrelationScanner,
     StatcastColumnProfiler,
+    TemporalStabilityChecker,
     rank_columns,
 )
 from fantasy_baseball_manager.services.dataset_catalog import (
@@ -176,6 +177,7 @@ __all__ = [
     "ResidualPersistenceDiagnostic",
     "NUMERIC_COLUMNS",
     "StatcastColumnProfiler",
+    "TemporalStabilityChecker",
     "StatsBasedPlayerUniverse",
     "StrategyRule",
     "TierValueRule",

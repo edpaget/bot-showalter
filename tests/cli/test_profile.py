@@ -7,7 +7,11 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import ProfileContext
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
-from fantasy_baseball_manager.services.data_profiler import CorrelationScanner, StatcastColumnProfiler
+from fantasy_baseball_manager.services.data_profiler import (
+    CorrelationScanner,
+    StatcastColumnProfiler,
+    TemporalStabilityChecker,
+)
 
 if TYPE_CHECKING:
     import sqlite3
@@ -22,9 +26,11 @@ def _build_test_profile_context(
 ) -> Iterator[ProfileContext]:
     if stats_conn is None:
         stats_conn = create_connection(":memory:")
+    scanner = CorrelationScanner(conn, stats_conn)
     yield ProfileContext(
         profiler=StatcastColumnProfiler(conn),
-        scanner=CorrelationScanner(conn, stats_conn),
+        scanner=scanner,
+        stability_checker=TemporalStabilityChecker(scanner),
     )
 
 
@@ -239,3 +245,143 @@ class TestCorrelateCommand:
         assert "Avg" in result.output
         statcast_conn.close()
         stats_conn.close()
+
+
+def _setup_stability_test_data(statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection) -> None:
+    """Set up test data with two seasons for stability tests."""
+    for season in [2022, 2023]:
+        for i in range(1, 11):
+            mlbam_id = 1000 + i
+            statcast_conn.execute(
+                """INSERT INTO statcast_pitch
+                   (game_pk, game_date, batter_id, pitcher_id, at_bat_number, pitch_number, launch_speed)
+                   VALUES (?, ?, ?, 9999, 1, 1, ?)""",
+                (season * 100 + i, f"{season}-06-01", mlbam_id, 80.0 + i),
+            )
+            if season == 2022:
+                stats_conn.execute(
+                    "INSERT INTO player (id, name_first, name_last, mlbam_id) VALUES (?, 'Test', 'Player', ?)",
+                    (i, mlbam_id),
+                )
+            stats_conn.execute(
+                """INSERT INTO batting_stats
+                   (player_id, season, source, avg, obp, slg, woba, h, hr, ab, so, sf)
+                   VALUES (?, ?, 'fangraphs', ?, ?, ?, 0.320, 150, 20, 500, 100, 5)""",
+                (i, season, 0.250 + i * 0.01, 0.330 + i * 0.01, 0.400 + i * 0.01),
+            )
+    statcast_conn.commit()
+    stats_conn.commit()
+
+
+class TestStabilityCommand:
+    def test_basic_single_target(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+        stats_conn = create_connection(":memory:")
+        _setup_stability_test_data(statcast_conn, stats_conn)
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.profile.build_profile_context",
+            lambda data_dir: _build_test_profile_context(statcast_conn, stats_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "profile",
+                "stability",
+                "launch_speed",
+                "--season",
+                "2022",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+                "--target",
+                "woba",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "woba" in result.output
+        statcast_conn.close()
+        stats_conn.close()
+
+    def test_all_targets(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+        stats_conn = create_connection(":memory:")
+        _setup_stability_test_data(statcast_conn, stats_conn)
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.profile.build_profile_context",
+            lambda data_dir: _build_test_profile_context(statcast_conn, stats_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "profile",
+                "stability",
+                "launch_speed",
+                "--season",
+                "2022",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+                "--all-targets",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Should see multiple targets in the matrix
+        assert "slg" in result.output
+        assert "avg" in result.output
+        statcast_conn.close()
+        stats_conn.close()
+
+    def test_exclude_season(self, monkeypatch: object) -> None:
+        statcast_conn = create_statcast_connection(":memory:")
+        stats_conn = create_connection(":memory:")
+        _setup_stability_test_data(statcast_conn, stats_conn)
+
+        monkeypatch.setattr(  # type: ignore[union-attr]
+            "fantasy_baseball_manager.cli.commands.profile.build_profile_context",
+            lambda data_dir: _build_test_profile_context(statcast_conn, stats_conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "profile",
+                "stability",
+                "launch_speed",
+                "--season",
+                "2022",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+                "--target",
+                "slg",
+                "--exclude-season",
+                "2022",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Only 2023 should appear, 2022 excluded
+        assert "2023" in result.output
+        statcast_conn.close()
+        stats_conn.close()
+
+    def test_missing_target_and_no_all_targets(self) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "profile",
+                "stability",
+                "launch_speed",
+                "--season",
+                "2023",
+                "--player-type",
+                "batter",
+            ],
+        )
+        assert result.exit_code != 0

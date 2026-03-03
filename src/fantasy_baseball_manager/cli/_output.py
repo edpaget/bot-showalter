@@ -55,9 +55,11 @@ if TYPE_CHECKING:
         RegressionCheckResult,
         ResidualAnalysisReport,
         ResidualPersistenceReport,
+        StabilityResult,
         StratifiedComparisonResult,
         SystemMetrics,
         SystemSummary,
+        TargetStability,
         TierSummaryReport,
         TradeEvaluation,
         TradePlayerDetail,
@@ -2412,3 +2414,72 @@ def print_checkpoint_detail(checkpoint: FeatureCheckpoint) -> None:
                 f"[{style}]{tr.delta_pct:+.2f}%[/{style}]",
             )
         console.print(tr_table)
+
+
+def _classify_color(classification: str) -> str:
+    """Return a Rich color tag for a stability classification."""
+    if classification == "stable":
+        return "green"
+    if classification == "unstable":
+        return "red"
+    return "yellow"
+
+
+def print_stability_result(result: StabilityResult) -> None:
+    """Print stability results — single-target detail or multi-target matrix."""
+    if len(result.target_stabilities) == 1:
+        _print_single_target_stability(result.target_stabilities[0])
+    else:
+        _print_stability_matrix(result)
+
+
+def _print_single_target_stability(ts: TargetStability) -> None:
+    """Print per-season detail and summary for a single target."""
+    console.print(f"\n[bold]Stability: {ts.target}[/bold]")
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Season", justify="right")
+    table.add_column("Pearson r", justify="right")
+    for season, r in ts.per_season_r:
+        table.add_row(str(season), f"{r:.3f}")
+    console.print(table)
+
+    color = _classify_color(ts.classification)
+    cv_display = f"{ts.cv:.3f}" if ts.cv >= 0 else "n/a (near-zero mean)"
+    console.print(f"  Mean r:  {ts.mean_r:.3f}")
+    console.print(f"  Std:     {ts.std_r:.3f}")
+    console.print(f"  CV:      {cv_display}")
+    console.print(f"  Rating:  [{color}]{ts.classification}[/{color}]")
+
+
+def _print_stability_matrix(result: StabilityResult) -> None:
+    """Print a matrix table of stability across all targets."""
+    console.print(f"\n[bold]Temporal Stability: {result.column_spec} ({result.player_type})[/bold]")
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Target", justify="left")
+    table.add_column("Mean r", justify="right")
+    table.add_column("Std", justify="right")
+    table.add_column("CV", justify="right")
+    table.add_column("Stability", justify="center")
+
+    for season in result.seasons:
+        table.add_column(str(season), justify="right")
+
+    for ts in result.target_stabilities:
+        color = _classify_color(ts.classification)
+        cv_display = f"{ts.cv:.3f}" if ts.cv >= 0 else "n/a"
+        row: list[str] = [
+            ts.target,
+            f"{ts.mean_r:.3f}",
+            f"{ts.std_r:.3f}",
+            cv_display,
+            f"[{color}]{ts.classification}[/{color}]",
+        ]
+        season_map = dict(ts.per_season_r)
+        for season in result.seasons:
+            r = season_map.get(season)
+            row.append(f"{r:.3f}" if r is not None else "-")
+        table.add_row(*row)
+
+    console.print(table)

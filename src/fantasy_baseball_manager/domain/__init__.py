@@ -176,6 +176,10 @@ from fantasy_baseball_manager.domain.talent_quality import (
     compute_residual_yoy_correlation,
     compute_shrinkage,
 )
+from fantasy_baseball_manager.domain.temporal_stability import (
+    StabilityResult,
+    TargetStability,
+)
 from fantasy_baseball_manager.domain.tier import (
     PlayerTier,
     TierSummaryEntry,
@@ -295,6 +299,7 @@ __all__ = [
     "StatSpread",
     "StatTalentMetrics",
     "StatType",
+    "StabilityResult",
     "StatcastPitch",
     "StealOrReach",
     "StratifiedComparisonResult",
@@ -307,6 +312,7 @@ __all__ = [
     "TargetCorrelation",
     "TargetExplorationResult",
     "TargetResult",
+    "TargetStability",
     "Team",
     "TierAssignment",
     "TradeEvaluation",

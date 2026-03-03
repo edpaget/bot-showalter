@@ -64,6 +64,7 @@ from fantasy_baseball_manager.services import (
     ProjectionEvaluator,
     StatcastColumnProfiler,
     StatsBasedPlayerUniverse,
+    TemporalStabilityChecker,
 )
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
@@ -719,6 +720,7 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:
 class ProfileContext:
     profiler: StatcastColumnProfiler
     scanner: CorrelationScanner
+    stability_checker: TemporalStabilityChecker
 
 
 @contextmanager
@@ -727,9 +729,11 @@ def build_profile_context(data_dir: str) -> Iterator[ProfileContext]:
     statcast_conn = create_statcast_connection(Path(data_dir) / "statcast.db")
     stats_conn = create_connection(Path(data_dir) / "fbm.db")
     try:
+        scanner = CorrelationScanner(statcast_conn, stats_conn)
         yield ProfileContext(
             profiler=StatcastColumnProfiler(statcast_conn),
-            scanner=CorrelationScanner(statcast_conn, stats_conn),
+            scanner=scanner,
+            stability_checker=TemporalStabilityChecker(scanner),
         )
     finally:
         stats_conn.close()

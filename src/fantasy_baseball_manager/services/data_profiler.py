@@ -12,7 +12,9 @@ from fantasy_baseball_manager.domain import (
     MultiColumnRanking,
     PooledCorrelationResult,
     SeasonCorrelationResult,
+    StabilityResult,
     TargetCorrelation,
+    TargetStability,
 )
 from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
 
@@ -518,3 +520,87 @@ def rank_columns(results: Sequence[CorrelationScanResult]) -> list[MultiColumnRa
         )
     rankings.sort(key=lambda r: r.avg_abs_pearson, reverse=True)
     return rankings
+
+
+class TemporalStabilityChecker:
+    """Assess whether feature-target correlations are consistent across seasons."""
+
+    def __init__(self, scanner: CorrelationScanner) -> None:
+        self._scanner = scanner
+
+    def check_temporal_stability(
+        self,
+        column_spec: str,
+        target: str | None,
+        seasons: Sequence[int],
+        player_type: str,
+    ) -> StabilityResult:
+        """Check temporal stability of a feature's correlation with target(s).
+
+        When *target* is a string, computes stability for that single target.
+        When *target* is None, computes stability for all targets for the player type.
+        """
+        scan_result = self._scanner.scan_target_correlations(column_spec, seasons, player_type)
+
+        if target is not None:
+            targets_to_check = (target,)
+        else:
+            targets_to_check = BATTER_TARGETS if player_type == "batter" else PITCHER_TARGETS
+
+        stabilities: list[TargetStability] = []
+        for t in targets_to_check:
+            stabilities.append(self._compute_stability(scan_result, t))
+
+        return StabilityResult(
+            column_spec=column_spec,
+            player_type=player_type,
+            seasons=tuple(sorted(seasons)),
+            target_stabilities=tuple(stabilities),
+        )
+
+    @staticmethod
+    def _compute_stability(scan_result: CorrelationScanResult, target: str) -> TargetStability:
+        """Extract per-season Pearson r for a target and compute stability metrics."""
+        per_season_r: list[tuple[int, float]] = []
+        for season_result in scan_result.per_season:
+            for corr in season_result.correlations:
+                if corr.target == target:
+                    per_season_r.append((season_result.season, corr.pearson_r))
+                    break
+
+        r_values = [r for _, r in per_season_r]
+
+        if len(r_values) < 2:
+            mean_r = r_values[0] if r_values else 0.0
+            return TargetStability(
+                target=target,
+                per_season_r=tuple(per_season_r),
+                mean_r=mean_r,
+                std_r=0.0,
+                cv=0.0,
+                classification="stable",
+            )
+
+        mean_r = statistics.mean(r_values)
+        std_r = statistics.stdev(r_values)
+
+        if abs(mean_r) < 0.05:
+            cv = -1.0
+            classification = "stable" if std_r < 0.05 else "unstable"
+        else:
+            cv = std_r / abs(mean_r)
+            if cv < 0.3:
+                classification = "stable"
+            elif cv > 0.6:
+                classification = "unstable"
+            else:
+                classification = "moderate"
+
+        return TargetStability(
+            target=target,
+            per_season_r=tuple(per_season_r),
+            mean_r=mean_r,
+            std_r=std_r,
+            cv=cv,
+            classification=classification,
+        )
