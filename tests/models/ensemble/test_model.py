@@ -2,8 +2,16 @@ from typing import Any
 
 import pytest
 
+from fantasy_baseball_manager.domain.league_settings import (
+    CategoryConfig,
+    Direction,
+    LeagueFormat,
+    LeagueSettings,
+    StatType,
+)
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.ensemble import EnsembleModel
+from fantasy_baseball_manager.models.ensemble.stat_groups import BUILTIN_GROUPS
 from fantasy_baseball_manager.models.protocols import (
     Evaluable,
     FineTunable,
@@ -1022,3 +1030,169 @@ class TestEnsembleStatWeights:
         result = model.predict(config)
         pred = result.predictions[0]
         assert pred["_stat_weights"] == stat_weights
+
+
+class TestEnsembleRouteGroups:
+    def test_route_groups_basic(self) -> None:
+        """route_groups expands groups to per-stat routes."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0, "obp": 0.340, "avg": 0.280}),
+                _make_projection(1, "statcast-gbm", "batter", {"hr": 25.0, "obp": 0.360, "avg": 0.300}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "season": 2025,
+                "route_groups": {"batting_rate": "statcast-gbm", "batting_counting": "steamer"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # obp and avg are batting_rate → statcast-gbm
+        assert pred["obp"] == 0.360
+        assert pred["avg"] == 0.300
+        # hr is batting_counting → steamer
+        assert pred["hr"] == 30.0
+
+    def test_route_groups_with_per_stat_override(self) -> None:
+        """Per-stat routes override group assignment."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"obp": 0.340, "avg": 0.280}),
+                _make_projection(1, "statcast-gbm", "batter", {"obp": 0.360, "avg": 0.300}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "season": 2025,
+                "route_groups": {"batting_rate": "statcast-gbm"},
+                "routes": {"obp": "steamer"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # obp overridden to steamer
+        assert pred["obp"] == 0.340
+        # avg still from group → statcast-gbm
+        assert pred["avg"] == 0.300
+
+    def test_route_groups_with_custom_groups(self) -> None:
+        """Custom stat_groups used in route_groups."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0, "obp": 0.340}),
+                _make_projection(1, "statcast-gbm", "batter", {"hr": 25.0, "obp": 0.360}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "season": 2025,
+                "stat_groups": {"key_stats": ["hr", "obp"]},
+                "route_groups": {"key_stats": "statcast-gbm"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["hr"] == 25.0
+        assert pred["obp"] == 0.360
+
+    def test_route_groups_with_fallback(self) -> None:
+        """route_groups + fallback works."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0, "obp": 0.340}),
+                _make_projection(1, "statcast-gbm", "batter", {"obp": 0.360}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "season": 2025,
+                "route_groups": {"batting_rate": "statcast-gbm", "batting_counting": "statcast-gbm"},
+                "fallback": "steamer",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # obp from primary (statcast-gbm)
+        assert pred["obp"] == 0.360
+        # hr from fallback (steamer) since statcast-gbm doesn't have it
+        assert pred["hr"] == 30.0
+
+    def test_route_groups_metadata(self) -> None:
+        """Prediction includes _routes with expanded per-stat routes."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0, "obp": 0.340}),
+                _make_projection(1, "statcast-gbm", "batter", {"hr": 25.0, "obp": 0.360}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "season": 2025,
+                "route_groups": {"batting_rate": "statcast-gbm"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["_mode"] == "routed"
+        # _routes should contain expanded per-stat mapping
+        assert pred["_routes"]["obp"] == "statcast-gbm"
+        assert pred["_routes"]["avg"] == "statcast-gbm"
+        for stat in BUILTIN_GROUPS["batting_rate"]:
+            assert pred["_routes"][stat] == "statcast-gbm"
+
+    def test_route_groups_league_required(self) -> None:
+        """route_groups with league_required pseudo-group."""
+        league = LeagueSettings(
+            name="test",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=12,
+            budget=260,
+            roster_batters=9,
+            roster_pitchers=8,
+            batting_categories=(
+                CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+                CategoryConfig(
+                    key="obp",
+                    name="OBP",
+                    stat_type=StatType.RATE,
+                    direction=Direction.HIGHER,
+                    numerator="h+bb+hbp",
+                    denominator="pa",
+                ),
+            ),
+            pitching_categories=(),
+        )
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(
+                    1, "steamer", "batter", {"hr": 30.0, "obp": 0.340, "h": 150.0, "bb": 60.0, "hbp": 5.0, "pa": 600.0}
+                ),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 1.0},
+                "season": 2025,
+                "route_groups": {"league_required": "steamer"},
+                "league": league,
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["hr"] == 30.0
+        assert pred["obp"] == 0.340
+        assert pred["h"] == 150.0
+        assert pred["pa"] == 600.0

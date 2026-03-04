@@ -15,6 +15,7 @@ from fantasy_baseball_manager.models.ensemble.engine import (
     weighted_average,
     weighted_spread,
 )
+from fantasy_baseball_manager.models.ensemble.stat_groups import expand_route_groups
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.repos import (
@@ -72,6 +73,18 @@ class EnsembleModel:
             steamer_projs = self._projection_repo.get_by_season(season, system="steamer")
             zips_projs = self._projection_repo.get_by_season(season, system="zips")
             consensus = build_consensus_lookup(steamer_projs, zips_projs)
+
+        # Expand route_groups into per-stat routes
+        route_groups_param: dict[str, str] | None = params.get("route_groups")
+        if route_groups_param is not None:
+            expanded_routes = expand_route_groups(
+                route_groups=route_groups_param,
+                routes=params.get("routes"),
+                custom_groups=params.get("stat_groups"),
+                league=params.get("league"),
+            )
+            params["routes"] = expanded_routes
+            mode = "routed"
 
         # Group by (player_id, player_type)
         grouped: dict[tuple[int, str], dict[str, Projection]] = defaultdict(dict)

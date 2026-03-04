@@ -15,6 +15,39 @@ marcel = 0.6
 marcel = "latest"
 "statcast-gbm" = "latest"
 
+# --- Sample routed ensemble configs (uncomment one to use) ---
+
+# (a) Rate stats from statcast-gbm, counting stats from steamer
+# [models.ensemble-routed-rates.params]
+# season = 2025
+# fallback = "steamer"
+# [models.ensemble-routed-rates.params.components]
+# steamer = 1.0
+# "statcast-gbm" = 1.0
+# [models.ensemble-routed-rates.params.route_groups]
+# batting_rate = "statcast-gbm"
+# pitching_rate = "statcast-gbm"
+# batting_counting = "steamer"
+# pitching_counting = "steamer"
+# [models.ensemble-routed-rates.params.versions]
+# steamer = "latest"
+# "statcast-gbm" = "latest"
+
+# (b) Full steamer baseline with GBM rate overrides via league_required
+# [models.ensemble-league-blend.params]
+# season = 2025
+# fallback = "steamer"
+# [models.ensemble-league-blend.params.components]
+# steamer = 1.0
+# "statcast-gbm" = 1.0
+# [models.ensemble-league-blend.params.route_groups]
+# league_required = "steamer"
+# batting_rate = "statcast-gbm"
+# pitching_rate = "statcast-gbm"
+# [models.ensemble-league-blend.params.versions]
+# steamer = "latest"
+# "statcast-gbm" = "latest"
+
 [models.statcast-gbm.params.pitcher]
 learning_rate = 0.05
 max_iter = 100
