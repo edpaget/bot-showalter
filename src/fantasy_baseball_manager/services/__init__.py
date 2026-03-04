@@ -1,6 +1,11 @@
 from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
 from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
+from fantasy_baseball_manager.services.breakout_bust import (
+    assemble_labeled_dataset,
+    generate_labels,
+    label_distribution,
+)
 from fantasy_baseball_manager.services.category_tracker import (
     analyze_roster,
     compute_category_balance_scores,
@@ -190,6 +195,9 @@ from fantasy_baseball_manager.services.yahoo_sync import sync_league_metadata, s
 __all__ = [
     "ADPAccuracyEvaluator",
     "ADPBot",
+    "assemble_labeled_dataset",
+    "generate_labels",
+    "label_distribution",
     "ADPMoversService",
     "ADPReportService",
     "BestValueBot",

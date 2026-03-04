@@ -8,6 +8,11 @@ from fantasy_baseball_manager.domain.adp_accuracy import (
 from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverADPReport
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.breakout_bust import (
+    LabelConfig,
+    LabeledSeason,
+    OutcomeLabel,
+)
 from fantasy_baseball_manager.domain.category_tracker import (
     CategoryNeed,
     PlayerRecommendation,
@@ -244,6 +249,8 @@ from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 __all__ = [
     "ADP",
     "AdjustedValuation",
+    "LabelConfig",
+    "LabeledSeason",
     "ADPAccuracyPlayer",
     "ADPAccuracyReport",
     "ADPAccuracyResult",
@@ -321,6 +328,7 @@ __all__ = [
     "OpportunityCost",
     "ModelRunRecord",
     "Ok",
+    "OutcomeLabel",
     "PITCHING_COUNTING_STATS",
     "PITCHING_RATE_STATS",
     "PickGrade",
