@@ -79,7 +79,11 @@ from fantasy_baseball_manager.services.keeper_service import (
 from fantasy_baseball_manager.services.league_environment_service import (
     LeagueEnvironmentService,
 )
-from fantasy_baseball_manager.services.mock_draft import DraftBot, run_mock_draft
+from fantasy_baseball_manager.services.mock_draft import (
+    DraftBot,
+    run_batch_simulation,
+    run_mock_draft,
+)
 from fantasy_baseball_manager.services.mock_draft_bots import (
     ADPBot,
     BestValueBot,
@@ -259,6 +263,7 @@ __all__ = [
     "validate_expression",
     "recommend",
     "resolve_player",
+    "run_batch_simulation",
     "run_mock_draft",
     "set_keeper_cost",
     "compare_scenarios",

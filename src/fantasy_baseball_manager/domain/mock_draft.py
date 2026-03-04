@@ -27,3 +27,36 @@ class DraftResult:
     picks: list[DraftPick]
     rosters: dict[int, list[DraftPick]]
     snake: bool
+
+
+@dataclass(frozen=True)
+class SimulationSummary:
+    n_simulations: int
+    team_idx: int | None
+    avg_roster_value: float
+    median_roster_value: float
+    p10_roster_value: float
+    p90_roster_value: float
+
+
+@dataclass(frozen=True)
+class PlayerDraftFrequency:
+    player_id: int
+    player_name: str
+    pct_drafted: float
+    avg_round_drafted: float
+    avg_pick_drafted: float
+
+
+@dataclass(frozen=True)
+class StrategyComparison:
+    strategy_name: str
+    avg_value: float
+    win_rate: float
+
+
+@dataclass(frozen=True)
+class BatchSimulationResult:
+    summary: SimulationSummary
+    player_frequencies: list[PlayerDraftFrequency]
+    strategy_comparisons: list[StrategyComparison]

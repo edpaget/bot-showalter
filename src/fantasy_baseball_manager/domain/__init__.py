@@ -123,9 +123,13 @@ from fantasy_baseball_manager.domain.minor_league_batting_stats import (
     MinorLeagueBattingStats,
 )
 from fantasy_baseball_manager.domain.mock_draft import (
+    BatchSimulationResult,
     BotStrategy,
     DraftPick,
     DraftResult,
+    PlayerDraftFrequency,
+    SimulationSummary,
+    StrategyComparison,
 )
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
@@ -237,6 +241,7 @@ __all__ = [
     "BATTING_COUNTING_STATS",
     "BATTING_RATE_STATS",
     "BattingStats",
+    "BatchSimulationResult",
     "BinTargetMean",
     "BinnedValue",
     "BotStrategy",
@@ -271,6 +276,7 @@ __all__ = [
     "DraftBoard",
     "DraftBoardRow",
     "DraftPick",
+    "PlayerDraftFrequency",
     "DraftReport",
     "DraftResult",
     "Err",
@@ -333,6 +339,7 @@ __all__ = [
     "Roster",
     "RosterEntry",
     "RosterStint",
+    "SimulationSummary",
     "SeasonCorrelationResult",
     "SeasonData",
     "SensitivityEntry",
@@ -348,6 +355,7 @@ __all__ = [
     "StabilityResult",
     "StatcastPitch",
     "StealOrReach",
+    "StrategyComparison",
     "StratifiedComparisonResult",
     "SystemAccuracyResult",
     "SystemMetrics",

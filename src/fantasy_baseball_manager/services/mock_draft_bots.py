@@ -14,8 +14,9 @@ if TYPE_CHECKING:
 class ADPBot:
     """Picks the player with the lowest ADP from available. None ADP treated as infinity."""
 
-    def __init__(self, *, rng: random.Random) -> None:
+    def __init__(self, *, rng: random.Random, noise: float = 0.0) -> None:
         self._rng = rng
+        self._noise = noise
 
     def pick(
         self,
@@ -23,15 +24,24 @@ class ADPBot:
         roster: list[DraftPick],
         league: LeagueSettings,
     ) -> int:
-        best = min(available, key=lambda p: p.adp_overall if p.adp_overall is not None else float("inf"))
+        if self._noise > 0:
+            best = min(
+                available,
+                key=lambda p: (
+                    (p.adp_overall if p.adp_overall is not None else float("inf")) * self._rng.gauss(1.0, self._noise)
+                ),
+            )
+        else:
+            best = min(available, key=lambda p: p.adp_overall if p.adp_overall is not None else float("inf"))
         return best.player_id
 
 
 class BestValueBot:
     """Picks the highest-value player from available."""
 
-    def __init__(self, *, rng: random.Random) -> None:
+    def __init__(self, *, rng: random.Random, noise: float = 0.0) -> None:
         self._rng = rng
+        self._noise = noise
 
     def pick(
         self,
@@ -39,7 +49,10 @@ class BestValueBot:
         roster: list[DraftPick],
         league: LeagueSettings,
     ) -> int:
-        best = max(available, key=lambda p: p.value)
+        if self._noise > 0:
+            best = max(available, key=lambda p: p.value * self._rng.gauss(1.0, self._noise))
+        else:
+            best = max(available, key=lambda p: p.value)
         return best.player_id
 
 

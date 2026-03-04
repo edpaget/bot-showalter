@@ -10,9 +10,15 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
-from fantasy_baseball_manager.domain.mock_draft import DraftPick
+from fantasy_baseball_manager.domain.mock_draft import (
+    BatchSimulationResult,
+    DraftPick,
+    PlayerDraftFrequency,
+    SimulationSummary,
+    StrategyComparison,
+)
 from fantasy_baseball_manager.services.draft_state import build_draft_roster_slots
-from fantasy_baseball_manager.services.mock_draft import run_mock_draft
+from fantasy_baseball_manager.services.mock_draft import run_batch_simulation, run_mock_draft
 from fantasy_baseball_manager.services.mock_draft_bots import (
     ADPBot,
     BestValueBot,
@@ -570,3 +576,127 @@ class TestCompositeBotComposability:
         bot_abc_again = CompositeBot(rules=[rule_a, rule_b, rule_c], rng=random.Random(42))
         pick_abc_again = bot_abc_again.pick(available, [], league)
         assert pick_abc_again == pick_abc  # Same pick restored
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Batch simulation tests
+# ---------------------------------------------------------------------------
+
+
+class TestBatchSimulation:
+    def test_returns_correct_types(self) -> None:
+        """Small board, n=5, verify types and n_simulations."""
+        board = _small_board()
+        league = _small_league()
+        result = run_batch_simulation(
+            n_simulations=5,
+            board=board,
+            league=league,
+            user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+            opponent_strategy_factories=[lambda rng: ADPBot(rng=rng) for _ in range(3)],
+            seed=42,
+        )
+        assert isinstance(result, BatchSimulationResult)
+        assert isinstance(result.summary, SimulationSummary)
+        assert result.summary.n_simulations == 5
+        assert all(isinstance(f, PlayerDraftFrequency) for f in result.player_frequencies)
+        assert all(isinstance(c, StrategyComparison) for c in result.strategy_comparisons)
+
+    def test_deterministic(self) -> None:
+        """Same seed → identical results."""
+        board = _small_board()
+        league = _small_league()
+
+        def _run() -> BatchSimulationResult:
+            return run_batch_simulation(
+                n_simulations=5,
+                board=board,
+                league=league,
+                user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+                opponent_strategy_factories=[lambda rng: ADPBot(rng=rng) for _ in range(3)],
+                seed=99,
+            )
+
+        r1 = _run()
+        r2 = _run()
+        assert r1.summary == r2.summary
+        assert r1.player_frequencies == r2.player_frequencies
+        assert r1.strategy_comparisons == r2.strategy_comparisons
+
+    def test_pct_drafted_sums_to_roster_size(self) -> None:
+        """sum(pf.pct_drafted) ≈ roster_size."""
+        board = _small_board()
+        league = _small_league()
+        slots = build_draft_roster_slots(league)
+        roster_size = sum(slots.values())
+        result = run_batch_simulation(
+            n_simulations=10,
+            board=board,
+            league=league,
+            user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+            opponent_strategy_factories=[lambda rng: ADPBot(rng=rng) for _ in range(3)],
+            seed=42,
+        )
+        total_pct = sum(f.pct_drafted for f in result.player_frequencies)
+        assert abs(total_pct - roster_size) < 0.01
+
+    def test_win_rate_sums_to_one(self) -> None:
+        """sum(sc.win_rate) ≈ 1.0."""
+        board = _small_board()
+        league = _small_league()
+        result = run_batch_simulation(
+            n_simulations=10,
+            board=board,
+            league=league,
+            user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+            opponent_strategy_factories=[lambda rng: RandomBot(rng=rng) for _ in range(3)],
+            seed=42,
+        )
+        total_win_rate = sum(sc.win_rate for sc in result.strategy_comparisons)
+        assert abs(total_win_rate - 1.0) < 0.01
+
+    def test_identifies_best_strategy(self) -> None:
+        """BestValueBot user vs RandomBot opponents → user has highest avg_value."""
+        board = _small_board()
+        league = _small_league()
+        result = run_batch_simulation(
+            n_simulations=20,
+            board=board,
+            league=league,
+            user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+            opponent_strategy_factories=[lambda rng: RandomBot(rng=rng) for _ in range(3)],
+            seed=42,
+        )
+        user_comp = next(sc for sc in result.strategy_comparisons if sc.strategy_name == "user")
+        opponent_comps = [sc for sc in result.strategy_comparisons if sc.strategy_name != "user"]
+        assert all(user_comp.avg_value >= oc.avg_value for oc in opponent_comps)
+
+    def test_random_draft_position(self) -> None:
+        """draft_position=None → summary.team_idx is None."""
+        board = _small_board()
+        league = _small_league()
+        result = run_batch_simulation(
+            n_simulations=5,
+            board=board,
+            league=league,
+            user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+            opponent_strategy_factories=[lambda rng: ADPBot(rng=rng) for _ in range(3)],
+            draft_position=None,
+            seed=42,
+        )
+        assert result.summary.team_idx is None
+
+    def test_fixed_draft_position(self) -> None:
+        """draft_position=2 → summary.team_idx == 2."""
+        board = _small_board()
+        league = _small_league()
+        result = run_batch_simulation(
+            n_simulations=5,
+            board=board,
+            league=league,
+            user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+            opponent_strategy_factories=[lambda rng: ADPBot(rng=rng) for _ in range(3)],
+            draft_position=2,
+            seed=42,
+        )
+        assert result.summary.team_idx == 2

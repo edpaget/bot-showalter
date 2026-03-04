@@ -311,6 +311,64 @@ class TestFallbackBestValueRule:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Noise tests
+# ---------------------------------------------------------------------------
+
+
+class TestADPBotNoise:
+    def test_noise_zero_identical_to_default(self) -> None:
+        """noise=0.0 should produce the same pick as no noise."""
+        bot_no_noise = ADPBot(rng=random.Random(42))
+        bot_zero_noise = ADPBot(rng=random.Random(42), noise=0.0)
+        league = _make_league()
+        assert bot_no_noise.pick(AVAILABLE, [], league) == bot_zero_noise.pick(AVAILABLE, [], league)
+
+    def test_noise_can_change_pick(self) -> None:
+        """With high noise and crafted close-ADP scenario, pick can differ."""
+        # Two players with very close ADP — noise should sometimes flip the order
+        close_players = [
+            _make_row(1, "A", "C", 20.0, adp=10.0),
+            _make_row(2, "B", "1B", 19.0, adp=10.1),
+        ]
+        picks: set[int] = set()
+        for seed in range(200):
+            bot = ADPBot(rng=random.Random(seed), noise=0.3)
+            picks.add(bot.pick(close_players, [], _make_league()))
+        assert len(picks) > 1, "Expected noise to produce different picks across seeds"
+
+    def test_deterministic_with_same_seed(self) -> None:
+        bot1 = ADPBot(rng=random.Random(42), noise=0.2)
+        bot2 = ADPBot(rng=random.Random(42), noise=0.2)
+        league = _make_league()
+        assert bot1.pick(AVAILABLE, [], league) == bot2.pick(AVAILABLE, [], league)
+
+
+class TestBestValueBotNoise:
+    def test_noise_zero_identical_to_default(self) -> None:
+        bot_no_noise = BestValueBot(rng=random.Random(42))
+        bot_zero_noise = BestValueBot(rng=random.Random(42), noise=0.0)
+        league = _make_league()
+        assert bot_no_noise.pick(AVAILABLE, [], league) == bot_zero_noise.pick(AVAILABLE, [], league)
+
+    def test_noise_can_change_pick(self) -> None:
+        close_players = [
+            _make_row(1, "A", "C", 20.0),
+            _make_row(2, "B", "1B", 19.9),
+        ]
+        picks: set[int] = set()
+        for seed in range(200):
+            bot = BestValueBot(rng=random.Random(seed), noise=0.3)
+            picks.add(bot.pick(close_players, [], _make_league()))
+        assert len(picks) > 1, "Expected noise to produce different picks across seeds"
+
+    def test_deterministic_with_same_seed(self) -> None:
+        bot1 = BestValueBot(rng=random.Random(42), noise=0.2)
+        bot2 = BestValueBot(rng=random.Random(42), noise=0.2)
+        league = _make_league()
+        assert bot1.pick(AVAILABLE, [], league) == bot2.pick(AVAILABLE, [], league)
+
+
 class TestCompositeBot:
     def test_single_fallback_picks_highest_value(self) -> None:
         """Single FallbackBestValueRule → picks highest value (same as BestValueBot)."""

@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import random
+import statistics
 from typing import TYPE_CHECKING, Protocol
 
-from fantasy_baseball_manager.domain import DraftPick, DraftResult
+from fantasy_baseball_manager.domain import (
+    BatchSimulationResult,
+    DraftPick,
+    DraftResult,
+    PlayerDraftFrequency,
+    SimulationSummary,
+    StrategyComparison,
+)
 from fantasy_baseball_manager.services.draft_state import build_draft_roster_slots
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, LeagueSettings
 
@@ -182,3 +191,152 @@ def run_mock_draft(
         pool_set.discard(chosen.player_id)
 
     return DraftResult(picks=picks, rosters=rosters, snake=snake)
+
+
+def run_batch_simulation(
+    n_simulations: int,
+    board: DraftBoard,
+    league: LeagueSettings,
+    user_strategy_factory: Callable[[random.Random], DraftBot],
+    opponent_strategy_factories: Sequence[Callable[[random.Random], DraftBot]],
+    *,
+    draft_position: int | None = None,
+    seed: int | None = None,
+) -> BatchSimulationResult:
+    """Run N mock drafts and aggregate results into analytics.
+
+    Factories accept an RNG and return a fresh bot per simulation, enabling
+    independent per-simulation seeding for reproducibility.
+    ``len(opponent_strategy_factories)`` must equal ``league.teams - 1``.
+    """
+    num_teams = league.teams
+    expected_opponents = num_teams - 1
+    if len(opponent_strategy_factories) != expected_opponents:
+        msg = f"Expected {expected_opponents} opponent factories, got {len(opponent_strategy_factories)}"
+        raise ValueError(msg)
+
+    user_values: list[float] = []
+    user_idx_per_sim: list[int] = []
+    team_values_per_sim: list[list[float]] = []
+    # player_id -> list of (round, pick) tuples when user drafted them
+    player_drafts: dict[int, list[tuple[int, int]]] = {}
+    # player_id -> player_name
+    player_names: dict[int, str] = {r.player_id: r.player_name for r in board.rows}
+
+    for i in range(n_simulations):
+        sim_rng = random.Random(seed + i) if seed is not None else random.Random()  # noqa: S311
+
+        # Determine user team_idx
+        user_idx = draft_position if draft_position is not None else sim_rng.randrange(num_teams)
+        user_idx_per_sim.append(user_idx)
+
+        # Create bots from factories with independent RNGs
+        user_bot = user_strategy_factory(random.Random(sim_rng.randint(0, 2**32)))  # noqa: S311
+        strategies: list[DraftBot] = []
+        opp_idx = 0
+        for team_i in range(num_teams):
+            if team_i == user_idx:
+                strategies.append(user_bot)
+            else:
+                opp_rng = random.Random(sim_rng.randint(0, 2**32))  # noqa: S311
+                strategies.append(opponent_strategy_factories[opp_idx](opp_rng))
+                opp_idx += 1
+
+        result = run_mock_draft(board, league, strategies)
+
+        # Collect user roster value
+        user_roster = result.rosters[user_idx]
+        user_total = sum(p.value for p in user_roster)
+        user_values.append(user_total)
+
+        # Collect per-team total values
+        team_totals = [sum(p.value for p in result.rosters[t]) for t in range(num_teams)]
+        team_values_per_sim.append(team_totals)
+
+        # Track player draft info for user
+        for pick in user_roster:
+            if pick.player_id not in player_drafts:
+                player_drafts[pick.player_id] = []
+            player_drafts[pick.player_id].append((pick.round, pick.pick))
+
+    # --- Aggregation ---
+
+    # SimulationSummary
+    quantiles = statistics.quantiles(user_values, n=10)
+    summary = SimulationSummary(
+        n_simulations=n_simulations,
+        team_idx=draft_position,
+        avg_roster_value=statistics.mean(user_values),
+        median_roster_value=statistics.median(user_values),
+        p10_roster_value=quantiles[0],
+        p90_roster_value=quantiles[8],
+    )
+
+    # PlayerDraftFrequency
+    frequencies: list[PlayerDraftFrequency] = []
+    for row in board.rows:
+        pid = row.player_id
+        drafts = player_drafts.get(pid, [])
+        pct = len(drafts) / n_simulations
+        if drafts:
+            avg_round = statistics.mean(r for r, _ in drafts)
+            avg_pick = statistics.mean(p for _, p in drafts)
+        else:
+            avg_round = 0.0
+            avg_pick = 0.0
+        frequencies.append(
+            PlayerDraftFrequency(
+                player_id=pid,
+                player_name=player_names[pid],
+                pct_drafted=pct,
+                avg_round_drafted=avg_round,
+                avg_pick_drafted=avg_pick,
+            )
+        )
+
+    # StrategyComparison
+    strategy_total_values: dict[str, list[float]] = {"user": []}
+    for j in range(expected_opponents):
+        strategy_total_values[f"opponent_{j}"] = []
+    strategy_wins: dict[str, float] = {name: 0.0 for name in strategy_total_values}
+
+    for i in range(n_simulations):
+        user_idx = user_idx_per_sim[i]
+        team_totals = team_values_per_sim[i]
+        max_value = max(team_totals)
+
+        # Map team indices to strategy names
+        team_to_name: dict[int, str] = {}
+        opp_counter = 0
+        for t in range(num_teams):
+            if t == user_idx:
+                team_to_name[t] = "user"
+            else:
+                team_to_name[t] = f"opponent_{opp_counter}"
+                opp_counter += 1
+
+        # Count winners (ties split equally)
+        winners = [t for t in range(num_teams) if team_totals[t] == max_value]
+        share = 1.0 / len(winners)
+
+        for t in range(num_teams):
+            name = team_to_name[t]
+            strategy_total_values[name].append(team_totals[t])
+            if t in winners:
+                strategy_wins[name] += share
+
+    comparisons: list[StrategyComparison] = []
+    for name in strategy_total_values:
+        comparisons.append(
+            StrategyComparison(
+                strategy_name=name,
+                avg_value=statistics.mean(strategy_total_values[name]),
+                win_rate=strategy_wins[name] / n_simulations,
+            )
+        )
+
+    return BatchSimulationResult(
+        summary=summary,
+        player_frequencies=frequencies,
+        strategy_comparisons=comparisons,
+    )
