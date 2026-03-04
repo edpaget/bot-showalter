@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,12 +20,16 @@ def sync_league_metadata(
     team_repo: YahooTeamRepo,
     league_key: str,
     game_key: str,
+    *,
+    is_keeper: bool = False,
 ) -> YahooLeague:
     """Fetch and upsert league + team metadata. Returns the league.
 
     Does NOT commit — caller is responsible for committing.
     """
     league, teams = league_source.fetch(league_key=league_key, game_key=game_key)
+    if is_keeper != league.is_keeper:
+        league = dataclasses.replace(league, is_keeper=is_keeper)
     league_repo.upsert(league)
     for team in teams:
         team_repo.upsert(team)

@@ -20,7 +20,9 @@ def _write_toml(tmp_path: Path, content: str) -> None:
 
 
 class TestLoadYahooConfig:
-    def test_parses_valid_config(self, tmp_path: Path) -> None:
+    def test_parses_valid_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("FBM_YAHOO_CLIENT_ID", raising=False)
+        monkeypatch.delenv("FBM_YAHOO_CLIENT_SECRET", raising=False)
         _write_toml(
             tmp_path,
             """
@@ -31,6 +33,7 @@ default_league = "keeper"
 
 [yahoo.leagues.keeper]
 league_id = 12345
+keeper = true
 
 [yahoo.leagues.redraft]
 league_id = 67890
@@ -43,14 +46,18 @@ league_id = 67890
         assert len(config.leagues) == 2
         assert config.leagues["keeper"].name == "keeper"
         assert config.leagues["keeper"].league_id == 12345
+        assert config.leagues["keeper"].keeper is True
         assert config.leagues["redraft"].league_id == 67890
+        assert config.leagues["redraft"].keeper is False
 
     def test_missing_yahoo_section_raises(self, tmp_path: Path) -> None:
         _write_toml(tmp_path, "[common]\ndata_dir = './data'\n")
         with pytest.raises(YahooConfigError, match="No \\[yahoo\\] section"):
             load_yahoo_config(tmp_path)
 
-    def test_missing_client_id_raises(self, tmp_path: Path) -> None:
+    def test_missing_client_id_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("FBM_YAHOO_CLIENT_ID", raising=False)
+        monkeypatch.delenv("FBM_YAHOO_CLIENT_SECRET", raising=False)
         _write_toml(
             tmp_path,
             """
@@ -61,7 +68,9 @@ client_secret = "secret"
         with pytest.raises(YahooConfigError, match="client_id"):
             load_yahoo_config(tmp_path)
 
-    def test_missing_client_secret_raises(self, tmp_path: Path) -> None:
+    def test_missing_client_secret_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("FBM_YAHOO_CLIENT_ID", raising=False)
+        monkeypatch.delenv("FBM_YAHOO_CLIENT_SECRET", raising=False)
         _write_toml(
             tmp_path,
             """
@@ -143,7 +152,9 @@ client_id = "id"
         config = load_yahoo_config(tmp_path)
         assert config.client_secret == "env-secret"
 
-    def test_local_toml_provides_yahoo_secrets(self, tmp_path: Path) -> None:
+    def test_local_toml_provides_yahoo_secrets(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("FBM_YAHOO_CLIENT_ID", raising=False)
+        monkeypatch.delenv("FBM_YAHOO_CLIENT_SECRET", raising=False)
         _write_toml(
             tmp_path,
             """

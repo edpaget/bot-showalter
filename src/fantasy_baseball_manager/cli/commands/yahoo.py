@@ -112,6 +112,7 @@ def yahoo_sync(  # pragma: no cover
             team_repo=ctx.yahoo_team_repo,
             league_key=league_key,
             game_key=game_key,
+            is_keeper=league_config.keeper,
         )
         ctx.conn.commit()
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)

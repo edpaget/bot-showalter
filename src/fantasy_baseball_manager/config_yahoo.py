@@ -17,6 +17,7 @@ class YahooConfigError(FbmException):
 class YahooLeagueConfig:
     name: str
     league_id: int
+    keeper: bool = False
 
 
 @dataclass(frozen=True)
@@ -49,7 +50,8 @@ def load_yahoo_config(config_dir: Path) -> YahooConfig:
     raw_leagues = yahoo.get("leagues", {})
     for name, raw_league in raw_leagues.items():
         league_id: int = _require_field(raw_league, "league_id", f"[yahoo.leagues.{name}]")
-        leagues[name] = YahooLeagueConfig(name=name, league_id=league_id)
+        keeper: bool = bool(raw_league.get("keeper", False))
+        leagues[name] = YahooLeagueConfig(name=name, league_id=league_id, keeper=keeper)
 
     return YahooConfig(
         client_id=client_id,

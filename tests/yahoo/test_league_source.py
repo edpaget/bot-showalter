@@ -37,7 +37,6 @@ _DEFAULT_LEAGUE_SETTINGS = {
                 "settings": [
                     {
                         "draft_type": "live_standard_draft",
-                        "uses_keeper": "1",
                     }
                 ]
             },
@@ -99,7 +98,7 @@ class TestYahooLeagueSource:
         assert league.season == 2026
         assert league.num_teams == 12
         assert league.draft_type == "live_standard_draft"
-        assert league.is_keeper is True
+        assert league.is_keeper is False
         assert league.game_key == "449"
 
     def test_fetch_parses_teams(self) -> None:
@@ -132,7 +131,6 @@ class TestYahooLeagueSource:
                         "settings": [
                             {
                                 "draft_type": "live_auction",
-                                "uses_keeper": "0",
                             }
                         ]
                     },

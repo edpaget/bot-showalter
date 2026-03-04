@@ -38,7 +38,6 @@ class FakeLeagueClient:
                         "settings": [
                             {
                                 "draft_type": "live_standard_draft",
-                                "uses_keeper": "1",
                             }
                         ]
                     },
@@ -130,6 +129,7 @@ class TestSyncLeagueMetadata:
             team_repo=team_repo,
             league_key="449.l.100",
             game_key="449",
+            is_keeper=True,
         )
 
         assert isinstance(league, YahooLeague)
