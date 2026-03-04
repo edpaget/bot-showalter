@@ -1,6 +1,6 @@
-import tomllib
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.config_toml import load_toml
 from fantasy_baseball_manager.domain import (
     CategoryConfig,
     Direction,
@@ -12,8 +12,6 @@ from fantasy_baseball_manager.exceptions import FbmException
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-_CONFIG_FILENAME = "fbm.toml"
 
 
 class LeagueConfigError(FbmException):
@@ -137,30 +135,20 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
 
 
 def load_league(name: str, config_dir: Path) -> LeagueSettings:
-    toml_path = config_dir / _CONFIG_FILENAME
-    if not toml_path.exists():
-        raise LeagueConfigError(f"{_CONFIG_FILENAME} not found in {config_dir}")
-
-    with toml_path.open("rb") as f:
-        data = tomllib.load(f)
+    data = load_toml(config_dir)
 
     leagues = data.get("leagues")
     if leagues is None:
-        raise LeagueConfigError(f"No [leagues] section in {_CONFIG_FILENAME}")
+        raise LeagueConfigError("No [leagues] section in fbm.toml")
 
     if name not in leagues:
-        raise LeagueConfigError(f"League '{name}' not found in {_CONFIG_FILENAME}")
+        raise LeagueConfigError(f"League '{name}' not found in fbm.toml")
 
     return parse_league(name, leagues[name])
 
 
 def list_leagues(config_dir: Path) -> list[str]:
-    toml_path = config_dir / _CONFIG_FILENAME
-    if not toml_path.exists():
-        return []
-
-    with toml_path.open("rb") as f:
-        data = tomllib.load(f)
+    data = load_toml(config_dir)
 
     leagues = data.get("leagues")
     if leagues is None:

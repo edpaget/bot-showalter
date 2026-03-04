@@ -33,6 +33,9 @@ artifacts/
 # Logs
 logs/
 
+# Local config overlay (user secrets, overrides)
+fbm.local.toml
+
 # direnv
 .envrc
 

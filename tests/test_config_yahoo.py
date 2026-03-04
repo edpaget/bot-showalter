@@ -73,7 +73,7 @@ client_id = "id"
             load_yahoo_config(tmp_path)
 
     def test_missing_toml_raises(self, tmp_path: Path) -> None:
-        with pytest.raises(YahooConfigError, match="fbm.toml not found"):
+        with pytest.raises(YahooConfigError, match=r"No \[yahoo\] section"):
             load_yahoo_config(tmp_path)
 
     def test_no_leagues_section_returns_empty_leagues(self, tmp_path: Path) -> None:
@@ -142,6 +142,24 @@ client_id = "id"
         )
         config = load_yahoo_config(tmp_path)
         assert config.client_secret == "env-secret"
+
+    def test_local_toml_provides_yahoo_secrets(self, tmp_path: Path) -> None:
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+default_league = "keeper"
+
+[yahoo.leagues.keeper]
+league_id = 12345
+""",
+        )
+        (tmp_path / "fbm.local.toml").write_text('[yahoo]\nclient_id = "local-id"\nclient_secret = "local-secret"\n')
+        config = load_yahoo_config(tmp_path)
+        assert config.client_id == "local-id"
+        assert config.client_secret == "local-secret"
+        assert config.default_league == "keeper"
+        assert config.leagues["keeper"].league_id == 12345
 
     def test_league_missing_league_id_raises(self, tmp_path: Path) -> None:
         _write_toml(

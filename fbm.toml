@@ -185,10 +185,10 @@ stat_type = "counting"
 direction = "higher"
 
 # --- Yahoo Fantasy integration ---
+# Put client_id / client_secret in fbm.local.toml or set
+# FBM_YAHOO_CLIENT_ID / FBM_YAHOO_CLIENT_SECRET env vars.
 
 [yahoo]
-client_id = "your-client-id"
-client_secret = "your-client-secret"
 default_league = "keeper"
 
 [yahoo.leagues.keeper]

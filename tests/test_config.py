@@ -1,6 +1,6 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.config import _deep_merge, load_config
+from fantasy_baseball_manager.config import load_config
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -138,52 +138,6 @@ class TestLoadConfigCliOverrides:
     def test_cli_params_when_toml_has_none(self, tmp_path: Path) -> None:
         config = load_config(model_name="marcel", config_dir=tmp_path, model_params={"x": 1})
         assert config.model_params == {"x": 1}
-
-
-class TestDeepMerge:
-    def test_flat_merge(self) -> None:
-        result = _deep_merge({"a": 1}, {"b": 2})
-        assert result == {"a": 1, "b": 2}
-
-    def test_override_flat_value(self) -> None:
-        result = _deep_merge({"a": 1}, {"a": 2})
-        assert result == {"a": 2}
-
-    def test_nested_merge(self) -> None:
-        base: dict[str, Any] = {"pitcher": {"n_estimators": 100, "max_depth": 6}}
-        override: dict[str, Any] = {"pitcher": {"learning_rate": 0.05}}
-        result = _deep_merge(base, override)
-        assert result == {"pitcher": {"n_estimators": 100, "max_depth": 6, "learning_rate": 0.05}}
-
-    def test_new_nested_key(self) -> None:
-        base: dict[str, Any] = {"pitcher": {"n_estimators": 100}}
-        override: dict[str, Any] = {"batter": {"lags": 3}}
-        result = _deep_merge(base, override)
-        assert result == {"pitcher": {"n_estimators": 100}, "batter": {"lags": 3}}
-
-    def test_new_top_level_key(self) -> None:
-        result = _deep_merge({"a": 1}, {"b": 2})
-        assert result == {"a": 1, "b": 2}
-
-    def test_does_not_mutate_base(self) -> None:
-        base: dict[str, Any] = {"pitcher": {"n_estimators": 100}}
-        override: dict[str, Any] = {"pitcher": {"learning_rate": 0.05}}
-        _deep_merge(base, override)
-        assert base == {"pitcher": {"n_estimators": 100}}
-
-    def test_empty_base(self) -> None:
-        result = _deep_merge({}, {"a": 1})
-        assert result == {"a": 1}
-
-    def test_empty_override(self) -> None:
-        result = _deep_merge({"a": 1}, {})
-        assert result == {"a": 1}
-
-    def test_replaces_non_dict_with_dict(self) -> None:
-        base: dict[str, Any] = {"pitcher": "old_value"}
-        override: dict[str, Any] = {"pitcher": {"learning_rate": 0.05}}
-        result = _deep_merge(base, override)
-        assert result == {"pitcher": {"learning_rate": 0.05}}
 
 
 class TestDeepMergeConfig:

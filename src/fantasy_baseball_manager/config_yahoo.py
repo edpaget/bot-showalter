@@ -1,14 +1,12 @@
 import os
-import tomllib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.config_toml import load_toml
 from fantasy_baseball_manager.exceptions import FbmException
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-_CONFIG_FILENAME = "fbm.toml"
 
 
 class YahooConfigError(FbmException):
@@ -36,17 +34,12 @@ def _require_field(raw: dict[str, Any], field: str, context: str) -> Any:
 
 
 def load_yahoo_config(config_dir: Path) -> YahooConfig:
-    """Load Yahoo Fantasy configuration from fbm.toml."""
-    toml_path = config_dir / _CONFIG_FILENAME
-    if not toml_path.exists():
-        raise YahooConfigError(f"fbm.toml not found in {config_dir}")
-
-    with toml_path.open("rb") as f:
-        data = tomllib.load(f)
+    """Load Yahoo Fantasy configuration from fbm.toml (+ fbm.local.toml overlay)."""
+    data = load_toml(config_dir)
 
     yahoo = data.get("yahoo")
     if yahoo is None:
-        raise YahooConfigError(f"No [yahoo] section in {_CONFIG_FILENAME}")
+        raise YahooConfigError("No [yahoo] section in fbm.toml")
 
     client_id: str = os.environ.get("FBM_YAHOO_CLIENT_ID") or _require_field(yahoo, "client_id", "[yahoo]")
     client_secret: str = os.environ.get("FBM_YAHOO_CLIENT_SECRET") or _require_field(yahoo, "client_secret", "[yahoo]")

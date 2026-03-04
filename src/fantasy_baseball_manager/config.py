@@ -1,21 +1,10 @@
-import tomllib
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.config_toml import deep_merge, load_toml
 from fantasy_baseball_manager.models import ModelConfig
 
-_CONFIG_FILENAME = "fbm.toml"
-
-
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Recursively merge override into base, with override winning on conflicts."""
-    result = dict(base)
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _deep_merge(result[key], value)
-        else:
-            result[key] = value
-    return result
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def load_config(
@@ -29,11 +18,11 @@ def load_config(
     model_params: dict[str, Any] | None = None,
 ) -> ModelConfig:
     """Load config from TOML file (if present) with CLI overrides applied on top."""
-    toml_data = _load_toml(config_dir)
+    toml_data = load_toml(config_dir)
     common: dict[str, Any] = toml_data.get("common", {})
     model_section: dict[str, Any] = toml_data.get("models", {}).get(model_name, {})
     toml_params: dict[str, Any] = model_section.get("params", {})
-    resolved_params = _deep_merge(toml_params, model_params or {})
+    resolved_params = deep_merge(toml_params, model_params or {})
 
     toml_version: str | None = model_section.get("version")
     resolved_version = version if version is not None else toml_version
@@ -51,14 +40,3 @@ def load_config(
         tags=resolved_tags,
         top=top,
     )
-
-
-def _load_toml(config_dir: Path | None) -> dict[str, Any]:
-    """Read fbm.toml from config_dir, returning empty dict if not found."""
-    if config_dir is None:
-        config_dir = Path.cwd()
-    toml_path = config_dir / _CONFIG_FILENAME
-    if not toml_path.exists():
-        return {}
-    with toml_path.open("rb") as f:
-        return tomllib.load(f)

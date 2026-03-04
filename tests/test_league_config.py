@@ -477,13 +477,19 @@ class TestLoadLeague:
         assert settings.teams == 10
 
     def test_missing_file(self, tmp_path: Path) -> None:
-        with pytest.raises(LeagueConfigError, match="fbm.toml"):
+        with pytest.raises(LeagueConfigError, match=r"No \[leagues\] section"):
             load_league("main", tmp_path)
 
     def test_no_leagues_section(self, tmp_path: Path) -> None:
         (tmp_path / "fbm.toml").write_text("[common]\ndata_dir = './data'\n")
         with pytest.raises(LeagueConfigError, match="leagues"):
             load_league("main", tmp_path)
+
+    def test_local_toml_overrides_league_setting(self, tmp_path: Path) -> None:
+        (tmp_path / "fbm.toml").write_text(_FULL_TOML)
+        (tmp_path / "fbm.local.toml").write_text("[leagues.main]\nteams = 14\n")
+        settings = load_league("main", tmp_path)
+        assert settings.teams == 14
 
     def test_league_not_found(self, tmp_path: Path) -> None:
         (tmp_path / "fbm.toml").write_text(_FULL_TOML)
