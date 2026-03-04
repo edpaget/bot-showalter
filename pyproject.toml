@@ -76,7 +76,7 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@overload",
 ]
-fail_under = 88
+fail_under = 93
 
 [tool.pytest.ini_options]
 addopts = "-n auto -p randomly"
