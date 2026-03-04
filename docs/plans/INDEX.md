@@ -11,7 +11,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Draft Pick Keeper Support](draft-pick-keeper-support.md) | 3 | not started | draft-pick-trade-evaluator phase 1, keeper-surplus-value (done) |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
-| [Mock Draft Simulator](mock-draft-simulator.md) | 4 | phases 1-2 done | draft board (done), ADP (done) |
+| [Mock Draft Simulator](mock-draft-simulator.md) | 4 | phases 1-3 done | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | phase 1 done | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
