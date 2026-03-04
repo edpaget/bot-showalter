@@ -250,3 +250,66 @@ class TestGateRunner:
         runner.cleanup(config)
         assert ("test-model", "gate-h2024") in repo.deleted
         assert ("test-model", "gate-h2025") in repo.deleted
+
+    def test_skips_prediction_without_player_id(self) -> None:
+        model = FakeModel(
+            predict_result=PredictResult(
+                model_name="test-model",
+                predictions=[
+                    {"hr": 30},  # missing player_id and season
+                    {"player_id": 2, "season": 2024, "player_type": "batter", "hr": 25},
+                ],
+                output_path="out.csv",
+            )
+        )
+        runner, _, _, repo = _make_runner(model=model)
+        config = _make_gate_config(holdout_seasons=[2024])
+        runner.run(config)
+
+        # Only the valid prediction should be persisted
+        assert len(repo.upserted) == 1
+        assert repo.upserted[0].player_id == 2
+
+    def test_persists_distributions_when_present(self) -> None:
+        distributions = [
+            {
+                "player_id": 1,
+                "player_type": "batter",
+                "stat": "hr",
+                "p10": 20.0,
+                "p25": 25.0,
+                "p50": 30.0,
+                "p75": 35.0,
+                "p90": 40.0,
+                "mean": 30.0,
+                "std": 5.0,
+            },
+        ]
+        model = FakeModel(
+            predict_result=PredictResult(
+                model_name="test-model",
+                predictions=[
+                    {"player_id": 1, "season": 2024, "player_type": "batter", "hr": 30},
+                ],
+                output_path="out.csv",
+                distributions=distributions,
+            )
+        )
+
+        @dataclass
+        class TrackingProjectionRepo(FakeProjectionRepo):
+            dist_calls: list[tuple[int, list[Any]]] = field(default_factory=list)
+
+            def upsert_distributions(self, projection_id: int, distributions: list[Any]) -> None:
+                self.dist_calls.append((projection_id, distributions))
+
+        repo = TrackingProjectionRepo()
+        runner, _, _, _ = _make_runner(model=model, projection_repo=repo)
+        config = _make_gate_config(holdout_seasons=[2024])
+        runner.run(config)
+
+        assert len(repo.dist_calls) == 1
+        proj_id, stat_dists = repo.dist_calls[0]
+        assert proj_id == 1  # first upserted projection gets id=1
+        assert len(stat_dists) == 1
+        assert stat_dists[0].stat == "hr"

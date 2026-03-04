@@ -7,6 +7,7 @@ from fantasy_baseball_manager.domain.minor_league_batting_stats import (
 )
 from fantasy_baseball_manager.models.mle.engine import (
     apply_recency_weights,
+    clamp_xbh,
     combine_translated_lines,
     compute_competition_factor,
     regress_to_mlb,
@@ -693,6 +694,30 @@ class TestApplyRecencyWeights:
         # Only one active line → returned unchanged
         assert result.k_pct == pytest.approx(88 / 400, abs=1e-6)
         assert result.bb_pct == pytest.approx(30 / 400, abs=1e-6)
+
+
+class TestClampXbh:
+    def test_scales_down_proportionally(self) -> None:
+        # doubles=20, triples=10, hr=15, h=30
+        # xbh=45 > h=30 → available = 30-15=15, total_non_hr=30
+        # ratio=15/30=0.5, new_doubles=int(20*0.5)=10, new_triples=int(10*0.5)=5
+        d, t = clamp_xbh(doubles=20, triples=10, hr=15, h=30)
+        assert d + t <= 30 - 15  # must fit in available slots
+        assert d == 10
+        assert t == 5
+
+    def test_total_non_hr_zero_returns_zeros(self) -> None:
+        # doubles=0, triples=0, hr=20, h=10 → xbh=20 > h=10
+        # available = max(10-20, 0)=0, total_non_hr=0 → returns (0, 0)
+        d, t = clamp_xbh(doubles=0, triples=0, hr=20, h=10)
+        assert d == 0
+        assert t == 0
+
+    def test_no_clamping_when_xbh_within_bounds(self) -> None:
+        # xbh = 10+3+5 = 18 <= h=100 → no clamping
+        d, t = clamp_xbh(doubles=10, triples=3, hr=5, h=100)
+        assert d == 10
+        assert t == 3
 
 
 class TestRegressToMlb:

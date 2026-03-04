@@ -208,3 +208,75 @@ class TestGetBio:
         svc = _make_service(conn)
         result = svc.get_bio(99999, 2025)
         assert result is None
+
+    def test_no_appearances_returns_dh(self, conn: sqlite3.Connection) -> None:
+        team_id = _seed_team(conn)
+        pid = seed_player(conn, name_first="DH", name_last="Only", mlbam_id=100099)
+        _seed_roster_stint(conn, pid, team_id, season=2025)
+        # No position appearances seeded
+        svc = _make_service(conn)
+
+        result = svc.get_bio(pid, 2025)
+        assert result is not None
+        assert result.primary_position == "DH"
+
+
+class TestFindEdgeCases:
+    def test_nonexistent_team_returns_empty(self, conn: sqlite3.Connection) -> None:
+        svc = _make_service(conn)
+        results = svc.find(season=2025, team="ZZZ")
+        assert results == []
+
+    def test_skips_player_with_no_birth_date(self, conn: sqlite3.Connection) -> None:
+        team_id = _seed_team(conn)
+        # Insert player with NULL birth_date via raw SQL
+        conn.execute(
+            "INSERT INTO player (id, name_first, name_last) VALUES (?, ?, ?)",
+            (9001, "NoBD", "Player"),
+        )
+        conn.commit()
+        pid_no_bd = 9001
+        pid_normal = seed_player(
+            conn, name_first="Normal", name_last="Player", mlbam_id=100011, birth_date="1995-06-15"
+        )
+        for pid in (pid_no_bd, pid_normal):
+            _seed_roster_stint(conn, pid, team_id, season=2025)
+            _seed_position(conn, pid, 2025, "OF")
+        svc = _make_service(conn)
+
+        # min_age triggers the age check; player with NULL birth_date → age is None → skipped
+        results = svc.find(season=2025, min_age=20)
+        assert len(results) == 1
+        assert results[0].name == "Normal Player"
+
+    def test_filter_by_max_experience(self, conn: sqlite3.Connection) -> None:
+        team_id = _seed_team(conn)
+        pid_vet = seed_player(conn, name_first="Vet", name_last="Player", mlbam_id=100020)
+        for yr in range(2018, 2026):
+            _seed_batting(conn, pid_vet, yr)
+        pid_rook = seed_player(conn, name_first="Rook", name_last="Player", mlbam_id=100021)
+        _seed_batting(conn, pid_rook, 2024)
+        _seed_batting(conn, pid_rook, 2025)
+        for pid in (pid_vet, pid_rook):
+            _seed_roster_stint(conn, pid, team_id, season=2025)
+            _seed_position(conn, pid, 2025, "OF")
+        svc = _make_service(conn)
+
+        results = svc.find(season=2025, max_experience=3)
+        assert len(results) == 1
+        assert results[0].name == "Rook Player"
+
+    def test_pitching_seasons_counted(self, conn: sqlite3.Connection) -> None:
+        team_id = _seed_team(conn)
+        pid = seed_player(conn, name_first="Pitch", name_last="Only", mlbam_id=100030)
+        # Only pitching stats, no batting
+        _seed_pitching(conn, pid, 2022)
+        _seed_pitching(conn, pid, 2023)
+        _seed_pitching(conn, pid, 2024)
+        _seed_roster_stint(conn, pid, team_id, season=2025)
+        _seed_position(conn, pid, 2025, "SP")
+        svc = _make_service(conn)
+
+        result = svc.get_bio(pid, 2025)
+        assert result is not None
+        assert result.experience == 3

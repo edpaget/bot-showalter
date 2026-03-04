@@ -1,7 +1,7 @@
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
 from fantasy_baseball_manager.domain.yahoo_league import YahooTeam
-from fantasy_baseball_manager.services.draft_state import DraftConfig, DraftEngine, DraftFormat
+from fantasy_baseball_manager.services.draft_state import DraftConfig, DraftEngine, DraftError, DraftFormat
 from fantasy_baseball_manager.services.draft_translation import build_team_map, ingest_yahoo_pick
 
 
@@ -123,5 +123,16 @@ class TestIngestYahooPick:
         available = frozenset({100})
         yahoo_pick = _make_yahoo_pick(team_key="449.l.99999.t.99")
         result = ingest_yahoo_pick(lambda *a, **kw: None, available, yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
+
+        assert result is None
+
+    def test_pick_fn_raises_draft_error_returns_none(self) -> None:
+        available = frozenset({100})
+        yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1")
+
+        def raising_pick_fn(*args: object, **kwargs: object) -> None:
+            raise DraftError("duplicate pick")
+
+        result = ingest_yahoo_pick(raising_pick_fn, available, yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
 
         assert result is None

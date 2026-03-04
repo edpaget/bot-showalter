@@ -376,6 +376,190 @@ class TestNoReturningPlayers:
         assert m.ceiling_pass is False
 
 
+class TestPitcherProjectionsIgnored:
+    def test_pitcher_projections_ignored(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, batting_repo, _ = _make_service(conn)
+
+        # Seed a batter and a pitcher with projections for both seasons
+        seed_player(conn, player_id=1, name_last="Batter")
+        seed_player(conn, player_id=2, name_last="Pitcher")
+
+        # Batter projection + actuals for both seasons
+        for season in (2024, 2025):
+            proj_repo.upsert(
+                Projection(
+                    player_id=1,
+                    season=season,
+                    system="test-sys",
+                    version="v1",
+                    player_type="batter",
+                    stat_json={"avg": 0.280},
+                )
+            )
+            batting_repo.upsert(BattingStats(player_id=1, season=season, source="fangraphs", avg=0.285, pa=400))
+
+        # Pitcher projection (should be filtered out)
+        for season in (2024, 2025):
+            proj_repo.upsert(
+                Projection(
+                    player_id=2,
+                    season=season,
+                    system="test-sys",
+                    version="v1",
+                    player_type="pitcher",
+                    stat_json={"avg": 0.280},
+                )
+            )
+            batting_repo.upsert(BattingStats(player_id=2, season=season, source="fangraphs", avg=0.290, pa=400))
+        conn.commit()
+
+        report = service.diagnose("test-sys", "v1", 2024, 2025, stats=["avg"])
+        m = report.stat_metrics[0]
+        # Only the batter should appear as a returning player
+        assert m.n_returning == 1
+
+
+class TestMissingDataPaths:
+    def test_various_missing_data_paths(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, batting_repo, _ = _make_service(conn)
+
+        # Player 1: full data (the one valid returning player)
+        seed_player(conn, player_id=1, name_last="Full")
+        for season in (2024, 2025):
+            proj_repo.upsert(
+                Projection(
+                    player_id=1,
+                    season=season,
+                    system="test-sys",
+                    version="v1",
+                    player_type="batter",
+                    stat_json={"avg": 0.280},
+                )
+            )
+            batting_repo.upsert(BattingStats(player_id=1, season=season, source="fangraphs", avg=0.285, pa=400))
+
+        # Player 2: projection has no "avg" stat (est is None, line 80)
+        seed_player(conn, player_id=2, name_last="NoStat")
+        proj_repo.upsert(
+            Projection(
+                player_id=2,
+                season=2024,
+                system="test-sys",
+                version="v1",
+                player_type="batter",
+                stat_json={"obp": 0.350},
+            )
+        )
+        batting_repo.upsert(BattingStats(player_id=2, season=2024, source="fangraphs", avg=0.285, pa=400))
+
+        # Player 3: no actuals in season N (actual_obj is None, line 83)
+        seed_player(conn, player_id=3, name_last="NoActual")
+        proj_repo.upsert(
+            Projection(
+                player_id=3,
+                season=2024,
+                system="test-sys",
+                version="v1",
+                player_type="batter",
+                stat_json={"avg": 0.280},
+            )
+        )
+        # No batting stats for player 3 in 2024
+
+        # Player 4: actuals have iso-style stat that computes to None (raw_val is None, line 86)
+        # Use babip with missing components
+        seed_player(conn, player_id=4, name_last="NullComputed")
+        proj_repo.upsert(
+            Projection(
+                player_id=4,
+                season=2024,
+                system="test-sys",
+                version="v1",
+                player_type="batter",
+                stat_json={"babip": 0.300},
+            )
+        )
+        # h is None → babip actual returns None
+        batting_repo.upsert(
+            BattingStats(
+                player_id=4, season=2024, source="fangraphs", h=None, hr=None, ab=None, so=None, sf=None, pa=400
+            )
+        )
+
+        # Player 5: has season N data but no N+1 actuals (actual_n1_obj is None, line 110)
+        seed_player(conn, player_id=5, name_last="NoN1Actual")
+        proj_repo.upsert(
+            Projection(
+                player_id=5,
+                season=2024,
+                system="test-sys",
+                version="v1",
+                player_type="batter",
+                stat_json={"avg": 0.280},
+            )
+        )
+        batting_repo.upsert(BattingStats(player_id=5, season=2024, source="fangraphs", avg=0.285, pa=400))
+        proj_repo.upsert(
+            Projection(
+                player_id=5,
+                season=2025,
+                system="test-sys",
+                version="v1",
+                player_type="batter",
+                stat_json={"avg": 0.280},
+            )
+        )
+        # No 2025 actuals for player 5
+
+        # Player 6: has N data + N+1 actuals but no N+1 projection (proj_n1_stats is None, line 114)
+        seed_player(conn, player_id=6, name_last="NoN1Proj")
+        proj_repo.upsert(
+            Projection(
+                player_id=6,
+                season=2024,
+                system="test-sys",
+                version="v1",
+                player_type="batter",
+                stat_json={"avg": 0.280},
+            )
+        )
+        batting_repo.upsert(BattingStats(player_id=6, season=2024, source="fangraphs", avg=0.285, pa=400))
+        batting_repo.upsert(BattingStats(player_id=6, season=2025, source="fangraphs", avg=0.290, pa=400))
+        # No 2025 projection for player 6
+
+        # Player 7: has N data + N+1 actuals + N+1 projection, but N+1 proj missing "avg" (est_n1 is None, line 117)
+        seed_player(conn, player_id=7, name_last="NoN1Stat")
+        proj_repo.upsert(
+            Projection(
+                player_id=7,
+                season=2024,
+                system="test-sys",
+                version="v1",
+                player_type="batter",
+                stat_json={"avg": 0.280},
+            )
+        )
+        batting_repo.upsert(BattingStats(player_id=7, season=2024, source="fangraphs", avg=0.285, pa=400))
+        proj_repo.upsert(
+            Projection(
+                player_id=7,
+                season=2025,
+                system="test-sys",
+                version="v1",
+                player_type="batter",
+                stat_json={"obp": 0.350},  # no "avg"
+            )
+        )
+        batting_repo.upsert(BattingStats(player_id=7, season=2025, source="fangraphs", avg=0.290, pa=400))
+
+        conn.commit()
+
+        report = service.diagnose("test-sys", "v1", 2024, 2025, stats=["avg"])
+        m = report.stat_metrics[0]
+        # Only player 1 should survive all None guards as a returning player
+        assert m.n_returning == 1
+
+
 class TestStatFilter:
     def test_only_requested_stats_returned(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, batting_repo, _ = _make_service(conn)

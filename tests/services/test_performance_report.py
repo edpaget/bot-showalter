@@ -452,6 +452,147 @@ class TestMinPaFiltersLowIpPitchers:
         assert deltas[0].player_id == 10
 
 
+class TestUsesPitcherTargetsWhenStatsIsNone:
+    def test_uses_pitcher_targets_when_stats_is_none(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, _, _, pitching_repo = _make_service(conn)
+        seed_player(conn, player_id=10)
+
+        proj_repo.upsert(
+            Projection(
+                player_id=10,
+                season=2025,
+                system="test",
+                version="v1",
+                player_type="pitcher",
+                stat_json={
+                    "era": 3.50,
+                    "fip": 3.20,
+                    "k_per_9": 9.0,
+                    "bb_per_9": 3.0,
+                    "hr_per_9": 1.0,
+                    "babip": 0.290,
+                    "whip": 1.10,
+                },
+            )
+        )
+        pitching_repo.upsert(
+            PitchingStats(
+                player_id=10,
+                season=2025,
+                source="fangraphs",
+                era=3.40,
+                fip=3.10,
+                k_per_9=9.2,
+                bb_per_9=2.8,
+                hr=18,
+                ip=180.0,
+                h=160,
+                so=170,
+                whip=1.08,
+            )
+        )
+        conn.commit()
+
+        # stats=None → should use PITCHER_TARGETS
+        deltas = service.compute_deltas("test", "v1", 2025, "pitcher")
+        stat_names = {d.stat_name for d in deltas}
+        assert "era" in stat_names
+        assert "fip" in stat_names
+
+
+class TestIsoNoneWhenSlgMissing:
+    def test_iso_none_when_slg_missing(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, _, batting_repo, _ = _make_service(conn)
+        seed_player(conn, player_id=1)
+
+        proj_repo.upsert(
+            Projection(
+                player_id=1,
+                season=2025,
+                system="test",
+                version="v1",
+                player_type="batter",
+                stat_json={"iso": 0.200},
+            )
+        )
+        # avg present but slg is None → iso actual = None → skipped
+        batting_repo.upsert(BattingStats(player_id=1, season=2025, source="fangraphs", avg=0.280, slg=None))
+        conn.commit()
+
+        deltas = service.compute_deltas("test", "v1", 2025, "batter", stats=["iso"])
+        assert len(deltas) == 0
+
+
+class TestBabipNoneWhenDenomIsZero:
+    def test_babip_none_when_denom_is_zero(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, _, batting_repo, _ = _make_service(conn)
+        seed_player(conn, player_id=1)
+
+        proj_repo.upsert(
+            Projection(
+                player_id=1,
+                season=2025,
+                system="test",
+                version="v1",
+                player_type="batter",
+                stat_json={"babip": 0.300},
+            )
+        )
+        # denom = ab - so - hr + sf = 10 - 10 - 0 + 0 = 0
+        batting_repo.upsert(BattingStats(player_id=1, season=2025, source="fangraphs", h=0, hr=0, ab=10, so=10, sf=0))
+        conn.commit()
+
+        deltas = service.compute_deltas("test", "v1", 2025, "batter", stats=["babip"])
+        assert len(deltas) == 0
+
+
+class TestPitcherHrPer9NoneWhenIpIsZero:
+    def test_pitcher_hr_per_9_none_when_ip_is_zero(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, _, _, pitching_repo = _make_service(conn)
+        seed_player(conn, player_id=10)
+
+        proj_repo.upsert(
+            Projection(
+                player_id=10,
+                season=2025,
+                system="test",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"hr_per_9": 1.00},
+            )
+        )
+        pitching_repo.upsert(PitchingStats(player_id=10, season=2025, source="fangraphs", hr=5, ip=0.0))
+        conn.commit()
+
+        deltas = service.compute_deltas("test", "v1", 2025, "pitcher", stats=["hr_per_9"])
+        assert len(deltas) == 0
+
+
+class TestPitcherBabipNoneWhenComponentsMissing:
+    def test_pitcher_babip_none_when_components_missing(self, conn: sqlite3.Connection) -> None:
+        service, proj_repo, _, _, pitching_repo = _make_service(conn)
+        seed_player(conn, player_id=10)
+
+        proj_repo.upsert(
+            Projection(
+                player_id=10,
+                season=2025,
+                system="test",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"babip": 0.290},
+            )
+        )
+        # h is None → babip returns None
+        pitching_repo.upsert(
+            PitchingStats(player_id=10, season=2025, source="fangraphs", h=None, hr=20, ip=180.0, so=180)
+        )
+        conn.commit()
+
+        deltas = service.compute_deltas("test", "v1", 2025, "pitcher", stats=["babip"])
+        assert len(deltas) == 0
+
+
 class TestMinPaNoneIncludesAll:
     def test_min_pa_none_includes_all(self, conn: sqlite3.Connection) -> None:
         service, proj_repo, _, batting_repo, _ = _make_service(conn)

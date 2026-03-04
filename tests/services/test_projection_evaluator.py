@@ -563,6 +563,81 @@ class TestEvaluateWithTailNs:
             assert sys_metrics.tail.ns == (3,)
 
 
+class TestEvaluateStratifiedWithPitcherNormalizePt:
+    def test_pitcher_normalize_pt_in_stratified(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
+        for pid in (10, 11):
+            seed_player(conn, player_id=pid)
+        _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
+        _seed_pitcher_projection(proj_repo, 11, era=4.00, so=150)
+        _seed_pitching_actuals(pitching_repo, 10, era=3.50, so=190, war=5.0)
+        _seed_pitching_actuals(pitching_repo, 11, era=3.80, so=160, war=3.0)
+
+        cohorts = {10: "ace", 11: "mid"}
+        # normalize_pt with pitching_pt entries
+        lookup = ConsensusLookup(batting_pt={}, pitching_pt={10: 180, 11: 150})
+        result = evaluator.evaluate_stratified(
+            "steamer",
+            "2025.1",
+            2025,
+            cohort_assignments=cohorts,
+            normalize_pt=lookup,
+        )
+        assert "ace" in result
+        assert "mid" in result
+
+
+class TestEvaluateStratifiedWithTopAndMinFilters:
+    def test_top_and_min_filters_in_stratified(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, batting_repo, pitching_repo = _make_evaluator(conn)
+        for pid in (1, 2, 3, 10, 11):
+            seed_player(conn, player_id=pid)
+        _seed_batter_projection(proj_repo, 1, hr=30, avg=0.280)
+        _seed_batter_projection(proj_repo, 2, hr=25, avg=0.300)
+        _seed_batter_projection(proj_repo, 3, hr=15, avg=0.250)
+        _seed_batting_actuals(batting_repo, 1, hr=28, avg=0.265, war=5.0, pa=500)
+        _seed_batting_actuals(batting_repo, 2, hr=20, avg=0.310, war=3.0, pa=400)
+        _seed_batting_actuals(batting_repo, 3, hr=18, avg=0.240, war=1.0, pa=30)
+
+        _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
+        _seed_pitcher_projection(proj_repo, 11, era=5.00, so=100)
+        _seed_pitching_actuals(pitching_repo, 10, era=3.50, so=190, war=6.0, ip=180.0)
+        _seed_pitching_actuals(pitching_repo, 11, era=4.50, so=120, war=1.0, ip=10.0)
+
+        cohorts = {1: "group_a", 2: "group_a", 3: "group_a", 10: "group_a", 11: "group_a"}
+        result = evaluator.evaluate_stratified(
+            "steamer",
+            "2025.1",
+            2025,
+            cohort_assignments=cohorts,
+            top=2,  # keep only top 2 by WAR for batters and pitchers
+            min_pa=100,  # filter out low-PA batters (player 3)
+            min_ip=50,  # filter out low-IP pitchers (player 11)
+        )
+        assert "group_a" in result
+        metrics = result["group_a"].metrics
+        # Player 3 excluded by top=2 or min_pa; player 11 excluded by top=2 or min_ip
+        assert metrics["hr"].n <= 2
+
+
+class TestEvaluateStratifiedUnassignedExcluded:
+    def test_unassigned_pitcher_excluded_from_stratified(self, conn: sqlite3.Connection) -> None:
+        evaluator, proj_repo, _, pitching_repo = _make_evaluator(conn)
+        for pid in (10, 11):
+            seed_player(conn, player_id=pid)
+        _seed_pitcher_projection(proj_repo, 10, era=3.20, so=200)
+        _seed_pitcher_projection(proj_repo, 11, era=4.00, so=150)
+        _seed_pitching_actuals(pitching_repo, 10, era=3.50, so=190)
+        _seed_pitching_actuals(pitching_repo, 11, era=3.80, so=160)
+
+        # Only player 10 assigned; player 11 should be excluded
+        cohorts = {10: "assigned"}
+        result = evaluator.evaluate_stratified("steamer", "2025.1", 2025, cohort_assignments=cohorts)
+
+        assert "assigned" in result
+        assert result["assigned"].metrics["era"].n == 1
+
+
 class TestEvaluateWithNormalizePt:
     def test_evaluate_with_normalize_pt_rescales_counting(self, conn: sqlite3.Connection) -> None:
         evaluator, proj_repo, batting_repo, _ = _make_evaluator(conn)
