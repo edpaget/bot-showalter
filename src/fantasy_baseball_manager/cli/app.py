@@ -13,6 +13,7 @@ from fantasy_baseball_manager.cli.commands.feature import feature_app
 from fantasy_baseball_manager.cli.commands.ingest import ingest_app
 from fantasy_baseball_manager.cli.commands.keeper import keeper_app
 from fantasy_baseball_manager.cli.commands.marginal_value import marginal_value_cmd
+from fantasy_baseball_manager.cli.commands.mock_draft import mock_app
 from fantasy_baseball_manager.cli.commands.model import (
     ablate,
     evaluate,
@@ -87,6 +88,7 @@ app.add_typer(ingest_app, name="ingest")
 app.add_typer(compute_app, name="compute")
 app.add_typer(report_app, name="report")
 app.add_typer(residuals_app, name="residuals")
+draft_app.add_typer(mock_app, name="mock")
 app.add_typer(draft_app, name="draft")
 app.add_typer(experiment_app, name="experiment")
 app.add_typer(feature_app, name="feature")

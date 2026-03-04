@@ -47,6 +47,11 @@ from fantasy_baseball_manager.cli._output._keeper import (
     print_trade_evaluation,
 )
 from fantasy_baseball_manager.cli._output._marginal_value import print_marginal_value_results
+from fantasy_baseball_manager.cli._output._mock_draft import (
+    print_batch_simulation_result,
+    print_mock_draft_result,
+    print_strategy_comparison_table,
+)
 from fantasy_baseball_manager.cli._output._model import (
     print_ablation_result,
     print_predict_result,
@@ -100,6 +105,7 @@ _SUBMODULE_NAMES = (
     "_ingest",
     "_keeper",
     "_marginal_value",
+    "_mock_draft",
     "_model",
     "_profile",
     "_projections",
@@ -173,7 +179,9 @@ __all__ = [
     "print_keeper_scenarios",
     "print_keeper_solution",
     "print_keeper_trade_impact",
+    "print_batch_simulation_result",
     "print_marginal_value_results",
+    "print_mock_draft_result",
     "print_performance_report",
     "print_preflight_result",
     "print_pick_trade_evaluation",
@@ -191,6 +199,7 @@ __all__ = [
     "print_run_detail",
     "print_run_list",
     "print_stability_result",
+    "print_strategy_comparison_table",
     "print_stratified_comparison_result",
     "print_system_disagreements",
     "print_system_metrics",
