@@ -1,5 +1,6 @@
 """CLI command for single-target quick evaluation."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -9,10 +10,11 @@ from fantasy_baseball_manager.cli._output import console, print_error, print_qui
 from fantasy_baseball_manager.cli.factory import create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
-from fantasy_baseball_manager.domain import Err
+from fantasy_baseball_manager.domain import Err, Experiment, TargetResult
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
 from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
+from fantasy_baseball_manager.repos import SqliteExperimentRepo
 from fantasy_baseball_manager.services import quick_eval
 
 
@@ -48,6 +50,11 @@ def quick_eval_cmd(
     inject: Annotated[list[str] | None, typer.Option("--inject", help="Column(s) to inject into feature set")] = None,
     baseline: Annotated[float | None, typer.Option("--baseline", help="Baseline RMSE for delta comparison")] = None,
     param: Annotated[list[str] | None, typer.Option("--param", help="Model param as key=value (repeatable)")] = None,
+    experiment: Annotated[
+        str | None, typer.Option("--experiment", help="Hypothesis — auto-log result to experiment journal")
+    ] = None,
+    tags: Annotated[str | None, typer.Option("--tags", help="Comma-separated tags for experiment log")] = None,
+    parent_id: Annotated[int | None, typer.Option("--parent-id", help="Parent experiment ID")] = None,
     data_dir: Annotated[str | None, typer.Option("--data-dir", help="Data directory")] = None,
 ) -> None:
     """Train a single target and evaluate on one holdout season."""
@@ -132,5 +139,47 @@ def quick_eval_cmd(
         )
 
         print_quick_eval_result(eval_result)
+
+        if experiment is not None:
+            if eval_result.baseline_rmse is None:
+                print_error("--baseline is required when using --experiment")
+                raise typer.Exit(code=1)
+
+            target_result = TargetResult(
+                rmse=eval_result.rmse,
+                baseline_rmse=eval_result.baseline_rmse,
+                delta=eval_result.delta,  # type: ignore[arg-type]
+                delta_pct=eval_result.delta_pct,  # type: ignore[arg-type]
+            )
+
+            injected = list(inject) if inject else []
+            feature_diff = {"added": injected, "removed": []}
+
+            parsed_tags = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+
+            direction = "improved" if eval_result.delta < 0 else "worsened"  # type: ignore[operator]
+            conclusion = (
+                f"{target} {direction} by {abs(eval_result.delta_pct):.2f}% "  # type: ignore[arg-type]
+                f"(RMSE {eval_result.baseline_rmse:.4f} → {eval_result.rmse:.4f})"
+            )
+
+            exp = Experiment(
+                timestamp=datetime.now(UTC).isoformat(),
+                hypothesis=experiment,
+                model=model,
+                player_type="batter" if is_batter else "pitcher",
+                feature_diff=feature_diff,
+                seasons={"train": train_seasons, "holdout": [holdout_season]},
+                params=params or {},
+                target_results={target: target_result},
+                conclusion=conclusion,
+                tags=parsed_tags,
+                parent_id=parent_id,
+            )
+
+            repo = SqliteExperimentRepo(conn)
+            exp_id = repo.save(exp)
+            conn.commit()
+            console.print(f"Logged experiment [bold green]#{exp_id}[/bold green]")
     finally:
         conn.close()

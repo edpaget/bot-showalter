@@ -1,5 +1,6 @@
 """CLI command for marginal value estimation."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -10,10 +11,11 @@ from fantasy_baseball_manager.cli.commands.quick_eval import _parse_params
 from fantasy_baseball_manager.cli.factory import create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
-from fantasy_baseball_manager.domain import Err
+from fantasy_baseball_manager.domain import Err, Experiment, TargetResult
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
 from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
+from fantasy_baseball_manager.repos import SqliteExperimentRepo
 from fantasy_baseball_manager.services import MarginalValueResult, marginal_value
 
 
@@ -23,6 +25,11 @@ def marginal_value_cmd(
     player_type: Annotated[str, typer.Option("--player-type", help="Player type: 'batter' or 'pitcher'")],
     season: Annotated[list[int] | None, typer.Option("--season", help="Season year(s) to include")] = None,
     param: Annotated[list[str] | None, typer.Option("--param", help="Model param as key=value")] = None,
+    experiment: Annotated[
+        str | None, typer.Option("--experiment", help="Hypothesis — auto-log results to experiment journal")
+    ] = None,
+    tags: Annotated[str | None, typer.Option("--tags", help="Comma-separated tags for experiment log")] = None,
+    parent_id: Annotated[int | None, typer.Option("--parent-id", help="Parent experiment ID")] = None,
     data_dir: Annotated[str | None, typer.Option("--data-dir", help="Data directory")] = None,
 ) -> None:
     """Estimate the RMSE improvement from adding candidate feature(s)."""
@@ -105,5 +112,45 @@ def marginal_value_cmd(
         results.sort(key=lambda r: r.avg_delta_pct)
 
         print_marginal_value_results(results)
+
+        if experiment is not None:
+            parsed_tags = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+            repo = SqliteExperimentRepo(conn)
+
+            for mv_result in results:
+                target_results_dict = {
+                    d.target: TargetResult(
+                        rmse=d.candidate_rmse,
+                        baseline_rmse=d.baseline_rmse,
+                        delta=d.delta,
+                        delta_pct=d.delta_pct,
+                    )
+                    for d in mv_result.deltas
+                }
+
+                direction = "improved" if mv_result.avg_delta_pct < 0 else "worsened"
+                conclusion = (
+                    f"{mv_result.candidate} {direction} {mv_result.n_improved}/{mv_result.n_total} targets "
+                    f"(avg {mv_result.avg_delta_pct:+.2f}%)"
+                )
+
+                exp = Experiment(
+                    timestamp=datetime.now(UTC).isoformat(),
+                    hypothesis=experiment,
+                    model=model,
+                    player_type=player_type,
+                    feature_diff={"added": [mv_result.candidate], "removed": []},
+                    seasons={"train": train_seasons, "holdout": [holdout_season]},
+                    params=params or {},
+                    target_results=target_results_dict,
+                    conclusion=conclusion,
+                    tags=parsed_tags,
+                    parent_id=parent_id,
+                )
+
+                exp_id = repo.save(exp)
+                console.print(f"Logged experiment [bold green]#{exp_id}[/bold green] ({mv_result.candidate})")
+
+            conn.commit()
     finally:
         conn.close()
