@@ -9,6 +9,19 @@ class PositionValueCurve:
 
 
 @dataclass(frozen=True)
+class ScarcityAdjustedPlayer:
+    player_id: int
+    player_name: str
+    position: str
+    player_type: str
+    original_value: float
+    adjusted_value: float
+    original_rank: int
+    adjusted_rank: int
+    scarcity_score: float  # normalized [0, 1]
+
+
+@dataclass(frozen=True)
 class PositionScarcity:
     position: str
     tier_1_value: float

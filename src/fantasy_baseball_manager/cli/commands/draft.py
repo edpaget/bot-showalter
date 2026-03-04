@@ -14,6 +14,7 @@ from fantasy_baseball_manager.cli._output import (
     print_draft_tiers,
     print_pick_trade_evaluation,
     print_pick_value_curve,
+    print_scarcity_rankings,
     print_scarcity_report,
     print_tier_summary,
     print_value_curve,
@@ -32,6 +33,7 @@ from fantasy_baseball_manager.services import (
     compute_category_balance_scores,
     compute_pick_value_curve,
     compute_scarcity,
+    compute_scarcity_rankings,
     compute_value_curves,
     evaluate_pick_trade,
     export_csv,
@@ -474,3 +476,29 @@ def draft_scarcity(
             if position is not None:
                 scarcities = [s for s in scarcities if s.position == position]
             print_scarcity_report(scarcities, league)
+
+
+@draft_app.command("scarcity-rankings")
+def draft_scarcity_rankings(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Display scarcity-adjusted player rankings."""
+    league = load_league(league_name, Path.cwd())
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        rankings = compute_scarcity_rankings(valuations, league, player_names)
+
+    if top is not None:
+        rankings = rankings[:top]
+    print_scarcity_rankings(rankings, league)

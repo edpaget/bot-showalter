@@ -9,7 +9,9 @@ from fantasy_baseball_manager.domain.league_settings import (
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.services.positional_scarcity import (
     compute_scarcity,
+    compute_scarcity_rankings,
     compute_value_curves,
+    scarcity_adjusted_value,
 )
 
 
@@ -286,3 +288,98 @@ class TestComputeValueCurves:
 
         positions = {c.position for c in curves}
         assert positions == {"ss", "c"}
+
+
+class TestScarcityAdjustedValue:
+    def test_zero_score_no_change(self) -> None:
+        """A scarcity score of 0 leaves the value unchanged."""
+        assert scarcity_adjusted_value(20.0, 0.0) == pytest.approx(20.0)
+
+    def test_full_score_doubles(self) -> None:
+        """A scarcity score of 1.0 doubles the value."""
+        assert scarcity_adjusted_value(20.0, 1.0) == pytest.approx(40.0)
+
+    def test_partial_proportional(self) -> None:
+        """A scarcity score of 0.5 adds 50% to the value."""
+        assert scarcity_adjusted_value(20.0, 0.5) == pytest.approx(30.0)
+
+    def test_negative_value(self) -> None:
+        """Negative values are also scaled correctly."""
+        assert scarcity_adjusted_value(-10.0, 0.5) == pytest.approx(-15.0)
+
+
+class TestComputeScarcityRankings:
+    def _make_scarce_and_deep_valuations(self) -> tuple[list[Valuation], LeagueSettings, dict[int, str]]:
+        """Create valuations where C is scarce (steep drop) and OF is deep (flat).
+
+        C: 30, 28, 26, 12, 10, 8 (steep cliff after rank 3)
+        OF: 25, 24, 23, 22, 21, 20 (flat)
+        """
+        c_values = [30.0, 28.0, 26.0, 12.0, 10.0, 8.0]
+        of_values = [25.0, 24.0, 23.0, 22.0, 21.0, 20.0]
+
+        valuations: list[Valuation] = []
+        names: dict[int, str] = {}
+        for i, v in enumerate(c_values):
+            valuations.append(_make_valuation("c", v, player_id=100 + i))
+            names[100 + i] = f"Catcher {i + 1}"
+        for i, v in enumerate(of_values):
+            valuations.append(_make_valuation("of", v, player_id=200 + i))
+            names[200 + i] = f"Outfielder {i + 1}"
+
+        league = _make_league(positions={"c": 1, "of": 1}, teams=3)
+        return valuations, league, names
+
+    def test_scarce_position_boosted(self) -> None:
+        """Players at the scarce position (C) get higher adjusted values."""
+        valuations, league, names = self._make_scarce_and_deep_valuations()
+        result = compute_scarcity_rankings(valuations, league, names)
+
+        # Top C should have adjusted_value > original_value
+        top_c = next(p for p in result if p.position == "c")
+        assert top_c.adjusted_value > top_c.original_value
+
+    def test_rankings_differ_from_raw(self) -> None:
+        """Adjusted rankings differ from raw rankings."""
+        valuations, league, names = self._make_scarce_and_deep_valuations()
+        result = compute_scarcity_rankings(valuations, league, names)
+
+        original_order = sorted(result, key=lambda p: p.original_rank)
+        adjusted_order = sorted(result, key=lambda p: p.adjusted_rank)
+
+        # At least one player should have a different rank
+        assert any(o.player_id != a.player_id for o, a in zip(original_order, adjusted_order, strict=True))
+
+    def test_proportional_boost(self) -> None:
+        """Players at scarcer positions get larger boosts than those at deep positions."""
+        valuations, league, names = self._make_scarce_and_deep_valuations()
+        result = compute_scarcity_rankings(valuations, league, names)
+
+        c_players = [p for p in result if p.position == "c"]
+        of_players = [p for p in result if p.position == "of"]
+
+        # C scarcity score should be higher than OF
+        assert c_players[0].scarcity_score > of_players[0].scarcity_score
+
+    def test_empty_input(self) -> None:
+        """Empty valuations return empty list."""
+        league = _make_league(positions={"ss": 1})
+        result = compute_scarcity_rankings([], league, {})
+        assert result == []
+
+    def test_both_values_preserved(self) -> None:
+        """Both original and adjusted values are present on results."""
+        valuations, league, names = self._make_scarce_and_deep_valuations()
+        result = compute_scarcity_rankings(valuations, league, names)
+
+        for p in result:
+            assert p.original_value > 0
+            assert p.adjusted_value >= p.original_value  # all positive values get boosted
+
+    def test_player_name_fallback(self) -> None:
+        """Players not in names dict get 'Unknown (id)' as name."""
+        valuations = [_make_valuation("ss", 20.0, player_id=999)]
+        league = _make_league(positions={"ss": 1}, teams=1)
+        result = compute_scarcity_rankings(valuations, league, {})
+
+        assert result[0].player_name == "Unknown (999)"

@@ -120,7 +120,9 @@ from fantasy_baseball_manager.services.player_universe import (
 )
 from fantasy_baseball_manager.services.positional_scarcity import (
     compute_scarcity,
+    compute_scarcity_rankings,
     compute_value_curves,
+    scarcity_adjusted_value,
 )
 from fantasy_baseball_manager.services.projection_confidence import (
     classify_variance,
@@ -248,7 +250,9 @@ __all__ = [
     "compute_confidence",
     "compute_pick_value_curve",
     "compute_scarcity",
+    "compute_scarcity_rankings",
     "compute_value_curves",
+    "scarcity_adjusted_value",
     "compute_surplus",
     "derive_keeper_costs",
     "draft_report",

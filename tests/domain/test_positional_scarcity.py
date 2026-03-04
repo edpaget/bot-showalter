@@ -1,6 +1,7 @@
 from fantasy_baseball_manager.domain.positional_scarcity import (
     PositionScarcity,
     PositionValueCurve,
+    ScarcityAdjustedPlayer,
 )
 
 
@@ -70,3 +71,46 @@ class TestPositionValueCurve:
             cliff_rank=None,
         )
         assert curve.cliff_rank is None
+
+
+class TestScarcityAdjustedPlayer:
+    def test_frozen(self) -> None:
+        player = ScarcityAdjustedPlayer(
+            player_id=1,
+            player_name="Test Player",
+            position="ss",
+            player_type="batter",
+            original_value=25.0,
+            adjusted_value=30.0,
+            original_rank=5,
+            adjusted_rank=3,
+            scarcity_score=0.8,
+        )
+        try:
+            player.position = "c"  # type: ignore[misc]
+            raised = False
+        except AttributeError:
+            raised = True
+        assert raised
+
+    def test_fields(self) -> None:
+        player = ScarcityAdjustedPlayer(
+            player_id=42,
+            player_name="Mike Trout",
+            position="of",
+            player_type="batter",
+            original_value=35.0,
+            adjusted_value=42.0,
+            original_rank=1,
+            adjusted_rank=1,
+            scarcity_score=0.2,
+        )
+        assert player.player_id == 42
+        assert player.player_name == "Mike Trout"
+        assert player.position == "of"
+        assert player.player_type == "batter"
+        assert player.original_value == 35.0
+        assert player.adjusted_value == 42.0
+        assert player.original_rank == 1
+        assert player.adjusted_rank == 1
+        assert player.scarcity_score == 0.2

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
         PlayerTier,
         PositionScarcity,
         PositionValueCurve,
+        ScarcityAdjustedPlayer,
         TierSummaryReport,
     )
 
@@ -467,3 +468,56 @@ def print_value_curve(curve: PositionValueCurve, league: LeagueSettings) -> None
         console.print(f"\n  Cliff at rank {curve.cliff_rank}")
     else:
         console.print("\n  No significant cliff detected")
+
+
+def print_scarcity_rankings(
+    players: list[ScarcityAdjustedPlayer],
+    league: LeagueSettings,
+) -> None:
+    """Print scarcity-adjusted rankings as a Rich table."""
+    if not players:
+        console.print("No scarcity ranking data.")
+        return
+
+    console.print(f"\n[bold]Scarcity-Adjusted Rankings[/bold] — {league.name} ({league.teams} teams)\n")
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Adj Rk", justify="right")
+    table.add_column("Player")
+    table.add_column("Pos")
+    table.add_column("Type")
+    table.add_column("Value", justify="right")
+    table.add_column("Adj Value", justify="right")
+    table.add_column("Orig Rk", justify="right")
+    table.add_column("Delta", justify="right")
+    table.add_column("Scarcity", justify="right")
+
+    for p in players:
+        delta = p.original_rank - p.adjusted_rank
+        if delta > 0:
+            delta_str = f"[green]+{delta}[/green]"
+        elif delta < 0:
+            delta_str = f"[red]{delta}[/red]"
+        else:
+            delta_str = "0"
+
+        if p.scarcity_score >= 0.7:
+            scarcity_color = "red"
+        elif p.scarcity_score >= 0.3:
+            scarcity_color = "yellow"
+        else:
+            scarcity_color = "green"
+
+        table.add_row(
+            str(p.adjusted_rank),
+            p.player_name,
+            p.position.upper(),
+            p.player_type,
+            f"${p.original_value:.1f}",
+            f"${p.adjusted_value:.1f}",
+            str(p.original_rank),
+            delta_str,
+            f"[{scarcity_color}]{p.scarcity_score:.2f}[/{scarcity_color}]",
+        )
+
+    console.print(table)
