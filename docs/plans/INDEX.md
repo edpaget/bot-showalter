@@ -15,7 +15,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Positional Scarcity](positional-scarcity.md) | 3 | phase 1 done | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
-| [Residual Analysis Tools](residual-analysis-tools.md) | 3 | phases 1-2 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
@@ -47,6 +46,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Fast Feedback Loop](fast-feedback-loop.md) | 3 |
 | [Feature Candidate Factory](feature-candidate-factory.md) | 3 |
 | [Top-300 Tuning](top-300-tuning.md) | 6 |
+| [Residual Analysis Tools](residual-analysis-tools.md) | 3 |
 | [Validation Gate](validation-gate.md) | 2 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
