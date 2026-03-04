@@ -810,3 +810,215 @@ class TestEnsembleStatcastGBMIntegration:
         pred = result.predictions[0]
         # Only marcel v1 (avg=0.280) used, not "old" (avg=0.200)
         assert pred["avg"] == pytest.approx(0.280 * 0.6 + 0.270 * 0.4)
+
+
+class TestEnsembleRoutedMode:
+    def test_routed_basic(self) -> None:
+        """Route HR to steamer, OBP to statcast-gbm."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0, "obp": 0.340}),
+                _make_projection(1, "statcast-gbm", "batter", {"hr": 25.0, "obp": 0.360}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "steamer", "obp": "statcast-gbm"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["hr"] == 30.0  # from steamer
+        assert pred["obp"] == 0.360  # from statcast-gbm
+
+    def test_routed_with_fallback(self) -> None:
+        """Primary system lacks stat, fallback provides it."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0, "obp": 0.340}),
+                _make_projection(1, "statcast-gbm", "batter", {"obp": 0.360}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "statcast-gbm", "obp": "statcast-gbm"},
+                "fallback": "steamer",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["obp"] == 0.360  # from primary
+        assert pred["hr"] == 30.0  # from fallback
+
+    def test_routed_missing_stat_no_fallback(self) -> None:
+        """Stat omitted when primary lacks it and no fallback."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"obp": 0.360}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "statcast-gbm"},
+            },
+        )
+        result = model.predict(config)
+        # statcast-gbm lacks hr, no fallback → no predictions (empty result_stats)
+        assert result.predictions == []
+
+    def test_routed_ignores_global_weights(self) -> None:
+        """Component weights don't affect routed output."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"hr": 25.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.9, "statcast-gbm": 0.1},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "statcast-gbm"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # Weight is 0.9 for steamer, but routed ignores weights
+        assert pred["hr"] == 25.0  # from statcast-gbm
+
+    def test_routed_metadata(self) -> None:
+        """Prediction includes _mode and _routes metadata."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"obp": 0.360}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        routes = {"hr": "steamer", "obp": "statcast-gbm"}
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "routed",
+                "season": 2025,
+                "routes": routes,
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["_mode"] == "routed"
+        assert pred["_routes"] == routes
+
+
+class TestEnsembleStatWeights:
+    def test_stat_weights_override_global(self) -> None:
+        """Per-stat weights used instead of global component weights."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"obp": 0.340, "hr": 30.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"obp": 0.360, "hr": 25.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stat_weights": {
+                    "obp": {"statcast-gbm": 1.0, "steamer": 0.0},
+                    "hr": {"steamer": 1.0, "statcast-gbm": 0.0},
+                },
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["obp"] == 0.360  # 100% statcast-gbm
+        assert pred["hr"] == 30.0  # 100% steamer
+
+    def test_stat_weights_different_per_stat(self) -> None:
+        """OBP 70/30 gbm/steamer, HR 0/100 gbm/steamer."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"obp": 0.330, "hr": 30.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"obp": 0.350, "hr": 25.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stat_weights": {
+                    "obp": {"statcast-gbm": 0.7, "steamer": 0.3},
+                    "hr": {"statcast-gbm": 0.0, "steamer": 1.0},
+                },
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        expected_obp = (0.350 * 0.7 + 0.330 * 0.3) / (0.7 + 0.3)
+        assert pred["obp"] == pytest.approx(expected_obp)
+        assert pred["hr"] == 30.0
+
+    def test_stat_weights_missing_system(self) -> None:
+        """Referenced system absent for player → excluded from average."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"obp": 0.330}),
+                # statcast-gbm not present for this player
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stat_weights": {
+                    "obp": {"statcast-gbm": 0.7, "steamer": 0.3},
+                },
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # statcast-gbm not present → only steamer contributes
+        assert pred["obp"] == 0.330
+
+    def test_stat_weights_metadata(self) -> None:
+        """Prediction includes _stat_weights metadata."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"hr": 25.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        stat_weights = {"hr": {"steamer": 0.6, "statcast-gbm": 0.4}}
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "weighted_average",
+                "season": 2025,
+                "stat_weights": stat_weights,
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["_stat_weights"] == stat_weights

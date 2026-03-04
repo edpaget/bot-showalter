@@ -95,6 +95,54 @@ def weighted_spread(
     return result
 
 
+def routed(
+    system_stats: dict[str, dict[str, Any]],
+    routes: dict[str, str],
+    fallback: str | None = None,
+) -> dict[str, float]:
+    """Route each stat to a specific system.
+
+    For each stat in *routes*, pull the value from the named system's dict.
+    If the system doesn't have the stat and *fallback* is set, try the
+    fallback system.  Stats not found anywhere are simply omitted.
+    """
+    result: dict[str, float] = {}
+    for stat, system in routes.items():
+        stats_dict = system_stats.get(system)
+        if stats_dict is not None and stat in stats_dict:
+            result[stat] = float(stats_dict[stat])
+        elif fallback is not None:
+            fb_dict = system_stats.get(fallback)
+            if fb_dict is not None and stat in fb_dict:
+                result[stat] = float(fb_dict[stat])
+    return result
+
+
+def per_stat_weighted(
+    system_stats: dict[str, dict[str, Any]],
+    stat_weights: dict[str, dict[str, float]],
+) -> dict[str, float]:
+    """Weight-average each stat using per-stat system weights.
+
+    For each stat in *stat_weights*, compute
+    ``sum(value * weight) / sum(weight)`` across systems that both have
+    the stat and appear in that stat's weight dict.  Systems missing the
+    stat are excluded from that stat's calculation.
+    """
+    result: dict[str, float] = {}
+    for stat, weights in stat_weights.items():
+        numerator = 0.0
+        denominator = 0.0
+        for system, weight in weights.items():
+            stats_dict = system_stats.get(system)
+            if stats_dict is not None and stat in stats_dict:
+                numerator += float(stats_dict[stat]) * weight
+                denominator += weight
+        if denominator > 0:
+            result[stat] = numerator / denominator
+    return result
+
+
 def weighted_average(
     projections: Sequence[tuple[dict[str, Any], float]],
     stats: Sequence[str],

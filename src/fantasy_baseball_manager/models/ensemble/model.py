@@ -8,7 +8,13 @@ from fantasy_baseball_manager.domain import (
     ConsensusLookup,
     build_consensus_lookup,
 )
-from fantasy_baseball_manager.models.ensemble.engine import blend_rates, weighted_average, weighted_spread
+from fantasy_baseball_manager.models.ensemble.engine import (
+    blend_rates,
+    per_stat_weighted,
+    routed,
+    weighted_average,
+    weighted_spread,
+)
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.repos import (
@@ -103,12 +109,25 @@ class EnsembleModel:
                 cpt = (consensus.pitching_pt if player_type == "pitcher" else consensus.batting_pt).get(player_id)
 
             # Apply engine function
-            if mode == "blend_rates":
+            param_stat_weights: dict[str, dict[str, float]] | None = params.get("stat_weights")
+            if mode == "routed":
+                routes: dict[str, str] = params["routes"]
+                fallback: str | None = params.get("fallback")
+                sys_stats = {sys: proj.stat_json for sys, proj in system_map.items()}
+                result_stats = routed(sys_stats, routes, fallback)
+                extra_meta: dict[str, Any] = {"_routes": dict(routes)}
+            elif param_stat_weights is not None:
+                sys_stats = {sys: proj.stat_json for sys, proj in system_map.items()}
+                result_stats = per_stat_weighted(sys_stats, param_stat_weights)
+                extra_meta = {"_stat_weights": param_stat_weights}
+            elif mode == "blend_rates":
                 result_stats = blend_rates(pairs, rate_stats=list(effective_stats), pt_stat=cpt_key, consensus_pt=cpt)
+                extra_meta = {}
             else:
                 result_stats = weighted_average(pairs, stats=effective_stats)
                 if cpt is not None and result_stats:
                     result_stats[cpt_key] = cpt
+                extra_meta = {}
 
             if result_stats:
                 predictions.append(
@@ -119,6 +138,7 @@ class EnsembleModel:
                         **result_stats,
                         "_components": dict(components),
                         "_mode": mode,
+                        **extra_meta,
                     }
                 )
 

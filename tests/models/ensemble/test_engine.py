@@ -1,7 +1,13 @@
 import math
 
 from fantasy_baseball_manager.domain.projection import StatDistribution
-from fantasy_baseball_manager.models.ensemble.engine import blend_rates, weighted_average, weighted_spread
+from fantasy_baseball_manager.models.ensemble.engine import (
+    blend_rates,
+    per_stat_weighted,
+    routed,
+    weighted_average,
+    weighted_spread,
+)
 
 
 class TestWeightedAverage:
@@ -198,3 +204,98 @@ class TestWeightedSpread:
         assert math.isclose(dist.mean, 32.5)
         # Median (p50) should be close to 32.5
         assert math.isclose(dist.p50, 32.5, abs_tol=0.1)
+
+
+class TestRouted:
+    def test_basic_routing(self) -> None:
+        system_stats = {
+            "statcast-gbm": {"obp": 0.350, "avg": 0.280},
+            "steamer": {"hr": 30.0, "rbi": 100.0, "obp": 0.340},
+        }
+        routes = {"obp": "statcast-gbm", "hr": "steamer"}
+        result = routed(system_stats, routes)
+        assert result == {"obp": 0.350, "hr": 30.0}
+
+    def test_fallback_when_primary_missing(self) -> None:
+        system_stats = {
+            "statcast-gbm": {"obp": 0.350},
+            "steamer": {"hr": 30.0, "obp": 0.340},
+        }
+        routes = {"hr": "statcast-gbm", "obp": "statcast-gbm"}
+        result = routed(system_stats, routes, fallback="steamer")
+        assert result["obp"] == 0.350  # from primary
+        assert result["hr"] == 30.0  # from fallback
+
+    def test_missing_stat_no_fallback(self) -> None:
+        system_stats = {
+            "statcast-gbm": {"obp": 0.350},
+            "steamer": {"hr": 30.0},
+        }
+        routes = {"hr": "statcast-gbm"}
+        result = routed(system_stats, routes)
+        # statcast-gbm lacks hr, no fallback → omitted
+        assert result == {}
+
+    def test_missing_stat_in_all_systems(self) -> None:
+        system_stats = {
+            "statcast-gbm": {"obp": 0.350},
+            "steamer": {"hr": 30.0},
+        }
+        routes = {"sb": "statcast-gbm"}
+        result = routed(system_stats, routes, fallback="steamer")
+        # Neither system has sb → omitted
+        assert result == {}
+
+    def test_system_not_in_system_stats(self) -> None:
+        system_stats = {
+            "steamer": {"hr": 30.0, "obp": 0.340},
+        }
+        routes = {"hr": "statcast-gbm", "obp": "steamer"}
+        result = routed(system_stats, routes, fallback="steamer")
+        # statcast-gbm not present → fallback to steamer for hr
+        assert result == {"hr": 30.0, "obp": 0.340}
+
+
+class TestPerStatWeighted:
+    def test_different_weights_per_stat(self) -> None:
+        system_stats = {
+            "statcast-gbm": {"obp": 0.350, "hr": 25.0},
+            "steamer": {"obp": 0.330, "hr": 30.0},
+        }
+        stat_weights = {
+            "obp": {"statcast-gbm": 0.7, "steamer": 0.3},
+            "hr": {"statcast-gbm": 0.0, "steamer": 1.0},
+        }
+        result = per_stat_weighted(system_stats, stat_weights)
+        expected_obp = (0.350 * 0.7 + 0.330 * 0.3) / (0.7 + 0.3)
+        assert result["obp"] == expected_obp
+        assert result["hr"] == 30.0  # 100% steamer
+
+    def test_missing_system_for_stat(self) -> None:
+        system_stats = {
+            "steamer": {"obp": 0.330},
+        }
+        stat_weights = {
+            "obp": {"statcast-gbm": 0.7, "steamer": 0.3},
+        }
+        result = per_stat_weighted(system_stats, stat_weights)
+        # statcast-gbm not in system_stats → excluded, only steamer
+        assert result["obp"] == 0.330
+
+    def test_stat_in_single_system(self) -> None:
+        system_stats = {
+            "statcast-gbm": {"obp": 0.350},
+            "steamer": {"hr": 30.0},
+        }
+        stat_weights = {
+            "obp": {"statcast-gbm": 1.0},
+        }
+        result = per_stat_weighted(system_stats, stat_weights)
+        assert result == {"obp": 0.350}
+
+    def test_empty_stat_weights(self) -> None:
+        system_stats = {
+            "statcast-gbm": {"obp": 0.350},
+        }
+        result = per_stat_weighted(system_stats, stat_weights={})
+        assert result == {}
