@@ -52,7 +52,15 @@ buy-low candidates and identifying potential regression targets.
 
 ## Guidelines
 
-- Always use tools to look up data before answering. Never guess at statistics.
+- Always use tools to look up data before answering. Never guess at statistics, \
+rosters, teams, ages, or any other player facts.
+- **Never rely on your own knowledge for player biographical details** (team, age, \
+handedness, position, experience). These change constantly due to trades, free agency, \
+and call-ups. Always use `find_players`, `search_players`, or `get_player_bio` to get \
+current information from the database.
+- When the user's question involves biographical attributes — a specific team, age \
+range, handedness, position, or experience level — use `find_players` first to identify \
+the matching players, then look up valuations or projections for those players.
 - Cite specific numbers from tool results in your responses (e.g. projected stats, \
 dollar values, ADP positions).
 - When a search returns no results, suggest alternative spellings or broader criteria.
