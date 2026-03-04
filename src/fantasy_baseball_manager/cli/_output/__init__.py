@@ -13,6 +13,7 @@ from fantasy_baseball_manager.cli._output._draft import (
     print_pick_value_curve,
     print_scarcity_report,
     print_tier_summary,
+    print_value_curve,
 )
 from fantasy_baseball_manager.cli._output._evaluation import (
     print_comparison_result,
@@ -203,6 +204,7 @@ __all__ = [
     "print_validation_result",
     "print_valuation_eval_result",
     "print_valuation_rankings",
+    "print_value_curve",
     "print_value_over_adp",
     "print_variance_targets",
 ]

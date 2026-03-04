@@ -116,7 +116,10 @@ from fantasy_baseball_manager.services.player_resolver import resolve_player
 from fantasy_baseball_manager.services.player_universe import (
     StatsBasedPlayerUniverse,
 )
-from fantasy_baseball_manager.services.positional_scarcity import compute_scarcity
+from fantasy_baseball_manager.services.positional_scarcity import (
+    compute_scarcity,
+    compute_value_curves,
+)
 from fantasy_baseball_manager.services.projection_confidence import (
     classify_variance,
     compute_confidence,
@@ -237,6 +240,7 @@ __all__ = [
     "compute_confidence",
     "compute_pick_value_curve",
     "compute_scarcity",
+    "compute_value_curves",
     "compute_surplus",
     "derive_keeper_costs",
     "draft_report",

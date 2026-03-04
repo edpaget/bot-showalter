@@ -16,6 +16,7 @@ from fantasy_baseball_manager.cli._output import (
     print_pick_value_curve,
     print_scarcity_report,
     print_tier_summary,
+    print_value_curve,
 )
 from fantasy_baseball_manager.cli.factory import build_category_needs_context, build_draft_board_context
 from fantasy_baseball_manager.config_league import load_league
@@ -31,6 +32,7 @@ from fantasy_baseball_manager.services import (
     compute_category_balance_scores,
     compute_pick_value_curve,
     compute_scarcity,
+    compute_value_curves,
     evaluate_pick_trade,
     export_csv,
     export_html,
@@ -448,6 +450,8 @@ def draft_scarcity(
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    position: Annotated[str | None, typer.Option("--position", help="Filter to a single position")] = None,
+    detail: Annotated[bool, typer.Option("--detail", help="Show full value curve instead of summary")] = False,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display positional scarcity analysis ranked by dropoff severity."""
@@ -455,5 +459,18 @@ def draft_scarcity(
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system)
         valuations = [v for v in valuations if v.version == version]
-        scarcities = compute_scarcity(valuations, league)
-    print_scarcity_report(scarcities, league)
+
+        if detail:
+            player_ids = [v.player_id for v in valuations]
+            players = ctx.player_repo.get_by_ids(player_ids)
+            player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+            curves = compute_value_curves(valuations, league, player_names)
+            if position is not None:
+                curves = [c for c in curves if c.position == position]
+            for curve in curves:
+                print_value_curve(curve, league)
+        else:
+            scarcities = compute_scarcity(valuations, league)
+            if position is not None:
+                scarcities = [s for s in scarcities if s.position == position]
+            print_scarcity_report(scarcities, league)

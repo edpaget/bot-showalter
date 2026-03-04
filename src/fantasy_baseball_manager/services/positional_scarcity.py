@@ -2,7 +2,7 @@ from collections import defaultdict
 from statistics import mean
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import PositionScarcity
+from fantasy_baseball_manager.domain import PositionScarcity, PositionValueCurve
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import LeagueSettings, Valuation
@@ -62,6 +62,56 @@ def compute_scarcity(
 
     results.sort(key=lambda ps: ps.dropoff_slope)
     return results
+
+
+def compute_value_curves(
+    valuations: list[Valuation],
+    league: LeagueSettings,
+    player_names: dict[int, str],
+) -> list[PositionValueCurve]:
+    """Compute per-position value curves showing every player's rank and value.
+
+    Returns one PositionValueCurve per position that has valuations, with the
+    cliff point (elbow) detected and marked.
+    """
+    if not valuations:
+        return []
+
+    all_positions: dict[str, int] = dict(league.positions) | dict(league.pitcher_positions)
+
+    # Group valuations by position
+    by_position: dict[str, list[Valuation]] = defaultdict(list)
+    for v in valuations:
+        if v.position in all_positions:
+            by_position[v.position].append(v)
+
+    curves: list[PositionValueCurve] = []
+    for position, slots in all_positions.items():
+        if slots <= 0 or position not in by_position:
+            continue
+
+        pos_vals = sorted(by_position[position], key=lambda v: v.value, reverse=True)
+        n = league.teams * slots
+        top_n = pos_vals[:n]
+
+        values_list: list[tuple[int, str, float]] = []
+        for rank, v in enumerate(top_n, start=1):
+            name = player_names.get(v.player_id, f"Unknown ({v.player_id})")
+            values_list.append((rank, name, v.value))
+
+        # Use the same elbow detection as compute_scarcity
+        raw_values = [v.value for v in top_n]
+        cliff_rank = _detect_elbow(raw_values)
+
+        curves.append(
+            PositionValueCurve(
+                position=position,
+                values=values_list,
+                cliff_rank=cliff_rank,
+            )
+        )
+
+    return curves
 
 
 def _linear_slope(values: list[float]) -> float:

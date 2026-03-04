@@ -7,7 +7,10 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
 )
 from fantasy_baseball_manager.domain.valuation import Valuation
-from fantasy_baseball_manager.services.positional_scarcity import compute_scarcity
+from fantasy_baseball_manager.services.positional_scarcity import (
+    compute_scarcity,
+    compute_value_curves,
+)
 
 
 def _make_valuation(
@@ -195,3 +198,91 @@ class TestEdgeCases:
         assert result[0].tier_1_value == pytest.approx(mean(values))
         # replacement_value is last player's value
         assert result[0].replacement_value == pytest.approx(5.0)
+
+
+class TestComputeValueCurves:
+    def test_curve_rank_name_value_tuples(self) -> None:
+        """Values are returned as (rank, player_name, value) sorted by value desc."""
+        valuations = [
+            _make_valuation("ss", 30.0, player_id=1),
+            _make_valuation("ss", 20.0, player_id=2),
+            _make_valuation("ss", 10.0, player_id=3),
+        ]
+        league = _make_league(positions={"ss": 1}, teams=2)
+        names = {1: "Alice", 2: "Bob", 3: "Carol"}
+
+        curves = compute_value_curves(valuations, league, names)
+
+        assert len(curves) == 1
+        curve = curves[0]
+        assert curve.position == "ss"
+        assert curve.values == [
+            (1, "Alice", 30.0),
+            (2, "Bob", 20.0),
+        ]
+
+    def test_cliff_rank_matches_elbow(self) -> None:
+        """cliff_rank is detected at the elbow point."""
+        # Clear cliff: steady values then sharp drop
+        values = [25.0, 24.5, 24.0, 23.5, 23.0, 22.5, 10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0]
+        valuations = [_make_valuation("c", v, player_id=i) for i, v in enumerate(values)]
+        league = _make_league(positions={"c": 1}, teams=12)
+        names = {i: f"Player {i}" for i in range(15)}
+
+        curves = compute_value_curves(valuations, league, names)
+
+        assert len(curves) == 1
+        assert curves[0].cliff_rank is not None
+        assert 5 <= curves[0].cliff_rank <= 8
+
+    def test_multi_slot_position(self) -> None:
+        """OF with 3 slots uses N = teams * 3."""
+        valuations = [_make_valuation("of", 20.0 - i, player_id=i) for i in range(10)]
+        league = _make_league(positions={"of": 3}, teams=2)
+        names = {i: f"Player {i}" for i in range(10)}
+
+        curves = compute_value_curves(valuations, league, names)
+
+        assert len(curves) == 1
+        # N = 2 teams * 3 slots = 6
+        assert len(curves[0].values) == 6
+
+    def test_missing_player_names_fallback(self) -> None:
+        """Players not in the names dict get 'Unknown (id)' as name."""
+        valuations = [_make_valuation("ss", 20.0, player_id=99)]
+        league = _make_league(positions={"ss": 1}, teams=1)
+        names: dict[int, str] = {}  # empty
+
+        curves = compute_value_curves(valuations, league, names)
+
+        assert curves[0].values[0][1] == "Unknown (99)"
+
+    def test_empty_valuations(self) -> None:
+        """Empty valuations returns empty list."""
+        league = _make_league(positions={"ss": 1})
+        result = compute_value_curves([], league, {})
+        assert result == []
+
+    def test_position_not_in_league(self) -> None:
+        """Valuations at unknown position are excluded."""
+        valuations = [_make_valuation("dh", 20.0, player_id=1)]
+        league = _make_league(positions={"ss": 1})
+
+        curves = compute_value_curves(valuations, league, {1: "Player"})
+
+        assert curves == []
+
+    def test_multiple_positions(self) -> None:
+        """Returns one curve per position that has valuations."""
+        valuations = [
+            _make_valuation("ss", 30.0, player_id=1),
+            _make_valuation("ss", 20.0, player_id=2),
+            _make_valuation("c", 25.0, player_id=3),
+        ]
+        league = _make_league(positions={"ss": 1, "c": 1}, teams=1)
+        names = {1: "A", 2: "B", 3: "C"}
+
+        curves = compute_value_curves(valuations, league, names)
+
+        positions = {c.position for c in curves}
+        assert positions == {"ss", "c"}

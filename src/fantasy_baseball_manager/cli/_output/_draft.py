@@ -20,6 +20,7 @@ if TYPE_CHECKING:
         PickValueCurve,
         PlayerTier,
         PositionScarcity,
+        PositionValueCurve,
         TierSummaryReport,
     )
 
@@ -439,3 +440,30 @@ def print_scarcity_report(
         )
 
     console.print(table)
+
+
+def print_value_curve(curve: PositionValueCurve, league: LeagueSettings) -> None:
+    """Print a detailed per-position value curve with cliff marker."""
+    slots = dict(league.positions).get(curve.position, 0) or dict(league.pitcher_positions).get(curve.position, 0)
+
+    console.print(
+        f"\n[bold]── {curve.position.upper()} Value Curve ──[/bold]"
+        f"  ({slots} slot{'s' if slots != 1 else ''}, {league.teams} teams)\n"
+    )
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Rank", justify="right")
+    table.add_column("Player")
+    table.add_column("Value", justify="right")
+
+    for rank, name, value in curve.values:
+        if curve.cliff_rank is not None and rank == curve.cliff_rank + 1:
+            table.add_section()
+        table.add_row(str(rank), name, f"${value:.1f}")
+
+    console.print(table)
+
+    if curve.cliff_rank is not None:
+        console.print(f"\n  Cliff at rank {curve.cliff_rank}")
+    else:
+        console.print("\n  No significant cliff detected")

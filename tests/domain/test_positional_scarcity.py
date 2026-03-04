@@ -1,4 +1,7 @@
-from fantasy_baseball_manager.domain.positional_scarcity import PositionScarcity
+from fantasy_baseball_manager.domain.positional_scarcity import (
+    PositionScarcity,
+    PositionValueCurve,
+)
 
 
 class TestPositionScarcity:
@@ -33,3 +36,37 @@ class TestPositionScarcity:
         assert ps.total_surplus == 80.0
         assert ps.dropoff_slope == -2.3
         assert ps.steep_rank is None
+
+
+class TestPositionValueCurve:
+    def test_frozen(self) -> None:
+        curve = PositionValueCurve(
+            position="ss",
+            values=[(1, "Player A", 30.0)],
+            cliff_rank=5,
+        )
+        try:
+            curve.position = "c"  # type: ignore[misc]
+            raised = False
+        except AttributeError:
+            raised = True
+        assert raised
+
+    def test_fields(self) -> None:
+        values = [(1, "Alice", 25.0), (2, "Bob", 20.0), (3, "Carol", 15.0)]
+        curve = PositionValueCurve(
+            position="of",
+            values=values,
+            cliff_rank=2,
+        )
+        assert curve.position == "of"
+        assert curve.values == values
+        assert curve.cliff_rank == 2
+
+    def test_cliff_rank_none(self) -> None:
+        curve = PositionValueCurve(
+            position="1b",
+            values=[(1, "Player", 10.0)],
+            cliff_rank=None,
+        )
+        assert curve.cliff_rank is None
