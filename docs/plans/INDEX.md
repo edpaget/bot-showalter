@@ -13,7 +13,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 | phases 1-3 done | draft board (done), ADP (done) |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
-| [Positional Scarcity](positional-scarcity.md) | 3 | phase 1 done | none |
+| [Positional Scarcity](positional-scarcity.md) | 3 | phases 1-2 done | none |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | not started | draft board (done) |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
