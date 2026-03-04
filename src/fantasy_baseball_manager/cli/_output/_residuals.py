@@ -5,7 +5,7 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._output._common import console
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import ErrorDecompositionReport, FeatureGapReport
+    from fantasy_baseball_manager.domain import CohortBiasReport, ErrorDecompositionReport, FeatureGapReport
 
 
 def print_error_decomposition_report(report: ErrorDecompositionReport) -> None:
@@ -106,3 +106,74 @@ def print_feature_gap_report(report: FeatureGapReport) -> None:
             )
 
         console.print(table)
+
+
+def print_cohort_bias_report(report: CohortBiasReport) -> None:
+    title = (
+        f"Cohort Bias — {report.dimension} — {report.system}/{report.version} "
+        f"{report.target} ({report.player_type}s, {report.season})"
+    )
+    console.print(f"\n[bold]{title}[/bold]\n")
+
+    table = Table(title=f"Bias by {report.dimension.title()}")
+    table.add_column("Cohort")
+    table.add_column("N", justify="right")
+    table.add_column("Mean Residual", justify="right")
+    table.add_column("Mean |Residual|", justify="right")
+    table.add_column("RMSE", justify="right")
+    table.add_column("Significant", justify="center")
+
+    for cohort in report.cohorts:
+        residual_color = "red" if cohort.mean_residual > 0 else "green"
+        style = "bold" if cohort.significant else ""
+        sig_marker = "[bold red]*[/bold red]" if cohort.significant else ""
+        table.add_row(
+            cohort.cohort_label,
+            str(cohort.n),
+            f"[{residual_color}]{cohort.mean_residual:+.4f}[/{residual_color}]",
+            f"{cohort.mean_abs_residual:.4f}",
+            f"{cohort.rmse:.4f}",
+            sig_marker,
+            style=style,
+        )
+
+    console.print(table)
+
+
+def print_cohort_bias_summary(reports: list[CohortBiasReport]) -> None:
+    """Print a summary of the most biased significant cohorts across all dimensions."""
+    for report in reports:
+        print_cohort_bias_report(report)
+
+    significant_cohorts: list[tuple[str, str, int, float, float]] = []
+    for report in reports:
+        for cohort in report.cohorts:
+            if cohort.significant:
+                significant_cohorts.append(
+                    (report.dimension, cohort.cohort_label, cohort.n, cohort.mean_residual, cohort.rmse)
+                )
+
+    if not significant_cohorts:
+        console.print("\n[dim]No statistically significant cohort biases found.[/dim]")
+        return
+
+    significant_cohorts.sort(key=lambda x: abs(x[3]), reverse=True)
+
+    table = Table(title="Most Biased Cohorts (Significant)")
+    table.add_column("Dimension")
+    table.add_column("Cohort")
+    table.add_column("N", justify="right")
+    table.add_column("Mean Residual", justify="right")
+    table.add_column("RMSE", justify="right")
+
+    for dim, label, n, mean_r, rmse in significant_cohorts:
+        residual_color = "red" if mean_r > 0 else "green"
+        table.add_row(
+            dim,
+            label,
+            str(n),
+            f"[{residual_color}]{mean_r:+.4f}[/{residual_color}]",
+            f"{rmse:.4f}",
+        )
+
+    console.print(table)

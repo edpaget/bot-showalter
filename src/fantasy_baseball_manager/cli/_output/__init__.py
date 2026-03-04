@@ -74,7 +74,12 @@ from fantasy_baseball_manager.cli._output._reports import (
     print_value_over_adp,
     print_variance_targets,
 )
-from fantasy_baseball_manager.cli._output._residuals import print_error_decomposition_report, print_feature_gap_report
+from fantasy_baseball_manager.cli._output._residuals import (
+    print_cohort_bias_report,
+    print_cohort_bias_summary,
+    print_error_decomposition_report,
+    print_feature_gap_report,
+)
 from fantasy_baseball_manager.cli._output._runs import print_run_detail, print_run_list
 from fantasy_baseball_manager.cli._output._validate import print_preflight_result, print_validation_result
 from fantasy_baseball_manager.cli._output._valuations import (
@@ -140,6 +145,8 @@ __all__ = [
     "print_interaction_scan_results",
     "print_cascade_result",
     "print_category_needs",
+    "print_cohort_bias_report",
+    "print_cohort_bias_summary",
     "print_checkpoint_detail",
     "print_checkpoint_list",
     "print_column_profiles",

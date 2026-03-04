@@ -4,7 +4,13 @@ from typing import Annotated
 import typer
 
 from fantasy_baseball_manager.cli._helpers import parse_system_version
-from fantasy_baseball_manager.cli._output import print_error, print_error_decomposition_report, print_feature_gap_report
+from fantasy_baseball_manager.cli._output import (
+    print_cohort_bias_report,
+    print_cohort_bias_summary,
+    print_error,
+    print_error_decomposition_report,
+    print_feature_gap_report,
+)
 from fantasy_baseball_manager.cli.factory import build_residuals_context
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.models.statcast_gbm.features import batter_feature_columns, pitcher_feature_columns
@@ -90,6 +96,48 @@ def gaps(
         raise typer.Exit(code=1)
 
     print_feature_gap_report(report)
+
+
+_VALID_DIMENSIONS = ("age", "position", "handedness", "experience")
+
+
+@residuals_app.command("cohort")
+def cohort(
+    system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")],
+    target: Annotated[str, typer.Option("--target", help="Target stat (e.g. slg, era)")],
+    dimension: Annotated[
+        str | None, typer.Option("--dimension", help="age, position, handedness, or experience")
+    ] = None,
+    all_dimensions: Annotated[bool, typer.Option("--all-dimensions", help="Run all four dimensions")] = False,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Report systematic bias by demographic cohort."""
+    sys_name, version = parse_system_version(system)
+
+    if not all_dimensions and dimension is None:
+        print_error("specify --dimension or --all-dimensions")
+        raise typer.Exit(code=1)
+
+    if dimension is not None and dimension not in _VALID_DIMENSIONS:
+        print_error(f"invalid dimension '{dimension}', expected one of {_VALID_DIMENSIONS}")
+        raise typer.Exit(code=1)
+
+    with build_residuals_context(data_dir) as ctx:
+        if all_dimensions:
+            reports = ctx.analyzer.bias_by_cohort_all_dimensions(sys_name, version, season, target, player_type)
+            if all(not r.cohorts for r in reports):
+                print_error("no residuals found")
+                raise typer.Exit(code=1)
+            print_cohort_bias_summary(reports)
+        else:
+            assert dimension is not None  # noqa: S101
+            report = ctx.analyzer.bias_by_cohort(sys_name, version, season, target, player_type, dimension)
+            if not report.cohorts:
+                print_error("no residuals found")
+                raise typer.Exit(code=1)
+            print_cohort_bias_report(report)
 
 
 def _load_raw_features(data_dir: str, season: int, player_type: str) -> dict[int, dict[str, float]]:

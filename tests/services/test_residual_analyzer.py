@@ -500,3 +500,173 @@ class TestDetectFeatureGaps:
         )
         ks_values = [g.ks_statistic for g in report.gaps]
         assert ks_values == sorted(ks_values, reverse=True)
+
+
+def _seed_cohort_batters(
+    conn: sqlite3.Connection,
+    proj_repo: SqliteProjectionRepo,
+    batting_repo: SqliteBattingStatsRepo,
+    position_repo: SqlitePositionAppearanceRepo,
+) -> None:
+    """Seed batters across multiple age/position/hand cohorts.
+
+    Young batters (22-25) have systematic over-prediction (positive residual).
+    Older batters (30-33) are well-calibrated (residual ≈ 0).
+    """
+    # Young cohort: ages 22-25, all over-predicted by ~0.100
+    for i, age_birth in enumerate(
+        [("2002-07-01", "L", "SS"), ("2001-07-01", "L", "2B"), ("2000-07-01", "L", "SS"), ("1999-07-01", "L", "SS")],
+        start=1,
+    ):
+        birth_date, bats, position = age_birth
+        _seed_batter_data(
+            conn,
+            proj_repo,
+            batting_repo,
+            position_repo,
+            player_id=i,
+            name_first=f"Young{i}",
+            name_last="Batter",
+            predicted_slg=0.450,
+            actual_slg=0.350,
+            position=position,
+            birth_date=birth_date,
+            bats=bats,
+        )
+
+    # Older cohort: ages 30-33, well-calibrated
+    for i, age_birth in enumerate(
+        [
+            ("1994-07-01", "R", "1B"),
+            ("1993-07-01", "R", "DH"),
+            ("1992-07-01", "R", "1B"),
+            ("1991-07-01", "S", "DH"),
+        ],
+        start=5,
+    ):
+        birth_date, bats, position = age_birth
+        _seed_batter_data(
+            conn,
+            proj_repo,
+            batting_repo,
+            position_repo,
+            player_id=i,
+            name_first=f"Vet{i}",
+            name_last="Batter",
+            predicted_slg=0.400,
+            actual_slg=0.400 + (i - 5) * 0.002,  # tiny residuals
+            position=position,
+            birth_date=birth_date,
+            bats=bats,
+        )
+    conn.commit()
+
+
+class TestBiasByCohortAge:
+    def test_age_dimension_returns_correct_buckets(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_cohort_batters(conn, proj_repo, batting_repo, position_repo)
+
+        report = analyzer.bias_by_cohort("test-model", "v1", 2024, "slg", "batter", "age")
+        assert report.dimension == "age"
+        assert report.target == "slg"
+
+        labels = {c.cohort_label for c in report.cohorts}
+        assert "22-25" in labels
+        assert "30-33" in labels
+
+    def test_young_cohort_has_positive_bias(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_cohort_batters(conn, proj_repo, batting_repo, position_repo)
+
+        report = analyzer.bias_by_cohort("test-model", "v1", 2024, "slg", "batter", "age")
+        young = next(c for c in report.cohorts if c.cohort_label == "22-25")
+        assert young.mean_residual > 0  # over-prediction
+        assert young.n == 4
+
+    def test_well_calibrated_cohort_has_near_zero_bias(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_cohort_batters(conn, proj_repo, batting_repo, position_repo)
+
+        report = analyzer.bias_by_cohort("test-model", "v1", 2024, "slg", "batter", "age")
+        vet = next(c for c in report.cohorts if c.cohort_label == "30-33")
+        assert abs(vet.mean_residual) < 0.01
+
+    def test_significance_for_biased_cohort(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_cohort_batters(conn, proj_repo, batting_repo, position_repo)
+
+        report = analyzer.bias_by_cohort("test-model", "v1", 2024, "slg", "batter", "age")
+        young = next(c for c in report.cohorts if c.cohort_label == "22-25")
+        assert young.significant is True
+
+
+class TestBiasByCohortPosition:
+    def test_position_dimension_groups_correctly(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_cohort_batters(conn, proj_repo, batting_repo, position_repo)
+
+        report = analyzer.bias_by_cohort("test-model", "v1", 2024, "slg", "batter", "position")
+        assert report.dimension == "position"
+        labels = {c.cohort_label for c in report.cohorts}
+        assert "SS" in labels
+        assert "1B" in labels
+
+
+class TestBiasByCohortHandedness:
+    def test_handedness_dimension(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_cohort_batters(conn, proj_repo, batting_repo, position_repo)
+
+        report = analyzer.bias_by_cohort("test-model", "v1", 2024, "slg", "batter", "handedness")
+        assert report.dimension == "handedness"
+        labels = {c.cohort_label for c in report.cohorts}
+        assert "L" in labels
+        assert "R" in labels
+
+
+class TestBiasByCohortExperience:
+    def test_experience_dimension(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_cohort_batters(conn, proj_repo, batting_repo, position_repo)
+
+        # Seed batting stats for prior seasons to establish experience
+        # Players 1-4 (young): 2 seasons of data (2023, 2024)
+        for pid in range(1, 5):
+            batting_repo.upsert(BattingStats(player_id=pid, season=2023, source="fangraphs", pa=400, slg=0.350))
+        # Players 5-8 (veteran): 8 seasons of data (2017-2024)
+        for pid in range(5, 9):
+            for year in range(2017, 2024):
+                batting_repo.upsert(BattingStats(player_id=pid, season=year, source="fangraphs", pa=500, slg=0.400))
+        conn.commit()
+
+        report = analyzer.bias_by_cohort("test-model", "v1", 2024, "slg", "batter", "experience")
+        assert report.dimension == "experience"
+        labels = {c.cohort_label for c in report.cohorts}
+        # Young players: 2 seasons → "1-2" bucket
+        assert "1-2" in labels
+        # Veteran players: 8 seasons → "6-10" bucket
+        assert "6-10" in labels
+
+
+class TestBiasByCohortAllDimensions:
+    def test_returns_four_reports(self, conn: sqlite3.Connection) -> None:
+        analyzer, proj_repo, _, batting_repo, _, position_repo = _make_service(conn)
+        _seed_cohort_batters(conn, proj_repo, batting_repo, position_repo)
+
+        # Seed experience data
+        for pid in range(1, 9):
+            batting_repo.upsert(BattingStats(player_id=pid, season=2023, source="fangraphs", pa=400, slg=0.350))
+        conn.commit()
+
+        reports = analyzer.bias_by_cohort_all_dimensions("test-model", "v1", 2024, "slg", "batter")
+        assert len(reports) == 4
+        dims = {r.dimension for r in reports}
+        assert dims == {"age", "position", "handedness", "experience"}
+
+
+class TestBiasByCohortNoData:
+    def test_no_residuals_returns_empty_cohorts(self, conn: sqlite3.Connection) -> None:
+        analyzer, _, _, _, _, _ = _make_service(conn)
+        report = analyzer.bias_by_cohort("nonexistent", "v1", 2024, "slg", "batter", "age")
+        assert report.cohorts == []

@@ -1,12 +1,19 @@
 import pytest
 
 from fantasy_baseball_manager.domain.error_decomposition import (
+    CohortBias,
+    CohortBiasReport,
     DistinguishingFeature,
     ErrorDecompositionReport,
     FeatureGap,
     FeatureGapReport,
     MissPopulationSummary,
     PlayerResidual,
+    bucket_by_age,
+    bucket_by_experience,
+    bucket_by_handedness,
+    bucket_by_position,
+    compute_cohort_metrics,
     compute_distinguishing_features,
     compute_miss_summary,
     rank_residuals,
@@ -357,3 +364,206 @@ class TestSplitResidualsByQuality:
             max_well = max(abs(r.residual) for r in well)
             min_poor = min(abs(r.residual) for r in poor)
             assert min_poor > max_well
+
+
+class TestCohortBiasConstruction:
+    def test_construction(self) -> None:
+        cb = CohortBias(
+            cohort_label="22-25",
+            n=10,
+            mean_residual=0.05,
+            mean_abs_residual=0.08,
+            rmse=0.10,
+            significant=True,
+        )
+        assert cb.cohort_label == "22-25"
+        assert cb.n == 10
+        assert cb.significant is True
+
+    def test_immutability(self) -> None:
+        cb = CohortBias(
+            cohort_label="22-25", n=10, mean_residual=0.05, mean_abs_residual=0.08, rmse=0.10, significant=True
+        )
+        with pytest.raises(AttributeError):
+            cb.cohort_label = "26-29"  # type: ignore[misc]
+
+
+class TestCohortBiasReportConstruction:
+    def test_construction(self) -> None:
+        report = CohortBiasReport(
+            target="slg",
+            player_type="batter",
+            season=2024,
+            system="test",
+            version="v1",
+            dimension="age",
+            cohorts=[],
+        )
+        assert report.target == "slg"
+        assert report.dimension == "age"
+        assert report.cohorts == []
+
+
+class TestBucketByAge:
+    def test_groups_into_correct_buckets(self) -> None:
+        residuals = [
+            _make_residual(player_id=1, feature_values={"age": 22.0}),
+            _make_residual(player_id=2, feature_values={"age": 25.0}),
+            _make_residual(player_id=3, feature_values={"age": 26.0}),
+            _make_residual(player_id=4, feature_values={"age": 29.0}),
+            _make_residual(player_id=5, feature_values={"age": 30.0}),
+            _make_residual(player_id=6, feature_values={"age": 33.0}),
+            _make_residual(player_id=7, feature_values={"age": 34.0}),
+            _make_residual(player_id=8, feature_values={"age": 40.0}),
+        ]
+        buckets = bucket_by_age(residuals)
+        assert {r.player_id for r in buckets["22-25"]} == {1, 2}
+        assert {r.player_id for r in buckets["26-29"]} == {3, 4}
+        assert {r.player_id for r in buckets["30-33"]} == {5, 6}
+        assert {r.player_id for r in buckets["34+"]} == {7, 8}
+
+    def test_boundary_25_in_22_25(self) -> None:
+        residuals = [_make_residual(player_id=1, feature_values={"age": 25.0})]
+        buckets = bucket_by_age(residuals)
+        assert len(buckets["22-25"]) == 1
+
+    def test_boundary_26_in_26_29(self) -> None:
+        residuals = [_make_residual(player_id=1, feature_values={"age": 26.0})]
+        buckets = bucket_by_age(residuals)
+        assert len(buckets["26-29"]) == 1
+
+    def test_missing_age_excluded(self) -> None:
+        residuals = [
+            _make_residual(player_id=1, feature_values={"age": 25.0}),
+            _make_residual(player_id=2, feature_values={"pa": 500.0}),
+        ]
+        buckets = bucket_by_age(residuals)
+        total = sum(len(v) for v in buckets.values())
+        assert total == 1
+
+    def test_empty_input(self) -> None:
+        assert bucket_by_age([]) == {}
+
+    def test_age_below_22_excluded(self) -> None:
+        residuals = [_make_residual(player_id=1, feature_values={"age": 20.0})]
+        buckets = bucket_by_age(residuals)
+        total = sum(len(v) for v in buckets.values())
+        assert total == 0
+
+
+class TestBucketByPosition:
+    def test_groups_by_position(self) -> None:
+        residuals = [
+            _make_residual(player_id=1),
+            _make_residual(player_id=2),
+            _make_residual(player_id=3),
+        ]
+        positions = {1: "SS", 2: "SS", 3: "1B"}
+        buckets = bucket_by_position(residuals, positions)
+        assert len(buckets["SS"]) == 2
+        assert len(buckets["1B"]) == 1
+
+    def test_missing_position_excluded(self) -> None:
+        residuals = [
+            _make_residual(player_id=1),
+            _make_residual(player_id=2),
+        ]
+        positions = {1: "CF"}
+        buckets = bucket_by_position(residuals, positions)
+        total = sum(len(v) for v in buckets.values())
+        assert total == 1
+
+    def test_empty_input(self) -> None:
+        assert bucket_by_position([], {}) == {}
+
+
+class TestBucketByHandedness:
+    def test_groups_by_hand(self) -> None:
+        residuals = [
+            _make_residual(player_id=1),
+            _make_residual(player_id=2),
+            _make_residual(player_id=3),
+        ]
+        handedness = {1: "L", 2: "R", 3: "S"}
+        buckets = bucket_by_handedness(residuals, handedness)
+        assert len(buckets["L"]) == 1
+        assert len(buckets["R"]) == 1
+        assert len(buckets["S"]) == 1
+
+    def test_missing_handedness_excluded(self) -> None:
+        residuals = [_make_residual(player_id=1), _make_residual(player_id=2)]
+        handedness = {1: "R"}
+        buckets = bucket_by_handedness(residuals, handedness)
+        total = sum(len(v) for v in buckets.values())
+        assert total == 1
+
+    def test_empty_input(self) -> None:
+        assert bucket_by_handedness([], {}) == {}
+
+
+class TestBucketByExperience:
+    def test_groups_into_correct_buckets(self) -> None:
+        residuals = [
+            _make_residual(player_id=1),
+            _make_residual(player_id=2),
+            _make_residual(player_id=3),
+            _make_residual(player_id=4),
+        ]
+        experience = {1: 1, 2: 3, 3: 7, 4: 12}
+        buckets = bucket_by_experience(residuals, experience)
+        assert len(buckets["1-2"]) == 1
+        assert len(buckets["3-5"]) == 1
+        assert len(buckets["6-10"]) == 1
+        assert len(buckets["11+"]) == 1
+
+    def test_boundary_2_in_1_2(self) -> None:
+        residuals = [_make_residual(player_id=1)]
+        experience = {1: 2}
+        buckets = bucket_by_experience(residuals, experience)
+        assert len(buckets["1-2"]) == 1
+
+    def test_boundary_3_in_3_5(self) -> None:
+        residuals = [_make_residual(player_id=1)]
+        experience = {1: 3}
+        buckets = bucket_by_experience(residuals, experience)
+        assert len(buckets["3-5"]) == 1
+
+    def test_missing_experience_excluded(self) -> None:
+        residuals = [_make_residual(player_id=1), _make_residual(player_id=2)]
+        experience = {1: 5}
+        buckets = bucket_by_experience(residuals, experience)
+        total = sum(len(v) for v in buckets.values())
+        assert total == 1
+
+    def test_empty_input(self) -> None:
+        assert bucket_by_experience([], {}) == {}
+
+
+class TestComputeCohortMetrics:
+    def test_known_values(self) -> None:
+        residuals = [
+            _make_residual(player_id=1, residual=0.10),
+            _make_residual(player_id=2, residual=-0.10),
+            _make_residual(player_id=3, residual=0.20),
+        ]
+        mean_r, mean_abs_r, rmse = compute_cohort_metrics(residuals)
+        # mean_residual = (0.10 + -0.10 + 0.20) / 3 ≈ 0.0667
+        assert mean_r == pytest.approx(0.2 / 3, abs=1e-6)
+        # mean_abs_residual = (0.10 + 0.10 + 0.20) / 3 ≈ 0.1333
+        assert mean_abs_r == pytest.approx(0.4 / 3, abs=1e-6)
+        # rmse = sqrt((0.01 + 0.01 + 0.04) / 3) = sqrt(0.02) ≈ 0.1414
+        assert rmse == pytest.approx((0.06 / 3) ** 0.5, abs=1e-6)
+
+    def test_single_player(self) -> None:
+        residuals = [_make_residual(player_id=1, residual=0.05)]
+        mean_r, mean_abs_r, rmse = compute_cohort_metrics(residuals)
+        assert mean_r == pytest.approx(0.05)
+        assert mean_abs_r == pytest.approx(0.05)
+        assert rmse == pytest.approx(0.05)
+
+    def test_all_zero_residuals(self) -> None:
+        residuals = [_make_residual(player_id=i, residual=0.0) for i in range(1, 4)]
+        mean_r, mean_abs_r, rmse = compute_cohort_metrics(residuals)
+        assert mean_r == pytest.approx(0.0)
+        assert mean_abs_r == pytest.approx(0.0)
+        assert rmse == pytest.approx(0.0)

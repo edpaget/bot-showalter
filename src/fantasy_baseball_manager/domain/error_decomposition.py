@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from statistics import mean, median, quantiles
 
@@ -181,3 +182,107 @@ def split_residuals_by_quality(
     poor = [r for r in residuals if abs(r.residual) > threshold]
 
     return well, poor
+
+
+@dataclass(frozen=True)
+class CohortBias:
+    cohort_label: str
+    n: int
+    mean_residual: float
+    mean_abs_residual: float
+    rmse: float
+    significant: bool
+
+
+@dataclass(frozen=True)
+class CohortBiasReport:
+    target: str
+    player_type: str
+    season: int
+    system: str
+    version: str
+    dimension: str
+    cohorts: list[CohortBias]
+
+
+_AGE_BUCKETS = [("22-25", 22, 25), ("26-29", 26, 29), ("30-33", 30, 33), ("34+", 34, 999)]
+
+
+def bucket_by_age(residuals: list[PlayerResidual]) -> dict[str, list[PlayerResidual]]:
+    """Group by age bucket using feature_values['age']."""
+    if not residuals:
+        return {}
+    result: dict[str, list[PlayerResidual]] = {}
+    for r in residuals:
+        age = r.feature_values.get("age")
+        if age is None:
+            continue
+        age_int = int(age)
+        for label, lo, hi in _AGE_BUCKETS:
+            if lo <= age_int <= hi:
+                result.setdefault(label, []).append(r)
+                break
+    return result
+
+
+def bucket_by_position(
+    residuals: list[PlayerResidual],
+    primary_positions: dict[int, str],
+) -> dict[str, list[PlayerResidual]]:
+    """Group by primary position."""
+    if not residuals:
+        return {}
+    result: dict[str, list[PlayerResidual]] = {}
+    for r in residuals:
+        pos = primary_positions.get(r.player_id)
+        if pos is None:
+            continue
+        result.setdefault(pos, []).append(r)
+    return result
+
+
+def bucket_by_handedness(
+    residuals: list[PlayerResidual],
+    handedness: dict[int, str],
+) -> dict[str, list[PlayerResidual]]:
+    """Group by batting/throwing hand. Expects decoded strings (L/R/S)."""
+    if not residuals:
+        return {}
+    result: dict[str, list[PlayerResidual]] = {}
+    for r in residuals:
+        hand = handedness.get(r.player_id)
+        if hand is None:
+            continue
+        result.setdefault(hand, []).append(r)
+    return result
+
+
+_EXPERIENCE_BUCKETS = [("1-2", 1, 2), ("3-5", 3, 5), ("6-10", 6, 10), ("11+", 11, 999)]
+
+
+def bucket_by_experience(
+    residuals: list[PlayerResidual],
+    experience: dict[int, int],
+) -> dict[str, list[PlayerResidual]]:
+    """Group by years of MLB experience."""
+    if not residuals:
+        return {}
+    result: dict[str, list[PlayerResidual]] = {}
+    for r in residuals:
+        years = experience.get(r.player_id)
+        if years is None:
+            continue
+        for label, lo, hi in _EXPERIENCE_BUCKETS:
+            if lo <= years <= hi:
+                result.setdefault(label, []).append(r)
+                break
+    return result
+
+
+def compute_cohort_metrics(residuals: list[PlayerResidual]) -> tuple[float, float, float]:
+    """Return (mean_residual, mean_abs_residual, rmse) for a group."""
+    vals = [r.residual for r in residuals]
+    mean_residual = mean(vals)
+    mean_abs_residual = mean(abs(v) for v in vals)
+    rmse = math.sqrt(mean(v * v for v in vals))
+    return mean_residual, mean_abs_residual, rmse
