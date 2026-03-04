@@ -259,3 +259,41 @@ class YahooTransactionRepo(Protocol):
     def get_recent(
         self, league_key: str, *, days: int
     ) -> builtins.list[tuple[Transaction, builtins.list[TransactionPlayer]]]: ...
+
+
+# ---------------------------------------------------------------------------
+# Yahoo source protocols (used by service functions)
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class YahooLeagueSourceProto(Protocol):
+    def fetch(self, *, league_key: str, game_key: str) -> tuple[YahooLeague, builtins.list[YahooTeam]]: ...
+
+
+@runtime_checkable
+class YahooTransactionSourceProto(Protocol):
+    def fetch_transactions(
+        self,
+        league_key: str,
+        *,
+        since: datetime.datetime | None = None,
+    ) -> builtins.list[tuple[Transaction, builtins.list[TransactionPlayer]]]: ...
+
+
+@runtime_checkable
+class YahooDraftSourceProto(Protocol):
+    def fetch_draft_results(self, league_key: str, season: int) -> builtins.list[YahooDraftPick]: ...
+
+
+@runtime_checkable
+class YahooRosterSourceProto(Protocol):
+    def fetch_team_roster(
+        self,
+        *,
+        team_key: str,
+        league_key: str,
+        season: int,
+        week: int,
+        as_of: datetime.date,
+    ) -> Roster: ...

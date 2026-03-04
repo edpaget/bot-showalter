@@ -2,8 +2,6 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from fantasy_baseball_manager.cli.commands.yahoo import _build_yahoo_draft_setup
-from fantasy_baseball_manager.cli.factory import YahooContext
 from fantasy_baseball_manager.domain import (
     Valuation,
     YahooLeague,
@@ -19,17 +17,16 @@ from fantasy_baseball_manager.domain.league_settings import (
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
-    SqliteKeeperCostRepo,
     SqlitePlayerRepo,
-    SqliteProjectionRepo,
     SqliteValuationRepo,
     SqliteYahooDraftRepo,
     SqliteYahooLeagueRepo,
     SqliteYahooPlayerMapRepo,
-    SqliteYahooRosterRepo,
     SqliteYahooTeamRepo,
-    SqliteYahooTransactionRepo,
 )
+from fantasy_baseball_manager.services.yahoo_draft_setup import build_yahoo_draft_setup
+from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
+from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 
 if TYPE_CHECKING:
     import sqlite3
@@ -67,28 +64,26 @@ _LEAGUE = LeagueSettings(
 )
 
 
-def _make_ctx(conn: sqlite3.Connection) -> YahooContext:
-    return YahooContext(
-        conn=conn,
-        yahoo_league_repo=SqliteYahooLeagueRepo(conn),
-        yahoo_team_repo=SqliteYahooTeamRepo(conn),
-        yahoo_player_map_repo=SqliteYahooPlayerMapRepo(conn),
-        yahoo_roster_repo=SqliteYahooRosterRepo(conn),
-        yahoo_draft_repo=SqliteYahooDraftRepo(conn),
-        yahoo_transaction_repo=SqliteYahooTransactionRepo(conn),
-        player_repo=SqlitePlayerRepo(conn),
-        projection_repo=SqliteProjectionRepo(conn),
-        valuation_repo=SqliteValuationRepo(conn),
-        adp_repo=SqliteADPRepo(conn),
-        keeper_repo=SqliteKeeperCostRepo(conn),
-        client=FakeClient(),  # type: ignore[arg-type]
-    )
+def _make_repos(conn: sqlite3.Connection) -> dict[str, Any]:
+    return {
+        "league_repo": SqliteYahooLeagueRepo(conn),
+        "team_repo": SqliteYahooTeamRepo(conn),
+        "player_repo": SqlitePlayerRepo(conn),
+        "valuation_repo": SqliteValuationRepo(conn),
+        "adp_repo": SqliteADPRepo(conn),
+        "draft_repo": SqliteYahooDraftRepo(conn),
+    }
+
+
+def _make_draft_source(conn: sqlite3.Connection) -> YahooDraftSource:
+    mapper = YahooPlayerMapper(SqliteYahooPlayerMapRepo(conn), SqlitePlayerRepo(conn))
+    return YahooDraftSource(FakeClient(), mapper)  # type: ignore[arg-type]
 
 
 def _seed_data(conn: sqlite3.Connection) -> None:
-    ctx = _make_ctx(conn)
+    repos = _make_repos(conn)
 
-    ctx.yahoo_league_repo.upsert(
+    repos["league_repo"].upsert(
         YahooLeague(
             league_key="449.l.100",
             name="Test League",
@@ -99,7 +94,7 @@ def _seed_data(conn: sqlite3.Connection) -> None:
             game_key="449",
         )
     )
-    ctx.yahoo_team_repo.upsert(
+    repos["team_repo"].upsert(
         YahooTeam(
             team_key="449.l.100.t.1",
             league_key="449.l.100",
@@ -109,7 +104,7 @@ def _seed_data(conn: sqlite3.Connection) -> None:
             is_owned_by_user=True,
         )
     )
-    ctx.yahoo_team_repo.upsert(
+    repos["team_repo"].upsert(
         YahooTeam(
             team_key="449.l.100.t.2",
             league_key="449.l.100",
@@ -120,8 +115,8 @@ def _seed_data(conn: sqlite3.Connection) -> None:
         )
     )
 
-    player_id = ctx.player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
-    ctx.valuation_repo.upsert(
+    player_id = repos["player_repo"].upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+    repos["valuation_repo"].upsert(
         Valuation(
             player_id=player_id,
             season=2026,
@@ -139,12 +134,30 @@ def _seed_data(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _call_build(conn: sqlite3.Connection) -> Any:
+    repos = _make_repos(conn)
+    draft_source = _make_draft_source(conn)
+    return build_yahoo_draft_setup(
+        team_repo=repos["team_repo"],
+        league_repo=repos["league_repo"],
+        valuation_repo=repos["valuation_repo"],
+        player_repo=repos["player_repo"],
+        adp_repo=repos["adp_repo"],
+        draft_repo=repos["draft_repo"],
+        draft_source=draft_source,
+        league_key="449.l.100",
+        season=2026,
+        fbm_league=_LEAGUE,
+        system="zar",
+        version="1.0",
+        provider="fantasypros",
+    )
+
+
 class TestBuildYahooDraftSetup:
     def test_creates_engine_with_correct_config(self, conn: sqlite3.Connection) -> None:
         _seed_data(conn)
-        ctx = _make_ctx(conn)
-
-        setup = _build_yahoo_draft_setup(ctx, "449.l.100", 2026, _LEAGUE, "zar", "1.0", "fantasypros")
+        setup = _call_build(conn)
 
         assert setup.engine.state.config.teams == 2
         assert setup.engine.state.config.format.value == "snake"
@@ -152,35 +165,29 @@ class TestBuildYahooDraftSetup:
 
     def test_team_map_is_correct(self, conn: sqlite3.Connection) -> None:
         _seed_data(conn)
-        ctx = _make_ctx(conn)
-
-        setup = _build_yahoo_draft_setup(ctx, "449.l.100", 2026, _LEAGUE, "zar", "1.0", "fantasypros")
+        setup = _call_build(conn)
 
         assert setup.team_map == {"449.l.100.t.1": 1, "449.l.100.t.2": 2}
 
     def test_board_has_players(self, conn: sqlite3.Connection) -> None:
         _seed_data(conn)
-        ctx = _make_ctx(conn)
-
-        setup = _build_yahoo_draft_setup(ctx, "449.l.100", 2026, _LEAGUE, "zar", "1.0", "fantasypros")
+        setup = _call_build(conn)
 
         assert len(setup.board.rows) == 1
         assert setup.board.rows[0].player_name == "Mike Trout"
 
     def test_no_existing_picks_replayed(self, conn: sqlite3.Connection) -> None:
         _seed_data(conn)
-        ctx = _make_ctx(conn)
-
-        setup = _build_yahoo_draft_setup(ctx, "449.l.100", 2026, _LEAGUE, "zar", "1.0", "fantasypros")
+        setup = _call_build(conn)
 
         assert setup.replayed_count == 0
 
     def test_auction_format_detected(self, conn: sqlite3.Connection) -> None:
         _seed_data(conn)
-        ctx = _make_ctx(conn)
+        repos = _make_repos(conn)
 
         # Update league to auction type
-        ctx.yahoo_league_repo.upsert(
+        repos["league_repo"].upsert(
             YahooLeague(
                 league_key="449.l.100",
                 name="Test League",
@@ -193,23 +200,38 @@ class TestBuildYahooDraftSetup:
         )
         conn.commit()
 
-        setup = _build_yahoo_draft_setup(ctx, "449.l.100", 2026, _LEAGUE, "zar", "1.0", "fantasypros")
+        setup = _call_build(conn)
 
         assert setup.engine.state.config.format.value == "auction"
         assert setup.engine.state.config.budget == 260
 
     def test_no_teams_raises(self, conn: sqlite3.Connection) -> None:
-        ctx = _make_ctx(conn)
+        repos = _make_repos(conn)
+        draft_source = _make_draft_source(conn)
 
         with pytest.raises(ValueError, match="No teams found"):
-            _build_yahoo_draft_setup(ctx, "449.l.100", 2026, _LEAGUE, "zar", "1.0", "fantasypros")
+            build_yahoo_draft_setup(
+                team_repo=repos["team_repo"],
+                league_repo=repos["league_repo"],
+                valuation_repo=repos["valuation_repo"],
+                player_repo=repos["player_repo"],
+                adp_repo=repos["adp_repo"],
+                draft_repo=repos["draft_repo"],
+                draft_source=draft_source,
+                league_key="449.l.100",
+                season=2026,
+                fbm_league=_LEAGUE,
+                system="zar",
+                version="1.0",
+                provider="fantasypros",
+            )
 
     def test_no_user_team_raises(self, conn: sqlite3.Connection) -> None:
         _seed_data(conn)
-        ctx = _make_ctx(conn)
+        repos = _make_repos(conn)
 
         # Reset user team flag
-        ctx.yahoo_team_repo.upsert(
+        repos["team_repo"].upsert(
             YahooTeam(
                 team_key="449.l.100.t.1",
                 league_key="449.l.100",
@@ -221,5 +243,20 @@ class TestBuildYahooDraftSetup:
         )
         conn.commit()
 
+        draft_source = _make_draft_source(conn)
         with pytest.raises(ValueError, match="No user team found"):
-            _build_yahoo_draft_setup(ctx, "449.l.100", 2026, _LEAGUE, "zar", "1.0", "fantasypros")
+            build_yahoo_draft_setup(
+                team_repo=repos["team_repo"],
+                league_repo=repos["league_repo"],
+                valuation_repo=repos["valuation_repo"],
+                player_repo=repos["player_repo"],
+                adp_repo=repos["adp_repo"],
+                draft_repo=repos["draft_repo"],
+                draft_source=draft_source,
+                league_key="449.l.100",
+                season=2026,
+                fbm_league=_LEAGUE,
+                system="zar",
+                version="1.0",
+                provider="fantasypros",
+            )

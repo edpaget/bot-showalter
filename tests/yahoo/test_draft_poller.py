@@ -33,7 +33,7 @@ class TestYahooDraftPoller:
         source = FakeSource()
         pick_queue: queue.Queue[YahooDraftPick] = queue.Queue()
         poller = YahooDraftPoller(
-            source=source,  # type: ignore[arg-type]
+            source=source,
             league_key="449.l.12345",
             season=2026,
             interval=5.0,
@@ -56,7 +56,7 @@ class TestYahooDraftPoller:
         source.picks = [_make_pick(1, 1)]
         pick_queue: queue.Queue[YahooDraftPick] = queue.Queue()
         poller = YahooDraftPoller(
-            source=source,  # type: ignore[arg-type]
+            source=source,
             league_key="449.l.12345",
             season=2026,
             interval=5.0,
@@ -77,7 +77,7 @@ class TestYahooDraftPoller:
         source.picks = [_make_pick(1, 1)]
         pick_queue: queue.Queue[YahooDraftPick] = queue.Queue()
         poller = YahooDraftPoller(
-            source=source,  # type: ignore[arg-type]
+            source=source,
             league_key="449.l.12345",
             season=2026,
             interval=5.0,
@@ -103,7 +103,7 @@ class TestYahooDraftPoller:
         ]
         pick_queue: queue.Queue[YahooDraftPick] = queue.Queue()
         poller = YahooDraftPoller(
-            source=source,  # type: ignore[arg-type]
+            source=source,
             league_key="449.l.12345",
             season=2026,
             interval=5.0,

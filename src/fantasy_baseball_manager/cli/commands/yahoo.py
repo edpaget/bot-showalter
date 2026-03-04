@@ -2,7 +2,6 @@ import datetime
 import functools
 import logging
 import queue
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -10,7 +9,7 @@ import typer
 from rich.table import Table
 
 from fantasy_baseball_manager.cli._output import console, print_error, print_keeper_decisions
-from fantasy_baseball_manager.cli.factory import YahooContext, build_yahoo_context
+from fantasy_baseball_manager.cli.factory import build_yahoo_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import (
     YahooConfig,
@@ -19,30 +18,21 @@ from fantasy_baseball_manager.config_yahoo import (
     resolve_default_league,
 )
 from fantasy_baseball_manager.domain import (
-    DraftBoard,
-    DraftBoardRow,
     Err,
-    LeagueSettings,
     Ok,
     YahooDraftPick,
-    YahooLeague,
     YahooPlayerMap,
-    YahooTeam,
 )
 from fantasy_baseball_manager.services import (
-    DraftConfig,
-    DraftEngine,
-    DraftFormat,
     DraftSession,
-    build_draft_board,
-    build_draft_roster_slots,
     build_keeper_histories,
-    build_team_map,
+    build_yahoo_draft_setup,
     compute_surplus,
-    derive_keeper_costs,
-    ingest_yahoo_pick,
+    derive_and_store_keeper_costs,
     recommend,
     set_keeper_cost,
+    sync_league_metadata,
+    sync_transactions,
 )
 from fantasy_baseball_manager.services import (
     draft_report as compute_draft_report,
@@ -60,92 +50,6 @@ logger = logging.getLogger(__name__)
 yahoo_app = typer.Typer(name="yahoo", help="Yahoo Fantasy integration")
 
 _DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
-
-
-# ---------------------------------------------------------------------------
-# Yahoo draft setup helper
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class YahooDraftSetup:
-    engine: DraftEngine
-    board: DraftBoard
-    team_map: dict[str, int]
-    source: YahooDraftSource
-    replayed_count: int
-
-
-def _build_yahoo_draft_setup(
-    ctx: YahooContext,
-    league_key: str,
-    season: int,
-    fbm_league: LeagueSettings,
-    system: str,
-    version: str,
-    provider: str,
-) -> YahooDraftSetup:
-    teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
-    if not teams:
-        msg = f"No teams found for league key '{league_key}'. Run 'fbm yahoo sync' first."
-        raise ValueError(msg)
-
-    team_map = build_team_map(teams)
-
-    user_team = ctx.yahoo_team_repo.get_user_team(league_key)
-    if user_team is None:
-        msg = "No user team found. Run 'fbm yahoo sync' first."
-        raise ValueError(msg)
-
-    valuations = ctx.valuation_repo.get_by_season(season, system=system)
-    valuations = [v for v in valuations if v.version == version]
-
-    player_ids = [v.player_id for v in valuations]
-    players_list = ctx.player_repo.get_by_ids(player_ids)
-    player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players_list if p.id is not None}
-
-    adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
-
-    board = build_draft_board(valuations, fbm_league, player_names, adp=adp_list if adp_list else None)
-    draft_players: list[DraftBoardRow] = board.rows
-
-    yahoo_league = ctx.yahoo_league_repo.get_by_league_key(league_key)
-    if yahoo_league is None:
-        msg = "League metadata not found. Run 'fbm yahoo sync' first."
-        raise ValueError(msg)
-
-    roster_slots = build_draft_roster_slots(fbm_league)
-    draft_type = yahoo_league.draft_type
-    draft_format = DraftFormat.AUCTION if "auction" in draft_type.lower() else DraftFormat.SNAKE
-    draft_config = DraftConfig(
-        teams=yahoo_league.num_teams,
-        roster_slots=roster_slots,
-        format=draft_format,
-        user_team=user_team.team_id,
-        season=season,
-        budget=260 if draft_format == DraftFormat.AUCTION else 0,
-    )
-
-    engine = DraftEngine()
-    engine.start(draft_players, draft_config)
-
-    mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-    source = YahooDraftSource(ctx.client, mapper)
-
-    existing_picks = source.fetch_draft_results(league_key, season)
-    for pick in existing_picks:
-        ctx.yahoo_draft_repo.upsert(pick)
-        ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), pick, team_map)
-
-    ctx.conn.commit()
-
-    return YahooDraftSetup(
-        engine=engine,
-        board=board,
-        team_map=team_map,
-        source=source,
-        replayed_count=len(existing_picks),
-    )
 
 
 @yahoo_app.command("auth")
@@ -201,7 +105,15 @@ def yahoo_sync(  # pragma: no cover
         game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
-        yahoo_league = _sync_league_metadata(ctx, league_key, game_key)
+        league_source = YahooLeagueSource(ctx.client)
+        yahoo_league = sync_league_metadata(
+            league_source=league_source,
+            league_repo=ctx.yahoo_league_repo,
+            team_repo=ctx.yahoo_team_repo,
+            league_key=league_key,
+            game_key=game_key,
+        )
+        ctx.conn.commit()
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
 
     console.print(f"[bold green]Synced[/bold green] {yahoo_league.name} ({yahoo_league.league_key})")
@@ -545,8 +457,25 @@ def yahoo_draft_live(  # pragma: no cover
         game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
+        mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
+        draft_source = YahooDraftSource(ctx.client, mapper)
         try:
-            setup = _build_yahoo_draft_setup(ctx, league_key, season, fbm_league, system, version, provider)
+            setup = build_yahoo_draft_setup(
+                team_repo=ctx.yahoo_team_repo,
+                league_repo=ctx.yahoo_league_repo,
+                valuation_repo=ctx.valuation_repo,
+                player_repo=ctx.player_repo,
+                adp_repo=ctx.adp_repo,
+                draft_repo=ctx.yahoo_draft_repo,
+                draft_source=draft_source,
+                league_key=league_key,
+                season=season,
+                fbm_league=fbm_league,
+                system=system,
+                version=version,
+                provider=provider,
+            )
+            ctx.conn.commit()
         except ValueError as exc:
             print_error(str(exc))
             raise typer.Exit(code=1) from None
@@ -604,7 +533,12 @@ def yahoo_transactions(  # pragma: no cover
         league_key = f"{game_key}.l.{league_config.league_id}"
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        _sync_transactions(ctx, league_key, mapper)
+        txn_source = YahooTransactionSource(ctx.client, mapper)
+        sync_transactions(
+            transaction_source=txn_source,
+            transaction_repo=ctx.yahoo_transaction_repo,
+            league_key=league_key,
+        )
         ctx.conn.commit()
 
         # Display recent
@@ -654,7 +588,14 @@ def yahoo_refresh(  # pragma: no cover
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
         if not teams:
             console.print("[yellow]No teams found. Running sync first...[/yellow]")
-            _sync_league_metadata(ctx, league_key, game_key)
+            league_source = YahooLeagueSource(ctx.client)
+            sync_league_metadata(
+                league_source=league_source,
+                league_repo=ctx.yahoo_league_repo,
+                team_repo=ctx.yahoo_team_repo,
+                league_key=league_key,
+                game_key=game_key,
+            )
             teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
 
         # Step 2: Sync rosters
@@ -675,7 +616,12 @@ def yahoo_refresh(  # pragma: no cover
             roster_count += 1
 
         # Step 3: Sync transactions incrementally
-        txn_count = _sync_transactions(ctx, league_key, mapper)
+        txn_source = YahooTransactionSource(ctx.client, mapper)
+        txn_count = sync_transactions(
+            transaction_source=txn_source,
+            transaction_repo=ctx.yahoo_transaction_repo,
+            league_key=league_key,
+        )
 
         ctx.conn.commit()
 
@@ -711,92 +657,6 @@ def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, Y
     return league, config
 
 
-def _sync_league_metadata(ctx: YahooContext, league_key: str, game_key: str) -> YahooLeague:
-    """Fetch and upsert league + team metadata. Returns the league."""
-    source = YahooLeagueSource(ctx.client)
-    result = source.fetch(league_key=league_key, game_key=game_key)
-
-    league_data = result["league"]
-    yahoo_league = YahooLeague(
-        league_key=league_data["league_key"],
-        name=league_data["name"],
-        season=league_data["season"],
-        num_teams=league_data["num_teams"],
-        draft_type=league_data["draft_type"],
-        is_keeper=league_data["is_keeper"],
-        game_key=league_data["game_key"],
-    )
-    ctx.yahoo_league_repo.upsert(yahoo_league)
-
-    for team_data in result["teams"]:
-        yahoo_team = YahooTeam(
-            team_key=team_data["team_key"],
-            league_key=team_data["league_key"],
-            team_id=team_data["team_id"],
-            name=team_data["name"],
-            manager_name=team_data["manager_name"],
-            is_owned_by_user=team_data["is_owned_by_user"],
-        )
-        ctx.yahoo_team_repo.upsert(yahoo_team)
-
-    ctx.conn.commit()
-    return yahoo_league
-
-
-def _sync_transactions(ctx: YahooContext, league_key: str, mapper: YahooPlayerMapper) -> int:
-    """Incrementally fetch and store new transactions. Returns count."""
-    source = YahooTransactionSource(ctx.client, mapper)
-    latest = ctx.yahoo_transaction_repo.get_latest_timestamp(league_key)
-    new = source.fetch_transactions(league_key, since=latest)
-    for txn, players in new:
-        ctx.yahoo_transaction_repo.upsert(txn, players)
-    return len(new)
-
-
-def _derive_and_store_keeper_costs(
-    ctx: YahooContext,
-    league_key: str,
-    season: int,
-    league_name: str,
-    cost_floor: float,
-) -> None:
-    """Derive keeper costs from Yahoo draft/roster and upsert, respecting manual overrides."""
-    prior_season = season - 1
-    prior_game_key = ctx.client.get_game_key(prior_season)
-    prior_league_key = f"{prior_game_key}.l.{league_key.split('.l.')[1]}"
-
-    mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-    draft_source = YahooDraftSource(ctx.client, mapper)
-    roster_source = YahooRosterSource(ctx.client, mapper)
-
-    draft_picks = draft_source.fetch_draft_results(prior_league_key, prior_season)
-
-    user_team = ctx.yahoo_team_repo.get_user_team(league_key)
-    if user_team is None:
-        print_error("No user team found. Run 'fbm yahoo sync' first.")
-        raise typer.Exit(code=1)
-
-    today = datetime.date.today()
-    roster = roster_source.fetch_team_roster(
-        team_key=user_team.team_key,
-        league_key=league_key,
-        season=season,
-        week=1,
-        as_of=today,
-    )
-
-    derived = derive_keeper_costs(draft_picks, list(roster.entries), league_name, season, cost_floor)
-
-    # Respect manual overrides: skip upserting players with non-yahoo_* source
-    existing = ctx.keeper_repo.find_by_season_league(season, league_name)
-    manual_player_ids = {kc.player_id for kc in existing if not kc.source.startswith("yahoo_")}
-    to_upsert = [kc for kc in derived if kc.player_id not in manual_player_ids]
-
-    if to_upsert:
-        ctx.keeper_repo.upsert_batch(to_upsert)
-        ctx.conn.commit()
-
-
 # ---------------------------------------------------------------------------
 # Keeper commands
 # ---------------------------------------------------------------------------
@@ -818,7 +678,29 @@ def yahoo_keeper_costs(  # pragma: no cover
         game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
-        _derive_and_store_keeper_costs(ctx, league_key, season, league_name, cost_floor)
+        prior_season = season - 1
+        prior_game_key = ctx.client.get_game_key(prior_season)
+        prior_league_key = f"{prior_game_key}.l.{league_key.split('.l.')[1]}"
+        mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
+        draft_source = YahooDraftSource(ctx.client, mapper)
+        roster_source = YahooRosterSource(ctx.client, mapper)
+        try:
+            derive_and_store_keeper_costs(
+                draft_source=draft_source,
+                roster_source=roster_source,
+                team_repo=ctx.yahoo_team_repo,
+                keeper_repo=ctx.keeper_repo,
+                league_key=league_key,
+                prior_league_key=prior_league_key,
+                prior_season=prior_season,
+                season=season,
+                league_name=league_name,
+                cost_floor=cost_floor,
+            )
+            ctx.conn.commit()
+        except ValueError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
 
         # Display results
         all_costs = ctx.keeper_repo.find_by_season_league(season, league_name)
@@ -864,7 +746,29 @@ def yahoo_keeper_decisions(  # pragma: no cover
         league_key = f"{game_key}.l.{league_config.league_id}"
 
         # Auto-derive costs first
-        _derive_and_store_keeper_costs(ctx, league_key, season, league_name, cost_floor)
+        prior_season = season - 1
+        prior_game_key = ctx.client.get_game_key(prior_season)
+        prior_league_key = f"{prior_game_key}.l.{league_key.split('.l.')[1]}"
+        mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
+        draft_source = YahooDraftSource(ctx.client, mapper)
+        roster_source = YahooRosterSource(ctx.client, mapper)
+        try:
+            derive_and_store_keeper_costs(
+                draft_source=draft_source,
+                roster_source=roster_source,
+                team_repo=ctx.yahoo_team_repo,
+                keeper_repo=ctx.keeper_repo,
+                league_key=league_key,
+                prior_league_key=prior_league_key,
+                prior_season=prior_season,
+                season=season,
+                league_name=league_name,
+                cost_floor=cost_floor,
+            )
+            ctx.conn.commit()
+        except ValueError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
 
         keeper_costs = ctx.keeper_repo.find_by_season_league(season, league_name)
         if not keeper_costs:

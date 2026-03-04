@@ -1,6 +1,8 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.domain import YahooLeague, YahooTeam
+
 if TYPE_CHECKING:
     from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
 
@@ -15,41 +17,41 @@ class YahooLeagueSource:
     def source_type(self) -> str:
         return "yahoo_league"
 
-    def fetch(self, *, league_key: str, game_key: str) -> dict[str, Any]:
+    def fetch(self, *, league_key: str, game_key: str) -> tuple[YahooLeague, list[YahooTeam]]:
         """Fetch league settings and teams from Yahoo API.
 
-        Returns a dict with 'league' and 'teams' keys ready for repo upsert.
+        Returns a (league, teams) tuple of domain objects.
         """
         settings_data = self._client.get_league_settings(league_key)
         teams_data = self._client.get_teams(league_key)
 
-        league_info = self._parse_league(settings_data, game_key)
+        league = self._parse_league(settings_data, game_key)
         teams = self._parse_teams(teams_data, league_key)
 
-        return {"league": league_info, "teams": teams}
+        return (league, teams)
 
     @staticmethod
-    def _parse_league(data: dict[str, Any], game_key: str) -> dict[str, Any]:
+    def _parse_league(data: dict[str, Any], game_key: str) -> YahooLeague:
         league_parts = data["fantasy_content"]["league"]
         meta = league_parts[0]
         settings = league_parts[1]["settings"][0]
 
         is_keeper = settings.get("uses_keeper", "0") == "1"
 
-        return {
-            "league_key": meta["league_key"],
-            "name": meta["name"],
-            "season": int(meta["season"]),
-            "num_teams": meta["num_teams"],
-            "draft_type": settings["draft_type"],
-            "is_keeper": is_keeper,
-            "game_key": game_key,
-        }
+        return YahooLeague(
+            league_key=meta["league_key"],
+            name=meta["name"],
+            season=int(meta["season"]),
+            num_teams=meta["num_teams"],
+            draft_type=settings["draft_type"],
+            is_keeper=is_keeper,
+            game_key=game_key,
+        )
 
     @staticmethod
-    def _parse_teams(data: dict[str, Any], league_key: str) -> list[dict[str, Any]]:
+    def _parse_teams(data: dict[str, Any], league_key: str) -> list[YahooTeam]:
         teams_section = data["fantasy_content"]["league"][1]["teams"]
-        teams: list[dict[str, Any]] = []
+        teams: list[YahooTeam] = []
 
         for key, value in teams_section.items():
             if key == "count":
@@ -77,14 +79,14 @@ class YahooLeagueSource:
                         is_owned_by_user = mgr.get("is_current_login", "0") == "1"
 
             teams.append(
-                {
-                    "team_key": team_key,
-                    "league_key": league_key,
-                    "team_id": team_id,
-                    "name": name,
-                    "manager_name": manager_name,
-                    "is_owned_by_user": is_owned_by_user,
-                }
+                YahooTeam(
+                    team_key=team_key,
+                    league_key=league_key,
+                    team_id=team_id,
+                    name=name,
+                    manager_name=manager_name,
+                    is_owned_by_user=is_owned_by_user,
+                )
             )
 
         return teams

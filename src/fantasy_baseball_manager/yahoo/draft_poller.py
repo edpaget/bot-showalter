@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     import queue
 
     from fantasy_baseball_manager.domain import YahooDraftPick
-    from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
+    from fantasy_baseball_manager.repos import YahooDraftSourceProto
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class YahooDraftPoller:
     def __init__(
         self,
-        source: YahooDraftSource,
+        source: YahooDraftSourceProto,
         league_key: str,
         season: int,
         interval: float,

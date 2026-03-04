@@ -169,6 +169,12 @@ from fantasy_baseball_manager.services.validation_gate import (
 )
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
+from fantasy_baseball_manager.services.yahoo_draft_setup import (
+    YahooDraftSetup,
+    build_yahoo_draft_setup,
+)
+from fantasy_baseball_manager.services.yahoo_keeper import derive_and_store_keeper_costs
+from fantasy_baseball_manager.services.yahoo_sync import sync_league_metadata, sync_transactions
 
 __all__ = [
     "ADPAccuracyEvaluator",
@@ -282,6 +288,11 @@ __all__ = [
     "solve_keepers_with_pool",
     "tier_summary",
     "value_at",
+    "derive_and_store_keeper_costs",
+    "YahooDraftSetup",
+    "build_yahoo_draft_setup",
+    "sync_league_metadata",
+    "sync_transactions",
     "FullValidationConfig",
     "FullValidationRunner",
     "PreflightResult",
