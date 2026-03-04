@@ -12,7 +12,12 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._output import console, print_error, print_keeper_decisions
 from fantasy_baseball_manager.cli.factory import YahooContext, build_yahoo_context
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config, resolve_default_league
+from fantasy_baseball_manager.config_yahoo import (
+    YahooConfig,
+    YahooConfigError,
+    load_yahoo_config,
+    resolve_default_league,
+)
 from fantasy_baseball_manager.domain import (
     DraftBoard,
     DraftBoardRow,
@@ -167,6 +172,7 @@ def yahoo_auth(  # pragma: no cover
 @yahoo_app.command("sync")
 def yahoo_sync(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
@@ -192,7 +198,7 @@ def yahoo_sync(  # pragma: no cover
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         # Get game key for current season
-        game_key = ctx.client.get_game_key(2026)
+        game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
         yahoo_league = _sync_league_metadata(ctx, league_key, game_key)
@@ -266,6 +272,7 @@ def yahoo_map_player(  # pragma: no cover
 @yahoo_app.command("rosters")
 def yahoo_rosters(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
@@ -290,7 +297,7 @@ def yahoo_rosters(  # pragma: no cover
     league_config = config.leagues[league]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        game_key = ctx.client.get_game_key(2026)
+        game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
@@ -306,7 +313,7 @@ def yahoo_rosters(  # pragma: no cover
             roster = source.fetch_team_roster(
                 team_key=team.team_key,
                 league_key=league_key,
-                season=2026,
+                season=season,
                 week=1,
                 as_of=today,
             )
@@ -682,12 +689,20 @@ def yahoo_refresh(  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 
-def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, Any]:
+def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, YahooConfig]:
     """Resolve Yahoo config and league name. Returns (league_name, config)."""
-    config = load_yahoo_config(Path(config_dir))
+    try:
+        config = load_yahoo_config(Path(config_dir))
+    except YahooConfigError as exc:
+        print_error(str(exc))
+        raise typer.Exit(code=1) from None
 
     if league is None:
-        league = resolve_default_league(config)
+        try:
+            league = resolve_default_league(config)
+        except YahooConfigError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
 
     if league not in config.leagues:
         print_error(f"League '{league}' not found in [yahoo.leagues]")
