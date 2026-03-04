@@ -19,7 +19,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
-| [Yahoo Architecture Fixes](yahoo-architecture-fixes.md) | 3 | not started | yahoo-fantasy-integration (done) |
+| [Yahoo Architecture Fixes](yahoo-architecture-fixes.md) | 3 | phase 1 done | yahoo-fantasy-integration (done) |
 
 ## Completed Roadmaps
 
