@@ -9,7 +9,7 @@ The ZAR valuation system already computes per-player dollar values with position
 | Phase | Status |
 |-------|--------|
 | 1 — Scarcity metrics and report | done (2026-03-03) |
-| 2 — Per-position value curves | not started |
+| 2 — Per-position value curves | in progress |
 | 3 — Scarcity-adjusted rankings | not started |
 
 ## Phase 1: Scarcity metrics and report
