@@ -15,7 +15,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Test Coverage](test-coverage.md) | 5 | phases 1-4 done | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 
 ## Completed Roadmaps
@@ -50,6 +49,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Residual Analysis Tools](residual-analysis-tools.md) | 3 |
 | [Validation Gate](validation-gate.md) | 2 |
 | [Yahoo Architecture Fixes](yahoo-architecture-fixes.md) | 3 |
+| [Test Coverage](test-coverage.md) | 5 |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
