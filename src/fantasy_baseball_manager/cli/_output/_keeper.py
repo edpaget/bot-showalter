@@ -28,10 +28,11 @@ def print_keeper_decisions(decisions: list[KeeperDecision]) -> None:
 
     for d in decisions:
         style = "green" if d.surplus >= 0 else "red"
+        cost_str = f"Rd {d.original_round} (~${d.cost:.0f})" if d.original_round is not None else f"${d.cost:.0f}"
         table.add_row(
             d.player_name,
             d.position,
-            f"${d.cost:.0f}",
+            cost_str,
             f"${d.projected_value:.0f}",
             f"${d.surplus:.1f}",
             str(d.years_remaining),

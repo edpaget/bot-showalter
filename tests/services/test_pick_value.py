@@ -693,7 +693,7 @@ class TestPicksToDollarCosts:
     """Tests for picks_to_dollar_costs(): batch round→KeeperCost conversion."""
 
     def test_produces_keeper_cost_records(self) -> None:
-        """Returns KeeperCost instances with source='draft_round'."""
+        """Returns KeeperCost instances with source='draft_round' and original_round set."""
         curve = _steep_curve(num_picks=30)
         league = _league(teams=4)
         entries = [(100, 1), (200, 3)]
@@ -702,6 +702,8 @@ class TestPicksToDollarCosts:
         for kc in result:
             assert isinstance(kc, KeeperCost)
             assert kc.source == "draft_round"
+        assert result[0].original_round == 1
+        assert result[1].original_round == 3
 
     def test_player_ids_and_season_match(self) -> None:
         """Fields propagated correctly to KeeperCost."""

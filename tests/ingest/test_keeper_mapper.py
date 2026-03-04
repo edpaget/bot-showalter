@@ -5,6 +5,10 @@ from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 
 
+def _round_translator(round_num: int) -> float:
+    return 100.0 / round_num
+
+
 def _make_players(conn: object) -> list[Player]:
     repo = SqlitePlayerRepo(conn)  # type: ignore[arg-type]
     pid1 = repo.upsert(Player(name_first="Mike", name_last="Trout"))
@@ -122,4 +126,64 @@ class TestImportKeeperCosts:
 
         assert result.loaded == 0
         assert result.skipped == 1
+        conn.close()
+
+    def test_round_import_with_translator(self) -> None:
+        conn = create_connection(":memory:")
+        players = _make_players(conn)
+        repo = SqliteKeeperCostRepo(conn)
+
+        rows = [
+            {"Player": "Mike Trout", "Round": "2"},
+            {"Player": "Shohei Ohtani", "Round": "5"},
+        ]
+        result = import_keeper_costs(
+            rows, repo, players, season=2026, league="dynasty", cost_translator=_round_translator
+        )
+        conn.commit()
+
+        assert result.loaded == 2
+        assert result.skipped == 0
+
+        stored = repo.find_by_season_league(2026, "dynasty")
+        assert len(stored) == 2
+        by_pid = {s.player_id: s for s in stored}
+        trout = by_pid[players[0].id]
+        ohtani = by_pid[players[1].id]
+        assert trout.cost == 50.0  # 100/2
+        assert trout.source == "draft_round"
+        assert trout.original_round == 2
+        assert ohtani.cost == 20.0  # 100/5
+        assert ohtani.original_round == 5
+        conn.close()
+
+    def test_round_import_empty_round_skips(self) -> None:
+        conn = create_connection(":memory:")
+        players = _make_players(conn)
+        repo = SqliteKeeperCostRepo(conn)
+
+        rows = [{"Player": "Mike Trout", "Round": ""}]
+        result = import_keeper_costs(
+            rows, repo, players, season=2026, league="dynasty", cost_translator=_round_translator
+        )
+
+        assert result.loaded == 0
+        assert result.skipped == 1
+        conn.close()
+
+    def test_dollar_import_unchanged(self) -> None:
+        """Existing dollar import path works without a translator (regression guard)."""
+        conn = create_connection(":memory:")
+        players = _make_players(conn)
+        repo = SqliteKeeperCostRepo(conn)
+
+        rows = [{"Player": "Mike Trout", "Cost": "25"}]
+        result = import_keeper_costs(rows, repo, players, season=2026, league="dynasty")
+        conn.commit()
+
+        assert result.loaded == 1
+        stored = repo.find_by_season_league(2026, "dynasty")
+        assert stored[0].cost == 25.0
+        assert stored[0].source == "auction"
+        assert stored[0].original_round is None
         conn.close()

@@ -33,6 +33,7 @@ def set_keeper_cost(
     keeper_repo: KeeperCostRepo,
     years_remaining: int = 1,
     source: str = "auction",
+    original_round: int | None = None,
 ) -> Result[KeeperCost, str]:
     """Resolve a player by name and set their keeper cost.
 
@@ -58,6 +59,7 @@ def set_keeper_cost(
         cost=cost,
         years_remaining=years_remaining,
         source=source,
+        original_round=original_round,
     )
     keeper_repo.upsert_batch([keeper_cost])
     return Ok(keeper_cost)
@@ -113,6 +115,7 @@ def compute_surplus(
                 surplus=total_surplus,
                 years_remaining=kc.years_remaining,
                 recommendation=recommendation,
+                original_round=kc.original_round,
             )
         )
 

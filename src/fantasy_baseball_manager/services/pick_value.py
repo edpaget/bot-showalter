@@ -69,6 +69,7 @@ def picks_to_dollar_costs(
             league=league_name,
             cost=round_to_dollar_cost(round_num, league, curve),
             source="draft_round",
+            original_round=round_num,
         )
         for player_id, round_num in entries
     ]

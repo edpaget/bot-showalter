@@ -726,6 +726,7 @@ class KeeperContext:
     valuation_repo: SqliteValuationRepo
     projection_repo: SqliteProjectionRepo
     eligibility_service: PlayerEligibilityService
+    adp_repo: SqliteADPRepo
 
 
 @contextmanager
@@ -746,6 +747,7 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:  # pragma: n
             valuation_repo=SqliteValuationRepo(conn),
             projection_repo=SqliteProjectionRepo(conn),
             eligibility_service=eligibility_service,
+            adp_repo=SqliteADPRepo(conn),
         )
     finally:
         conn.close()

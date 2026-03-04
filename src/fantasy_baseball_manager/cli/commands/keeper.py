@@ -1,6 +1,7 @@
 import csv
+from collections.abc import Callable  # noqa: TC003 — used in non-Typer annotations
 from pathlib import Path  # noqa: TC003 — Typer evaluates annotations at runtime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
@@ -19,16 +20,36 @@ from fantasy_baseball_manager.ingest import import_keeper_costs
 from fantasy_baseball_manager.services import (
     compare_scenarios,
     compute_adjusted_valuations,
+    compute_pick_value_curve,
     compute_surplus,
     evaluate_trade,
     keeper_trade_impact,
     parse_league_keepers,
+    round_to_dollar_cost,
     set_keeper_cost,
     solve_keepers,
     solve_keepers_with_pool,
 )
 
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.cli.factory import KeeperContext
+
 keeper_app = typer.Typer(name="keeper", help="Keeper league cost management")
+
+
+def _build_cost_translator(
+    ctx: KeeperContext,
+    season: int,
+    league_name: str,
+    system: str,
+    provider: str,
+) -> Callable[[int], float]:
+    """Build a round→dollar cost translator using the pick value curve."""
+    adp = ctx.adp_repo.get_by_season(season, provider=provider)
+    valuations = ctx.valuation_repo.get_by_season(season, system)
+    league_settings = load_league(league_name, Path.cwd())
+    curve = compute_pick_value_curve(adp, valuations, league_settings)
+    return lambda round_num: round_to_dollar_cost(round_num, league_settings, curve)
 
 
 @keeper_app.command("import")
@@ -37,6 +58,9 @@ def import_cmd(
     season: Annotated[int, typer.Option(help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
     source: Annotated[str, typer.Option(help="Cost source type")] = "auction",
+    fmt: Annotated[str, typer.Option("--format", help="Cost format: auction or draft-pick")] = "auction",
+    system: Annotated[str | None, typer.Option(help="Valuation system (required for draft-pick)")] = None,
+    provider: Annotated[str | None, typer.Option(help="ADP provider (required for draft-pick)")] = None,
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
 ) -> None:
     """Import keeper costs from a CSV file."""
@@ -44,14 +68,34 @@ def import_cmd(
         typer.echo(f"Error: file not found: {csv_path}", err=True)
         raise typer.Exit(code=1)
 
+    if fmt == "draft-pick":
+        if system is None:
+            typer.echo("Error: --system is required for draft-pick format", err=True)
+            raise typer.Exit(code=1)
+        if provider is None:
+            typer.echo("Error: --provider is required for draft-pick format", err=True)
+            raise typer.Exit(code=1)
+
     with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
     with build_keeper_context(data_dir) as ctx:
+        cost_translator: Callable[[int], float] | None = None
+        if fmt == "draft-pick":
+            assert system is not None  # noqa: S101
+            assert provider is not None  # noqa: S101
+            cost_translator = _build_cost_translator(ctx, season, league, system, provider)
+
         players = ctx.player_repo.all()
         result = import_keeper_costs(
-            rows, ctx.keeper_repo, players, season=season, league=league, default_source=source
+            rows,
+            ctx.keeper_repo,
+            players,
+            season=season,
+            league=league,
+            default_source=source,
+            cost_translator=cost_translator,
         )
         ctx.conn.commit()
 
@@ -63,22 +107,66 @@ def import_cmd(
 @keeper_app.command("set")
 def set_cmd(
     player_name: Annotated[str, typer.Argument(help="Player name to search for")],
-    cost: Annotated[float, typer.Option(help="Keeper cost")],
-    season: Annotated[int, typer.Option(help="Season year")],
-    league: Annotated[str, typer.Option(help="League name")],
+    cost: Annotated[float | None, typer.Option(help="Keeper cost")] = None,
+    round_num: Annotated[int | None, typer.Option("--round", help="Draft round (converted to dollars)")] = None,
+    season: Annotated[int, typer.Option(help="Season year")] = 2026,
+    league: Annotated[str, typer.Option(help="League name")] = "dynasty",
     years: Annotated[int, typer.Option(help="Years remaining on contract")] = 1,
     source: Annotated[str, typer.Option(help="Cost source type")] = "auction",
+    system: Annotated[str | None, typer.Option(help="Valuation system (required for --round)")] = None,
+    provider: Annotated[str | None, typer.Option(help="ADP provider (required for --round)")] = None,
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
 ) -> None:
     """Set a keeper cost for a single player."""
+    if cost is not None and round_num is not None:
+        typer.echo("Error: --cost and --round are mutually exclusive", err=True)
+        raise typer.Exit(code=1)
+    if cost is None and round_num is None:
+        typer.echo("Error: one of --cost or --round is required", err=True)
+        raise typer.Exit(code=1)
+
+    if round_num is not None:
+        if system is None:
+            typer.echo("Error: --system is required when using --round", err=True)
+            raise typer.Exit(code=1)
+        if provider is None:
+            typer.echo("Error: --provider is required when using --round", err=True)
+            raise typer.Exit(code=1)
+
     with build_keeper_context(data_dir) as ctx:
-        result = set_keeper_cost(player_name, cost, season, league, ctx.player_repo, ctx.keeper_repo, years, source)
+        if round_num is not None:
+            assert system is not None  # noqa: S101
+            assert provider is not None  # noqa: S101
+            translator = _build_cost_translator(ctx, season, league, system, provider)
+            effective_cost = translator(round_num)
+            effective_source = "draft_round"
+            original_round: int | None = round_num
+        else:
+            assert cost is not None  # noqa: S101
+            effective_cost = cost
+            effective_source = source
+            original_round = None
+
+        result = set_keeper_cost(
+            player_name,
+            effective_cost,
+            season,
+            league,
+            ctx.player_repo,
+            ctx.keeper_repo,
+            years,
+            effective_source,
+            original_round=original_round,
+        )
         match result:
             case Ok(kc):
                 ctx.conn.commit()
                 player = ctx.player_repo.get_by_id(kc.player_id)
                 name = f"{player.name_first} {player.name_last}" if player else "Unknown"
-                typer.echo(f"Set keeper cost for {name}: ${cost:.0f} ({source}, {years}yr)")
+                if kc.original_round is not None:
+                    typer.echo(f"Set keeper cost for {name}: Round {kc.original_round} (~${kc.cost:.0f})")
+                else:
+                    typer.echo(f"Set keeper cost for {name}: ${kc.cost:.0f} ({effective_source}, {years}yr)")
             case Err(msg):
                 typer.echo(f"Error: {msg}", err=True)
                 raise typer.Exit(code=1)

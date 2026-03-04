@@ -87,6 +87,69 @@ class TestSqliteKeeperCostRepo:
         assert seasons == {2025, 2026}
         conn.close()
 
+    def test_upsert_with_original_round(self) -> None:
+        conn = create_connection(":memory:")
+        pid = seed_player(conn, name_first="Mike", name_last="Trout")
+        repo = SqliteKeeperCostRepo(conn)
+
+        repo.upsert_batch(
+            [
+                KeeperCost(
+                    player_id=pid, season=2026, league="dynasty", cost=18.0, source="draft_round", original_round=3
+                )
+            ]
+        )
+        conn.commit()
+
+        results = repo.find_by_season_league(2026, "dynasty")
+        assert len(results) == 1
+        assert results[0].original_round == 3
+        assert results[0].cost == 18.0
+        assert results[0].source == "draft_round"
+        conn.close()
+
+    def test_upsert_without_original_round(self) -> None:
+        conn = create_connection(":memory:")
+        pid = seed_player(conn, name_first="Mike", name_last="Trout")
+        repo = SqliteKeeperCostRepo(conn)
+
+        repo.upsert_batch([KeeperCost(player_id=pid, season=2026, league="dynasty", cost=25.0, source="auction")])
+        conn.commit()
+
+        results = repo.find_by_season_league(2026, "dynasty")
+        assert len(results) == 1
+        assert results[0].original_round is None
+        conn.close()
+
+    def test_upsert_updates_original_round(self) -> None:
+        conn = create_connection(":memory:")
+        pid = seed_player(conn, name_first="Mike", name_last="Trout")
+        repo = SqliteKeeperCostRepo(conn)
+
+        repo.upsert_batch(
+            [
+                KeeperCost(
+                    player_id=pid, season=2026, league="dynasty", cost=18.0, source="draft_round", original_round=3
+                )
+            ]
+        )
+        conn.commit()
+
+        repo.upsert_batch(
+            [
+                KeeperCost(
+                    player_id=pid, season=2026, league="dynasty", cost=22.0, source="draft_round", original_round=2
+                )
+            ]
+        )
+        conn.commit()
+
+        results = repo.find_by_season_league(2026, "dynasty")
+        assert len(results) == 1
+        assert results[0].original_round == 2
+        assert results[0].cost == 22.0
+        conn.close()
+
     def test_upsert_batch_idempotent(self) -> None:
         conn = create_connection(":memory:")
         pid = seed_player(conn, name_first="Mike", name_last="Trout")

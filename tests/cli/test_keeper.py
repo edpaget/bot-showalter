@@ -9,6 +9,7 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import KeeperContext
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain import (
+    ADP,
     CategoryConfig,
     Direction,
     KeeperCost,
@@ -18,6 +19,7 @@ from fantasy_baseball_manager.domain import (
     StatType,
     Valuation,
 )
+from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -50,6 +52,7 @@ def _build_test_keeper_context(conn: sqlite3.Connection) -> Any:
             valuation_repo=SqliteValuationRepo(conn),
             projection_repo=SqliteProjectionRepo(conn),
             eligibility_service=eligibility_service,
+            adp_repo=SqliteADPRepo(conn),
         )
 
     return _ctx
@@ -119,6 +122,171 @@ class TestKeeperImport:
         conn.close()
 
 
+def _draft_pick_league() -> LeagueSettings:
+    """Minimal league for draft-pick import tests: 2 teams, 3 batters, 2 pitchers = 10 picks."""
+    return LeagueSettings(
+        name="dynasty",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=2,
+        budget=260,
+        roster_batters=3,
+        roster_pitchers=2,
+        batting_categories=(
+            CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        pitching_categories=(
+            CategoryConfig(key="w", name="W", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+    )
+
+
+def _seed_adp_and_valuations(conn: sqlite3.Connection, player_ids: list[int]) -> None:
+    """Seed ADP + valuations for draft-pick curve building."""
+    adp_repo = SqliteADPRepo(conn)
+    val_repo = SqliteValuationRepo(conn)
+    for i, pid in enumerate(player_ids, 1):
+        adp_repo.upsert(
+            ADP(player_id=pid, season=2026, provider="yahoo", overall_pick=float(i), rank=i, positions="OF")
+        )
+        val_repo.upsert(
+            Valuation(
+                player_id=pid,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type="batter",
+                position="OF",
+                value=round(50.0 / i, 2),
+                rank=i,
+                category_scores={},
+            )
+        )
+    conn.commit()
+
+
+class TestKeeperImportDraftPick:
+    def test_import_draft_pick_format(self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        pid1 = seed_player(conn, name_first="Mike", name_last="Trout")
+        pid2 = seed_player(conn, name_first="Shohei", name_last="Ohtani")
+        # Seed enough ADP/val data to build a curve (need at least roster slots * teams picks)
+        extra_pids = [seed_player(conn, name_first=f"P{i}", name_last=f"L{i}") for i in range(10)]
+        all_pids = [pid1, pid2, *extra_pids]
+        _seed_adp_and_valuations(conn, all_pids)
+
+        csv_file = tmp_path / "keepers.csv"  # type: ignore[operator]
+        csv_file.write_text(
+            textwrap.dedent("""\
+            Player,Round
+            Mike Trout,1
+            Shohei Ohtani,3
+        """)
+        )
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.load_league",
+            lambda name, path: _draft_pick_league(),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "import",
+                str(csv_file),
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--format",
+                "draft-pick",
+                "--system",
+                "zar",
+                "--provider",
+                "yahoo",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Loaded 2" in result.output
+
+        repo = SqliteKeeperCostRepo(conn)
+        stored = repo.find_by_season_league(2026, "dynasty")
+        assert len(stored) == 2
+        for kc in stored:
+            assert kc.source == "draft_round"
+            assert kc.original_round is not None
+            assert kc.cost > 0
+        conn.close()
+
+    def test_import_draft_pick_missing_system_errors(
+        self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        csv_file = tmp_path / "keepers.csv"  # type: ignore[operator]
+        csv_file.write_text("Player,Round\nMike Trout,1\n")
+
+        conn = create_connection(":memory:")
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "import",
+                str(csv_file),
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--format",
+                "draft-pick",
+                "--provider",
+                "yahoo",
+            ],
+        )
+        assert result.exit_code == 1
+        conn.close()
+
+    def test_import_draft_pick_missing_provider_errors(
+        self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        csv_file = tmp_path / "keepers.csv"  # type: ignore[operator]
+        csv_file.write_text("Player,Round\nMike Trout,1\n")
+
+        conn = create_connection(":memory:")
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "import",
+                str(csv_file),
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--format",
+                "draft-pick",
+                "--system",
+                "zar",
+            ],
+        )
+        assert result.exit_code == 1
+        conn.close()
+
+
 class TestKeeperSet:
     def test_set_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         conn = create_connection(":memory:")
@@ -171,6 +339,128 @@ class TestKeeperSet:
         )
         assert result.exit_code == 1
         assert "ambiguous" in result.output
+        conn.close()
+
+
+class TestKeeperSetRound:
+    def test_set_round_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        pid = seed_player(conn, name_first="Mike", name_last="Trout")
+        extra_pids = [seed_player(conn, name_first=f"P{i}", name_last=f"L{i}") for i in range(10)]
+        _seed_adp_and_valuations(conn, [pid, *extra_pids])
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.load_league",
+            lambda name, path: _draft_pick_league(),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "set",
+                "Trout",
+                "--round",
+                "3",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+                "--provider",
+                "yahoo",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Round 3" in result.output
+
+        repo = SqliteKeeperCostRepo(conn)
+        stored = repo.find_by_season_league(2026, "dynasty")
+        assert len(stored) == 1
+        assert stored[0].source == "draft_round"
+        assert stored[0].original_round == 3
+        assert stored[0].cost > 0
+        conn.close()
+
+    def test_set_round_and_cost_conflict(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, name_first="Mike", name_last="Trout")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "set",
+                "Trout",
+                "--cost",
+                "25",
+                "--round",
+                "3",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+                "--provider",
+                "yahoo",
+            ],
+        )
+        assert result.exit_code == 1
+        conn.close()
+
+    def test_set_neither_cost_nor_round_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, name_first="Mike", name_last="Trout")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            ["keeper", "set", "Trout", "--season", "2026", "--league", "dynasty"],
+        )
+        assert result.exit_code == 1
+        conn.close()
+
+    def test_set_round_missing_system_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, name_first="Mike", name_last="Trout")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "set",
+                "Trout",
+                "--round",
+                "3",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--provider",
+                "yahoo",
+            ],
+        )
+        assert result.exit_code == 1
         conn.close()
 
 

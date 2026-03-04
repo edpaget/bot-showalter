@@ -9,6 +9,7 @@ class KeeperCost:
     cost: float
     source: str
     years_remaining: int = 1
+    original_round: int | None = None
     id: int | None = None
     loaded_at: str | None = None
 
@@ -23,6 +24,7 @@ class KeeperDecision:
     surplus: float
     years_remaining: int
     recommendation: str  # "keep" | "release"
+    original_round: int | None = None
 
 
 @dataclass(frozen=True)

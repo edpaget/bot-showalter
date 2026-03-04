@@ -134,6 +134,30 @@ def _keeper_cost(player_id: int, cost: float, years: int = 1) -> KeeperCost:
     )
 
 
+class TestSetKeeperCostOriginalRound:
+    def test_set_keeper_cost_with_original_round(self) -> None:
+        player = Player(name_first="Mike", name_last="Trout", id=1)
+        player_repo = FakePlayerRepo([player])
+        keeper_repo = FakeKeeperCostRepo()
+
+        result = set_keeper_cost(
+            "Trout",
+            cost=18.0,
+            season=2026,
+            league="dynasty",
+            player_repo=player_repo,
+            keeper_repo=keeper_repo,
+            source="draft_round",
+            original_round=3,
+        )
+
+        assert isinstance(result, Ok)
+        kc = result.value
+        assert kc.original_round == 3
+        assert kc.source == "draft_round"
+        assert kc.cost == 18.0
+
+
 class TestComputeSurplus:
     def test_positive_surplus(self) -> None:
         players = [Player(name_first="Mike", name_last="Trout", id=1)]
@@ -240,6 +264,30 @@ class TestComputeSurplus:
 
         assert result[0].projected_value == 25.0
         assert result[0].surplus == 15.0
+
+
+class TestComputeSurplusOriginalRound:
+    def test_propagates_original_round(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [
+            KeeperCost(player_id=1, season=2026, league="dynasty", cost=18.0, source="draft_round", original_round=3)
+        ]
+        valuations = [_valuation(1, 25.0)]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert len(result) == 1
+        assert result[0].original_round == 3
+
+    def test_null_original_round_propagated(self) -> None:
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        keepers = [_keeper_cost(1, 10.0)]
+        valuations = [_valuation(1, 25.0)]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert len(result) == 1
+        assert result[0].original_round is None
 
 
 def _adj_league() -> LeagueSettings:
