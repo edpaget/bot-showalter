@@ -5,22 +5,44 @@ from rich.console import Console
 from fantasy_baseball_manager.cli import _output
 from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
+    print_adjusted_rankings,
     print_adp_accuracy_report,
     print_adp_movers_report,
+    print_batch_simulation_result,
+    print_bin_target_means,
+    print_candidate_values,
+    print_cascade_result,
+    print_category_needs,
+    print_checkpoint_detail,
+    print_checkpoint_list,
+    print_cohort_bias_report,
+    print_cohort_bias_summary,
+    print_compare_features_result,
     print_comparison_result,
     print_dataset_list,
     print_draft_board,
+    print_draft_report,
+    print_draft_tiers,
     print_error,
+    print_error_decomposition_report,
+    print_experiment_detail,
+    print_experiment_search_results,
+    print_experiment_summary,
+    print_feature_gap_report,
     print_features,
+    print_gate_result,
     print_import_result,
     print_ingest_result,
+    print_keeper_decisions,
     print_keeper_scenarios,
     print_keeper_solution,
     print_keeper_trade_impact,
     print_performance_report,
+    print_pick_trade_evaluation,
     print_player_projections,
     print_player_valuations,
     print_predict_result,
+    print_preflight_result,
     print_prepare_result,
     print_projection_confidence,
     print_regression_check_result,
@@ -28,15 +50,21 @@ from fantasy_baseball_manager.cli._output import (
     print_residual_persistence_report,
     print_run_detail,
     print_run_list,
+    print_scarcity_rankings,
+    print_scarcity_report,
     print_stratified_comparison_result,
     print_system_disagreements,
     print_system_metrics,
     print_system_summaries,
+    print_talent_delta_report,
     print_talent_quality_report,
+    print_trade_evaluation,
     print_train_result,
     print_tune_result,
+    print_validation_result,
     print_valuation_eval_result,
     print_valuation_rankings,
+    print_value_curve,
     print_value_over_adp,
     print_variance_targets,
 )
@@ -48,10 +76,24 @@ from fantasy_baseball_manager.domain import (
     KeeperTradeImpact,
     SensitivityEntry,
 )
+from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport, ADPAccuracyResult, SystemAccuracyResult
 from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverADPReport
+from fantasy_baseball_manager.domain.category_tracker import CategoryNeed, PlayerRecommendation
+from fantasy_baseball_manager.domain.checkpoint import FeatureCheckpoint
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
+from fantasy_baseball_manager.domain.draft_report import CategoryStanding, DraftReport, PickGrade, StealOrReach
+from fantasy_baseball_manager.domain.error_decomposition import (
+    CohortBias,
+    CohortBiasReport,
+    DistinguishingFeature,
+    ErrorDecompositionReport,
+    FeatureGap,
+    FeatureGapReport,
+    MissPopulationSummary,
+    PlayerResidual,
+)
 from fantasy_baseball_manager.domain.evaluation import (
     ComparisonResult,
     RegressionCheckResult,
@@ -60,9 +102,44 @@ from fantasy_baseball_manager.domain.evaluation import (
     SystemMetrics,
     TailAccuracy,
 )
+from fantasy_baseball_manager.domain.experiment import (
+    Experiment,
+    ExplorationSummary,
+    FeatureExplorationResult,
+    TargetExplorationResult,
+    TargetResult,
+)
+from fantasy_baseball_manager.domain.feature_candidate import BinTargetMean, CandidateValue
+from fantasy_baseball_manager.domain.keeper import AdjustedValuation, TradeEvaluation, TradePlayerDetail
+from fantasy_baseball_manager.domain.league_settings import (
+    CategoryConfig,
+    Direction,
+    LeagueFormat,
+    LeagueSettings,
+    StatType,
+)
 from fantasy_baseball_manager.domain.load_log import LoadLog
+from fantasy_baseball_manager.domain.mock_draft import (
+    BatchSimulationResult,
+    DraftPick,
+    SimulationSummary,
+)
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
+from fantasy_baseball_manager.domain.pick_value import (
+    CascadeResult,
+    CascadeRoster,
+    PickTrade,
+    PickTradeEvaluation,
+)
+from fantasy_baseball_manager.domain.pick_value import (
+    PickValue as DomainPickValue,
+)
+from fantasy_baseball_manager.domain.positional_scarcity import (
+    PositionScarcity,
+    PositionValueCurve,
+    ScarcityAdjustedPlayer,
+)
 from fantasy_baseball_manager.domain.projection import PlayerProjection, Projection, SystemSummary
 from fantasy_baseball_manager.domain.projection_confidence import (
     ClassifiedPlayer,
@@ -88,6 +165,7 @@ from fantasy_baseball_manager.domain.talent_quality import (
     TalentQualitySummary,
     TrueTalentQualityReport,
 )
+from fantasy_baseball_manager.domain.tier import PlayerTier
 from fantasy_baseball_manager.domain.valuation import PlayerValuation, ValuationAccuracy, ValuationEvalResult
 from fantasy_baseball_manager.features.types import (
     DeltaFeature,
@@ -107,6 +185,14 @@ from fantasy_baseball_manager.models.protocols import (
     ValidationResult,
 )
 from fantasy_baseball_manager.services.dataset_catalog import DatasetInfo
+from fantasy_baseball_manager.services.quick_eval import FeatureSetComparisonResult, TargetDelta
+from fantasy_baseball_manager.services.regression_gate import GateResult, GateSegmentResult
+from fantasy_baseball_manager.services.validation_gate import (
+    PreflightResult,
+    TargetPreflightDetail,
+    ValidationSegmentResult,
+)
+from fantasy_baseball_manager.services.validation_gate import ValidationResult as GateValidationResult
 
 if TYPE_CHECKING:
     import pytest
@@ -2282,3 +2368,879 @@ class TestPrintKeeperTradeImpact:
         print_keeper_trade_impact(impact)
         captured = capsys.readouterr()
         assert "-$20.0" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# _residuals.py tests
+# ---------------------------------------------------------------------------
+
+
+def _make_error_decomposition_report(
+    player_type: str = "batter",
+    *,
+    with_features: bool = True,
+) -> ErrorDecompositionReport:
+    vol_key = "ip" if player_type == "pitcher" else "pa"
+    features: dict[str, float] = {"age": 32.0, vol_key: 500.0}
+    return ErrorDecompositionReport(
+        target="avg",
+        player_type=player_type,
+        season=2024,
+        system="fbm",
+        version="1.0",
+        top_misses=[
+            PlayerResidual(1, "Mike Trout", 0.300, 0.250, 0.050, features),
+            PlayerResidual(2, "Mookie Betts", 0.280, 0.310, -0.030, features),
+        ],
+        over_predictions=[],
+        under_predictions=[],
+        summary=MissPopulationSummary(
+            mean_age=31.5 if with_features else None,
+            position_distribution={"OF": 2} if with_features else {},
+            mean_volume=550.0,
+            distinguishing_features=[
+                DistinguishingFeature("sprint_speed", 28.5, 27.0, 1.5),
+            ]
+            if with_features
+            else [],
+        ),
+    )
+
+
+class TestPrintErrorDecompositionReport:
+    def test_shows_title_and_players(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_error_decomposition_report(_make_error_decomposition_report())
+        captured = capsys.readouterr()
+        assert "Mike Trout" in captured.out
+        assert "Mookie Betts" in captured.out
+        assert "31.5" in captured.out
+        assert "OF: 2" in captured.out
+        assert "sprint_speed" in captured.out
+
+    def test_pitcher_uses_ip(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_error_decomposition_report(_make_error_decomposition_report("pitcher"))
+        captured = capsys.readouterr()
+        assert "IP" in captured.out
+
+    def test_no_features_or_positions(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_error_decomposition_report(_make_error_decomposition_report(with_features=False))
+        captured = capsys.readouterr()
+        assert "Distinguishing Features" not in captured.out
+
+
+class TestPrintFeatureGapReport:
+    def test_shows_in_model_and_not_in_model(self, capsys: pytest.CaptureFixture[str]) -> None:
+        report = FeatureGapReport(
+            target="avg",
+            player_type="batter",
+            season=2024,
+            system="fbm",
+            version="1.0",
+            gaps=[
+                FeatureGap("sprint_speed", 0.25, 0.01, 0.300, 0.260, True),
+                FeatureGap("barrel_pct", 0.18, 0.07, 0.100, 0.080, False),
+            ],
+        )
+        print_feature_gap_report(report)
+        captured = capsys.readouterr()
+        assert "In-Model Features" in captured.out
+        assert "Not-In-Model Features" in captured.out
+        assert "sprint_speed" in captured.out
+        assert "barrel_pct" in captured.out
+
+    def test_empty_gap_section_skipped(self, capsys: pytest.CaptureFixture[str]) -> None:
+        report = FeatureGapReport(
+            target="avg",
+            player_type="batter",
+            season=2024,
+            system="fbm",
+            version="1.0",
+            gaps=[FeatureGap("x", 0.1, 0.5, 0.3, 0.2, True)],
+        )
+        print_feature_gap_report(report)
+        captured = capsys.readouterr()
+        assert "Not-In-Model Features" not in captured.out
+
+
+def _make_cohort_bias_report(*, significant: bool = True) -> CohortBiasReport:
+    return CohortBiasReport(
+        target="avg",
+        player_type="batter",
+        season=2024,
+        system="fbm",
+        version="1.0",
+        dimension="age",
+        cohorts=[
+            CohortBias("young", 50, 0.020, 0.025, 0.030, significant),
+            CohortBias("old", 40, -0.015, 0.020, 0.028, False),
+        ],
+    )
+
+
+class TestPrintCohortBiasReport:
+    def test_shows_cohorts(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_cohort_bias_report(_make_cohort_bias_report())
+        captured = capsys.readouterr()
+        assert "young" in captured.out
+        assert "old" in captured.out
+        assert "age" in captured.out
+
+
+class TestPrintCohortBiasSummary:
+    def test_with_significant_cohorts(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_cohort_bias_summary([_make_cohort_bias_report(significant=True)])
+        captured = capsys.readouterr()
+        assert "Most Biased Cohorts" in captured.out
+        assert "young" in captured.out
+
+    def test_no_significant_cohorts(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_cohort_bias_summary([_make_cohort_bias_report(significant=False)])
+        captured = capsys.readouterr()
+        assert "No statistically significant" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# _validate.py tests
+# ---------------------------------------------------------------------------
+
+
+def _make_preflight_result(confidence: str = "high") -> PreflightResult:
+    return PreflightResult(
+        details=(
+            TargetPreflightDetail("avg", 0.80, -0.002, 0.001),
+            TargetPreflightDetail("hr", 0.55, 0.005, 0.003),
+        ),
+        confidence=confidence,
+        recommendation="proceed" if confidence == "high" else "skip",
+    )
+
+
+class TestPrintPreflightResult:
+    def test_shows_details_and_confidence(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_preflight_result(_make_preflight_result())
+        captured = capsys.readouterr()
+        assert "Pre-flight Check" in captured.out
+        assert "avg" in captured.out
+        assert "hr" in captured.out
+        assert "high" in captured.out
+        assert "proceed" in captured.out
+
+    def test_low_confidence(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_preflight_result(_make_preflight_result("low"))
+        captured = capsys.readouterr()
+        assert "low" in captured.out
+        assert "skip" in captured.out
+
+
+def _make_gate_validation_result(*, passed: bool = True, low_preflight: bool = False) -> GateValidationResult:
+    check = RegressionCheckResult(
+        passed=passed,
+        rmse_passed=passed,
+        rank_correlation_passed=passed,
+        explanation="PASS" if passed else "FAIL: regression",
+    )
+    preflight = _make_preflight_result("low") if low_preflight else None
+    return GateValidationResult(
+        model_name="statcast-gbm",
+        old_version="1.0",
+        new_version="2.0",
+        segments=[
+            ValidationSegmentResult(season=2023, segment="top300", check=check),
+            ValidationSegmentResult(season=2024, segment="top300", check=check),
+        ],
+        preflight=preflight,
+    )
+
+
+class TestPrintValidationResult:
+    def test_passing_result(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_validation_result(_make_gate_validation_result(passed=True))
+        captured = capsys.readouterr()
+        assert "Validation Gate" in captured.out
+        assert "statcast-gbm" in captured.out
+        assert "1.0" in captured.out
+        assert "2.0" in captured.out
+        assert "OVERALL: PASS" in captured.out
+
+    def test_failing_result(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_validation_result(_make_gate_validation_result(passed=False))
+        captured = capsys.readouterr()
+        assert "OVERALL: FAIL" in captured.out
+
+    def test_low_preflight_warning(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_validation_result(_make_gate_validation_result(low_preflight=True))
+        captured = capsys.readouterr()
+        assert "LOW" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# _draft.py tests
+# ---------------------------------------------------------------------------
+
+
+def _make_league_settings() -> LeagueSettings:
+    return LeagueSettings(
+        name="Test League",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=12,
+        budget=260,
+        roster_batters=14,
+        roster_pitchers=10,
+        batting_categories=(
+            CategoryConfig("hr", "Home Runs", StatType.COUNTING, Direction.HIGHER),
+            CategoryConfig("sb", "Stolen Bases", StatType.COUNTING, Direction.HIGHER),
+        ),
+        pitching_categories=(CategoryConfig("w", "Wins", StatType.COUNTING, Direction.HIGHER),),
+        positions={"C": 1, "1B": 1, "OF": 3},
+        pitcher_positions={"SP": 5, "RP": 2},
+    )
+
+
+class TestPrintDraftReport:
+    def test_full_report(self, capsys: pytest.CaptureFixture[str]) -> None:
+        report = DraftReport(
+            total_value=250.0,
+            optimal_value=280.0,
+            value_efficiency=0.893,
+            budget=260,
+            total_spent=245,
+            category_standings=[
+                CategoryStanding("hr", 12.5, 3, 12),
+                CategoryStanding("sb", -2.0, 8, 12),
+            ],
+            pick_grades=[
+                PickGrade(1, 100, "Player A", "OF", 40.0, 42.0, 0.95),
+                PickGrade(2, 200, "Player B", "SP", 30.0, 35.0, 0.65),
+            ],
+            mean_grade=0.80,
+            steals=[StealOrReach(3, 300, "Steal Guy", "1B", 25.0, 15)],
+            reaches=[StealOrReach(4, 400, "Reach Guy", "SS", 10.0, -10)],
+        )
+        print_draft_report(report)
+        captured = capsys.readouterr()
+        assert "Draft Report" in captured.out
+        assert "250.0" in captured.out
+        assert "89.3%" in captured.out
+        assert "$260" in captured.out
+        assert "Category Standings" in captured.out
+        assert "hr" in captured.out
+        assert "Pick Grades" in captured.out
+        assert "Player A" in captured.out
+        assert "0.95" in captured.out
+        assert "Steals" in captured.out
+        assert "Steal Guy" in captured.out
+        assert "Reaches" in captured.out
+        assert "Reach Guy" in captured.out
+
+
+class TestPrintDraftBoardWithAge:
+    def test_age_and_bats_throws_columns(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rows = [
+            DraftBoardRow(
+                player_id=1,
+                player_name="Player A",
+                rank=1,
+                player_type="batter",
+                position="OF",
+                value=40.0,
+                category_z_scores={},
+                age=28,
+                bats_throws="R/R",
+            ),
+        ]
+        board = DraftBoard(rows=rows, batting_categories=("hr",), pitching_categories=("w",))
+        print_draft_board(board)
+        captured = capsys.readouterr()
+        assert "Age" in captured.out
+        assert "28" in captured.out
+        assert "B/T" in captured.out
+        assert "R/R" in captured.out
+
+
+class TestPrintDraftTiersWithADP:
+    def test_adp_column_shown(self, capsys: pytest.CaptureFixture[str]) -> None:
+        tiers = [
+            PlayerTier(player_id=1, player_name="Player A", position="OF", tier=1, value=40.0, rank=1),
+            PlayerTier(player_id=2, player_name="Player B", position="OF", tier=2, value=30.0, rank=2),
+        ]
+        adp_map = {
+            1: ADP(player_id=1, season=2025, provider="espn", overall_pick=5.0, rank=5, positions="OF"),
+        }
+        print_draft_tiers(tiers, adp_by_player=adp_map)
+        captured = capsys.readouterr()
+        assert "Player A" in captured.out
+        assert "Player B" in captured.out
+        assert "ADP" in captured.out
+        assert "5.0" in captured.out
+
+
+class TestPrintCategoryNeedsWithTradeoffs:
+    def test_tradeoff_categories_shown(self, capsys: pytest.CaptureFixture[str]) -> None:
+        needs = [
+            CategoryNeed(
+                category="sb",
+                current_rank=10,
+                target_rank=5,
+                best_available=(PlayerRecommendation(1, "Fast Guy", 2.5, ("hr", "rbi")),),
+            ),
+        ]
+        print_category_needs(needs, num_teams=12)
+        captured = capsys.readouterr()
+        assert "SB" in captured.out
+        assert "Fast Guy" in captured.out
+        assert "hr, rbi" in captured.out
+
+    def test_no_available_players(self, capsys: pytest.CaptureFixture[str]) -> None:
+        needs = [CategoryNeed("sb", 10, 5, ())]
+        print_category_needs(needs, num_teams=12)
+        captured = capsys.readouterr()
+        assert "No available players" in captured.out
+
+
+class TestPrintPickTradeEvaluationEven:
+    def test_even_recommendation(self, capsys: pytest.CaptureFixture[str]) -> None:
+        evaluation = PickTradeEvaluation(
+            trade=PickTrade(gives=[5], receives=[6]),
+            gives_value=20.0,
+            receives_value=20.0,
+            net_value=0.0,
+            gives_detail=[DomainPickValue(5, 20.0, "Player X", "high")],
+            receives_detail=[DomainPickValue(6, 20.0, "Player Y", "high")],
+            recommendation="even",
+        )
+        print_pick_trade_evaluation(evaluation)
+        captured = capsys.readouterr()
+        assert "Even" in captured.out
+
+
+class TestPrintCascadeResultEven:
+    def test_even_recommendation(self, capsys: pytest.CaptureFixture[str]) -> None:
+        pick = DraftPick(round=1, pick=1, team_idx=0, player_id=1, player_name="P1", position="OF", value=20.0)
+        roster = CascadeRoster(picks=[pick], total_value=20.0)
+        result = CascadeResult(
+            trade=PickTrade(gives=[1], receives=[2]),
+            before=roster,
+            after=roster,
+            value_delta=0.0,
+            recommendation="even",
+        )
+        print_cascade_result(result)
+        captured = capsys.readouterr()
+        assert "Even" in captured.out
+
+
+class TestPrintScarcityReport:
+    def test_shows_positions_and_values(self, capsys: pytest.CaptureFixture[str]) -> None:
+        scarcities = [
+            PositionScarcity("C", 25.0, 5.0, 80.0, -2.0, 1),
+            PositionScarcity("OF", 40.0, 10.0, 200.0, -0.5, None),
+        ]
+        print_scarcity_report(scarcities, _make_league_settings())
+        captured = capsys.readouterr()
+        assert "Positional Scarcity Report" in captured.out
+        assert "C" in captured.out
+        assert "OF" in captured.out
+        assert "$25.0" in captured.out
+        assert "$5.0" in captured.out
+
+
+class TestPrintValueCurve:
+    def test_with_cliff(self, capsys: pytest.CaptureFixture[str]) -> None:
+        curve = PositionValueCurve(
+            position="C",
+            values=[(1, "Catcher A", 30.0), (2, "Catcher B", 25.0), (3, "Catcher C", 10.0)],
+            cliff_rank=2,
+        )
+        print_value_curve(curve, _make_league_settings())
+        captured = capsys.readouterr()
+        assert "C" in captured.out
+        assert "Catcher A" in captured.out
+        assert "Cliff at rank 2" in captured.out
+
+    def test_no_cliff(self, capsys: pytest.CaptureFixture[str]) -> None:
+        curve = PositionValueCurve(
+            position="OF",
+            values=[(1, "OF A", 30.0), (2, "OF B", 28.0)],
+            cliff_rank=None,
+        )
+        print_value_curve(curve, _make_league_settings())
+        captured = capsys.readouterr()
+        assert "No significant cliff" in captured.out
+
+
+class TestPrintScarcityRankings:
+    def test_shows_players_with_deltas(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        players = [
+            ScarcityAdjustedPlayer(1, "Player A", "C", "batter", 30.0, 35.0, 5, 2, 0.8),
+            ScarcityAdjustedPlayer(2, "Player B", "OF", "batter", 28.0, 27.0, 3, 4, 0.2),
+            ScarcityAdjustedPlayer(3, "Player C", "1B", "batter", 25.0, 25.0, 4, 4, 0.5),
+        ]
+        print_scarcity_rankings(players, _make_league_settings())
+        captured = capsys.readouterr()
+        assert "Scarcity-Adjusted Rankings" in captured.out
+        assert "Player A" in captured.out
+        assert "Player B" in captured.out
+        assert "+3" in captured.out  # delta for Player A: 5-2=3
+
+    def test_empty_rankings(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_scarcity_rankings([], _make_league_settings())
+        captured = capsys.readouterr()
+        assert "No scarcity ranking data" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# _experiments.py tests
+# ---------------------------------------------------------------------------
+
+
+def _make_target_result(rmse: float = 0.05, baseline: float = 0.06) -> TargetResult:
+    delta = rmse - baseline
+    return TargetResult(rmse=rmse, baseline_rmse=baseline, delta=delta, delta_pct=delta / baseline * 100)
+
+
+def _make_experiment(
+    *,
+    experiment_id: int = 1,
+    target_results: dict[str, TargetResult] | None = None,
+    parent_id: int | None = None,
+) -> Experiment:
+    if target_results is None:
+        target_results = {"avg": _make_target_result()}
+    return Experiment(
+        id=experiment_id,
+        timestamp="2025-03-01T12:00:00",
+        hypothesis="Adding sprint_speed improves batting avg prediction",
+        model="statcast-gbm",
+        player_type="batter",
+        feature_diff={"added": ["sprint_speed"], "removed": []},
+        seasons={"train": [2021, 2022], "holdout": [2023]},
+        params={"max_depth": 6},
+        target_results=target_results,
+        conclusion="Improved avg RMSE",
+        tags=["sprint", "batting"],
+        parent_id=parent_id,
+    )
+
+
+class TestPrintExperimentSearchResults:
+    def test_shows_experiments(self, capsys: pytest.CaptureFixture[str]) -> None:
+        experiments = [_make_experiment(), _make_experiment(experiment_id=2)]
+        print_experiment_search_results(experiments)
+        captured = capsys.readouterr()
+        assert "Experiment Search Results" in captured.out
+        assert "sprint_speed" in captured.out
+
+    def test_empty_list(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_experiment_search_results([])
+        captured = capsys.readouterr()
+        assert "No experiments found" in captured.out
+
+    def test_target_filter(self, capsys: pytest.CaptureFixture[str]) -> None:
+        experiments = [_make_experiment()]
+        print_experiment_search_results(experiments, target="avg")
+        captured = capsys.readouterr()
+        assert "avg" not in captured.out or "Experiment" in captured.out  # delta shown for avg
+
+    def test_no_target_results_shows_zero(self, capsys: pytest.CaptureFixture[str]) -> None:
+        exp = _make_experiment(target_results={})
+        print_experiment_search_results([exp])
+        captured = capsys.readouterr()
+        assert "+0.00%" in captured.out
+
+
+class TestPrintExperimentDetail:
+    def test_shows_all_fields(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_experiment_detail(_make_experiment(parent_id=42))
+        captured = capsys.readouterr()
+        assert "Experiment #1" in captured.out
+        assert "statcast-gbm" in captured.out
+        assert "sprint_speed" in captured.out
+        assert "Improved avg" in captured.out
+        assert "42" in captured.out  # parent_id
+        assert "avg" in captured.out
+
+    def test_no_target_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_experiment_detail(_make_experiment(target_results={}))
+        captured = capsys.readouterr()
+        assert "Experiment #1" in captured.out
+        assert "Target Results" not in captured.out
+
+
+class TestPrintExperimentSummary:
+    def test_shows_features_and_targets(self, capsys: pytest.CaptureFixture[str]) -> None:
+        summary = ExplorationSummary(
+            model="statcast-gbm",
+            player_type="batter",
+            total_experiments=5,
+            features_tested=[
+                FeatureExplorationResult("sprint_speed", -1.5, 1, 3),
+            ],
+            targets_explored=[
+                TargetExplorationResult("avg", 0.0450, -1.5, 1, 5),
+            ],
+            best_experiment_id=1,
+            best_experiment_delta_pct=-1.5,
+        )
+        print_experiment_summary(summary)
+        captured = capsys.readouterr()
+        assert "Exploration Summary" in captured.out
+        assert "sprint_speed" in captured.out
+        assert "avg" in captured.out
+        assert "#1" in captured.out
+
+
+class TestPrintCheckpointList:
+    def test_shows_checkpoints(self, capsys: pytest.CaptureFixture[str]) -> None:
+        checkpoints = [
+            FeatureCheckpoint(
+                name="baseline",
+                model="statcast-gbm",
+                player_type="batter",
+                feature_columns=["hr", "avg"],
+                params={"max_depth": 6},
+                target_results={},
+                experiment_id=1,
+                created_at="2025-03-01",
+            ),
+        ]
+        print_checkpoint_list(checkpoints)
+        captured = capsys.readouterr()
+        assert "baseline" in captured.out
+        assert "statcast-gbm" in captured.out
+
+    def test_empty_list(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_checkpoint_list([])
+        captured = capsys.readouterr()
+        assert "No checkpoints found" in captured.out
+
+
+class TestPrintCheckpointDetail:
+    def test_with_target_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        cp = FeatureCheckpoint(
+            name="v2",
+            model="statcast-gbm",
+            player_type="batter",
+            feature_columns=["hr", "avg", "sprint_speed"],
+            params={"max_depth": 6},
+            target_results={"avg": _make_target_result()},
+            experiment_id=5,
+            created_at="2025-03-01",
+            notes="Added sprint speed",
+        )
+        print_checkpoint_detail(cp)
+        captured = capsys.readouterr()
+        assert "Checkpoint: v2" in captured.out
+        assert "Added sprint speed" in captured.out
+        assert "Target Results" in captured.out
+        assert "avg" in captured.out
+
+    def test_without_target_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        cp = FeatureCheckpoint(
+            name="v1",
+            model="m",
+            player_type="batter",
+            feature_columns=["a"],
+            params={},
+            target_results={},
+            experiment_id=1,
+            created_at="2025-01-01",
+        )
+        print_checkpoint_detail(cp)
+        captured = capsys.readouterr()
+        assert "Checkpoint: v1" in captured.out
+        assert "Target Results" not in captured.out
+
+
+class TestPrintCompareFeaturesResult:
+    def test_shows_deltas(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = FeatureSetComparisonResult(
+            columns_a=("hr", "avg"),
+            columns_b=("hr", "avg", "sprint_speed"),
+            deltas=(
+                TargetDelta("avg", 0.0500, 0.0480, -0.002, -4.0),
+                TargetDelta("hr", 0.1000, 0.1050, 0.005, 5.0),
+            ),
+            n_improved=1,
+            n_total=2,
+            avg_delta_pct=0.5,
+            n_folds=3,
+        )
+        print_compare_features_result(result)
+        captured = capsys.readouterr()
+        assert "avg" in captured.out
+        assert "hr" in captured.out
+        assert "1/2 targets" in captured.out
+        assert "3 folds" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# _evaluation.py tests
+# ---------------------------------------------------------------------------
+
+
+class TestPrintGateResult:
+    def test_passing_gate(self, capsys: pytest.CaptureFixture[str]) -> None:
+        check = RegressionCheckResult(passed=True, rmse_passed=True, rank_correlation_passed=True, explanation="ok")
+        result = GateResult(
+            model_name="statcast-gbm",
+            baseline="1.0",
+            segments=[
+                GateSegmentResult(season=2023, segment="top300", check=check),
+            ],
+        )
+        print_gate_result(result)
+        captured = capsys.readouterr()
+        assert "Regression Gate" in captured.out
+        assert "statcast-gbm" in captured.out
+        assert "OVERALL: PASS" in captured.out
+
+    def test_failing_gate(self, capsys: pytest.CaptureFixture[str]) -> None:
+        check = RegressionCheckResult(passed=False, rmse_passed=False, rank_correlation_passed=True, explanation="bad")
+        result = GateResult(
+            model_name="statcast-gbm",
+            baseline="1.0",
+            segments=[
+                GateSegmentResult(season=2023, segment="top300", check=check),
+                GateSegmentResult(season=2024, segment="top300", check=check),
+            ],
+        )
+        print_gate_result(result)
+        captured = capsys.readouterr()
+        assert "OVERALL: FAIL" in captured.out
+        assert "2 check(s) failed" in captured.out
+
+
+class TestPrintTailAccuracyWithData:
+    def test_tail_section_with_two_systems(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        tail = TailAccuracy(ns=(25, 50), rmse_by_stat={"hr": {25: 5.12, 50: 4.80}})
+        sys_a = SystemMetrics(
+            system="sys_a",
+            version="1.0",
+            source_type="ml",
+            metrics={"hr": _make_stat_metrics()},
+            tail=tail,
+        )
+        sys_b = SystemMetrics(
+            system="sys_b",
+            version="2.0",
+            source_type="ml",
+            metrics={"hr": _make_stat_metrics()},
+            tail=tail,
+        )
+        result = ComparisonResult(season=2024, stats=["hr"], systems=[sys_a, sys_b])
+        print_comparison_result(result)
+        captured = capsys.readouterr()
+        assert "top-25" in captured.out
+        assert "top-50" in captured.out
+        assert "5.1200" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# _keeper.py tests
+# ---------------------------------------------------------------------------
+
+
+class TestPrintKeeperDecisions:
+    def test_shows_decisions(self, capsys: pytest.CaptureFixture[str]) -> None:
+        decisions = [
+            _make_keeper_decision(recommendation="keep"),
+            _make_keeper_decision(
+                player_id=2,
+                player_name="Bad Player",
+                position="util",
+                cost=20.0,
+                projected_value=10.0,
+                surplus=-10.0,
+                recommendation="release",
+            ),
+        ]
+        print_keeper_decisions(decisions)
+        captured = capsys.readouterr()
+        assert "Keeper Decisions" in captured.out
+        assert "Mike Trout" in captured.out
+        assert "Bad Player" in captured.out
+        assert "keep" in captured.out
+        assert "release" in captured.out
+
+
+class TestPrintAdjustedRankings:
+    def test_various_value_changes(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rankings = [
+            AdjustedValuation(1, "Big Up", "batter", "OF", 30.0, 35.0, 5.0),
+            AdjustedValuation(2, "Small Up", "batter", "1B", 25.0, 27.0, 2.0),
+            AdjustedValuation(3, "Small Down", "batter", "SS", 20.0, 18.0, -2.0),
+            AdjustedValuation(4, "No Change", "batter", "C", 15.0, 15.0, 0.0),
+            AdjustedValuation(5, "Big Down", "pitcher", "SP", 22.0, 17.0, -5.0),
+        ]
+        print_adjusted_rankings(rankings, top=3)
+        captured = capsys.readouterr()
+        assert "Keeper-Adjusted Rankings" in captured.out
+        assert "Big Up" in captured.out
+        assert "Small Up" in captured.out
+        assert "Small Down" in captured.out
+        # top=3 should exclude "No Change" and "Big Down"
+        assert "No Change" not in captured.out
+
+
+class TestPrintTradeEvaluation:
+    def test_team_a_wins(self, capsys: pytest.CaptureFixture[str]) -> None:
+        evaluation = TradeEvaluation(
+            team_a_gives=[
+                TradePlayerDetail(1, "Given Player", "OF", 15.0, 20.0, 5.0, 2),
+            ],
+            team_b_gives=[
+                TradePlayerDetail(2, "Received Player", "SP", 10.0, 25.0, 15.0, 1),
+            ],
+            team_a_surplus_delta=10.0,
+            team_b_surplus_delta=-10.0,
+            winner="team_a",
+        )
+        print_trade_evaluation(evaluation)
+        captured = capsys.readouterr()
+        assert "You win this trade" in captured.out
+
+    def test_even_trade(self, capsys: pytest.CaptureFixture[str]) -> None:
+        evaluation = TradeEvaluation(
+            team_a_gives=[TradePlayerDetail(1, "P1", "OF", 10.0, 20.0, 10.0, 1)],
+            team_b_gives=[TradePlayerDetail(2, "P2", "SP", 10.0, 20.0, 10.0, 1)],
+            team_a_surplus_delta=0.0,
+            team_b_surplus_delta=0.0,
+            winner="even",
+        )
+        print_trade_evaluation(evaluation)
+        captured = capsys.readouterr()
+        assert "Even trade" in captured.out
+
+    def test_team_b_wins(self, capsys: pytest.CaptureFixture[str]) -> None:
+        evaluation = TradeEvaluation(
+            team_a_gives=[TradePlayerDetail(1, "P1", "OF", 10.0, 30.0, 20.0, 1)],
+            team_b_gives=[TradePlayerDetail(2, "P2", "SP", 10.0, 15.0, 5.0, 1)],
+            team_a_surplus_delta=-15.0,
+            team_b_surplus_delta=15.0,
+            winner="team_b",
+        )
+        print_trade_evaluation(evaluation)
+        captured = capsys.readouterr()
+        assert "They win this trade" in captured.out
+
+
+class TestPrintKeeperSolutionEdgeCases:
+    def test_no_alternatives_no_sensitivity(self, capsys: pytest.CaptureFixture[str]) -> None:
+        solution = KeeperSolution(
+            optimal=_make_keeper_set(),
+            alternatives=[],
+            sensitivity=[],
+        )
+        print_keeper_solution(solution)
+        captured = capsys.readouterr()
+        assert "Optimal Keeper Set" in captured.out
+        assert "Alternatives" not in captured.out
+        assert "Sensitivity" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Minor gap fills
+# ---------------------------------------------------------------------------
+
+
+class TestPrintTuneResultNoDivergence:
+    """_model.py line 139: per_target_best with no divergence skips section."""
+
+    def test_no_divergence_skips_per_target(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = TuneResult(
+            model_name="xgb-v1",
+            batter_params={"max_depth": 4},
+            pitcher_params={"max_depth": 3},
+            batter_cv_rmse={"hr": 0.05},
+            pitcher_cv_rmse={"era": 0.50},
+            pitcher_per_target_best={
+                "era": PerTargetBest(
+                    target="era",
+                    best_params={"max_depth": 3},
+                    best_rmse=0.50,
+                    joint_rmse=0.50,
+                    delta_pct=0.0,
+                ),
+            },
+        )
+        print_tune_result(result)
+        captured = capsys.readouterr()
+        assert "per-target optimal" not in captured.out
+
+
+class TestPrintCandidateValuesNull:
+    """_feature_factory.py lines 22-23: NULL value handling."""
+
+    def test_null_values_counted(self, capsys: pytest.CaptureFixture[str]) -> None:
+        values = [
+            CandidateValue(player_id=1, season=2024, value=None),
+            CandidateValue(player_id=2, season=2024, value=0.350),
+        ]
+        print_candidate_values(values)
+        captured = capsys.readouterr()
+        assert "NULL" in captured.out
+        assert "1 with NULL values" in captured.out
+
+
+class TestPrintBinTargetMeansMissingEntry:
+    """_feature_factory.py line 96: missing bin-target entry shows dash."""
+
+    def test_missing_entry_shows_dash(self, capsys: pytest.CaptureFixture[str]) -> None:
+        # Two bins, two targets, but only 3 of 4 combinations present
+        means = [
+            BinTargetMean("low", "avg", 0.260, 50),
+            BinTargetMean("low", "hr", 15.0, 50),
+            BinTargetMean("high", "avg", 0.300, 50),
+            # missing: ("high", "hr")
+        ]
+        print_bin_target_means(means)
+        captured = capsys.readouterr()
+        assert "-" in captured.out
+
+
+class TestPrintBatchSimulationTeamIdx:
+    """_mock_draft.py line 73: team_idx is not None."""
+
+    def test_team_idx_shown(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = BatchSimulationResult(
+            summary=SimulationSummary(
+                n_simulations=100,
+                team_idx=2,
+                avg_roster_value=150.0,
+                median_roster_value=148.0,
+                p10_roster_value=130.0,
+                p90_roster_value=170.0,
+            ),
+            player_frequencies=[],
+            strategy_comparisons=[],
+        )
+        print_batch_simulation_result(result)
+        captured = capsys.readouterr()
+        assert "Position" in captured.out
+        assert "3" in captured.out  # team_idx + 1
+
+
+class TestPrintTalentDeltaReportEmpty:
+    """_reports.py lines 64-65: empty deltas."""
+
+    def test_empty_deltas(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_talent_delta_report("Breakouts", [])
+        captured = capsys.readouterr()
+        assert "No results found" in captured.out
+
+
+class TestPrintPlayerValuationsNoCategories:
+    """_valuations.py branch 23->16: empty category_scores."""
+
+    def test_empty_category_scores(self, capsys: pytest.CaptureFixture[str]) -> None:
+        val = _make_player_valuation(category_scores={})
+        print_player_valuations([val])
+        captured = capsys.readouterr()
+        assert "Juan Soto" in captured.out
+        assert "42.5" in captured.out
