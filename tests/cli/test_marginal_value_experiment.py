@@ -43,8 +43,24 @@ class _FakeAssembler:
 
     def read(self, handle: str) -> list[dict[str, Any]]:
         return [
-            {"season": 2023, "col_a": 1.0, "col_b": 2.0, "barrel_rate": 0.1, "slg": 0.400},
-            {"season": 2024, "col_a": 1.1, "col_b": 2.1, "barrel_rate": 0.2, "slg": 0.420},
+            {
+                "player_id": 1,
+                "season": 2023,
+                "col_a": 1.0,
+                "col_b": 2.0,
+                "barrel_rate": 0.1,
+                "sprint_speed": 27.0,
+                "slg": 0.400,
+            },
+            {
+                "player_id": 2,
+                "season": 2024,
+                "col_a": 1.1,
+                "col_b": 2.1,
+                "barrel_rate": 0.2,
+                "sprint_speed": 28.0,
+                "slg": 0.420,
+            },
         ]
 
 

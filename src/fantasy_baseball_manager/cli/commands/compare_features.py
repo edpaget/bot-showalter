@@ -10,11 +10,19 @@ from fantasy_baseball_manager.cli.commands.quick_eval import _parse_params
 from fantasy_baseball_manager.cli.factory import create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import Err
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
 from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
-from fantasy_baseball_manager.services import compare_feature_sets
+from fantasy_baseball_manager.repos import SqliteFeatureCandidateRepo
+from fantasy_baseball_manager.services import (
+    candidate_values_to_dict,
+    compare_feature_sets,
+    inject_candidate_values,
+    remap_candidate_keys,
+    resolve_feature,
+)
 
 
 def compare_features_cmd(
@@ -78,6 +86,25 @@ def compare_features_cmd(
         for row in all_rows:
             s = row["season"]
             rows_by_season.setdefault(s, []).append(row)
+
+        # Resolve columns in set A or B that are missing from materialized rows
+        first_rows = next(iter(rows_by_season.values()), [])
+        existing_keys = first_rows[0].keys() if first_rows else set()
+        all_columns = set(columns_a) | set(columns_b)
+        missing_columns = [c for c in all_columns if c not in existing_keys]
+        if missing_columns:
+            statcast_conn = create_statcast_connection(Path(resolved_data_dir) / "statcast.db")
+            try:
+                candidate_repo = SqliteFeatureCandidateRepo(conn)
+                all_seasons = list(rows_by_season.keys())
+                mlbam_to_internal: dict[int, int] = dict(conn.execute("SELECT mlbam_id, id FROM player").fetchall())
+                for col_name in missing_columns:
+                    cv = resolve_feature(col_name, statcast_conn, candidate_repo, all_seasons, player_type)
+                    values_dict = candidate_values_to_dict(cv)
+                    remapped = remap_candidate_keys(values_dict, mlbam_to_internal)
+                    inject_candidate_values(rows_by_season, col_name, remapped)
+            finally:
+                statcast_conn.close()
 
         sorted_seasons = sorted(rows_by_season.keys())
         if len(sorted_seasons) < 2:

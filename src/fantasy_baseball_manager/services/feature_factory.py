@@ -1,7 +1,7 @@
 import re
 import statistics
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain import BinnedValue, CandidateValue, Err, Ok, Result
 
@@ -221,6 +221,33 @@ def resolve_feature(
 def candidate_values_to_dict(values: list[CandidateValue]) -> dict[tuple[int, int], float]:
     """Convert candidate values to a dict keyed by (player_id, season), dropping NULLs."""
     return {(v.player_id, v.season): v.value for v in values if v.value is not None}
+
+
+def inject_candidate_values(
+    rows_by_season: dict[int, list[dict[str, Any]]],
+    column_name: str,
+    values: dict[tuple[int, int], float],
+) -> None:
+    """Inject resolved candidate values into row dicts in-place.
+
+    Matches on (player_id, season) keys.  Rows without a match get NaN
+    (the feature genuinely has no value for that player-season).
+    """
+    for season, season_rows in rows_by_season.items():
+        for row in season_rows:
+            key = (row["player_id"], season)
+            row[column_name] = values.get(key, float("nan"))
+
+
+def remap_candidate_keys(
+    values: dict[tuple[int, int], float],
+    mlbam_to_internal: dict[int, int],
+) -> dict[tuple[int, int], float]:
+    """Re-key candidate values from (mlbam_id, season) to (internal_id, season).
+
+    Entries whose mlbam_id has no mapping are silently dropped.
+    """
+    return {(mlbam_to_internal[mid], season): val for (mid, season), val in values.items() if mid in mlbam_to_internal}
 
 
 _BIN_LABEL_PREFIX = {"quantile": "Q", "uniform": "B", "custom": "C"}

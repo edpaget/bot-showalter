@@ -11,12 +11,20 @@ from fantasy_baseball_manager.cli.commands.quick_eval import _parse_params
 from fantasy_baseball_manager.cli.factory import create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import Err, Experiment, TargetResult
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
 from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
-from fantasy_baseball_manager.repos import SqliteExperimentRepo
-from fantasy_baseball_manager.services import MarginalValueResult, marginal_value
+from fantasy_baseball_manager.repos import SqliteExperimentRepo, SqliteFeatureCandidateRepo
+from fantasy_baseball_manager.services import (
+    MarginalValueResult,
+    candidate_values_to_dict,
+    inject_candidate_values,
+    marginal_value,
+    remap_candidate_keys,
+    resolve_feature,
+)
 
 
 def marginal_value_cmd(
@@ -80,6 +88,24 @@ def marginal_value_cmd(
         for row in all_rows:
             s = row["season"]
             rows_by_season.setdefault(s, []).append(row)
+
+        # Resolve candidate columns that are missing from materialized rows
+        first_rows = next(iter(rows_by_season.values()), [])
+        existing_keys = first_rows[0].keys() if first_rows else set()
+        missing_candidates = [c for c in candidate if c not in existing_keys]
+        if missing_candidates:
+            statcast_conn = create_statcast_connection(Path(resolved_data_dir) / "statcast.db")
+            try:
+                candidate_repo = SqliteFeatureCandidateRepo(conn)
+                all_seasons = list(rows_by_season.keys())
+                mlbam_to_internal: dict[int, int] = dict(conn.execute("SELECT mlbam_id, id FROM player").fetchall())
+                for cand_name in missing_candidates:
+                    cv = resolve_feature(cand_name, statcast_conn, candidate_repo, all_seasons, player_type)
+                    values_dict = candidate_values_to_dict(cv)
+                    remapped = remap_candidate_keys(values_dict, mlbam_to_internal)
+                    inject_candidate_values(rows_by_season, cand_name, remapped)
+            finally:
+                statcast_conn.close()
 
         # Split: train on all but last season, holdout on last
         sorted_seasons = sorted(rows_by_season.keys())

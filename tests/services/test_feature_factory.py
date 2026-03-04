@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import math
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -14,7 +15,9 @@ from fantasy_baseball_manager.services.feature_factory import (
     bin_candidate,
     candidate_values_to_dict,
     cross_bin_candidates,
+    inject_candidate_values,
     interact_candidates,
+    remap_candidate_keys,
     resolve_feature,
     validate_expression,
 )
@@ -546,3 +549,71 @@ class TestCrossBinCandidates:
         by_season = {r.season: r.bin_label for r in result}
         assert by_season[2023] == "Q1__Q3"
         assert by_season[2024] == "Q2__Q1"
+
+
+class TestInjectCandidateValues:
+    def test_injects_matching_values(self) -> None:
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2023: [
+                {"player_id": 1, "feature_a": 0.5},
+                {"player_id": 2, "feature_a": 0.6},
+            ],
+        }
+        values = {(1, 2023): 0.9, (2, 2023): 0.8}
+        inject_candidate_values(rows_by_season, "new_col", values)
+        assert rows_by_season[2023][0]["new_col"] == 0.9
+        assert rows_by_season[2023][1]["new_col"] == 0.8
+
+    def test_unmatched_rows_get_nan(self) -> None:
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2023: [{"player_id": 1, "feature_a": 0.5}],
+        }
+        values: dict[tuple[int, int], float] = {}
+        inject_candidate_values(rows_by_season, "new_col", values)
+        assert math.isnan(rows_by_season[2023][0]["new_col"])
+
+    def test_multi_season_injection(self) -> None:
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2023: [{"player_id": 1, "feature_a": 0.5}],
+            2024: [{"player_id": 1, "feature_a": 0.6}],
+        }
+        values = {(1, 2023): 0.9, (1, 2024): 0.7}
+        inject_candidate_values(rows_by_season, "new_col", values)
+        assert rows_by_season[2023][0]["new_col"] == 0.9
+        assert rows_by_season[2024][0]["new_col"] == 0.7
+
+    def test_modifies_rows_in_place(self) -> None:
+        row = {"player_id": 1, "feature_a": 0.5}
+        rows_by_season: dict[int, list[dict[str, Any]]] = {2023: [row]}
+        inject_candidate_values(rows_by_season, "x", {(1, 2023): 1.0})
+        assert row["x"] == 1.0
+
+
+class TestRemapCandidateKeys:
+    def test_remaps_mlbam_to_internal(self) -> None:
+        values = {(660271, 2023): 0.9, (545361, 2023): 0.8}
+        mlbam_to_internal = {660271: 1, 545361: 2}
+        result = remap_candidate_keys(values, mlbam_to_internal)
+        assert result == {(1, 2023): 0.9, (2, 2023): 0.8}
+
+    def test_skips_unknown_mlbam_ids(self) -> None:
+        values = {(660271, 2023): 0.9, (999999, 2023): 0.5}
+        mlbam_to_internal = {660271: 1}
+        result = remap_candidate_keys(values, mlbam_to_internal)
+        assert result == {(1, 2023): 0.9}
+        assert (999999, 2023) not in result
+
+    def test_preserves_seasons(self) -> None:
+        values = {(100, 2023): 0.5, (100, 2024): 0.6}
+        mlbam_to_internal = {100: 42}
+        result = remap_candidate_keys(values, mlbam_to_internal)
+        assert result == {(42, 2023): 0.5, (42, 2024): 0.6}
+
+    def test_empty_values(self) -> None:
+        result = remap_candidate_keys({}, {100: 1})
+        assert result == {}
+
+    def test_empty_mapping(self) -> None:
+        values = {(100, 2023): 0.5}
+        result = remap_candidate_keys(values, {})
+        assert result == {}
