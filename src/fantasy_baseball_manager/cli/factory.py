@@ -30,6 +30,10 @@ from fantasy_baseball_manager.ingest import (
 from fantasy_baseball_manager.models import RunManager, get
 from fantasy_baseball_manager.models.composite.engine import resolve_engine
 from fantasy_baseball_manager.repos import (
+    ADPRepo,
+    KeeperCostRepo,
+    PlayerRepo,
+    ProjectionRepo,
     SqliteADPRepo,
     SqliteBattingStatsRepo,
     SqliteCheckpointRepo,
@@ -57,6 +61,13 @@ from fantasy_baseball_manager.repos import (
     SqliteYahooRosterRepo,
     SqliteYahooTeamRepo,
     SqliteYahooTransactionRepo,
+    ValuationRepo,
+    YahooDraftRepo,
+    YahooLeagueRepo,
+    YahooPlayerMapRepo,
+    YahooRosterRepo,
+    YahooTeamRepo,
+    YahooTransactionRepo,
 )
 from fantasy_baseball_manager.services import (
     CorrelationScanner,
@@ -666,17 +677,17 @@ def build_chat_context(data_dir: str, *, check_same_thread: bool = True) -> Iter
 @dataclass(frozen=True)
 class YahooContext:
     conn: sqlite3.Connection
-    yahoo_league_repo: SqliteYahooLeagueRepo
-    yahoo_team_repo: SqliteYahooTeamRepo
-    yahoo_player_map_repo: SqliteYahooPlayerMapRepo
-    yahoo_roster_repo: SqliteYahooRosterRepo
-    yahoo_draft_repo: SqliteYahooDraftRepo
-    yahoo_transaction_repo: SqliteYahooTransactionRepo
-    player_repo: SqlitePlayerRepo
-    projection_repo: SqliteProjectionRepo
-    valuation_repo: SqliteValuationRepo
-    adp_repo: SqliteADPRepo
-    keeper_repo: SqliteKeeperCostRepo
+    yahoo_league_repo: YahooLeagueRepo
+    yahoo_team_repo: YahooTeamRepo
+    yahoo_player_map_repo: YahooPlayerMapRepo
+    yahoo_roster_repo: YahooRosterRepo
+    yahoo_draft_repo: YahooDraftRepo
+    yahoo_transaction_repo: YahooTransactionRepo
+    player_repo: PlayerRepo
+    projection_repo: ProjectionRepo
+    valuation_repo: ValuationRepo
+    adp_repo: ADPRepo
+    keeper_repo: KeeperCostRepo
     client: YahooFantasyClient
 
 

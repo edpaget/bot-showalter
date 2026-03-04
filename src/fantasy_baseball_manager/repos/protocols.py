@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     import builtins
+    import datetime
 
     from fantasy_baseball_manager.domain import (
         ADP,
@@ -22,11 +23,18 @@ if TYPE_CHECKING:
         Player,
         PositionAppearance,
         Projection,
+        Roster,
         RosterStint,
         StatcastPitch,
         StatDistribution,
         Team,
+        Transaction,
+        TransactionPlayer,
         Valuation,
+        YahooDraftPick,
+        YahooLeague,
+        YahooPlayerMap,
+        YahooTeam,
     )
     from fantasy_baseball_manager.repos.experiment_repo import ExperimentFilter
 
@@ -202,3 +210,52 @@ class FeatureCandidateRepo(Protocol):
     def get_by_name(self, name: str) -> FeatureCandidate | None: ...
     def list_all(self) -> builtins.list[FeatureCandidate]: ...
     def delete(self, name: str) -> bool: ...
+
+
+@runtime_checkable
+class YahooLeagueRepo(Protocol):
+    def upsert(self, league: YahooLeague) -> int: ...
+    def get_by_league_key(self, league_key: str) -> YahooLeague | None: ...
+    def get_all(self) -> builtins.list[YahooLeague]: ...
+
+
+@runtime_checkable
+class YahooTeamRepo(Protocol):
+    def upsert(self, team: YahooTeam) -> int: ...
+    def get_by_league_key(self, league_key: str) -> builtins.list[YahooTeam]: ...
+    def get_user_team(self, league_key: str) -> YahooTeam | None: ...
+
+
+@runtime_checkable
+class YahooPlayerMapRepo(Protocol):
+    def upsert(self, mapping: YahooPlayerMap) -> int: ...
+    def get_by_yahoo_key(self, yahoo_player_key: str) -> YahooPlayerMap | None: ...
+    def get_by_player_id(self, player_id: int) -> builtins.list[YahooPlayerMap]: ...
+    def get_all(self) -> builtins.list[YahooPlayerMap]: ...
+
+
+@runtime_checkable
+class YahooRosterRepo(Protocol):
+    def save_snapshot(self, roster: Roster) -> int: ...
+    def get_latest_by_team(self, team_key: str, league_key: str) -> Roster | None: ...
+    def get_by_league_latest(self, league_key: str) -> builtins.list[Roster]: ...
+
+
+@runtime_checkable
+class YahooDraftRepo(Protocol):
+    def upsert(self, pick: YahooDraftPick) -> None: ...
+    def get_by_league_season(self, league_key: str, season: int) -> builtins.list[YahooDraftPick]: ...
+    def get_pick_count(self, league_key: str, season: int) -> int: ...
+
+
+@runtime_checkable
+class YahooTransactionRepo(Protocol):
+    def upsert(self, txn: Transaction, players: builtins.list[TransactionPlayer]) -> None: ...
+    def get_by_league(
+        self, league_key: str, *, since: datetime.datetime | None = None
+    ) -> builtins.list[Transaction]: ...
+    def get_players_for_transaction(self, transaction_key: str) -> builtins.list[TransactionPlayer]: ...
+    def get_latest_timestamp(self, league_key: str) -> datetime.datetime | None: ...
+    def get_recent(
+        self, league_key: str, *, days: int
+    ) -> builtins.list[tuple[Transaction, builtins.list[TransactionPlayer]]]: ...

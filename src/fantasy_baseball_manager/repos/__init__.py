@@ -42,6 +42,12 @@ from fantasy_baseball_manager.repos.protocols import (
     StatcastPitchRepo,
     TeamRepo,
     ValuationRepo,
+    YahooDraftRepo,
+    YahooLeagueRepo,
+    YahooPlayerMapRepo,
+    YahooRosterRepo,
+    YahooTeamRepo,
+    YahooTransactionRepo,
 )
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.repos.sprint_speed_repo import SqliteSprintSpeedRepo
@@ -111,4 +117,10 @@ __all__ = [
     "StatcastPitchRepo",
     "TeamRepo",
     "ValuationRepo",
+    "YahooDraftRepo",
+    "YahooLeagueRepo",
+    "YahooPlayerMapRepo",
+    "YahooRosterRepo",
+    "YahooTeamRepo",
+    "YahooTransactionRepo",
 ]

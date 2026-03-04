@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from fantasy_baseball_manager.ingest import default_http_retry
+from fantasy_baseball_manager.http_retry import default_http_retry
 
 if TYPE_CHECKING:
     from collections.abc import Callable

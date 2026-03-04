@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 from fantasy_baseball_manager.domain import YahooPlayerMap
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.repos import SqlitePlayerRepo, SqliteYahooPlayerMapRepo
+    from fantasy_baseball_manager.repos import PlayerRepo, YahooPlayerMapRepo
 logger = logging.getLogger(__name__)
 
 _PITCHING_POSITIONS = {"SP", "RP", "P"}
@@ -13,8 +13,8 @@ _PITCHING_POSITIONS = {"SP", "RP", "P"}
 class YahooPlayerMapper:
     def __init__(
         self,
-        map_repo: SqliteYahooPlayerMapRepo,
-        player_repo: SqlitePlayerRepo,
+        map_repo: YahooPlayerMapRepo,
+        player_repo: PlayerRepo,
     ) -> None:
         self._map_repo = map_repo
         self._player_repo = player_repo

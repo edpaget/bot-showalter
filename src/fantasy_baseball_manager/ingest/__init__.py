@@ -1,4 +1,4 @@
-from fantasy_baseball_manager.ingest._retry import default_http_retry
+from fantasy_baseball_manager.http_retry import default_http_retry
 from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
     fetch_mlb_active_teams,
