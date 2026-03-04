@@ -7,10 +7,12 @@ from fantasy_baseball_manager.cli._dispatcher import dispatch
 from fantasy_baseball_manager.cli._helpers import parse_params, parse_tags
 from fantasy_baseball_manager.cli._output import (
     print_ablation_result,
+    print_coverage_matrix,
     print_error,
     print_gate_result,
     print_predict_result,
     print_prepare_result,
+    print_routing_table,
     print_system_metrics,
     print_train_result,
     print_tune_result,
@@ -32,6 +34,7 @@ from fantasy_baseball_manager.models import (
     TrainResult,
     TuneResult,
 )
+from fantasy_baseball_manager.models.ensemble.stat_groups import expand_route_groups, league_required_stats
 from fantasy_baseball_manager.services import GateConfig, RegressionGateRunner
 
 _ModelArg = Annotated[str, typer.Argument(help="Name of the projection model")]
@@ -44,6 +47,8 @@ _TopOpt = Annotated[int | None, typer.Option("--top", help="Top N players by WAR
 _HoldoutOpt = Annotated[list[int], typer.Option("--holdout", help="Holdout season(s) to test (repeatable)")]
 _BaselineOpt = Annotated[str, typer.Option("--baseline", help="Baseline version to compare against")]
 _KeepOpt = Annotated[bool, typer.Option("--keep", help="Retain candidate predictions in DB after gate finishes")]
+_DryRunOpt = Annotated[bool, typer.Option("--dry-run", help="Show routing table without fetching projections")]
+_CheckOpt = Annotated[bool, typer.Option("--check", help="Error on uncovered league-required stats")]
 
 
 def _run_action(
@@ -132,12 +137,18 @@ def predict(  # pragma: no cover
     version: _VersionOpt = None,
     tag: _TagOpt = None,
     param: _ParamOpt = None,
+    dry_run: _DryRunOpt = False,
+    check: _CheckOpt = False,
 ) -> None:
     """Generate predictions from a projection model."""
     tags = parse_tags(tag)
-    params = parse_params(param)
-    if params and "league" in params and isinstance(params["league"], str):
+    params = parse_params(param) or {}
+    if "league" in params and isinstance(params["league"], str):
         params["league"] = load_league(params["league"], Path.cwd())
+    if dry_run:
+        params["dry_run"] = True
+    if check:
+        params["check"] = True
     config = load_config(
         model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
     )
@@ -145,6 +156,11 @@ def predict(  # pragma: no cover
     with build_model_context(model, config) as ctx:
         match dispatch("predict", ctx.model, config, run_manager=ctx.run_manager):
             case Ok(PredictResult() as result):
+                if dry_run:
+                    if result.predictions and "_routes" in result.predictions[0]:
+                        print_routing_table(result.predictions[0]["_routes"])
+                    print_predict_result(result)
+                    return
                 if ctx.projection_repo is not None:
                     version = config.version or "latest"
                     projection_ids: dict[tuple[int, str], int] = {}
@@ -304,3 +320,58 @@ def gate(  # pragma: no cover
 
         if not result.passed:
             raise typer.Exit(code=1)
+
+
+def coverage(  # pragma: no cover
+    model: _ModelArg,
+    output_dir: _OutputDirOpt = None,
+    season: _SeasonOpt = None,
+    param: _ParamOpt = None,
+) -> None:
+    """Show stat coverage matrix for an ensemble model's component systems."""
+    params = parse_params(param) or {}
+    if "league" in params and isinstance(params["league"], str):
+        params["league"] = load_league(params["league"], Path.cwd())
+    config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
+
+    with build_model_context(model, config) as ctx:
+        if ctx.projection_repo is None:
+            print_error("No projection repo available")
+            raise typer.Exit(code=1)
+
+        components: dict[str, float] = params.get("components", {})
+        versions: dict[str, str] = params.get("versions", {})
+        season_val: int = params.get("season", config.seasons[0] if config.seasons else 2025)
+
+        # Collect stats each system actually has
+        system_stats: dict[str, set[str]] = {}
+        for system in components:
+            if system in versions:
+                projs = ctx.projection_repo.get_by_system_version(system, versions[system])
+            else:
+                projs = ctx.projection_repo.get_by_season(season_val, system=system)
+            stats: set[str] = set()
+            for proj in projs:
+                stats.update(proj.stat_json.keys())
+            system_stats[system] = stats
+
+        # Resolve routes if configured
+        routes: dict[str, str] | None = None
+        route_groups_param: dict[str, str] | None = params.get("route_groups")
+        if route_groups_param is not None:
+            routes = expand_route_groups(
+                route_groups=route_groups_param,
+                routes=params.get("routes"),
+                custom_groups=params.get("stat_groups"),
+                league=params.get("league"),
+            )
+        elif params.get("routes"):
+            routes = params["routes"]
+
+        # Resolve required stats if league available
+        required: frozenset[str] | None = None
+        league = params.get("league")
+        if league is not None:
+            required = league_required_stats(league)
+
+        print_coverage_matrix(system_stats, routes, required)

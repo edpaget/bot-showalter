@@ -4,4 +4,5 @@ from fantasy_baseball_manager.models.ensemble.stat_groups import (  # noqa: F401
     BUILTIN_GROUPS,
     expand_route_groups,
     league_required_stats,
+    validate_coverage,
 )

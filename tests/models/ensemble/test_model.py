@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import pytest
@@ -1196,3 +1197,242 @@ class TestEnsembleRouteGroups:
         assert pred["obp"] == 0.340
         assert pred["h"] == 150.0
         assert pred["pa"] == 600.0
+
+
+def _make_league(
+    batting: list[CategoryConfig],
+    pitching: list[CategoryConfig],
+) -> LeagueSettings:
+    return LeagueSettings(
+        name="test",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=12,
+        budget=260,
+        roster_batters=9,
+        roster_pitchers=8,
+        batting_categories=tuple(batting),
+        pitching_categories=tuple(pitching),
+    )
+
+
+def _counting_cat(key: str) -> CategoryConfig:
+    return CategoryConfig(key=key, name=key, stat_type=StatType.COUNTING, direction=Direction.HIGHER)
+
+
+def _rate_cat(key: str, numerator: str, denominator: str) -> CategoryConfig:
+    return CategoryConfig(
+        key=key,
+        name=key,
+        stat_type=StatType.RATE,
+        direction=Direction.HIGHER,
+        numerator=numerator,
+        denominator=denominator,
+    )
+
+
+class TestEnsembleCoverageValidation:
+    def test_coverage_warning_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+        """League present, stat uncovered → warning in caplog."""
+        league = _make_league(
+            batting=[_counting_cat("hr"), _counting_cat("rbi")],
+            pitching=[],
+        )
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "steamer"},
+                "league": league,
+            },
+        )
+        with caplog.at_level(logging.WARNING, logger="fantasy_baseball_manager.models.ensemble.model"):
+            model.predict(config)
+        assert any("rbi" in msg for msg in caplog.messages)
+
+    def test_coverage_no_warning_when_covered(self, caplog: pytest.LogCaptureFixture) -> None:
+        """All covered → no warning."""
+        league = _make_league(
+            batting=[_counting_cat("hr")],
+            pitching=[],
+        )
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "steamer"},
+                "league": league,
+            },
+        )
+        with caplog.at_level(logging.WARNING, logger="fantasy_baseball_manager.models.ensemble.model"):
+            model.predict(config)
+        assert not any("uncovered" in msg.lower() for msg in caplog.messages)
+
+    def test_coverage_check_raises_on_uncovered(self) -> None:
+        """check=True + uncovered → ValueError."""
+        league = _make_league(
+            batting=[_counting_cat("hr"), _counting_cat("rbi")],
+            pitching=[],
+        )
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "steamer"},
+                "league": league,
+                "check": True,
+            },
+        )
+        with pytest.raises(ValueError, match="rbi"):
+            model.predict(config)
+
+    def test_coverage_check_passes_when_covered(self) -> None:
+        """check=True + all covered → no error."""
+        league = _make_league(
+            batting=[_counting_cat("hr")],
+            pitching=[],
+        )
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "steamer"},
+                "league": league,
+                "check": True,
+            },
+        )
+        # Should not raise
+        model.predict(config)
+
+    def test_no_validation_without_league(self, caplog: pytest.LogCaptureFixture) -> None:
+        """No league param → no validation."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "steamer"},
+                # no league
+            },
+        )
+        with caplog.at_level(logging.WARNING, logger="fantasy_baseball_manager.models.ensemble.model"):
+            model.predict(config)
+        assert not any("uncovered" in msg.lower() for msg in caplog.messages)
+
+
+class _NeverCalledProjectionRepo:
+    """Fake repo that raises if any fetch method is called."""
+
+    def get_by_season(self, season: int, **kwargs: Any) -> list[Any]:
+        raise AssertionError("projection repo should not be called in dry_run mode")
+
+    def get_by_system_version(self, system: str, version: str) -> list[Any]:
+        raise AssertionError("projection repo should not be called in dry_run mode")
+
+
+class TestEnsembleDryRun:
+    def test_dry_run_returns_empty_predictions(self) -> None:
+        """dry_run=True → PredictResult with empty predictions."""
+        repo = FakeProjectionRepo([])
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "steamer", "obp": "statcast-gbm"},
+                "dry_run": True,
+            },
+        )
+        result = model.predict(config)
+        assert result.model_name == "ensemble"
+        # No player-level predictions
+        assert len(result.predictions) == 1
+        assert "player_id" not in result.predictions[0]
+
+    def test_dry_run_includes_routing_metadata(self) -> None:
+        """Result includes _routes in a single metadata dict."""
+        repo = FakeProjectionRepo([])
+        model = EnsembleModel(projection_repo=repo)
+        routes = {"hr": "steamer", "obp": "statcast-gbm"}
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "routed",
+                "season": 2025,
+                "routes": routes,
+                "dry_run": True,
+            },
+        )
+        result = model.predict(config)
+        meta = result.predictions[0]
+        assert meta["_routes"] == routes
+        assert meta["_mode"] == "routed"
+        assert meta["_components"] == {"steamer": 0.5, "statcast-gbm": 0.5}
+
+    def test_dry_run_does_not_fetch_projections(self) -> None:
+        """Projection repo is not called when dry_run=True."""
+        repo = _NeverCalledProjectionRepo()
+        model = EnsembleModel(projection_repo=repo)  # type: ignore[arg-type]
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "mode": "routed",
+                "season": 2025,
+                "routes": {"hr": "steamer"},
+                "dry_run": True,
+            },
+        )
+        # Should not raise — repo methods not called
+        result = model.predict(config)
+        assert result.predictions
+
+    def test_dry_run_with_route_groups(self) -> None:
+        """dry_run works with route_groups expansion."""
+        repo = _NeverCalledProjectionRepo()
+        model = EnsembleModel(projection_repo=repo)  # type: ignore[arg-type]
+        config = ModelConfig(
+            model_params={
+                "components": {"steamer": 0.5, "statcast-gbm": 0.5},
+                "season": 2025,
+                "route_groups": {"batting_rate": "statcast-gbm", "batting_counting": "steamer"},
+                "dry_run": True,
+            },
+        )
+        result = model.predict(config)
+        meta = result.predictions[0]
+        assert meta["_routes"]["obp"] == "statcast-gbm"
+        assert meta["_routes"]["hr"] == "steamer"

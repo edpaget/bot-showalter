@@ -121,6 +121,12 @@ def expand_route_groups(
     return result
 
 
+def validate_coverage(routes: dict[str, str], league: LeagueSettings) -> list[str]:
+    """Return league-required stats not covered by the routes dict."""
+    required = league_required_stats(league)
+    return sorted(required - routes.keys())
+
+
 def league_required_stats(league: LeagueSettings) -> frozenset[str]:
     """Return the set of stats required by the league's categories.
 

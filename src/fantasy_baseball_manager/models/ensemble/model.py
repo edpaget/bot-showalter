@@ -1,5 +1,6 @@
 """Ensemble model — weighted-average ensemble of multiple projection systems."""
 
+import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +16,7 @@ from fantasy_baseball_manager.models.ensemble.engine import (
     weighted_average,
     weighted_spread,
 )
-from fantasy_baseball_manager.models.ensemble.stat_groups import expand_route_groups
+from fantasy_baseball_manager.models.ensemble.stat_groups import expand_route_groups, validate_coverage
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.repos import (
@@ -26,6 +27,9 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from fantasy_baseball_manager.domain import Projection
+
+
+logger = logging.getLogger(__name__)
 
 
 @register("ensemble")
@@ -59,6 +63,43 @@ class EnsembleModel:
         versions: dict[str, str] = params.get("versions", {})
         pt_mode: str = params.get("playing_time", "native")
 
+        # Expand route_groups into per-stat routes
+        route_groups_param: dict[str, str] | None = params.get("route_groups")
+        if route_groups_param is not None:
+            expanded_routes = expand_route_groups(
+                route_groups=route_groups_param,
+                routes=params.get("routes"),
+                custom_groups=params.get("stat_groups"),
+                league=params.get("league"),
+            )
+            params["routes"] = expanded_routes
+            mode = "routed"
+
+        # Coverage validation when league is present and mode is routed
+        league = params.get("league")
+        if league is not None and mode == "routed":
+            uncovered = validate_coverage(params["routes"], league)
+            for stat in uncovered:
+                logger.warning("Uncovered league-required stat: %s", stat)
+            if uncovered and params.get("check"):
+                msg = f"Uncovered league-required stats: {', '.join(uncovered)}"
+                raise ValueError(msg)
+
+        # Dry run: return metadata without fetching projections
+        if params.get("dry_run"):
+            output_path = config.output_dir or config.artifacts_dir
+            meta: dict[str, Any] = {
+                "_components": dict(components),
+                "_mode": mode,
+            }
+            if mode == "routed":
+                meta["_routes"] = dict(params["routes"])
+            return PredictResult(
+                model_name="ensemble",
+                predictions=[meta],
+                output_path=output_path,
+            )
+
         # Fetch projections for each component system
         system_projections: dict[str, list[Projection]] = {}
         for system in components:
@@ -73,18 +114,6 @@ class EnsembleModel:
             steamer_projs = self._projection_repo.get_by_season(season, system="steamer")
             zips_projs = self._projection_repo.get_by_season(season, system="zips")
             consensus = build_consensus_lookup(steamer_projs, zips_projs)
-
-        # Expand route_groups into per-stat routes
-        route_groups_param: dict[str, str] | None = params.get("route_groups")
-        if route_groups_param is not None:
-            expanded_routes = expand_route_groups(
-                route_groups=route_groups_param,
-                routes=params.get("routes"),
-                custom_groups=params.get("stat_groups"),
-                league=params.get("league"),
-            )
-            params["routes"] = expanded_routes
-            mode = "routed"
 
         # Group by (player_id, player_type)
         grouped: dict[tuple[int, str], dict[str, Projection]] = defaultdict(dict)

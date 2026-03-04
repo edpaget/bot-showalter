@@ -58,8 +58,10 @@ from fantasy_baseball_manager.cli._output._mock_draft import (
 )
 from fantasy_baseball_manager.cli._output._model import (
     print_ablation_result,
+    print_coverage_matrix,
     print_predict_result,
     print_prepare_result,
+    print_routing_table,
     print_train_result,
     print_tune_result,
 )
@@ -194,11 +196,13 @@ __all__ = [
     "print_pick_value_curve",
     "print_player_projections",
     "print_player_valuations",
+    "print_coverage_matrix",
     "print_predict_result",
     "print_prepare_result",
     "print_projection_confidence",
     "print_quick_eval_result",
     "print_regression_check_result",
+    "print_routing_table",
     "print_scarcity_rankings",
     "print_scarcity_report",
     "print_residual_analysis_report",

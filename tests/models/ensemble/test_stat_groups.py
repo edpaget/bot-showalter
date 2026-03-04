@@ -11,6 +11,7 @@ from fantasy_baseball_manager.models.ensemble.stat_groups import (
     BUILTIN_GROUPS,
     expand_route_groups,
     league_required_stats,
+    validate_coverage,
 )
 
 
@@ -166,6 +167,54 @@ def _make_league(
         batting_categories=tuple(batting),
         pitching_categories=tuple(pitching),
     )
+
+
+class TestValidateCoverage:
+    def test_all_stats_covered(self) -> None:
+        league = _make_league(
+            batting=[_counting_cat("hr"), _counting_cat("rbi")],
+            pitching=[],
+        )
+        routes = {"hr": "steamer", "rbi": "steamer"}
+        result = validate_coverage(routes, league)
+        assert result == []
+
+    def test_missing_stat(self) -> None:
+        league = _make_league(
+            batting=[_counting_cat("hr"), _counting_cat("rbi")],
+            pitching=[],
+        )
+        routes = {"hr": "steamer"}
+        result = validate_coverage(routes, league)
+        assert result == ["rbi"]
+
+    def test_missing_rate_component(self) -> None:
+        league = _make_league(
+            batting=[_rate_cat("obp", "h+bb+hbp", "pa")],
+            pitching=[],
+        )
+        # Route the key but not all components
+        routes = {"obp": "gbm", "h": "steamer"}
+        result = validate_coverage(routes, league)
+        # bb, hbp, pa are missing
+        assert result == ["bb", "hbp", "pa"]
+
+    def test_no_routes(self) -> None:
+        league = _make_league(
+            batting=[_counting_cat("hr")],
+            pitching=[_counting_cat("so")],
+        )
+        result = validate_coverage({}, league)
+        assert result == ["hr", "so"]
+
+    def test_compound_key_components(self) -> None:
+        league = _make_league(
+            batting=[],
+            pitching=[_counting_cat("sv+hld")],
+        )
+        routes = {"sv": "steamer"}
+        result = validate_coverage(routes, league)
+        assert result == ["hld"]
 
 
 class TestLeagueRequiredStats:

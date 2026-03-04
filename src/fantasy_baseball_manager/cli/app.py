@@ -16,6 +16,7 @@ from fantasy_baseball_manager.cli.commands.marginal_value import marginal_value_
 from fantasy_baseball_manager.cli.commands.mock_draft import mock_app
 from fantasy_baseball_manager.cli.commands.model import (
     ablate,
+    coverage,
     evaluate,
     finetune,
     gate,
@@ -68,6 +69,7 @@ app.command()(ablate)
 app.command()(tune)
 app.command()(sweep)
 app.command()(gate)
+app.command()(coverage)
 app.command("quick-eval")(quick_eval_cmd)
 app.command("marginal-value")(marginal_value_cmd)
 app.command("compare-features")(compare_features_cmd)

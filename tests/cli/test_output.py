@@ -19,6 +19,7 @@ from fantasy_baseball_manager.cli._output import (
     print_cohort_bias_summary,
     print_compare_features_result,
     print_comparison_result,
+    print_coverage_matrix,
     print_dataset_list,
     print_draft_board,
     print_draft_report,
@@ -50,6 +51,7 @@ from fantasy_baseball_manager.cli._output import (
     print_regression_check_result,
     print_residual_analysis_report,
     print_residual_persistence_report,
+    print_routing_table,
     print_run_detail,
     print_run_list,
     print_scarcity_rankings,
@@ -1060,6 +1062,55 @@ class TestPrintPredictResult:
         captured = capsys.readouterr()
         assert "xgb-v1" in captured.out
         assert "3 predictions" in captured.out
+
+
+class TestPrintRoutingTable:
+    def test_shows_stat_and_system(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_output, "console", Console(width=120, force_terminal=True))
+        routes = {"hr": "steamer", "obp": "statcast-gbm"}
+        print_routing_table(routes)
+
+    def test_empty_routes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_output, "console", Console(width=120, force_terminal=True))
+        print_routing_table({})
+
+
+class TestPrintCoverageMatrix:
+    def test_shows_systems_and_stats(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_output, "console", Console(width=120, force_terminal=True))
+        system_stats = {
+            "steamer": {"hr", "rbi", "obp"},
+            "statcast-gbm": {"obp", "avg"},
+        }
+        print_coverage_matrix(system_stats)
+
+    def test_with_routes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_output, "console", Console(width=120, force_terminal=True))
+        system_stats = {
+            "steamer": {"hr", "rbi"},
+            "statcast-gbm": {"obp"},
+        }
+        routes = {"hr": "steamer", "obp": "statcast-gbm"}
+        print_coverage_matrix(system_stats, routes=routes)
+
+    def test_with_required_stats(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_output, "console", Console(width=120, force_terminal=True))
+        system_stats = {
+            "steamer": {"hr", "rbi"},
+            "statcast-gbm": {"obp"},
+        }
+        routes = {"hr": "steamer", "obp": "statcast-gbm"}
+        required = frozenset({"hr", "obp", "rbi"})
+        print_coverage_matrix(system_stats, routes=routes, required_stats=required)
+
+    def test_highlights_uncovered_required(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_output, "console", Console(width=120, force_terminal=True))
+        system_stats = {
+            "steamer": {"hr"},
+        }
+        routes = {"hr": "steamer"}
+        required = frozenset({"hr", "rbi"})  # rbi is required but not routed
+        print_coverage_matrix(system_stats, routes=routes, required_stats=required)
 
 
 class TestPrintTuneResult:

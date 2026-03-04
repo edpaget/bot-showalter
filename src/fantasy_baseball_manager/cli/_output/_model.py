@@ -104,6 +104,54 @@ def _print_validation_result(vr: ValidationResult) -> None:
         console.print(table)
 
 
+def print_routing_table(routes: dict[str, str]) -> None:
+    """Print the effective stat→system routing table."""
+    table = Table(title="Routing Table", show_edge=False)
+    table.add_column("Stat", style="bold")
+    table.add_column("System")
+    for stat in sorted(routes):
+        table.add_row(stat, routes[stat])
+    console.print(table)
+
+
+def print_coverage_matrix(
+    system_stats: dict[str, set[str]],
+    routes: dict[str, str] | None = None,
+    required_stats: frozenset[str] | None = None,
+) -> None:
+    """Print a stat × system coverage matrix."""
+    systems = sorted(system_stats)
+    all_stats = sorted({s for stats in system_stats.values() for s in stats})
+
+    table = Table(title="Coverage Matrix", show_edge=False)
+    table.add_column("Stat", style="bold")
+    for sys_name in systems:
+        table.add_column(sys_name, justify="center")
+    if routes:
+        table.add_column("Routed To", style="cyan")
+    if required_stats:
+        table.add_column("Required", justify="center")
+
+    for stat in all_stats:
+        row: list[str] = []
+        for sys_name in systems:
+            row.append("[green]✓[/green]" if stat in system_stats[sys_name] else "[dim]·[/dim]")
+        if routes:
+            row.append(routes.get(stat, "[dim]—[/dim]"))
+        if required_stats:
+            if stat in required_stats:
+                covered = routes is None or stat in routes
+                row.append("[green]✓[/green]" if covered else "[red]✗[/red]")
+            else:
+                row.append("[dim]·[/dim]")
+
+        stat_style = ""
+        if required_stats and stat in required_stats and routes and stat not in routes:
+            stat_style = "red bold"
+        table.add_row(f"[{stat_style}]{stat}[/{stat_style}]" if stat_style else stat, *row)
+    console.print(table)
+
+
 def print_tune_result(result: TuneResult) -> None:
     """Print tuning results with best params in TOML-ready format."""
     console.print(f"[bold green]Tuning complete[/bold green] for model [bold]'{result.model_name}'[/bold]")
