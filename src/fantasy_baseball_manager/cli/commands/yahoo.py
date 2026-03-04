@@ -195,44 +195,17 @@ def yahoo_sync(  # pragma: no cover
         game_key = ctx.client.get_game_key(2026)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
-        source = YahooLeagueSource(ctx.client)
-        result = source.fetch(league_key=league_key, game_key=game_key)
-
-        # Upsert league
-        league_data = result["league"]
-        yahoo_league = YahooLeague(
-            league_key=league_data["league_key"],
-            name=league_data["name"],
-            season=league_data["season"],
-            num_teams=league_data["num_teams"],
-            draft_type=league_data["draft_type"],
-            is_keeper=league_data["is_keeper"],
-            game_key=league_data["game_key"],
-        )
-        ctx.yahoo_league_repo.upsert(yahoo_league)
-
-        # Upsert teams
-        for team_data in result["teams"]:
-            yahoo_team = YahooTeam(
-                team_key=team_data["team_key"],
-                league_key=team_data["league_key"],
-                team_id=team_data["team_id"],
-                name=team_data["name"],
-                manager_name=team_data["manager_name"],
-                is_owned_by_user=team_data["is_owned_by_user"],
-            )
-            ctx.yahoo_team_repo.upsert(yahoo_team)
-
-        ctx.conn.commit()
+        yahoo_league = _sync_league_metadata(ctx, league_key, game_key)
+        teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
 
     console.print(f"[bold green]Synced[/bold green] {yahoo_league.name} ({yahoo_league.league_key})")
     console.print(f"  Season: {yahoo_league.season}")
     console.print(f"  Teams: {yahoo_league.num_teams}")
     console.print(f"  Draft type: {yahoo_league.draft_type}")
     console.print(f"  Keeper: {'yes' if yahoo_league.is_keeper else 'no'}")
-    for team_data in result["teams"]:
-        marker = " (you)" if team_data["is_owned_by_user"] else ""
-        console.print(f"  - {team_data['name']} ({team_data['manager_name']}){marker}")
+    for team in teams:
+        marker = " (you)" if team.is_owned_by_user else ""
+        console.print(f"  - {team.name} ({team.manager_name}){marker}")
 
 
 @yahoo_app.command("map-player")
@@ -610,6 +583,7 @@ def yahoo_draft_live(  # pragma: no cover
 @yahoo_app.command("transactions")
 def yahoo_transactions(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
     days: Annotated[int, typer.Option("--days", help="Show transactions from last N days")] = 7,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
@@ -619,17 +593,11 @@ def yahoo_transactions(  # pragma: no cover
     league_config = config.leagues[league_name]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        game_key = ctx.client.get_game_key(2026)
+        game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        source = YahooTransactionSource(ctx.client, mapper)
-
-        # Incremental sync
-        latest = ctx.yahoo_transaction_repo.get_latest_timestamp(league_key)
-        new_transactions = source.fetch_transactions(league_key, since=latest)
-        for txn, players in new_transactions:
-            ctx.yahoo_transaction_repo.upsert(txn, players)
+        _sync_transactions(ctx, league_key, mapper)
         ctx.conn.commit()
 
         # Display recent
@@ -663,6 +631,7 @@ def yahoo_transactions(  # pragma: no cover
 @yahoo_app.command("refresh")
 def yahoo_refresh(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
@@ -671,39 +640,14 @@ def yahoo_refresh(  # pragma: no cover
     league_config = config.leagues[league_name]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        game_key = ctx.client.get_game_key(2026)
+        game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
         # Step 1: Ensure teams exist (auto-sync if needed)
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
         if not teams:
             console.print("[yellow]No teams found. Running sync first...[/yellow]")
-            league_source = YahooLeagueSource(ctx.client)
-            result = league_source.fetch(league_key=league_key, game_key=game_key)
-
-            league_data = result["league"]
-            yahoo_league = YahooLeague(
-                league_key=league_data["league_key"],
-                name=league_data["name"],
-                season=league_data["season"],
-                num_teams=league_data["num_teams"],
-                draft_type=league_data["draft_type"],
-                is_keeper=league_data["is_keeper"],
-                game_key=league_data["game_key"],
-            )
-            ctx.yahoo_league_repo.upsert(yahoo_league)
-
-            for team_data in result["teams"]:
-                yahoo_team = YahooTeam(
-                    team_key=team_data["team_key"],
-                    league_key=team_data["league_key"],
-                    team_id=team_data["team_id"],
-                    name=team_data["name"],
-                    manager_name=team_data["manager_name"],
-                    is_owned_by_user=team_data["is_owned_by_user"],
-                )
-                ctx.yahoo_team_repo.upsert(yahoo_team)
-            ctx.conn.commit()
+            _sync_league_metadata(ctx, league_key, game_key)
             teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
 
         # Step 2: Sync rosters
@@ -716,7 +660,7 @@ def yahoo_refresh(  # pragma: no cover
             roster = roster_source.fetch_team_roster(
                 team_key=team.team_key,
                 league_key=league_key,
-                season=2026,
+                season=season,
                 week=1,
                 as_of=today,
             )
@@ -724,17 +668,13 @@ def yahoo_refresh(  # pragma: no cover
             roster_count += 1
 
         # Step 3: Sync transactions incrementally
-        txn_source = YahooTransactionSource(ctx.client, mapper)
-        latest = ctx.yahoo_transaction_repo.get_latest_timestamp(league_key)
-        new_transactions = txn_source.fetch_transactions(league_key, since=latest)
-        for txn, players in new_transactions:
-            ctx.yahoo_transaction_repo.upsert(txn, players)
+        txn_count = _sync_transactions(ctx, league_key, mapper)
 
         ctx.conn.commit()
 
     console.print(f"[bold green]Refresh complete[/bold green] — {league_name}")
     console.print(f"  Rosters synced: {roster_count}")
-    console.print(f"  New transactions: {len(new_transactions)}")
+    console.print(f"  New transactions: {txn_count}")
 
 
 # ---------------------------------------------------------------------------
@@ -754,6 +694,48 @@ def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, A
         raise typer.Exit(code=1)
 
     return league, config
+
+
+def _sync_league_metadata(ctx: YahooContext, league_key: str, game_key: str) -> YahooLeague:
+    """Fetch and upsert league + team metadata. Returns the league."""
+    source = YahooLeagueSource(ctx.client)
+    result = source.fetch(league_key=league_key, game_key=game_key)
+
+    league_data = result["league"]
+    yahoo_league = YahooLeague(
+        league_key=league_data["league_key"],
+        name=league_data["name"],
+        season=league_data["season"],
+        num_teams=league_data["num_teams"],
+        draft_type=league_data["draft_type"],
+        is_keeper=league_data["is_keeper"],
+        game_key=league_data["game_key"],
+    )
+    ctx.yahoo_league_repo.upsert(yahoo_league)
+
+    for team_data in result["teams"]:
+        yahoo_team = YahooTeam(
+            team_key=team_data["team_key"],
+            league_key=team_data["league_key"],
+            team_id=team_data["team_id"],
+            name=team_data["name"],
+            manager_name=team_data["manager_name"],
+            is_owned_by_user=team_data["is_owned_by_user"],
+        )
+        ctx.yahoo_team_repo.upsert(yahoo_team)
+
+    ctx.conn.commit()
+    return yahoo_league
+
+
+def _sync_transactions(ctx: YahooContext, league_key: str, mapper: YahooPlayerMapper) -> int:
+    """Incrementally fetch and store new transactions. Returns count."""
+    source = YahooTransactionSource(ctx.client, mapper)
+    latest = ctx.yahoo_transaction_repo.get_latest_timestamp(league_key)
+    new = source.fetch_transactions(league_key, since=latest)
+    for txn, players in new:
+        ctx.yahoo_transaction_repo.upsert(txn, players)
+    return len(new)
 
 
 def _derive_and_store_keeper_costs(

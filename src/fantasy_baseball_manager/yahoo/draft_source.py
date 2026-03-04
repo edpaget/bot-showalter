@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain import YahooDraftPick
+from fantasy_baseball_manager.yahoo.player_parsing import extract_player_data
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
@@ -104,7 +105,7 @@ class YahooDraftSource:
                 continue
             player_info = value["player"]
             player_meta = player_info[0]
-            player_data = _extract_player_data(player_meta)
+            player_data = extract_player_data(player_meta)
             if "player_key" in player_data:
                 result[player_data["player_key"]] = player_data
         return result
@@ -113,22 +114,3 @@ class YahooDraftSource:
     def _primary_position(positions: list[str]) -> str:
         non_generic = [p for p in positions if p not in ("Util", "BN", "IL", "IL+", "NA", "DL")]
         return non_generic[0] if non_generic else (positions[0] if positions else "Util")
-
-
-def _extract_player_data(player_meta: list[Any]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for item in player_meta:
-        if isinstance(item, dict):
-            if "player_key" in item:
-                result["player_key"] = item["player_key"]
-            elif "name" in item:
-                result["name"] = item["name"]["full"]
-            elif "editorial_team_abbr" in item:
-                result["editorial_team_abbr"] = item["editorial_team_abbr"]
-            elif "eligible_positions" in item:
-                result["eligible_positions"] = [
-                    p["position"] for p in item["eligible_positions"] if isinstance(p, dict)
-                ]
-            elif "player_id" in item:
-                result["player_id"] = item["player_id"]
-    return result

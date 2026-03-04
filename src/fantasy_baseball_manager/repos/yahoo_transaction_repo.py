@@ -115,15 +115,14 @@ class SqliteYahooTransactionRepo:
         return result
 
     @staticmethod
-    def _row_to_transaction(row: object) -> Transaction:
-        r: dict[str, object] = dict(row)  # type: ignore[arg-type]
+    def _row_to_transaction(row: sqlite3.Row) -> Transaction:
         return Transaction(
-            transaction_key=str(r["transaction_key"]),
-            league_key=str(r["league_key"]),
-            type=str(r["type"]),
-            timestamp=datetime.datetime.fromisoformat(str(r["timestamp"])),
-            status=str(r["status"]),
-            trader_team_key=str(r["trader_team_key"]),
-            tradee_team_key=str(r["tradee_team_key"]) if r["tradee_team_key"] is not None else None,
-            id=int(str(r["id"])) if r["id"] is not None else None,
+            transaction_key=row["transaction_key"],
+            league_key=row["league_key"],
+            type=row["type"],
+            timestamp=datetime.datetime.fromisoformat(row["timestamp"]),
+            status=row["status"],
+            trader_team_key=row["trader_team_key"],
+            tradee_team_key=row["tradee_team_key"],
+            id=row["id"],
         )
