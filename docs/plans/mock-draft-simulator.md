@@ -11,7 +11,7 @@ This roadmap depends on: draft board service (phase 1, done), ADP integration (d
 | 1 — Single-draft engine | done (2026-03-01) |
 | 2 — Human strategy configuration | done (2026-03-01) |
 | 3 — Batch simulation and analytics | done (2026-03-03) |
-| 4 — CLI commands | not started |
+| 4 — CLI commands | in progress |
 
 ## Phase 1: Single-Draft Engine
 
