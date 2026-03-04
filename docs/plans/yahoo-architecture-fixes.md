@@ -7,7 +7,7 @@ The Yahoo Fantasy integration was built across 5 phases and is functionally comp
 | Phase | Status |
 |-------|--------|
 | 1 — Quick CLI & package fixes | done (2026-03-03) |
-| 2 — Yahoo repo protocols & DI | in progress |
+| 2 — Yahoo repo protocols & DI | done (2026-03-03) |
 | 3 — Extract Yahoo services from CLI | not started |
 
 ## Phase 1: Quick CLI & package fixes
