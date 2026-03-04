@@ -2,6 +2,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
+from fantasy_baseball_manager.domain.keeper import KeeperCost
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -14,7 +15,9 @@ from fantasy_baseball_manager.domain.pick_value import (
     PickValue,
     PickValueCurve,
 )
+from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.valuation import Valuation
+from fantasy_baseball_manager.services.keeper_service import compute_surplus
 from fantasy_baseball_manager.services.pick_value import (
     _apply_trade,
     _run_greedy_draft,
@@ -23,6 +26,8 @@ from fantasy_baseball_manager.services.pick_value import (
     compute_pick_value_curve,
     evaluate_pick_trade,
     evaluate_pick_trade_with_context,
+    picks_to_dollar_costs,
+    round_to_dollar_cost,
     value_at,
 )
 
@@ -628,3 +633,117 @@ class TestCascadeAnalysis:
         result = cascade_analysis(trade, board, league, user_team_idx=0)
         assert result.before.total_value > 0
         assert result.after.total_value > 0
+
+
+class TestRoundToDollarCost:
+    """Tests for round_to_dollar_cost(): draft round → dollar value translation."""
+
+    def test_round_1_equals_average_of_first_n_picks(self) -> None:
+        """4-team league, round 1 = average of picks 1-4."""
+        curve = _steep_curve(num_picks=30)
+        league = _league(teams=4)
+        cost = round_to_dollar_cost(1, league, curve)
+        expected = sum(value_at(curve, p) for p in range(1, 5)) / 4
+        assert cost == pytest.approx(expected)
+
+    def test_round_1_greater_than_round_10(self) -> None:
+        """Earlier rounds cost more than later rounds."""
+        curve = _steep_curve(num_picks=50)
+        league = _league(teams=4)
+        assert round_to_dollar_cost(1, league, curve) > round_to_dollar_cost(10, league, curve)
+
+    def test_monotonically_decreasing(self) -> None:
+        """Costs never increase across rounds 1-15."""
+        curve = _steep_curve(num_picks=80)
+        league = _league(teams=4)
+        costs = [round_to_dollar_cost(r, league, curve) for r in range(1, 16)]
+        for i in range(len(costs) - 1):
+            assert costs[i] >= costs[i + 1], f"Round {i + 1} ({costs[i]}) < round {i + 2} ({costs[i + 1]})"
+
+    def test_round_beyond_curve_returns_floor(self) -> None:
+        """Rounds past curve range → $1 floor."""
+        curve = _steep_curve(num_picks=10)
+        league = _league(teams=4)
+        # Round 10 = picks 37-40, well beyond the 10-pick curve
+        cost = round_to_dollar_cost(10, league, curve)
+        assert cost == 1.0
+
+    def test_partial_round_beyond_curve(self) -> None:
+        """If only some picks in a round have data, average available ones (still ≥ $1)."""
+        # Curve with 6 picks; 4-team league round 2 = picks 5-8.
+        # Only picks 5-6 have data, 7-8 return 0.0 from value_at.
+        curve = _steep_curve(num_picks=6)
+        league = _league(teams=4)
+        cost = round_to_dollar_cost(2, league, curve)
+        # Should average picks 5 and 6 (the positive ones), ignoring 7 and 8
+        expected = (value_at(curve, 5) + value_at(curve, 6)) / 2
+        assert cost == pytest.approx(expected)
+        assert cost >= 1.0
+
+    def test_12_team_league_round_1(self) -> None:
+        """12-team league, round 1 = average of picks 1-12."""
+        curve = _steep_curve(num_picks=30)
+        league = _league(teams=12)
+        cost = round_to_dollar_cost(1, league, curve)
+        expected = sum(value_at(curve, p) for p in range(1, 13)) / 12
+        assert cost == pytest.approx(expected)
+
+
+class TestPicksToDollarCosts:
+    """Tests for picks_to_dollar_costs(): batch round→KeeperCost conversion."""
+
+    def test_produces_keeper_cost_records(self) -> None:
+        """Returns KeeperCost instances with source='draft_round'."""
+        curve = _steep_curve(num_picks=30)
+        league = _league(teams=4)
+        entries = [(100, 1), (200, 3)]
+        result = picks_to_dollar_costs(entries, season=2026, league_name="dynasty", league=league, curve=curve)
+        assert len(result) == 2
+        for kc in result:
+            assert isinstance(kc, KeeperCost)
+            assert kc.source == "draft_round"
+
+    def test_player_ids_and_season_match(self) -> None:
+        """Fields propagated correctly to KeeperCost."""
+        curve = _steep_curve(num_picks=30)
+        league = _league(teams=4)
+        entries = [(42, 2)]
+        result = picks_to_dollar_costs(entries, season=2026, league_name="dynasty", league=league, curve=curve)
+        assert result[0].player_id == 42
+        assert result[0].season == 2026
+        assert result[0].league == "dynasty"
+
+    def test_costs_decrease_with_later_rounds(self) -> None:
+        """Round 1 keeper costs more than round 5 keeper."""
+        curve = _steep_curve(num_picks=30)
+        league = _league(teams=4)
+        entries = [(100, 1), (200, 5)]
+        result = picks_to_dollar_costs(entries, season=2026, league_name="lg", league=league, curve=curve)
+        assert result[0].cost > result[1].cost
+
+    def test_round_beyond_curve_gets_floor(self) -> None:
+        """Floor cost for late rounds beyond curve range."""
+        curve = _steep_curve(num_picks=10)
+        league = _league(teams=4)
+        entries = [(100, 20)]  # round 20 = picks 77-80, way beyond 10-pick curve
+        result = picks_to_dollar_costs(entries, season=2026, league_name="lg", league=league, curve=curve)
+        assert result[0].cost == 1.0
+
+    def test_empty_entries_returns_empty(self) -> None:
+        """Empty input → empty output."""
+        curve = _steep_curve(num_picks=30)
+        league = _league(teams=4)
+        result = picks_to_dollar_costs([], season=2026, league_name="lg", league=league, curve=curve)
+        assert result == []
+
+    def test_compatible_with_compute_surplus(self) -> None:
+        """Integration: output feeds into compute_surplus() without error."""
+        curve = _steep_curve(num_picks=30)
+        league = _league(teams=4)
+        entries = [(1, 3)]
+        costs = picks_to_dollar_costs(entries, season=2026, league_name="lg", league=league, curve=curve)
+        players = [Player(name_first="Mike", name_last="Trout", id=1)]
+        valuations = [_valuation(1, 25.0)]
+        # Should not raise — KeeperCost is compatible with compute_surplus
+        decisions = compute_surplus(costs, valuations, players)
+        assert len(decisions) == 1

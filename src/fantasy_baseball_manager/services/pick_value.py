@@ -6,6 +6,7 @@ from fantasy_baseball_manager.domain import (
     CascadeResult,
     CascadeRoster,
     DraftPick,
+    KeeperCost,
     PickTrade,
     PickTradeEvaluation,
     PickValue,
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     )
 
 _SMOOTHING_WINDOW = 5
+_DRAFT_ROUND_FLOOR_COST = 1.0
 
 
 def value_at(curve: PickValueCurve, pick: int) -> float:
@@ -31,6 +33,45 @@ def value_at(curve: PickValueCurve, pick: int) -> float:
         if pv.pick == pick:
             return pv.expected_value
     return 0.0
+
+
+def round_to_dollar_cost(
+    round_num: int,
+    league: LeagueSettings,
+    curve: PickValueCurve,
+) -> float:
+    """Convert a draft round to a dollar cost using the pick value curve.
+
+    Averages the expected value of all picks in the round that have positive
+    values on the curve.  Returns at least ``_DRAFT_ROUND_FLOOR_COST``.
+    """
+    start = (round_num - 1) * league.teams + 1
+    end = round_num * league.teams
+    values = [value_at(curve, pick) for pick in range(start, end + 1)]
+    positive = [v for v in values if v > 0.0]
+    if not positive:
+        return _DRAFT_ROUND_FLOOR_COST
+    return max(sum(positive) / len(positive), _DRAFT_ROUND_FLOOR_COST)
+
+
+def picks_to_dollar_costs(
+    entries: list[tuple[int, int]],
+    season: int,
+    league_name: str,
+    league: LeagueSettings,
+    curve: PickValueCurve,
+) -> list[KeeperCost]:
+    """Convert (player_id, round) pairs to dollar-denominated KeeperCost records."""
+    return [
+        KeeperCost(
+            player_id=player_id,
+            season=season,
+            league=league_name,
+            cost=round_to_dollar_cost(round_num, league, curve),
+            source="draft_round",
+        )
+        for player_id, round_num in entries
+    ]
 
 
 def compute_pick_value_curve(

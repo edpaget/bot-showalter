@@ -107,6 +107,8 @@ from fantasy_baseball_manager.services.pick_value import (
     compute_pick_value_curve,
     evaluate_pick_trade,
     evaluate_pick_trade_with_context,
+    picks_to_dollar_costs,
+    round_to_dollar_cost,
     value_at,
 )
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
@@ -264,6 +266,8 @@ __all__ = [
     "draft_report",
     "evaluate_pick_trade",
     "evaluate_pick_trade_with_context",
+    "picks_to_dollar_costs",
+    "round_to_dollar_cost",
     "summarize_exploration",
     "evaluate_trade",
     "export_csv",
