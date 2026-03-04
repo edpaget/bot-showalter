@@ -83,6 +83,7 @@ from fantasy_baseball_manager.domain.evaluation import (
     compute_tail_accuracy,
     summarize_comparison,
 )
+from fantasy_baseball_manager.domain.expected_games_lost import ExpectedGamesLost
 from fantasy_baseball_manager.domain.experiment import (
     Experiment,
     ExplorationSummary,
@@ -299,6 +300,7 @@ __all__ = [
     "DraftReport",
     "DraftResult",
     "Err",
+    "ExpectedGamesLost",
     "Experiment",
     "ExplorationSummary",
     "FeatureExplorationResult",

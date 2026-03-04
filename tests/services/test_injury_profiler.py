@@ -298,3 +298,53 @@ class TestInjuryProfiler:
         results = profiler.list_high_risk([2023], top_n=3)
         assert len(results) == 3
         assert results[0][0].total_days_lost == 50
+
+    def test_estimate_player_games_lost_found(self) -> None:
+        player = Player(id=1, name_first="Mike", name_last="Trout", bats="R", birth_date="1991-08-07")
+        stints = [
+            _stint(player_id=1, season=2023, days=30, injury_location="knee"),
+            _stint(player_id=1, season=2024, days=20, start_date="2024-05-01", injury_location="calf"),
+        ]
+        profiler = self._make_profiler([player], stints)
+
+        result = profiler.estimate_player_games_lost("Trout", [2022, 2023, 2024], projection_season=2026)
+        assert result is not None
+        estimate, profile, name = result
+        assert name == "Mike Trout"
+        assert estimate.expected_days_lost > 0
+        assert profile.total_stints == 2
+
+    def test_estimate_player_games_lost_not_found(self) -> None:
+        profiler = self._make_profiler([], [])
+        assert profiler.estimate_player_games_lost("Nobody", [2023], projection_season=2026) is None
+
+    def test_list_games_lost_estimates(self) -> None:
+        players = [
+            Player(id=1, name_first="Fragile", name_last="Fred", bats="R", birth_date="1990-01-01"),
+            Player(id=2, name_first="Somewhat", name_last="Hurt", bats="L", birth_date="1992-01-01"),
+        ]
+        stints = [
+            _stint(player_id=1, season=2023, days=60, start_date="2023-05-01"),
+            _stint(player_id=1, season=2024, days=30, start_date="2024-05-01"),
+            _stint(player_id=2, season=2024, days=15, start_date="2024-06-01"),
+        ]
+        profiler = self._make_profiler(players, stints)
+        results = profiler.list_games_lost_estimates([2023, 2024], projection_season=2026)
+
+        assert len(results) == 2
+        # Sorted by expected_days_lost desc
+        assert results[0][2] == "Fragile Fred"
+        assert results[0][0].expected_days_lost > results[1][0].expected_days_lost
+
+    def test_list_games_lost_estimates_top_n(self) -> None:
+        players = [
+            Player(id=1, name_first="A", name_last="Player", bats="R", birth_date="1990-01-01"),
+            Player(id=2, name_first="B", name_last="Player", bats="R", birth_date="1990-01-01"),
+        ]
+        stints = [
+            _stint(player_id=1, season=2024, days=50, start_date="2024-05-01"),
+            _stint(player_id=2, season=2024, days=20, start_date="2024-06-01"),
+        ]
+        profiler = self._make_profiler(players, stints)
+        results = profiler.list_games_lost_estimates([2024], projection_season=2026, top_n=1)
+        assert len(results) == 1

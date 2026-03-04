@@ -5,9 +5,10 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import InjuryProfile
+from fantasy_baseball_manager.services.games_lost_estimator import estimate_games_lost
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import ILStint
+    from fantasy_baseball_manager.domain import ExpectedGamesLost, ILStint
     from fantasy_baseball_manager.repos import ILStintRepo, PlayerRepo
 
 # Default days for IL types when no days or dates are available
@@ -171,3 +172,37 @@ class InjuryProfiler:
         name_map = {p.id: f"{p.name_first} {p.name_last}" for p in players}
 
         return [(profile, name_map.get(pid, f"Player {pid}")) for profile, pid in filtered]
+
+    def estimate_player_games_lost(
+        self,
+        player_name: str,
+        seasons: list[int],
+        projection_season: int,
+    ) -> tuple[ExpectedGamesLost, InjuryProfile, str] | None:
+        """Estimate games lost for a single player by name."""
+        result = self.lookup_profile(player_name, seasons)
+        if result is None:
+            return None
+        profile, name = result
+        estimate = estimate_games_lost(profile, projection_season)
+        return (estimate, profile, name)
+
+    def list_games_lost_estimates(
+        self,
+        seasons: list[int],
+        projection_season: int,
+        *,
+        min_stints: int = 1,
+        top_n: int | None = None,
+    ) -> list[tuple[ExpectedGamesLost, InjuryProfile, str]]:
+        """List players ranked by expected games lost."""
+        high_risk = self.list_high_risk(seasons, min_stints=min_stints, top_n=None)
+        results: list[tuple[ExpectedGamesLost, InjuryProfile, str]] = []
+        for profile, name in high_risk:
+            estimate = estimate_games_lost(profile, projection_season)
+            results.append((estimate, profile, name))
+
+        results.sort(key=lambda x: x[0].expected_days_lost, reverse=True)
+        if top_n is not None:
+            results = results[:top_n]
+        return results

@@ -67,6 +67,7 @@ from fantasy_baseball_manager.services.feature_factory import (
     resolve_feature,
     validate_expression,
 )
+from fantasy_baseball_manager.services.games_lost_estimator import estimate_games_lost
 from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
 from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
 from fantasy_baseball_manager.services.keeper_history import build_keeper_histories
@@ -259,6 +260,7 @@ __all__ = [
     "assign_experience_cohorts",
     "assign_top300_cohorts",
     "build_profiles",
+    "estimate_games_lost",
     "build_draft_board",
     "build_draft_roster_slots",
     "build_roster_state",

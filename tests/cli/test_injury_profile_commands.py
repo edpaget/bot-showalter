@@ -165,3 +165,93 @@ class TestInjuryRisksCommand:
         )
         assert result.exit_code == 0
         assert "No injury-prone players found" in result.output
+
+
+class TestInjuryEstimateCommand:
+    def test_help(self) -> None:
+        result = runner.invoke(app, ["report", "injury-estimate", "--help"])
+        assert result.exit_code == 0
+
+    def test_player_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_il_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["report", "injury-estimate", "Trout", "--season", "2026", "--seasons-back", "5", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Injury Estimate" in result.output
+        assert "Mike Trout" in result.output
+        assert "Expected days lost" in result.output
+        assert "P(full season)" in result.output
+
+    def test_player_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_il_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["report", "injury-estimate", "Nobody", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 1
+        assert "no player found" in result.output
+
+    def test_healthy_player_nonzero_baseline(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_il_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["report", "injury-estimate", "Healthy", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        # Even healthy players should have nonzero baseline
+        assert "Expected days lost" in result.output
+
+
+class TestGamesLostCommand:
+    def test_help(self) -> None:
+        result = runner.invoke(app, ["report", "games-lost", "--help"])
+        assert result.exit_code == 0
+
+    def test_leaderboard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_il_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["report", "games-lost", "--season", "2026", "--seasons-back", "5", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Expected Games Lost" in result.output
+        assert "Trout" in result.output
+
+    def test_leaderboard_top_n(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_il_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["report", "games-lost", "--season", "2026", "--top", "1", "--seasons-back", "5", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        # Top 1 should show the most injury-prone player
+        assert "Trout" in result.output
+
+    def test_empty_leaderboard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        seed_player(db_conn, player_id=1, name_first="Test", name_last="Player")
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+
+        result = runner.invoke(
+            app,
+            ["report", "games-lost", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0
+        assert "No players found" in result.output

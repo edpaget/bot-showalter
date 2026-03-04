@@ -9,6 +9,8 @@ from fantasy_baseball_manager.cli._output import (
     print_adp_accuracy_report,
     print_adp_movers_report,
     print_error,
+    print_games_lost_leaderboard,
+    print_injury_estimate,
     print_injury_profile,
     print_injury_risk_leaderboard,
     print_performance_report,
@@ -473,3 +475,43 @@ def report_injury_risks(
         results = ctx.profiler.list_high_risk(season_list, min_stints=min_stints, top_n=top)
 
     print_injury_risk_leaderboard(results)
+
+
+@report_app.command("injury-estimate")
+def report_injury_estimate(
+    player_name: Annotated[str, typer.Argument(help="Player name")],
+    season: Annotated[int, typer.Option("--season", help="Projection season year")],
+    seasons_back: Annotated[int, typer.Option("--seasons-back", help="Lookback window")] = 5,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show expected games lost estimate for a player."""
+    season_list = list(range(season - seasons_back + 1, season + 1))
+
+    with build_injury_profile_context(data_dir) as ctx:
+        result = ctx.profiler.estimate_player_games_lost(player_name, season_list, projection_season=season)
+
+    if result is None:
+        print_error(f"no player found matching '{player_name}'")
+        raise typer.Exit(code=1)
+
+    estimate, profile, name = result
+    print_injury_estimate(estimate, profile, name)
+
+
+@report_app.command("games-lost")
+def report_games_lost(
+    season: Annotated[int, typer.Option("--season", help="Projection season year")],
+    min_stints: Annotated[int, typer.Option("--min-stints", help="Minimum IL stints to include")] = 1,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    seasons_back: Annotated[int, typer.Option("--seasons-back", help="Lookback window")] = 5,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """List players ranked by expected days lost next season."""
+    season_list = list(range(season - seasons_back + 1, season + 1))
+
+    with build_injury_profile_context(data_dir) as ctx:
+        results = ctx.profiler.list_games_lost_estimates(
+            season_list, projection_season=season, min_stints=min_stints, top_n=top
+        )
+
+    print_games_lost_leaderboard(results)

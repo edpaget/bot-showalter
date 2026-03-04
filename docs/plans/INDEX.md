@@ -8,7 +8,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 |---------|--------|----------|-------------------|
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | phase 1 done | ADP, projections, valuations (all done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
-| [Injury Risk Discount](injury-risk-discount.md) | 3 | phase 1 done | none |
+| [Injury Risk Discount](injury-risk-discount.md) | 3 | phases 1-2 done | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Projection Blender](projection-blender.md) | 4 | phases 1-3 done | none |
