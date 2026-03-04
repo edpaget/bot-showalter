@@ -14,6 +14,7 @@ from fantasy_baseball_manager.features.transforms import (
     BATTED_BALL,
     BATTED_BALL_AGAINST,
     BATTED_BALL_INTERACTIONS,
+    BATTER_CONTEXT,
     COMMAND,
     EXPECTED_STATS,
     PITCH_MIX,
@@ -454,6 +455,8 @@ def live_batter_curated_columns() -> list[str]:
         "oppo_pct",
         "center_pct",
         "sprint_speed",
+        "avg_vert_break_faced",
+        "pull_fb_rate",
     ]
 
 
@@ -692,6 +695,7 @@ def build_live_batter_feature_set(seasons: Sequence[int]) -> FeatureSet:
     features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
     features.append(SPRINT_SPEED_TRANSFORM)
     features.append(BATTED_BALL_INTERACTIONS)
+    features.append(BATTER_CONTEXT)
     return FeatureSet(
         name="statcast_gbm_batting_live",
         features=tuple(features),
@@ -707,6 +711,7 @@ def build_live_batter_training_set(seasons: Sequence[int]) -> FeatureSet:
     features.extend([BATTED_BALL, PLATE_DISCIPLINE, EXPECTED_STATS, SPRAY_ANGLE])
     features.append(SPRINT_SPEED_TRANSFORM)
     features.append(BATTED_BALL_INTERACTIONS)
+    features.append(BATTER_CONTEXT)
     features.extend(_batter_target_features())
     return FeatureSet(
         name="statcast_gbm_batting_live_train",

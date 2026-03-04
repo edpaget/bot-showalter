@@ -1,6 +1,7 @@
 from fantasy_baseball_manager.features.transforms.age_interactions import AGE_INTERACTIONS
 from fantasy_baseball_manager.features.transforms.batted_ball import BATTED_BALL, BATTED_BALL_AGAINST, SPRAY_ANGLE
 from fantasy_baseball_manager.features.transforms.batted_ball_interactions import BATTED_BALL_INTERACTIONS
+from fantasy_baseball_manager.features.transforms.batter_context import BATTER_CONTEXT
 from fantasy_baseball_manager.features.transforms.batter_trends import BATTER_STABILITY, BATTER_TRENDS
 from fantasy_baseball_manager.features.transforms.command import COMMAND
 from fantasy_baseball_manager.features.transforms.expected_stats import EXPECTED_STATS
@@ -11,6 +12,7 @@ from fantasy_baseball_manager.features.transforms.sprint_speed import SPRINT_SPE
 
 __all__ = [
     "AGE_INTERACTIONS",
+    "BATTER_CONTEXT",
     "BATTED_BALL",
     "BATTED_BALL_AGAINST",
     "BATTED_BALL_INTERACTIONS",

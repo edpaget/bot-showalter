@@ -394,6 +394,8 @@ class TestLiveBatterCuratedColumns:
             "oppo_pct",
             "center_pct",
             "sprint_speed",
+            "avg_vert_break_faced",
+            "pull_fb_rate",
         ]
         assert columns == expected
 
