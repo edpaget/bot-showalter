@@ -62,6 +62,7 @@ from fantasy_baseball_manager.services.feature_factory import (
     resolve_feature,
     validate_expression,
 )
+from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
 from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
 from fantasy_baseball_manager.services.keeper_history import build_keeper_histories
 from fantasy_baseball_manager.services.keeper_optimizer import (
@@ -237,6 +238,7 @@ __all__ = [
     "ValuationEvaluator",
     "ValuationLookupService",
     "WeightedRule",
+    "InjuryProfiler",
     "GateConfig",
     "GateResult",
     "GateSegmentResult",
@@ -248,6 +250,7 @@ __all__ = [
     "assign_age_cohorts",
     "assign_experience_cohorts",
     "assign_top300_cohorts",
+    "build_profiles",
     "build_draft_board",
     "build_draft_roster_slots",
     "build_roster_state",

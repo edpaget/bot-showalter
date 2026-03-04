@@ -92,6 +92,7 @@ from fantasy_baseball_manager.domain.feature_candidate import (
     FeatureCandidate,
 )
 from fantasy_baseball_manager.domain.il_stint import ILStint
+from fantasy_baseball_manager.domain.injury_profile import InjuryProfile
 from fantasy_baseball_manager.domain.keeper import (
     AdjustedValuation,
     KeeperCost,
@@ -297,6 +298,7 @@ __all__ = [
     "FbmError",
     "MultiColumnRanking",
     "ILStint",
+    "InjuryProfile",
     "IngestError",
     "KeeperConstraints",
     "KeeperCost",

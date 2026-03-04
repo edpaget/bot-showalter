@@ -42,6 +42,7 @@ from fantasy_baseball_manager.cli._output._feature_factory import (
 )
 from fantasy_baseball_manager.cli._output._features import print_features
 from fantasy_baseball_manager.cli._output._ingest import print_import_result, print_ingest_result
+from fantasy_baseball_manager.cli._output._injury import print_injury_profile, print_injury_risk_leaderboard
 from fantasy_baseball_manager.cli._output._keeper import (
     print_adjusted_rankings,
     print_keeper_decisions,
@@ -109,6 +110,7 @@ _SUBMODULE_NAMES = (
     "_feature_factory",
     "_features",
     "_ingest",
+    "_injury",
     "_keeper",
     "_marginal_value",
     "_mock_draft",
@@ -181,6 +183,8 @@ __all__ = [
     "print_gate_result",
     "print_import_result",
     "print_ingest_result",
+    "print_injury_profile",
+    "print_injury_risk_leaderboard",
     "print_keeper_decisions",
     "print_keeper_scenarios",
     "print_keeper_solution",

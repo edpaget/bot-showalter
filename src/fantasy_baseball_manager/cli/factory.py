@@ -72,6 +72,7 @@ from fantasy_baseball_manager.repos import (
 from fantasy_baseball_manager.services import (
     CorrelationScanner,
     DatasetCatalogService,
+    InjuryProfiler,
     LeagueEnvironmentService,
     PlayerEligibilityService,
     ProjectionEvaluator,
@@ -800,3 +801,25 @@ def build_feature_context(data_dir: str) -> Iterator[FeatureContext]:
     finally:
         fbm_conn.close()
         statcast_conn.close()
+
+
+@dataclass(frozen=True)
+class InjuryProfileContext:
+    conn: sqlite3.Connection
+    profiler: InjuryProfiler
+
+
+@contextmanager
+def build_injury_profile_context(data_dir: str) -> Iterator[InjuryProfileContext]:
+    """Composition-root context manager for injury profile commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield InjuryProfileContext(
+            conn=conn,
+            profiler=InjuryProfiler(
+                player_repo=SqlitePlayerRepo(conn),
+                il_stint_repo=SqliteILStintRepo(conn),
+            ),
+        )
+    finally:
+        conn.close()

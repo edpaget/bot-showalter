@@ -8,7 +8,7 @@ The IL stint data is already in the database (via `fbm ingest il`), and the play
 
 | Phase | Status |
 |-------|--------|
-| 1 — Injury history profile | not started |
+| 1 — Injury history profile | done (2026-03-04) |
 | 2 — Games-lost probability model | not started |
 | 3 — Projection and valuation adjustment | not started |
 

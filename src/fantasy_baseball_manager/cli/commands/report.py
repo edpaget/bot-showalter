@@ -9,6 +9,8 @@ from fantasy_baseball_manager.cli._output import (
     print_adp_accuracy_report,
     print_adp_movers_report,
     print_error,
+    print_injury_profile,
+    print_injury_risk_leaderboard,
     print_performance_report,
     print_projection_confidence,
     print_residual_analysis_report,
@@ -24,6 +26,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_adp_movers_context,
     build_adp_report_context,
     build_confidence_report_context,
+    build_injury_profile_context,
     build_report_context,
 )
 from fantasy_baseball_manager.config_league import load_league
@@ -432,3 +435,41 @@ def report_system_disagreements(  # pragma: no cover
 
     player_confidence = report.players[0]
     print_system_disagreements(player_confidence, player_projections)
+
+
+@report_app.command("injury-profile")
+def report_injury_profile(
+    player_name: Annotated[str, typer.Argument(help="Player name")],
+    seasons: Annotated[int, typer.Option("--seasons", help="Number of seasons to look back")] = 5,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show a player's injury history summary."""
+    current_year = 2026
+    season_list = list(range(current_year - seasons, current_year))
+
+    with build_injury_profile_context(data_dir) as ctx:
+        result = ctx.profiler.lookup_profile(player_name, season_list)
+
+    if result is None:
+        print_error(f"no player found matching '{player_name}'")
+        raise typer.Exit(code=1)
+
+    profile, name = result
+    print_injury_profile(profile, name)
+
+
+@report_app.command("injury-risks")
+def report_injury_risks(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    min_stints: Annotated[int, typer.Option("--min-stints", help="Minimum IL stints to include")] = 1,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    seasons_back: Annotated[int, typer.Option("--seasons-back", help="Lookback window")] = 5,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """List the most injury-prone players by total days lost."""
+    season_list = list(range(season - seasons_back + 1, season + 1))
+
+    with build_injury_profile_context(data_dir) as ctx:
+        results = ctx.profiler.list_high_risk(season_list, min_stints=min_stints, top_n=top)
+
+    print_injury_risk_leaderboard(results)
