@@ -8,7 +8,7 @@ Raise test coverage from 89.1% toward 95%+ by (1) marking untestable code with `
 |-------|--------|
 | 1 — Pragma and omit housekeeping | done (2026-03-04) |
 | 2 — CLI output formatter tests | done (2026-03-04) |
-| 3 — Service-layer gap tests | in progress |
+| 3 — Service-layer gap tests | done (2026-03-04) |
 | 4 — CLI command logic tests | not started |
 | 5 — Raise fail_under threshold | not started |
 
