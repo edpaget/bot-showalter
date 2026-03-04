@@ -12,7 +12,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
-| [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 | phases 1-3 done | draft board (done) |
 | [Projection Blender](projection-blender.md) | 4 | phase 1 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
@@ -43,6 +42,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Keeper Surplus Value](keeper-surplus-value.md) | 4 |
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 |
 | [Positional Scarcity](positional-scarcity.md) | 3 |
+| [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 |
 | [Tier Generator](tier-generator.md) | 3 |
 | [Fast Feedback Loop](fast-feedback-loop.md) | 3 |
 | [Feature Candidate Factory](feature-candidate-factory.md) | 3 |

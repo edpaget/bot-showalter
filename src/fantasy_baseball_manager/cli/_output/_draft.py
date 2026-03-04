@@ -15,11 +15,14 @@ if TYPE_CHECKING:
         DraftBoard,
         DraftReport,
         LeagueSettings,
+        MarginalValue,
+        OpportunityCost,
         PickTradeEvaluation,
         PickValue,
         PickValueCurve,
         PlayerTier,
         PositionScarcity,
+        PositionUpgrade,
         PositionValueCurve,
         ScarcityAdjustedPlayer,
         TierSummaryReport,
@@ -518,6 +521,109 @@ def print_scarcity_rankings(
             str(p.original_rank),
             delta_str,
             f"[{scarcity_color}]{p.scarcity_score:.2f}[/{scarcity_color}]",
+        )
+
+    console.print(table)
+
+
+def print_upgrades(
+    values: list[MarginalValue],
+    opportunity_costs: list[OpportunityCost] | None = None,
+) -> None:
+    """Print marginal value rankings as a Rich table."""
+    if not values:
+        console.print("No upgrade data.")
+        return
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Rank", justify="right")
+    table.add_column("Player")
+    table.add_column("Pos")
+    table.add_column("Raw Value", justify="right")
+    table.add_column("Marginal Value", justify="right")
+    table.add_column("Fills Need")
+    table.add_column("Upgrade Over")
+
+    for i, mv in enumerate(values, start=1):
+        fills = "[green]Yes[/green]" if mv.fills_need else "No"
+        table.add_row(
+            str(i),
+            mv.player_name,
+            mv.position,
+            f"${mv.raw_value:.1f}",
+            f"${mv.marginal_value:.1f}",
+            fills,
+            mv.upgrade_over or "—",
+        )
+
+    console.print(table)
+
+    if opportunity_costs is not None:
+        console.print()
+        print_opportunity_costs(opportunity_costs)
+
+
+def print_opportunity_costs(costs: list[OpportunityCost]) -> None:
+    """Print opportunity cost analysis as a Rich table."""
+    if not costs:
+        console.print("No opportunity cost data.")
+        return
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Rank", justify="right")
+    table.add_column("Player")
+    table.add_column("Pos")
+    table.add_column("MV", justify="right")
+    table.add_column("Opp Cost", justify="right")
+    table.add_column("Net Value", justify="right")
+    table.add_column("Recommendation")
+
+    rec_colors = {"draft now": "green", "wait": "red", "borderline": "yellow"}
+
+    for i, oc in enumerate(costs, start=1):
+        color = rec_colors.get(oc.recommendation, "")
+        table.add_row(
+            str(i),
+            oc.recommended_player,
+            oc.position,
+            f"${oc.marginal_value:.1f}",
+            f"${oc.opportunity_cost:.1f}",
+            f"${oc.net_value:.1f}",
+            f"[{color}]{oc.recommendation}[/{color}]",
+        )
+
+    console.print(table)
+
+
+def print_position_check(upgrades: list[PositionUpgrade]) -> None:
+    """Print per-position upgrade comparison as a Rich table."""
+    if not upgrades:
+        console.print("No position check data.")
+        return
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Position")
+    table.add_column("Current")
+    table.add_column("Current Value", justify="right")
+    table.add_column("Best Available")
+    table.add_column("BA Value", justify="right")
+    table.add_column("Upgrade", justify="right")
+    table.add_column("Dropoff", justify="right")
+    table.add_column("Urgency")
+
+    urgency_colors = {"high": "red", "medium": "yellow", "low": "green"}
+
+    for u in upgrades:
+        color = urgency_colors.get(u.urgency, "")
+        table.add_row(
+            u.position,
+            u.current_player or "—",
+            f"${u.current_value:.1f}",
+            u.best_available,
+            f"${u.best_available_value:.1f}",
+            f"${u.upgrade_value:.1f}",
+            f"${u.dropoff_to_next:.1f}",
+            f"[{color}]{u.urgency}[/{color}]",
         )
 
     console.print(table)

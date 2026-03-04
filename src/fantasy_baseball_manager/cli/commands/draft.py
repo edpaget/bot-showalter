@@ -14,9 +14,11 @@ from fantasy_baseball_manager.cli._output import (
     print_draft_tiers,
     print_pick_trade_evaluation,
     print_pick_value_curve,
+    print_position_check,
     print_scarcity_rankings,
     print_scarcity_report,
     print_tier_summary,
+    print_upgrades,
     print_value_curve,
 )
 from fantasy_baseball_manager.cli.factory import build_category_needs_context, build_draft_board_context
@@ -29,9 +31,13 @@ from fantasy_baseball_manager.services import (
     DraftSession,
     build_draft_board,
     build_draft_roster_slots,
+    build_roster_state,
     cascade_analysis,
     compute_category_balance_scores,
+    compute_marginal_values,
+    compute_opportunity_costs,
     compute_pick_value_curve,
+    compute_position_upgrades,
     compute_scarcity,
     compute_scarcity_rankings,
     compute_value_curves,
@@ -50,6 +56,8 @@ from fantasy_baseball_manager.services import (
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import ADP, LeagueSettings
+    from fantasy_baseball_manager.repos import SqlitePlayerRepo
+
 draft_app = typer.Typer(name="draft", help="Draft board display and export")
 
 _DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
@@ -357,15 +365,7 @@ def draft_needs(
     roster_names = [name.strip() for name in roster.split(",")]
 
     with build_category_needs_context(data_dir) as ctx:
-        roster_ids: list[int] = []
-        for name in roster_names:
-            matches = ctx.player_repo.search_by_name(name)
-            if len(matches) == 1 and matches[0].id is not None:
-                roster_ids.append(matches[0].id)
-            elif len(matches) > 1:
-                console.print(f"[yellow]Ambiguous name '{name}', skipping[/yellow]")
-            else:
-                console.print(f"[yellow]Player '{name}' not found, skipping[/yellow]")
+        roster_ids = _resolve_roster_names(roster_names, ctx.player_repo)
 
         projections = ctx.projection_repo.get_by_season(season, system)
         all_projected_ids = {p.player_id for p in projections}
@@ -502,3 +502,118 @@ def draft_scarcity_rankings(
     if top is not None:
         rankings = rankings[:top]
     print_scarcity_rankings(rankings, league)
+
+
+def _resolve_roster_names(roster_names: list[str], player_repo: SqlitePlayerRepo) -> list[int]:
+    """Resolve player names to IDs, printing warnings for ambiguous/missing names."""
+    roster_ids: list[int] = []
+    for name in roster_names:
+        matches = player_repo.search_by_name(name)
+        if len(matches) == 1 and matches[0].id is not None:
+            roster_ids.append(matches[0].id)
+        elif len(matches) > 1:
+            console.print(f"[yellow]Ambiguous name '{name}', skipping[/yellow]")
+        else:
+            console.print(f"[yellow]Player '{name}' not found, skipping[/yellow]")
+    return roster_ids
+
+
+def _parse_roster_option(
+    roster: str | None,
+    roster_file: Path | None,
+) -> list[str]:
+    """Parse roster names from --roster or --roster-file options."""
+    if roster is not None:
+        return [name.strip() for name in roster.split(",")]
+    if roster_file is not None:
+        return [line.strip() for line in roster_file.read_text().splitlines() if line.strip()]
+    console.print("[red]Either --roster or --roster-file is required.[/red]")
+    raise typer.Exit(code=1)
+
+
+@draft_app.command("upgrades")
+def draft_upgrades(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    roster: Annotated[str | None, typer.Option("--roster", help="Comma-separated player names")] = None,
+    roster_file: Annotated[
+        Path | None, typer.Option("--roster-file", help="File with one player name per line")
+    ] = None,
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
+    top: Annotated[int, typer.Option("--top", help="Show top N players")] = 10,
+    opportunity_cost: Annotated[
+        bool, typer.Option("--opportunity-cost", help="Include opportunity cost analysis")
+    ] = False,
+    picks_until_next: Annotated[int, typer.Option("--picks-until-next", help="Picks between your turns")] = 12,
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Re-rank available players by marginal value given your current roster."""
+    roster_names = _parse_roster_option(roster, roster_file)
+    league = load_league(league_name, Path.cwd())
+
+    with build_draft_board_context(data_dir) as ctx:
+        roster_ids = _resolve_roster_names(roster_names, ctx.player_repo)
+
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+        profiles = ctx.profile_service.enrich_valuations(valuations, season)
+
+    board = build_draft_board(valuations, league, player_names, adp=adp_list if adp_list else None, profiles=profiles)
+
+    state = build_roster_state(roster_ids, board, league)
+    roster_id_set = set(roster_ids)
+    available = [r for r in board.rows if r.player_id not in roster_id_set]
+    marginal_values = compute_marginal_values(state, available, league)
+
+    opp_costs = None
+    if opportunity_cost:
+        opp_costs = compute_opportunity_costs(marginal_values, state, league, picks_until_next)
+
+    print_upgrades(marginal_values[:top], opportunity_costs=opp_costs)
+
+
+@draft_app.command("position-check")
+def draft_position_check(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    roster: Annotated[str | None, typer.Option("--roster", help="Comma-separated player names")] = None,
+    roster_file: Annotated[
+        Path | None, typer.Option("--roster-file", help="File with one player name per line")
+    ] = None,
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show per-position upgrade comparison for your current roster."""
+    roster_names = _parse_roster_option(roster, roster_file)
+    league = load_league(league_name, Path.cwd())
+
+    with build_draft_board_context(data_dir) as ctx:
+        roster_ids = _resolve_roster_names(roster_names, ctx.player_repo)
+
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+        profiles = ctx.profile_service.enrich_valuations(valuations, season)
+
+    board = build_draft_board(valuations, league, player_names, adp=adp_list if adp_list else None, profiles=profiles)
+
+    state = build_roster_state(roster_ids, board, league)
+    roster_id_set = set(roster_ids)
+    available = [r for r in board.rows if r.player_id not in roster_id_set]
+    upgrades = compute_position_upgrades(state, available, league)
+    print_position_check(upgrades)

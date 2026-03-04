@@ -37,10 +37,12 @@ from fantasy_baseball_manager.cli._output import (
     print_keeper_scenarios,
     print_keeper_solution,
     print_keeper_trade_impact,
+    print_opportunity_costs,
     print_performance_report,
     print_pick_trade_evaluation,
     print_player_projections,
     print_player_valuations,
+    print_position_check,
     print_predict_result,
     print_preflight_result,
     print_prepare_result,
@@ -61,6 +63,7 @@ from fantasy_baseball_manager.cli._output import (
     print_trade_evaluation,
     print_train_result,
     print_tune_result,
+    print_upgrades,
     print_validation_result,
     print_valuation_eval_result,
     print_valuation_rankings,
@@ -139,6 +142,11 @@ from fantasy_baseball_manager.domain.positional_scarcity import (
     PositionScarcity,
     PositionValueCurve,
     ScarcityAdjustedPlayer,
+)
+from fantasy_baseball_manager.domain.positional_upgrade import (
+    MarginalValue,
+    OpportunityCost,
+    PositionUpgrade,
 )
 from fantasy_baseball_manager.domain.projection import PlayerProjection, Projection, SystemSummary
 from fantasy_baseball_manager.domain.projection_confidence import (
@@ -3244,3 +3252,77 @@ class TestPrintPlayerValuationsNoCategories:
         captured = capsys.readouterr()
         assert "Juan Soto" in captured.out
         assert "42.5" in captured.out
+
+
+class TestPrintUpgrades:
+    def test_shows_players(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        values = [
+            MarginalValue(1, "Player A", "OF", 30.0, 28.0, {"hr": 1.0}, True, None),
+            MarginalValue(2, "Player B", "SS", 25.0, 20.0, {"hr": 0.5}, False, "Player C"),
+        ]
+        print_upgrades(values)
+        captured = capsys.readouterr()
+        assert "Player A" in captured.out
+        assert "Player B" in captured.out
+        assert "Marginal Value" in captured.out
+        assert "Fills Need" in captured.out
+        assert "Yes" in captured.out
+        assert "Player C" in captured.out
+
+    def test_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_upgrades([])
+        captured = capsys.readouterr()
+        assert "No upgrade data" in captured.out
+
+    def test_with_opportunity_costs(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        values = [MarginalValue(1, "Player A", "OF", 30.0, 28.0, {}, True)]
+        costs = [OpportunityCost("OF", "Player A", 28.0, 10.0, 18.0, "draft now")]
+        print_upgrades(values, opportunity_costs=costs)
+        captured = capsys.readouterr()
+        assert "Player A" in captured.out
+        assert "Recommendation" in captured.out
+        assert "draft now" in captured.out
+
+
+class TestPrintOpportunityCosts:
+    def test_shows_recommendations(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        costs = [
+            OpportunityCost("OF", "Player A", 28.0, 10.0, 18.0, "draft now"),
+            OpportunityCost("SS", "Player B", 20.0, 25.0, -5.0, "wait"),
+        ]
+        print_opportunity_costs(costs)
+        captured = capsys.readouterr()
+        assert "Player A" in captured.out
+        assert "draft now" in captured.out
+        assert "wait" in captured.out
+        assert "Opp Cost" in captured.out
+
+    def test_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_opportunity_costs([])
+        captured = capsys.readouterr()
+        assert "No opportunity cost data" in captured.out
+
+
+class TestPrintPositionCheck:
+    def test_shows_positions(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
+        upgrades = [
+            PositionUpgrade("OF", None, 0.0, "Player A", 30.0, 30.0, "Player B", 10.0, "high"),
+            PositionUpgrade("SS", "Player C", 15.0, "Player D", 20.0, 5.0, None, 20.0, "low"),
+        ]
+        print_position_check(upgrades)
+        captured = capsys.readouterr()
+        assert "OF" in captured.out
+        assert "SS" in captured.out
+        assert "Player A" in captured.out
+        assert "high" in captured.out
+        assert "low" in captured.out
+        assert "Urgency" in captured.out
+
+    def test_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_position_check([])
+        captured = capsys.readouterr()
+        assert "No position check data" in captured.out

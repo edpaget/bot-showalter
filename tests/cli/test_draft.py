@@ -606,6 +606,220 @@ class TestDraftPickValues:
         assert "high" in result.output.lower() or "medium" in result.output.lower()
 
 
+def _upgrade_league() -> LeagueSettings:
+    """League with OF+SP positions for upgrade tests."""
+    return LeagueSettings(
+        name="Test League",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=12,
+        budget=260,
+        roster_batters=0,
+        roster_pitchers=0,
+        positions={"OF": 2},
+        pitcher_positions={"SP": 1},
+        batting_categories=(
+            CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        pitching_categories=(
+            CategoryConfig(key="w", name="Wins", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+    )
+
+
+def _seed_upgrade_data(conn: sqlite3.Connection) -> None:
+    """Seed 3 players for upgrade/position-check tests."""
+    player_repo = SqlitePlayerRepo(conn)
+    val_repo = SqliteValuationRepo(conn)
+
+    # Roster player
+    pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+    val_repo.upsert(
+        Valuation(
+            player_id=pid1,
+            season=2026,
+            system="zar",
+            version="1.0",
+            projection_system="steamer",
+            projection_version="v1",
+            player_type="batter",
+            position="OF",
+            value=42.5,
+            rank=1,
+            category_scores={"hr": 2.1},
+        )
+    )
+
+    # Available batter
+    pid2 = player_repo.upsert(Player(name_first="Juan", name_last="Soto", mlbam_id=665742))
+    val_repo.upsert(
+        Valuation(
+            player_id=pid2,
+            season=2026,
+            system="zar",
+            version="1.0",
+            projection_system="steamer",
+            projection_version="v1",
+            player_type="batter",
+            position="OF",
+            value=38.0,
+            rank=2,
+            category_scores={"hr": 1.8},
+        )
+    )
+
+    # Available pitcher
+    pid3 = player_repo.upsert(Player(name_first="Gerrit", name_last="Cole", mlbam_id=543037))
+    val_repo.upsert(
+        Valuation(
+            player_id=pid3,
+            season=2026,
+            system="zar",
+            version="1.0",
+            projection_system="steamer",
+            projection_version="v1",
+            player_type="pitcher",
+            position="SP",
+            value=35.0,
+            rank=3,
+            category_scores={"w": 1.5},
+        )
+    )
+
+    conn.commit()
+
+
+class TestDraftUpgradesCommand:
+    def test_upgrades_shows_marginal_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_upgrade_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _upgrade_league()
+        )
+
+        result = runner.invoke(
+            app,
+            ["draft", "upgrades", "--roster", "Trout", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Juan Soto" in result.output
+        assert "Gerrit Cole" in result.output
+        assert "Marginal" in result.output
+
+    def test_upgrades_with_roster_file(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_upgrade_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _upgrade_league()
+        )
+
+        roster_file = tmp_path / "roster.txt"
+        roster_file.write_text("Trout\n")
+
+        result = runner.invoke(
+            app,
+            [
+                "draft",
+                "upgrades",
+                "--roster-file",
+                str(roster_file),
+                "--season",
+                "2026",
+                "--data-dir",
+                "./data",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Juan Soto" in result.output
+
+    def test_upgrades_with_opportunity_cost(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_upgrade_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _upgrade_league()
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "draft",
+                "upgrades",
+                "--roster",
+                "Trout",
+                "--season",
+                "2026",
+                "--opportunity-cost",
+                "--picks-until-next",
+                "2",
+                "--data-dir",
+                "./data",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Recommendation" in result.output
+
+    def test_upgrades_unknown_player(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_upgrade_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _upgrade_league()
+        )
+
+        result = runner.invoke(
+            app,
+            ["draft", "upgrades", "--roster", "NonExistentPlayer", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "not found" in result.output
+
+    def test_upgrades_no_roster_option(self) -> None:
+        result = runner.invoke(
+            app,
+            ["draft", "upgrades", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 1
+
+
+class TestDraftPositionCheckCommand:
+    def test_position_check_shows_table(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_upgrade_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _upgrade_league()
+        )
+
+        result = runner.invoke(
+            app,
+            ["draft", "position-check", "--roster", "Trout", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Position" in result.output
+        assert "Urgency" in result.output
+        # Verify player data appears (column headers may wrap in narrow terminal)
+        assert "Juan Soto" in result.output or "Soto" in result.output
+
+    def test_position_check_urgency(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_conn = create_connection(":memory:")
+        _seed_upgrade_data(db_conn)
+        monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.draft.load_league", lambda name, path: _upgrade_league()
+        )
+
+        # Trout fills one OF slot; there's still an open OF and an open SP
+        result = runner.invoke(
+            app,
+            ["draft", "position-check", "--roster", "Trout", "--season", "2026", "--data-dir", "./data"],
+        )
+        assert result.exit_code == 0, result.output
+        # SP slot is open with only one candidate → high urgency (dropoff = full value)
+        assert "high" in result.output or "medium" in result.output
+
+
 class TestDraftTradePicks:
     def test_trade_picks_shows_recommendation(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
