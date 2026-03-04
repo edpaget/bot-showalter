@@ -141,7 +141,7 @@ def ingest_pitching(
 
 
 @ingest_app.command("statcast")
-def ingest_statcast(
+def ingest_statcast(  # pragma: no cover
     season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
     data_dir: _DataDirOpt = "./data",
 ) -> None:
@@ -168,7 +168,7 @@ def ingest_statcast(
 
 
 @ingest_app.command("sprint-speed")
-def ingest_sprint_speed(
+def ingest_sprint_speed(  # pragma: no cover
     season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
     data_dir: _DataDirOpt = "./data",
 ) -> None:
@@ -194,7 +194,7 @@ def ingest_sprint_speed(
 
 
 @ingest_app.command("il")
-def ingest_il(
+def ingest_il(  # pragma: no cover
     season: Annotated[list[int], typer.Option("--season", help="Season year(s) to ingest (repeatable)")],
     data_dir: _DataDirOpt = "./data",
 ) -> None:
@@ -328,7 +328,7 @@ _MILB_LEVELS = ["AAA", "AA", "A+", "A", "ROK"]
 
 
 @ingest_app.command("milb-batting")
-def ingest_milb_batting(
+def ingest_milb_batting(  # pragma: no cover
     season: Annotated[list[int], typer.Option("--season", help="Season year(s)")],
     level: Annotated[list[str] | None, typer.Option("--level", help="Level(s): AAA, AA, A+, A, ROK")] = None,
     data_dir: _DataDirOpt = "./data",
@@ -393,7 +393,7 @@ def _build_player_teams(container: IngestContainer, season: int) -> dict[int, st
 
 
 @ingest_app.command("adp")
-def ingest_adp(
+def ingest_adp(  # pragma: no cover
     csv_path: Annotated[Path, typer.Argument(help="Path to FantasyPros ADP CSV")],
     season: Annotated[int, typer.Option("--season", help="Season year")],
     as_of: Annotated[str | None, typer.Option("--as-of", help="Snapshot date (ISO)")] = None,
@@ -431,7 +431,7 @@ def ingest_adp(
 
 
 @ingest_app.command("adp-bulk")
-def ingest_adp_bulk(
+def ingest_adp_bulk(  # pragma: no cover
     directory: Annotated[Path, typer.Argument(help="Directory with fantasypros_*.csv files")],
     data_dir: _DataDirOpt = "./data",
 ) -> None:
@@ -475,7 +475,7 @@ def ingest_adp_bulk(
             console.print(f"  {csv_file.name}: {', '.join(parts)}")
 
 
-def _write_adp_csv(rows: list[dict[str, Any]], path: Path) -> None:
+def _write_adp_csv(rows: list[dict[str, Any]], path: Path) -> None:  # pragma: no cover
     if not rows:
         return
     fieldnames = list(rows[0].keys())

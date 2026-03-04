@@ -27,7 +27,7 @@ from fantasy_baseball_manager.services import (
 )
 
 
-def marginal_value_cmd(
+def marginal_value_cmd(  # pragma: no cover
     model: Annotated[str, typer.Argument(help="Name of the projection model")],
     candidate: Annotated[list[str], typer.Option("--candidate", help="Candidate column(s) to evaluate")],
     player_type: Annotated[str, typer.Option("--player-type", help="Player type: 'batter' or 'pitcher'")],

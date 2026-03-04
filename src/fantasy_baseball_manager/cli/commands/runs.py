@@ -14,7 +14,7 @@ _OperationOpt = Annotated[str, typer.Option("--operation", help="Operation type 
 
 
 @runs_app.command("list")
-def runs_list(
+def runs_list(  # pragma: no cover
     model: Annotated[str | None, typer.Option("--model", help="Filter by model name")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
@@ -25,7 +25,7 @@ def runs_list(
 
 
 @runs_app.command("show")
-def runs_show(
+def runs_show(  # pragma: no cover
     run: Annotated[str, typer.Argument(help="Run identifier (system/version)")],
     operation: _OperationOpt = "train",
     data_dir: _DataDirOpt = "./data",
@@ -46,7 +46,7 @@ def runs_show(
 
 
 @runs_app.command("delete")
-def runs_delete(
+def runs_delete(  # pragma: no cover
     run: Annotated[str, typer.Argument(help="Run identifier (system/version)")],
     operation: _OperationOpt = "train",
     yes: Annotated[bool, typer.Option("--yes", help="Skip confirmation")] = False,

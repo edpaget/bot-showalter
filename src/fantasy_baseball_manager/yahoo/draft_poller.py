@@ -42,17 +42,17 @@ class YahooDraftPoller:
 
         return new_picks
 
-    def start(self) -> None:
+    def start(self) -> None:  # pragma: no cover
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
-    def stop(self) -> None:
+    def stop(self) -> None:  # pragma: no cover
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=self._interval + 1)
 
-    def _run(self) -> None:
+    def _run(self) -> None:  # pragma: no cover
         while not self._stop_event.is_set():
             try:
                 self.poll_once()

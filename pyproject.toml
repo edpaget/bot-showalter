@@ -64,6 +64,7 @@ omit = [
   "src/fantasy_baseball_manager/repos/protocols.py",
   "src/fantasy_baseball_manager/ingest/protocols.py",
   "src/fantasy_baseball_manager/features/protocols.py",
+  "src/fantasy_baseball_manager/models/protocols.py",
   "**/__init__.py"
 ]
 

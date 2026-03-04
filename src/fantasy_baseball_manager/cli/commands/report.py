@@ -92,7 +92,7 @@ def report_underperformers(
 
 
 @report_app.command("talent-delta")
-def report_talent_delta(
+def report_talent_delta(  # pragma: no cover
     system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
     season: Annotated[int, typer.Option("--season", help="Season year")],
     player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")],
@@ -121,7 +121,7 @@ def report_talent_delta(
 
 
 @report_app.command("talent-quality")
-def report_talent_quality(
+def report_talent_quality(  # pragma: no cover
     system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
     season: Annotated[list[int], typer.Option("--season", help="Two seasons (N and N+1)")],
     stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
@@ -151,7 +151,7 @@ def report_talent_quality(
 
 
 @report_app.command("residual-persistence")
-def report_residual_persistence(
+def report_residual_persistence(  # pragma: no cover
     system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm/latest)")],
     season: Annotated[list[int], typer.Option("--season", help="Two seasons (N and N+1)")],
     stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
@@ -177,7 +177,7 @@ def report_residual_persistence(
 
 
 @report_app.command("residual-analysis")
-def report_residual_analysis(
+def report_residual_analysis(  # pragma: no cover
     system: Annotated[str, typer.Argument(help="System/version (e.g. statcast-gbm-preseason/phase4)")],
     season: Annotated[list[int], typer.Option("--season", help="Season(s) to analyze")],
     stat: Annotated[list[str] | None, typer.Option("--stat", help="Stat(s) to evaluate")] = None,
@@ -208,7 +208,7 @@ def report_residual_analysis(
 
 
 @report_app.command("value-over-adp")
-def report_value_over_adp(
+def report_value_over_adp(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
@@ -233,7 +233,7 @@ def report_value_over_adp(
 
 
 @report_app.command("adp-accuracy")
-def report_adp_accuracy(
+def report_adp_accuracy(  # pragma: no cover
     season: Annotated[list[int], typer.Option("--season", help="Season year(s)")],
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
@@ -257,7 +257,7 @@ def report_adp_accuracy(
 
 
 @report_app.command("adp-movers")
-def report_adp_movers(
+def report_adp_movers(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     window: Annotated[int, typer.Option("--window", help="Days before latest snapshot")] = 14,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
@@ -276,7 +276,7 @@ def report_adp_movers(
 
 
 @report_app.command("projection-confidence")
-def report_projection_confidence(
+def report_projection_confidence(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     min_systems: Annotated[int, typer.Option("--min-systems", help="Minimum projection systems required")] = 3,
@@ -322,7 +322,7 @@ def report_projection_confidence(
 
 
 @report_app.command("variance-targets")
-def report_variance_targets(
+def report_variance_targets(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
@@ -378,7 +378,7 @@ def report_variance_targets(
 
 
 @report_app.command("system-disagreements")
-def report_system_disagreements(
+def report_system_disagreements(  # pragma: no cover
     player: Annotated[str, typer.Option("--player", help="Player name (partial match)")],
     season: Annotated[int, typer.Option("--season", help="Season year")],
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",

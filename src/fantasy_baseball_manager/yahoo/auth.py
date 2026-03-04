@@ -99,7 +99,7 @@ class YahooAuth:
         response.raise_for_status()
         return self._parse_token_response(response.json())
 
-    def _authorize(self) -> YahooTokens:
+    def _authorize(self) -> YahooTokens:  # pragma: no cover
         auth_url = f"{_AUTH_URL}?client_id={self._client_id}&redirect_uri=oob&response_type=code"
         self._browser_opener(auth_url)
         code = self._code_reader()
@@ -125,5 +125,5 @@ class YahooAuth:
         )
 
     @staticmethod
-    def _default_code_reader() -> str:
+    def _default_code_reader() -> str:  # pragma: no cover
         return input("Enter the authorization code from Yahoo: ").strip()

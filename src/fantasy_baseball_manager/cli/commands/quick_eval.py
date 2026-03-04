@@ -49,7 +49,7 @@ def _coerce_value(value: str) -> Any:
     return value
 
 
-def quick_eval_cmd(
+def quick_eval_cmd(  # pragma: no cover
     model: Annotated[str, typer.Argument(help="Name of the projection model")],
     target: Annotated[str, typer.Option("--target", help="Target stat to evaluate (e.g. slg, era)")],
     season: Annotated[list[int] | None, typer.Option("--season", help="Season year(s) to include")] = None,

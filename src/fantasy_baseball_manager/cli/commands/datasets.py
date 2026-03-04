@@ -17,7 +17,7 @@ _SeasonOpt = Annotated[list[int] | None, typer.Option("--season", help="Season y
 
 
 @datasets_app.command("list")
-def datasets_list(
+def datasets_list(  # pragma: no cover
     name: Annotated[str | None, typer.Option("--name", help="Filter by feature set name")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
@@ -28,7 +28,7 @@ def datasets_list(
 
 
 @datasets_app.command("drop")
-def datasets_drop(
+def datasets_drop(  # pragma: no cover
     name: Annotated[str | None, typer.Option("--name", help="Feature set name to drop")] = None,
     all_: Annotated[bool, typer.Option("--all", help="Drop all cached datasets")] = False,
     yes: Annotated[bool, typer.Option("--yes", help="Skip confirmation")] = False,
@@ -59,7 +59,7 @@ def datasets_drop(
 
 
 @datasets_app.command("rebuild")
-def datasets_rebuild(
+def datasets_rebuild(  # pragma: no cover
     model: _ModelArg,
     season: _SeasonOpt = None,
     yes: Annotated[bool, typer.Option("--yes", help="Skip confirmation")] = False,

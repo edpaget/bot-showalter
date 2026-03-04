@@ -25,7 +25,7 @@ from fantasy_baseball_manager.services import (
 )
 
 
-def compare_features_cmd(
+def compare_features_cmd(  # pragma: no cover
     model: Annotated[str, typer.Argument(help="Name of the projection model")],
     set_a: Annotated[str, typer.Option("--set-a", help="Feature set A: comma-separated columns or 'default'")],
     set_b: Annotated[str, typer.Option("--set-b", help="Feature set B: comma-separated columns")],

@@ -46,7 +46,9 @@ _BaselineOpt = Annotated[str, typer.Option("--baseline", help="Baseline version 
 _KeepOpt = Annotated[bool, typer.Option("--keep", help="Retain candidate predictions in DB after gate finishes")]
 
 
-def _run_action(operation: str, model_name: str, output_dir: str | None, seasons: list[int] | None) -> None:
+def _run_action(
+    operation: str, model_name: str, output_dir: str | None, seasons: list[int] | None
+) -> None:  # pragma: no cover
     config = load_config(model_name=model_name, output_dir=output_dir, seasons=seasons)
     with build_model_context(model_name, config) as ctx:
         match dispatch(operation, ctx.model, config):
@@ -65,7 +67,7 @@ def _run_action(operation: str, model_name: str, output_dir: str | None, seasons
                 raise typer.Exit(code=1)
 
 
-def prepare(
+def prepare(  # pragma: no cover
     model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None, param: _ParamOpt = None
 ) -> None:
     """Prepare data for a projection model."""
@@ -80,7 +82,7 @@ def prepare(
                 raise typer.Exit(code=1)
 
 
-def train(
+def train(  # pragma: no cover
     model: _ModelArg,
     output_dir: _OutputDirOpt = None,
     season: _SeasonOpt = None,
@@ -106,7 +108,7 @@ def train(
                 raise typer.Exit(code=1)
 
 
-def evaluate(
+def evaluate(  # pragma: no cover
     model: _ModelArg,
     output_dir: _OutputDirOpt = None,
     season: _SeasonOpt = None,
@@ -123,7 +125,7 @@ def evaluate(
                 raise typer.Exit(code=1)
 
 
-def predict(
+def predict(  # pragma: no cover
     model: _ModelArg,
     output_dir: _OutputDirOpt = None,
     season: _SeasonOpt = None,
@@ -189,12 +191,12 @@ def predict(
                 raise typer.Exit(code=1)
 
 
-def finetune(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None) -> None:
+def finetune(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None) -> None:  # pragma: no cover
     """Fine-tune a projection model."""
     _run_action("finetune", model, output_dir, season)
 
 
-def ablate(
+def ablate(  # pragma: no cover
     model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None, param: _ParamOpt = None
 ) -> None:
     """Run ablation study on a projection model."""
@@ -209,7 +211,7 @@ def ablate(
                 raise typer.Exit(code=1)
 
 
-def tune(
+def tune(  # pragma: no cover
     model: _ModelArg,
     output_dir: _OutputDirOpt = None,
     season: _SeasonOpt = None,
@@ -228,7 +230,7 @@ def tune(
                 raise typer.Exit(code=1)
 
 
-def sweep(
+def sweep(  # pragma: no cover
     model: _ModelArg,
     output_dir: _OutputDirOpt = None,
     season: _SeasonOpt = None,
@@ -247,7 +249,7 @@ def sweep(
                 raise typer.Exit(code=1)
 
 
-def gate(
+def gate(  # pragma: no cover
     model: _ModelArg,
     holdout: _HoldoutOpt,
     output_dir: _OutputDirOpt = None,

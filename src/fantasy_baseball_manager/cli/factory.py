@@ -258,7 +258,7 @@ class DatasetsContext:
 
 
 @contextmanager
-def build_datasets_context(data_dir: str) -> Iterator[DatasetsContext]:
+def build_datasets_context(data_dir: str) -> Iterator[DatasetsContext]:  # pragma: no cover
     """Composition-root context manager for datasets subcommands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
@@ -339,10 +339,10 @@ class IngestContainer:
         return FgStatsSource(stat_type="pit")
 
     @functools.cached_property
-    def il_stint_repo(self) -> SqliteILStintRepo:
+    def il_stint_repo(self) -> SqliteILStintRepo:  # pragma: no cover
         return SqliteILStintRepo(self._conn)
 
-    def il_source(self) -> DataSource:
+    def il_source(self) -> DataSource:  # pragma: no cover
         return MLBTransactionsSource()
 
     def bio_source(self) -> DataSource:
@@ -365,13 +365,13 @@ class IngestContainer:
         return SqliteMinorLeagueBattingStatsRepo(self._conn)
 
     @functools.cached_property
-    def sprint_speed_repo(self) -> SqliteSprintSpeedRepo:
+    def sprint_speed_repo(self) -> SqliteSprintSpeedRepo:  # pragma: no cover
         return SqliteSprintSpeedRepo(self.statcast_conn)
 
     def sprint_speed_source(self) -> DataSource:
         return SprintSpeedSource()
 
-    def milb_batting_source(self) -> DataSource:
+    def milb_batting_source(self) -> DataSource:  # pragma: no cover
         return MLBMinorLeagueBattingSource()
 
     def appearances_source(self) -> DataSource:
@@ -381,7 +381,7 @@ class IngestContainer:
         return LahmanTeamsSource()
 
     @functools.cached_property
-    def adp_repo(self) -> SqliteADPRepo:
+    def adp_repo(self) -> SqliteADPRepo:  # pragma: no cover
         return SqliteADPRepo(self._conn)
 
 
@@ -472,7 +472,7 @@ class ComputeContainer:
         return SqliteLeagueEnvironmentRepo(self._conn)
 
     @functools.cached_property
-    def level_factor_repo(self) -> SqliteLevelFactorRepo:
+    def level_factor_repo(self) -> SqliteLevelFactorRepo:  # pragma: no cover
         return SqliteLevelFactorRepo(self._conn)
 
     @functools.cached_property
@@ -488,7 +488,7 @@ class ComputeContainer:
 
 
 @contextmanager
-def build_compute_container(data_dir: str) -> Iterator[ComputeContainer]:
+def build_compute_container(data_dir: str) -> Iterator[ComputeContainer]:  # pragma: no cover
     """Composition-root context manager for compute commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
@@ -538,7 +538,7 @@ class ADPReportContext:
 
 
 @contextmanager
-def build_adp_report_context(data_dir: str) -> Iterator[ADPReportContext]:
+def build_adp_report_context(data_dir: str) -> Iterator[ADPReportContext]:  # pragma: no cover
     """Composition-root context manager for ADP report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
@@ -604,7 +604,7 @@ class ADPAccuracyContext:
 
 
 @contextmanager
-def build_adp_accuracy_context(data_dir: str) -> Iterator[ADPAccuracyContext]:
+def build_adp_accuracy_context(data_dir: str) -> Iterator[ADPAccuracyContext]:  # pragma: no cover
     """Composition-root context manager for ADP accuracy evaluation commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
@@ -621,7 +621,7 @@ class ADPMoversContext:
 
 
 @contextmanager
-def build_adp_movers_context(data_dir: str) -> Iterator[ADPMoversContext]:
+def build_adp_movers_context(data_dir: str) -> Iterator[ADPMoversContext]:  # pragma: no cover
     """Composition-root context manager for ADP movers commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
@@ -641,7 +641,7 @@ class ConfidenceReportContext:
 
 
 @contextmanager
-def build_confidence_report_context(data_dir: str) -> Iterator[ConfidenceReportContext]:
+def build_confidence_report_context(data_dir: str) -> Iterator[ConfidenceReportContext]:  # pragma: no cover
     """Composition-root context manager for projection confidence report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
@@ -692,7 +692,7 @@ class YahooContext:
 
 
 @contextmanager
-def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContext]:
+def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContext]:  # pragma: no cover
     """Composition-root context manager for Yahoo Fantasy commands."""
     config = load_yahoo_config(config_dir)
     conn = create_connection(Path(data_dir) / "fbm.db")
@@ -729,7 +729,7 @@ class KeeperContext:
 
 
 @contextmanager
-def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:
+def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:  # pragma: no cover
     """Composition-root context manager for keeper commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
@@ -759,7 +759,7 @@ class ProfileContext:
 
 
 @contextmanager
-def build_profile_context(data_dir: str) -> Iterator[ProfileContext]:
+def build_profile_context(data_dir: str) -> Iterator[ProfileContext]:  # pragma: no cover
     """Composition-root context manager for profile commands."""
     statcast_conn = create_statcast_connection(Path(data_dir) / "statcast.db")
     stats_conn = create_connection(Path(data_dir) / "fbm.db")

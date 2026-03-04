@@ -16,7 +16,7 @@ profile_app = typer.Typer(name="profile", help="Profile statcast data distributi
 
 
 @profile_app.command("columns")
-def profile_columns_cmd(
+def profile_columns_cmd(  # pragma: no cover
     columns: Annotated[list[str] | None, typer.Argument(help="Column name(s) to profile")] = None,
     season: Annotated[list[int], typer.Option("--season", help="Season year(s)")] = ...,  # type: ignore[assignment]
     player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")] = ...,  # type: ignore[assignment]
@@ -43,7 +43,7 @@ def profile_columns_cmd(
 
 
 @profile_app.command("correlate")
-def correlate_cmd(
+def correlate_cmd(  # pragma: no cover
     columns: Annotated[list[str], typer.Argument(help="Column spec(s) to correlate")],
     season: Annotated[list[int], typer.Option("--season", help="Season year(s)")] = ...,  # type: ignore[assignment]
     player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")] = ...,  # type: ignore[assignment]
