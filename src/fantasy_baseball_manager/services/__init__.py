@@ -124,6 +124,10 @@ from fantasy_baseball_manager.services.positional_scarcity import (
     compute_value_curves,
     scarcity_adjusted_value,
 )
+from fantasy_baseball_manager.services.positional_upgrade import (
+    build_roster_state,
+    compute_marginal_values,
+)
 from fantasy_baseball_manager.services.projection_confidence import (
     classify_variance,
     compute_confidence,
@@ -242,12 +246,14 @@ __all__ = [
     "assign_top300_cohorts",
     "build_draft_board",
     "build_draft_roster_slots",
+    "build_roster_state",
     "build_keeper_histories",
     "build_team_map",
     "classify_variance",
     "compute_adjusted_valuations",
     "compute_category_balance_scores",
     "compute_confidence",
+    "compute_marginal_values",
     "compute_pick_value_curve",
     "compute_scarcity",
     "compute_scarcity_rankings",

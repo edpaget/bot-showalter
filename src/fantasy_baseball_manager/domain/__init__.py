@@ -151,6 +151,11 @@ from fantasy_baseball_manager.domain.positional_scarcity import (
     PositionValueCurve,
     ScarcityAdjustedPlayer,
 )
+from fantasy_baseball_manager.domain.positional_upgrade import (
+    MarginalValue,
+    RosterSlot,
+    RosterState,
+)
 from fantasy_baseball_manager.domain.projection import (
     PlayerProjection,
     Projection,
@@ -308,6 +313,7 @@ __all__ = [
     "LoadLog",
     "MinorLeagueBattingStats",
     "MissPopulationSummary",
+    "MarginalValue",
     "ModelRunRecord",
     "Ok",
     "PITCHING_COUNTING_STATS",
@@ -344,6 +350,8 @@ __all__ = [
     "Result",
     "Roster",
     "RosterEntry",
+    "RosterSlot",
+    "RosterState",
     "RosterStint",
     "SimulationSummary",
     "SeasonCorrelationResult",

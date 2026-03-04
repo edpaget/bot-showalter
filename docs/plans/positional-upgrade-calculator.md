@@ -8,7 +8,7 @@ This roadmap depends on: draft board service (done), valuations with `category_s
 
 | Phase | Status |
 |-------|--------|
-| 1 — Marginal value engine | not started |
+| 1 — Marginal value engine | done (2026-03-04) |
 | 2 — Upgrade comparison view | not started |
 | 3 — Opportunity cost scoring | not started |
 | 4 — CLI commands | not started |
