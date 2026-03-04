@@ -10,7 +10,7 @@ This roadmap depends on: draft-pick-trade-evaluator phase 1 (pick value curves),
 
 | Phase | Status |
 |-------|--------|
-| 1 — Pick-to-dollar translation | not started |
+| 1 — Pick-to-dollar translation | in progress |
 | 2 — Draft-pick keeper import | not started |
 | 3 — Round-based constraints for keeper optimizer | not started |
 
