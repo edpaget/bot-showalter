@@ -153,6 +153,7 @@ from fantasy_baseball_manager.domain.positional_scarcity import (
 )
 from fantasy_baseball_manager.domain.positional_upgrade import (
     MarginalValue,
+    OpportunityCost,
     PositionUpgrade,
     RosterSlot,
     RosterState,
@@ -315,6 +316,7 @@ __all__ = [
     "MinorLeagueBattingStats",
     "MissPopulationSummary",
     "MarginalValue",
+    "OpportunityCost",
     "ModelRunRecord",
     "Ok",
     "PITCHING_COUNTING_STATS",

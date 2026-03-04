@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.positional_upgrade import (
     MarginalValue,
+    OpportunityCost,
     PositionUpgrade,
     RosterSlot,
     RosterState,
@@ -153,3 +154,33 @@ class TestPositionUpgrade:
         )
         with pytest.raises(FrozenInstanceError):
             pu.urgency = "low"  # type: ignore[misc]
+
+
+class TestOpportunityCost:
+    def test_construction(self) -> None:
+        oc = OpportunityCost(
+            position="C",
+            recommended_player="Adley Rutschman",
+            marginal_value=20.0,
+            opportunity_cost=15.0,
+            net_value=5.0,
+            recommendation="draft now",
+        )
+        assert oc.position == "C"
+        assert oc.recommended_player == "Adley Rutschman"
+        assert oc.marginal_value == 20.0
+        assert oc.opportunity_cost == 15.0
+        assert oc.net_value == 5.0
+        assert oc.recommendation == "draft now"
+
+    def test_frozen(self) -> None:
+        oc = OpportunityCost(
+            position="C",
+            recommended_player="X",
+            marginal_value=10.0,
+            opportunity_cost=5.0,
+            net_value=5.0,
+            recommendation="draft now",
+        )
+        with pytest.raises(FrozenInstanceError):
+            oc.net_value = 99.0  # type: ignore[misc]

@@ -9,12 +9,14 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 from fantasy_baseball_manager.domain.positional_upgrade import (
+    MarginalValue,
     RosterSlot,
     RosterState,
 )
 from fantasy_baseball_manager.services.positional_upgrade import (
     build_roster_state,
     compute_marginal_values,
+    compute_opportunity_costs,
     compute_position_upgrades,
 )
 
@@ -587,3 +589,131 @@ class TestPositionUpgradesSortOrder:
                 assert a.upgrade_value >= b.upgrade_value
             else:
                 assert urgency_order[a.urgency] <= urgency_order[b.urgency]
+
+
+# -- compute_opportunity_costs tests ----------------------------------------
+
+
+def _mv(
+    player_id: int,
+    name: str,
+    position: str,
+    marginal_value: float,
+    fills_need: bool,
+) -> MarginalValue:
+    return MarginalValue(
+        player_id=player_id,
+        player_name=name,
+        position=position,
+        raw_value=marginal_value,
+        marginal_value=marginal_value,
+        category_impacts={},
+        fills_need=fills_need,
+    )
+
+
+def _empty_state() -> RosterState:
+    return RosterState(slots=[], open_positions=[], total_value=0.0, category_totals={})
+
+
+class TestOpportunityCostNoNonFillCompetition:
+    """Position fill with no non-fill players in window → opp cost 0, draft now."""
+
+    def test_no_competition(self) -> None:
+        mvs = [
+            _mv(1, "Catcher A", "C", 20.0, fills_need=True),
+            _mv(2, "Catcher B", "C", 15.0, fills_need=True),
+        ]
+        league = _league(positions={"C": 1}, roster_util=0)
+        results = compute_opportunity_costs(mvs, _empty_state(), league, picks_until_next=2)
+        assert len(results) == 2
+        assert results[0].opportunity_cost == 0.0
+        assert results[0].net_value == 20.0
+        assert results[0].recommendation == "draft now"
+
+
+class TestOpportunityCostEliteNonFillInWindow:
+    """Elite non-fill in window → opportunity_cost > MV → 'wait'."""
+
+    def test_wait_when_elite_alternative(self) -> None:
+        mvs = [
+            _mv(1, "Elite OF", "OF", 30.0, fills_need=False),
+            _mv(2, "OK Catcher", "C", 15.0, fills_need=True),
+            _mv(3, "Weak SS", "SS", 5.0, fills_need=True),
+        ]
+        league = _league(positions={"C": 1, "SS": 1, "OF": 3}, roster_util=0)
+        results = compute_opportunity_costs(mvs, _empty_state(), league, picks_until_next=2)
+        catcher = next(r for r in results if r.position == "C")
+        assert catcher.opportunity_cost == 30.0
+        assert catcher.net_value < 0
+        assert catcher.recommendation == "wait"
+
+
+class TestOpportunityCostWeakerNonFillInWindow:
+    """Weaker non-fill in window → net_value > 0 → 'draft now'."""
+
+    def test_draft_now_when_alternative_weaker(self) -> None:
+        mvs = [
+            _mv(1, "Great Catcher", "C", 25.0, fills_need=True),
+            _mv(2, "OK OF", "OF", 10.0, fills_need=False),
+            _mv(3, "Weak 1B", "1B", 5.0, fills_need=True),
+        ]
+        league = _league(positions={"C": 1, "1B": 1, "OF": 3}, roster_util=0)
+        results = compute_opportunity_costs(mvs, _empty_state(), league, picks_until_next=2)
+        catcher = next(r for r in results if r.position == "C")
+        assert catcher.opportunity_cost == 10.0
+        assert catcher.net_value == pytest.approx(15.0)
+        assert catcher.recommendation == "draft now"
+
+
+class TestOpportunityCostExactTie:
+    """net_value == 0 → 'borderline'."""
+
+    def test_borderline(self) -> None:
+        mvs = [
+            _mv(1, "OF Star", "OF", 20.0, fills_need=False),
+            _mv(2, "Catcher", "C", 20.0, fills_need=True),
+        ]
+        league = _league(positions={"C": 1, "OF": 3}, roster_util=0)
+        results = compute_opportunity_costs(mvs, _empty_state(), league, picks_until_next=2)
+        catcher = next(r for r in results if r.position == "C")
+        assert catcher.net_value == 0.0
+        assert catcher.recommendation == "borderline"
+
+
+class TestOpportunityCostWindowSize:
+    """picks_until_next controls the window — larger window changes result."""
+
+    def test_window_controls_result(self) -> None:
+        mvs = [
+            _mv(1, "Fill C", "C", 18.0, fills_need=True),
+            _mv(2, "Non-fill A", "OF", 12.0, fills_need=False),
+            _mv(3, "Non-fill B", "OF", 25.0, fills_need=False),
+        ]
+        league = _league(positions={"C": 1, "OF": 3}, roster_util=0)
+
+        # Window=1: only top-1 player (Fill C itself) in gone set,
+        # no non-fill in gone set → opp cost = 0
+        small = compute_opportunity_costs(mvs, _empty_state(), league, picks_until_next=1)
+        c_small = next(r for r in small if r.position == "C")
+        assert c_small.opportunity_cost == 0.0
+
+        # Window=3: all 3 in gone set, best non-fill = Non-fill B (25.0)
+        big = compute_opportunity_costs(mvs, _empty_state(), league, picks_until_next=3)
+        c_big = next(r for r in big if r.position == "C")
+        assert c_big.opportunity_cost == 25.0
+
+
+class TestOpportunityCostSortedByNetValue:
+    """Output is sorted by net_value descending."""
+
+    def test_sort_order(self) -> None:
+        mvs = [
+            _mv(1, "Non-fill", "OF", 15.0, fills_need=False),
+            _mv(2, "Fill Low", "C", 10.0, fills_need=True),
+            _mv(3, "Fill High", "SS", 25.0, fills_need=True),
+        ]
+        league = _league(positions={"C": 1, "SS": 1, "OF": 3}, roster_util=0)
+        results = compute_opportunity_costs(mvs, _empty_state(), league, picks_until_next=3)
+        net_values = [r.net_value for r in results]
+        assert net_values == sorted(net_values, reverse=True)

@@ -129,6 +129,7 @@ from fantasy_baseball_manager.services.positional_scarcity import (
 from fantasy_baseball_manager.services.positional_upgrade import (
     build_roster_state,
     compute_marginal_values,
+    compute_opportunity_costs,
     compute_position_upgrades,
 )
 from fantasy_baseball_manager.services.projection_confidence import (
@@ -257,6 +258,7 @@ __all__ = [
     "compute_category_balance_scores",
     "compute_confidence",
     "compute_marginal_values",
+    "compute_opportunity_costs",
     "compute_position_upgrades",
     "compute_pick_value_curve",
     "compute_scarcity",

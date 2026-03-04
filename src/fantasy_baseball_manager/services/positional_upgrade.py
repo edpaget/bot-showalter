@@ -5,6 +5,7 @@ from fantasy_baseball_manager.domain import (
     DraftBoardRow,
     LeagueSettings,
     MarginalValue,
+    OpportunityCost,
     PositionUpgrade,
     RosterSlot,
     RosterState,
@@ -287,3 +288,51 @@ def compute_position_upgrades(
 
     upgrades.sort(key=lambda u: (_URGENCY_ORDER[u.urgency], -u.upgrade_value))
     return upgrades
+
+
+def compute_opportunity_costs(
+    marginal_values: list[MarginalValue],
+    state: RosterState,
+    league: LeagueSettings,
+    picks_until_next: int,
+) -> list[OpportunityCost]:
+    """Score position-fill candidates by opportunity cost of drafting them now."""
+    # "Will be gone" set: top picks_until_next players by MV (already sorted desc)
+    gone_set = marginal_values[:picks_until_next]
+
+    results: list[OpportunityCost] = []
+
+    for candidate in marginal_values:
+        if not candidate.fills_need:
+            continue
+
+        # Best non-fill player in the gone set (excluding the candidate itself)
+        best_non_fill_mv = 0.0
+        for gone in gone_set:
+            if gone.player_id == candidate.player_id:
+                continue
+            if not gone.fills_need and gone.marginal_value > best_non_fill_mv:
+                best_non_fill_mv = gone.marginal_value
+
+        net = candidate.marginal_value - best_non_fill_mv
+
+        if net > 0:
+            rec = "draft now"
+        elif net < 0:
+            rec = "wait"
+        else:
+            rec = "borderline"
+
+        results.append(
+            OpportunityCost(
+                position=candidate.position,
+                recommended_player=candidate.player_name,
+                marginal_value=candidate.marginal_value,
+                opportunity_cost=best_non_fill_mv,
+                net_value=net,
+                recommendation=rec,
+            )
+        )
+
+    results.sort(key=lambda r: r.net_value, reverse=True)
+    return results

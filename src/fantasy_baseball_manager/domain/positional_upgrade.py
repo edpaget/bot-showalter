@@ -32,6 +32,16 @@ class PositionUpgrade:
 
 
 @dataclass(frozen=True)
+class OpportunityCost:
+    position: str
+    recommended_player: str
+    marginal_value: float
+    opportunity_cost: float
+    net_value: float
+    recommendation: str
+
+
+@dataclass(frozen=True)
 class MarginalValue:
     player_id: int
     player_name: str
