@@ -12,7 +12,7 @@ Yahoo's Fantasy Sports REST API (OAuth2, XML/JSON) exposes league metadata, rost
 | 2 — Player ID crosswalk and roster ingest | done (2026-02-21) |
 | 3 — Draft results and live draft tracking | done (2026-02-28) |
 | 4 — League history and keeper evaluation | done (2026-03-02) |
-| 5 — Transaction log and league activity | in progress |
+| 5 — Transaction log and league activity | done (2026-03-03) |
 
 ## Phase 1: OAuth client and league metadata sync
 
