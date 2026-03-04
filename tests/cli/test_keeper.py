@@ -1027,6 +1027,149 @@ class TestKeeperOptimize:
         conn.close()
 
 
+def _seed_optimize_round_data(conn: sqlite3.Connection) -> tuple[int, int, int]:
+    """Seed 3 players with round-based keeper costs and valuations."""
+    pid1 = seed_player(conn, name_first="Mike", name_last="Trout")
+    pid2 = seed_player(conn, name_first="Aaron", name_last="Judge")
+    pid3 = seed_player(conn, name_first="Juan", name_last="Soto")
+
+    keeper_repo = SqliteKeeperCostRepo(conn)
+    keeper_repo.upsert_batch(
+        [
+            KeeperCost(
+                player_id=pid1, season=2026, league="dynasty", cost=25.0, source="draft_round", original_round=3
+            ),
+            KeeperCost(
+                player_id=pid2, season=2026, league="dynasty", cost=18.0, source="draft_round", original_round=3
+            ),
+            KeeperCost(player_id=pid3, season=2026, league="dynasty", cost=5.0, source="draft_round", original_round=8),
+        ]
+    )
+
+    val_repo = SqliteValuationRepo(conn)
+    for pid, value, rank, pos in [
+        (pid1, 40.0, 1, "cf"),
+        (pid2, 35.0, 2, "of"),
+        (pid3, 20.0, 3, "ss"),
+    ]:
+        val_repo.upsert(
+            Valuation(
+                player_id=pid,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type="batter",
+                position=pos,
+                value=value,
+                rank=rank,
+                category_scores={},
+            )
+        )
+    conn.commit()
+    return pid1, pid2, pid3
+
+
+class TestKeeperOptimizeRoundConstraints:
+    def test_optimize_with_round_escalation(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_optimize_round_data(conn)
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "optimize",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+                "--max-keepers",
+                "2",
+                "--round-escalation",
+                "1",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Optimal Keeper Set" in result.output
+        conn.close()
+
+    def test_optimize_with_max_per_round(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_optimize_round_data(conn)
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        # Two players in round 3, max-per-round=1 → can only keep one from round 3
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "optimize",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+                "--max-keepers",
+                "2",
+                "--max-per-round",
+                "1",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Should keep Trout (round 3, higher surplus) + Soto (round 8)
+        assert "Mike Trout" in result.output
+        assert "Juan Soto" in result.output
+        conn.close()
+
+    def test_optimize_with_protected_rounds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_optimize_round_data(conn)
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        # Protect round 3 → both Trout and Judge excluded, only Soto valid
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "optimize",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+                "--max-keepers",
+                "1",
+                "--protected-rounds",
+                "3",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Only Soto (round 8) can be kept
+        assert "Juan Soto" in result.output
+        assert "Mike Trout" not in result.output
+        assert "Aaron Judge" not in result.output
+        conn.close()
+
+
 class TestKeeperScenario:
     def test_compare_two_scenarios(self, monkeypatch: pytest.MonkeyPatch) -> None:
         conn = create_connection(":memory:")

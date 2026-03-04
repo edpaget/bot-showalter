@@ -24,6 +24,7 @@ def _decision(
     position: str = "of",
     cost: float = 10.0,
     name: str | None = None,
+    original_round: int | None = None,
 ) -> KeeperDecision:
     return KeeperDecision(
         player_id=player_id,
@@ -34,6 +35,7 @@ def _decision(
         surplus=surplus,
         years_remaining=1,
         recommendation="keep" if surplus > 0 else "release",
+        original_round=original_round,
     )
 
 
@@ -322,6 +324,127 @@ class TestEdgeCases:
 
         with pytest.raises(ValueError, match="no valid"):
             solve_keepers(candidates, constraints)
+
+
+# ── Round constraint tests ─────────────────────────────────────────────────────
+
+
+class TestRoundConstraints:
+    def test_escalation_bumps_cost(self) -> None:
+        """Two players in round 5, escalation=1 bumps both to round 4.
+        With max_per_round=1, only one can be kept."""
+        candidates = [
+            _decision(1, 25.0, original_round=5),
+            _decision(2, 20.0, original_round=5),
+            _decision(3, 15.0, original_round=3),
+        ]
+        constraints = KeeperConstraints(
+            max_keepers=2,
+            round_escalation=1,
+            max_per_round=1,
+        )
+
+        result = solve_keepers(candidates, constraints)
+
+        ids = {p.player_id for p in result.optimal.players}
+        # Both escalate from round 5 to round 4, but max_per_round=1 allows only one at round 4.
+        # Player 3 escalates from round 3 to round 2, no conflict.
+        # Best combo: player 1 (surplus 25) + player 3 (surplus 15) = 40
+        assert ids == {1, 3}
+
+    def test_max_per_round_prevents_duplicates(self) -> None:
+        """Two players with same original_round=3, max_per_round=1 → only one kept."""
+        candidates = [
+            _decision(1, 30.0, original_round=3),
+            _decision(2, 25.0, original_round=3),
+            _decision(3, 10.0, original_round=5),
+        ]
+        constraints = KeeperConstraints(
+            max_keepers=2,
+            max_per_round=1,
+        )
+
+        result = solve_keepers(candidates, constraints)
+
+        ids = {p.player_id for p in result.optimal.players}
+        # Can only keep one from round 3 → player 1 (surplus 30) + player 3 (surplus 10)
+        assert ids == {1, 3}
+
+    def test_protected_rounds_excludes_players(self) -> None:
+        """Player with original_round=2, escalation=1 → effective round 1 which is protected."""
+        candidates = [
+            _decision(1, 30.0, original_round=2),  # escalates to round 1 → protected
+            _decision(2, 20.0, original_round=5),  # escalates to round 4 → ok
+            _decision(3, 15.0, original_round=4),  # escalates to round 3 → ok
+        ]
+        constraints = KeeperConstraints(
+            max_keepers=2,
+            round_escalation=1,
+            protected_rounds=frozenset({1}),
+        )
+
+        result = solve_keepers(candidates, constraints)
+
+        ids = {p.player_id for p in result.optimal.players}
+        # Player 1 excluded (escalated round 1 is protected), best is player 2 + player 3
+        assert 1 not in ids
+        assert ids == {2, 3}
+
+    def test_undrafted_round_assigns_round_to_none(self) -> None:
+        """Player with original_round=None, undrafted_round=20 → treated as round 20."""
+        candidates = [
+            _decision(1, 25.0, original_round=None),  # undrafted → round 20
+            _decision(2, 20.0, original_round=20),  # also round 20
+            _decision(3, 15.0, original_round=5),
+        ]
+        constraints = KeeperConstraints(
+            max_keepers=2,
+            max_per_round=1,
+            undrafted_round=20,
+        )
+
+        result = solve_keepers(candidates, constraints)
+
+        ids = {p.player_id for p in result.optimal.players}
+        # Player 1 (undrafted→round 20) and player 2 (round 20) conflict on max_per_round=1
+        # Best combo: player 1 (surplus 25) + player 3 (surplus 15) = 40
+        assert ids == {1, 3}
+
+    def test_no_round_constraints_when_fields_default(self) -> None:
+        """All round fields at defaults → existing behavior unchanged."""
+        candidates = [
+            _decision(1, 30.0, original_round=3),
+            _decision(2, 25.0, original_round=3),
+            _decision(3, 10.0, original_round=5),
+        ]
+        constraints = KeeperConstraints(max_keepers=2)
+
+        result = solve_keepers(candidates, constraints)
+
+        ids = {p.player_id for p in result.optimal.players}
+        # No round constraints → top 2 by surplus
+        assert ids == {1, 2}
+
+    def test_round_constraints_change_optimal_set(self) -> None:
+        """With vs without round constraints produces different optimal sets."""
+        candidates = [
+            _decision(1, 30.0, original_round=3),
+            _decision(2, 25.0, original_round=3),
+            _decision(3, 10.0, original_round=5),
+        ]
+
+        without_round = KeeperConstraints(max_keepers=2)
+        with_round = KeeperConstraints(max_keepers=2, max_per_round=1)
+
+        result_without = solve_keepers(candidates, without_round)
+        result_with = solve_keepers(candidates, with_round)
+
+        ids_without = {p.player_id for p in result_without.optimal.players}
+        ids_with = {p.player_id for p in result_with.optimal.players}
+
+        assert ids_without != ids_with
+        assert ids_without == {1, 2}
+        assert ids_with == {1, 3}
 
 
 # ── Helpers for Phase 2 tests ──────────────────────────────────────────────────

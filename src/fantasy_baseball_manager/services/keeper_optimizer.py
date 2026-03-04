@@ -85,6 +85,28 @@ def _find_valid_sets(
     return _branch_and_bound(required, optional, k, constraints)
 
 
+def _effective_round(
+    player: KeeperDecision,
+    constraints: KeeperConstraints,
+) -> int | None:
+    """Compute the effective round after escalation."""
+    if player.original_round is None:
+        if constraints.undrafted_round is not None:
+            return max(1, constraints.undrafted_round - constraints.round_escalation)
+        return None
+    return max(1, player.original_round - constraints.round_escalation)
+
+
+def _has_round_constraints(constraints: KeeperConstraints) -> bool:
+    """Check whether any round-based constraints are active."""
+    return (
+        constraints.max_per_round is not None
+        or constraints.protected_rounds is not None
+        or constraints.round_escalation != 0
+        or constraints.undrafted_round is not None
+    )
+
+
 def _is_valid(
     players: tuple[KeeperDecision, ...],
     constraints: KeeperConstraints,
@@ -103,6 +125,21 @@ def _is_valid(
         total_cost = sum(p.cost for p in players)
         if total_cost > constraints.max_cost:
             return False
+
+    if _has_round_constraints(constraints):
+        round_counts: Counter[int] = Counter()
+        for p in players:
+            eff = _effective_round(p, constraints)
+            if eff is None:
+                continue
+            if constraints.protected_rounds is not None and eff in constraints.protected_rounds:
+                return False
+            round_counts[eff] += 1
+
+        if constraints.max_per_round is not None:
+            for count in round_counts.values():
+                if count > constraints.max_per_round:
+                    return False
 
     return True
 
@@ -149,6 +186,13 @@ def _branch_and_bound(
     req_tuple = tuple(required)
     req_cost = sum(p.cost for p in required)
     req_positions: Counter[str] = Counter(p.position for p in required)
+    use_round_constraints = _has_round_constraints(constraints)
+    req_rounds: Counter[int] = Counter()
+    if use_round_constraints:
+        for p in required:
+            eff = _effective_round(p, constraints)
+            if eff is not None:
+                req_rounds[eff] += 1
 
     # Prefix sums for upper bound calculation
     n = len(optional)
@@ -167,6 +211,7 @@ def _branch_and_bound(
         current_surplus: float,
         current_cost: float,
         pos_counts: Counter[str],
+        round_counts: Counter[int],
         remaining: int,
     ) -> None:
         nonlocal heap_counter, min_score
@@ -220,7 +265,23 @@ def _branch_and_bound(
         if constraints.max_cost is not None and new_cost > constraints.max_cost and remaining == 1:
             cost_ok = False
 
-        if pos_ok and cost_ok:
+        round_ok = True
+        eff_round: int | None = None
+        if use_round_constraints and pos_ok and cost_ok:
+            eff_round = _effective_round(player, constraints)
+            if eff_round is not None:
+                if constraints.protected_rounds is not None and eff_round in constraints.protected_rounds:
+                    round_ok = False
+                if (
+                    round_ok
+                    and constraints.max_per_round is not None
+                    and round_counts[eff_round] + 1 > constraints.max_per_round
+                ):
+                    round_ok = False
+
+        if pos_ok and cost_ok and round_ok:
+            if eff_round is not None:
+                round_counts[eff_round] += 1
             chosen.append(player)
             _dfs(
                 idx + 1,
@@ -228,17 +289,20 @@ def _branch_and_bound(
                 current_surplus + player.surplus,
                 new_cost,
                 pos_counts,
+                round_counts,
                 remaining - 1,
             )
             chosen.pop()
+            if eff_round is not None:
+                round_counts[eff_round] -= 1
 
         pos_counts[pos] -= 1
 
         # Try skipping optional[idx]
-        _dfs(idx + 1, chosen, current_surplus, current_cost, pos_counts, remaining)
+        _dfs(idx + 1, chosen, current_surplus, current_cost, pos_counts, round_counts, remaining)
 
     req_surplus = sum(p.surplus for p in required)
-    _dfs(0, [], req_surplus, req_cost, Counter(req_positions), k)
+    _dfs(0, [], req_surplus, req_cost, Counter(req_positions), Counter(req_rounds), k)
 
     return [item[2] for item in heap]
 

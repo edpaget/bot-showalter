@@ -137,10 +137,11 @@ def print_keeper_solution(solution: KeeperSolution) -> None:
     table.add_column("Surplus", justify="right")
 
     for p in optimal.players:
+        cost_str = f"Rd {p.original_round} (~${p.cost:.0f})" if p.original_round is not None else f"${p.cost:.0f}"
         table.add_row(
             p.player_name,
             p.position,
-            f"${p.cost:.0f}",
+            cost_str,
             f"${p.projected_value:.0f}",
             f"${p.surplus:.1f}",
         )

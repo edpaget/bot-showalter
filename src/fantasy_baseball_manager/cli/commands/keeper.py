@@ -327,6 +327,11 @@ def optimize_cmd(
     league_keepers: Annotated[
         Path | None, typer.Option(help="CSV of other teams' keepers for pool-adjusted mode")
     ] = None,
+    round_escalation: Annotated[int, typer.Option(help="Rounds earlier keeper costs next year")] = 0,
+    max_per_round: Annotated[int | None, typer.Option(help="Max keepers from the same effective round")] = None,
+    protected_rounds: Annotated[
+        list[int] | None, typer.Option(help="Rounds that can't be used as keeper slots")
+    ] = None,
     threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
@@ -352,6 +357,9 @@ def optimize_cmd(
             max_per_position=pos_limits,
             max_cost=max_cost,
             required_keepers=required_ids,
+            round_escalation=round_escalation,
+            max_per_round=max_per_round,
+            protected_rounds=frozenset(protected_rounds) if protected_rounds else None,
         )
 
         if league_keepers is not None:

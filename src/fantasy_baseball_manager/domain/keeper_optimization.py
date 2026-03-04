@@ -14,6 +14,10 @@ class KeeperConstraints:
     max_per_position: dict[str, int] | None = None
     max_cost: float | None = None
     required_keepers: list[int] = field(default_factory=list)
+    round_escalation: int = 0
+    max_per_round: int | None = None
+    protected_rounds: frozenset[int] | None = None
+    undrafted_round: int | None = None
 
 
 @dataclass(frozen=True)
