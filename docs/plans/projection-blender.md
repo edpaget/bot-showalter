@@ -10,7 +10,7 @@ The ensemble model (`src/fantasy_baseball_manager/models/ensemble/`) already sup
 |-------|--------|
 | 1 — Per-stat routing engine | done (2026-03-04) |
 | 2 — Stat group presets and config | done (2026-03-04) |
-| 3 — Coverage validation and diagnostics | in progress |
+| 3 — Coverage validation and diagnostics | done (2026-03-04) |
 | 4 — Draft-day pipeline integration | not started |
 
 ## Phase 1: Per-stat routing engine

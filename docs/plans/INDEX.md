@@ -11,7 +11,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Injury Risk Discount](injury-risk-discount.md) | 3 | not started | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
-| [Projection Blender](projection-blender.md) | 4 | phases 1-2 done | none |
+| [Projection Blender](projection-blender.md) | 4 | phases 1-3 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
