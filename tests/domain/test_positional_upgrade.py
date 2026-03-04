@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.positional_upgrade import (
     MarginalValue,
+    PositionUpgrade,
     RosterSlot,
     RosterState,
 )
@@ -97,3 +98,58 @@ class TestMarginalValue:
         )
         with pytest.raises(FrozenInstanceError):
             mv.marginal_value = 99.0  # type: ignore[misc]
+
+
+class TestPositionUpgrade:
+    def test_construction(self) -> None:
+        pu = PositionUpgrade(
+            position="C",
+            current_player="Adley Rutschman",
+            current_value=15.0,
+            best_available="William Contreras",
+            best_available_value=12.0,
+            upgrade_value=-3.0,
+            next_best="Yainer Diaz",
+            dropoff_to_next=4.0,
+            urgency="low",
+        )
+        assert pu.position == "C"
+        assert pu.current_player == "Adley Rutschman"
+        assert pu.current_value == 15.0
+        assert pu.best_available == "William Contreras"
+        assert pu.best_available_value == 12.0
+        assert pu.upgrade_value == -3.0
+        assert pu.next_best == "Yainer Diaz"
+        assert pu.dropoff_to_next == 4.0
+        assert pu.urgency == "low"
+
+    def test_open_position(self) -> None:
+        pu = PositionUpgrade(
+            position="SS",
+            current_player=None,
+            current_value=0.0,
+            best_available="Trea Turner",
+            best_available_value=25.0,
+            upgrade_value=25.0,
+            next_best="Corey Seager",
+            dropoff_to_next=5.0,
+            urgency="high",
+        )
+        assert pu.current_player is None
+        assert pu.upgrade_value == 25.0
+        assert pu.urgency == "high"
+
+    def test_frozen(self) -> None:
+        pu = PositionUpgrade(
+            position="C",
+            current_player=None,
+            current_value=0.0,
+            best_available="X",
+            best_available_value=10.0,
+            upgrade_value=10.0,
+            next_best=None,
+            dropoff_to_next=10.0,
+            urgency="high",
+        )
+        with pytest.raises(FrozenInstanceError):
+            pu.urgency = "low"  # type: ignore[misc]

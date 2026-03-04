@@ -15,6 +15,7 @@ from fantasy_baseball_manager.domain.positional_upgrade import (
 from fantasy_baseball_manager.services.positional_upgrade import (
     build_roster_state,
     compute_marginal_values,
+    compute_position_upgrades,
 )
 
 # -- Helpers ------------------------------------------------------------------
@@ -388,3 +389,201 @@ class TestComputeMarginalValuesSorted:
         results = compute_marginal_values(state, available, league)
         values = [r.marginal_value for r in results]
         assert values == sorted(values, reverse=True)
+
+
+# -- compute_position_upgrades tests ----------------------------------------
+
+
+class TestPositionUpgradesOpenHighDropoff:
+    """Open position with large dropoff → 'high' urgency."""
+
+    def test_high_urgency(self) -> None:
+        state = RosterState(
+            slots=[RosterSlot(position="C"), RosterSlot(position="SS")],
+            open_positions=["C", "SS"],
+            total_value=0.0,
+            category_totals={},
+        )
+        available = [
+            _row(1, "Great C", "C", 20.0),
+            _row(2, "OK C", "C", 10.0),
+        ]
+        league = _league(positions={"C": 1, "SS": 1}, roster_util=0)
+
+        results = compute_position_upgrades(state, available, league)
+        c_upgrade = next(r for r in results if r.position == "C")
+        assert c_upgrade.urgency == "high"
+        assert c_upgrade.current_player is None
+        assert c_upgrade.best_available == "Great C"
+        assert c_upgrade.best_available_value == 20.0
+        assert c_upgrade.upgrade_value == 20.0
+        assert c_upgrade.dropoff_to_next == 10.0
+
+
+class TestPositionUpgradesOpenSmallDropoff:
+    """Open position with small dropoff → 'medium' urgency."""
+
+    def test_medium_urgency(self) -> None:
+        state = RosterState(
+            slots=[RosterSlot(position="C")],
+            open_positions=["C"],
+            total_value=0.0,
+            category_totals={},
+        )
+        available = [
+            _row(1, "C1", "C", 20.0),
+            _row(2, "C2", "C", 18.0),
+        ]
+        league = _league(positions={"C": 1}, roster_util=0)
+
+        results = compute_position_upgrades(state, available, league)
+        assert len(results) == 1
+        assert results[0].urgency == "medium"
+        assert results[0].dropoff_to_next == pytest.approx(2.0)
+
+
+class TestPositionUpgradesFilledWithUpgrade:
+    """Filled position, upgrade available → 'low' urgency, positive upgrade_value."""
+
+    def test_low_urgency_positive_upgrade(self) -> None:
+        state = RosterState(
+            slots=[
+                RosterSlot(position="C", player_id=1, player_name="Starter C", value=10.0),
+            ],
+            open_positions=[],
+            total_value=10.0,
+            category_totals={},
+        )
+        available = [
+            _row(5, "Better C", "C", 18.0),
+            _row(6, "OK C", "C", 12.0),
+        ]
+        league = _league(positions={"C": 1}, roster_util=0)
+
+        results = compute_position_upgrades(state, available, league)
+        assert len(results) == 1
+        assert results[0].urgency == "low"
+        assert results[0].upgrade_value == pytest.approx(8.0)
+        assert results[0].current_player == "Starter C"
+
+
+class TestPositionUpgradesFilledCurrentBetter:
+    """Filled position, current > best → 'low' urgency, negative upgrade_value."""
+
+    def test_negative_upgrade(self) -> None:
+        state = RosterState(
+            slots=[
+                RosterSlot(position="C", player_id=1, player_name="Elite C", value=30.0),
+            ],
+            open_positions=[],
+            total_value=30.0,
+            category_totals={},
+        )
+        available = [_row(5, "Mediocre C", "C", 10.0)]
+        league = _league(positions={"C": 1}, roster_util=0)
+
+        results = compute_position_upgrades(state, available, league)
+        assert len(results) == 1
+        assert results[0].upgrade_value == pytest.approx(-20.0)
+        assert results[0].urgency == "low"
+
+
+class TestPositionUpgradesDropoff:
+    """Dropoff computed correctly between #1 and #2."""
+
+    def test_dropoff_between_top_two(self) -> None:
+        state = RosterState(
+            slots=[RosterSlot(position="SS")],
+            open_positions=["SS"],
+            total_value=0.0,
+            category_totals={},
+        )
+        available = [
+            _row(1, "SS1", "SS", 25.0),
+            _row(2, "SS2", "SS", 17.0),
+        ]
+        league = _league(positions={"SS": 1}, roster_util=0)
+
+        results = compute_position_upgrades(state, available, league)
+        assert results[0].dropoff_to_next == pytest.approx(8.0)
+        assert results[0].next_best == "SS2"
+
+
+class TestPositionUpgradesSingleAvailable:
+    """Single available player → next_best=None, dropoff=best_value."""
+
+    def test_single_player(self) -> None:
+        state = RosterState(
+            slots=[RosterSlot(position="C")],
+            open_positions=["C"],
+            total_value=0.0,
+            category_totals={},
+        )
+        available = [_row(1, "Only C", "C", 15.0)]
+        league = _league(positions={"C": 1}, roster_util=0)
+
+        results = compute_position_upgrades(state, available, league)
+        assert results[0].next_best is None
+        assert results[0].dropoff_to_next == pytest.approx(15.0)
+
+
+class TestPositionUpgradesMultiEligibility:
+    """Multi-position player appears in both position checks."""
+
+    def test_multi_position_player(self) -> None:
+        state = RosterState(
+            slots=[RosterSlot(position="SS"), RosterSlot(position="2B")],
+            open_positions=["SS", "2B"],
+            total_value=0.0,
+            category_totals={},
+        )
+        available = [_row(1, "Combo", "SS", 20.0)]
+        league = _league(positions={"SS": 1, "2B": 1}, roster_util=0)
+        eligibility = {1: ["SS", "2B"]}
+
+        results = compute_position_upgrades(state, available, league, position_eligibility=eligibility)
+        # Player should appear as best_available for both positions
+        positions = {r.position for r in results}
+        assert "SS" in positions
+        assert "2B" in positions
+        ss = next(r for r in results if r.position == "SS")
+        two_b = next(r for r in results if r.position == "2B")
+        assert ss.best_available == "Combo"
+        assert two_b.best_available == "Combo"
+
+
+class TestPositionUpgradesSortOrder:
+    """Output sorted: high → medium → low, then by upgrade_value desc."""
+
+    def test_sort_order(self) -> None:
+        state = RosterState(
+            slots=[
+                RosterSlot(position="C"),
+                RosterSlot(position="SS"),
+                RosterSlot(position="OF", player_id=99, player_name="OF Starter", value=15.0),
+            ],
+            open_positions=["C", "SS"],
+            total_value=15.0,
+            category_totals={},
+        )
+        available = [
+            # C: open, big dropoff → high
+            _row(1, "Great C", "C", 25.0),
+            _row(2, "OK C", "C", 10.0),
+            # SS: open, small dropoff → medium
+            _row(3, "SS1", "SS", 20.0),
+            _row(4, "SS2", "SS", 18.0),
+            # OF: filled → low
+            _row(5, "Better OF", "OF", 22.0),
+        ]
+        league = _league(positions={"C": 1, "SS": 1, "OF": 1}, roster_util=0)
+
+        results = compute_position_upgrades(state, available, league)
+
+        urgency_order = {"high": 0, "medium": 1, "low": 2}
+        for i in range(len(results) - 1):
+            a, b = results[i], results[i + 1]
+            if urgency_order[a.urgency] == urgency_order[b.urgency]:
+                assert a.upgrade_value >= b.upgrade_value
+            else:
+                assert urgency_order[a.urgency] <= urgency_order[b.urgency]

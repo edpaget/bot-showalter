@@ -19,6 +19,19 @@ class RosterState:
 
 
 @dataclass(frozen=True)
+class PositionUpgrade:
+    position: str
+    current_player: str | None
+    current_value: float
+    best_available: str
+    best_available_value: float
+    upgrade_value: float
+    next_best: str | None
+    dropoff_to_next: float
+    urgency: str
+
+
+@dataclass(frozen=True)
 class MarginalValue:
     player_id: int
     player_name: str

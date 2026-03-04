@@ -153,6 +153,7 @@ from fantasy_baseball_manager.domain.positional_scarcity import (
 )
 from fantasy_baseball_manager.domain.positional_upgrade import (
     MarginalValue,
+    PositionUpgrade,
     RosterSlot,
     RosterState,
 )
@@ -336,6 +337,7 @@ __all__ = [
     "PlayerTier",
     "PlayerValuation",
     "PositionAppearance",
+    "PositionUpgrade",
     "PositionScarcity",
     "PositionValueCurve",
     "ScarcityAdjustedPlayer",

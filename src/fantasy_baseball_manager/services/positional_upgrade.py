@@ -5,6 +5,7 @@ from fantasy_baseball_manager.domain import (
     DraftBoardRow,
     LeagueSettings,
     MarginalValue,
+    PositionUpgrade,
     RosterSlot,
     RosterState,
 )
@@ -200,3 +201,89 @@ def compute_marginal_values(
 
     results.sort(key=lambda m: m.marginal_value, reverse=True)
     return results
+
+
+# Flex positions that don't get their own upgrade analysis
+_FLEX_POSITIONS = frozenset({"UTIL", "P"})
+
+_URGENCY_ORDER = {"high": 0, "medium": 1, "low": 2}
+
+
+def compute_position_upgrades(
+    state: RosterState,
+    available: list[DraftBoardRow],
+    league: LeagueSettings,
+    *,
+    position_eligibility: dict[int, list[str]] | None = None,
+    high_dropoff_threshold: float = 5.0,
+) -> list[PositionUpgrade]:
+    """Compute per-position upgrade comparison for the current roster."""
+    # Collect non-flex positions
+    positions: list[str] = []
+    for pos in league.positions:
+        if pos not in _FLEX_POSITIONS:
+            positions.append(pos)
+    for pos in league.pitcher_positions:
+        if pos not in _FLEX_POSITIONS:
+            positions.append(pos)
+
+    # Build eligibility index: position → list of available rows sorted by value desc
+    pos_available: dict[str, list[DraftBoardRow]] = {pos: [] for pos in positions}
+    for row in available:
+        eligible = (
+            position_eligibility[row.player_id]
+            if position_eligibility and row.player_id in position_eligibility
+            else [row.position]
+        )
+        for pos in eligible:
+            if pos in pos_available:
+                pos_available[pos].append(row)
+
+    for pos in pos_available:
+        pos_available[pos].sort(key=lambda r: r.value, reverse=True)
+
+    upgrades: list[PositionUpgrade] = []
+
+    for pos in positions:
+        candidates = pos_available[pos]
+        if not candidates:
+            continue
+
+        best = candidates[0]
+        next_best_row = candidates[1] if len(candidates) > 1 else None
+
+        # Find current starter(s) at this position
+        pos_slots = [s for s in state.slots if s.position == pos]
+        filled_slots = [s for s in pos_slots if s.player_id is not None]
+        is_open = len(filled_slots) < len(pos_slots)
+
+        if filled_slots:
+            # Use the worst starter as the upgrade target
+            worst = min(filled_slots, key=lambda s: s.value)
+            current_player = worst.player_name
+            current_value = worst.value
+        else:
+            current_player = None
+            current_value = 0.0
+
+        upgrade_value = best.value - current_value
+        dropoff = best.value - next_best_row.value if next_best_row else best.value
+
+        urgency = ("high" if dropoff >= high_dropoff_threshold else "medium") if is_open else "low"
+
+        upgrades.append(
+            PositionUpgrade(
+                position=pos,
+                current_player=current_player,
+                current_value=current_value,
+                best_available=best.player_name,
+                best_available_value=best.value,
+                upgrade_value=upgrade_value,
+                next_best=next_best_row.player_name if next_best_row else None,
+                dropoff_to_next=dropoff,
+                urgency=urgency,
+            )
+        )
+
+    upgrades.sort(key=lambda u: (_URGENCY_ORDER[u.urgency], -u.upgrade_value))
+    return upgrades
