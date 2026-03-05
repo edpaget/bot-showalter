@@ -15,7 +15,7 @@ class SqliteYahooRosterRepo:
         as_of_str = roster.as_of.isoformat()
 
         # Upsert snapshot header
-        cursor = self._conn.execute(
+        self._conn.execute(
             "INSERT INTO yahoo_roster_snapshot"
             "    (team_key, league_key, season, week, as_of)"
             " VALUES (?, ?, ?, ?, ?)"
@@ -23,8 +23,13 @@ class SqliteYahooRosterRepo:
             "    season=excluded.season",
             (roster.team_key, roster.league_key, roster.season, roster.week, as_of_str),
         )
-        snapshot_id = cursor.lastrowid
-        assert snapshot_id is not None  # noqa: S101 - type narrowing
+        # lastrowid is unreliable for ON CONFLICT DO UPDATE; query the actual ID.
+        row = self._conn.execute(
+            "SELECT id FROM yahoo_roster_snapshot"
+            " WHERE team_key = ? AND league_key = ? AND season = ? AND week = ? AND as_of = ?",
+            (roster.team_key, roster.league_key, roster.season, roster.week, as_of_str),
+        ).fetchone()
+        snapshot_id: int = row[0]
 
         # Delete existing entries and re-insert
         self._conn.execute(
