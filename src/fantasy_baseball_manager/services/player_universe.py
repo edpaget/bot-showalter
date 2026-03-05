@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.models.protocols import PlayerUniverseProvider
+from fantasy_baseball_manager.domain import PlayerUniverseProvider
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import BattingStatsRepo, PitchingStatsRepo

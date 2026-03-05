@@ -1,18 +1,4 @@
-from fantasy_baseball_manager.models import (
-    breakout_bust,  # noqa: F401
-    composite,  # noqa: F401
-    ensemble,  # noqa: F401
-    marcel,  # noqa: F401
-    mle,  # noqa: F401
-    playing_time,  # noqa: F401
-    statcast_gbm,  # noqa: F401
-    zar,  # noqa: F401
-)
-from fantasy_baseball_manager.models.gbm_training import (
-    PerTargetBest,
-    extract_per_target_best,
-)
-from fantasy_baseball_manager.models.protocols import (
+from fantasy_baseball_manager.domain import (
     Ablatable,
     AblationResult,
     Evaluable,
@@ -33,6 +19,20 @@ from fantasy_baseball_manager.models.protocols import (
     Tunable,
     TuneResult,
     ValidationResult,
+)
+from fantasy_baseball_manager.models import (
+    breakout_bust,  # noqa: F401
+    composite,  # noqa: F401
+    ensemble,  # noqa: F401
+    marcel,  # noqa: F401
+    mle,  # noqa: F401
+    playing_time,  # noqa: F401
+    statcast_gbm,  # noqa: F401
+    zar,  # noqa: F401
+)
+from fantasy_baseball_manager.models.gbm_training import (
+    PerTargetBest,
+    extract_per_target_best,
 )
 from fantasy_baseball_manager.models.registry import (
     get,

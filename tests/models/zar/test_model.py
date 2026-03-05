@@ -1,5 +1,13 @@
 import dataclasses
 
+from fantasy_baseball_manager.domain import (
+    Evaluable,
+    FineTunable,
+    Model,
+    ModelConfig,
+    Predictable,
+    Trainable,
+)
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -10,14 +18,6 @@ from fantasy_baseball_manager.domain.league_settings import (
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.domain.projection import Projection
-from fantasy_baseball_manager.models.protocols import (
-    Evaluable,
-    FineTunable,
-    Model,
-    ModelConfig,
-    Predictable,
-    Trainable,
-)
 from fantasy_baseball_manager.models.zar.model import ZarModel
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 from tests.fakes.repos import (
@@ -121,12 +121,14 @@ def _build_model(
     valuation_repo: FakeValuationRepo | None = None,
 ) -> tuple[ZarModel, FakeValuationRepo]:
     val_repo = valuation_repo or FakeValuationRepo()
+    pos_repo = FakePositionAppearanceRepo(_build_appearances() if appearances is None else appearances)
     return (
         ZarModel(
             projection_repo=FakeProjectionRepo(_build_projections() if projections is None else projections),
             player_repo=FakePlayerRepo(),
-            position_repo=FakePositionAppearanceRepo(_build_appearances() if appearances is None else appearances),
+            position_repo=pos_repo,
             valuation_repo=val_repo,
+            eligibility_service=PlayerEligibilityService(pos_repo),
         ),
         val_repo,
     )
@@ -627,11 +629,11 @@ class TestZarModelEligibilityService:
         non_util = [v for v in batter_vals if v.position != "util"]
         assert len(non_util) > 0, "Fallback should assign real positions, not all util"
 
-    def test_builds_service_from_position_repo_when_not_injected(self) -> None:
-        """When no eligibility service is injected, ZarModel builds one internally."""
+    def test_eligibility_service_always_injected(self) -> None:
+        """The helper always injects an eligibility service; verify it works."""
         model, val_repo = _build_model()
         model.predict(_standard_config())
-        # Should work exactly as before — positions from same season
+        # Positions from same season via the injected service
         batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
         assert len(batter_vals) == 3
         valid_positions = {"c", "of", "util"}

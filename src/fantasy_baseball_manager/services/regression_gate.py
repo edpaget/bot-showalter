@@ -4,12 +4,13 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from fantasy_baseball_manager.domain import (
     ComparisonResult,
+    ModelConfig,
+    PredictResult,
     Projection,
     StatDistribution,
     check_regression,
     summarize_comparison,
 )
-from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import RegressionCheckResult

@@ -1,7 +1,7 @@
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import ArtifactType, Valuation
+from fantasy_baseball_manager.domain import ArtifactType, EligibilityProvider, Valuation, discount_projections
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.zar.engine import (
@@ -18,8 +18,6 @@ from fantasy_baseball_manager.repos import (  # noqa: TC001 — used in __init__
     ProjectionRepo,
     ValuationRepo,
 )
-from fantasy_baseball_manager.services.injury_discount import discount_projections
-from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import LeagueSettings, Projection
@@ -45,13 +43,13 @@ class ZarModel:
         position_repo: PositionAppearanceRepo,
         player_repo: PlayerRepo | None = None,
         valuation_repo: ValuationRepo | None = None,
-        eligibility_service: PlayerEligibilityService | None = None,
+        eligibility_service: EligibilityProvider | None = None,
     ) -> None:
         self._projection_repo = projection_repo
         self._player_repo = player_repo
         self._position_repo = position_repo
         self._valuation_repo = valuation_repo
-        self._eligibility_service = eligibility_service or PlayerEligibilityService(position_repo)
+        self._eligibility_service = eligibility_service
 
     @property
     def name(self) -> str:
@@ -70,6 +68,9 @@ class ZarModel:
         return ArtifactType.NONE.value
 
     def predict(self, config: ModelConfig) -> PredictResult:
+        if self._eligibility_service is None:
+            msg = "eligibility_service is required for predict()"
+            raise TypeError(msg)
         league: LeagueSettings = config.model_params["league"]
         proj_system: str = config.model_params["projection_system"]
         proj_version: str | None = config.model_params.get("projection_version")

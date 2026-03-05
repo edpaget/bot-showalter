@@ -143,25 +143,7 @@ _EXCLUDED: dict[str, set[str]] = {
     },
 }
 
-# Submodule imports that are intentionally kept at the submodule level
-# to avoid circular imports. Format: (file_relative_path, imported_name)
-_BYPASS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
-    {
-        # models.zar.model -> services: circular via models.__init__ -> zar -> services.__init__ -> models
-        ("models/zar/model.py", "PlayerEligibilityService"),
-        ("models/zar/model.py", "discount_projections"),
-        # services.player_universe -> models: circular via services.__init__ -> player_universe -> models.__init__
-        ("services/player_universe.py", "PlayerUniverseProvider"),
-        # services.regression_gate -> models: circular via services.__init__ -> regression_gate -> models.__init__
-        ("services/regression_gate.py", "ModelConfig"),
-        ("services/regression_gate.py", "PredictResult"),
-        # services.validation_gate -> models: same circular import pattern
-        ("services/validation_gate.py", "ModelConfig"),
-        ("services/validation_gate.py", "PredictResult"),
-        # cli.commands.validate -> models: same circular import pattern
-        ("cli/commands/validate.py", "ModelConfig"),
-    }
-)
+_BYPASS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset()
 
 
 # ---------------------------------------------------------------------------

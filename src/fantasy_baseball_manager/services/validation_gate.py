@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from fantasy_baseball_manager.domain import (
     ComparisonResult,
+    ModelConfig,
+    PredictResult,
     Projection,
     StatDistribution,
     check_regression,
@@ -23,7 +25,6 @@ from fantasy_baseball_manager.models.gbm_training import (
     fit_models,
     score_predictions,
 )
-from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 
 if TYPE_CHECKING:

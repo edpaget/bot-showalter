@@ -102,16 +102,7 @@ FORBIDDEN_IMPORTS: dict[str, set[str]] = {
     },
 }
 
-# Known exceptions: {relative_file_path: {allowed_full_module, ...}}
-# models/zar/model.py needs PlayerEligibilityService to determine position
-# eligibility during valuation.  Ideally this dependency would be refactored
-# so that eligibility data is injected rather than imported directly.
-KNOWN_EXCEPTIONS: dict[str, set[str]] = {
-    "models/zar/model.py": {
-        "fantasy_baseball_manager.services.player_eligibility",
-        "fantasy_baseball_manager.services.injury_discount",
-    },
-}
+KNOWN_EXCEPTIONS: dict[str, set[str]] = {}
 
 # Repo sub-modules that services and models are allowed to import.
 _ALLOWED_REPO_MODULES = {"protocols", "errors"}
@@ -245,19 +236,34 @@ class TestViolationDetection:
         assert len(violations) == 1
         assert "services.foo" in violations[0]
 
-    def test_known_exception_is_not_flagged(self) -> None:
-        """The models/zar/model.py → services.player_eligibility exception should pass."""
+    def test_known_exception_mechanism_works(self) -> None:
+        """A KNOWN_EXCEPTIONS entry should suppress the violation."""
         fake_import = ImportInfo(
-            module="fantasy_baseball_manager.services.player_eligibility",
-            file=_PACKAGE_ROOT / "models" / "zar" / "model.py",
-            line=24,
+            module="fantasy_baseball_manager.services.fake",
+            file=_PACKAGE_ROOT / "models" / "fake.py",
+            line=1,
         )
+        # Without exception → flagged
         violations = _find_violations(
             [fake_import],
             source_layer="models",
             forbidden=FORBIDDEN_IMPORTS["models"],
         )
-        assert violations == []
+        assert len(violations) == 1
+
+        # With exception → suppressed
+        original = KNOWN_EXCEPTIONS.copy()
+        KNOWN_EXCEPTIONS["models/fake.py"] = {"fantasy_baseball_manager.services.fake"}
+        try:
+            violations = _find_violations(
+                [fake_import],
+                source_layer="models",
+                forbidden=FORBIDDEN_IMPORTS["models"],
+            )
+            assert violations == []
+        finally:
+            KNOWN_EXCEPTIONS.clear()
+            KNOWN_EXCEPTIONS.update(original)
 
     def test_concrete_repo_import_flagged(self) -> None:
         """A service importing a concrete repo module should be flagged."""

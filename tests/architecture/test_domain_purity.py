@@ -53,9 +53,15 @@ _ALLOWED_METHODS = frozenset(
 # ---------------------------------------------------------------------------
 
 
+# Domain files that define Protocol contracts rather than pure data.
+# These are exempt from the frozen-dataclass and no-custom-methods rules
+# because Protocol classes inherently declare method signatures.
+_PROTOCOL_FILES: frozenset[str] = frozenset({"model_protocol.py"})
+
+
 def _domain_py_files() -> list[Path]:
     """Return all ``.py`` files under the domain package, sorted for determinism."""
-    return sorted(p for p in _DOMAIN_ROOT.rglob("*.py") if p.name != "__init__.py")
+    return sorted(p for p in _DOMAIN_ROOT.rglob("*.py") if p.name != "__init__.py" and p.name not in _PROTOCOL_FILES)
 
 
 def _parse_file(path: Path) -> ast.Module:

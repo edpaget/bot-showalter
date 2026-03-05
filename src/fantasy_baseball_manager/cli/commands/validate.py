@@ -11,9 +11,8 @@ from fantasy_baseball_manager.cli._output import console, print_error, print_pre
 from fantasy_baseball_manager.cli.factory import build_eval_context, build_model_context, create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
-from fantasy_baseball_manager.domain import Err
+from fantasy_baseball_manager.domain import Err, ModelConfig
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
-from fantasy_baseball_manager.models.protocols import ModelConfig
 from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
 from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.services import (
