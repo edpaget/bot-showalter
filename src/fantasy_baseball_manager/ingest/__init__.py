@@ -1,7 +1,6 @@
 from fantasy_baseball_manager.http_retry import default_http_retry
 from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
-    fetch_mlb_active_teams,
     ingest_fantasypros_adp,
 )
 from fantasy_baseball_manager.ingest.chadwick_source import ChadwickRegisterSource
@@ -46,6 +45,7 @@ from fantasy_baseball_manager.ingest.mlb_transactions_source import (
 from fantasy_baseball_manager.ingest.protocols import DataSource
 from fantasy_baseball_manager.ingest.sprint_speed_source import SprintSpeedSource
 from fantasy_baseball_manager.ingest.statcast_savant_source import StatcastSavantSource
+from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
 
 __all__ = [
     "ADPIngestResult",

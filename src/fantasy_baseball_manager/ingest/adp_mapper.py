@@ -4,33 +4,14 @@ import unicodedata
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import httpx
-
 from fantasy_baseball_manager.domain import ADP, Player
+from fantasy_baseball_manager.team_aliases import TEAM_ALIASES
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import ADPRepo, PlayerRepo
 logger = logging.getLogger(__name__)
 
-_MLB_API_BASE = "https://statsapi.mlb.com/api/v1"
-
 _FIXED_COLUMNS = {"Rank", "Player", "Team", "Positions", "AVG"}
-
-# Lahman → modern abbreviation aliases (FantasyPros uses the modern style)
-_TEAM_ALIASES: dict[str, str] = {
-    "KCA": "KC",
-    "TBA": "TB",
-    "SFN": "SF",
-    "SDN": "SD",
-    "SLN": "STL",
-    "CHN": "CHC",
-    "CHA": "CWS",
-    "LAN": "LAD",
-    "NYA": "NYY",
-    "NYN": "NYM",
-    "WAS": "WSH",
-    "ANA": "LAA",
-}
 
 _PROVIDER_SLUGS: dict[str, str] = {
     "ESPN": "espn",
@@ -85,27 +66,6 @@ def _normalize_name(name: str) -> str:
     return " ".join(tokens)
 
 
-def fetch_mlb_active_teams(season: int) -> dict[int, str]:
-    """Fetch mlbam_id → team abbreviation for all active MLB players from the MLB API."""
-    with httpx.Client(timeout=30) as client:
-        teams_resp = client.get(f"{_MLB_API_BASE}/teams", params={"sportId": 1, "season": season})
-        teams_resp.raise_for_status()
-        team_map: dict[int, str] = {}
-        for t in teams_resp.json().get("teams", []):
-            team_map[t["id"]] = t["abbreviation"]
-
-        players_resp = client.get(f"{_MLB_API_BASE}/sports/1/players", params={"season": season})
-        players_resp.raise_for_status()
-        result: dict[int, str] = {}
-        for p in players_resp.json().get("people", []):
-            team_id = p.get("currentTeam", {}).get("id")
-            abbrev = team_map.get(team_id, "") if team_id else ""
-            if abbrev:
-                result[p["id"]] = abbrev
-    logger.debug("Fetched %d active player-team mappings from MLB API", len(result))
-    return result
-
-
 def _build_player_lookups(
     players: list[Player],
     player_teams: dict[int, str] | None = None,
@@ -121,7 +81,7 @@ def _build_player_lookups(
         by_name.setdefault(normalized, []).append(p.id)
         if player_teams and p.id in player_teams:
             raw_team = player_teams[p.id]
-            team_abbrev = _TEAM_ALIASES.get(raw_team, raw_team)
+            team_abbrev = TEAM_ALIASES.get(raw_team, raw_team)
             by_name_team[(normalized, team_abbrev)] = p.id
 
     return by_name_team, by_name

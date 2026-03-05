@@ -121,6 +121,11 @@ class PositionAppearanceRepo(Protocol):
 
 
 @runtime_checkable
+class PlayerTeamProvider(Protocol):
+    def get_player_teams(self, season: int) -> dict[int, str]: ...
+
+
+@runtime_checkable
 class RosterStintRepo(Protocol):
     def upsert(self, stint: RosterStint) -> int: ...
     def get_by_player(self, player_id: int) -> list[RosterStint]: ...

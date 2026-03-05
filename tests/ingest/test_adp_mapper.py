@@ -5,9 +5,9 @@ from fantasy_baseball_manager.ingest.adp_mapper import (
     _discover_provider_columns,
     _normalize_name,
     _split_raw_name,
-    fetch_mlb_active_teams,
     ingest_fantasypros_adp,
 )
+from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from tests.helpers import seed_player
@@ -145,7 +145,7 @@ class TestFetchMlbActiveTeams:
             def __exit__(self, *args: object) -> None:
                 pass
 
-        monkeypatch.setattr("fantasy_baseball_manager.ingest.adp_mapper.httpx.Client", lambda **kw: _FakeClient())
+        monkeypatch.setattr("fantasy_baseball_manager.mlb_api.httpx.Client", lambda **kw: _FakeClient())
         result = fetch_mlb_active_teams(2026)
         assert result == {660271: "LAD", 592450: "NYY"}
 

@@ -19,7 +19,6 @@ from fantasy_baseball_manager.ingest import (
     FantasyProsADPSource,
     Loader,
     chadwick_row_to_player,
-    fetch_mlb_active_teams,
     ingest_fantasypros_adp,
     lahman_team_row_to_team,
     make_fg_batting_mapper,
@@ -32,6 +31,8 @@ from fantasy_baseball_manager.ingest import (
     make_sprint_speed_mapper,
     statcast_pitch_mapper,
 )
+from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
+from fantasy_baseball_manager.services import MlbApiPlayerTeamProvider
 
 logger = logging.getLogger(__name__)
 
@@ -361,35 +362,13 @@ def ingest_milb_batting(  # pragma: no cover
 
 def _build_player_teams(container: IngestContainer, season: int) -> dict[int, str]:
     """Build a player_id -> team abbreviation mapping, preferring live MLB API data."""
-    # Start with Lahman roster stints as a base
-    teams = {t.id: t.abbreviation for t in container.team_repo.all() if t.id is not None}
-    stints = container.roster_stint_repo.get_by_season(season)
-    if not stints:
-        stints = container.roster_stint_repo.get_by_season(season - 1)
-    player_teams: dict[int, str] = {}
-    for stint in stints:
-        abbrev = teams.get(stint.team_id)
-        if abbrev:
-            player_teams[stint.player_id] = abbrev
-
-    # Overlay with live MLB API data (has current offseason moves)
-    try:
-        mlbam_teams = fetch_mlb_active_teams(season)
-        mlbam_to_id = {
-            p.mlbam_id: p.id for p in container.player_repo.all() if p.mlbam_id is not None and p.id is not None
-        }
-        updated = 0
-        for mlbam_id, abbrev in mlbam_teams.items():
-            pid = mlbam_to_id.get(mlbam_id)
-            if pid is not None and player_teams.get(pid) != abbrev:
-                player_teams[pid] = abbrev
-                updated += 1
-        if updated:
-            logger.info("Updated %d player team assignments from MLB API", updated)
-    except Exception:
-        logger.warning("Could not fetch live rosters from MLB API, using stored stints only")
-
-    return player_teams
+    provider = MlbApiPlayerTeamProvider(
+        player_repo=container.player_repo,
+        team_repo=container.team_repo,
+        roster_stint_repo=container.roster_stint_repo,
+        fetcher=fetch_mlb_active_teams,
+    )
+    return provider.get_player_teams(season)
 
 
 @ingest_app.command("adp")

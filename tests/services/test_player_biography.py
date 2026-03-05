@@ -11,13 +11,19 @@ from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteT
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.roster_stint_repo import SqliteRosterStintRepo
 from fantasy_baseball_manager.services.player_biography import PlayerBiographyService
+from fantasy_baseball_manager.services.player_team_provider import (
+    MlbApiPlayerTeamProvider,
+)
 from tests.helpers import seed_player
 
 if TYPE_CHECKING:
     import sqlite3
 
 
-def _make_service(conn: sqlite3.Connection) -> PlayerBiographyService:
+def _make_service(
+    conn: sqlite3.Connection,
+    player_team_provider: MlbApiPlayerTeamProvider | None = None,
+) -> PlayerBiographyService:
     return PlayerBiographyService(
         player_repo=SqlitePlayerRepo(conn),
         team_repo=SqliteTeamRepo(conn),
@@ -25,6 +31,7 @@ def _make_service(conn: sqlite3.Connection) -> PlayerBiographyService:
         batting_stats_repo=SqliteBattingStatsRepo(conn),
         pitching_stats_repo=SqlitePitchingStatsRepo(conn),
         position_appearance_repo=SqlitePositionAppearanceRepo(conn),
+        player_team_provider=player_team_provider,
     )
 
 
@@ -280,3 +287,94 @@ class TestFindEdgeCases:
         result = svc.get_bio(pid, 2025)
         assert result is not None
         assert result.experience == 3
+
+
+class TestProviderFallback:
+    """Tests for MLB API provider fallback in find() and _build_summary()."""
+
+    def _make_provider(self, conn: sqlite3.Connection, mapping: dict[int, str]) -> MlbApiPlayerTeamProvider:
+        """Create a provider with a fake fetcher returning *mapping* keyed by mlbam_id."""
+        player_repo = SqlitePlayerRepo(conn)
+        team_repo = SqliteTeamRepo(conn)
+        roster_repo = SqliteRosterStintRepo(conn)
+
+        def fake_fetcher(_season: int) -> dict[int, str]:
+            return mapping
+
+        return MlbApiPlayerTeamProvider(player_repo, team_repo, roster_repo, fetcher=fake_fetcher)
+
+    def test_find_by_team_with_no_stints_uses_provider(self, conn: sqlite3.Connection) -> None:
+        """When roster stints are empty for the season, provider data is used."""
+        # Seed player but NO roster stints for 2026
+        pid = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+        _seed_position(conn, pid, 2025, "OF")
+
+        provider = self._make_provider(conn, {592450: "NYY"})
+        svc = _make_service(conn, player_team_provider=provider)
+
+        results = svc.find(season=2026, team="NYY")
+        assert len(results) == 1
+        assert results[0].name == "Aaron Judge"
+        assert results[0].team == "NYY"
+
+    def test_find_all_augments_with_provider(self, conn: sqlite3.Connection) -> None:
+        """find() without team filter includes players from both stints and provider."""
+        team_id = _seed_team(conn)
+        pid1 = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+        _seed_roster_stint(conn, pid1, team_id, season=2025)
+        _seed_position(conn, pid1, 2025, "OF")
+
+        # Second player has no stints but is in provider
+        pid2 = seed_player(conn, name_first="Rafael", name_last="Devers", mlbam_id=646240)
+        _seed_position(conn, pid2, 2025, "3B")
+
+        provider = self._make_provider(conn, {646240: "BOS"})
+        svc = _make_service(conn, player_team_provider=provider)
+
+        results = svc.find(season=2025)
+        names = {r.name for r in results}
+        assert "Aaron Judge" in names
+        assert "Rafael Devers" in names
+
+    def test_find_by_modern_abbrev_with_lahman_team(self, conn: sqlite3.Connection) -> None:
+        """find(team='NYY') works when DB only has Lahman abbreviation 'NYA'."""
+        team_id = _seed_team(conn, "NYA", "Yankees")
+        pid = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+        _seed_roster_stint(conn, pid, team_id, season=2025)
+        _seed_position(conn, pid, 2025, "OF")
+        svc = _make_service(conn)
+
+        results = svc.find(season=2025, team="NYY")
+        assert len(results) == 1
+        assert results[0].name == "Aaron Judge"
+
+    def test_build_summary_uses_provider_when_no_stints(self, conn: sqlite3.Connection) -> None:
+        """get_bio() returns provider team when no roster stints exist."""
+        pid = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+
+        provider = self._make_provider(conn, {592450: "NYY"})
+        svc = _make_service(conn, player_team_provider=provider)
+
+        result = svc.get_bio(pid, 2026)
+        assert result is not None
+        assert result.team == "NYY"
+
+    def test_build_summary_defaults_to_fa_without_provider(self, conn: sqlite3.Connection) -> None:
+        """get_bio() returns FA when no stints and no provider."""
+        pid = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+        svc = _make_service(conn)
+
+        result = svc.get_bio(pid, 2026)
+        assert result is not None
+        assert result.team == "FA"
+
+    def test_build_summary_converts_lahman_to_modern(self, conn: sqlite3.Connection) -> None:
+        """_build_summary converts Lahman abbreviation (NYA) to modern (NYY)."""
+        team_id = _seed_team(conn, "NYA", "Yankees")
+        pid = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+        _seed_roster_stint(conn, pid, team_id, season=2025)
+        svc = _make_service(conn)
+
+        result = svc.get_bio(pid, 2025)
+        assert result is not None
+        assert result.team == "NYY"

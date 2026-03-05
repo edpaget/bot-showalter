@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
     SqliteBattingStatsRepo,
@@ -18,6 +19,7 @@ from fantasy_baseball_manager.services import (
     ADPAccuracyEvaluator,
     ADPMoversService,
     ADPReportService,
+    MlbApiPlayerTeamProvider,
     PerformanceReportService,
     PlayerBiographyService,
     PlayerProfileService,
@@ -87,6 +89,15 @@ class AnalysisContainer:
     # --- Services ---
 
     @functools.cached_property
+    def player_team_provider(self) -> MlbApiPlayerTeamProvider:
+        return MlbApiPlayerTeamProvider(
+            player_repo=self.player_repo,
+            team_repo=self.team_repo,
+            roster_stint_repo=self.roster_stint_repo,
+            fetcher=fetch_mlb_active_teams,
+        )
+
+    @functools.cached_property
     def player_profile_service(self) -> PlayerProfileService:
         return PlayerProfileService(player_repo=self.player_repo)
 
@@ -99,6 +110,7 @@ class AnalysisContainer:
             batting_stats_repo=self.batting_stats_repo,
             pitching_stats_repo=self.pitching_stats_repo,
             position_appearance_repo=self.position_appearance_repo,
+            player_team_provider=self.player_team_provider,
         )
 
     @functools.cached_property

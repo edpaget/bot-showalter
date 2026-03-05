@@ -124,6 +124,9 @@ from fantasy_baseball_manager.services.player_eligibility import (
 )
 from fantasy_baseball_manager.services.player_profile import PlayerProfileService
 from fantasy_baseball_manager.services.player_resolver import resolve_player
+from fantasy_baseball_manager.services.player_team_provider import (
+    MlbApiPlayerTeamProvider,
+)
 from fantasy_baseball_manager.services.player_universe import (
     StatsBasedPlayerUniverse,
 )
@@ -219,6 +222,7 @@ __all__ = [
     "LeagueEnvironmentService",
     "PerformanceReportService",
     "PickFn",
+    "MlbApiPlayerTeamProvider",
     "PlayerBiographyService",
     "PlayerEligibilityService",
     "PlayerProfileService",

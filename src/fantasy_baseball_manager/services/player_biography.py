@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import PlayerSummary, compute_age
+from fantasy_baseball_manager.team_aliases import to_lahman, to_modern
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import Player, PositionAppearance
@@ -10,6 +11,7 @@ if TYPE_CHECKING:
         BattingStatsRepo,
         PitchingStatsRepo,
         PlayerRepo,
+        PlayerTeamProvider,
         PositionAppearanceRepo,
         RosterStintRepo,
         TeamRepo,
@@ -32,6 +34,7 @@ class PlayerBiographyService:
         batting_stats_repo: BattingStatsRepo,
         pitching_stats_repo: PitchingStatsRepo,
         position_appearance_repo: PositionAppearanceRepo,
+        player_team_provider: PlayerTeamProvider | None = None,
     ) -> None:
         self._player_repo = player_repo
         self._team_repo = team_repo
@@ -39,6 +42,7 @@ class PlayerBiographyService:
         self._batting_stats_repo = batting_stats_repo
         self._pitching_stats_repo = pitching_stats_repo
         self._position_appearance_repo = position_appearance_repo
+        self._player_team_provider = player_team_provider
         self._team_map: dict[int, str] | None = None
 
     def _get_team_map(self) -> dict[int, str]:
@@ -61,7 +65,13 @@ class PlayerBiographyService:
         team_map = self._get_team_map()
 
         stints = self._roster_stint_repo.get_by_player_season(player.id, season)
-        team = team_map.get(stints[-1].team_id, "FA") if stints else "FA"
+        if stints:
+            team = to_modern(team_map.get(stints[-1].team_id, "FA"))
+        elif self._player_team_provider is not None:
+            provider_teams = self._player_team_provider.get_player_teams(season)
+            team = provider_teams.get(player.id, "FA")
+        else:
+            team = "FA"
 
         appearances = self._position_appearance_repo.get_by_player_season(player.id, season)
 
@@ -91,16 +101,38 @@ class PlayerBiographyService:
         max_experience: int | None = None,
         position: str | None = None,
     ) -> list[PlayerSummary]:
+        player_ids: set[int] = set()
+
+        # Try roster stints first (existing path)
         if team is not None:
+            # Try the team abbreviation as-is first, then try reverse alias
             team_obj = self._team_repo.get_by_abbreviation(team)
-            if team_obj is None or team_obj.id is None:
-                return []
-            stints = self._roster_stint_repo.get_by_team_season(team_obj.id, season)
+            if team_obj is None:
+                lahman = to_lahman(team)
+                if lahman != team:
+                    team_obj = self._team_repo.get_by_abbreviation(lahman)
+
+            if team_obj is not None and team_obj.id is not None:
+                stints = self._roster_stint_repo.get_by_team_season(team_obj.id, season)
+                player_ids.update(s.player_id for s in stints)
+
+            # Fallback: use provider if stints are empty
+            if not player_ids and self._player_team_provider is not None:
+                provider_teams = self._player_team_provider.get_player_teams(season)
+                player_ids.update(pid for pid, abbrev in provider_teams.items() if abbrev == team)
         else:
             stints = self._roster_stint_repo.get_by_season(season)
+            player_ids.update(s.player_id for s in stints)
 
-        player_ids = list({s.player_id for s in stints})
-        players = self._player_repo.get_by_ids(player_ids)
+            # Augment with provider if available
+            if self._player_team_provider is not None:
+                provider_teams = self._player_team_provider.get_player_teams(season)
+                player_ids.update(provider_teams.keys())
+
+        if not player_ids:
+            return []
+
+        players = self._player_repo.get_by_ids(list(player_ids))
 
         results: list[PlayerSummary] = []
         for player in players:
