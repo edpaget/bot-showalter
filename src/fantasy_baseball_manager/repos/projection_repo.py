@@ -62,7 +62,7 @@ class SqliteProjectionRepo:
         stat_placeholders = ", ".join("?" for _ in _STAT_COLUMNS)
         stat_col_list = ", ".join(_STAT_COLUMNS)
         stat_update = ", ".join(f"{col}=excluded.{col}" for col in _STAT_COLUMNS)
-        cursor = self._conn.execute(
+        self._conn.execute(
             f"INSERT INTO projection"
             f"    (player_id, season, system, version, player_type, {stat_col_list}, loaded_at, source_type)"
             f" VALUES (?, ?, ?, ?, ?, {stat_placeholders}, ?, ?)"
@@ -79,7 +79,13 @@ class SqliteProjectionRepo:
                 projection.source_type,
             ),
         )
-        return cursor.lastrowid  # type: ignore[return-value]
+        # lastrowid is unreliable for ON CONFLICT DO UPDATE; query the actual ID.
+        row = self._conn.execute(
+            "SELECT id FROM projection"
+            " WHERE player_id = ? AND season = ? AND system = ? AND version = ? AND player_type = ?",
+            (projection.player_id, projection.season, projection.system, projection.version, projection.player_type),
+        ).fetchone()
+        return row[0]  # type: ignore[index]
 
     def get_by_player_season(
         self, player_id: int, season: int, system: str | None = None, *, include_distributions: bool = False
