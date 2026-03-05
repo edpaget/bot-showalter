@@ -8,7 +8,7 @@ The `PlayerBiographyService.find()` method currently requires an exact team abbr
 |-------|--------|
 | 1 — Team name resolver | done (2026-03-04) |
 | 2 — Wire into biography service | done (2026-03-05) |
-| 3 — CLI integration & error messages | not started |
+| 3 — CLI integration & error messages | in progress |
 
 ## Phase 1: Team name resolver
 
