@@ -1,4 +1,7 @@
+import warnings
 from typing import Annotated
+
+warnings.filterwarnings("ignore", message="Core Pydantic V1 functionality", category=UserWarning)
 
 import typer
 
