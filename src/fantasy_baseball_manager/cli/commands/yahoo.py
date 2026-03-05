@@ -674,7 +674,9 @@ def _resolve_prior_league_key(ctx: YahooContext, league_key: str, prior_season: 
     """
     stored_league = ctx.yahoo_league_repo.get_by_league_key(league_key)
     if stored_league is not None and stored_league.renew is not None:
-        return stored_league.renew
+        # Yahoo returns renew in underscore format (e.g. "458_135575");
+        # convert to league-key format ("458.l.135575").
+        return stored_league.renew.replace("_", ".l.", 1)
 
     prior_game_key = ctx.client.get_game_key(prior_season)
     league_id = league_key.split(".l.")[1]
