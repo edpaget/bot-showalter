@@ -136,3 +136,11 @@ class TestFindPlayers:
 
         result = tool.run({"season": 2025})
         assert "No players found" in result
+
+    def test_no_roster_data_message_when_filtering_by_team(self, conn: sqlite3.Connection) -> None:
+        container = AnalysisContainer(conn)
+        tool = create_find_players_tool(container)
+
+        result = tool.run({"season": 2030, "team": "NYY"})
+        assert "No roster data for season 2030" in result
+        assert "fbm ingest roster-api --season 2030" in result

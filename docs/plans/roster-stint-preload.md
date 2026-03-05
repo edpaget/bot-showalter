@@ -9,7 +9,7 @@ This roadmap adds a CLI command to pre-populate `roster_stint` from the MLB API 
 | Phase | Status |
 |-------|--------|
 | 1 — Pre-populate roster stints from MLB API | done (2026-03-04) |
-| 2 — Remove silent fallbacks | not started |
+| 2 — Remove silent fallbacks | in progress |
 
 ## Phase 1: Pre-populate roster stints from MLB API
 

@@ -42,8 +42,6 @@ class MlbApiPlayerTeamProvider:
         # Lahman baseline
         teams = {t.id: t.abbreviation for t in self._team_repo.all() if t.id is not None}
         stints = self._roster_stint_repo.get_by_season(season)
-        if not stints:
-            stints = self._roster_stint_repo.get_by_season(season - 1)
 
         player_teams: dict[int, str] = {}
         for stint in stints:
@@ -53,21 +51,18 @@ class MlbApiPlayerTeamProvider:
 
         # MLB API overlay
         if self._fetcher is not None:
-            try:
-                mlbam_teams = self._fetcher(season)
-                mlbam_to_id = {
-                    p.mlbam_id: p.id for p in self._player_repo.all() if p.mlbam_id is not None and p.id is not None
-                }
-                updated = 0
-                for mlbam_id, abbrev in mlbam_teams.items():
-                    pid = mlbam_to_id.get(mlbam_id)
-                    if pid is not None and player_teams.get(pid) != abbrev:
-                        player_teams[pid] = abbrev
-                        updated += 1
-                if updated:
-                    logger.info("Updated %d player team assignments from MLB API", updated)
-            except Exception:
-                logger.warning("Could not fetch live rosters from MLB API, using stored stints only")
+            mlbam_teams = self._fetcher(season)
+            mlbam_to_id = {
+                p.mlbam_id: p.id for p in self._player_repo.all() if p.mlbam_id is not None and p.id is not None
+            }
+            updated = 0
+            for mlbam_id, abbrev in mlbam_teams.items():
+                pid = mlbam_to_id.get(mlbam_id)
+                if pid is not None and player_teams.get(pid) != abbrev:
+                    player_teams[pid] = abbrev
+                    updated += 1
+            if updated:
+                logger.info("Updated %d player team assignments from MLB API", updated)
 
         self._cache[season] = player_teams
         return player_teams

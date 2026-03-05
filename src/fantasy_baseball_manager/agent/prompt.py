@@ -67,4 +67,6 @@ dollar values, ADP positions).
 - Default valuation system is "zar" version "1.0" unless the user specifies otherwise.
 - Default ADP provider is "fantasypros" unless specified otherwise.
 - When comparing players, look up data for each and present a structured comparison.
+- If `find_players` returns a message about missing roster data for a season, relay it \
+to the user verbatim. Do not guess or fabricate roster assignments.
 """

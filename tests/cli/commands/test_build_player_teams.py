@@ -1,11 +1,8 @@
 """Tests for _build_player_teams in cli/commands/ingest.py."""
 
-from typing import TYPE_CHECKING
+import pytest
 
 from fantasy_baseball_manager.cli.commands.ingest import _build_player_teams
-
-if TYPE_CHECKING:
-    import pytest
 from fantasy_baseball_manager.cli.factory import IngestContainer
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain import Player, RosterStint, Team
@@ -59,16 +56,21 @@ class TestBuildPlayerTeams:
         assert result[devers_id] == "BOS"
         conn.close()
 
-    def test_falls_back_to_prior_season(self) -> None:
+    def test_no_stints_returns_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)
         _seed(container)  # seeds stints for 2024
 
-        # Request 2025 — no stints for 2025, should fall back to 2024
+        # Disable MLB API so only stints matter
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.ingest.fetch_mlb_active_teams",
+            lambda _season: {},
+        )
+
+        # Request 2025 — no stints for 2025, should return empty dict
         result = _build_player_teams(container, 2025)
 
-        judge_id = _player_id(container, 592450)
-        assert result[judge_id] == "NYY"
+        assert result == {}
         conn.close()
 
     def test_mlb_api_overlays_updates(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -89,7 +91,7 @@ class TestBuildPlayerTeams:
         assert result[judge_id] == "LAD"
         conn.close()
 
-    def test_mlb_api_failure_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_mlb_api_failure_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         conn = create_connection(":memory:")
         container = IngestContainer(conn)
         _seed(container)
@@ -103,9 +105,6 @@ class TestBuildPlayerTeams:
             _raise,
         )
 
-        result = _build_player_teams(container, 2024)
-
-        # Should still have Lahman data
-        judge_id = _player_id(container, 592450)
-        assert result[judge_id] == "NYY"
+        with pytest.raises(RuntimeError, match="network error"):
+            _build_player_teams(container, 2024)
         conn.close()

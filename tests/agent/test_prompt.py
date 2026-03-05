@@ -68,3 +68,8 @@ class TestBuildSystemPrompt:
         """The prompt should indicate the agent can look up data across seasons."""
         prompt = build_system_prompt(2025).lower()
         assert "any" in prompt or "multiple seasons" in prompt
+
+    def test_instructs_relay_missing_roster_data(self) -> None:
+        prompt = build_system_prompt(2025)
+        assert "missing roster data" in prompt
+        assert "Do not guess or fabricate roster assignments" in prompt

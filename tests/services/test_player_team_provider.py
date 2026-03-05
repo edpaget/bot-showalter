@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain import Player, RosterStint, Team
 from fantasy_baseball_manager.repos import (
@@ -61,15 +63,15 @@ class TestGetPlayerTeams:
         assert result[devers_id] == "BOS"
         conn.close()
 
-    def test_falls_back_to_prior_season(self) -> None:
+    def test_no_stints_returns_empty(self) -> None:
         conn = create_connection(":memory:")
         player_repo, team_repo, roster_repo = _setup(conn)
-        _nyy_id, _bos_id, judge_id, _devers_id = _seed(player_repo, team_repo, roster_repo, conn)
+        _seed(player_repo, team_repo, roster_repo, conn)
 
         provider = MlbApiPlayerTeamProvider(player_repo, team_repo, roster_repo)
         result = provider.get_player_teams(2025)
 
-        assert result[judge_id] == "NYY"
+        assert result == {}
         conn.close()
 
     def test_mlb_api_overlays_updates(self) -> None:
@@ -87,20 +89,19 @@ class TestGetPlayerTeams:
         assert result[judge_id] == "LAD"
         conn.close()
 
-    def test_mlb_api_failure_falls_back(self) -> None:
+    def test_mlb_api_failure_raises(self) -> None:
         conn = create_connection(":memory:")
         player_repo, team_repo, roster_repo = _setup(conn)
-        _nyy_id, _bos_id, judge_id, _devers_id = _seed(player_repo, team_repo, roster_repo, conn)
+        _seed(player_repo, team_repo, roster_repo, conn)
 
         def failing_fetcher(_season: int) -> dict[int, str]:
             msg = "network error"
             raise RuntimeError(msg)
 
         provider = MlbApiPlayerTeamProvider(player_repo, team_repo, roster_repo, fetcher=failing_fetcher)
-        result = provider.get_player_teams(2024)
 
-        # Should still have Lahman data
-        assert result[judge_id] == "NYY"
+        with pytest.raises(RuntimeError, match="network error"):
+            provider.get_player_teams(2024)
         conn.close()
 
     def test_caches_per_season(self) -> None:

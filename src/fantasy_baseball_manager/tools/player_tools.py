@@ -63,6 +63,8 @@ def create_find_players_tool(container: AnalysisContainer) -> BaseTool:
         position: str | None = None,
     ) -> str:
         """Find players matching filter criteria like team, age range, experience, and position."""
+        if team is not None and not container.roster_stint_repo.get_by_season(season):
+            return f"No roster data for season {season}. Run `fbm ingest roster-api --season {season}` to load it."
         results = container.player_bio_service.find(
             season=season,
             team=team,
