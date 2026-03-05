@@ -195,6 +195,9 @@ class _FakePlayerRepo:
     def get_by_last_name(self, last_name: str) -> list[Player]:
         raise NotImplementedError
 
+    def search_by_last_name_normalized(self, last_name: str) -> list[Player]:
+        raise NotImplementedError
+
     def all(self) -> list[Player]:
         raise NotImplementedError
 

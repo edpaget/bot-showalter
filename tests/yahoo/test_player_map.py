@@ -228,6 +228,56 @@ class TestNameNormalizationFallback:
         assert result.player_id == player_id
 
 
+class TestMultiWordLastName:
+    def test_resolves_multi_word_last_name(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Elly", name_last="De La Cruz", mlbam_id=682829))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve(
+            {"player_key": "449.p.40001", "name": "Elly De La Cruz", "eligible_positions": ["SS", "3B"]}
+        )
+        assert result is not None
+        assert result.player_id == player_id
+
+    def test_resolves_two_part_last_name(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Scott", name_last="Van Horn", mlbam_id=700001))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve({"player_key": "449.p.40002", "name": "Scott Van Horn", "eligible_positions": ["SP"]})
+        assert result is not None
+        assert result.player_id == player_id
+
+
+class TestAccentedNameInDB:
+    def test_resolves_accented_last_name_in_db(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Julio", name_last="Rodríguez", mlbam_id=677594))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve({"player_key": "449.p.40003", "name": "Julio Rodriguez", "eligible_positions": ["CF"]})
+        assert result is not None
+        assert result.player_id == player_id
+
+    def test_resolves_accented_multi_word_last_name(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Jose", name_last="De León", mlbam_id=700002))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve({"player_key": "449.p.40004", "name": "Jose De Leon", "eligible_positions": ["SP"]})
+        assert result is not None
+        assert result.player_id == player_id
+
+
 class TestUnresolved:
     def test_returns_none_and_logs_warning(self, conn: sqlite3.Connection) -> None:
         player_repo = SqlitePlayerRepo(conn)

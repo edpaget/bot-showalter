@@ -105,6 +105,13 @@ class SqlitePlayerRepo:
         ).fetchall()
         return [self._row_to_player(row) for row in rows]
 
+    def search_by_last_name_normalized(self, last_name: str) -> list[Player]:
+        rows = self._conn.execute(
+            "SELECT * FROM player WHERE strip_accents(name_last) = ? COLLATE NOCASE",
+            (last_name,),
+        ).fetchall()
+        return [self._row_to_player(row) for row in rows]
+
     def all(self) -> list[Player]:
         rows = self._conn.execute("SELECT * FROM player").fetchall()
         return [self._row_to_player(row) for row in rows]

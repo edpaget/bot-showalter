@@ -1,10 +1,19 @@
 import logging
 import sqlite3
+import unicodedata
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 _MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+
+
+def _sqlite_strip_accents(text: str | None) -> str | None:
+    """SQLite custom function: remove accent/diacritical marks via NFKD decomposition."""
+    if text is None:
+        return None
+    nfkd = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
 def create_connection(
@@ -17,6 +26,7 @@ def create_connection(
     logger.info("Opening database: %s", path)
     conn = sqlite3.connect(str(path), check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
+    conn.create_function("strip_accents", 1, _sqlite_strip_accents, deterministic=True)
     if str(path) != ":memory:":
         conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")

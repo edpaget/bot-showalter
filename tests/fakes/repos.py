@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.name_utils import strip_accents
+
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain.adp import ADP
     from fantasy_baseball_manager.domain.batting_stats import BattingStats
@@ -35,7 +37,11 @@ class FakePlayerRepo:
         return [p for p in self._players if query in p.name_first.lower() or query in p.name_last.lower()]
 
     def get_by_last_name(self, last_name: str) -> list[Player]:
-        return []
+        return [p for p in self._players if p.name_last.lower() == last_name.lower()]
+
+    def search_by_last_name_normalized(self, last_name: str) -> list[Player]:
+        query = strip_accents(last_name).lower()
+        return [p for p in self._players if strip_accents(p.name_last).lower() == query]
 
     def all(self) -> list[Player]:
         return list(self._players)

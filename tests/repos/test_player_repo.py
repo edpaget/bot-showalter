@@ -145,6 +145,33 @@ class TestSqlitePlayerRepo:
         results = repo.get_by_ids([])
         assert results == []
 
+    def test_search_by_last_name_normalized_strips_accents(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Julio", name_last="Rodríguez", mlbam_id=677594))
+        results = repo.search_by_last_name_normalized("Rodriguez")
+        assert len(results) == 1
+        assert results[0].name_last == "Rodríguez"
+
+    def test_search_by_last_name_normalized_case_insensitive(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Julio", name_last="Rodriguez", mlbam_id=677594))
+        results = repo.search_by_last_name_normalized("rodriguez")
+        assert len(results) == 1
+        assert results[0].name_last == "Rodriguez"
+
+    def test_search_by_last_name_normalized_multi_word(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Elly", name_last="De La Cruz", mlbam_id=682829))
+        results = repo.search_by_last_name_normalized("De La Cruz")
+        assert len(results) == 1
+        assert results[0].name_last == "De La Cruz"
+
+    def test_search_by_last_name_normalized_no_partial(self, conn: sqlite3.Connection) -> None:
+        repo = SqlitePlayerRepo(conn)
+        repo.upsert(Player(name_first="Julio", name_last="Rodriguez", mlbam_id=677594))
+        results = repo.search_by_last_name_normalized("Rod")
+        assert len(results) == 0
+
     def test_get_by_ids_missing_ids_ignored(self, conn: sqlite3.Connection) -> None:
         repo = SqlitePlayerRepo(conn)
         id1 = repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
