@@ -704,3 +704,32 @@ class TestIngestMilbBatting:
     def test_ingest_milb_batting_requires_season(self) -> None:
         result = runner.invoke(app, ["ingest", "milb-batting"])
         assert result.exit_code != 0
+
+
+class TestIngestRosterApi:
+    def test_ingest_roster_api_loads_stints(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        _seed_players(conn)
+
+        fake_fetcher_data = {545361: "LAA", 660271: "LAD"}
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
+            lambda data_dir: _build_test_container(
+                conn,
+                _FakeSource([], "chadwick_bureau", "chadwick_register"),
+            ),
+        )
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.ingest.fetch_mlb_active_teams",
+            lambda season: fake_fetcher_data,
+        )
+
+        result = runner.invoke(app, ["ingest", "roster-api", "--season", "2026"])
+        assert result.exit_code == 0, result.output
+        assert "Loaded 2 roster stints" in result.output
+
+        stint_repo = SqliteRosterStintRepo(conn)
+        stints = stint_repo.get_by_season(2026)
+        assert len(stints) == 2
+        conn.close()
