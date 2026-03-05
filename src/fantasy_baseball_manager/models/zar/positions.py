@@ -5,9 +5,9 @@ if TYPE_CHECKING:
 # Maps PositionAppearance position codes to league-settings keys.
 POSITION_ALIASES: dict[str, str] = {
     "C": "c",
-    "1B": "first_base",
-    "2B": "second_base",
-    "3B": "third_base",
+    "1B": "1b",
+    "2B": "2b",
+    "3B": "3b",
     "SS": "ss",
     "LF": "of",
     "CF": "of",
