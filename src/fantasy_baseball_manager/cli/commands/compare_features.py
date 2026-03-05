@@ -1,7 +1,7 @@
 """CLI command for feature set A/B comparison."""
 
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 
@@ -11,10 +11,8 @@ from fantasy_baseball_manager.cli.factory import create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
-from fantasy_baseball_manager.domain import Err
+from fantasy_baseball_manager.domain import Err, Experimentable
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
-from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
-from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.repos import SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.services import (
     candidate_values_to_dict,
@@ -54,38 +52,22 @@ def compare_features_cmd(  # pragma: no cover
 
         model_instance = model_result.value
 
-        if not isinstance(model_instance, _StatcastGBMBase):
-            print_error(f"Model '{model}' does not support compare-features (not a StatcastGBM model)")
+        if not isinstance(model_instance, Experimentable):
+            print_error(f"Model '{model}' does not support compare-features (model does not implement Experimentable)")
             raise typer.Exit(code=1)
-
-        is_batter = player_type == "batter"
 
         # Resolve set A columns
         if set_a == "default":
-            columns_a = list(model_instance._batter_columns if is_batter else model_instance._pitcher_columns)
+            columns_a = model_instance.experiment_feature_columns(player_type)
         else:
             columns_a = [c.strip() for c in set_a.split(",")]
 
         # Resolve set B columns
         columns_b = [c.strip() for c in set_b.split(",")]
 
-        # Resolve targets
-        targets = list(BATTER_TARGETS if is_batter else PITCHER_TARGETS)
-
-        # Materialize data
-        if is_batter:
-            fs = model_instance._batter_training_set_builder(config.seasons)
-        else:
-            fs = model_instance._pitcher_training_set_builder(config.seasons)
-
-        handle = assembler.get_or_materialize(fs)
-        all_rows = assembler.read(handle)
-
-        # Group rows by season
-        rows_by_season: dict[int, list[dict[str, Any]]] = {}
-        for row in all_rows:
-            s = row["season"]
-            rows_by_season.setdefault(s, []).append(row)
+        # Resolve targets and training data
+        targets = model_instance.experiment_targets(player_type)
+        rows_by_season = model_instance.experiment_training_data(player_type, config.seasons)
 
         # Resolve columns in set A or B that are missing from materialized rows
         first_rows = next(iter(rows_by_season.values()), [])

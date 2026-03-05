@@ -22,16 +22,22 @@ runner = CliRunner()
 
 
 class _FakeModel:
-    """Minimal stand-in for _StatcastGBMBase."""
+    """Minimal stand-in satisfying Experimentable protocol."""
 
-    _batter_columns: tuple[str, ...] = ("col_a", "col_b")
-    _pitcher_columns: tuple[str, ...] = ("col_x",)
+    def experiment_player_types(self) -> list[str]:
+        return ["batter", "pitcher"]
 
-    def _batter_training_set_builder(self, seasons: list[int]) -> str:
-        return "fake_batter_fs"
+    def experiment_feature_columns(self, player_type: str) -> list[str]:
+        return ["col_a", "col_b"] if player_type == "batter" else ["col_x"]
 
-    def _pitcher_training_set_builder(self, seasons: list[int]) -> str:
-        return "fake_pitcher_fs"
+    def experiment_targets(self, player_type: str) -> list[str]:
+        return ["slg", "obp"] if player_type == "batter" else ["era"]
+
+    def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]:
+        return {
+            2023: [{"season": 2023, "col_a": 1.0, "col_b": 2.0, "barrel_rate": 0.1, "slg": 0.400}],
+            2024: [{"season": 2024, "col_a": 1.1, "col_b": 2.1, "barrel_rate": 0.2, "slg": 0.420}],
+        }
 
 
 class _FakeAssembler:
@@ -68,11 +74,6 @@ def _patch_heavy_deps(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.setattr(
         f"{mod}.create_model",
         lambda model, assembler: Ok(_FakeModel()),
-    )
-    # Patch isinstance check for _StatcastGBMBase
-    monkeypatch.setattr(
-        f"{mod}._StatcastGBMBase",
-        _FakeModel,
     )
     return db_path
 

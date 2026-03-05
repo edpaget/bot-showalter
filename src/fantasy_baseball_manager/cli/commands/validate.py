@@ -11,10 +11,8 @@ from fantasy_baseball_manager.cli._output import console, print_error, print_pre
 from fantasy_baseball_manager.cli.factory import build_eval_context, build_model_context, create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
-from fantasy_baseball_manager.domain import Err, ModelConfig
+from fantasy_baseball_manager.domain import Err, Experimentable, ModelConfig
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
-from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
-from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.services import (
     FullValidationConfig,
     FullValidationRunner,
@@ -55,14 +53,12 @@ def preflight_cmd(
 
         model_instance = model_result.value
 
-        if not isinstance(model_instance, _StatcastGBMBase):
-            print_error(f"Model '{model}' does not support validate (not a StatcastGBM model)")
+        if not isinstance(model_instance, Experimentable):
+            print_error(f"Model '{model}' does not support validate (model does not implement Experimentable)")
             raise typer.Exit(code=1)
 
-        is_batter = player_type == "batter"
-
         # Resolve baseline columns (model defaults)
-        baseline_columns = list(model_instance._batter_columns if is_batter else model_instance._pitcher_columns)
+        baseline_columns = model_instance.experiment_feature_columns(player_type)
 
         # Resolve candidate columns (baseline + candidate additions)
         candidate_cols = [c.strip() for c in candidate_columns.split(",")]
@@ -71,23 +67,9 @@ def preflight_cmd(
             if col not in all_candidate_columns:
                 all_candidate_columns.append(col)
 
-        # Resolve targets
-        targets: list[str] = list(BATTER_TARGETS if is_batter else PITCHER_TARGETS)
-
-        # Materialize data
-        if is_batter:
-            fs = model_instance._batter_training_set_builder(config.seasons)
-        else:
-            fs = model_instance._pitcher_training_set_builder(config.seasons)
-
-        handle = assembler.get_or_materialize(fs)
-        all_rows = assembler.read(handle)
-
-        # Group rows by season
-        rows_by_season: dict[int, list[dict[str, Any]]] = {}
-        for row in all_rows:
-            s = row["season"]
-            rows_by_season.setdefault(s, []).append(row)
+        # Resolve targets and training data
+        targets = model_instance.experiment_targets(player_type)
+        rows_by_season = model_instance.experiment_training_data(player_type, config.seasons)
 
         sorted_seasons = sorted(rows_by_season.keys())
         if len(sorted_seasons) < 3:
@@ -153,8 +135,8 @@ def full_cmd(
         # Optional pre-flight
         preflight_result = None
         if candidate_columns is not None and player_type is not None:
-            if not isinstance(model_ctx.model, _StatcastGBMBase):
-                console.print("[yellow]Pre-flight skipped: model is not a StatcastGBM model[/yellow]")
+            if not isinstance(model_ctx.model, Experimentable):
+                console.print("[yellow]Pre-flight skipped: model does not implement Experimentable[/yellow]")
             else:
                 preflight_result = _run_preflight(
                     model_instance=model_ctx.model,
@@ -162,8 +144,6 @@ def full_cmd(
                     candidate_columns=candidate_columns,
                     seasons=train,
                     params=old_params_dict,
-                    data_dir=resolved_data_dir,
-                    conn=model_ctx.conn,
                 )
 
         validation_config = FullValidationConfig(
@@ -197,18 +177,14 @@ def full_cmd(
 
 def _run_preflight(
     *,
-    model_instance: _StatcastGBMBase,
+    model_instance: Experimentable,
     player_type: str,
     candidate_columns: str,
     seasons: list[int],
     params: dict[str, Any],
-    data_dir: str,
-    conn: Any,
 ) -> Any:
     """Run pre-flight check and return PreflightResult, or None on error."""
-    is_batter = player_type == "batter"
-
-    baseline_columns = list(model_instance._batter_columns if is_batter else model_instance._pitcher_columns)
+    baseline_columns = model_instance.experiment_feature_columns(player_type)
 
     candidate_cols = [c.strip() for c in candidate_columns.split(",")]
     all_candidate_columns = list(baseline_columns)
@@ -216,21 +192,8 @@ def _run_preflight(
         if col not in all_candidate_columns:
             all_candidate_columns.append(col)
 
-    targets: list[str] = list(BATTER_TARGETS if is_batter else PITCHER_TARGETS)
-
-    assembler = SqliteDatasetAssembler(conn, statcast_path=Path(data_dir) / "statcast.db")
-    if is_batter:
-        fs = model_instance._batter_training_set_builder(seasons)
-    else:
-        fs = model_instance._pitcher_training_set_builder(seasons)
-
-    handle = assembler.get_or_materialize(fs)
-    all_rows = assembler.read(handle)
-
-    rows_by_season: dict[int, list[dict[str, Any]]] = {}
-    for row in all_rows:
-        s = row["season"]
-        rows_by_season.setdefault(s, []).append(row)
+    targets = model_instance.experiment_targets(player_type)
+    rows_by_season = model_instance.experiment_training_data(player_type, seasons)
 
     sorted_seasons = sorted(rows_by_season.keys())
     if len(sorted_seasons) < 3:

@@ -69,7 +69,10 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     preseason_weighted_batter_curated_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
-from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
+from fantasy_baseball_manager.models.statcast_gbm.targets import (
+    BATTER_TARGETS,
+    PITCHER_TARGETS,
+)
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import SystemMetrics
@@ -298,6 +301,27 @@ class _StatcastGBMBase:
         )
         fb_handle = self._assembler.get_or_materialize(fallback_fs)
         return rows + self._assembler.read(fb_handle)
+
+    def experiment_player_types(self) -> list[str]:
+        return ["batter", "pitcher"]
+
+    def experiment_feature_columns(self, player_type: str) -> list[str]:
+        return list(self._batter_columns if player_type == "batter" else self._pitcher_columns)
+
+    def experiment_targets(self, player_type: str) -> list[str]:
+        return list(BATTER_TARGETS if player_type == "batter" else PITCHER_TARGETS)
+
+    def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]:
+        if player_type == "batter":
+            fs = self._batter_training_set_builder(seasons)
+        else:
+            fs = self._pitcher_training_set_builder(seasons)
+        handle = self._assembler.get_or_materialize(fs)
+        all_rows = self._assembler.read(handle)
+        rows_by_season: dict[int, list[dict[str, Any]]] = {}
+        for row in all_rows:
+            rows_by_season.setdefault(row["season"], []).append(row)
+        return rows_by_season
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)

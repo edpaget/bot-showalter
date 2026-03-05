@@ -166,6 +166,14 @@ class PlayerUniverseProvider(Protocol):
 
 
 @runtime_checkable
+class Experimentable(Protocol):
+    def experiment_player_types(self) -> list[str]: ...
+    def experiment_feature_columns(self, player_type: str) -> list[str]: ...
+    def experiment_targets(self, player_type: str) -> list[str]: ...
+    def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]: ...
+
+
+@runtime_checkable
 class EligibilityProvider(Protocol):
     def get_batter_positions(
         self,

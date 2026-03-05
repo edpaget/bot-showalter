@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 
@@ -12,10 +12,8 @@ from fantasy_baseball_manager.cli.factory import create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
-from fantasy_baseball_manager.domain import Err, Experiment, TargetResult
+from fantasy_baseball_manager.domain import Err, Experiment, Experimentable, TargetResult
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
-from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
-from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.repos import SqliteExperimentRepo, SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.services import (
     MarginalValueResult,
@@ -60,34 +58,14 @@ def marginal_value_cmd(  # pragma: no cover
 
         model_instance = model_result.value
 
-        if not isinstance(model_instance, _StatcastGBMBase):
-            print_error(f"Model '{model}' does not support marginal-value (not a StatcastGBM model)")
+        if not isinstance(model_instance, Experimentable):
+            print_error(f"Model '{model}' does not support marginal-value (model does not implement Experimentable)")
             raise typer.Exit(code=1)
 
-        is_batter = player_type == "batter"
-
-        # Resolve feature columns and targets from model
-        if is_batter:
-            feature_columns = list(model_instance._batter_columns)
-            targets = list(BATTER_TARGETS)
-        else:
-            feature_columns = list(model_instance._pitcher_columns)
-            targets = list(PITCHER_TARGETS)
-
-        # Materialize data
-        if is_batter:
-            fs = model_instance._batter_training_set_builder(config.seasons)
-        else:
-            fs = model_instance._pitcher_training_set_builder(config.seasons)
-
-        handle = assembler.get_or_materialize(fs)
-        all_rows = assembler.read(handle)
-
-        # Group rows by season
-        rows_by_season: dict[int, list[dict[str, Any]]] = {}
-        for row in all_rows:
-            s = row["season"]
-            rows_by_season.setdefault(s, []).append(row)
+        # Resolve feature columns, targets, and training data from model
+        feature_columns = model_instance.experiment_feature_columns(player_type)
+        targets = model_instance.experiment_targets(player_type)
+        rows_by_season = model_instance.experiment_training_data(player_type, config.seasons)
 
         # Resolve candidate columns that are missing from materialized rows
         first_rows = next(iter(rows_by_season.values()), [])

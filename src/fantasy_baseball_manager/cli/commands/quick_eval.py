@@ -11,10 +11,8 @@ from fantasy_baseball_manager.cli.factory import create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
-from fantasy_baseball_manager.domain import Err, Experiment, TargetResult
+from fantasy_baseball_manager.domain import Err, Experiment, Experimentable, TargetResult
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
-from fantasy_baseball_manager.models.statcast_gbm.model import _StatcastGBMBase
-from fantasy_baseball_manager.models.statcast_gbm.targets import BATTER_TARGETS, PITCHER_TARGETS
 from fantasy_baseball_manager.repos import SqliteExperimentRepo, SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.services import (
     candidate_values_to_dict,
@@ -80,27 +78,30 @@ def quick_eval_cmd(  # pragma: no cover
 
         model_instance = model_result.value
 
-        if not isinstance(model_instance, _StatcastGBMBase):
-            print_error(f"Model '{model}' does not support quick-eval (not a StatcastGBM model)")
+        if not isinstance(model_instance, Experimentable):
+            print_error(f"Model '{model}' does not support quick-eval (model does not implement Experimentable)")
             raise typer.Exit(code=1)
 
         # Determine player type from target
-        is_batter = target in BATTER_TARGETS
-        is_pitcher = target in PITCHER_TARGETS
-        if not is_batter and not is_pitcher:
-            print_error(
-                f"Unknown target '{target}'. Valid batter targets: {', '.join(BATTER_TARGETS)}. "
-                f"Valid pitcher targets: {', '.join(PITCHER_TARGETS)}."
-            )
+        player_type: str | None = None
+        for pt in model_instance.experiment_player_types():
+            if target in model_instance.experiment_targets(pt):
+                player_type = pt
+                break
+        if player_type is None:
+            all_targets = {
+                t for pt in model_instance.experiment_player_types() for t in model_instance.experiment_targets(pt)
+            }
+            print_error(f"Unknown target '{target}'. Valid targets: {', '.join(sorted(all_targets))}.")
             raise typer.Exit(code=1)
+
+        is_batter = player_type == "batter"
 
         # Resolve feature columns
         if columns is not None:
             feature_columns = list(columns)
-        elif is_batter:
-            feature_columns = list(model_instance._batter_columns)
         else:
-            feature_columns = list(model_instance._pitcher_columns)
+            feature_columns = model_instance.experiment_feature_columns(player_type)
 
         if inject:
             for col in inject:
@@ -108,19 +109,7 @@ def quick_eval_cmd(  # pragma: no cover
                     feature_columns.append(col)
 
         # Materialize data
-        if is_batter:
-            fs = model_instance._batter_training_set_builder(config.seasons)
-        else:
-            fs = model_instance._pitcher_training_set_builder(config.seasons)
-
-        handle = assembler.get_or_materialize(fs)
-        all_rows = assembler.read(handle)
-
-        # Group rows by season
-        rows_by_season: dict[int, list[dict[str, Any]]] = {}
-        for row in all_rows:
-            s = row["season"]
-            rows_by_season.setdefault(s, []).append(row)
+        rows_by_season = model_instance.experiment_training_data(player_type, config.seasons)
 
         # Resolve injected columns that are missing from materialized rows
         if inject:
