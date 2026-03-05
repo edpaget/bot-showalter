@@ -1,7 +1,9 @@
+import math
 from typing import Any
 
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.breakout_bust import (
+    BreakoutPrediction,
     LabelConfig,
     LabeledSeason,
     OutcomeLabel,
@@ -10,7 +12,10 @@ from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.services.breakout_bust import (
     assemble_labeled_dataset,
+    evaluate_classifier,
+    find_actionability_threshold,
     generate_labels,
+    historical_backtest,
     label_distribution,
 )
 
@@ -342,3 +347,342 @@ class TestLabelDistribution:
     def test_empty(self) -> None:
         dist = label_distribution([])
         assert dist == {"breakout": 0, "bust": 0, "neutral": 0}
+
+
+# ---------------------------------------------------------------------------
+# helpers for evaluation tests
+# ---------------------------------------------------------------------------
+
+
+def _make_label(
+    player_id: int,
+    label: OutcomeLabel,
+    season: int = 2023,
+) -> LabeledSeason:
+    rank_delta = 50 if label is OutcomeLabel.BREAKOUT else (-50 if label is OutcomeLabel.BUST else 5)
+    return LabeledSeason(
+        player_id=player_id,
+        season=season,
+        player_type="batter",
+        adp_rank=100,
+        adp_pick=100.0,
+        actual_value_rank=100 - rank_delta,
+        rank_delta=rank_delta,
+        label=label,
+    )
+
+
+def _make_prediction(
+    player_id: int,
+    p_breakout: float = 0.2,
+    p_bust: float = 0.2,
+    p_neutral: float = 0.6,
+) -> BreakoutPrediction:
+    return BreakoutPrediction(
+        player_id=player_id,
+        player_name=f"Player {player_id}",
+        player_type="batter",
+        position="OF",
+        p_breakout=p_breakout,
+        p_bust=p_bust,
+        p_neutral=p_neutral,
+    )
+
+
+# ---------------------------------------------------------------------------
+# evaluate_classifier tests
+# ---------------------------------------------------------------------------
+
+
+class TestEvaluateClassifierThresholds:
+    def test_precision_recall_at_threshold(self) -> None:
+        """With 10 players: 3 breakout, 7 neutral.
+        Predictions: breakouts get p_breakout=0.6, neutrals get 0.1.
+        At threshold 0.5: flagged=3, TP=3, precision=1.0, recall=1.0.
+        """
+        labels = [_make_label(i, OutcomeLabel.BREAKOUT) for i in range(1, 4)]
+        labels += [_make_label(i, OutcomeLabel.NEUTRAL) for i in range(4, 11)]
+
+        preds = [_make_prediction(i, p_breakout=0.6, p_bust=0.05, p_neutral=0.35) for i in range(1, 4)]
+        preds += [_make_prediction(i, p_breakout=0.1, p_bust=0.1, p_neutral=0.8) for i in range(4, 11)]
+
+        result = evaluate_classifier(labels, preds, thresholds=[0.5])
+
+        breakout_metrics = [m for m in result.threshold_metrics if m.label == "breakout" and m.threshold == 0.5]
+        assert len(breakout_metrics) == 1
+        m = breakout_metrics[0]
+        assert m.precision == 1.0
+        assert m.recall == 1.0
+        assert m.flagged == 3
+        assert m.true_positives == 3
+
+    def test_imperfect_precision(self) -> None:
+        """2 breakouts, 2 neutrals with high p_breakout → precision=0.5."""
+        labels = [
+            _make_label(1, OutcomeLabel.BREAKOUT),
+            _make_label(2, OutcomeLabel.BREAKOUT),
+            _make_label(3, OutcomeLabel.NEUTRAL),
+            _make_label(4, OutcomeLabel.NEUTRAL),
+        ]
+        preds = [
+            _make_prediction(1, p_breakout=0.7, p_bust=0.1, p_neutral=0.2),
+            _make_prediction(2, p_breakout=0.7, p_bust=0.1, p_neutral=0.2),
+            _make_prediction(3, p_breakout=0.6, p_bust=0.1, p_neutral=0.3),
+            _make_prediction(4, p_breakout=0.6, p_bust=0.1, p_neutral=0.3),
+        ]
+        result = evaluate_classifier(labels, preds, thresholds=[0.5])
+        m = [m for m in result.threshold_metrics if m.label == "breakout"][0]
+        assert m.flagged == 4
+        assert m.true_positives == 2
+        assert m.precision == 0.5
+        assert m.recall == 1.0
+
+    def test_bust_threshold(self) -> None:
+        """Verify bust thresholds work too."""
+        labels = [_make_label(1, OutcomeLabel.BUST), _make_label(2, OutcomeLabel.NEUTRAL)]
+        preds = [
+            _make_prediction(1, p_breakout=0.1, p_bust=0.7, p_neutral=0.2),
+            _make_prediction(2, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+        ]
+        result = evaluate_classifier(labels, preds, thresholds=[0.5])
+        bust = [m for m in result.threshold_metrics if m.label == "bust"][0]
+        assert bust.flagged == 1
+        assert bust.true_positives == 1
+        assert bust.precision == 1.0
+        assert bust.recall == 1.0
+
+    def test_f1_computation(self) -> None:
+        """F1 = 2 * prec * recall / (prec + recall)."""
+        labels = [
+            _make_label(1, OutcomeLabel.BREAKOUT),
+            _make_label(2, OutcomeLabel.BREAKOUT),
+            _make_label(3, OutcomeLabel.NEUTRAL),
+        ]
+        preds = [
+            _make_prediction(1, p_breakout=0.8, p_bust=0.05, p_neutral=0.15),
+            _make_prediction(2, p_breakout=0.2, p_bust=0.3, p_neutral=0.5),  # missed
+            _make_prediction(3, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+        ]
+        result = evaluate_classifier(labels, preds, thresholds=[0.5])
+        m = [m for m in result.threshold_metrics if m.label == "breakout"][0]
+        # precision=1/1=1.0, recall=1/2=0.5, F1=2*1.0*0.5/(1.0+0.5)=2/3
+        assert m.precision == 1.0
+        assert m.recall == 0.5
+        assert abs(m.f1 - 2 / 3) < 1e-9
+
+
+class TestEvaluateClassifierCalibration:
+    def test_well_calibrated(self) -> None:
+        """All predictions at ~0.3 for breakout, actual rate is 0.3 → bins should align."""
+        labels = [_make_label(i, OutcomeLabel.BREAKOUT) for i in range(1, 4)]
+        labels += [_make_label(i, OutcomeLabel.NEUTRAL) for i in range(4, 11)]
+
+        # All get p_breakout=0.3
+        preds = [_make_prediction(i, p_breakout=0.3, p_bust=0.1, p_neutral=0.6) for i in range(1, 11)]
+
+        result = evaluate_classifier(labels, preds)
+
+        # Find the bin containing 0.3 (center=0.25 or 0.35 depending on binning)
+        breakout_bins = [b for b in result.calibration_bins if b.bin_center == 0.25 or b.bin_center == 0.35]
+        # At least one bin should have data
+        populated = [b for b in breakout_bins if b.count > 0]
+        assert len(populated) >= 1
+        # The populated bin's mean_actual should be close to 0.3
+        for b in populated:
+            assert abs(b.mean_actual - 0.3) < 0.01
+
+    def test_bins_cover_range(self) -> None:
+        """Calibration bins should have centers from 0.05 to 0.95."""
+        labels = [_make_label(1, OutcomeLabel.BREAKOUT), _make_label(2, OutcomeLabel.NEUTRAL)]
+        preds = [
+            _make_prediction(1, p_breakout=0.8, p_bust=0.1, p_neutral=0.1),
+            _make_prediction(2, p_breakout=0.2, p_bust=0.1, p_neutral=0.7),
+        ]
+        result = evaluate_classifier(labels, preds)
+        # Should have bins for breakout and bust
+        assert len(result.calibration_bins) > 0
+
+
+class TestEvaluateClassifierLift:
+    def test_positive_lift(self) -> None:
+        """Top-2 by p_breakout are both breakouts, base rate is 2/6 → lift > 1."""
+        labels = [_make_label(1, OutcomeLabel.BREAKOUT), _make_label(2, OutcomeLabel.BREAKOUT)]
+        labels += [_make_label(i, OutcomeLabel.NEUTRAL) for i in range(3, 7)]
+
+        preds = [
+            _make_prediction(1, p_breakout=0.9, p_bust=0.05, p_neutral=0.05),
+            _make_prediction(2, p_breakout=0.8, p_bust=0.05, p_neutral=0.15),
+            _make_prediction(3, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+            _make_prediction(4, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+            _make_prediction(5, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+            _make_prediction(6, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+        ]
+
+        result = evaluate_classifier(labels, preds, top_ns=[2])
+        breakout_lifts = [lr for lr in result.lift_results if lr.label == "breakout" and lr.top_n == 2]
+        assert len(breakout_lifts) == 1
+        lr = breakout_lifts[0]
+        assert lr.flagged_rate == 1.0  # 2/2 top-2 are breakout
+        assert abs(lr.base_rate - 2 / 6) < 1e-9
+        assert lr.lift == 1.0 / (2 / 6)  # 3.0
+
+    def test_no_lift(self) -> None:
+        """Top-2 has 0 breakouts → lift = 0."""
+        labels = [_make_label(1, OutcomeLabel.BREAKOUT)]
+        labels += [_make_label(i, OutcomeLabel.NEUTRAL) for i in range(2, 5)]
+
+        preds = [
+            _make_prediction(1, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+            _make_prediction(2, p_breakout=0.9, p_bust=0.05, p_neutral=0.05),
+            _make_prediction(3, p_breakout=0.8, p_bust=0.05, p_neutral=0.15),
+            _make_prediction(4, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+        ]
+        result = evaluate_classifier(labels, preds, top_ns=[2])
+        lr = [lr for lr in result.lift_results if lr.label == "breakout" and lr.top_n == 2][0]
+        assert lr.flagged_rate == 0.0
+        assert lr.lift == 0.0
+
+    def test_top_n_capped_to_population(self) -> None:
+        """When top_n > population, uses full population."""
+        labels = [_make_label(1, OutcomeLabel.BREAKOUT), _make_label(2, OutcomeLabel.NEUTRAL)]
+        preds = [
+            _make_prediction(1, p_breakout=0.8, p_bust=0.1, p_neutral=0.1),
+            _make_prediction(2, p_breakout=0.2, p_bust=0.1, p_neutral=0.7),
+        ]
+        result = evaluate_classifier(labels, preds, top_ns=[100])
+        lr = [lr for lr in result.lift_results if lr.label == "breakout"][0]
+        # top_n capped to 2, rate=1/2=0.5, base_rate=1/2=0.5, lift=1.0
+        assert lr.flagged_rate == 0.5
+        assert lr.lift == 1.0
+
+
+class TestEvaluateClassifierLogLoss:
+    def test_perfect_predictions(self) -> None:
+        """Perfect predictions should have very low log-loss."""
+        labels = [
+            _make_label(1, OutcomeLabel.BREAKOUT),
+            _make_label(2, OutcomeLabel.BUST),
+            _make_label(3, OutcomeLabel.NEUTRAL),
+        ]
+        preds = [
+            _make_prediction(1, p_breakout=0.98, p_bust=0.01, p_neutral=0.01),
+            _make_prediction(2, p_breakout=0.01, p_bust=0.98, p_neutral=0.01),
+            _make_prediction(3, p_breakout=0.01, p_bust=0.01, p_neutral=0.98),
+        ]
+        result = evaluate_classifier(labels, preds)
+        assert result.log_loss < 0.1
+        assert result.log_loss < result.base_rate_log_loss
+
+    def test_log_loss_computed(self) -> None:
+        """Verify log-loss is a positive number."""
+        labels = [_make_label(1, OutcomeLabel.BREAKOUT), _make_label(2, OutcomeLabel.NEUTRAL)]
+        preds = [
+            _make_prediction(1, p_breakout=0.5, p_bust=0.2, p_neutral=0.3),
+            _make_prediction(2, p_breakout=0.3, p_bust=0.3, p_neutral=0.4),
+        ]
+        result = evaluate_classifier(labels, preds)
+        assert result.log_loss > 0
+        assert result.base_rate_log_loss > 0
+        assert math.isfinite(result.log_loss)
+
+    def test_n_evaluated(self) -> None:
+        labels = [_make_label(1, OutcomeLabel.BREAKOUT), _make_label(2, OutcomeLabel.NEUTRAL)]
+        preds = [
+            _make_prediction(1, p_breakout=0.5, p_bust=0.2, p_neutral=0.3),
+            _make_prediction(2, p_breakout=0.3, p_bust=0.3, p_neutral=0.4),
+            _make_prediction(99, p_breakout=0.3, p_bust=0.3, p_neutral=0.4),  # no label match
+        ]
+        result = evaluate_classifier(labels, preds)
+        assert result.n_evaluated == 2
+
+
+class TestEvaluateClassifierEmpty:
+    def test_empty_labels(self) -> None:
+        result = evaluate_classifier([], [_make_prediction(1)])
+        assert result.n_evaluated == 0
+        assert result.threshold_metrics == []
+        assert result.calibration_bins == []
+        assert result.lift_results == []
+        assert result.log_loss == 0.0
+        assert result.base_rate_log_loss == 0.0
+
+    def test_empty_predictions(self) -> None:
+        result = evaluate_classifier([_make_label(1, OutcomeLabel.BREAKOUT)], [])
+        assert result.n_evaluated == 0
+
+    def test_no_overlap(self) -> None:
+        result = evaluate_classifier(
+            [_make_label(1, OutcomeLabel.BREAKOUT)],
+            [_make_prediction(99)],
+        )
+        assert result.n_evaluated == 0
+
+
+# ---------------------------------------------------------------------------
+# historical_backtest tests
+# ---------------------------------------------------------------------------
+
+
+class TestHistoricalBacktest:
+    def test_multiple_seasons(self) -> None:
+        labels_2022 = [_make_label(1, OutcomeLabel.BREAKOUT, season=2022)]
+        labels_2023 = [_make_label(2, OutcomeLabel.NEUTRAL, season=2023)]
+        preds_2022 = [_make_prediction(1, p_breakout=0.8, p_bust=0.1, p_neutral=0.1)]
+        preds_2023 = [_make_prediction(2, p_breakout=0.2, p_bust=0.1, p_neutral=0.7)]
+
+        results = historical_backtest(
+            {2022: labels_2022, 2023: labels_2023},
+            {2022: preds_2022, 2023: preds_2023},
+        )
+        assert 2022 in results
+        assert 2023 in results
+        assert results[2022].n_evaluated == 1
+        assert results[2023].n_evaluated == 1
+
+    def test_missing_season_skipped(self) -> None:
+        """Season with labels but no predictions is skipped."""
+        labels = {2022: [_make_label(1, OutcomeLabel.BREAKOUT, season=2022)]}
+        preds: dict[int, list[BreakoutPrediction]] = {}
+        results = historical_backtest(labels, preds)
+        assert 2022 not in results
+
+
+# ---------------------------------------------------------------------------
+# find_actionability_threshold tests
+# ---------------------------------------------------------------------------
+
+
+class TestFindActionabilityThreshold:
+    def test_finds_lowest_threshold(self) -> None:
+        """Should return lowest threshold meeting min_precision."""
+        labels = [_make_label(i, OutcomeLabel.BREAKOUT) for i in range(1, 4)]
+        labels += [_make_label(i, OutcomeLabel.NEUTRAL) for i in range(4, 11)]
+        preds = [_make_prediction(i, p_breakout=0.7, p_bust=0.1, p_neutral=0.2) for i in range(1, 4)]
+        preds += [_make_prediction(i, p_breakout=0.1, p_bust=0.1, p_neutral=0.8) for i in range(4, 11)]
+
+        evaluation = evaluate_classifier(labels, preds, thresholds=[0.1, 0.3, 0.5])
+        threshold = find_actionability_threshold(evaluation, "breakout", min_precision=0.4)
+        assert threshold is not None
+        assert threshold <= 0.5  # Should find a working threshold
+
+    def test_no_threshold_meets_criteria(self) -> None:
+        """All thresholds have precision < min → returns None."""
+        labels = [_make_label(1, OutcomeLabel.BREAKOUT)]
+        labels += [_make_label(i, OutcomeLabel.NEUTRAL) for i in range(2, 20)]
+        # All get high p_breakout → precision is very low
+        preds = [_make_prediction(i, p_breakout=0.6, p_bust=0.1, p_neutral=0.3) for i in range(1, 20)]
+
+        evaluation = evaluate_classifier(labels, preds, thresholds=[0.1, 0.3, 0.5])
+        threshold = find_actionability_threshold(evaluation, "breakout", min_precision=0.99)
+        assert threshold is None
+
+    def test_label_filter(self) -> None:
+        """Should only consider metrics for the specified label."""
+        labels = [_make_label(1, OutcomeLabel.BUST), _make_label(2, OutcomeLabel.NEUTRAL)]
+        preds = [
+            _make_prediction(1, p_breakout=0.1, p_bust=0.8, p_neutral=0.1),
+            _make_prediction(2, p_breakout=0.1, p_bust=0.1, p_neutral=0.8),
+        ]
+        evaluation = evaluate_classifier(labels, preds, thresholds=[0.5])
+        threshold = find_actionability_threshold(evaluation, "bust", min_precision=0.4)
+        assert threshold is not None

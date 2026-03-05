@@ -3,7 +3,10 @@ from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.breakout_bust import (
     assemble_labeled_dataset,
+    evaluate_classifier,
+    find_actionability_threshold,
     generate_labels,
+    historical_backtest,
     label_distribution,
 )
 from fantasy_baseball_manager.services.category_tracker import (
@@ -201,7 +204,10 @@ __all__ = [
     "ADPAccuracyEvaluator",
     "ADPBot",
     "assemble_labeled_dataset",
+    "evaluate_classifier",
+    "find_actionability_threshold",
     "generate_labels",
+    "historical_backtest",
     "label_distribution",
     "ADPMoversService",
     "ADPReportService",

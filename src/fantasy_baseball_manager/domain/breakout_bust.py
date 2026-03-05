@@ -37,3 +37,49 @@ class BreakoutPrediction:
     p_bust: float
     p_neutral: float
     top_features: list[tuple[str, float]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ThresholdMetrics:
+    """Precision/recall/F1 at a single probability threshold for one class."""
+
+    label: str
+    threshold: float
+    precision: float
+    recall: float
+    f1: float
+    flagged: int
+    true_positives: int
+
+
+@dataclass(frozen=True)
+class ClassifierCalibrationBin:
+    """One bin of a reliability diagram for the breakout/bust classifier."""
+
+    bin_center: float
+    mean_predicted: float
+    mean_actual: float
+    count: int
+
+
+@dataclass(frozen=True)
+class LiftResult:
+    """Lift of top-N flagged candidates vs base rate."""
+
+    label: str
+    top_n: int
+    flagged_rate: float
+    base_rate: float
+    lift: float
+
+
+@dataclass(frozen=True)
+class ClassifierEvaluation:
+    """Aggregate evaluation of the breakout/bust classifier."""
+
+    threshold_metrics: list[ThresholdMetrics]
+    calibration_bins: list[ClassifierCalibrationBin]
+    lift_results: list[LiftResult]
+    log_loss: float
+    base_rate_log_loss: float
+    n_evaluated: int

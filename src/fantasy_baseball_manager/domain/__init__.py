@@ -10,9 +10,13 @@ from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverAD
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.breakout_bust import (
     BreakoutPrediction,
+    ClassifierCalibrationBin,
+    ClassifierEvaluation,
     LabelConfig,
     LabeledSeason,
+    LiftResult,
     OutcomeLabel,
+    ThresholdMetrics,
 )
 from fantasy_baseball_manager.domain.category_tracker import (
     CategoryNeed,
@@ -269,6 +273,8 @@ __all__ = [
     "BinnedValue",
     "BotStrategy",
     "CalibrationBin",
+    "ClassifierCalibrationBin",
+    "ClassifierEvaluation",
     "CandidateValue",
     "CohortBias",
     "CohortBiasReport",
@@ -323,6 +329,7 @@ __all__ = [
     "KeeperSolution",
     "KeeperTradeImpact",
     "LeagueKeeperState",
+    "LiftResult",
     "LeagueEnvironment",
     "LeagueFormat",
     "LeagueSettings",
@@ -396,6 +403,7 @@ __all__ = [
     "SystemSummary",
     "TeamCategoryProjection",
     "TailAccuracy",
+    "ThresholdMetrics",
     "TalentQualitySummary",
     "TargetCorrelation",
     "TargetExplorationResult",
