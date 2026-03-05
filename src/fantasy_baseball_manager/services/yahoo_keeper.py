@@ -75,7 +75,6 @@ def derive_and_store_keeper_costs(
         team_key=user_team.team_key,
         league_key=prior_league_key,
         season=prior_season,
-        week=1,
         as_of=today,
     )
 
@@ -115,7 +114,6 @@ def derive_best_n_keeper_costs(
         team_key=user_team.team_key,
         league_key=prior_league_key,
         season=prior_season,
-        week=1,
         as_of=today,
     )
 

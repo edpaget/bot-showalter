@@ -296,6 +296,28 @@ class TestYahooFantasyClientGetRoster:
         result = yahoo_client.get_roster("449.l.12345.t.1")
         assert "fantasy_content" in result
 
+    def test_includes_week_param_when_provided(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_ROSTER_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client)  # type: ignore[arg-type]
+        yahoo_client.get_roster("449.l.12345.t.1", week=5)
+
+        assert transport.last_request is not None
+        url = str(transport.last_request.url)
+        assert "team/449.l.12345.t.1/roster/players" in url
+        assert "week=5" in url
+
+    def test_omits_week_param_when_none(self) -> None:
+        transport = FakeTransport(httpx.Response(200, json=_ROSTER_RESPONSE))
+        client = httpx.Client(transport=transport)
+        yahoo_client = YahooFantasyClient(auth=FakeAuth(), client=client)  # type: ignore[arg-type]
+        yahoo_client.get_roster("449.l.12345.t.1", week=None)
+
+        assert transport.last_request is not None
+        url = str(transport.last_request.url)
+        assert "team/449.l.12345.t.1/roster/players" in url
+        assert "week=" not in url
+
 
 class TestYahooFantasyClientGetPlayers:
     def test_sends_correct_request(self) -> None:

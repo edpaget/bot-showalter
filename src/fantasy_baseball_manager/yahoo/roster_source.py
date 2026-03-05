@@ -32,16 +32,17 @@ class YahooRosterSource:
         team_key: str,
         league_key: str,
         season: int,
-        week: int,
+        week: int | None = None,
         as_of: datetime.date,
     ) -> Roster:
-        data = self._client.get_roster(team_key)
+        data = self._client.get_roster(team_key, week=week)
         entries = self._parse_roster_entries(data)
+        logger.debug("Fetched roster for %s: %d entries (week=%s)", team_key, len(entries), week)
         return Roster(
             team_key=team_key,
             league_key=league_key,
             season=season,
-            week=week,
+            week=week if week is not None else 0,
             as_of=as_of,
             entries=tuple(entries),
         )
@@ -52,7 +53,7 @@ class YahooRosterSource:
         team_keys: list[str],
         league_key: str,
         season: int,
-        week: int,
+        week: int | None = None,
         as_of: datetime.date,
     ) -> list[Roster]:
         rosters: list[Roster] = []

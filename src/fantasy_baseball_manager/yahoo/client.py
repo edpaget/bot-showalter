@@ -35,8 +35,10 @@ class YahooFantasyClient:
         url = f"{_BASE_URL}league/{league_key}/teams"
         return self._get_with_retry(url)
 
-    def get_roster(self, team_key: str) -> dict[str, Any]:
+    def get_roster(self, team_key: str, *, week: int | None = None) -> dict[str, Any]:
         url = f"{_BASE_URL}team/{team_key}/roster/players"
+        if week is not None:
+            url = f"{url};week={week}"
         return self._get_with_retry(url)
 
     def get_players(self, league_key: str, player_keys: list[str]) -> dict[str, Any]:

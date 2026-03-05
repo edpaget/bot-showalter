@@ -14,8 +14,10 @@ if TYPE_CHECKING:
 class FakeClient:
     def __init__(self, roster_response: dict[str, Any] | None = None) -> None:
         self._roster_response = roster_response or _DEFAULT_ROSTER_RESPONSE
+        self.last_week: int | None = None
 
-    def get_roster(self, team_key: str) -> dict[str, Any]:
+    def get_roster(self, team_key: str, *, week: int | None = None) -> dict[str, Any]:
+        self.last_week = week
         return self._roster_response
 
 
@@ -242,6 +244,41 @@ class TestYahooRosterSource:
         # IL Player has no mlbam_id in the response and no seeded player
         il_player = next(e for e in roster.entries if e.player_name == "IL Player")
         assert il_player.player_id is None
+
+    def test_week_none_passes_none_to_client_and_sets_week_zero(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        fake_client = FakeClient()
+        source = YahooRosterSource(fake_client, mapper)  # type: ignore[arg-type]
+
+        roster = source.fetch_team_roster(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2025,
+            as_of=datetime.date(2025, 10, 1),
+        )
+
+        assert fake_client.last_week is None
+        assert roster.week == 0
+
+    def test_week_value_passes_through_to_client(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        fake_client = FakeClient()
+        source = YahooRosterSource(fake_client, mapper)  # type: ignore[arg-type]
+
+        roster = source.fetch_team_roster(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2025,
+            week=5,
+            as_of=datetime.date(2025, 10, 1),
+        )
+
+        assert fake_client.last_week == 5
+        assert roster.week == 5
 
     def test_empty_roster_returns_empty_entries(self, conn: sqlite3.Connection) -> None:
         player_repo = SqlitePlayerRepo(conn)

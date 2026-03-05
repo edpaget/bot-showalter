@@ -68,7 +68,7 @@ class FakeRosterSource:
         team_key: str,
         league_key: str,
         season: int,
-        week: int,
+        week: int | None = None,
         as_of: datetime.date,
     ) -> Roster:
         return self._roster
