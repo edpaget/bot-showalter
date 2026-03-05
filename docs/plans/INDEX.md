@@ -11,7 +11,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Player Bio Fuzzy Team](player-bio-fuzzy-team.md) | 3 | phases 1-2 done | none |
-| [Prior-Season Roster Lookup](prior-season-roster-lookup.md) | 3 | phase 1 done | none |
+| [Prior-Season Roster Lookup](prior-season-roster-lookup.md) | 3 | phases 1-2 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
