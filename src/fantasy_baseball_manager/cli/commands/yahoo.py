@@ -222,7 +222,26 @@ def yahoo_rosters(  # pragma: no cover
         game_key = ctx.client.get_game_key(season)
         league_key = f"{game_key}.l.{league_config.league_id}"
 
+        # For prior seasons the league ID may differ; resolve via renew chain
+        current_game_key = ctx.client.get_game_key(datetime.date.today().year)
+        current_league_key = f"{current_game_key}.l.{league_config.league_id}"
+        if current_league_key != league_key:
+            league_key = _resolve_prior_league_key(ctx, current_league_key, season)
+
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
+        if not teams:
+            # Auto-sync metadata for this league key
+            console.print("[yellow]No teams found. Running sync...[/yellow]")
+            league_source = YahooLeagueSource(ctx.client)
+            sync_league_metadata(
+                league_source=league_source,
+                league_repo=ctx.yahoo_league_repo,
+                team_repo=ctx.yahoo_team_repo,
+                league_key=league_key,
+                game_key=game_key,
+            )
+            teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
+
         if not teams:
             print_error(f"No teams found for league '{league}'. Run 'fbm yahoo sync' first.")
             raise typer.Exit(code=1)
