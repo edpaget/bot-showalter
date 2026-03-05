@@ -14,7 +14,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Player Bio Fuzzy Team](player-bio-fuzzy-team.md) | 3 | phase 1 done | none |
 | [Prior-Season Roster Lookup](prior-season-roster-lookup.md) | 3 | phase 1 done | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
-| [Roster Stint Preload](roster-stint-preload.md) | 2 | phase 1 done | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Playing Time Flexibility](playing-time-flexibility.md) | 4 | phase 1 done | none |
@@ -57,6 +56,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Coverage](test-coverage.md) | 5 |
 | [Projection Blender](projection-blender.md) | 4 |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 |
+| [Roster Stint Preload](roster-stint-preload.md) | 2 |
 | [Yahoo Integration Improvements](yahoo-integration-improvements.md) | 3 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
