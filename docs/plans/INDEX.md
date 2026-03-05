@@ -51,6 +51,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Yahoo Architecture Fixes](yahoo-architecture-fixes.md) | 3 |
 | [Test Coverage](test-coverage.md) | 5 |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 |
+| [Yahoo Integration Improvements](yahoo-integration-improvements.md) | 3 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
 
