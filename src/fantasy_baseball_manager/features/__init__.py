@@ -35,6 +35,8 @@ il_stint = SourceRef(Source.IL_STINT)
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler  # noqa: E402
 from fantasy_baseball_manager.features.consensus_pt import (  # noqa: E402
     batting_consensus_features,
+    build_consensus_features,
+    make_weighted_consensus_transform,
     pitching_consensus_features,
 )
 from fantasy_baseball_manager.features.group_library import (  # noqa: E402
@@ -67,6 +69,7 @@ __all__ = [
     "TransformFeature",
     "batting",
     "batting_consensus_features",
+    "build_consensus_features",
     "compose_feature_set",
     "delta",
     "get_group",
@@ -75,6 +78,7 @@ __all__ = [
     "make_batting_counting_lags",
     "make_batting_rate_lags",
     "make_pitching_counting_lags",
+    "make_weighted_consensus_transform",
     "pitching",
     "pitching_consensus_features",
     "player",

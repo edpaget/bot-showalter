@@ -1,6 +1,7 @@
 from fantasy_baseball_manager.features.types import DerivedTransformFeature, Feature, Source
 from fantasy_baseball_manager.models.playing_time.features import (
-    _EXCLUDED_COLUMNS,
+    _IL_EXCLUDED_COLUMNS,
+    _excluded_columns,
     batting_pt_feature_columns,
     build_batting_pt_derived_transforms,
     build_batting_pt_features,
@@ -10,6 +11,8 @@ from fantasy_baseball_manager.models.playing_time.features import (
     build_pitching_pt_training_features,
     pitching_pt_feature_columns,
 )
+
+_THREE_SYSTEMS = (("steamer", 1.0), ("zips", 1.0), ("atc", 1.0))
 
 
 class TestBattingPtFeatures:
@@ -455,11 +458,63 @@ class TestPitchingFeatureColumns:
 
 class TestExcludedColumns:
     def test_excludes_projection_intermediates(self) -> None:
-        assert "steamer_pa" in _EXCLUDED_COLUMNS
-        assert "zips_pa" in _EXCLUDED_COLUMNS
-        assert "steamer_ip" in _EXCLUDED_COLUMNS
-        assert "zips_ip" in _EXCLUDED_COLUMNS
+        excluded = _excluded_columns()
+        assert "steamer_pa" in excluded
+        assert "zips_pa" in excluded
+        assert "steamer_ip" in excluded
+        assert "zips_ip" in excluded
 
     def test_excludes_il_columns(self) -> None:
-        assert "il_days_1" in _EXCLUDED_COLUMNS
-        assert "il_recurrence" in _EXCLUDED_COLUMNS
+        assert "il_days_1" in _IL_EXCLUDED_COLUMNS
+        assert "il_recurrence" in _IL_EXCLUDED_COLUMNS
+
+    def test_three_systems_excludes_all(self) -> None:
+        excluded = _excluded_columns(_THREE_SYSTEMS)
+        assert "steamer_pa" in excluded
+        assert "zips_pa" in excluded
+        assert "atc_pa" in excluded
+        assert "steamer_ip" in excluded
+        assert "zips_ip" in excluded
+        assert "atc_ip" in excluded
+
+
+class TestBattingFeaturesThreeSystems:
+    def test_three_systems_produces_three_projection_features(self) -> None:
+        features = build_batting_pt_features(pt_systems=_THREE_SYSTEMS)
+        proj_features = [f for f in features if isinstance(f, Feature) and f.source == Source.PROJECTION]
+        assert len(proj_features) == 3
+        names = {f.name for f in proj_features}
+        assert names == {"steamer_pa", "zips_pa", "atc_pa"}
+
+    def test_three_systems_derived_transforms_consensus_uses_three_inputs(self) -> None:
+        transforms = build_batting_pt_derived_transforms(pt_systems=_THREE_SYSTEMS)
+        consensus = next(t for t in transforms if t.name == "consensus_pa")
+        assert set(consensus.inputs) == {"steamer_pa", "zips_pa", "atc_pa"}
+
+    def test_three_systems_feature_columns_excludes_all_system_cols(self) -> None:
+        columns = batting_pt_feature_columns(pt_systems=_THREE_SYSTEMS)
+        assert "steamer_pa" not in columns
+        assert "zips_pa" not in columns
+        assert "atc_pa" not in columns
+        assert "consensus_pa" in columns
+
+
+class TestPitchingFeaturesThreeSystems:
+    def test_three_systems_produces_three_projection_features(self) -> None:
+        features = build_pitching_pt_features(pt_systems=_THREE_SYSTEMS)
+        proj_features = [f for f in features if isinstance(f, Feature) and f.source == Source.PROJECTION]
+        assert len(proj_features) == 3
+        names = {f.name for f in proj_features}
+        assert names == {"steamer_ip", "zips_ip", "atc_ip"}
+
+    def test_three_systems_derived_transforms_consensus_uses_three_inputs(self) -> None:
+        transforms = build_pitching_pt_derived_transforms(pt_systems=_THREE_SYSTEMS)
+        consensus = next(t for t in transforms if t.name == "consensus_ip")
+        assert set(consensus.inputs) == {"steamer_ip", "zips_ip", "atc_ip"}
+
+    def test_three_systems_feature_columns_excludes_all_system_cols(self) -> None:
+        columns = pitching_pt_feature_columns(pt_systems=_THREE_SYSTEMS)
+        assert "steamer_ip" not in columns
+        assert "zips_ip" not in columns
+        assert "atc_ip" not in columns
+        assert "consensus_ip" in columns

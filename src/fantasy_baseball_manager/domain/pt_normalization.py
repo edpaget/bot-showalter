@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
@@ -9,6 +11,8 @@ from fantasy_baseball_manager.domain.projection_accuracy import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from fantasy_baseball_manager.domain.projection import Projection
 
 _BATTER_COUNTING_SET = set(BATTING_COUNTING_STATS)
@@ -60,28 +64,39 @@ def normalize_projection_pt(projection: Projection, consensus_pt: float) -> Proj
 
 
 def build_consensus_lookup(
-    steamer_projections: list[Projection],
-    zips_projections: list[Projection],
+    *system_projections: list[Projection],
+    weights: Sequence[float] | None = None,
 ) -> ConsensusLookup:
-    """Build a consensus playing-time lookup from two projection systems.
+    """Build a consensus playing-time lookup from N projection systems.
 
-    For each player, averages PA (batters) or IP (pitchers) from both systems.
-    Falls back to the single available system when only one is present.
+    For each player, computes a weighted average of PA (batters) or IP
+    (pitchers) across all provided systems. Falls back to available systems
+    when a player is missing from some.
+
+    If *weights* is None, equal weights are used.
     """
-    batting_pts: dict[int, list[float]] = {}
-    pitching_pts: dict[int, list[float]] = {}
+    effective_weights = list(weights) if weights is not None else [1.0] * len(system_projections)
 
-    for proj in (*steamer_projections, *zips_projections):
-        if proj.player_type == "pitcher":
-            ip = proj.stat_json.get("ip")
-            if ip is not None:
-                pitching_pts.setdefault(proj.player_id, []).append(float(ip))
-        else:
-            pa = proj.stat_json.get("pa")
-            if pa is not None:
-                batting_pts.setdefault(proj.player_id, []).append(float(pa))
+    batting_pts: dict[int, list[tuple[float, float]]] = {}
+    pitching_pts: dict[int, list[tuple[float, float]]] = {}
 
-    batting_pt = {pid: sum(vals) / len(vals) for pid, vals in batting_pts.items()}
-    pitching_pt = {pid: sum(vals) / len(vals) for pid, vals in pitching_pts.items()}
+    for system_idx, proj_list in enumerate(system_projections):
+        w = effective_weights[system_idx]
+        for proj in proj_list:
+            if proj.player_type == "pitcher":
+                ip = proj.stat_json.get("ip")
+                if ip is not None:
+                    pitching_pts.setdefault(proj.player_id, []).append((float(ip), w))
+            else:
+                pa = proj.stat_json.get("pa")
+                if pa is not None:
+                    batting_pts.setdefault(proj.player_id, []).append((float(pa), w))
+
+    def _weighted_avg(entries: list[tuple[float, float]]) -> float:
+        total_w = sum(w for _, w in entries)
+        return sum(v * w for v, w in entries) / total_w
+
+    batting_pt = {pid: _weighted_avg(vals) for pid, vals in batting_pts.items()}
+    pitching_pt = {pid: _weighted_avg(vals) for pid, vals in pitching_pts.items()}
 
     return ConsensusLookup(batting_pt=batting_pt, pitching_pt=pitching_pt)

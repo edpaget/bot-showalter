@@ -148,3 +148,23 @@ class TestBuildConsensusLookup:
         zips = [_pitcher_projection(player_id=1, ip=160)]
         lookup = build_consensus_lookup(steamer, zips)
         assert lookup.pitching_pt[1] == pytest.approx(170.0)
+
+    def test_three_systems_average(self) -> None:
+        sys_a = [_batter_projection(player_id=1, pa=600)]
+        sys_b = [_batter_projection(player_id=1, pa=500)]
+        sys_c = [_batter_projection(player_id=1, pa=400)]
+        lookup = build_consensus_lookup(sys_a, sys_b, sys_c)
+        assert lookup.batting_pt[1] == pytest.approx(500.0)
+
+    def test_weighted_three_systems(self) -> None:
+        sys_a = [_batter_projection(player_id=1, pa=600)]
+        sys_b = [_batter_projection(player_id=1, pa=400)]
+        sys_c = [_batter_projection(player_id=1, pa=400)]
+        lookup = build_consensus_lookup(sys_a, sys_b, sys_c, weights=[2.0, 1.0, 1.0])
+        # weighted = (600*2 + 400*1 + 400*1) / (2+1+1) = 2000/4 = 500
+        assert lookup.batting_pt[1] == pytest.approx(500.0)
+
+    def test_single_system_fallback(self) -> None:
+        sys_a = [_batter_projection(player_id=1, pa=550)]
+        lookup = build_consensus_lookup(sys_a)
+        assert lookup.batting_pt[1] == pytest.approx(550.0)

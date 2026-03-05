@@ -8,7 +8,9 @@ import pytest
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.consensus_pt import (
     batting_consensus_features,
+    build_consensus_features,
     make_consensus_transform,
+    make_weighted_consensus_transform,
     pitching_consensus_features,
 )
 from fantasy_baseball_manager.features.types import FeatureSet, SpineFilter
@@ -72,6 +74,100 @@ class TestMakeConsensusTransform:
     def test_ip_neither_present(self) -> None:
         result = self._call("steamer_ip", "zips_ip", "consensus_ip", None, None)
         assert math.isnan(result["consensus_ip"])
+
+
+class TestMakeWeightedConsensusTransform:
+    """Unit tests for the weighted consensus transform."""
+
+    def _call(
+        self,
+        source_keys: list[tuple[str, float]],
+        output_key: str,
+        values: dict[str, float | None],
+    ) -> dict[str, Any]:
+        transform = make_weighted_consensus_transform(source_keys, output_key)
+        return transform([values])
+
+    def test_three_systems_equal_weight(self) -> None:
+        result = self._call(
+            [("a_pa", 1.0), ("b_pa", 1.0), ("c_pa", 1.0)],
+            "consensus_pa",
+            {"a_pa": 600.0, "b_pa": 500.0, "c_pa": 400.0},
+        )
+        assert result["consensus_pa"] == pytest.approx(500.0)
+
+    def test_unequal_weights(self) -> None:
+        result = self._call(
+            [("a_pa", 2.0), ("b_pa", 1.0)],
+            "consensus_pa",
+            {"a_pa": 600.0, "b_pa": 300.0},
+        )
+        assert result["consensus_pa"] == pytest.approx(500.0)
+
+    def test_missing_one_renormalizes(self) -> None:
+        result = self._call(
+            [("a_pa", 1.0), ("b_pa", 1.0), ("c_pa", 1.0)],
+            "consensus_pa",
+            {"a_pa": 600.0, "b_pa": None, "c_pa": 400.0},
+        )
+        assert result["consensus_pa"] == pytest.approx(500.0)
+
+    def test_all_missing(self) -> None:
+        result = self._call(
+            [("a_pa", 1.0), ("b_pa", 1.0)],
+            "consensus_pa",
+            {"a_pa": None, "b_pa": None},
+        )
+        assert math.isnan(result["consensus_pa"])
+
+    def test_single_system(self) -> None:
+        result = self._call(
+            [("a_pa", 1.0)],
+            "consensus_pa",
+            {"a_pa": 550.0},
+        )
+        assert result["consensus_pa"] == pytest.approx(550.0)
+
+    def test_nan_values_treated_as_missing(self) -> None:
+        result = self._call(
+            [("a_pa", 1.0), ("b_pa", 1.0)],
+            "consensus_pa",
+            {"a_pa": float("nan"), "b_pa": 500.0},
+        )
+        assert result["consensus_pa"] == pytest.approx(500.0)
+
+
+class TestBuildConsensusFeatures:
+    """Tests for the build_consensus_features factory."""
+
+    def test_default_produces_same_as_current(self) -> None:
+        proj_features, consensus = build_consensus_features("pa")
+        assert len(proj_features) == 2
+        assert proj_features[0].name == "steamer_pa"
+        assert proj_features[1].name == "zips_pa"
+        assert consensus.name == "consensus_pa"
+        assert "consensus_pa" in consensus.outputs
+
+    def test_three_systems(self) -> None:
+        systems = (("steamer", 1.0), ("zips", 1.0), ("atc", 1.0))
+        proj_features, consensus = build_consensus_features("pa", systems=systems)
+        assert len(proj_features) == 3
+        names = [f.name for f in proj_features]
+        assert names == ["steamer_pa", "zips_pa", "atc_pa"]
+        assert consensus.name == "consensus_pa"
+        assert set(consensus.inputs) == {"steamer_pa", "zips_pa", "atc_pa"}
+
+    def test_ip_stat(self) -> None:
+        proj_features, consensus = build_consensus_features("ip")
+        assert proj_features[0].name == "steamer_ip"
+        assert proj_features[1].name == "zips_ip"
+        assert consensus.name == "consensus_ip"
+
+    def test_single_system(self) -> None:
+        systems = (("atc", 1.0),)
+        proj_features, consensus = build_consensus_features("pa", systems=systems)
+        assert len(proj_features) == 1
+        assert proj_features[0].name == "atc_pa"
 
 
 class TestBattingConsensusAssembler:

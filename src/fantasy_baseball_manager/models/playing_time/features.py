@@ -1,8 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 from fantasy_baseball_manager.features import (
     AnyFeature,
     DerivedTransformFeature,
     Feature,
     batting,
+    build_consensus_features,
     il_stint,
     pitching,
     player,
@@ -24,8 +32,27 @@ from fantasy_baseball_manager.features.transforms.playing_time import (
     make_war_threshold_transform,
 )
 
+_DEFAULT_PT_SYSTEMS: tuple[tuple[str, float], ...] = (("steamer", 1.0), ("zips", 1.0))
 
-def build_batting_pt_features(lags: int = 3) -> list[Feature]:
+
+def _build_projection_features(
+    stat: str,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[Feature]:
+    """Build per-system projection features for the given stat."""
+    if pt_systems == _DEFAULT_PT_SYSTEMS:
+        # Use pre-built module-level features for default systems
+        if stat == "pa":
+            return [steamer_pa, zips_pa]
+        return [steamer_ip, zips_ip]
+    proj_features, _ = build_consensus_features(stat, systems=pt_systems)
+    return proj_features
+
+
+def build_batting_pt_features(
+    lags: int = 3,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[Feature]:
     """Build features for batting playing-time projection."""
     features: list[Feature] = [player.age()]
     for lag_n in range(1, lags + 1):
@@ -38,12 +65,14 @@ def build_batting_pt_features(lags: int = 3) -> list[Feature]:
         features.append(il_stint.col("days").lag(lag_n).alias(f"il_days_{lag_n}"))
     for lag_n in range(1, min(lags, 2) + 1):
         features.append(il_stint.col("stint_count").lag(lag_n).alias(f"il_stints_{lag_n}"))
-    features.append(steamer_pa)
-    features.append(zips_pa)
+    features.extend(_build_projection_features("pa", pt_systems))
     return features
 
 
-def build_pitching_pt_features(lags: int = 3) -> list[Feature]:
+def build_pitching_pt_features(
+    lags: int = 3,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[Feature]:
     """Build features for pitching playing-time projection."""
     features: list[Feature] = [player.age()]
     for lag_n in range(1, lags + 1):
@@ -58,12 +87,25 @@ def build_pitching_pt_features(lags: int = 3) -> list[Feature]:
         features.append(il_stint.col("days").lag(lag_n).alias(f"il_days_{lag_n}"))
     for lag_n in range(1, min(lags, 2) + 1):
         features.append(il_stint.col("stint_count").lag(lag_n).alias(f"il_stints_{lag_n}"))
-    features.append(steamer_ip)
-    features.append(zips_ip)
+    features.extend(_build_projection_features("ip", pt_systems))
     return features
 
 
-def build_batting_pt_derived_transforms(lags: int = 3) -> list[DerivedTransformFeature]:
+def _build_consensus_derived(
+    stat: str,
+    pt_systems: Sequence[tuple[str, float]],
+) -> DerivedTransformFeature:
+    """Build the consensus DerivedTransformFeature for the given stat and systems."""
+    if pt_systems == _DEFAULT_PT_SYSTEMS:
+        return CONSENSUS_PA if stat == "pa" else CONSENSUS_IP
+    _, consensus = build_consensus_features(stat, systems=pt_systems)
+    return consensus
+
+
+def build_batting_pt_derived_transforms(
+    lags: int = 3,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[DerivedTransformFeature]:
     """Build derived transforms for batting playing-time projection."""
     il_inputs = tuple(f"il_days_{i}" for i in range(1, lags + 1)) + ("il_stints_1",)
     if lags >= 2:
@@ -109,11 +151,14 @@ def build_batting_pt_derived_transforms(lags: int = 3) -> list[DerivedTransformF
             transform=make_pt_interaction_transform(),
             outputs=("war_trend", "age_il_interact"),
         ),
-        CONSENSUS_PA,
+        _build_consensus_derived("pa", pt_systems),
     ]
 
 
-def build_pitching_pt_derived_transforms(lags: int = 3) -> list[DerivedTransformFeature]:
+def build_pitching_pt_derived_transforms(
+    lags: int = 3,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[DerivedTransformFeature]:
     """Build derived transforms for pitching playing-time projection."""
     il_inputs = tuple(f"il_days_{i}" for i in range(1, lags + 1)) + ("il_stints_1",)
     if lags >= 2:
@@ -166,22 +211,28 @@ def build_pitching_pt_derived_transforms(lags: int = 3) -> list[DerivedTransform
             transform=make_pt_interaction_transform(),
             outputs=("war_trend", "age_il_interact"),
         ),
-        CONSENSUS_IP,
+        _build_consensus_derived("ip", pt_systems),
     ]
 
 
-def build_batting_pt_training_features(lags: int = 3) -> list[AnyFeature]:
+def build_batting_pt_training_features(
+    lags: int = 3,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[AnyFeature]:
     """Features + target (pa at lag 0) for training."""
-    features: list[AnyFeature] = list(build_batting_pt_features(lags))
-    features.extend(build_batting_pt_derived_transforms(lags))
+    features: list[AnyFeature] = list(build_batting_pt_features(lags, pt_systems))
+    features.extend(build_batting_pt_derived_transforms(lags, pt_systems))
     features.append(batting.col("pa").lag(0).alias("target_pa"))
     return features
 
 
-def build_pitching_pt_training_features(lags: int = 3) -> list[AnyFeature]:
+def build_pitching_pt_training_features(
+    lags: int = 3,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[AnyFeature]:
     """Features + target (ip at lag 0) for training."""
-    features: list[AnyFeature] = list(build_pitching_pt_features(lags))
-    features.extend(build_pitching_pt_derived_transforms(lags))
+    features: list[AnyFeature] = list(build_pitching_pt_features(lags, pt_systems))
+    features.extend(build_pitching_pt_derived_transforms(lags, pt_systems))
     features.append(pitching.col("ip").lag(0).alias("target_ip"))
     return features
 
@@ -197,8 +248,8 @@ def _collect_feature_names(features: list[AnyFeature]) -> list[str]:
     return columns
 
 
-# Columns gathered as inputs to derived transforms but excluded from regression.
-_EXCLUDED_COLUMNS = frozenset(
+# IL-related columns that are always excluded from regression.
+_IL_EXCLUDED_COLUMNS = frozenset(
     {
         "il_days_1",
         "il_days_2",
@@ -211,23 +262,44 @@ _EXCLUDED_COLUMNS = frozenset(
         "il_moderate",
         "il_severe",
         "age_il_interact",
-        "steamer_pa",
-        "zips_pa",
-        "steamer_ip",
-        "zips_ip",
     }
 )
 
 
-def batting_pt_feature_columns(lags: int = 3) -> list[str]:
+def _excluded_columns(
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> frozenset[str]:
+    """Compute the set of columns excluded from regression.
+
+    Includes IL columns plus per-system raw projection columns (e.g.
+    steamer_pa, zips_ip) which are only used as inputs to the consensus
+    derived feature.
+    """
+    system_cols = frozenset(f"{sys}_{stat}" for sys, _ in pt_systems for stat in ("pa", "ip"))
+    return _IL_EXCLUDED_COLUMNS | system_cols
+
+
+# Backward-compat alias
+_EXCLUDED_COLUMNS = _excluded_columns()
+
+
+def batting_pt_feature_columns(
+    lags: int = 3,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[str]:
     """Return ordered list of feature column names for batting PT model."""
-    features: list[AnyFeature] = list(build_batting_pt_features(lags))
-    features.extend(build_batting_pt_derived_transforms(lags))
-    return [c for c in _collect_feature_names(features) if c not in _EXCLUDED_COLUMNS]
+    features: list[AnyFeature] = list(build_batting_pt_features(lags, pt_systems))
+    features.extend(build_batting_pt_derived_transforms(lags, pt_systems))
+    excluded = _excluded_columns(pt_systems)
+    return [c for c in _collect_feature_names(features) if c not in excluded]
 
 
-def pitching_pt_feature_columns(lags: int = 3) -> list[str]:
+def pitching_pt_feature_columns(
+    lags: int = 3,
+    pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+) -> list[str]:
     """Return ordered list of feature column names for pitching PT model."""
-    features: list[AnyFeature] = list(build_pitching_pt_features(lags))
-    features.extend(build_pitching_pt_derived_transforms(lags))
-    return [c for c in _collect_feature_names(features) if c not in _EXCLUDED_COLUMNS]
+    features: list[AnyFeature] = list(build_pitching_pt_features(lags, pt_systems))
+    features.extend(build_pitching_pt_derived_transforms(lags, pt_systems))
+    excluded = _excluded_columns(pt_systems)
+    return [c for c in _collect_feature_names(features) if c not in excluded]

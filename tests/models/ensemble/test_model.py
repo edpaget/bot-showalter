@@ -552,6 +552,35 @@ class TestEnsembleConsensusPT:
         expected_avg = (0.280 * 0.6 + 0.260 * 0.4) / (0.6 + 0.4)
         assert pred["avg"] == pytest.approx(expected_avg)
 
+    def test_consensus_pt_three_systems(self) -> None:
+        """Consensus PT with 3 systems averages all three."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.260, "pa": 500.0}),
+                # Three consensus sources
+                _make_projection(1, "steamer", "batter", {"pa": 600.0}),
+                _make_projection(1, "zips", "batter", {"pa": 500.0}),
+                _make_projection(1, "atc", "batter", {"pa": 400.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg"],
+                "pt_stat": "pa",
+                "playing_time": "consensus",
+                "consensus_systems": ["steamer", "zips", "atc"],
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # Consensus PA = avg(600, 500, 400) = 500
+        assert pred["pa"] == pytest.approx(500.0)
+
     def test_native_pt_mode_is_default(self) -> None:
         """When playing_time not specified, behavior unchanged (PT weight-averaged)."""
         repo = FakeProjectionRepo(

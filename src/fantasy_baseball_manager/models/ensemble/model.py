@@ -111,9 +111,11 @@ class EnsembleModel:
         # Build consensus PT lookup when requested
         consensus: ConsensusLookup | None = None
         if pt_mode == "consensus":
-            steamer_projs = self._projection_repo.get_by_season(season, system="steamer")
-            zips_projs = self._projection_repo.get_by_season(season, system="zips")
-            consensus = build_consensus_lookup(steamer_projs, zips_projs)
+            consensus_systems: Sequence[str] = params.get("consensus_systems", ["steamer", "zips"])
+            consensus_proj_lists = [
+                self._projection_repo.get_by_season(season, system=sys) for sys in consensus_systems
+            ]
+            consensus = build_consensus_lookup(*consensus_proj_lists)
 
         # Group by (player_id, player_type)
         grouped: dict[tuple[int, str], dict[str, Projection]] = defaultdict(dict)
