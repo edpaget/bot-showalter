@@ -8,7 +8,7 @@ The end state: a single `playing_time` config parameter (e.g., `playing_time=atc
 
 | Phase | Status |
 |-------|--------|
-| 1 — Configurable consensus systems | in progress |
+| 1 — Configurable consensus systems | done (2026-03-04) |
 | 2 — Any-system PT mode in ensemble and Marcel | not started |
 | 3 — Generalize PT model features | not started |
 | 4 — CLI and validation | not started |

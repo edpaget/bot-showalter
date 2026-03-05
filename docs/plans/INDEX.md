@@ -17,7 +17,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Roster Stint Preload](roster-stint-preload.md) | 2 | phase 1 done | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Playing Time Flexibility](playing-time-flexibility.md) | 4 | not started | none |
+| [Playing Time Flexibility](playing-time-flexibility.md) | 4 | phase 1 done | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 
 ## Completed Roadmaps
