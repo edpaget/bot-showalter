@@ -8,7 +8,7 @@ Unlock the experiment loop — residual analysis, marginal-value testing, correl
 |-------|--------|
 | 1 — Experimentable protocol | done (2026-03-05) |
 | 2 — Training backend abstraction | done (2026-03-05) |
-| 3 — Implement Experimentable for breakout-bust and playing-time | in progress |
+| 3 — Implement Experimentable for breakout-bust and playing-time | done (2026-03-05) |
 | 4 — Per-model experiment skills | not started |
 
 ## Phase 1: Experimentable protocol
