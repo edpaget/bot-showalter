@@ -202,6 +202,7 @@ from fantasy_baseball_manager.domain.positional_upgrade import (
 from fantasy_baseball_manager.domain.projection import (
     PlayerProjection,
     Projection,
+    PTSourceSummary,
     StatDistribution,
     SystemSummary,
 )
@@ -384,6 +385,7 @@ __all__ = [
     "ModelRunRecord",
     "Ok",
     "OutcomeLabel",
+    "PTSourceSummary",
     "PITCHING_COUNTING_STATS",
     "PITCHING_RATE_STATS",
     "PickGrade",

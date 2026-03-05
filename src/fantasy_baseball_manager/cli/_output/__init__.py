@@ -79,7 +79,11 @@ from fantasy_baseball_manager.cli._output._profile import (
     print_correlation_results,
     print_stability_result,
 )
-from fantasy_baseball_manager.cli._output._projections import print_player_projections, print_system_summaries
+from fantasy_baseball_manager.cli._output._projections import (
+    print_player_projections,
+    print_pt_sources,
+    print_system_summaries,
+)
 from fantasy_baseball_manager.cli._output._quick_eval import print_quick_eval_result
 from fantasy_baseball_manager.cli._output._reports import (
     print_adp_accuracy_report,
@@ -215,6 +219,7 @@ __all__ = [
     "print_pick_trade_evaluation",
     "print_pick_value_curve",
     "print_player_projections",
+    "print_pt_sources",
     "print_player_valuations",
     "print_coverage_matrix",
     "print_predict_result",

@@ -40,6 +40,14 @@ class PlayerProjection:
 
 
 @dataclass(frozen=True)
+class PTSourceSummary:
+    system: str
+    version: str
+    batter_count: int  # players with pa > 0
+    pitcher_count: int  # players with ip > 0
+
+
+@dataclass(frozen=True)
 class SystemSummary:
     system: str
     version: str

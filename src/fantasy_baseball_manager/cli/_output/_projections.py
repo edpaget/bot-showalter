@@ -5,7 +5,7 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._output._common import console
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import PlayerProjection, SystemSummary
+    from fantasy_baseball_manager.domain import PlayerProjection, PTSourceSummary, SystemSummary
 
 _METADATA_KEYS = {"_components", "_mode", "_pt_system", "rates"}
 
@@ -60,4 +60,19 @@ def print_system_summaries(summaries: list[SystemSummary]) -> None:
     for s in summaries:
         total = s.batter_count + s.pitcher_count
         table.add_row(s.system, s.version, s.source_type, str(s.batter_count), str(s.pitcher_count), str(total))
+    console.print(table)
+
+
+def print_pt_sources(sources: list[PTSourceSummary]) -> None:
+    """Print a table of available playing-time projection sources."""
+    if not sources:
+        console.print("No PT sources found for this season.")
+        return
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("System")
+    table.add_column("Version")
+    table.add_column("Batters (PA)", justify="right")
+    table.add_column("Pitchers (IP)", justify="right")
+    for s in sources:
+        table.add_row(s.system, s.version, str(s.batter_count), str(s.pitcher_count))
     console.print(table)

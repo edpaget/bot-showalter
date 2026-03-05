@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import PlayerProjection, SystemSummary
+from fantasy_baseball_manager.domain import PlayerProjection, PTSourceSummary, SystemSummary
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import PlayerRepo, ProjectionRepo
@@ -68,3 +68,26 @@ class ProjectionLookupService:
             for (system, version, source_type), counts in sorted(groups.items())
         ]
         return summaries
+
+    def list_pt_sources(self, season: int) -> list[PTSourceSummary]:
+        projections = self._projection_repo.get_by_season(season)
+
+        groups: defaultdict[tuple[str, str], dict[str, int]] = defaultdict(lambda: {"batter": 0, "pitcher": 0})
+        for proj in projections:
+            pa = proj.stat_json.get("pa", 0)
+            ip = proj.stat_json.get("ip", 0)
+            if pa > 0:
+                groups[(proj.system, proj.version)]["batter"] += 1
+            if ip > 0:
+                groups[(proj.system, proj.version)]["pitcher"] += 1
+
+        return [
+            PTSourceSummary(
+                system=system,
+                version=version,
+                batter_count=counts["batter"],
+                pitcher_count=counts["pitcher"],
+            )
+            for (system, version), counts in sorted(groups.items())
+            if counts["batter"] > 0 or counts["pitcher"] > 0
+        ]

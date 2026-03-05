@@ -55,6 +55,17 @@ _DryRunOpt = Annotated[bool, typer.Option("--dry-run", help="Show routing table 
 _CheckOpt = Annotated[bool, typer.Option("--check", help="Error on uncovered league-required stats")]
 _InjuryAdjustedOpt = Annotated[bool, typer.Option("--injury-adjusted", help="Apply injury risk discount")]
 _SeasonsBackOpt = Annotated[int, typer.Option("--seasons-back", help="Lookback window for injury data")]
+_PlayingTimeOpt = Annotated[
+    str | None,
+    typer.Option(
+        "--playing-time",
+        help="Playing time source: 'native', 'consensus', 'consensus:sys1,sys2,...', or a system name",
+    ),
+]
+_PTSystemsOpt = Annotated[
+    list[str] | None,
+    typer.Option("--pt-systems", help="PT model feature systems (repeatable)"),
+]
 
 
 def _run_action(
@@ -100,10 +111,14 @@ def train(  # pragma: no cover
     version: _VersionOpt = None,
     tag: _TagOpt = None,
     param: _ParamOpt = None,
+    pt_systems: _PTSystemsOpt = None,
 ) -> None:
     """Train a projection model."""
     tags = parse_tags(tag)
     params = parse_params(param)
+    if pt_systems is not None:
+        params = params or {}
+        params["pt_systems"] = pt_systems
     config = load_config(
         model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
     )
@@ -147,10 +162,16 @@ def predict(  # pragma: no cover
     check: _CheckOpt = False,
     injury_adjusted: _InjuryAdjustedOpt = False,
     seasons_back: _SeasonsBackOpt = 5,
+    playing_time: _PlayingTimeOpt = None,
+    pt_systems: _PTSystemsOpt = None,
 ) -> None:
     """Generate predictions from a projection model."""
     tags = parse_tags(tag)
     params = parse_params(param) or {}
+    if playing_time is not None:
+        params["playing_time"] = playing_time
+    if pt_systems is not None:
+        params["pt_systems"] = pt_systems
     if "league" in params and isinstance(params["league"], str):
         params["league"] = load_league(params["league"], Path.cwd())
     if dry_run:
@@ -228,10 +249,21 @@ def finetune(model: _ModelArg, output_dir: _OutputDirOpt = None, season: _Season
 
 
 def ablate(  # pragma: no cover
-    model: _ModelArg, output_dir: _OutputDirOpt = None, season: _SeasonOpt = None, param: _ParamOpt = None
+    model: _ModelArg,
+    output_dir: _OutputDirOpt = None,
+    season: _SeasonOpt = None,
+    param: _ParamOpt = None,
+    playing_time: _PlayingTimeOpt = None,
+    pt_systems: _PTSystemsOpt = None,
 ) -> None:
     """Run ablation study on a projection model."""
     params = parse_params(param)
+    if playing_time is not None or pt_systems is not None:
+        params = params or {}
+        if playing_time is not None:
+            params["playing_time"] = playing_time
+        if pt_systems is not None:
+            params["pt_systems"] = pt_systems
     config = load_config(model_name=model, output_dir=output_dir, seasons=season, model_params=params)
     with build_model_context(model, config) as ctx:
         match dispatch("ablate", ctx.model, config):

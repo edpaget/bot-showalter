@@ -131,3 +131,48 @@ class TestListSystems:
         assert len(summaries) == 2
         versions = {s.version for s in summaries}
         assert versions == {"2025.1", "2025.2"}
+
+
+class TestListPTSources:
+    def test_returns_systems_with_pa(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
+        _seed_projection(conn, pid, system="steamer", stat_json={"pa": 600, "hr": 30})
+        svc = _make_service(conn)
+
+        sources = svc.list_pt_sources(2025)
+        assert len(sources) == 1
+        assert sources[0].system == "steamer"
+        assert sources[0].batter_count == 1
+
+    def test_excludes_systems_without_pa_ip(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
+        _seed_projection(conn, pid, system="steamer", stat_json={"hr": 30, "avg": 0.280})
+        svc = _make_service(conn)
+
+        sources = svc.list_pt_sources(2025)
+        assert sources == []
+
+    def test_counts_batters_and_pitchers(self, conn: sqlite3.Connection) -> None:
+        pid1 = seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
+        pid2 = seed_player(conn, name_first="Gerrit", name_last="Cole", mlbam_id=543037)
+        _seed_projection(conn, pid1, system="steamer", player_type="batter", stat_json={"pa": 600})
+        _seed_projection(conn, pid2, system="steamer", player_type="pitcher", stat_json={"ip": 180})
+        svc = _make_service(conn)
+
+        sources = svc.list_pt_sources(2025)
+        assert len(sources) == 1
+        assert sources[0].batter_count == 1
+        assert sources[0].pitcher_count == 1
+
+    def test_empty_season(self, conn: sqlite3.Connection) -> None:
+        svc = _make_service(conn)
+        sources = svc.list_pt_sources(2025)
+        assert sources == []
+
+    def test_zero_pa_excluded(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
+        _seed_projection(conn, pid, system="steamer", stat_json={"pa": 0, "hr": 30})
+        svc = _make_service(conn)
+
+        sources = svc.list_pt_sources(2025)
+        assert sources == []
