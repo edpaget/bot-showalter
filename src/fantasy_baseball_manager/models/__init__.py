@@ -1,4 +1,5 @@
 from fantasy_baseball_manager.models import (
+    breakout_bust,  # noqa: F401
     composite,  # noqa: F401
     ensemble,  # noqa: F401
     marcel,  # noqa: F401

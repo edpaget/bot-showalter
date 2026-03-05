@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 
@@ -25,3 +25,15 @@ class LabeledSeason:
     actual_value_rank: int
     rank_delta: int
     label: OutcomeLabel
+
+
+@dataclass(frozen=True)
+class BreakoutPrediction:
+    player_id: int
+    player_name: str
+    player_type: str
+    position: str
+    p_breakout: float
+    p_bust: float
+    p_neutral: float
+    top_features: list[tuple[str, float]] = field(default_factory=list)

@@ -9,6 +9,7 @@ from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverADPReport
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.breakout_bust import (
+    BreakoutPrediction,
     LabelConfig,
     LabeledSeason,
     OutcomeLabel,
@@ -250,6 +251,7 @@ from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 __all__ = [
     "ADP",
     "AdjustedValuation",
+    "BreakoutPrediction",
     "LabelConfig",
     "LabeledSeason",
     "ADPAccuracyPlayer",

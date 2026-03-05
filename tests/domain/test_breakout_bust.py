@@ -1,6 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.domain.breakout_bust import (
+    BreakoutPrediction,
     LabelConfig,
     LabeledSeason,
     OutcomeLabel,
@@ -73,3 +74,39 @@ class TestLabeledSeason:
         )
         with pytest.raises(AttributeError):
             ls.label = OutcomeLabel.BUST  # type: ignore[misc]
+
+
+class TestBreakoutPrediction:
+    def test_fields(self) -> None:
+        pred = BreakoutPrediction(
+            player_id=42,
+            player_name="Mike Trout",
+            player_type="batter",
+            position="OF",
+            p_breakout=0.6,
+            p_bust=0.1,
+            p_neutral=0.3,
+            top_features=[("age", 0.25), ("avg_exit_velo", 0.15)],
+        )
+        assert pred.player_id == 42
+        assert pred.player_name == "Mike Trout"
+        assert pred.player_type == "batter"
+        assert pred.position == "OF"
+        assert pred.p_breakout == 0.6
+        assert pred.p_bust == 0.1
+        assert pred.p_neutral == 0.3
+        assert pred.top_features == [("age", 0.25), ("avg_exit_velo", 0.15)]
+
+    def test_frozen(self) -> None:
+        pred = BreakoutPrediction(
+            player_id=42,
+            player_name="Mike Trout",
+            player_type="batter",
+            position="OF",
+            p_breakout=0.6,
+            p_bust=0.1,
+            p_neutral=0.3,
+            top_features=[],
+        )
+        with pytest.raises(AttributeError):
+            pred.p_breakout = 0.9  # type: ignore[misc]
