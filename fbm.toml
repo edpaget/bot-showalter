@@ -3,20 +3,20 @@ data_dir = "./data"
 artifacts_dir = "./artifacts"
 
 [models.ensemble.params]
-season = 2025
+season = 2026
 fallback = "steamer"
 
 [models.ensemble.params.components]
 steamer = 1.0
-"statcast-gbm" = 1.0
+"statcast-gbm-preseason" = 1.0
 
 [models.ensemble.params.route_groups]
 league_required = "steamer"
-batting_rate = "statcast-gbm"
-pitching_rate = "statcast-gbm"
+batting_rate = "statcast-gbm-preseason"
+pitching_rate = "statcast-gbm-preseason"
 
 [models.ensemble.params.versions]
-"statcast-gbm" = "latest"
+"statcast-gbm-preseason" = "latest"
 
 # --- Sample routed ensemble configs ---
 
