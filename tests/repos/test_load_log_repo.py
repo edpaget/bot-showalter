@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 
@@ -9,7 +10,7 @@ if TYPE_CHECKING:
 
 class TestSqliteLoadLogRepo:
     def test_insert_and_get_recent(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLoadLogRepo(conn)
+        repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         log = LoadLog(
             source_type="pybaseball",
             source_detail="fg_batting_data",
@@ -27,7 +28,7 @@ class TestSqliteLoadLogRepo:
         assert results[0].id == log_id
 
     def test_get_recent_ordered_by_id_desc(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLoadLogRepo(conn)
+        repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         repo.insert(
             LoadLog(
                 source_type="pybaseball",
@@ -55,7 +56,7 @@ class TestSqliteLoadLogRepo:
         assert results[1].source_detail == "first"
 
     def test_get_recent_respects_limit(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLoadLogRepo(conn)
+        repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         for i in range(5):
             repo.insert(
                 LoadLog(
@@ -72,7 +73,7 @@ class TestSqliteLoadLogRepo:
         assert len(results) == 3
 
     def test_get_by_target_table(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLoadLogRepo(conn)
+        repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         repo.insert(
             LoadLog(
                 source_type="pybaseball",
@@ -100,7 +101,7 @@ class TestSqliteLoadLogRepo:
         assert results[0].target_table == "batting_stats"
 
     def test_insert_with_error_message(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLoadLogRepo(conn)
+        repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         repo.insert(
             LoadLog(
                 source_type="csv",

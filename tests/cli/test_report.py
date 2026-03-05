@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -31,8 +32,8 @@ def _seed_report_data(
         "INSERT OR IGNORE INTO player (id, name_first, name_last, birth_date, bats) "
         "VALUES (2, 'Aaron', 'Judge', '1992-04-26', 'R')"
     )
-    proj_repo = SqliteProjectionRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
+    batting_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
     proj_repo.upsert(
         Projection(
             player_id=1,

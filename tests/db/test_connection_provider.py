@@ -2,9 +2,9 @@ import sqlite3
 
 from fantasy_baseball_manager.db.pool import (
     ConnectionPool,
-    ConnectionProvider,
     SingleConnectionProvider,
 )
+from fantasy_baseball_manager.repos.protocols import ConnectionProvider
 
 
 class TestConnectionProviderProtocol:

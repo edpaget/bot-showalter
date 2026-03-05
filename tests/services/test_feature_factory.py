@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import Err, Ok
 from fantasy_baseball_manager.domain.feature_candidate import BinnedValue, CandidateValue, FeatureCandidate
@@ -387,7 +388,7 @@ class TestResolveFeature:
         return create_connection(":memory:")
 
     def test_resolves_named_candidate(self, statcast_conn: sqlite3.Connection, fbm_conn: sqlite3.Connection) -> None:
-        repo = SqliteFeatureCandidateRepo(fbm_conn)
+        repo = SqliteFeatureCandidateRepo(SingleConnectionProvider(fbm_conn))
         repo.save(
             FeatureCandidate(
                 name="avg_ev",
@@ -406,14 +407,14 @@ class TestResolveFeature:
         assert batter_100[0].value is not None
 
     def test_falls_back_to_expression(self, statcast_conn: sqlite3.Connection, fbm_conn: sqlite3.Connection) -> None:
-        repo = SqliteFeatureCandidateRepo(fbm_conn)
+        repo = SqliteFeatureCandidateRepo(SingleConnectionProvider(fbm_conn))
         result = resolve_feature("AVG(launch_speed)", statcast_conn, repo, [2023], "batter")
         assert len(result) > 0
 
     def test_named_candidate_uses_stored_min_pa(
         self, statcast_conn: sqlite3.Connection, fbm_conn: sqlite3.Connection
     ) -> None:
-        repo = SqliteFeatureCandidateRepo(fbm_conn)
+        repo = SqliteFeatureCandidateRepo(SingleConnectionProvider(fbm_conn))
         repo.save(
             FeatureCandidate(
                 name="strict_ev",

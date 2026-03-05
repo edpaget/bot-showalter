@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import FeatureContext
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import FeatureCandidate
 from fantasy_baseball_manager.repos.feature_candidate_repo import (
@@ -49,8 +50,8 @@ def _build_test_feature_context(
     yield FeatureContext(
         statcast_conn=statcast_conn,
         fbm_conn=fbm_conn,
-        candidate_repo=SqliteFeatureCandidateRepo(fbm_conn),
-        scanner=CorrelationScanner(statcast_conn, fbm_conn),
+        candidate_repo=SqliteFeatureCandidateRepo(SingleConnectionProvider(fbm_conn)),
+        scanner=CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(fbm_conn)),
     )
 
 
@@ -134,7 +135,7 @@ class TestFeatureCandidateCommand:
         assert "avg_ev" in result.output
 
         # Verify it was saved
-        repo = SqliteFeatureCandidateRepo(fbm_conn)
+        repo = SqliteFeatureCandidateRepo(SingleConnectionProvider(fbm_conn))
         saved = repo.get_by_name("avg_ev")
         assert saved is not None
         assert saved.expression == "AVG(launch_speed)"
@@ -221,7 +222,7 @@ class TestFeatureInteractCommand:
         statcast_conn = create_statcast_connection(":memory:")
         _seed_statcast(statcast_conn)
         fbm_conn = create_connection(":memory:")
-        repo = SqliteFeatureCandidateRepo(fbm_conn)
+        repo = SqliteFeatureCandidateRepo(SingleConnectionProvider(fbm_conn))
         repo.save(
             FeatureCandidate(
                 name="avg_ev",

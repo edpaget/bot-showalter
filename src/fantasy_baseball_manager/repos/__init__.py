@@ -25,6 +25,7 @@ from fantasy_baseball_manager.repos.protocols import (
     ADPRepo,
     BattingStatsRepo,
     CheckpointRepo,
+    ConnectionProvider,
     ExperimentRepo,
     FeatureCandidateRepo,
     ILStintRepo,
@@ -75,6 +76,7 @@ from fantasy_baseball_manager.repos.yahoo_transaction_repo import (
 __all__ = [
     "ADPRepo",
     "CheckpointRepo",
+    "ConnectionProvider",
     "DuplicateCheckpointError",
     "SqliteCheckpointRepo",
     "BattingStatsRepo",

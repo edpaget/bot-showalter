@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from tests.helpers import seed_player
@@ -29,7 +30,7 @@ def _make_valuation(player_id: int, **overrides: object) -> Valuation:
 class TestSqliteValuationRepo:
     def test_upsert_and_get_by_player_season(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
-        repo = SqliteValuationRepo(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         val = _make_valuation(player_id)
         repo.upsert(val)
         results = repo.get_by_player_season(player_id, 2025)
@@ -43,7 +44,7 @@ class TestSqliteValuationRepo:
 
     def test_upsert_updates_existing(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
-        repo = SqliteValuationRepo(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_valuation(player_id, value=30.0, rank=6))
         repo.upsert(_make_valuation(player_id, value=35.0, rank=3))
         results = repo.get_by_player_season(player_id, 2025)
@@ -53,7 +54,7 @@ class TestSqliteValuationRepo:
 
     def test_get_by_player_season_with_system(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
-        repo = SqliteValuationRepo(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_valuation(player_id, system="zar", version="v1"))
         repo.upsert(_make_valuation(player_id, system="other", version="v1"))
         results = repo.get_by_player_season(player_id, 2025, system="zar")
@@ -62,7 +63,7 @@ class TestSqliteValuationRepo:
 
     def test_get_by_season(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
-        repo = SqliteValuationRepo(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_valuation(player_id, season=2025))
         repo.upsert(_make_valuation(player_id, season=2024, version="2024.1"))
         results = repo.get_by_season(2025)
@@ -71,7 +72,7 @@ class TestSqliteValuationRepo:
 
     def test_get_by_season_with_system(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
-        repo = SqliteValuationRepo(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_valuation(player_id, system="zar", version="v1"))
         repo.upsert(_make_valuation(player_id, system="other", version="v1"))
         results = repo.get_by_season(2025, system="zar")
@@ -80,7 +81,7 @@ class TestSqliteValuationRepo:
 
     def test_category_scores_round_trip(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
-        repo = SqliteValuationRepo(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         scores = {"hr": 2.1, "r": 1.5, "rbi": 0.8, "sb": -0.3, "avg": 1.1}
         repo.upsert(_make_valuation(player_id, category_scores=scores))
         results = repo.get_by_player_season(player_id, 2025)
@@ -88,13 +89,13 @@ class TestSqliteValuationRepo:
 
     def test_get_empty_results(self, conn: sqlite3.Connection) -> None:
         seed_player(conn)
-        repo = SqliteValuationRepo(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         assert repo.get_by_player_season(999, 2025) == []
         assert repo.get_by_season(2099) == []
 
     def test_multiple_player_types(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
-        repo = SqliteValuationRepo(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_valuation(player_id, player_type="batter", position="OF"))
         repo.upsert(_make_valuation(player_id, player_type="pitcher", position="SP"))
         results = repo.get_by_player_season(player_id, 2025)

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.level_factor import LevelFactor
 from fantasy_baseball_manager.repos.level_factor_repo import SqliteLevelFactorRepo
 
@@ -9,7 +10,7 @@ if TYPE_CHECKING:
 
 class TestLevelFactorRepo:
     def test_get_by_level_season(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLevelFactorRepo(conn)
+        repo = SqliteLevelFactorRepo(SingleConnectionProvider(conn))
 
         result = repo.get_by_level_season("AAA", 2024)
         assert result is not None
@@ -22,7 +23,7 @@ class TestLevelFactorRepo:
         assert result.babip_factor == 0.95
 
     def test_get_by_season(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLevelFactorRepo(conn)
+        repo = SqliteLevelFactorRepo(SingleConnectionProvider(conn))
 
         results = repo.get_by_season(2024)
         assert len(results) == 5
@@ -30,7 +31,7 @@ class TestLevelFactorRepo:
         assert levels == {"AAA", "AA", "A+", "A", "ROK"}
 
     def test_level_factors_ordered_correctly(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLevelFactorRepo(conn)
+        repo = SqliteLevelFactorRepo(SingleConnectionProvider(conn))
 
         results = repo.get_by_season(2024)
         factors_by_level = {r.level: r.factor for r in results}
@@ -40,7 +41,7 @@ class TestLevelFactorRepo:
         assert factors_by_level["A"] > factors_by_level["ROK"]
 
     def test_component_factors_differ(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLevelFactorRepo(conn)
+        repo = SqliteLevelFactorRepo(SingleConnectionProvider(conn))
 
         result = repo.get_by_level_season("AAA", 2024)
         assert result is not None
@@ -48,7 +49,7 @@ class TestLevelFactorRepo:
         assert len(components) == 4
 
     def test_upsert_and_retrieve(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLevelFactorRepo(conn)
+        repo = SqliteLevelFactorRepo(SingleConnectionProvider(conn))
 
         custom = LevelFactor(
             level="AAA",
@@ -68,7 +69,7 @@ class TestLevelFactorRepo:
         assert result.k_factor == 1.12
 
     def test_seed_data_exists_for_all_seasons(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLevelFactorRepo(conn)
+        repo = SqliteLevelFactorRepo(SingleConnectionProvider(conn))
 
         for season in (2022, 2023, 2024):
             results = repo.get_by_season(season)

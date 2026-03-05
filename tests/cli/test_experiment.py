@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
 
@@ -74,7 +75,7 @@ class TestExperimentLogCommand:
         assert "Logged experiment #" in result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         experiments = repo.list()
         assert len(experiments) == 1
         exp = experiments[0]
@@ -123,7 +124,7 @@ class TestExperimentLogCommand:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         exp = repo.list()[0]
         assert exp.tags == ["alpha", "beta", "gamma"]
         verify_conn.close()
@@ -160,7 +161,7 @@ class TestExperimentLogCommand:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         exp = repo.list()[0]
         assert exp.feature_diff == {"added": ["col1", "col2"], "removed": ["col3"]}
         verify_conn.close()
@@ -170,7 +171,7 @@ class TestExperimentLogCommand:
 
         # Create a parent experiment first
         seed_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(seed_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(seed_conn))
         parent_id = repo.save(
             Experiment(
                 timestamp="2026-03-01T00:00:00",
@@ -218,7 +219,7 @@ class TestExperimentLogCommand:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        verify_repo = SqliteExperimentRepo(verify_conn)
+        verify_repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         experiments = verify_repo.list()
         child = next(e for e in experiments if e.hypothesis == "child")
         assert child.parent_id == parent_id
@@ -293,7 +294,7 @@ class TestExperimentLogCommand:
 def _seed_experiments(db_path: Path) -> None:
     """Seed the DB with sample experiments for search/summary/show tests."""
     conn = create_connection(db_path)
-    repo = SqliteExperimentRepo(conn)
+    repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
     repo.save(
         Experiment(
             timestamp="2026-03-01T10:00:00",

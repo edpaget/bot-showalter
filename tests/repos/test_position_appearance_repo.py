@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from tests.helpers import seed_player
@@ -6,7 +7,7 @@ from tests.helpers import seed_player
 class TestSqlitePositionAppearanceRepo:
     def test_upsert_and_get_by_player_season(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqlitePositionAppearanceRepo(conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
         pa = PositionAppearance(
             player_id=player_id,
             season=2024,
@@ -27,7 +28,7 @@ class TestSqlitePositionAppearanceRepo:
 
     def test_upsert_idempotency(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqlitePositionAppearanceRepo(conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
         repo.upsert(
             PositionAppearance(
                 player_id=player_id,
@@ -52,7 +53,7 @@ class TestSqlitePositionAppearanceRepo:
 
     def test_multiple_positions_same_season(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqlitePositionAppearanceRepo(conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
         repo.upsert(
             PositionAppearance(
                 player_id=player_id,
@@ -77,7 +78,7 @@ class TestSqlitePositionAppearanceRepo:
 
     def test_get_by_player_returns_all_seasons(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqlitePositionAppearanceRepo(conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
         repo.upsert(
             PositionAppearance(
                 player_id=player_id,
@@ -103,7 +104,7 @@ class TestSqlitePositionAppearanceRepo:
     def test_get_by_season(self, conn) -> None:
         p1 = seed_player(conn, mlbam_id=545361)
         p2 = seed_player(conn, mlbam_id=660271)
-        repo = SqlitePositionAppearanceRepo(conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
         repo.upsert(PositionAppearance(player_id=p1, season=2024, position="CF", games=120))
         repo.upsert(PositionAppearance(player_id=p2, season=2024, position="SS", games=140))
         repo.upsert(PositionAppearance(player_id=p1, season=2023, position="CF", games=100))
@@ -117,7 +118,7 @@ class TestSqlitePositionAppearanceRepo:
 
     def test_get_by_player_empty(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqlitePositionAppearanceRepo(conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
 
         results = repo.get_by_player(player_id)
         assert results == []

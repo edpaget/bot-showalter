@@ -1,6 +1,7 @@
 import datetime
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import Transaction, TransactionPlayer, YahooLeague
 from fantasy_baseball_manager.repos import (
     SqliteYahooLeagueRepo,
@@ -97,8 +98,8 @@ class FakeTransactionSource:
 
 class TestSyncLeagueMetadata:
     def test_upserts_league_and_teams(self, conn: sqlite3.Connection) -> None:
-        league_repo = SqliteYahooLeagueRepo(conn)
-        team_repo = SqliteYahooTeamRepo(conn)
+        league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         source = YahooLeagueSource(FakeLeagueClient())  # type: ignore[arg-type]
         result = sync_league_metadata(
             league_source=source,
@@ -120,8 +121,8 @@ class TestSyncLeagueMetadata:
         assert teams[0].name == "Team A"
 
     def test_returns_league_object(self, conn: sqlite3.Connection) -> None:
-        league_repo = SqliteYahooLeagueRepo(conn)
-        team_repo = SqliteYahooTeamRepo(conn)
+        league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         source = YahooLeagueSource(FakeLeagueClient())  # type: ignore[arg-type]
         league = sync_league_metadata(
             league_source=source,
@@ -138,7 +139,7 @@ class TestSyncLeagueMetadata:
 
 class TestSyncTransactions:
     def test_upserts_new_transactions(self, conn: sqlite3.Connection) -> None:
-        txn_repo = SqliteYahooTransactionRepo(conn)
+        txn_repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         txn = Transaction(
             transaction_key="txn_1",
             league_key="449.l.100",
@@ -170,7 +171,7 @@ class TestSyncTransactions:
         assert stored[0].transaction_key == "txn_1"
 
     def test_incremental_fetch_uses_latest_timestamp(self, conn: sqlite3.Connection) -> None:
-        txn_repo = SqliteYahooTransactionRepo(conn)
+        txn_repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
 
         # Seed an existing transaction
         existing = Transaction(

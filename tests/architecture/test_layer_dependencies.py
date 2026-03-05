@@ -102,7 +102,9 @@ FORBIDDEN_IMPORTS: dict[str, set[str]] = {
     },
 }
 
-KNOWN_EXCEPTIONS: dict[str, set[str]] = {}
+KNOWN_EXCEPTIONS: dict[str, set[str]] = {
+    "features/assembler.py": {"fantasy_baseball_manager.repos"},
+}
 
 # Repo sub-modules that services and models are allowed to import.
 _ALLOWED_REPO_MODULES = {"protocols", "errors"}

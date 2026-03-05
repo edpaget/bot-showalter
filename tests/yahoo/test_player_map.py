@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -12,8 +13,8 @@ if TYPE_CHECKING:
 
 class TestExactLookup:
     def test_returns_existing_mapping(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
 
         map_repo.upsert(
@@ -44,8 +45,8 @@ class TestExactLookup:
 
 class TestMLBAMFallback:
     def test_resolves_via_mlbam_id(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
@@ -71,8 +72,8 @@ class TestMLBAMFallback:
 
 class TestNameFallback:
     def test_resolves_via_name_search(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
@@ -93,8 +94,8 @@ class TestNameFallback:
         assert persisted is not None
 
     def test_resolves_last_name_only(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
@@ -113,8 +114,8 @@ class TestNameFallback:
 
 class TestTwoWayPlayer:
     def test_two_yahoo_keys_map_to_same_player(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271))
         conn.commit()
 
@@ -151,8 +152,8 @@ class TestNameNormalizationFallback:
     """Name search resolves players whose Yahoo name includes suffixes, parentheticals, or accents."""
 
     def test_resolves_jr_suffix(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Bobby", name_last="Witt", mlbam_id=677951))
         conn.commit()
 
@@ -162,8 +163,8 @@ class TestNameNormalizationFallback:
         assert result.player_id == player_id
 
     def test_resolves_parenthetical_batter(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271))
         conn.commit()
 
@@ -175,8 +176,8 @@ class TestNameNormalizationFallback:
         assert result.player_id == player_id
 
     def test_resolves_roman_numeral_suffix(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Michael", name_last="Harris", mlbam_id=671739))
         conn.commit()
 
@@ -188,8 +189,8 @@ class TestNameNormalizationFallback:
         assert result.player_id == player_id
 
     def test_resolves_initial_dots(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="JD", name_last="Martinez", mlbam_id=502110))
         conn.commit()
 
@@ -199,8 +200,8 @@ class TestNameNormalizationFallback:
         assert result.player_id == player_id
 
     def test_resolves_accent_characters(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Ronald", name_last="Acuna", mlbam_id=660670))
         conn.commit()
 
@@ -210,8 +211,8 @@ class TestNameNormalizationFallback:
         assert result.player_id == player_id
 
     def test_mlbam_still_takes_priority(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Bobby", name_last="Witt", mlbam_id=677951))
         conn.commit()
 
@@ -230,8 +231,8 @@ class TestNameNormalizationFallback:
 
 class TestMultiWordLastName:
     def test_resolves_multi_word_last_name(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Elly", name_last="De La Cruz", mlbam_id=682829))
         conn.commit()
 
@@ -243,8 +244,8 @@ class TestMultiWordLastName:
         assert result.player_id == player_id
 
     def test_resolves_two_part_last_name(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Scott", name_last="Van Horn", mlbam_id=700001))
         conn.commit()
 
@@ -256,8 +257,8 @@ class TestMultiWordLastName:
 
 class TestAccentedNameInDB:
     def test_resolves_accented_last_name_in_db(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Julio", name_last="Rodríguez", mlbam_id=677594))
         conn.commit()
 
@@ -267,8 +268,8 @@ class TestAccentedNameInDB:
         assert result.player_id == player_id
 
     def test_resolves_accented_multi_word_last_name(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Jose", name_last="De León", mlbam_id=700002))
         conn.commit()
 
@@ -280,8 +281,8 @@ class TestAccentedNameInDB:
 
 class TestUnresolved:
     def test_returns_none_and_logs_warning(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
 
         result = mapper.resolve(

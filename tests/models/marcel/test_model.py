@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
@@ -60,14 +61,14 @@ class TestMarcelModel:
 
 class TestMarcelPrepare:
     def test_prepare_returns_result_with_row_count(self, seeded_conn: sqlite3.Connection) -> None:
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         config = ModelConfig(seasons=[2023])
         result = MarcelModel(assembler=assembler).prepare(config)
         assert result.model_name == "marcel"
         assert result.rows_processed > 0
 
     def test_prepare_uses_feature_dsl(self, seeded_conn: sqlite3.Connection) -> None:
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         config = ModelConfig(seasons=[2022, 2023])
         result = MarcelModel(assembler=assembler).prepare(config)
         assert result.rows_processed > 0
@@ -75,7 +76,7 @@ class TestMarcelPrepare:
 
     def test_prepare_idempotent(self, seeded_conn: sqlite3.Connection) -> None:
         """Calling prepare twice with same config returns cached result."""
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         config = ModelConfig(seasons=[2023])
         model = MarcelModel(assembler=assembler)
         result1 = model.prepare(config)

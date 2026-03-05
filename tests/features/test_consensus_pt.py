@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.consensus_pt import (
     batting_consensus_features,
@@ -184,7 +185,7 @@ class TestBattingConsensusAssembler:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}
@@ -224,7 +225,7 @@ class TestBattingConsensusAssembler:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}
@@ -267,7 +268,7 @@ class TestPitchingConsensusAssembler:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="pitcher"),
         )
-        assembler = SqliteDatasetAssembler(conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}

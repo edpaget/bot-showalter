@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Team
 from fantasy_baseball_manager.domain.roster_stint import RosterStint
 from fantasy_baseball_manager.repos.player_repo import SqliteTeamRepo
@@ -6,7 +7,7 @@ from tests.helpers import seed_player
 
 
 def _seed_team(conn, *, abbreviation: str = "LAA") -> int:
-    repo = SqliteTeamRepo(conn)
+    repo = SqliteTeamRepo(SingleConnectionProvider(conn))
     return repo.upsert(Team(abbreviation=abbreviation, name="Los Angeles Angels", league="AL", division="W"))
 
 
@@ -14,7 +15,7 @@ class TestSqliteRosterStintRepo:
     def test_upsert_and_get_by_player_season(self, conn) -> None:
         player_id = seed_player(conn)
         team_id = _seed_team(conn)
-        repo = SqliteRosterStintRepo(conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
         stint = RosterStint(
             player_id=player_id,
             team_id=team_id,
@@ -36,7 +37,7 @@ class TestSqliteRosterStintRepo:
     def test_upsert_idempotency(self, conn) -> None:
         player_id = seed_player(conn)
         team_id = _seed_team(conn)
-        repo = SqliteRosterStintRepo(conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
         repo.upsert(
             RosterStint(
                 player_id=player_id,
@@ -63,7 +64,7 @@ class TestSqliteRosterStintRepo:
     def test_get_by_player_returns_all_seasons(self, conn) -> None:
         player_id = seed_player(conn)
         team_id = _seed_team(conn)
-        repo = SqliteRosterStintRepo(conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
         repo.upsert(
             RosterStint(
                 player_id=player_id,
@@ -90,7 +91,7 @@ class TestSqliteRosterStintRepo:
         p1 = seed_player(conn, mlbam_id=545361)
         p2 = seed_player(conn, mlbam_id=660271)
         team_id = _seed_team(conn)
-        repo = SqliteRosterStintRepo(conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
         repo.upsert(RosterStint(player_id=p1, team_id=team_id, season=2024, start_date="2024-03-28"))
         repo.upsert(RosterStint(player_id=p2, team_id=team_id, season=2024, start_date="2024-03-28"))
 
@@ -100,7 +101,7 @@ class TestSqliteRosterStintRepo:
     def test_get_by_season(self, conn) -> None:
         p1 = seed_player(conn, mlbam_id=545361)
         team_id = _seed_team(conn)
-        repo = SqliteRosterStintRepo(conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
         repo.upsert(RosterStint(player_id=p1, team_id=team_id, season=2024, start_date="2024-03-28"))
         repo.upsert(RosterStint(player_id=p1, team_id=team_id, season=2023, start_date="2023-03-30"))
 
@@ -112,7 +113,7 @@ class TestSqliteRosterStintRepo:
 
     def test_get_by_player_empty(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqliteRosterStintRepo(conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
 
         results = repo.get_by_player(player_id)
         assert results == []

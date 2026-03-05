@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 import statistics
 import warnings
@@ -21,8 +23,9 @@ from fantasy_baseball_manager.domain import (
 from fantasy_baseball_manager.models.composite.targets import BATTER_TARGETS, PITCHER_TARGETS
 
 if TYPE_CHECKING:
-    import sqlite3
     from collections.abc import Sequence
+
+    from fantasy_baseball_manager.repos import ConnectionProvider
 
 NUMERIC_COLUMNS: tuple[str, ...] = (
     "release_speed",
@@ -47,8 +50,8 @@ _VALID_PLAYER_TYPES = {"batter", "pitcher"}
 
 
 class StatcastColumnProfiler:
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self._conn = conn
+    def __init__(self, provider: ConnectionProvider) -> None:
+        self._provider = provider
 
     def profile_columns(
         self,
@@ -98,8 +101,9 @@ class StatcastColumnProfiler:
             WHERE CAST(SUBSTR(game_date, 1, 4) AS INTEGER) IN ({placeholders})
             GROUP BY {player_col}, season
         """  # noqa: S608
-        cursor = self._conn.execute(sql, list(seasons))
-        return cursor.fetchall()
+        with self._provider.connection() as conn:
+            cursor = conn.execute(sql, list(seasons))
+            return cursor.fetchall()
 
     @staticmethod
     def _compute_profile(
@@ -215,9 +219,9 @@ def _compute_correlation_pair(candidate: list[float], target: list[float]) -> tu
 class CorrelationScanner:
     """Compute correlations between statcast columns and model targets."""
 
-    def __init__(self, statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection) -> None:
-        self._sc = statcast_conn
-        self._st = stats_conn
+    def __init__(self, statcast_provider: ConnectionProvider, stats_provider: ConnectionProvider) -> None:
+        self._sc = statcast_provider
+        self._st = stats_provider
 
     def scan_target_correlations(
         self,
@@ -431,12 +435,14 @@ class CorrelationScanner:
                 HAVING val IS NOT NULL
             """  # noqa: S608
 
-        rows = self._sc.execute(sql, list(seasons)).fetchall()
+        with self._sc.connection() as sc:
+            rows = sc.execute(sql, list(seasons)).fetchall()
         return {(row[0], row[1]): float(row[2]) for row in rows}
 
     def _fetch_mlbam_to_player_id(self) -> dict[int, int]:
         """Map mlbam_id -> player.id from stats db."""
-        rows = self._st.execute("SELECT id, mlbam_id FROM player WHERE mlbam_id IS NOT NULL").fetchall()
+        with self._st.connection() as st:
+            rows = st.execute("SELECT id, mlbam_id FROM player WHERE mlbam_id IS NOT NULL").fetchall()
         return {row[1]: row[0] for row in rows}
 
     def _fetch_batter_targets(self, seasons: Sequence[int]) -> dict[tuple[int, int], dict[str, float]]:
@@ -448,7 +454,8 @@ class CorrelationScanner:
             WHERE source = 'fangraphs'
               AND season IN ({placeholders})
         """  # noqa: S608
-        rows = self._st.execute(sql, list(seasons)).fetchall()
+        with self._st.connection() as st:
+            rows = st.execute(sql, list(seasons)).fetchall()
         result: dict[tuple[int, int], dict[str, float]] = {}
         for row in rows:
             pid, season = row[0], row[1]
@@ -487,7 +494,8 @@ class CorrelationScanner:
             WHERE source = 'fangraphs'
               AND season IN ({placeholders})
         """  # noqa: S608
-        rows = self._st.execute(sql, list(seasons)).fetchall()
+        with self._st.connection() as st:
+            rows = st.execute(sql, list(seasons)).fetchall()
         result: dict[tuple[int, int], dict[str, float]] = {}
         for row in rows:
             pid, season = row[0], row[1]

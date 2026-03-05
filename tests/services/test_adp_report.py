@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
@@ -23,7 +24,7 @@ def _seed_valuation(
     value: float = 25.0,
     rank: int = 1,
 ) -> None:
-    repo = SqliteValuationRepo(conn)
+    repo = SqliteValuationRepo(SingleConnectionProvider(conn))
     repo.upsert(
         Valuation(
             player_id=player_id,
@@ -50,7 +51,7 @@ def _seed_adp(
     rank: int = 10,
     positions: str = "OF",
 ) -> None:
-    repo = SqliteADPRepo(conn)
+    repo = SqliteADPRepo(SingleConnectionProvider(conn))
     repo.upsert(
         ADP(
             player_id=player_id,
@@ -65,9 +66,9 @@ def _seed_adp(
 
 def _make_service(conn: sqlite3.Connection) -> ADPReportService:
     return ADPReportService(
-        SqlitePlayerRepo(conn),
-        SqliteValuationRepo(conn),
-        SqliteADPRepo(conn),
+        SqlitePlayerRepo(SingleConnectionProvider(conn)),
+        SqliteValuationRepo(SingleConnectionProvider(conn)),
+        SqliteADPRepo(SingleConnectionProvider(conn)),
     )
 
 

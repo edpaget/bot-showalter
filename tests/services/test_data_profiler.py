@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.services.data_profiler import NUMERIC_COLUMNS, StatcastColumnProfiler
 
@@ -62,7 +63,7 @@ class TestProfileColumnsBatter:
         _insert_pitches(statcast_conn, batter_id=4, pitcher_id=100, game_date="2023-06-01", launch_speeds=[95.0, 93.0])
         _insert_pitches(statcast_conn, batter_id=5, pitcher_id=100, game_date="2023-06-01", launch_speeds=[100.0, 98.0])
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["launch_speed"], [2023], "batter")
 
         assert len(results) == 1
@@ -90,7 +91,7 @@ class TestProfileColumnsBatter:
         # Batter 3: non-null
         _insert_pitches(statcast_conn, batter_id=3, pitcher_id=100, game_date="2023-06-01", launch_speeds=[88.0, 86.0])
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["launch_speed"], [2023], "batter")
 
         assert len(results) == 1
@@ -157,7 +158,7 @@ class TestProfileColumnsPitcher:
             release_speeds=[89.0],
         )
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["release_speed"], [2023], "pitcher")
 
         assert len(results) == 1
@@ -181,7 +182,7 @@ class TestProfileColumnsMultiSeason:
         _insert_pitches(statcast_conn, batter_id=1, pitcher_id=100, game_date="2024-06-01", launch_speeds=[88.0])
         _insert_pitches(statcast_conn, batter_id=2, pitcher_id=100, game_date="2024-06-01", launch_speeds=[92.0])
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["launch_speed"], [2023, 2024], "batter")
 
         assert len(results) == 2
@@ -215,7 +216,7 @@ class TestProfileColumnsMultiColumn:
             release_speeds=[92.0],
         )
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["launch_speed", "release_speed"], [2023], "batter")
 
         assert len(results) == 2
@@ -230,12 +231,12 @@ class TestProfileColumnsValidation:
     """Test column name validation."""
 
     def test_invalid_column_raises_value_error(self, statcast_conn: sqlite3.Connection) -> None:
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         with pytest.raises(ValueError, match="not_a_column"):
             profiler.profile_columns(["not_a_column"], [2023], "batter")
 
     def test_invalid_player_type_raises_value_error(self, statcast_conn: sqlite3.Connection) -> None:
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         with pytest.raises(ValueError, match="player_type"):
             profiler.profile_columns(["launch_speed"], [2023], "catcher")
 
@@ -254,7 +255,7 @@ class TestProfileColumnsSkewness:
                 launch_speeds=[80.0 + i * 5.0],
             )
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["launch_speed"], [2023], "batter")
 
         profile = results[0]
@@ -272,7 +273,7 @@ class TestProfileColumnsSkewness:
                 launch_speeds=[val],
             )
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["launch_speed"], [2023], "batter")
 
         profile = results[0]
@@ -288,7 +289,7 @@ class TestProfileColumnsSkewness:
             launch_speeds=[90.0],
         )
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["launch_speed"], [2023], "batter")
 
         profile = results[0]
@@ -310,7 +311,7 @@ class TestProfileColumnsPercentiles:
                 launch_speeds=[float((i + 1) * 10)],
             )
 
-        profiler = StatcastColumnProfiler(statcast_conn)
+        profiler = StatcastColumnProfiler(SingleConnectionProvider(statcast_conn))
         results = profiler.profile_columns(["launch_speed"], [2023], "batter")
 
         profile = results[0]

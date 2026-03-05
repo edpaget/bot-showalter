@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
@@ -17,10 +18,10 @@ if TYPE_CHECKING:
 def _make_service(
     conn: sqlite3.Connection,
 ) -> tuple[ResidualAnalysisDiagnostic, SqliteProjectionRepo, SqliteBattingStatsRepo, SqlitePitchingStatsRepo]:
-    proj_repo = SqliteProjectionRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
-    pitching_repo = SqlitePitchingStatsRepo(conn)
-    player_repo = SqlitePlayerRepo(conn)
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
+    batting_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+    pitching_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
     service = ResidualAnalysisDiagnostic(proj_repo, batting_repo, pitching_repo, player_repo)
     return service, proj_repo, batting_repo, pitching_repo
 

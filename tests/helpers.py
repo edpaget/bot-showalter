@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 
@@ -35,7 +36,7 @@ def seed_player(
         conn.commit()
         return player_id
 
-    repo = SqlitePlayerRepo(conn)
+    repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
     return repo.upsert(
         Player(
             name_first=name_first,

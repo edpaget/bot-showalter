@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.minor_league_batting_stats import MinorLeagueBattingStats
 from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
@@ -45,8 +46,8 @@ def _make_stats(player_id: int, **overrides: object) -> MinorLeagueBattingStats:
 
 
 def _make_service(conn: sqlite3.Connection) -> tuple[LeagueEnvironmentService, SqliteLeagueEnvironmentRepo]:
-    stats_repo = SqliteMinorLeagueBattingStatsRepo(conn)
-    env_repo = SqliteLeagueEnvironmentRepo(conn)
+    stats_repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
+    env_repo = SqliteLeagueEnvironmentRepo(SingleConnectionProvider(conn))
     service = LeagueEnvironmentService(stats_repo, env_repo)
     return service, env_repo
 
@@ -55,7 +56,7 @@ class TestLeagueEnvironmentService:
     def test_compute_from_known_aggregate(self, conn: sqlite3.Connection) -> None:
         p1 = seed_player(conn, mlbam_id=1)
         p2 = seed_player(conn, mlbam_id=2)
-        stats_repo = SqliteMinorLeagueBattingStatsRepo(conn)
+        stats_repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
 
         # Player 1: 400 PA, 350 AB, 91 H, 20 2B, 2 3B, 12 HR, 50 R, 100 G, 35 BB, 80 SO, 5 HBP, 4 SF
         stats_repo.upsert(_make_stats(p1))
@@ -112,7 +113,7 @@ class TestLeagueEnvironmentService:
 
     def test_compute_and_persist(self, conn: sqlite3.Connection) -> None:
         p1 = seed_player(conn, mlbam_id=1)
-        stats_repo = SqliteMinorLeagueBattingStatsRepo(conn)
+        stats_repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
         stats_repo.upsert(_make_stats(p1))
         conn.commit()
 
@@ -129,7 +130,7 @@ class TestLeagueEnvironmentService:
     def test_compute_for_season_level_all_leagues(self, conn: sqlite3.Connection) -> None:
         p1 = seed_player(conn, mlbam_id=1)
         p2 = seed_player(conn, mlbam_id=2)
-        stats_repo = SqliteMinorLeagueBattingStatsRepo(conn)
+        stats_repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
         stats_repo.upsert(_make_stats(p1, league="International League"))
         stats_repo.upsert(_make_stats(p2, league="Pacific Coast League", team="Reno Aces"))
         conn.commit()
@@ -152,7 +153,7 @@ class TestLeagueEnvironmentService:
     def test_compute_handles_none_sf_and_hbp(self, conn: sqlite3.Connection) -> None:
         """When sf/hbp are None, they default to 0 in aggregation."""
         p1 = seed_player(conn, mlbam_id=1)
-        stats_repo = SqliteMinorLeagueBattingStatsRepo(conn)
+        stats_repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
         stats_repo.upsert(_make_stats(p1, hbp=None, sf=None))
         conn.commit()
 

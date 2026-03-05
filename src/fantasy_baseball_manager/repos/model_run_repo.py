@@ -9,82 +9,89 @@ if TYPE_CHECKING:
     import builtins
     import sqlite3
 
+    from fantasy_baseball_manager.repos.protocols import ConnectionProvider
+
 
 class SqliteModelRunRepo:
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self._conn = conn
+    def __init__(self, provider: ConnectionProvider) -> None:
+        self._provider = provider
 
     def upsert(self, record: ModelRunRecord) -> int:
-        cursor = self._conn.execute(
-            """INSERT INTO model_run
-                   (system, version, operation, train_dataset_id, validation_dataset_id,
-                    holdout_dataset_id, config_json, metrics_json, artifact_type,
-                    artifact_path, git_commit, tags_json, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(system, version, operation) DO UPDATE SET
-                   train_dataset_id=excluded.train_dataset_id,
-                   validation_dataset_id=excluded.validation_dataset_id,
-                   holdout_dataset_id=excluded.holdout_dataset_id,
-                   config_json=excluded.config_json,
-                   metrics_json=excluded.metrics_json,
-                   artifact_type=excluded.artifact_type,
-                   artifact_path=excluded.artifact_path,
-                   git_commit=excluded.git_commit,
-                   tags_json=excluded.tags_json,
-                   created_at=excluded.created_at""",
-            (
-                record.system,
-                record.version,
-                record.operation,
-                record.train_dataset_id,
-                record.validation_dataset_id,
-                record.holdout_dataset_id,
-                json.dumps(record.config_json),
-                json.dumps(record.metrics_json) if record.metrics_json is not None else None,
-                record.artifact_type,
-                record.artifact_path,
-                record.git_commit,
-                json.dumps(record.tags_json) if record.tags_json is not None else None,
-                record.created_at,
-            ),
-        )
-        return cursor.lastrowid  # type: ignore[return-value]
+        with self._provider.connection() as conn:
+            cursor = conn.execute(
+                """INSERT INTO model_run
+                       (system, version, operation, train_dataset_id, validation_dataset_id,
+                        holdout_dataset_id, config_json, metrics_json, artifact_type,
+                        artifact_path, git_commit, tags_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(system, version, operation) DO UPDATE SET
+                       train_dataset_id=excluded.train_dataset_id,
+                       validation_dataset_id=excluded.validation_dataset_id,
+                       holdout_dataset_id=excluded.holdout_dataset_id,
+                       config_json=excluded.config_json,
+                       metrics_json=excluded.metrics_json,
+                       artifact_type=excluded.artifact_type,
+                       artifact_path=excluded.artifact_path,
+                       git_commit=excluded.git_commit,
+                       tags_json=excluded.tags_json,
+                       created_at=excluded.created_at""",
+                (
+                    record.system,
+                    record.version,
+                    record.operation,
+                    record.train_dataset_id,
+                    record.validation_dataset_id,
+                    record.holdout_dataset_id,
+                    json.dumps(record.config_json),
+                    json.dumps(record.metrics_json) if record.metrics_json is not None else None,
+                    record.artifact_type,
+                    record.artifact_path,
+                    record.git_commit,
+                    json.dumps(record.tags_json) if record.tags_json is not None else None,
+                    record.created_at,
+                ),
+            )
+            return cursor.lastrowid  # type: ignore[return-value]
 
     def get(self, system: str, version: str, operation: str = "train") -> ModelRunRecord | None:
-        row = self._conn.execute(
-            "SELECT * FROM model_run WHERE system = ? AND version = ? AND operation = ?",
-            (system, version, operation),
-        ).fetchone()
-        if row is None:
-            return None
-        return self._row_to_record(row)
+        with self._provider.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM model_run WHERE system = ? AND version = ? AND operation = ?",
+                (system, version, operation),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._row_to_record(row)
 
     def list(self, system: str | None = None) -> builtins.list[ModelRunRecord]:
-        if system is not None:
-            rows = self._conn.execute(
-                "SELECT * FROM model_run WHERE system = ? ORDER BY created_at DESC",
-                (system,),
-            ).fetchall()
-        else:
-            rows = self._conn.execute(
-                "SELECT * FROM model_run ORDER BY created_at DESC",
-            ).fetchall()
-        return [self._row_to_record(row) for row in rows]
+        with self._provider.connection() as conn:
+            if system is not None:
+                rows = conn.execute(
+                    "SELECT * FROM model_run WHERE system = ? ORDER BY created_at DESC",
+                    (system,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM model_run ORDER BY created_at DESC",
+                ).fetchall()
+            return [self._row_to_record(row) for row in rows]
 
     def get_latest(self, system: str, operation: str = "train") -> ModelRunRecord | None:
-        row = self._conn.execute(
-            "SELECT * FROM model_run WHERE system = ? AND operation = ? ORDER BY created_at DESC LIMIT 1",
-            (system, operation),
-        ).fetchone()
-        if row is None:
-            return None
-        return self._row_to_record(row)
+        with self._provider.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM model_run WHERE system = ? AND operation = ? ORDER BY created_at DESC LIMIT 1",
+                (system, operation),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._row_to_record(row)
 
     def delete(self, system: str, version: str, operation: str = "train") -> None:
-        self._conn.execute(
-            "DELETE FROM model_run WHERE system = ? AND version = ? AND operation = ?",
-            (system, version, operation),
-        )
+        with self._provider.connection() as conn:
+            conn.execute(
+                "DELETE FROM model_run WHERE system = ? AND version = ? AND operation = ?",
+                (system, version, operation),
+            )
 
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> ModelRunRecord:

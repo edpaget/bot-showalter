@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Team
@@ -31,39 +32,39 @@ def _make_service(
     team_resolver: TeamResolverProto | None = None,
 ) -> PlayerBiographyService:
     return PlayerBiographyService(
-        player_repo=SqlitePlayerRepo(conn),
-        team_repo=SqliteTeamRepo(conn),
-        roster_stint_repo=SqliteRosterStintRepo(conn),
-        batting_stats_repo=SqliteBattingStatsRepo(conn),
-        pitching_stats_repo=SqlitePitchingStatsRepo(conn),
-        position_appearance_repo=SqlitePositionAppearanceRepo(conn),
+        player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+        team_repo=SqliteTeamRepo(SingleConnectionProvider(conn)),
+        roster_stint_repo=SqliteRosterStintRepo(SingleConnectionProvider(conn)),
+        batting_stats_repo=SqliteBattingStatsRepo(SingleConnectionProvider(conn)),
+        pitching_stats_repo=SqlitePitchingStatsRepo(SingleConnectionProvider(conn)),
+        position_appearance_repo=SqlitePositionAppearanceRepo(SingleConnectionProvider(conn)),
         player_team_provider=player_team_provider,
         team_resolver=team_resolver,
     )
 
 
 def _seed_team(conn: sqlite3.Connection, abbreviation: str = "NYY", name: str = "Yankees") -> int:
-    repo = SqliteTeamRepo(conn)
+    repo = SqliteTeamRepo(SingleConnectionProvider(conn))
     return repo.upsert(Team(abbreviation=abbreviation, name=name, league="AL", division="East"))
 
 
 def _seed_roster_stint(conn: sqlite3.Connection, player_id: int, team_id: int, season: int = 2025) -> None:
-    repo = SqliteRosterStintRepo(conn)
+    repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
     repo.upsert(RosterStint(player_id=player_id, team_id=team_id, season=season, start_date=f"{season}-04-01"))
 
 
 def _seed_position(conn: sqlite3.Connection, player_id: int, season: int, position: str, games: int = 100) -> None:
-    repo = SqlitePositionAppearanceRepo(conn)
+    repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
     repo.upsert(PositionAppearance(player_id=player_id, season=season, position=position, games=games))
 
 
 def _seed_batting(conn: sqlite3.Connection, player_id: int, season: int, source: str = "fangraphs") -> None:
-    repo = SqliteBattingStatsRepo(conn)
+    repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
     repo.upsert(BattingStats(player_id=player_id, season=season, source=source, pa=500))
 
 
 def _seed_pitching(conn: sqlite3.Connection, player_id: int, season: int, source: str = "fangraphs") -> None:
-    repo = SqlitePitchingStatsRepo(conn)
+    repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
     repo.upsert(PitchingStats(player_id=player_id, season=season, source=source, ip=180.0))
 
 
@@ -301,9 +302,9 @@ class TestProviderFallback:
 
     def _make_provider(self, conn: sqlite3.Connection, mapping: dict[int, str]) -> MlbApiPlayerTeamProvider:
         """Create a provider with a fake fetcher returning *mapping* keyed by mlbam_id."""
-        player_repo = SqlitePlayerRepo(conn)
-        team_repo = SqliteTeamRepo(conn)
-        roster_repo = SqliteRosterStintRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        team_repo = SqliteTeamRepo(SingleConnectionProvider(conn))
+        roster_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
 
         def fake_fetcher(_season: int) -> dict[int, str]:
             return mapping
@@ -406,7 +407,7 @@ class TestFuzzyTeamResolution:
     def test_find_by_nickname(self, conn: sqlite3.Connection) -> None:
         """find(team='Yankees') returns same results as find(team='NYY')."""
         self._setup_two_teams(conn)
-        resolver = TeamResolver(SqliteTeamRepo(conn))
+        resolver = TeamResolver(SqliteTeamRepo(SingleConnectionProvider(conn)))
         svc = _make_service(conn, team_resolver=resolver)
 
         by_abbrev = svc.find(season=2025, team="NYY")
@@ -419,7 +420,7 @@ class TestFuzzyTeamResolution:
     def test_find_ambiguous_city(self, conn: sqlite3.Connection) -> None:
         """find(team='New York') returns players from both NYY and NYM."""
         self._setup_two_teams(conn)
-        resolver = TeamResolver(SqliteTeamRepo(conn))
+        resolver = TeamResolver(SqliteTeamRepo(SingleConnectionProvider(conn)))
         svc = _make_service(conn, team_resolver=resolver)
 
         results = svc.find(season=2025, team="New York")
@@ -430,7 +431,7 @@ class TestFuzzyTeamResolution:
     def test_find_exact_abbrev_still_works(self, conn: sqlite3.Connection) -> None:
         """find(team='NYY') still works with resolver present (backward compatible)."""
         self._setup_two_teams(conn)
-        resolver = TeamResolver(SqliteTeamRepo(conn))
+        resolver = TeamResolver(SqliteTeamRepo(SingleConnectionProvider(conn)))
         svc = _make_service(conn, team_resolver=resolver)
 
         results = svc.find(season=2025, team="NYY")
@@ -440,7 +441,7 @@ class TestFuzzyTeamResolution:
     def test_find_no_match_raises_valueerror(self, conn: sqlite3.Connection) -> None:
         """find(team='xyzabc') raises ValueError when resolver finds no match."""
         self._setup_two_teams(conn)
-        resolver = TeamResolver(SqliteTeamRepo(conn))
+        resolver = TeamResolver(SqliteTeamRepo(SingleConnectionProvider(conn)))
         svc = _make_service(conn, team_resolver=resolver)
 
         with pytest.raises(ValueError, match="No team found matching 'xyzabc'"):

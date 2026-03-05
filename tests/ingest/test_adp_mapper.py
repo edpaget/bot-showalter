@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
     _discover_provider_columns,
@@ -174,11 +175,11 @@ class TestDiscoverProviderColumns:
 class TestIngestFantasyprosADP:
     def test_basic_ingest(self, conn: sqlite3.Connection) -> None:
         ids = _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "Mike Trout", "LAA", "CF,RF,DH", "1.0", ESPN="1", Yahoo="1"),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.loaded == 3  # AVG + ESPN + Yahoo
         assert result.skipped == 0
         assert result.unmatched == []
@@ -190,23 +191,23 @@ class TestIngestFantasyprosADP:
 
     def test_multi_record_expansion(self, conn: sqlite3.Connection) -> None:
         _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "Aaron Judge", "NYY", "LF,CF,RF,DH", "1.8", ESPN="2", CBS="1", NFBC="2"),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.loaded == 4  # AVG + ESPN + CBS + NFBC
 
     def test_two_way_player_batter_and_pitcher_slots(self, conn: sqlite3.Connection) -> None:
         ids = _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         # Real CSVs have a consistent column set; empty strings for missing values
         rows = [
             _make_row("1", "Shohei Ohtani", "LAD", "SP,DH", "1.0", Yahoo="", CBS="2", ESPN="1"),
             _make_row("3", "Shohei Ohtani (Batter)", "LAD", "DH", "2.0", Yahoo="2", CBS="", ESPN=""),
             _make_row("95", "Shohei Ohtani (Pitcher)", "LAD", "SP", "92.0", Yahoo="92", CBS="", ESPN=""),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.unmatched == []
 
         adps = repo.get_by_player_season(ids["ohtani"], 2026)
@@ -222,28 +223,28 @@ class TestIngestFantasyprosADP:
 
     def test_empty_provider_values_skipped(self, conn: sqlite3.Connection) -> None:
         _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "Mike Trout", "LAA", "CF,RF,DH", "1.0", ESPN="", Yahoo="2"),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.loaded == 2  # AVG + Yahoo (ESPN skipped)
 
     def test_unmatched_player(self, conn: sqlite3.Connection) -> None:
         _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "Nonexistent Player", "XXX", "OF", "50.0"),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.loaded == 0
         assert result.unmatched == ["Nonexistent Player"]
 
     def test_ambiguous_name(self, conn: sqlite3.Connection) -> None:
         seed_player(conn, name_first="John", name_last="Smith", mlbam_id=100001)
         seed_player(conn, name_first="John", name_last="Smith", mlbam_id=100002)
-        repo_p = SqlitePlayerRepo(conn)
-        repo = SqliteADPRepo(conn)
+        repo_p = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "John Smith", "NYY", "OF", "50.0"),
         ]
@@ -254,13 +255,13 @@ class TestIngestFantasyprosADP:
     def test_ambiguous_name_resolved_by_team(self, conn: sqlite3.Connection) -> None:
         id1 = seed_player(conn, name_first="John", name_last="Smith", mlbam_id=100001)
         seed_player(conn, name_first="John", name_last="Smith", mlbam_id=100002)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "John Smith", "NYY", "OF", "50.0"),
         ]
         player_teams = {id1: "NYY"}
         result = ingest_fantasypros_adp(
-            rows, repo, SqlitePlayerRepo(conn).all(), season=2026, player_teams=player_teams
+            rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026, player_teams=player_teams
         )
         assert result.loaded == 1
         assert result.unmatched == []
@@ -270,14 +271,14 @@ class TestIngestFantasyprosADP:
     def test_team_alias_resolves_lahman_abbreviation(self, conn: sqlite3.Connection) -> None:
         id1 = seed_player(conn, name_first="Bobby", name_last="Witt", mlbam_id=677951)
         seed_player(conn, name_first="Bobby", name_last="Witt", mlbam_id=124492)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "Bobby Witt Jr.", "KC", "SS", "3.4"),
         ]
         # Lahman uses "KCA" but ADP row has "KC"
         player_teams = {id1: "KCA"}
         result = ingest_fantasypros_adp(
-            rows, repo, SqlitePlayerRepo(conn).all(), season=2026, player_teams=player_teams
+            rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026, player_teams=player_teams
         )
         assert result.loaded == 1
         assert result.unmatched == []
@@ -286,11 +287,11 @@ class TestIngestFantasyprosADP:
 
     def test_initials_with_periods_match(self, conn: sqlite3.Connection) -> None:
         pid = seed_player(conn, name_first="J. T.", name_last="Realmuto", mlbam_id=592663)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "J.T. Realmuto", "PHI", "C", "50.0"),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.loaded == 1
         assert result.unmatched == []
         adps = repo.get_by_player_season(pid, 2026)
@@ -298,46 +299,48 @@ class TestIngestFantasyprosADP:
 
     def test_jr_suffix_matches(self, conn: sqlite3.Connection) -> None:
         ids = _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("4", "Bobby Witt Jr.", "KC", "SS", "3.4"),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.loaded == 1
         adps = repo.get_by_player_season(ids["witt"], 2026)
         assert len(adps) == 1
 
     def test_accent_matching(self, conn: sqlite3.Connection) -> None:
         ids = _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("5", "Ronald Acuña Jr.", "ATL", "CF,RF,DH", "5.0"),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.loaded == 1
         adps = repo.get_by_player_season(ids["acuna"], 2026)
         assert len(adps) == 1
 
     def test_as_of_passed_through(self, conn: sqlite3.Connection) -> None:
         ids = _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "Mike Trout", "LAA", "CF", "1.0"),
         ]
-        ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026, as_of="2026-03-01")
+        ingest_fantasypros_adp(
+            rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026, as_of="2026-03-01"
+        )
         adps = repo.get_by_player_season(ids["trout"], 2026)
         assert adps[0].as_of == "2026-03-01"
 
     def test_empty_rows(self, conn: sqlite3.Connection) -> None:
         _seed_players(conn)
-        repo = SqliteADPRepo(conn)
-        result = ingest_fantasypros_adp([], repo, SqlitePlayerRepo(conn).all(), season=2026)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        result = ingest_fantasypros_adp([], repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result == ADPIngestResult(loaded=0, skipped=0, unmatched=[])
 
     def test_creates_stub_for_unknown_player(self, conn: sqlite3.Connection) -> None:
         _seed_players(conn)
-        repo = SqliteADPRepo(conn)
-        player_repo = SqlitePlayerRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("100", "Tatsuya Imai", "HOU", "SP", "172.4"),
         ]
@@ -356,8 +359,8 @@ class TestIngestFantasyprosADP:
     def test_stub_not_created_for_ambiguous_player(self, conn: sqlite3.Connection) -> None:
         seed_player(conn, name_first="Josh", name_last="Bell", mlbam_id=100001)
         seed_player(conn, name_first="Josh", name_last="Bell", mlbam_id=100002)
-        repo = SqliteADPRepo(conn)
-        player_repo = SqlitePlayerRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("50", "Josh Bell", "MIN", "1B,DH", "384.0"),
         ]
@@ -368,22 +371,22 @@ class TestIngestFantasyprosADP:
 
     def test_stub_not_created_without_player_repo(self, conn: sqlite3.Connection) -> None:
         _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("100", "Tatsuya Imai", "HOU", "SP", "172.4"),
         ]
-        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        result = ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         assert result.loaded == 0
         assert result.created == 0
         assert result.unmatched == ["Tatsuya Imai"]
 
     def test_avg_always_produced(self, conn: sqlite3.Connection) -> None:
         ids = _seed_players(conn)
-        repo = SqliteADPRepo(conn)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
         rows = [
             _make_row("1", "Mike Trout", "LAA", "CF", "1.0"),
         ]
-        ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(conn).all(), season=2026)
+        ingest_fantasypros_adp(rows, repo, SqlitePlayerRepo(SingleConnectionProvider(conn)).all(), season=2026)
         adps = repo.get_by_player_season(ids["trout"], 2026)
         assert len(adps) == 1
         assert adps[0].provider == "fantasypros"

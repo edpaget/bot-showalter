@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
 from fantasy_baseball_manager.repos.experiment_repo import ExperimentFilter, SqliteExperimentRepo
 
@@ -27,7 +28,7 @@ def _make_experiment(**overrides: object) -> Experiment:
 
 class TestSqliteExperimentRepo:
     def test_save_and_get_round_trip(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         exp = _make_experiment(
             tags=["feature", "batter"],
             parent_id=None,
@@ -54,11 +55,11 @@ class TestSqliteExperimentRepo:
         assert result.parent_id is None
 
     def test_get_returns_none_when_missing(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         assert repo.get(9999) is None
 
     def test_list_all(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(timestamp="2026-03-01T10:00:00"))
         repo.save(_make_experiment(timestamp="2026-03-01T12:00:00"))
         repo.save(_make_experiment(timestamp="2026-03-01T11:00:00"))
@@ -71,7 +72,7 @@ class TestSqliteExperimentRepo:
         assert results[2].timestamp == "2026-03-01T10:00:00"
 
     def test_list_filter_by_model(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(model="model-a"))
         repo.save(_make_experiment(model="model-b"))
         repo.save(_make_experiment(model="model-a"))
@@ -81,7 +82,7 @@ class TestSqliteExperimentRepo:
         assert all(r.model == "model-a" for r in results)
 
     def test_list_filter_by_player_type(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(player_type="batter"))
         repo.save(_make_experiment(player_type="pitcher"))
 
@@ -90,7 +91,7 @@ class TestSqliteExperimentRepo:
         assert results[0].player_type == "pitcher"
 
     def test_list_filter_by_tag(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(tags=["feature", "batter"]))
         repo.save(_make_experiment(tags=["hyperparameter"]))
         repo.save(_make_experiment(tags=["feature", "pitcher"]))
@@ -99,7 +100,7 @@ class TestSqliteExperimentRepo:
         assert len(results) == 2
 
     def test_list_filter_by_date_range(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(timestamp="2026-01-01T00:00:00"))
         repo.save(_make_experiment(timestamp="2026-02-01T00:00:00"))
         repo.save(_make_experiment(timestamp="2026-03-01T00:00:00"))
@@ -109,7 +110,7 @@ class TestSqliteExperimentRepo:
         assert results[0].timestamp == "2026-02-01T00:00:00"
 
     def test_list_combined_filters(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(model="model-a", player_type="batter", tags=["feature"]))
         repo.save(_make_experiment(model="model-a", player_type="pitcher", tags=["feature"]))
         repo.save(_make_experiment(model="model-b", player_type="batter", tags=["feature"]))
@@ -120,7 +121,7 @@ class TestSqliteExperimentRepo:
         assert results[0].player_type == "batter"
 
     def test_list_filter_by_parent_id(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         parent_id = repo.save(_make_experiment())
         repo.save(_make_experiment(parent_id=parent_id))
         repo.save(_make_experiment(parent_id=parent_id))
@@ -131,7 +132,7 @@ class TestSqliteExperimentRepo:
         assert all(r.parent_id == parent_id for r in results)
 
     def test_delete(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         exp_id = repo.save(_make_experiment())
         assert repo.get(exp_id) is not None
 
@@ -139,11 +140,11 @@ class TestSqliteExperimentRepo:
         assert repo.get(exp_id) is None
 
     def test_delete_nonexistent_is_noop(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.delete(9999)  # should not raise
 
     def test_parent_child_relationship(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         parent_id = repo.save(_make_experiment(hypothesis="parent experiment"))
         child_id = repo.save(_make_experiment(hypothesis="child experiment", parent_id=parent_id))
 
@@ -155,7 +156,7 @@ class TestSqliteExperimentRepo:
         assert parent.parent_id is None
 
     def test_empty_tags_round_trip(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         exp_id = repo.save(_make_experiment(tags=[]))
 
         result = repo.get(exp_id)
@@ -163,7 +164,7 @@ class TestSqliteExperimentRepo:
         assert result.tags == []
 
     def test_multiple_target_results_round_trip(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         target_results = {
             "slg": TargetResult(rmse=0.082, baseline_rmse=0.085, delta=-0.003, delta_pct=-3.53),
             "obp": TargetResult(rmse=0.040, baseline_rmse=0.042, delta=-0.002, delta_pct=-4.76),
@@ -179,7 +180,7 @@ class TestSqliteExperimentRepo:
     # --- find_by_target ---
 
     def test_find_by_target_returns_matching_sorted_by_delta_pct(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         # Experiment with slg delta_pct -5.0 (better)
         repo.save(
             _make_experiment(
@@ -212,14 +213,14 @@ class TestSqliteExperimentRepo:
         assert results[1].target_results["slg"].delta_pct == -2.0
 
     def test_find_by_target_no_match(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment())  # has slg target
         assert repo.find_by_target("era") == []
 
     # --- find_by_feature ---
 
     def test_find_by_feature_in_added(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(feature_diff={"added": ["barrel_rate", "exit_velo"], "removed": []}))
         repo.save(_make_experiment(feature_diff={"added": ["sprint_speed"], "removed": []}))
 
@@ -228,7 +229,7 @@ class TestSqliteExperimentRepo:
         assert "barrel_rate" in results[0].feature_diff["added"]
 
     def test_find_by_feature_in_removed(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(feature_diff={"added": [], "removed": ["barrel_rate"]}))
         repo.save(_make_experiment(feature_diff={"added": ["sprint_speed"], "removed": []}))
 
@@ -237,7 +238,7 @@ class TestSqliteExperimentRepo:
         assert "barrel_rate" in results[0].feature_diff["removed"]
 
     def test_find_by_feature_finds_in_both_added_and_removed(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(
             _make_experiment(
                 timestamp="2026-03-01T10:00:00",
@@ -264,14 +265,14 @@ class TestSqliteExperimentRepo:
         assert results[1].timestamp == "2026-03-01T10:00:00"
 
     def test_find_by_feature_no_match(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment())
         assert repo.find_by_feature("nonexistent_feature") == []
 
     # --- find_by_tag ---
 
     def test_find_by_tag(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(tags=["feature", "batter"]))
         repo.save(_make_experiment(tags=["hyperparameter"]))
 
@@ -280,14 +281,14 @@ class TestSqliteExperimentRepo:
         assert "feature" in results[0].tags
 
     def test_find_by_tag_no_match(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(tags=["feature"]))
         assert repo.find_by_tag("nonexistent") == []
 
     # --- find_by_model ---
 
     def test_find_by_model(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(model="model-a"))
         repo.save(_make_experiment(model="model-b"))
         repo.save(_make_experiment(model="model-a"))
@@ -297,14 +298,14 @@ class TestSqliteExperimentRepo:
         assert all(r.model == "model-a" for r in results)
 
     def test_find_by_model_no_match(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(model="model-a"))
         assert repo.find_by_model("nonexistent") == []
 
     # --- find_best ---
 
     def test_find_best_returns_experiment_with_lowest_delta_pct(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(
             _make_experiment(
                 target_results={
@@ -325,14 +326,14 @@ class TestSqliteExperimentRepo:
         assert best.target_results["slg"].delta_pct == -5.0
 
     def test_find_best_returns_none_when_no_match(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment())  # has slg target
         assert repo.find_best("era") is None
 
     # --- find_recent ---
 
     def test_find_recent_respects_limit(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(timestamp="2026-03-01T10:00:00"))
         repo.save(_make_experiment(timestamp="2026-03-01T12:00:00"))
         repo.save(_make_experiment(timestamp="2026-03-01T11:00:00"))
@@ -343,7 +344,7 @@ class TestSqliteExperimentRepo:
         assert results[1].timestamp == "2026-03-01T11:00:00"
 
     def test_find_recent_returns_all_when_limit_exceeds_count(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment())
 
         results = repo.find_recent(10)

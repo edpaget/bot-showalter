@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
 from fantasy_baseball_manager.repos.yahoo_draft_repo import SqliteYahooDraftRepo
 
@@ -25,7 +26,7 @@ def _make_pick(**overrides: object) -> YahooDraftPick:
 
 class TestSqliteYahooDraftRepo:
     def test_upsert_and_get(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooDraftRepo(conn)
+        repo = SqliteYahooDraftRepo(SingleConnectionProvider(conn))
         pick = _make_pick()
         repo.upsert(pick)
 
@@ -44,7 +45,7 @@ class TestSqliteYahooDraftRepo:
         assert results[0].id is not None
 
     def test_upsert_on_conflict_updates(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooDraftRepo(conn)
+        repo = SqliteYahooDraftRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_pick(player_name="Mike Trout"))
         repo.upsert(_make_pick(player_name="Mike Trout Updated", player_id=999))
 
@@ -54,7 +55,7 @@ class TestSqliteYahooDraftRepo:
         assert results[0].player_id == 999
 
     def test_get_by_league_season_ordered_by_round_pick(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooDraftRepo(conn)
+        repo = SqliteYahooDraftRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_pick(round=2, pick=3, player_name="Third"))
         repo.upsert(_make_pick(round=1, pick=1, player_name="First"))
         repo.upsert(_make_pick(round=2, pick=1, player_name="Second"))
@@ -66,12 +67,12 @@ class TestSqliteYahooDraftRepo:
         assert results[2].player_name == "Third"
 
     def test_get_by_league_season_empty(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooDraftRepo(conn)
+        repo = SqliteYahooDraftRepo(SingleConnectionProvider(conn))
         results = repo.get_by_league_season("nonexistent", 2026)
         assert results == []
 
     def test_get_pick_count(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooDraftRepo(conn)
+        repo = SqliteYahooDraftRepo(SingleConnectionProvider(conn))
         assert repo.get_pick_count("449.l.12345", 2026) == 0
 
         repo.upsert(_make_pick(round=1, pick=1))
@@ -79,7 +80,7 @@ class TestSqliteYahooDraftRepo:
         assert repo.get_pick_count("449.l.12345", 2026) == 2
 
     def test_round_trip_with_cost(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooDraftRepo(conn)
+        repo = SqliteYahooDraftRepo(SingleConnectionProvider(conn))
         pick = _make_pick(cost=45)
         repo.upsert(pick)
 
@@ -88,7 +89,7 @@ class TestSqliteYahooDraftRepo:
         assert results[0].cost == 45
 
     def test_round_trip_nullable_player_id(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooDraftRepo(conn)
+        repo = SqliteYahooDraftRepo(SingleConnectionProvider(conn))
         pick = _make_pick(player_id=None, player_name="Unknown Player")
         repo.upsert(pick)
 
@@ -98,7 +99,7 @@ class TestSqliteYahooDraftRepo:
         assert results[0].player_name == "Unknown Player"
 
     def test_different_seasons_separated(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooDraftRepo(conn)
+        repo = SqliteYahooDraftRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_pick(season=2025, player_name="2025 Pick"))
         repo.upsert(_make_pick(season=2026, player_name="2026 Pick"))
 

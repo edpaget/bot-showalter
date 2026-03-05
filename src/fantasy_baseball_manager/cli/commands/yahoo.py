@@ -22,6 +22,7 @@ from fantasy_baseball_manager.config_yahoo import (
     load_yahoo_config,
     resolve_default_league,
 )
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
     Err,
     Ok,
@@ -907,8 +908,8 @@ def yahoo_keeper_decisions(  # pragma: no cover
                     projections = ctx.projection_repo.get_by_season(season, proj_system)
 
                     eligibility = PlayerEligibilityService(
-                        SqlitePositionAppearanceRepo(ctx.conn),
-                        pitching_stats_repo=SqlitePitchingStatsRepo(ctx.conn),
+                        SqlitePositionAppearanceRepo(SingleConnectionProvider(ctx.conn)),
+                        pitching_stats_repo=SqlitePitchingStatsRepo(SingleConnectionProvider(ctx.conn)),
                     )
                     batter_positions = eligibility.get_batter_positions(season, fbm_league)
                     pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]

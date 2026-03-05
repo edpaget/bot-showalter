@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.checkpoint import FeatureCheckpoint
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
 from fantasy_baseball_manager.exceptions import FbmException
@@ -32,7 +33,7 @@ class TestIsCheckpointSpec:
 
 class TestResolveCheckpoint:
     def test_checkpoint_found(self, conn: sqlite3.Connection) -> None:
-        exp_repo = SqliteExperimentRepo(conn)
+        exp_repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         exp_id = exp_repo.save(
             Experiment(
                 timestamp="2026-03-02T12:00:00",
@@ -46,7 +47,7 @@ class TestResolveCheckpoint:
                 conclusion="ok",
             )
         )
-        cp_repo = SqliteCheckpointRepo(conn)
+        cp_repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         cp_repo.save(
             FeatureCheckpoint(
                 name="best_v3",
@@ -65,7 +66,7 @@ class TestResolveCheckpoint:
         assert result.feature_columns == ["barrel_rate"]
 
     def test_checkpoint_not_found_raises_config_error(self, conn: sqlite3.Connection) -> None:
-        cp_repo = SqliteCheckpointRepo(conn)
+        cp_repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
 
         with pytest.raises(FbmException):
             resolve_checkpoint(cp_repo, "checkpoint:nonexistent", "m")

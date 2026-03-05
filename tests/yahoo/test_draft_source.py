@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
@@ -138,8 +139,8 @@ _PLAYERS_RESPONSE: dict[str, Any] = {
 
 class TestYahooDraftSource:
     def test_snake_draft_results(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         player_repo.upsert(Player(name_first="Gerrit", name_last="Cole", mlbam_id=543037))
         conn.commit()
@@ -159,8 +160,8 @@ class TestYahooDraftSource:
         assert picks[1].position == "SP"
 
     def test_auction_draft_results_with_cost(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
@@ -174,8 +175,8 @@ class TestYahooDraftSource:
         assert picks[0].player_name == "Mike Trout"
 
     def test_player_mapping(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         trout_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
@@ -187,8 +188,8 @@ class TestYahooDraftSource:
         assert picks[0].player_id == trout_id
 
     def test_empty_results(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         client = FakeClient(_EMPTY_DRAFT_RESPONSE)
         source = YahooDraftSource(client, mapper)  # type: ignore[arg-type]
@@ -197,8 +198,8 @@ class TestYahooDraftSource:
         assert picks == []
 
     def test_malformed_response_returns_empty(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
 
         # Missing fantasy_content entirely
@@ -222,8 +223,8 @@ class TestYahooDraftSource:
         assert source.fetch_draft_results("449.l.12345", 2026) == []
 
     def test_unmapped_player_has_none_id(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         # Don't seed any players — they'll be unresolvable
         mapper = YahooPlayerMapper(map_repo, player_repo)
         client = FakeClient(_SNAKE_DRAFT_RESPONSE, _PLAYERS_RESPONSE)

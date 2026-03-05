@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.checkpoint import FeatureCheckpoint
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
 from fantasy_baseball_manager.repos.checkpoint_repo import SqliteCheckpointRepo
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
 
 def _seed_experiment(conn: sqlite3.Connection) -> int:
     """Insert a minimal experiment and return its ID."""
-    repo = SqliteExperimentRepo(conn)
+    repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
     return repo.save(
         Experiment(
             timestamp="2026-03-02T12:00:00",
@@ -51,7 +52,7 @@ def _make_checkpoint(experiment_id: int, **overrides: object) -> FeatureCheckpoi
 class TestSqliteCheckpointRepo:
     def test_save_and_get_round_trip(self, conn: sqlite3.Connection) -> None:
         exp_id = _seed_experiment(conn)
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         cp = _make_checkpoint(exp_id)
         repo.save(cp)
 
@@ -69,12 +70,12 @@ class TestSqliteCheckpointRepo:
         assert result.notes == "promising set"
 
     def test_get_returns_none_when_not_found(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         assert repo.get("nonexistent", "m") is None
 
     def test_duplicate_raises_error(self, conn: sqlite3.Connection) -> None:
         exp_id = _seed_experiment(conn)
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         cp = _make_checkpoint(exp_id)
         repo.save(cp)
 
@@ -88,7 +89,7 @@ class TestSqliteCheckpointRepo:
 
     def test_force_overwrite(self, conn: sqlite3.Connection) -> None:
         exp_id = _seed_experiment(conn)
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         cp1 = _make_checkpoint(exp_id, notes="first")
         repo.save(cp1)
 
@@ -101,7 +102,7 @@ class TestSqliteCheckpointRepo:
 
     def test_list_all(self, conn: sqlite3.Connection) -> None:
         exp_id = _seed_experiment(conn)
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         repo.save(_make_checkpoint(exp_id, name="cp1", model="model-a"))
         repo.save(_make_checkpoint(exp_id, name="cp2", model="model-a"))
         repo.save(_make_checkpoint(exp_id, name="cp3", model="model-b"))
@@ -111,7 +112,7 @@ class TestSqliteCheckpointRepo:
 
     def test_list_filter_by_model(self, conn: sqlite3.Connection) -> None:
         exp_id = _seed_experiment(conn)
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         repo.save(_make_checkpoint(exp_id, name="cp1", model="model-a"))
         repo.save(_make_checkpoint(exp_id, name="cp2", model="model-a"))
         repo.save(_make_checkpoint(exp_id, name="cp3", model="model-b"))
@@ -122,19 +123,19 @@ class TestSqliteCheckpointRepo:
 
     def test_delete_found(self, conn: sqlite3.Connection) -> None:
         exp_id = _seed_experiment(conn)
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         repo.save(_make_checkpoint(exp_id))
 
         assert repo.delete("best_batter_v3", "statcast-gbm-preseason") is True
         assert repo.get("best_batter_v3", "statcast-gbm-preseason") is None
 
     def test_delete_not_found(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         assert repo.delete("nonexistent", "m") is False
 
     def test_same_name_different_models(self, conn: sqlite3.Connection) -> None:
         exp_id = _seed_experiment(conn)
-        repo = SqliteCheckpointRepo(conn)
+        repo = SqliteCheckpointRepo(SingleConnectionProvider(conn))
         repo.save(_make_checkpoint(exp_id, name="best", model="model-a"))
         repo.save(_make_checkpoint(exp_id, name="best", model="model-b"))
 

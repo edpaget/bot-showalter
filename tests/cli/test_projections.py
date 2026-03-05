@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -19,8 +20,8 @@ runner = CliRunner()
 
 def _seed_projections_data(conn: sqlite3.Connection, system: str = "steamer", version: str = "2025.1") -> None:
     """Seed player and projection data for projections commands."""
-    player_repo = SqlitePlayerRepo(conn)
-    proj_repo = SqliteProjectionRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
     pid = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
     proj_repo.upsert(
         Projection(

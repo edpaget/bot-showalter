@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -17,9 +18,9 @@ if TYPE_CHECKING:
 def _make_service(
     conn: sqlite3.Connection,
 ) -> tuple[ResidualPersistenceDiagnostic, SqliteProjectionRepo, SqliteBattingStatsRepo, SqlitePlayerRepo]:
-    proj_repo = SqliteProjectionRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
-    player_repo = SqlitePlayerRepo(conn)
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
+    batting_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
     service = ResidualPersistenceDiagnostic(proj_repo, batting_repo, player_repo)
     return service, proj_repo, batting_repo, player_repo
 

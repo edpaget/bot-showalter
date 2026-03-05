@@ -9,6 +9,7 @@ import typer
 
 from fantasy_baseball_manager.cli._output import console, print_error, print_ingest_result
 from fantasy_baseball_manager.cli.factory import IngestContainer, build_ingest_container
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
     Err,
     Ok,
@@ -55,7 +56,7 @@ def ingest_players(
             container.log_repo,
             chadwick_row_to_player,
             "player",
-            conn=container.conn,
+            provider=SingleConnectionProvider(container.conn),
         )
         match loader.load():
             case Ok(log):
@@ -79,7 +80,7 @@ def ingest_bio(
             container.log_repo,
             mapper,
             "player",
-            conn=container.conn,
+            provider=SingleConnectionProvider(container.conn),
         )
         match loader.load():
             case Ok(log):
@@ -105,7 +106,7 @@ def ingest_batting(
                 container.log_repo,
                 mapper,
                 "batting_stats",
-                conn=container.conn,
+                provider=SingleConnectionProvider(container.conn),
             )
             match loader.load(season=yr):
                 case Ok(log):
@@ -132,7 +133,7 @@ def ingest_pitching(
                 container.log_repo,
                 mapper,
                 "pitching_stats",
-                conn=container.conn,
+                provider=SingleConnectionProvider(container.conn),
             )
             match loader.load(season=yr):
                 case Ok(log):
@@ -158,8 +159,8 @@ def ingest_statcast(  # pragma: no cover
                 container.log_repo,
                 statcast_pitch_mapper,
                 "statcast_pitch",
-                conn=container.statcast_conn,
-                log_conn=container.conn,
+                provider=SingleConnectionProvider(container.statcast_conn),
+                log_provider=SingleConnectionProvider(container.conn),
             )
             match loader.load(start_dt=start_dt, end_dt=end_dt):
                 case Ok(log):
@@ -184,8 +185,8 @@ def ingest_sprint_speed(  # pragma: no cover
                 container.log_repo,
                 mapper,
                 "sprint_speed",
-                conn=container.statcast_conn,
-                log_conn=container.conn,
+                provider=SingleConnectionProvider(container.statcast_conn),
+                log_provider=SingleConnectionProvider(container.conn),
             )
             match loader.load(year=yr):
                 case Ok(log):
@@ -212,7 +213,7 @@ def ingest_il(  # pragma: no cover
                 container.log_repo,
                 mapper,
                 "il_stint",
-                conn=container.conn,
+                provider=SingleConnectionProvider(container.conn),
             )
             match loader.load(season=yr):
                 case Ok(log):
@@ -238,7 +239,7 @@ def ingest_appearances(
                 container.log_repo,
                 mapper,
                 "position_appearance",
-                conn=container.conn,
+                provider=SingleConnectionProvider(container.conn),
             )
             match loader.load(season=yr):
                 case Ok(log):
@@ -275,7 +276,7 @@ def ingest_roster(
                 container.log_repo,
                 mapper,
                 "roster_stint",
-                conn=container.conn,
+                provider=SingleConnectionProvider(container.conn),
             )
             match loader.load(season=yr):
                 case Ok(log):
@@ -374,7 +375,7 @@ def ingest_milb_batting(  # pragma: no cover
                     container.log_repo,
                     mapper,
                     "minor_league_batting_stats",
-                    conn=container.conn,
+                    provider=SingleConnectionProvider(container.conn),
                 )
                 match loader.load(season=yr, level=lvl):
                     case Ok(log):

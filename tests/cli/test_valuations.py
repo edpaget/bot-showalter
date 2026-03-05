@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -37,8 +38,8 @@ def _seed_valuation_data(
     player_type: str = "batter",
 ) -> None:
     """Seed player and valuation data for valuations commands."""
-    player_repo = SqlitePlayerRepo(conn)
-    val_repo = SqliteValuationRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
     pid1 = player_repo.upsert(Player(name_first="Juan", name_last="Soto", mlbam_id=665742))
     pid2 = player_repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))
     val_repo.upsert(
@@ -142,11 +143,11 @@ class TestValuationsRankingsCommand:
 
 def _seed_valuation_eval_data(conn: sqlite3.Connection) -> None:
     """Seed predicted valuations + actual stats for evaluate command."""
-    player_repo = SqlitePlayerRepo(conn)
-    val_repo = SqliteValuationRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
-    pitching_repo = SqlitePitchingStatsRepo(conn)
-    position_repo = SqlitePositionAppearanceRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
+    batting_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+    pitching_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
+    position_repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
 
     pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
     pid2 = player_repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))

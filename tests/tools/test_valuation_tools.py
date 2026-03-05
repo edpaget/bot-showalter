@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from fantasy_baseball_manager.tools.valuation_tools import create_get_rankings_tool, create_lookup_valuations_tool
@@ -22,7 +23,7 @@ def _seed_valuation(
     rank: int = 1,
     category_scores: dict[str, float] | None = None,
 ) -> None:
-    repo = SqliteValuationRepo(conn)
+    repo = SqliteValuationRepo(SingleConnectionProvider(conn))
     repo.upsert(
         Valuation(
             player_id=player_id,

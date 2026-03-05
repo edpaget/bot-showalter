@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
     Valuation,
     YahooLeague,
@@ -66,17 +67,19 @@ _LEAGUE = LeagueSettings(
 
 def _make_repos(conn: sqlite3.Connection) -> dict[str, Any]:
     return {
-        "league_repo": SqliteYahooLeagueRepo(conn),
-        "team_repo": SqliteYahooTeamRepo(conn),
-        "player_repo": SqlitePlayerRepo(conn),
-        "valuation_repo": SqliteValuationRepo(conn),
-        "adp_repo": SqliteADPRepo(conn),
-        "draft_repo": SqliteYahooDraftRepo(conn),
+        "league_repo": SqliteYahooLeagueRepo(SingleConnectionProvider(conn)),
+        "team_repo": SqliteYahooTeamRepo(SingleConnectionProvider(conn)),
+        "player_repo": SqlitePlayerRepo(SingleConnectionProvider(conn)),
+        "valuation_repo": SqliteValuationRepo(SingleConnectionProvider(conn)),
+        "adp_repo": SqliteADPRepo(SingleConnectionProvider(conn)),
+        "draft_repo": SqliteYahooDraftRepo(SingleConnectionProvider(conn)),
     }
 
 
 def _make_draft_source(conn: sqlite3.Connection) -> YahooDraftSource:
-    mapper = YahooPlayerMapper(SqliteYahooPlayerMapRepo(conn), SqlitePlayerRepo(conn))
+    mapper = YahooPlayerMapper(
+        SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn)), SqlitePlayerRepo(SingleConnectionProvider(conn))
+    )
     return YahooDraftSource(FakeClient(), mapper)  # type: ignore[arg-type]
 
 

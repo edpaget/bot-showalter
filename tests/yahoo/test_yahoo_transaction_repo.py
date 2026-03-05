@@ -1,6 +1,7 @@
 import datetime
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.transaction import Transaction, TransactionPlayer
 from fantasy_baseball_manager.repos.yahoo_transaction_repo import (
     SqliteYahooTransactionRepo,
@@ -39,7 +40,7 @@ def _make_player(**overrides: object) -> TransactionPlayer:
 
 class TestSqliteYahooTransactionRepo:
     def test_upsert_and_retrieve(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         txn = _make_transaction()
         players = [_make_player()]
 
@@ -54,7 +55,7 @@ class TestSqliteYahooTransactionRepo:
         assert result[0].id is not None
 
     def test_upsert_idempotent(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         txn = _make_transaction()
         players = [_make_player()]
 
@@ -65,7 +66,7 @@ class TestSqliteYahooTransactionRepo:
         assert len(result) == 1
 
     def test_upsert_updates_status(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         txn = _make_transaction(status="pending")
         repo.upsert(txn, [_make_player()])
 
@@ -77,7 +78,7 @@ class TestSqliteYahooTransactionRepo:
         assert result[0].status == "successful"
 
     def test_get_by_league_with_since(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         old = _make_transaction(
             transaction_key="449.l.12345.tr.1",
             timestamp=datetime.datetime(2026, 2, 1, tzinfo=datetime.UTC),
@@ -95,11 +96,11 @@ class TestSqliteYahooTransactionRepo:
         assert result[0].transaction_key == "449.l.12345.tr.2"
 
     def test_get_latest_timestamp_empty(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         assert repo.get_latest_timestamp("449.l.12345") is None
 
     def test_get_latest_timestamp(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         t1 = _make_transaction(
             transaction_key="449.l.12345.tr.1",
             timestamp=datetime.datetime(2026, 2, 1, tzinfo=datetime.UTC),
@@ -116,7 +117,7 @@ class TestSqliteYahooTransactionRepo:
         assert latest == datetime.datetime(2026, 3, 15, tzinfo=datetime.UTC)
 
     def test_get_recent_filters_by_days(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         # Old transaction (more than 30 days ago)
         old = _make_transaction(
             transaction_key="449.l.12345.tr.1",
@@ -137,7 +138,7 @@ class TestSqliteYahooTransactionRepo:
         assert len(players) == 1
 
     def test_get_players_for_transaction(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         txn = _make_transaction()
         players = [
             _make_player(yahoo_player_key="449.p.111", player_name="Player A", type="add"),
@@ -151,12 +152,12 @@ class TestSqliteYahooTransactionRepo:
         assert names == {"Player A", "Player B"}
 
     def test_get_players_for_nonexistent_transaction(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         result = repo.get_players_for_transaction("nonexistent")
         assert result == []
 
     def test_tradee_team_key(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         txn = _make_transaction(
             type="trade",
             tradee_team_key="449.l.12345.t.2",
@@ -167,7 +168,7 @@ class TestSqliteYahooTransactionRepo:
         assert result[0].tradee_team_key == "449.l.12345.t.2"
 
     def test_nullable_player_id(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTransactionRepo(conn)
+        repo = SqliteYahooTransactionRepo(SingleConnectionProvider(conn))
         txn = _make_transaction()
         players = [_make_player(player_id=None)]
         repo.upsert(txn, players)

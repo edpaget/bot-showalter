@@ -1,6 +1,7 @@
 import datetime
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
@@ -157,8 +158,8 @@ def _waiver_transaction() -> list[Any]:
 
 class TestYahooTransactionSource:
     def test_parse_add_drop(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         player_repo.upsert(Player(name_first="John", name_last="Doe", mlbam_id=999999))
         conn.commit()
@@ -186,8 +187,8 @@ class TestYahooTransactionSource:
         assert drop_player.source_team_key == "449.l.12345.t.1"
 
     def test_parse_trade(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         player_repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))
         conn.commit()
@@ -207,8 +208,8 @@ class TestYahooTransactionSource:
         assert len(players) == 2
 
     def test_parse_waiver(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271))
         conn.commit()
 
@@ -226,8 +227,8 @@ class TestYahooTransactionSource:
         assert players[0].player_name == "Shohei Ohtani"
 
     def test_incremental_fetch_filters_by_since(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         conn.commit()
 
         mapper = YahooPlayerMapper(map_repo, player_repo)
@@ -248,8 +249,8 @@ class TestYahooTransactionSource:
         assert "add" not in types  # the add/drop has timestamp before since
 
     def test_empty_response(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         client = FakeClient({"fantasy_content": {"league": [{}]}})
         source = YahooTransactionSource(client, mapper)  # type: ignore[arg-type]
@@ -258,8 +259,8 @@ class TestYahooTransactionSource:
         assert result == []
 
     def test_player_resolution(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         trout_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
@@ -280,8 +281,8 @@ class TestYahooTransactionSource:
         assert doe.player_id is None
 
     def test_malformed_response_returns_empty(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
 
         client = FakeClient({})
@@ -293,8 +294,8 @@ class TestYahooTransactionSource:
         assert source.fetch_transactions("449.l.12345") == []
 
     def test_pending_trade_normalizes_to_trade(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
 
         trade_txn = _trade_transaction()

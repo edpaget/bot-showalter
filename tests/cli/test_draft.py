@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -50,8 +51,8 @@ def _draft_board_league() -> LeagueSettings:
 
 def _seed_draft_board_data(conn: sqlite3.Connection) -> None:
     """Seed player + valuation data for draft board commands."""
-    player_repo = SqlitePlayerRepo(conn)
-    val_repo = SqliteValuationRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
 
     pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
     pid2 = player_repo.upsert(Player(name_first="Gerrit", name_last="Cole", mlbam_id=543037))
@@ -179,8 +180,8 @@ class TestDraftExportCommand:
 
 def _seed_tier_data(conn: sqlite3.Connection) -> None:
     """Seed players + valuations with clear value gaps for tier tests."""
-    player_repo = SqlitePlayerRepo(conn)
-    val_repo = SqliteValuationRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
 
     # OF players with clear tier gaps: 42, 40 (tier 1) ... gap ... 28, 26 (tier 2) ... gap ... 15 (tier 3)
     of_players = [
@@ -369,8 +370,8 @@ def _needs_league() -> LeagueSettings:
 
 def _seed_needs_data(conn: sqlite3.Connection) -> None:
     """Seed player + projection data for draft needs tests."""
-    player_repo = SqlitePlayerRepo(conn)
-    proj_repo = SqliteProjectionRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
 
     # Roster player: strong HR, weak SB
     pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
@@ -445,8 +446,8 @@ class TestDraftNeedsCommand:
 
     def test_draft_needs_no_weak_categories(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
-        player_repo = SqlitePlayerRepo(db_conn)
-        proj_repo = SqliteProjectionRepo(db_conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(db_conn))
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(db_conn))
 
         # Roster player with very high stats
         pid = player_repo.upsert(Player(name_first="Mega", name_last="Star", mlbam_id=999999))
@@ -524,9 +525,9 @@ def _pick_value_league() -> LeagueSettings:
 
 def _seed_pick_value_data(conn: sqlite3.Connection) -> None:
     """Seed player + valuation + ADP data for pick value/trade tests."""
-    player_repo = SqlitePlayerRepo(conn)
-    val_repo = SqliteValuationRepo(conn)
-    adp_repo = SqliteADPRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
+    adp_repo = SqliteADPRepo(SingleConnectionProvider(conn))
 
     players = [
         ("Mike", "Trout", 545361, "batter", "OF", 40.0),
@@ -628,8 +629,8 @@ def _upgrade_league() -> LeagueSettings:
 
 def _seed_upgrade_data(conn: sqlite3.Connection) -> None:
     """Seed 3 players for upgrade/position-check tests."""
-    player_repo = SqlitePlayerRepo(conn)
-    val_repo = SqliteValuationRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
 
     # Roster player
     pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))

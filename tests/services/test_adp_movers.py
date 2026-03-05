@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -22,7 +23,7 @@ def _seed_adp(
     season: int = 2026,
     provider: str = "fantasypros",
 ) -> None:
-    repo = SqliteADPRepo(conn)
+    repo = SqliteADPRepo(SingleConnectionProvider(conn))
     repo.upsert(
         ADP(
             player_id=player_id,
@@ -37,7 +38,9 @@ def _seed_adp(
 
 
 def _make_service(conn: sqlite3.Connection) -> ADPMoversService:
-    return ADPMoversService(SqliteADPRepo(conn), SqlitePlayerRepo(conn))
+    return ADPMoversService(
+        SqliteADPRepo(SingleConnectionProvider(conn)), SqlitePlayerRepo(SingleConnectionProvider(conn))
+    )
 
 
 class TestBasicMovers:

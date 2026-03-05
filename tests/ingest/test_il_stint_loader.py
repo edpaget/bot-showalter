@@ -1,5 +1,6 @@
 from typing import Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_il_stint_mapper
 from fantasy_baseball_manager.ingest.loader import Loader
@@ -24,7 +25,7 @@ def _il_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
 class TestILStintLoader:
     def test_end_to_end_placement_and_activation(self, conn) -> None:
         player_id = seed_player(conn, mlbam_id=545361)
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
         rows = [
@@ -45,9 +46,9 @@ class TestILStintLoader:
             },
         ]
         source = FakeDataSource(rows)
-        repo = SqliteILStintRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "il_stint", conn=conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "il_stint", provider=SingleConnectionProvider(conn))
 
         result = loader.load(season=2024)
 
@@ -64,7 +65,7 @@ class TestILStintLoader:
 
     def test_non_il_transactions_skipped(self, conn) -> None:
         seed_player(conn, mlbam_id=545361)
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
         rows = [
@@ -84,9 +85,9 @@ class TestILStintLoader:
             },
         ]
         source = FakeDataSource(rows)
-        repo = SqliteILStintRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "il_stint", conn=conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "il_stint", provider=SingleConnectionProvider(conn))
 
         result = loader.load(season=2024)
 
@@ -96,7 +97,7 @@ class TestILStintLoader:
 
     def test_unknown_player_skipped(self, conn) -> None:
         seed_player(conn, mlbam_id=545361)
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
         rows = [
@@ -109,9 +110,9 @@ class TestILStintLoader:
             },
         ]
         source = FakeDataSource(rows)
-        repo = SqliteILStintRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "il_stint", conn=conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "il_stint", provider=SingleConnectionProvider(conn))
 
         result = loader.load(season=2024)
 
@@ -121,15 +122,15 @@ class TestILStintLoader:
 
     def test_upsert_idempotency_via_loader(self, conn) -> None:
         player_id = seed_player(conn, mlbam_id=545361)
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_il_stint_mapper(players, season=2024)
 
         rows = _il_rows()
         source = FakeDataSource(rows)
-        repo = SqliteILStintRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
 
-        loader = Loader(source, repo, log_repo, mapper, "il_stint", conn=conn)
+        loader = Loader(source, repo, log_repo, mapper, "il_stint", provider=SingleConnectionProvider(conn))
         loader.load(season=2024)
         loader.load(season=2024)
 

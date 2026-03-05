@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.roster_stint import RosterStint
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
@@ -19,9 +20,9 @@ runner = CliRunner()
 
 def _seed_bio_data(conn: sqlite3.Connection) -> None:
     """Seed two teams (NYY, NYM) with one player each on 2025 rosters."""
-    team_repo = SqliteTeamRepo(conn)
-    player_repo = SqlitePlayerRepo(conn)
-    stint_repo = SqliteRosterStintRepo(conn)
+    team_repo = SqliteTeamRepo(SingleConnectionProvider(conn))
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    stint_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
 
     nyy_id = team_repo.upsert(Team(abbreviation="NYY", name="New York Yankees", league="AL", division="East"))
     nym_id = team_repo.upsert(Team(abbreviation="NYM", name="New York Mets", league="NL", division="East"))

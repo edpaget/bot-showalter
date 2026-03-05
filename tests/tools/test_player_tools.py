@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Team
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.domain.roster_stint import RosterStint
@@ -19,17 +20,17 @@ if TYPE_CHECKING:
 
 
 def _seed_team(conn: sqlite3.Connection, abbreviation: str = "NYY", name: str = "Yankees") -> int:
-    repo = SqliteTeamRepo(conn)
+    repo = SqliteTeamRepo(SingleConnectionProvider(conn))
     return repo.upsert(Team(abbreviation=abbreviation, name=name, league="AL", division="East"))
 
 
 def _seed_roster_stint(conn: sqlite3.Connection, player_id: int, team_id: int, season: int = 2025) -> None:
-    repo = SqliteRosterStintRepo(conn)
+    repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
     repo.upsert(RosterStint(player_id=player_id, team_id=team_id, season=season, start_date=f"{season}-04-01"))
 
 
 def _seed_position(conn: sqlite3.Connection, player_id: int, season: int, position: str, games: int = 100) -> None:
-    repo = SqlitePositionAppearanceRepo(conn)
+    repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
     repo.upsert(PositionAppearance(player_id=player_id, season=season, position=position, games=games))
 
 

@@ -1,6 +1,7 @@
 import datetime
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.roster import Roster, RosterEntry
 from fantasy_baseball_manager.repos.yahoo_roster_repo import SqliteYahooRosterRepo
 
@@ -36,7 +37,7 @@ def _make_roster(**overrides: object) -> Roster:
 
 class TestSqliteYahooRosterRepo:
     def test_save_and_load_snapshot(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooRosterRepo(conn)
+        repo = SqliteYahooRosterRepo(SingleConnectionProvider(conn))
         roster = _make_roster()
         repo.save_snapshot(roster)
 
@@ -53,11 +54,11 @@ class TestSqliteYahooRosterRepo:
         assert result.id is not None
 
     def test_get_latest_by_team_returns_none_for_missing(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooRosterRepo(conn)
+        repo = SqliteYahooRosterRepo(SingleConnectionProvider(conn))
         assert repo.get_latest_by_team("nonexistent", "449.l.12345") is None
 
     def test_get_latest_by_team_returns_most_recent(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooRosterRepo(conn)
+        repo = SqliteYahooRosterRepo(SingleConnectionProvider(conn))
         repo.save_snapshot(_make_roster(week=1, as_of=datetime.date(2026, 3, 27)))
         repo.save_snapshot(
             _make_roster(
@@ -73,7 +74,7 @@ class TestSqliteYahooRosterRepo:
         assert result.entries[0].player_name == "Aaron Judge"
 
     def test_get_by_league_latest(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooRosterRepo(conn)
+        repo = SqliteYahooRosterRepo(SingleConnectionProvider(conn))
         repo.save_snapshot(
             _make_roster(
                 team_key="449.l.12345.t.1",
@@ -93,7 +94,7 @@ class TestSqliteYahooRosterRepo:
         assert names == {"Mike Trout", "Aaron Judge"}
 
     def test_resync_replaces_entries(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooRosterRepo(conn)
+        repo = SqliteYahooRosterRepo(SingleConnectionProvider(conn))
         repo.save_snapshot(_make_roster(entries=(_make_entry(player_name="Old Player"),)))
         repo.save_snapshot(_make_roster(entries=(_make_entry(player_name="New Player"),)))
 
@@ -103,7 +104,7 @@ class TestSqliteYahooRosterRepo:
         assert result.entries[0].player_name == "New Player"
 
     def test_nullable_player_id(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooRosterRepo(conn)
+        repo = SqliteYahooRosterRepo(SingleConnectionProvider(conn))
         entry = _make_entry(player_id=None, player_name="Unresolved Player")
         repo.save_snapshot(_make_roster(entries=(entry,)))
 
@@ -113,7 +114,7 @@ class TestSqliteYahooRosterRepo:
         assert result.entries[0].player_name == "Unresolved Player"
 
     def test_multiple_entries_per_snapshot(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooRosterRepo(conn)
+        repo = SqliteYahooRosterRepo(SingleConnectionProvider(conn))
         entries = (
             _make_entry(yahoo_player_key="449.p.1", player_name="Player A"),
             _make_entry(yahoo_player_key="449.p.2", player_name="Player B"),

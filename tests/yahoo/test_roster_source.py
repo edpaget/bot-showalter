@@ -1,6 +1,7 @@
 import datetime
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
@@ -158,8 +159,8 @@ _EMPTY_ROSTER_RESPONSE: dict[str, Any] = {
 
 class TestYahooRosterSource:
     def test_parse_roster_entries(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         # Seed one player so we can test resolution
         player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
@@ -182,8 +183,8 @@ class TestYahooRosterSource:
         assert len(roster.entries) == 4
 
     def test_roster_status_mapping(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         source = YahooRosterSource(FakeClient(), mapper)  # type: ignore[arg-type]
 
@@ -202,8 +203,8 @@ class TestYahooRosterSource:
         assert statuses["Bench Guy"] == "bench"
 
     def test_acquisition_type_parsing(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         source = YahooRosterSource(FakeClient(), mapper)  # type: ignore[arg-type]
 
@@ -221,8 +222,8 @@ class TestYahooRosterSource:
         assert acq_types["IL Player"] == "trade"
 
     def test_resolved_player_has_player_id(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         player_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
@@ -241,8 +242,8 @@ class TestYahooRosterSource:
         assert trout.player_id == player_id
 
     def test_unresolved_player_has_none_player_id(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         source = YahooRosterSource(FakeClient(), mapper)  # type: ignore[arg-type]
 
@@ -259,8 +260,8 @@ class TestYahooRosterSource:
         assert il_player.player_id is None
 
     def test_week_none_passes_none_to_client_and_sets_week_zero(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         fake_client = FakeClient()
         source = YahooRosterSource(fake_client, mapper)  # type: ignore[arg-type]
@@ -276,8 +277,8 @@ class TestYahooRosterSource:
         assert roster.week == 0
 
     def test_week_value_passes_through_to_client(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         fake_client = FakeClient()
         source = YahooRosterSource(fake_client, mapper)  # type: ignore[arg-type]
@@ -295,8 +296,8 @@ class TestYahooRosterSource:
 
     def test_empty_players_list_returns_empty_entries(self, conn: sqlite3.Connection) -> None:
         """Yahoo returns players as [] (not {}) when the roster has no players."""
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         source = YahooRosterSource(FakeClient(_EMPTY_PLAYERS_ROSTER_RESPONSE), mapper)  # type: ignore[arg-type]
 
@@ -311,8 +312,8 @@ class TestYahooRosterSource:
         assert roster.entries == ()
 
     def test_empty_roster_returns_empty_entries(self, conn: sqlite3.Connection) -> None:
-        player_repo = SqlitePlayerRepo(conn)
-        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
         mapper = YahooPlayerMapper(map_repo, player_repo)
         source = YahooRosterSource(FakeClient(_EMPTY_ROSTER_RESPONSE), mapper)  # type: ignore[arg-type]
 

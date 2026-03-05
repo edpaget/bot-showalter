@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import Player, RosterStint, Team
 from fantasy_baseball_manager.repos import (
     SqlitePlayerRepo,
@@ -20,9 +21,9 @@ if TYPE_CHECKING:
 
 
 def _setup(conn: sqlite3.Connection) -> tuple[SqlitePlayerRepo, SqliteTeamRepo, SqliteRosterStintRepo]:
-    player_repo = SqlitePlayerRepo(conn)
-    team_repo = SqliteTeamRepo(conn)
-    roster_repo = SqliteRosterStintRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    team_repo = SqliteTeamRepo(SingleConnectionProvider(conn))
+    roster_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
     return player_repo, team_repo, roster_repo
 
 

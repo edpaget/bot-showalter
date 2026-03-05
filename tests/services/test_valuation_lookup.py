@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
@@ -24,7 +25,7 @@ def _seed_valuation(
     rank: int = 1,
     category_scores: dict[str, float] | None = None,
 ) -> None:
-    repo = SqliteValuationRepo(conn)
+    repo = SqliteValuationRepo(SingleConnectionProvider(conn))
     repo.upsert(
         Valuation(
             player_id=player_id,
@@ -43,7 +44,9 @@ def _seed_valuation(
 
 
 def _make_service(conn: sqlite3.Connection) -> ValuationLookupService:
-    return ValuationLookupService(SqlitePlayerRepo(conn), SqliteValuationRepo(conn))
+    return ValuationLookupService(
+        SqlitePlayerRepo(SingleConnectionProvider(conn)), SqliteValuationRepo(SingleConnectionProvider(conn))
+    )
 
 
 class TestLookup:

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
 from fantasy_baseball_manager.services.experiment_summary import summarize_exploration
@@ -28,7 +29,7 @@ def _make_experiment(**overrides: object) -> Experiment:
 
 class TestSummarizeExploration:
     def test_total_experiments_count(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment())
         repo.save(_make_experiment())
         repo.save(_make_experiment(model="other-model"))
@@ -37,7 +38,7 @@ class TestSummarizeExploration:
         assert summary.total_experiments == 2
 
     def test_features_tested_with_best_result(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         # Experiment 1: barrel_rate with avg delta_pct -3.53
         repo.save(
             _make_experiment(
@@ -79,7 +80,7 @@ class TestSummarizeExploration:
         assert sprint.best_delta_pct == -1.0
 
     def test_targets_explored_with_best_rmse(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(
             _make_experiment(
                 target_results={
@@ -108,7 +109,7 @@ class TestSummarizeExploration:
         assert obp.experiments_count == 1
 
     def test_overall_best_experiment(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         # Experiment with avg delta_pct = -3.53
         repo.save(
             _make_experiment(
@@ -131,7 +132,7 @@ class TestSummarizeExploration:
         assert summary.best_experiment_delta_pct == -5.0
 
     def test_empty_summary(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
 
         summary = summarize_exploration(repo, "nonexistent-model", "batter")
         assert summary.total_experiments == 0
@@ -141,7 +142,7 @@ class TestSummarizeExploration:
         assert summary.best_experiment_delta_pct is None
 
     def test_filters_by_model_and_player_type(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(_make_experiment(model="model-a", player_type="batter"))
         repo.save(_make_experiment(model="model-a", player_type="pitcher"))
         repo.save(_make_experiment(model="model-b", player_type="batter"))
@@ -152,7 +153,7 @@ class TestSummarizeExploration:
         assert summary.player_type == "batter"
 
     def test_features_from_removed_are_counted(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteExperimentRepo(conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
         repo.save(
             _make_experiment(
                 feature_diff={"added": [], "removed": ["barrel_rate"]},

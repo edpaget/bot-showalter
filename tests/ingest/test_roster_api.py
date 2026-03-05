@@ -1,4 +1,5 @@
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import Team
 from fantasy_baseball_manager.ingest.roster_api import ingest_roster_api
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
@@ -18,9 +19,9 @@ def _make_fetcher(data: dict[int, str]) -> object:
 class TestIngestRosterApi:
     def test_happy_path(self) -> None:
         conn = create_connection(":memory:")
-        player_repo = SqlitePlayerRepo(conn)
-        team_repo = SqliteTeamRepo(conn)
-        stint_repo = SqliteRosterStintRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        team_repo = SqliteTeamRepo(SingleConnectionProvider(conn))
+        stint_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
 
         # Seed players and a team
         seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
@@ -42,9 +43,9 @@ class TestIngestRosterApi:
 
     def test_unknown_player_skipped(self) -> None:
         conn = create_connection(":memory:")
-        player_repo = SqlitePlayerRepo(conn)
-        team_repo = SqliteTeamRepo(conn)
-        stint_repo = SqliteRosterStintRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        team_repo = SqliteTeamRepo(SingleConnectionProvider(conn))
+        stint_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
 
         # Only seed one player — mlbam_id 999999 is unknown
         seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
@@ -63,9 +64,9 @@ class TestIngestRosterApi:
 
     def test_unknown_team_auto_upserted(self) -> None:
         conn = create_connection(":memory:")
-        player_repo = SqlitePlayerRepo(conn)
-        team_repo = SqliteTeamRepo(conn)
-        stint_repo = SqliteRosterStintRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        team_repo = SqliteTeamRepo(SingleConnectionProvider(conn))
+        stint_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
 
         seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
         conn.commit()
@@ -85,9 +86,9 @@ class TestIngestRosterApi:
 
     def test_rerun_idempotent(self) -> None:
         conn = create_connection(":memory:")
-        player_repo = SqlitePlayerRepo(conn)
-        team_repo = SqliteTeamRepo(conn)
-        stint_repo = SqliteRosterStintRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        team_repo = SqliteTeamRepo(SingleConnectionProvider(conn))
+        stint_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
 
         seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
         conn.commit()

@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import sqlite3
+    from fantasy_baseball_manager.repos import ConnectionProvider
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +25,8 @@ class DatasetInfo:
 
 
 class DatasetCatalogService:
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self._conn = conn
+    def __init__(self, provider: ConnectionProvider) -> None:
+        self._provider = provider
 
     def _rows_to_infos(self, rows: list[tuple[object, ...]]) -> list[DatasetInfo]:
         return [
@@ -49,51 +51,54 @@ class DatasetCatalogService:
     )
 
     def list_all(self) -> list[DatasetInfo]:
-        rows = self._conn.execute(f"{self._SELECT} ORDER BY fs.name, d.id").fetchall()
+        with self._provider.connection() as conn:
+            rows = conn.execute(f"{self._SELECT} ORDER BY fs.name, d.id").fetchall()
         return self._rows_to_infos(rows)
 
     def list_by_feature_set_name(self, name: str) -> list[DatasetInfo]:
-        rows = self._conn.execute(
-            f"{self._SELECT} WHERE fs.name = ? ORDER BY d.id",
-            (name,),
-        ).fetchall()
+        with self._provider.connection() as conn:
+            rows = conn.execute(
+                f"{self._SELECT} WHERE fs.name = ? ORDER BY d.id",
+                (name,),
+            ).fetchall()
         return self._rows_to_infos(rows)
 
     def _drop_datasets(self, where_clause: str, params: tuple[object, ...]) -> int:
         """Drop dataset tables and metadata matching the WHERE clause on feature_set."""
-        # Find all datasets for matching feature sets
-        rows = self._conn.execute(
-            f"SELECT d.id, d.table_name, d.feature_set_id FROM dataset d "
-            f"JOIN feature_set fs ON fs.id = d.feature_set_id WHERE {where_clause}",
-            params,
-        ).fetchall()
+        with self._provider.connection() as conn:
+            # Find all datasets for matching feature sets
+            rows = conn.execute(
+                f"SELECT d.id, d.table_name, d.feature_set_id FROM dataset d "
+                f"JOIN feature_set fs ON fs.id = d.feature_set_id WHERE {where_clause}",
+                params,
+            ).fetchall()
 
-        if not rows:
-            logger.debug("No datasets matched for drop")
-            return 0
+            if not rows:
+                logger.debug("No datasets matched for drop")
+                return 0
 
-        logger.info("Dropping %d dataset(s)", len(rows))
-        feature_set_ids: set[int] = set()
-        for row in rows:
-            table_name: str = row[1]
-            feature_set_ids.add(row[2])
-            # DROP TABLE IF EXISTS — skip if already gone
-            self._conn.execute(f"DROP TABLE IF EXISTS [{table_name}]")
+            logger.info("Dropping %d dataset(s)", len(rows))
+            feature_set_ids: set[int] = set()
+            for row in rows:
+                table_name: str = row[1]
+                feature_set_ids.add(row[2])
+                # DROP TABLE IF EXISTS — skip if already gone
+                conn.execute(f"DROP TABLE IF EXISTS [{table_name}]")
 
-        # Delete dataset metadata
-        dataset_ids = [row[0] for row in rows]
-        placeholders = ", ".join("?" for _ in dataset_ids)
-        self._conn.execute(f"DELETE FROM dataset WHERE id IN ({placeholders})", dataset_ids)
+            # Delete dataset metadata
+            dataset_ids = [row[0] for row in rows]
+            placeholders = ", ".join("?" for _ in dataset_ids)
+            conn.execute(f"DELETE FROM dataset WHERE id IN ({placeholders})", dataset_ids)
 
-        # Delete orphaned feature_set rows (no remaining datasets)
-        for fs_id in feature_set_ids:
-            remaining = self._conn.execute(
-                "SELECT COUNT(*) FROM dataset WHERE feature_set_id = ?", (fs_id,)
-            ).fetchone()[0]
-            if remaining == 0:
-                self._conn.execute("DELETE FROM feature_set WHERE id = ?", (fs_id,))
+            # Delete orphaned feature_set rows (no remaining datasets)
+            for fs_id in feature_set_ids:
+                remaining = conn.execute("SELECT COUNT(*) FROM dataset WHERE feature_set_id = ?", (fs_id,)).fetchone()[
+                    0
+                ]
+                if remaining == 0:
+                    conn.execute("DELETE FROM feature_set WHERE id = ?", (fs_id,))
 
-        return len(rows)
+            return len(rows)
 
     def drop_by_feature_set_name(self, name: str) -> int:
         return self._drop_datasets("fs.name = ?", (name,))

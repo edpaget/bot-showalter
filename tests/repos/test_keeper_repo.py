@@ -1,4 +1,5 @@
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.keeper import KeeperCost
 from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
 from tests.helpers import seed_player
@@ -8,7 +9,7 @@ class TestSqliteKeeperCostRepo:
     def test_upsert_batch_inserts(self) -> None:
         conn = create_connection(":memory:")
         pid = seed_player(conn, name_first="Mike", name_last="Trout")
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         costs = [KeeperCost(player_id=pid, season=2026, league="dynasty", cost=25.0, source="auction")]
         count = repo.upsert_batch(costs)
@@ -26,7 +27,7 @@ class TestSqliteKeeperCostRepo:
     def test_upsert_batch_updates_existing(self) -> None:
         conn = create_connection(":memory:")
         pid = seed_player(conn, name_first="Mike", name_last="Trout")
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         # Insert initial
         repo.upsert_batch([KeeperCost(player_id=pid, season=2026, league="dynasty", cost=25.0, source="auction")])
@@ -49,7 +50,7 @@ class TestSqliteKeeperCostRepo:
         conn = create_connection(":memory:")
         pid1 = seed_player(conn, name_first="Mike", name_last="Trout")
         pid2 = seed_player(conn, name_first="Shohei", name_last="Ohtani")
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         repo.upsert_batch(
             [
@@ -71,7 +72,7 @@ class TestSqliteKeeperCostRepo:
     def test_find_by_player(self) -> None:
         conn = create_connection(":memory:")
         pid = seed_player(conn, name_first="Mike", name_last="Trout")
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         repo.upsert_batch(
             [
@@ -90,7 +91,7 @@ class TestSqliteKeeperCostRepo:
     def test_upsert_with_original_round(self) -> None:
         conn = create_connection(":memory:")
         pid = seed_player(conn, name_first="Mike", name_last="Trout")
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         repo.upsert_batch(
             [
@@ -111,7 +112,7 @@ class TestSqliteKeeperCostRepo:
     def test_upsert_without_original_round(self) -> None:
         conn = create_connection(":memory:")
         pid = seed_player(conn, name_first="Mike", name_last="Trout")
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         repo.upsert_batch([KeeperCost(player_id=pid, season=2026, league="dynasty", cost=25.0, source="auction")])
         conn.commit()
@@ -124,7 +125,7 @@ class TestSqliteKeeperCostRepo:
     def test_upsert_updates_original_round(self) -> None:
         conn = create_connection(":memory:")
         pid = seed_player(conn, name_first="Mike", name_last="Trout")
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         repo.upsert_batch(
             [
@@ -153,7 +154,7 @@ class TestSqliteKeeperCostRepo:
     def test_upsert_batch_idempotent(self) -> None:
         conn = create_connection(":memory:")
         pid = seed_player(conn, name_first="Mike", name_last="Trout")
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         cost = KeeperCost(player_id=pid, season=2026, league="dynasty", cost=25.0, source="auction")
 

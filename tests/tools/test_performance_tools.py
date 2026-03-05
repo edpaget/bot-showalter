@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 
 
 def _seed_projection(conn: sqlite3.Connection, player_id: int, stats: dict) -> None:
-    repo = SqliteProjectionRepo(conn)
+    repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
     repo.upsert(
         Projection(
             player_id=player_id,
@@ -30,7 +31,7 @@ def _seed_projection(conn: sqlite3.Connection, player_id: int, stats: dict) -> N
 
 
 def _seed_batting(conn: sqlite3.Connection, player_id: int, **kwargs: object) -> None:
-    repo = SqliteBattingStatsRepo(conn)
+    repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
     repo.upsert(BattingStats(player_id=player_id, season=2025, source="fangraphs", pa=500, **kwargs))  # type: ignore[arg-type]
 
 

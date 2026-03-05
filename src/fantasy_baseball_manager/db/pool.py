@@ -1,7 +1,7 @@
 import logging
 import queue
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.connection import create_connection
 
@@ -11,13 +11,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class ConnectionProvider(Protocol):
-    """Abstraction over connection acquisition strategies."""
-
-    def connection(self) -> contextmanager[sqlite3.Connection]: ...  # type: ignore[type-arg]
 
 
 class SingleConnectionProvider:

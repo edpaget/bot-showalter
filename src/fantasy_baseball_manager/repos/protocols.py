@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 if TYPE_CHECKING:
     import builtins
     import datetime
+    import sqlite3
+    from contextlib import contextmanager
 
     from fantasy_baseball_manager.domain import (
         ADP,
@@ -37,6 +39,13 @@ if TYPE_CHECKING:
         YahooTeam,
     )
     from fantasy_baseball_manager.repos.experiment_repo import ExperimentFilter
+
+
+@runtime_checkable
+class ConnectionProvider(Protocol):
+    """Abstraction over connection acquisition strategies."""
+
+    def connection(self) -> contextmanager[sqlite3.Connection]: ...  # type: ignore[type-arg]
 
 
 @runtime_checkable

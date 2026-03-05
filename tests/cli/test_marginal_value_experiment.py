@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import Experiment, Ok, TargetResult
 from fantasy_baseball_manager.models.gbm_training_backend import GBMTrainingBackend
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
@@ -160,7 +161,7 @@ class TestMarginalValueExperimentLogging:
         assert result.output.count("Logged experiment #") == 2
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         experiments = repo.list()
         assert len(experiments) == 2
 
@@ -183,7 +184,7 @@ class TestMarginalValueExperimentLogging:
 
         # Seed a parent experiment
         seed_conn = create_connection(db_path)
-        parent_repo = SqliteExperimentRepo(seed_conn)
+        parent_repo = SqliteExperimentRepo(SingleConnectionProvider(seed_conn))
         parent_id = parent_repo.save(
             Experiment(
                 timestamp="2026-03-01T00:00:00",
@@ -227,7 +228,7 @@ class TestMarginalValueExperimentLogging:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         child = next(e for e in repo.list() if e.hypothesis == "test tags")
         assert child.tags == ["feature", "exploration"]
         assert child.parent_id == parent_id
@@ -258,7 +259,7 @@ class TestMarginalValueExperimentLogging:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         exp = repo.list()[0]
         slg = exp.target_results["slg"]
         assert slg.rmse == 0.082
@@ -292,7 +293,7 @@ class TestMarginalValueExperimentLogging:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         exp = repo.list()[0]
         assert "improved" in exp.conclusion
         assert "2/2" in exp.conclusion
@@ -323,7 +324,7 @@ class TestMarginalValueExperimentLogging:
         assert "Logged experiment" not in result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         assert len(repo.list()) == 0
         verify_conn.close()
 
@@ -352,7 +353,7 @@ class TestMarginalValueExperimentLogging:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteExperimentRepo(verify_conn)
+        repo = SqliteExperimentRepo(SingleConnectionProvider(verify_conn))
         exp = repo.list()[0]
         assert exp.seasons == {"train": [2023], "holdout": [2024]}
         verify_conn.close()

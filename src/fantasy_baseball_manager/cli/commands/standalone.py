@@ -23,6 +23,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_import_context,
     create_model,
 )
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.discord_bot.bot import FBMDiscordBot
 from fantasy_baseball_manager.domain import (
     BATTING_RATE_STATS,
@@ -150,7 +151,13 @@ def import_cmd(
                 ctx.proj_repo.upsert_distributions(projection_id, list(projection.distributions.values()))
 
         loader = Loader(
-            source, ctx.proj_repo, ctx.log_repo, mapper, "projection", conn=ctx.conn, post_upsert=_post_upsert
+            source,
+            ctx.proj_repo,
+            ctx.log_repo,
+            mapper,
+            "projection",
+            provider=SingleConnectionProvider(ctx.conn),
+            post_upsert=_post_upsert,
         )
         match loader.load(encoding="utf-8-sig"):
             case Ok(log):

@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
@@ -21,10 +22,10 @@ _ServiceTuple = tuple[
 
 
 def _make_service(conn: sqlite3.Connection) -> _ServiceTuple:
-    proj_repo = SqliteProjectionRepo(conn)
-    player_repo = SqlitePlayerRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
-    pitching_repo = SqlitePitchingStatsRepo(conn)
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    batting_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+    pitching_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
     service = PerformanceReportService(proj_repo, player_repo, batting_repo, pitching_repo)
     return service, proj_repo, player_repo, batting_repo, pitching_repo
 

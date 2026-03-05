@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
 from fantasy_baseball_manager.repos.yahoo_league_repo import SqliteYahooLeagueRepo, SqliteYahooTeamRepo
 
@@ -36,7 +37,7 @@ def _make_yahoo_team(**overrides: object) -> YahooTeam:
 
 class TestSqliteYahooLeagueRepo:
     def test_upsert_and_get_by_league_key(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooLeagueRepo(conn)
+        repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         league = _make_yahoo_league()
         repo.upsert(league)
         result = repo.get_by_league_key("449.l.12345")
@@ -51,7 +52,7 @@ class TestSqliteYahooLeagueRepo:
         assert result.id is not None
 
     def test_upsert_updates_existing(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooLeagueRepo(conn)
+        repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_league(name="Old Name"))
         repo.upsert(_make_yahoo_league(name="New Name"))
         result = repo.get_by_league_key("449.l.12345")
@@ -59,11 +60,11 @@ class TestSqliteYahooLeagueRepo:
         assert result.name == "New Name"
 
     def test_get_by_league_key_returns_none_for_missing(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooLeagueRepo(conn)
+        repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         assert repo.get_by_league_key("nonexistent") is None
 
     def test_get_all(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooLeagueRepo(conn)
+        repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_league(league_key="449.l.100", name="League A"))
         repo.upsert(_make_yahoo_league(league_key="449.l.200", name="League B"))
         results = repo.get_all()
@@ -72,27 +73,27 @@ class TestSqliteYahooLeagueRepo:
         assert keys == {"449.l.100", "449.l.200"}
 
     def test_upsert_returns_row_id(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooLeagueRepo(conn)
+        repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         row_id = repo.upsert(_make_yahoo_league())
         assert isinstance(row_id, int)
         assert row_id > 0
 
     def test_is_keeper_round_trips(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooLeagueRepo(conn)
+        repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_league(is_keeper=True))
         result = repo.get_by_league_key("449.l.12345")
         assert result is not None
         assert result.is_keeper is True
 
     def test_renew_round_trips(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooLeagueRepo(conn)
+        repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_league(renew="422.l.99999"))
         result = repo.get_by_league_key("449.l.12345")
         assert result is not None
         assert result.renew == "422.l.99999"
 
     def test_renew_defaults_to_none(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooLeagueRepo(conn)
+        repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_league())
         result = repo.get_by_league_key("449.l.12345")
         assert result is not None
@@ -101,12 +102,12 @@ class TestSqliteYahooLeagueRepo:
 
 class TestSqliteYahooTeamRepo:
     def _seed_league(self, conn: sqlite3.Connection) -> None:
-        league_repo = SqliteYahooLeagueRepo(conn)
+        league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
         league_repo.upsert(_make_yahoo_league())
 
     def test_upsert_and_get_by_league_key(self, conn: sqlite3.Connection) -> None:
         self._seed_league(conn)
-        repo = SqliteYahooTeamRepo(conn)
+        repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_team())
         results = repo.get_by_league_key("449.l.12345")
         assert len(results) == 1
@@ -118,7 +119,7 @@ class TestSqliteYahooTeamRepo:
 
     def test_upsert_updates_existing(self, conn: sqlite3.Connection) -> None:
         self._seed_league(conn)
-        repo = SqliteYahooTeamRepo(conn)
+        repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_team(name="Old Name"))
         repo.upsert(_make_yahoo_team(name="New Name"))
         results = repo.get_by_league_key("449.l.12345")
@@ -126,12 +127,12 @@ class TestSqliteYahooTeamRepo:
         assert results[0].name == "New Name"
 
     def test_get_by_league_key_returns_empty_for_missing(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteYahooTeamRepo(conn)
+        repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         assert repo.get_by_league_key("nonexistent") == []
 
     def test_get_user_team(self, conn: sqlite3.Connection) -> None:
         self._seed_league(conn)
-        repo = SqliteYahooTeamRepo(conn)
+        repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_team(team_key="449.l.12345.t.1", is_owned_by_user=False))
         repo.upsert(_make_yahoo_team(team_key="449.l.12345.t.2", team_id=2, is_owned_by_user=True, name="User Team"))
         result = repo.get_user_team("449.l.12345")
@@ -141,13 +142,13 @@ class TestSqliteYahooTeamRepo:
 
     def test_get_user_team_returns_none_when_no_user_team(self, conn: sqlite3.Connection) -> None:
         self._seed_league(conn)
-        repo = SqliteYahooTeamRepo(conn)
+        repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_yahoo_team(is_owned_by_user=False))
         assert repo.get_user_team("449.l.12345") is None
 
     def test_multiple_teams_per_league(self, conn: sqlite3.Connection) -> None:
         self._seed_league(conn)
-        repo = SqliteYahooTeamRepo(conn)
+        repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         for i in range(1, 4):
             repo.upsert(
                 _make_yahoo_team(

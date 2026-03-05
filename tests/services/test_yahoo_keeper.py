@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
     KeeperCost,
     Roster,
@@ -90,7 +91,7 @@ _PRIOR_LEAGUE_KEY = "422.l.200"
 
 
 def _seed_prior_league(conn: sqlite3.Connection) -> None:
-    league_repo = SqliteYahooLeagueRepo(conn)
+    league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
     league_repo.upsert(
         YahooLeague(
             league_key=_PRIOR_LEAGUE_KEY,
@@ -107,7 +108,7 @@ def _seed_prior_league(conn: sqlite3.Connection) -> None:
 
 def _seed_team(conn: sqlite3.Connection, *, is_user: bool = True) -> None:
     _seed_prior_league(conn)
-    team_repo = SqliteYahooTeamRepo(conn)
+    team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
     team_repo.upsert(
         YahooTeam(
             team_key="422.l.200.t.1",
@@ -122,7 +123,7 @@ def _seed_team(conn: sqlite3.Connection, *, is_user: bool = True) -> None:
 
 
 def _seed_player(conn: sqlite3.Connection) -> int:
-    player_repo = SqlitePlayerRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
     player_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
     conn.commit()
     return player_id
@@ -171,8 +172,8 @@ class TestDeriveAndStoreKeeperCosts:
 
         draft_source = FakeDraftSource([pick])
         roster_source = FakeRosterSource(roster)
-        team_repo = SqliteYahooTeamRepo(conn)
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         derive_and_store_keeper_costs(
             draft_source=draft_source,
@@ -197,7 +198,7 @@ class TestDeriveAndStoreKeeperCosts:
         player_id = _seed_player(conn)
 
         # Pre-seed a manual override
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         keeper_repo.upsert_batch(
             [
                 KeeperCost(
@@ -245,7 +246,7 @@ class TestDeriveAndStoreKeeperCosts:
 
         draft_source = FakeDraftSource([pick])
         roster_source = FakeRosterSource(roster)
-        team_repo = SqliteYahooTeamRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
 
         derive_and_store_keeper_costs(
             draft_source=draft_source,
@@ -279,8 +280,8 @@ class TestDeriveAndStoreKeeperCosts:
                 entries=(),
             )
         )
-        team_repo = SqliteYahooTeamRepo(conn)
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         with pytest.raises(ValueError, match="No user team found for"):
             derive_and_store_keeper_costs(
@@ -300,7 +301,7 @@ class TestDeriveAndStoreKeeperCosts:
 class TestDeriveBestNKeeperCosts:
     def test_assigns_zero_cost_to_all_roster_players(self, conn: sqlite3.Connection) -> None:
         _seed_team(conn)
-        player_repo = SqlitePlayerRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         pid2 = player_repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))
         conn.commit()
@@ -332,8 +333,8 @@ class TestDeriveBestNKeeperCosts:
         )
 
         roster_source = FakeRosterSource(roster)
-        team_repo = SqliteYahooTeamRepo(conn)
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         derive_best_n_keeper_costs(
             roster_source=roster_source,
@@ -353,7 +354,7 @@ class TestDeriveBestNKeeperCosts:
 
     def test_skips_unresolved_players(self, conn: sqlite3.Connection) -> None:
         _seed_team(conn)
-        player_repo = SqlitePlayerRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
@@ -384,8 +385,8 @@ class TestDeriveBestNKeeperCosts:
         )
 
         roster_source = FakeRosterSource(roster)
-        team_repo = SqliteYahooTeamRepo(conn)
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         derive_best_n_keeper_costs(
             roster_source=roster_source,
@@ -403,11 +404,11 @@ class TestDeriveBestNKeeperCosts:
 
     def test_respects_manual_overrides(self, conn: sqlite3.Connection) -> None:
         _seed_team(conn)
-        player_repo = SqlitePlayerRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         conn.commit()
 
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         keeper_repo.upsert_batch(
             [
                 KeeperCost(
@@ -441,7 +442,7 @@ class TestDeriveBestNKeeperCosts:
         )
 
         roster_source = FakeRosterSource(roster)
-        team_repo = SqliteYahooTeamRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
 
         derive_best_n_keeper_costs(
             roster_source=roster_source,
@@ -498,8 +499,8 @@ _PRIOR_OTHER_TEAM = YahooTeam(
 class TestEnsurePriorSeasonTeams:
     def test_no_sync_when_teams_already_exist(self, conn: sqlite3.Connection) -> None:
         """When user team exists in DB, no sync call is made."""
-        team_repo = SqliteYahooTeamRepo(conn)
-        league_repo = SqliteYahooLeagueRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
 
         # Pre-seed prior league and user team
         league_repo.upsert(_PRIOR_LEAGUE)
@@ -520,8 +521,8 @@ class TestEnsurePriorSeasonTeams:
 
     def test_syncs_when_teams_missing(self, conn: sqlite3.Connection) -> None:
         """When user team is absent, sync is called and teams are populated."""
-        team_repo = SqliteYahooTeamRepo(conn)
-        league_repo = SqliteYahooLeagueRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
 
         league_source = FakeLeagueSource(_PRIOR_LEAGUE, [_PRIOR_USER_TEAM, _PRIOR_OTHER_TEAM])
 
@@ -538,8 +539,8 @@ class TestEnsurePriorSeasonTeams:
 
     def test_raises_when_sync_finds_no_user_team(self, conn: sqlite3.Connection) -> None:
         """When sync completes but no user team exists, ValueError is raised."""
-        team_repo = SqliteYahooTeamRepo(conn)
-        league_repo = SqliteYahooLeagueRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
 
         # Sync returns teams but none is_owned_by_user
         league_source = FakeLeagueSource(_PRIOR_LEAGUE, [_PRIOR_OTHER_TEAM])
@@ -594,7 +595,7 @@ class TestFetchLeagueRosters:
     def test_returns_rosters_for_non_user_teams_only(self, conn: sqlite3.Connection) -> None:
         """User team is excluded; only other teams' rosters are returned."""
         _seed_prior_league(conn)
-        team_repo = SqliteYahooTeamRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         team_repo.upsert(_PRIOR_USER_TEAM)
         team_repo.upsert(_PRIOR_OTHER_TEAM)
         conn.commit()
@@ -615,7 +616,7 @@ class TestFetchLeagueRosters:
     def test_fetches_correct_team_keys(self, conn: sqlite3.Connection) -> None:
         """Multiple non-user teams each get their own roster fetched."""
         _seed_prior_league(conn)
-        team_repo = SqliteYahooTeamRepo(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         team_repo.upsert(_PRIOR_USER_TEAM)
         team_repo.upsert(_PRIOR_OTHER_TEAM)
         team_repo.upsert(_OTHER_TEAM_2)

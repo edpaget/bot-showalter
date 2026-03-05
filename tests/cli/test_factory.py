@@ -20,6 +20,7 @@ from fantasy_baseball_manager.cli.factory import (
     create_model,
 )
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.errors import ConfigError
@@ -555,8 +556,8 @@ def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
     seed_player(conn, player_id=2, name_first="Player", name_last="Two")
     seed_player(conn, player_id=3, name_first="Player", name_last="Three")
 
-    adp_repo = SqliteADPRepo(conn)
-    val_repo = SqliteValuationRepo(conn)
+    adp_repo = SqliteADPRepo(SingleConnectionProvider(conn))
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
 
     # Player 1: ADP rank 50, actual rank 10 → rank_delta = 40 → BREAKOUT
     adp_repo.upsert(ADP(player_id=1, season=2023, provider="fantasypros", overall_pick=50.0, rank=50, positions="OF"))

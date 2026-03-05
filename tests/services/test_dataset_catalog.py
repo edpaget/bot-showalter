@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.services.dataset_catalog import DatasetCatalogService, DatasetInfo
 
 if TYPE_CHECKING:
@@ -56,7 +57,7 @@ def conn() -> Generator[sqlite3.Connection]:
 
 @pytest.fixture
 def catalog(conn: sqlite3.Connection) -> DatasetCatalogService:
-    return DatasetCatalogService(conn)
+    return DatasetCatalogService(SingleConnectionProvider(conn))
 
 
 class TestListAll:

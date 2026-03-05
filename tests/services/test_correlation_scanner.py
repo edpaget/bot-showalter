@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain.correlation_result import (
     CorrelationScanResult,
@@ -160,7 +161,7 @@ class TestCorrelationScannerBatter:
         self, statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection
     ) -> None:
         _setup_batter_scenario(statcast_conn, stats_conn, n_players=20, season=2023)
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
 
         result = scanner.scan_target_correlations("launch_speed", [2023], "batter")
 
@@ -207,7 +208,7 @@ class TestCorrelationScannerBatter:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("launch_speed", [2023, 2024], "batter")
 
         assert len(result.per_season) == 2
@@ -245,7 +246,7 @@ class TestCorrelationScannerBatter:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("launch_speed", [2023], "batter")
 
         slg_corr = next(c for c in result.pooled.correlations if c.target == "slg")
@@ -256,7 +257,7 @@ class TestCorrelationScannerBatter:
     def test_derived_target_iso(self, statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection) -> None:
         """ISO = slg - avg should be computed and correlated."""
         _setup_batter_scenario(statcast_conn, stats_conn, n_players=15, season=2023)
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("launch_speed", [2023], "batter")
 
         iso_corr = next(c for c in result.pooled.correlations if c.target == "iso")
@@ -267,7 +268,7 @@ class TestCorrelationScannerBatter:
     def test_derived_target_babip(self, statcast_conn: sqlite3.Connection, stats_conn: sqlite3.Connection) -> None:
         """BABIP should be computed from component stats."""
         _setup_batter_scenario(statcast_conn, stats_conn, n_players=15, season=2023)
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("launch_speed", [2023], "batter")
 
         babip_corr = next(c for c in result.pooled.correlations if c.target == "babip")
@@ -305,7 +306,7 @@ class TestCorrelationScannerPitcher:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("release_speed", [2023], "pitcher")
 
         target_names = {c.target for c in result.pooled.correlations}
@@ -340,7 +341,7 @@ class TestCorrelationScannerPitcher:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("release_speed", [2023], "pitcher")
 
         hr9_corr = next(c for c in result.pooled.correlations if c.target == "hr_per_9")
@@ -384,7 +385,7 @@ class TestCorrelationScannerExpressions:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("AVG(launch_speed) WHERE barrel = 1", [2023], "batter")
 
         slg_corr = next(c for c in result.pooled.correlations if c.target == "slg")
@@ -414,7 +415,7 @@ class TestCorrelationScannerEdgeCases:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("launch_speed", [2023], "batter")
 
         for corr in result.pooled.correlations:
@@ -439,7 +440,7 @@ class TestCorrelationScannerEdgeCases:
         _insert_batting_stats(stats_conn, player_id=1, season=2023)
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("launch_speed", [2023], "batter")
 
         for corr in result.pooled.correlations:
@@ -468,7 +469,7 @@ class TestScanMultiple:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         results = scanner.scan_multiple(["launch_speed", "release_speed"], [2023], "batter")
 
         assert len(results) == 2
@@ -496,7 +497,7 @@ class TestRankColumns:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         results = scanner.scan_multiple(["launch_speed", "release_speed"], [2023], "batter")
         rankings = rank_columns(results)
 
@@ -531,7 +532,7 @@ class TestPooledAcrossSeasons:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_target_correlations("launch_speed", [2022, 2023], "batter")
 
         slg_corr = next(c for c in result.pooled.correlations if c.target == "slg")
@@ -561,7 +562,7 @@ class TestScanFromValues:
             mlbam_id = 1000 + i
             candidate_values[(mlbam_id, 2023)] = 80.0 + i * 1.0
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_from_values("custom_feature", candidate_values, [2023], "batter")
 
         assert isinstance(result, CorrelationScanResult)
@@ -587,7 +588,7 @@ class TestScanFromValues:
             for season in [2022, 2023]:
                 candidate_values[(mlbam_id, season)] = 80.0 + i
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.scan_from_values("custom", candidate_values, [2022, 2023], "batter")
 
         assert len(result.per_season) == 2
@@ -621,7 +622,7 @@ class TestComputeBinTargetMeans:
             BinnedValue(player_id=1004, season=2023, bin_label="Q2", value=97.0),
         ]
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.compute_bin_target_means(binned, [2023], "batter")
 
         # Find slg means per bin
@@ -656,7 +657,7 @@ class TestComputeBinTargetMeans:
             BinnedValue(player_id=1004, season=2023, bin_label="Q2", value=97.0),
         ]
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         result = scanner.compute_bin_target_means(binned, [2023], "batter")
 
         # Should have results for all batter targets per bin

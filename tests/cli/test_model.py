@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -222,7 +223,7 @@ class TestTrainRunTracking:
 
         # Verify with a SECOND connection — proves data was committed
         verify_conn = create_connection(db_path)
-        repo = SqliteModelRunRepo(verify_conn)
+        repo = SqliteModelRunRepo(SingleConnectionProvider(verify_conn))
         runs = repo.list(system="stub")
         assert len(runs) == 1
         assert runs[0].version == "v1"
@@ -241,7 +242,7 @@ class TestTrainRunTracking:
 
         # Verify with a SECOND connection — proves data was committed
         verify_conn = create_connection(db_path)
-        repo = SqliteModelRunRepo(verify_conn)
+        repo = SqliteModelRunRepo(SingleConnectionProvider(verify_conn))
         runs = repo.list(system="stub")
         assert len(runs) == 1
         assert runs[0].tags_json == {"env": "test"}
@@ -259,7 +260,7 @@ class TestTrainRunTracking:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteModelRunRepo(verify_conn)
+        repo = SqliteModelRunRepo(SingleConnectionProvider(verify_conn))
         runs = repo.list()
         assert len(runs) == 0
         verify_conn.close()
@@ -305,7 +306,7 @@ class TestPredictRunTracking:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteModelRunRepo(verify_conn)
+        repo = SqliteModelRunRepo(SingleConnectionProvider(verify_conn))
         runs = repo.list(system="pred-stub")
         assert len(runs) == 1
         assert runs[0].version == "v1"
@@ -324,7 +325,7 @@ class TestPredictRunTracking:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        repo = SqliteModelRunRepo(verify_conn)
+        repo = SqliteModelRunRepo(SingleConnectionProvider(verify_conn))
         runs = repo.list()
         assert len(runs) == 0
         verify_conn.close()
@@ -387,7 +388,7 @@ class TestPredictPersistence:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        proj_repo = SqliteProjectionRepo(verify_conn)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
         projections = proj_repo.get_by_season(2025, system="pred-proj-stub")
         assert len(projections) == 2
         batter_proj = [p for p in projections if p.player_type == "batter"][0]
@@ -410,7 +411,7 @@ class TestPredictPersistence:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        proj_repo = SqliteProjectionRepo(verify_conn)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
         projections = proj_repo.get_by_season(2025, system="pred-proj-stub")
         assert all(p.system == "pred-proj-stub" for p in projections)
         verify_conn.close()

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import make_milb_batting_mapper
 from fantasy_baseball_manager.ingest.loader import Loader
@@ -47,13 +48,15 @@ def _milb_rows(*overrides: dict[str, Any]) -> list[dict[str, Any]]:
 class TestMilbLoader:
     def test_end_to_end_load(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn, mlbam_id=545361)
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_milb_batting_mapper(players)
 
         source = FakeDataSource(_milb_rows())
-        repo = SqliteMinorLeagueBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
+        repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, mapper, "minor_league_batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load(season=2024, level="AAA")
 
@@ -70,14 +73,16 @@ class TestMilbLoader:
 
     def test_unknown_players_skipped(self, conn: sqlite3.Connection) -> None:
         seed_player(conn, mlbam_id=545361)  # seed known player; test row uses unknown mlbam_id
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_milb_batting_mapper(players)
 
         rows = _milb_rows({"mlbam_id": 999999})
         source = FakeDataSource(rows)
-        repo = SqliteMinorLeagueBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
+        repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, mapper, "minor_league_batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load(season=2024, level="AAA")
 
@@ -87,7 +92,7 @@ class TestMilbLoader:
 
     def test_multi_level_season(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn, mlbam_id=545361)
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_milb_batting_mapper(players)
 
         rows = _milb_rows(
@@ -95,9 +100,11 @@ class TestMilbLoader:
             {"level": "AAA", "team": "Syracuse Mets"},
         )
         source = FakeDataSource(rows)
-        repo = SqliteMinorLeagueBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "minor_league_batting_stats", conn=conn)
+        repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, mapper, "minor_league_batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load(season=2024, level="AAA")
 

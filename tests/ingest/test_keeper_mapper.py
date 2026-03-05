@@ -1,4 +1,5 @@
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.ingest.keeper_mapper import import_keeper_costs
 from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
@@ -10,7 +11,7 @@ def _round_translator(round_num: int) -> float:
 
 
 def _make_players(conn: object) -> list[Player]:
-    repo = SqlitePlayerRepo(conn)  # type: ignore[arg-type]
+    repo = SqlitePlayerRepo(SingleConnectionProvider(conn))  # type: ignore[arg-type]
     pid1 = repo.upsert(Player(name_first="Mike", name_last="Trout"))
     pid2 = repo.upsert(Player(name_first="Shohei", name_last="Ohtani"))
     conn.commit()  # type: ignore[union-attr]
@@ -24,7 +25,7 @@ class TestImportKeeperCosts:
     def test_success(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [
             {"Player": "Mike Trout", "Cost": "25"},
@@ -46,7 +47,7 @@ class TestImportKeeperCosts:
     def test_unmatched_tracking(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [
             {"Player": "Mike Trout", "Cost": "25"},
@@ -62,7 +63,7 @@ class TestImportKeeperCosts:
     def test_optional_years_and_source(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [
             {"Player": "Mike Trout", "Cost": "25", "Years": "3", "Source": "contract"},
@@ -79,7 +80,7 @@ class TestImportKeeperCosts:
     def test_name_normalization(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         # "Michael Trout" should match "Mike Trout" via nickname alias
         rows = [{"Player": "Michael Trout", "Cost": "25"}]
@@ -93,7 +94,7 @@ class TestImportKeeperCosts:
     def test_name_column_alias(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [{"Name": "Mike Trout", "Cost": "25"}]
         result = import_keeper_costs(rows, repo, players, season=2026, league="dynasty")
@@ -105,7 +106,7 @@ class TestImportKeeperCosts:
     def test_dollar_sign_in_cost(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [{"Player": "Mike Trout", "Cost": "$25"}]
         result = import_keeper_costs(rows, repo, players, season=2026, league="dynasty")
@@ -119,7 +120,7 @@ class TestImportKeeperCosts:
     def test_empty_name_skipped(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [{"Player": "", "Cost": "10"}]
         result = import_keeper_costs(rows, repo, players, season=2026, league="dynasty")
@@ -131,7 +132,7 @@ class TestImportKeeperCosts:
     def test_round_import_with_translator(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [
             {"Player": "Mike Trout", "Round": "2"},
@@ -160,7 +161,7 @@ class TestImportKeeperCosts:
     def test_round_import_empty_round_skips(self) -> None:
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [{"Player": "Mike Trout", "Round": ""}]
         result = import_keeper_costs(
@@ -175,7 +176,7 @@ class TestImportKeeperCosts:
         """Existing dollar import path works without a translator (regression guard)."""
         conn = create_connection(":memory:")
         players = _make_players(conn)
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         rows = [{"Player": "Mike Trout", "Cost": "25"}]
         result = import_keeper_costs(rows, repo, players, season=2026, league="dynasty")

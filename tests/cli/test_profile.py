@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import ProfileContext
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.services.data_profiler import (
     CorrelationScanner,
@@ -26,9 +27,9 @@ def _build_test_profile_context(
 ) -> Iterator[ProfileContext]:
     if stats_conn is None:
         stats_conn = create_connection(":memory:")
-    scanner = CorrelationScanner(conn, stats_conn)
+    scanner = CorrelationScanner(SingleConnectionProvider(conn), SingleConnectionProvider(stats_conn))
     yield ProfileContext(
-        profiler=StatcastColumnProfiler(conn),
+        profiler=StatcastColumnProfiler(SingleConnectionProvider(conn)),
         scanner=scanner,
         stability_checker=TemporalStabilityChecker(scanner),
     )

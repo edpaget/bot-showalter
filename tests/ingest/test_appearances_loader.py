@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Team
 from fantasy_baseball_manager.domain.result import Ok
 from fantasy_baseball_manager.ingest.column_maps import (
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 
 def _seed_team(conn: sqlite3.Connection) -> int:
-    repo = SqliteTeamRepo(conn)
+    repo = SqliteTeamRepo(SingleConnectionProvider(conn))
     return repo.upsert(Team(abbreviation="LAA", name="Los Angeles Angels", league="AL", division="W"))
 
 
@@ -39,13 +40,13 @@ def _roster_rows() -> list[dict[str, Any]]:
 class TestPositionAppearanceLoader:
     def test_end_to_end(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_position_appearance_mapper(players)
 
         source = FakeDataSource(_appearance_rows())
-        repo = SqlitePositionAppearanceRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "position_appearance", provider=SingleConnectionProvider(conn))
 
         result = loader.load(season=2023)
 
@@ -63,14 +64,14 @@ class TestPositionAppearanceLoader:
 
     def test_unknown_player_skipped(self, conn: sqlite3.Connection) -> None:
         seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_position_appearance_mapper(players)
 
         rows = [{"playerID": "xxxxx999", "yearID": 2023, "teamID": "LAA", "position": "CF", "games": 50}]
         source = FakeDataSource(rows)
-        repo = SqlitePositionAppearanceRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "position_appearance", provider=SingleConnectionProvider(conn))
 
         result = loader.load(season=2023)
 
@@ -80,13 +81,13 @@ class TestPositionAppearanceLoader:
 
     def test_upsert_idempotency(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
-        players = SqlitePlayerRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
         mapper = make_position_appearance_mapper(players)
 
         source = FakeDataSource(_appearance_rows())
-        repo = SqlitePositionAppearanceRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "position_appearance", conn=conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "position_appearance", provider=SingleConnectionProvider(conn))
 
         loader.load(season=2023)
         loader.load(season=2023)
@@ -99,14 +100,14 @@ class TestRosterStintLoader:
     def test_end_to_end(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         team_id = _seed_team(conn)
-        players = SqlitePlayerRepo(conn).all()
-        teams = SqliteTeamRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
+        teams = SqliteTeamRepo(SingleConnectionProvider(conn)).all()
         mapper = make_roster_stint_mapper(players, teams)
 
         source = FakeDataSource(_roster_rows())
-        repo = SqliteRosterStintRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "roster_stint", provider=SingleConnectionProvider(conn))
 
         result = loader.load(season=2023)
 
@@ -124,15 +125,15 @@ class TestRosterStintLoader:
     def test_unknown_team_skipped(self, conn: sqlite3.Connection) -> None:
         seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         _seed_team(conn)
-        players = SqlitePlayerRepo(conn).all()
-        teams = SqliteTeamRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
+        teams = SqliteTeamRepo(SingleConnectionProvider(conn)).all()
         mapper = make_roster_stint_mapper(players, teams)
 
         rows = [{"playerID": "troutmi01", "yearID": 2023, "teamID": "NYY"}]
         source = FakeDataSource(rows)
-        repo = SqliteRosterStintRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "roster_stint", provider=SingleConnectionProvider(conn))
 
         result = loader.load(season=2023)
 
@@ -143,14 +144,14 @@ class TestRosterStintLoader:
     def test_upsert_idempotency(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn, bbref_id="troutmi01", retro_id="troum001")
         _seed_team(conn)
-        players = SqlitePlayerRepo(conn).all()
-        teams = SqliteTeamRepo(conn).all()
+        players = SqlitePlayerRepo(SingleConnectionProvider(conn)).all()
+        teams = SqliteTeamRepo(SingleConnectionProvider(conn)).all()
         mapper = make_roster_stint_mapper(players, teams)
 
         source = FakeDataSource(_roster_rows())
-        repo = SqliteRosterStintRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "roster_stint", conn=conn)
+        repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "roster_stint", provider=SingleConnectionProvider(conn))
 
         loader.load(season=2023)
         loader.load(season=2023)

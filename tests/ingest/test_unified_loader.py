@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.loader import Loader
 from tests.ingest.conftest import ErrorDataSource, FakeDataSource
@@ -72,7 +73,7 @@ class TestUnifiedLoader:
         source = FakeDataSource([{"name": "Alice"}, {"name": "Bob"}])
         repo = _FakeRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn)
+        loader = Loader(source, repo, log_repo, _mapper, "widget", provider=SingleConnectionProvider(conn))
 
         result = loader.load()
 
@@ -92,7 +93,7 @@ class TestUnifiedLoader:
         source = FakeDataSource([{"name": "Alice"}, {"no_name": True}])
         repo = _FakeRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn)
+        loader = Loader(source, repo, log_repo, _mapper, "widget", provider=SingleConnectionProvider(conn))
 
         result = loader.load()
 
@@ -104,7 +105,7 @@ class TestUnifiedLoader:
         source = ErrorDataSource()
         repo = _FakeRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn)
+        loader = Loader(source, repo, log_repo, _mapper, "widget", provider=SingleConnectionProvider(conn))
 
         result = loader.load()
 
@@ -118,7 +119,7 @@ class TestUnifiedLoader:
         source = FakeDataSource([{"name": "Alice"}])
         repo = _ErrorRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn)
+        loader = Loader(source, repo, log_repo, _mapper, "widget", provider=SingleConnectionProvider(conn))
 
         result = loader.load()
 
@@ -136,7 +137,15 @@ class TestUnifiedLoader:
         source = FakeDataSource([{"name": "Alice"}, {"name": "Bob"}])
         repo = _FakeRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn, post_upsert=on_post_upsert)
+        loader = Loader(
+            source,
+            repo,
+            log_repo,
+            _mapper,
+            "widget",
+            provider=SingleConnectionProvider(conn),
+            post_upsert=on_post_upsert,
+        )
 
         result = loader.load()
 
@@ -150,7 +159,7 @@ class TestUnifiedLoader:
         source = FakeDataSource([{"name": "Alice"}])
         repo = _FakeRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn)
+        loader = Loader(source, repo, log_repo, _mapper, "widget", provider=SingleConnectionProvider(conn))
 
         result = loader.load()
 
@@ -161,7 +170,7 @@ class TestUnifiedLoader:
         source = FakeDataSource([{"name": "Alice"}])
         repo = _FakeRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn)
+        loader = Loader(source, repo, log_repo, _mapper, "widget", provider=SingleConnectionProvider(conn))
 
         result = loader.load()
 
@@ -176,7 +185,15 @@ class TestUnifiedLoader:
         source = FakeDataSource([{"name": "Alice"}])
         repo = _FakeRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn, log_conn=log_conn)
+        loader = Loader(
+            source,
+            repo,
+            log_repo,
+            _mapper,
+            "widget",
+            provider=SingleConnectionProvider(conn),
+            log_provider=SingleConnectionProvider(log_conn),
+        )
 
         result = loader.load()
 
@@ -193,7 +210,15 @@ class TestUnifiedLoader:
         source = FakeDataSource([{"name": "Alice"}, {"no_name": True}])
         repo = _FakeRepo()
         log_repo = _FakeLoadLogRepo()
-        loader = Loader(source, repo, log_repo, _mapper, "widget", conn=conn, post_upsert=on_post_upsert)
+        loader = Loader(
+            source,
+            repo,
+            log_repo,
+            _mapper,
+            "widget",
+            provider=SingleConnectionProvider(conn),
+            post_upsert=on_post_upsert,
+        )
 
         result = loader.load()
 

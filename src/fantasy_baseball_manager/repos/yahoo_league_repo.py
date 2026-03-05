@@ -5,49 +5,54 @@ from fantasy_baseball_manager.domain import YahooLeague, YahooTeam
 if TYPE_CHECKING:
     import sqlite3
 
+    from fantasy_baseball_manager.repos.protocols import ConnectionProvider
+
 
 class SqliteYahooLeagueRepo:
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self._conn = conn
+    def __init__(self, provider: ConnectionProvider) -> None:
+        self._provider = provider
 
     def upsert(self, league: YahooLeague) -> int:
-        cursor = self._conn.execute(
-            "INSERT INTO yahoo_league"
-            "    (league_key, name, season, num_teams, draft_type, is_keeper, game_key, renew)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            " ON CONFLICT(league_key) DO UPDATE SET"
-            "    name=excluded.name,"
-            "    season=excluded.season,"
-            "    num_teams=excluded.num_teams,"
-            "    draft_type=excluded.draft_type,"
-            "    is_keeper=excluded.is_keeper,"
-            "    game_key=excluded.game_key,"
-            "    renew=excluded.renew",
-            (
-                league.league_key,
-                league.name,
-                league.season,
-                league.num_teams,
-                league.draft_type,
-                int(league.is_keeper),
-                league.game_key,
-                league.renew,
-            ),
-        )
-        return cursor.lastrowid  # type: ignore[return-value]
+        with self._provider.connection() as conn:
+            cursor = conn.execute(
+                "INSERT INTO yahoo_league"
+                "    (league_key, name, season, num_teams, draft_type, is_keeper, game_key, renew)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(league_key) DO UPDATE SET"
+                "    name=excluded.name,"
+                "    season=excluded.season,"
+                "    num_teams=excluded.num_teams,"
+                "    draft_type=excluded.draft_type,"
+                "    is_keeper=excluded.is_keeper,"
+                "    game_key=excluded.game_key,"
+                "    renew=excluded.renew",
+                (
+                    league.league_key,
+                    league.name,
+                    league.season,
+                    league.num_teams,
+                    league.draft_type,
+                    int(league.is_keeper),
+                    league.game_key,
+                    league.renew,
+                ),
+            )
+            return cursor.lastrowid  # type: ignore[return-value]
 
     def get_by_league_key(self, league_key: str) -> YahooLeague | None:
-        row = self._conn.execute(
-            self._select_sql() + " WHERE league_key = ?",
-            (league_key,),
-        ).fetchone()
-        if row is None:
-            return None
-        return self._row_to_league(row)
+        with self._provider.connection() as conn:
+            row = conn.execute(
+                self._select_sql() + " WHERE league_key = ?",
+                (league_key,),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._row_to_league(row)
 
     def get_all(self) -> list[YahooLeague]:
-        rows = self._conn.execute(self._select_sql()).fetchall()
-        return [self._row_to_league(row) for row in rows]
+        with self._provider.connection() as conn:
+            rows = conn.execute(self._select_sql()).fetchall()
+            return [self._row_to_league(row) for row in rows]
 
     @staticmethod
     def _select_sql() -> str:
@@ -71,46 +76,49 @@ class SqliteYahooLeagueRepo:
 
 
 class SqliteYahooTeamRepo:
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self._conn = conn
+    def __init__(self, provider: ConnectionProvider) -> None:
+        self._provider = provider
 
     def upsert(self, team: YahooTeam) -> int:
-        cursor = self._conn.execute(
-            "INSERT INTO yahoo_team"
-            "    (team_key, league_key, team_id, name, manager_name, is_owned_by_user)"
-            " VALUES (?, ?, ?, ?, ?, ?)"
-            " ON CONFLICT(team_key) DO UPDATE SET"
-            "    league_key=excluded.league_key,"
-            "    team_id=excluded.team_id,"
-            "    name=excluded.name,"
-            "    manager_name=excluded.manager_name,"
-            "    is_owned_by_user=excluded.is_owned_by_user",
-            (
-                team.team_key,
-                team.league_key,
-                team.team_id,
-                team.name,
-                team.manager_name,
-                int(team.is_owned_by_user),
-            ),
-        )
-        return cursor.lastrowid  # type: ignore[return-value]
+        with self._provider.connection() as conn:
+            cursor = conn.execute(
+                "INSERT INTO yahoo_team"
+                "    (team_key, league_key, team_id, name, manager_name, is_owned_by_user)"
+                " VALUES (?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(team_key) DO UPDATE SET"
+                "    league_key=excluded.league_key,"
+                "    team_id=excluded.team_id,"
+                "    name=excluded.name,"
+                "    manager_name=excluded.manager_name,"
+                "    is_owned_by_user=excluded.is_owned_by_user",
+                (
+                    team.team_key,
+                    team.league_key,
+                    team.team_id,
+                    team.name,
+                    team.manager_name,
+                    int(team.is_owned_by_user),
+                ),
+            )
+            return cursor.lastrowid  # type: ignore[return-value]
 
     def get_by_league_key(self, league_key: str) -> list[YahooTeam]:
-        rows = self._conn.execute(
-            self._select_sql() + " WHERE league_key = ?",
-            (league_key,),
-        ).fetchall()
-        return [self._row_to_team(row) for row in rows]
+        with self._provider.connection() as conn:
+            rows = conn.execute(
+                self._select_sql() + " WHERE league_key = ?",
+                (league_key,),
+            ).fetchall()
+            return [self._row_to_team(row) for row in rows]
 
     def get_user_team(self, league_key: str) -> YahooTeam | None:
-        row = self._conn.execute(
-            self._select_sql() + " WHERE league_key = ? AND is_owned_by_user = 1",
-            (league_key,),
-        ).fetchone()
-        if row is None:
-            return None
-        return self._row_to_team(row)
+        with self._provider.connection() as conn:
+            row = conn.execute(
+                self._select_sql() + " WHERE league_key = ? AND is_owned_by_user = 1",
+                (league_key,),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._row_to_team(row)
 
     @staticmethod
     def _select_sql() -> str:

@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.db.connection import attach_database, create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.result import Err, Ok
@@ -52,10 +53,16 @@ class TestStatcastLoaderIntegration:
     ) -> None:
         rows = _statcast_rows({})
         source = FakeDataSource(rows)
-        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
-        log_repo = SqliteLoadLogRepo(conn)
+        pitch_repo = SqliteStatcastPitchRepo(SingleConnectionProvider(statcast_conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         loader = Loader(
-            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+            source,
+            pitch_repo,
+            log_repo,
+            statcast_pitch_mapper,
+            "statcast_pitch",
+            provider=SingleConnectionProvider(statcast_conn),
+            log_provider=SingleConnectionProvider(conn),
         )
 
         result = loader.load()
@@ -77,10 +84,16 @@ class TestStatcastLoaderIntegration:
             {"batter": float("nan"), "at_bat_number": 2, "pitch_number": 1},
         )
         source = FakeDataSource(rows)
-        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
-        log_repo = SqliteLoadLogRepo(conn)
+        pitch_repo = SqliteStatcastPitchRepo(SingleConnectionProvider(statcast_conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         loader = Loader(
-            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+            source,
+            pitch_repo,
+            log_repo,
+            statcast_pitch_mapper,
+            "statcast_pitch",
+            provider=SingleConnectionProvider(statcast_conn),
+            log_provider=SingleConnectionProvider(conn),
         )
 
         result = loader.load()
@@ -96,10 +109,16 @@ class TestStatcastLoaderIntegration:
             {"game_pk": float("nan"), "at_bat_number": 2, "pitch_number": 1},
         )
         source = FakeDataSource(rows)
-        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
-        log_repo = SqliteLoadLogRepo(conn)
+        pitch_repo = SqliteStatcastPitchRepo(SingleConnectionProvider(statcast_conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         loader = Loader(
-            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+            source,
+            pitch_repo,
+            log_repo,
+            statcast_pitch_mapper,
+            "statcast_pitch",
+            provider=SingleConnectionProvider(statcast_conn),
+            log_provider=SingleConnectionProvider(conn),
         )
 
         result = loader.load()
@@ -112,10 +131,16 @@ class TestStatcastLoaderIntegration:
 
     def test_empty_list_loads_zero_rows(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
         source = FakeDataSource([])
-        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
-        log_repo = SqliteLoadLogRepo(conn)
+        pitch_repo = SqliteStatcastPitchRepo(SingleConnectionProvider(statcast_conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         loader = Loader(
-            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+            source,
+            pitch_repo,
+            log_repo,
+            statcast_pitch_mapper,
+            "statcast_pitch",
+            provider=SingleConnectionProvider(statcast_conn),
+            log_provider=SingleConnectionProvider(conn),
         )
 
         result = loader.load()
@@ -128,10 +153,16 @@ class TestStatcastLoaderIntegration:
 
     def test_fetch_error_writes_error_log(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
         source = ErrorDataSource()
-        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
-        log_repo = SqliteLoadLogRepo(conn)
+        pitch_repo = SqliteStatcastPitchRepo(SingleConnectionProvider(statcast_conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         loader = Loader(
-            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+            source,
+            pitch_repo,
+            log_repo,
+            statcast_pitch_mapper,
+            "statcast_pitch",
+            provider=SingleConnectionProvider(statcast_conn),
+            log_provider=SingleConnectionProvider(conn),
         )
 
         result = loader.load()
@@ -148,10 +179,16 @@ class TestStatcastLoaderIntegration:
     def test_upsert_deduplicates_on_reload(self, statcast_conn: sqlite3.Connection, conn: sqlite3.Connection) -> None:
         rows = _statcast_rows({})
         source = FakeDataSource(rows)
-        pitch_repo = SqliteStatcastPitchRepo(statcast_conn)
-        log_repo = SqliteLoadLogRepo(conn)
+        pitch_repo = SqliteStatcastPitchRepo(SingleConnectionProvider(statcast_conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
         loader = Loader(
-            source, pitch_repo, log_repo, statcast_pitch_mapper, "statcast_pitch", conn=statcast_conn, log_conn=conn
+            source,
+            pitch_repo,
+            log_repo,
+            statcast_pitch_mapper,
+            "statcast_pitch",
+            provider=SingleConnectionProvider(statcast_conn),
+            log_provider=SingleConnectionProvider(conn),
         )
 
         loader.load()
@@ -167,14 +204,14 @@ class TestAttachJoin:
 
         # Create stats.db and seed a player
         stats_conn = create_connection(stats_path)
-        player_repo = SqlitePlayerRepo(stats_conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(stats_conn))
         player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         stats_conn.commit()
         stats_conn.close()
 
         # Create statcast.db and insert a pitch
         sc_conn = create_statcast_connection(statcast_path)
-        pitch_repo = SqliteStatcastPitchRepo(sc_conn)
+        pitch_repo = SqliteStatcastPitchRepo(SingleConnectionProvider(sc_conn))
         pitch_repo.upsert(
             StatcastPitch(
                 game_pk=718001,

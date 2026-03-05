@@ -1,6 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.feature_candidate import FeatureCandidate
 from fantasy_baseball_manager.repos.feature_candidate_repo import (
     SqliteFeatureCandidateRepo,
@@ -10,7 +11,7 @@ from fantasy_baseball_manager.repos.feature_candidate_repo import (
 @pytest.fixture
 def repo() -> SqliteFeatureCandidateRepo:
     conn = create_connection(":memory:")
-    return SqliteFeatureCandidateRepo(conn)
+    return SqliteFeatureCandidateRepo(SingleConnectionProvider(conn))
 
 
 def _make_candidate(

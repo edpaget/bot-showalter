@@ -11,6 +11,7 @@ from fantasy_baseball_manager.cli._output import console, print_error, print_pre
 from fantasy_baseball_manager.cli.factory import DbLabelSource, build_eval_context, build_model_context, create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import Err, Experimentable, ModelConfig
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
 from fantasy_baseball_manager.services import (
@@ -44,7 +45,9 @@ def preflight_cmd(
 
     conn = create_connection(Path(resolved_data_dir) / "fbm.db")
     try:
-        assembler = SqliteDatasetAssembler(conn, statcast_path=Path(resolved_data_dir) / "statcast.db")
+        assembler = SqliteDatasetAssembler(
+            SingleConnectionProvider(conn), statcast_path=Path(resolved_data_dir) / "statcast.db"
+        )
         model_result = create_model(model, assembler=assembler, label_source=DbLabelSource(conn))
         match model_result:
             case Err(e):

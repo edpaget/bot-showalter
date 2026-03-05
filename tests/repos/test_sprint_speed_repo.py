@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 from fantasy_baseball_manager.repos.sprint_speed_repo import SqliteSprintSpeedRepo
 
@@ -22,13 +23,13 @@ def _make_sprint_speed(**overrides: object) -> SprintSpeed:
 
 class TestSqliteSprintSpeedRepo:
     def test_upsert_returns_rowid(self, statcast_conn: sqlite3.Connection) -> None:
-        repo = SqliteSprintSpeedRepo(statcast_conn)
+        repo = SqliteSprintSpeedRepo(SingleConnectionProvider(statcast_conn))
         row_id = repo.upsert(_make_sprint_speed())
         assert isinstance(row_id, int)
         assert row_id > 0
 
     def test_upsert_conflict_updates(self, statcast_conn: sqlite3.Connection) -> None:
-        repo = SqliteSprintSpeedRepo(statcast_conn)
+        repo = SqliteSprintSpeedRepo(SingleConnectionProvider(statcast_conn))
         repo.upsert(_make_sprint_speed(sprint_speed=27.0))
         repo.upsert(_make_sprint_speed(sprint_speed=28.5))
         row = statcast_conn.execute(
@@ -37,13 +38,13 @@ class TestSqliteSprintSpeedRepo:
         assert row["sprint_speed"] == 28.5
 
     def test_count(self, statcast_conn: sqlite3.Connection) -> None:
-        repo = SqliteSprintSpeedRepo(statcast_conn)
+        repo = SqliteSprintSpeedRepo(SingleConnectionProvider(statcast_conn))
         repo.upsert(_make_sprint_speed(mlbam_id=1, season=2023))
         repo.upsert(_make_sprint_speed(mlbam_id=2, season=2023))
         assert repo.count() == 2
 
     def test_upsert_none_optional_fields(self, statcast_conn: sqlite3.Connection) -> None:
-        repo = SqliteSprintSpeedRepo(statcast_conn)
+        repo = SqliteSprintSpeedRepo(SingleConnectionProvider(statcast_conn))
         ss = SprintSpeed(mlbam_id=999, season=2024)
         row_id = repo.upsert(ss)
         assert row_id > 0

@@ -7,6 +7,7 @@ from fantasy_baseball_manager.cli._output import print_ingest_result
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import IngestContainer
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
@@ -194,7 +195,7 @@ class TestIngestPlayers:
         assert "success" in result.output
 
         # Verify data actually in DB
-        repo = SqlitePlayerRepo(conn)
+        repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         players = repo.all()
         assert len(players) == 2
         names = {p.name_last for p in players}
@@ -301,7 +302,7 @@ class TestIngestBatting:
         assert "success" in result.output
 
         # Verify data in DB
-        repo = SqliteBattingStatsRepo(conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
         stats = repo.get_by_season(2023, source="fangraphs")
         assert len(stats) == 1
         assert stats[0].hr == 35
@@ -377,7 +378,7 @@ class TestIngestPitching:
         assert "success" in result.output
 
         # Verify data in DB
-        repo = SqlitePitchingStatsRepo(conn)
+        repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
         stats = repo.get_by_season(2024, source="fangraphs")
         assert len(stats) == 1
         assert stats[0].w == 15
@@ -462,7 +463,7 @@ class TestIngestBio:
         assert "success" in result.output
 
         # Verify bio data actually in DB
-        repo = SqlitePlayerRepo(conn)
+        repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         trout = repo.get_by_mlbam_id(545361)
         assert trout is not None
         assert trout.birth_date == "1991-08-07"
@@ -551,7 +552,7 @@ class TestIngestAppearances:
         assert "position_appearance" in result.output
         assert "success" in result.output
 
-        repo = SqlitePositionAppearanceRepo(conn)
+        repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
         appearances = repo.get_by_season(2023)
         assert len(appearances) == 3
         conn.close()
@@ -587,13 +588,13 @@ class TestIngestRoster:
         assert "success" in result.output
 
         # Verify teams were auto-upserted
-        team_repo = SqliteTeamRepo(conn)
+        team_repo = SqliteTeamRepo(SingleConnectionProvider(conn))
         teams = team_repo.all()
         assert len(teams) == 1
         assert teams[0].abbreviation == "LAA"
 
         # Verify roster stints
-        stint_repo = SqliteRosterStintRepo(conn)
+        stint_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
         stints = stint_repo.get_by_season(2023)
         assert len(stints) == 2
         conn.close()
@@ -659,7 +660,7 @@ class TestIngestMilbBatting:
         assert "minor_league_batting_stats" in result.output
         assert "success" in result.output
 
-        repo = SqliteMinorLeagueBattingStatsRepo(conn)
+        repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
         stats = repo.get_by_season_level(2024, "AAA")
         assert len(stats) == 1
         assert stats[0].hr == 18
@@ -689,14 +690,14 @@ class TestIngestMilbBatting:
         assert "1" in result.output
 
         # Player should have been auto-registered
-        player_repo = SqlitePlayerRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         player = player_repo.get_by_mlbam_id(777777)
         assert player is not None
         assert player.name_first == "Prospect"
         assert player.name_last == "Jones"
 
         # Stats should be loaded
-        repo = SqliteMinorLeagueBattingStatsRepo(conn)
+        repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
         stats = repo.get_by_season_level(2024, "AAA")
         assert len(stats) == 1
         conn.close()
@@ -729,7 +730,7 @@ class TestIngestRosterApi:
         assert result.exit_code == 0, result.output
         assert "Loaded 2 roster stints" in result.output
 
-        stint_repo = SqliteRosterStintRepo(conn)
+        stint_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
         stints = stint_repo.get_by_season(2026)
         assert len(stints) == 2
         conn.close()

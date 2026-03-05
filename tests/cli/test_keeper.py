@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import KeeperContext
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
     ADP,
     CategoryConfig,
@@ -42,17 +43,17 @@ runner = CliRunner()
 def _build_test_keeper_context(conn: sqlite3.Connection) -> Any:
     @contextmanager
     def _ctx(data_dir: str) -> Iterator[KeeperContext]:
-        position_repo = SqlitePositionAppearanceRepo(conn)
-        pitching_stats_repo = SqlitePitchingStatsRepo(conn)
+        position_repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
+        pitching_stats_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
         eligibility_service = PlayerEligibilityService(position_repo, pitching_stats_repo=pitching_stats_repo)
         yield KeeperContext(
             conn=conn,
-            keeper_repo=SqliteKeeperCostRepo(conn),
-            player_repo=SqlitePlayerRepo(conn),
-            valuation_repo=SqliteValuationRepo(conn),
-            projection_repo=SqliteProjectionRepo(conn),
+            keeper_repo=SqliteKeeperCostRepo(SingleConnectionProvider(conn)),
+            player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+            valuation_repo=SqliteValuationRepo(SingleConnectionProvider(conn)),
+            projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
             eligibility_service=eligibility_service,
-            adp_repo=SqliteADPRepo(conn),
+            adp_repo=SqliteADPRepo(SingleConnectionProvider(conn)),
         )
 
     return _ctx
@@ -82,7 +83,7 @@ class TestKeeperImport:
         assert result.exit_code == 0, result.output
         assert "Loaded 2" in result.output
 
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         stored = repo.find_by_season_league(2026, "dynasty")
         assert len(stored) == 2
         conn.close()
@@ -116,7 +117,7 @@ class TestKeeperImport:
         result = runner.invoke(app, ["keeper", "import", str(csv_file), "--season", "2026", "--league", "dynasty"])
         assert result.exit_code == 0, result.output
 
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         stored = repo.find_by_season_league(2026, "dynasty")
         assert len(stored) == 1
         conn.close()
@@ -142,8 +143,8 @@ def _draft_pick_league() -> LeagueSettings:
 
 def _seed_adp_and_valuations(conn: sqlite3.Connection, player_ids: list[int]) -> None:
     """Seed ADP + valuations for draft-pick curve building."""
-    adp_repo = SqliteADPRepo(conn)
-    val_repo = SqliteValuationRepo(conn)
+    adp_repo = SqliteADPRepo(SingleConnectionProvider(conn))
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
     for i, pid in enumerate(player_ids, 1):
         adp_repo.upsert(
             ADP(player_id=pid, season=2026, provider="yahoo", overall_pick=float(i), rank=i, positions="OF")
@@ -215,7 +216,7 @@ class TestKeeperImportDraftPick:
         assert result.exit_code == 0, result.output
         assert "Loaded 2" in result.output
 
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         stored = repo.find_by_season_league(2026, "dynasty")
         assert len(stored) == 2
         for kc in stored:
@@ -304,7 +305,7 @@ class TestKeeperSet:
         assert "Mike Trout" in result.output
         assert "$25" in result.output
 
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         stored = repo.find_by_season_league(2026, "dynasty")
         assert len(stored) == 1
         assert stored[0].cost == 25.0
@@ -379,7 +380,7 @@ class TestKeeperSetRound:
         assert result.exit_code == 0, result.output
         assert "Round 3" in result.output
 
-        repo = SqliteKeeperCostRepo(conn)
+        repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         stored = repo.find_by_season_league(2026, "dynasty")
         assert len(stored) == 1
         assert stored[0].source == "draft_round"
@@ -470,7 +471,7 @@ class TestKeeperDecisions:
         pid1 = seed_player(conn, name_first="Mike", name_last="Trout")
         pid2 = seed_player(conn, name_first="Shohei", name_last="Ohtani")
 
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         keeper_repo.upsert_batch(
             [
                 KeeperCost(player_id=pid1, season=2026, league="dynasty", cost=10.0, source="auction"),
@@ -478,7 +479,7 @@ class TestKeeperDecisions:
             ]
         )
 
-        val_repo = SqliteValuationRepo(conn)
+        val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         val_repo.upsert(
             Valuation(
                 player_id=pid1,
@@ -564,14 +565,14 @@ class TestKeeperAdjustedRankings:
         pid2 = seed_player(conn, name_first="Shohei", name_last="Ohtani")
         pid3 = seed_player(conn, name_first="Aaron", name_last="Judge")
 
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         keeper_repo.upsert_batch(
             [
                 KeeperCost(player_id=pid1, season=2026, league="dynasty", cost=5.0, source="auction"),
             ]
         )
 
-        val_repo = SqliteValuationRepo(conn)
+        val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         for pid, value, rank in [(pid1, 30.0, 1), (pid2, 20.0, 2), (pid3, 10.0, 3)]:
             val_repo.upsert(
                 Valuation(
@@ -589,7 +590,7 @@ class TestKeeperAdjustedRankings:
                 )
             )
 
-        proj_repo = SqliteProjectionRepo(conn)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
         for pid, hr in [(pid1, 40), (pid2, 30), (pid3, 20)]:
             proj_repo.upsert(
                 Projection(
@@ -669,7 +670,7 @@ class TestKeeperTradeEval:
         pid1 = seed_player(conn, name_first="Mike", name_last="Trout")
         pid2 = seed_player(conn, name_first="Shohei", name_last="Ohtani")
 
-        keeper_repo = SqliteKeeperCostRepo(conn)
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
         keeper_repo.upsert_batch(
             [
                 KeeperCost(player_id=pid1, season=2026, league="dynasty", cost=10.0, source="auction"),
@@ -677,7 +678,7 @@ class TestKeeperTradeEval:
             ]
         )
 
-        val_repo = SqliteValuationRepo(conn)
+        val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         val_repo.upsert(
             Valuation(
                 player_id=pid1,
@@ -807,7 +808,7 @@ def _seed_optimize_data(conn: sqlite3.Connection) -> tuple[int, int, int, int]:
     pid3 = seed_player(conn, name_first="Mookie", name_last="Betts")
     pid4 = seed_player(conn, name_first="Juan", name_last="Soto")
 
-    keeper_repo = SqliteKeeperCostRepo(conn)
+    keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
     keeper_repo.upsert_batch(
         [
             KeeperCost(player_id=pid1, season=2026, league="dynasty", cost=10.0, source="auction"),
@@ -817,7 +818,7 @@ def _seed_optimize_data(conn: sqlite3.Connection) -> tuple[int, int, int, int]:
         ]
     )
 
-    val_repo = SqliteValuationRepo(conn)
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
     for pid, value, rank, pos in [
         (pid1, 30.0, 1, "cf"),
         (pid2, 35.0, 2, "of"),
@@ -972,7 +973,7 @@ class TestKeeperOptimize:
         _seed_optimize_data(conn)
         # Seed an extra player that another team keeps
         pid5 = seed_player(conn, name_first="Freddie", name_last="Freeman")
-        val_repo = SqliteValuationRepo(conn)
+        val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         val_repo.upsert(
             Valuation(
                 player_id=pid5,
@@ -1033,7 +1034,7 @@ def _seed_optimize_round_data(conn: sqlite3.Connection) -> tuple[int, int, int]:
     pid2 = seed_player(conn, name_first="Aaron", name_last="Judge")
     pid3 = seed_player(conn, name_first="Juan", name_last="Soto")
 
-    keeper_repo = SqliteKeeperCostRepo(conn)
+    keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
     keeper_repo.upsert_batch(
         [
             KeeperCost(
@@ -1046,7 +1047,7 @@ def _seed_optimize_round_data(conn: sqlite3.Connection) -> tuple[int, int, int]:
         ]
     )
 
-    val_repo = SqliteValuationRepo(conn)
+    val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
     for pid, value, rank, pos in [
         (pid1, 40.0, 1, "cf"),
         (pid2, 35.0, 2, "of"),
@@ -1242,7 +1243,7 @@ class TestKeeperTradeImpact:
         _seed_optimize_data(conn)
         # Seed a new player to acquire
         pid5 = seed_player(conn, name_first="Freddie", name_last="Freeman")
-        val_repo = SqliteValuationRepo(conn)
+        val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         val_repo.upsert(
             Valuation(
                 player_id=pid5,

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain.correlation_result import (
     CorrelationScanResult,
@@ -250,7 +251,7 @@ class TestCheckTemporalStabilitySingleTarget:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         checker = TemporalStabilityChecker(scanner)
         result = checker.check_temporal_stability("launch_speed", "slg", [2022, 2023], "batter")
 
@@ -297,7 +298,7 @@ class TestCheckTemporalStabilityAllTargets:
         statcast_conn.commit()
         stats_conn.commit()
 
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        scanner = CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(stats_conn))
         checker = TemporalStabilityChecker(scanner)
         result = checker.check_temporal_stability("launch_speed", None, [2022, 2023], "batter")
 

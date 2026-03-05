@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.result import Err, Ok
@@ -47,9 +48,11 @@ class TestStatsLoader:
     def test_loads_batting_stats_and_writes_success_log(self, conn) -> None:
         player_id = seed_player(conn, fangraphs_id=10155)
         source = FakeDataSource(_batting_rows({"player_id": player_id}))
-        repo = SqliteBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, _batting_mapper, "batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -72,9 +75,11 @@ class TestStatsLoader:
             {"season": 2024},  # missing player_id → mapper returns None
         ]
         source = FakeDataSource(rows)
-        repo = SqliteBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, _batting_mapper, "batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -84,9 +89,11 @@ class TestStatsLoader:
 
     def test_error_during_fetch_writes_error_log_and_reraises(self, conn) -> None:
         source = ErrorDataSource()
-        repo = SqliteBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, _batting_mapper, "batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -101,9 +108,11 @@ class TestStatsLoader:
 
     def test_empty_list_loads_zero_rows(self, conn) -> None:
         source = FakeDataSource([])
-        repo = SqliteBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, _batting_mapper, "batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -115,9 +124,11 @@ class TestStatsLoader:
     def test_timestamps_are_valid_iso_strings(self, conn) -> None:
         player_id = seed_player(conn, fangraphs_id=10155)
         source = FakeDataSource(_batting_rows({"player_id": player_id}))
-        repo = SqliteBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, _batting_mapper, "batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -131,9 +142,11 @@ class TestStatsLoader:
         player_id = seed_player(conn, fangraphs_id=10155)
         rows = [{"player_id": player_id, "season": 2024}]
         source = FakeDataSource(rows)
-        repo = SqlitePitchingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, _pitching_mapper, "pitching_stats", conn=conn)
+        repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, _pitching_mapper, "pitching_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -155,9 +168,11 @@ class TestStatsLoader:
             {"player_id": 99999, "season": 2024},
         ]
         source = FakeDataSource(rows)
-        repo = SqliteBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, _batting_mapper, "batting_stats", conn=conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, repo, log_repo, _batting_mapper, "batting_stats", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -176,7 +191,7 @@ class TestStatsLoader:
 class TestStatsLoaderIntegration:
     def test_fg_batting_end_to_end(self, conn) -> None:
         player_id = seed_player(conn, fangraphs_id=10155)
-        player_repo = SqlitePlayerRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         players = player_repo.all()
         mapper = make_fg_batting_mapper(players)
 
@@ -211,9 +226,9 @@ class TestStatsLoaderIntegration:
             }
         ]
         source = FakeDataSource(rows)
-        repo = SqliteBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "batting_stats", provider=SingleConnectionProvider(conn))
 
         result = loader.load()
 
@@ -230,7 +245,7 @@ class TestStatsLoaderIntegration:
 
     def test_unknown_players_skipped(self, conn) -> None:
         player_id = seed_player(conn, fangraphs_id=10155)
-        player_repo = SqlitePlayerRepo(conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
         players = player_repo.all()
         mapper = make_fg_batting_mapper(players)
 
@@ -293,9 +308,9 @@ class TestStatsLoaderIntegration:
             },
         ]
         source = FakeDataSource(rows)
-        repo = SqliteBattingStatsRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, repo, log_repo, mapper, "batting_stats", conn=conn)
+        repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(source, repo, log_repo, mapper, "batting_stats", provider=SingleConnectionProvider(conn))
 
         result = loader.load()
 

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import (
     ConfigError,
@@ -114,8 +115,8 @@ class DbLabelSource:
     """LabelSource that generates labels from ADP and valuation data in the database."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
-        self._adp_repo = SqliteADPRepo(conn)
-        self._val_repo = SqliteValuationRepo(conn)
+        self._adp_repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        self._val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
 
     def get_labels(self, season: int) -> list[LabeledSeason]:
         adp = self._adp_repo.get_by_season(season)
@@ -160,16 +161,18 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
     """Composition-root context manager: opens DB, wires assembler + model, yields context, closes DB."""
     conn = create_connection(Path(config.data_dir) / "fbm.db")
     try:
-        assembler = SqliteDatasetAssembler(conn, statcast_path=Path(config.data_dir) / "statcast.db")
+        assembler = SqliteDatasetAssembler(
+            SingleConnectionProvider(conn), statcast_path=Path(config.data_dir) / "statcast.db"
+        )
         evaluator = ProjectionEvaluator(
-            SqliteProjectionRepo(conn),
-            SqliteBattingStatsRepo(conn),
-            SqlitePitchingStatsRepo(conn),
+            SqliteProjectionRepo(SingleConnectionProvider(conn)),
+            SqliteBattingStatsRepo(SingleConnectionProvider(conn)),
+            SqlitePitchingStatsRepo(SingleConnectionProvider(conn)),
         )
         engine = resolve_engine(config.model_params)
-        position_appearance_repo = SqlitePositionAppearanceRepo(conn)
-        batting_stats_repo = SqliteBattingStatsRepo(conn)
-        pitching_stats_repo = SqlitePitchingStatsRepo(conn)
+        position_appearance_repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
+        batting_stats_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        pitching_stats_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
         eligibility_service = PlayerEligibilityService(
             position_appearance_repo,
             pitching_stats_repo=pitching_stats_repo,
@@ -183,14 +186,14 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             model_name,
             assembler=assembler,
             engine=engine,
-            projection_repo=SqliteProjectionRepo(conn),
+            projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
             evaluator=evaluator,
-            milb_repo=SqliteMinorLeagueBattingStatsRepo(conn),
-            league_env_repo=SqliteLeagueEnvironmentRepo(conn),
-            level_factor_repo=SqliteLevelFactorRepo(conn),
-            player_repo=SqlitePlayerRepo(conn),
+            milb_repo=SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn)),
+            league_env_repo=SqliteLeagueEnvironmentRepo(SingleConnectionProvider(conn)),
+            level_factor_repo=SqliteLevelFactorRepo(SingleConnectionProvider(conn)),
+            player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
             position_repo=position_appearance_repo,
-            valuation_repo=SqliteValuationRepo(conn),
+            valuation_repo=SqliteValuationRepo(SingleConnectionProvider(conn)),
             eligibility_service=eligibility_service,
             player_universe=player_universe,
             label_source=label_source,
@@ -201,10 +204,10 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
 
         run_manager: RunManager | None = None
         if config.version is not None:
-            repo = SqliteModelRunRepo(conn)
+            repo = SqliteModelRunRepo(SingleConnectionProvider(conn))
             run_manager = RunManager(model_run_repo=repo, artifacts_root=Path(config.artifacts_dir))
 
-        projection_repo = SqliteProjectionRepo(conn)
+        projection_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
         yield ModelContext(conn=conn, model=model, run_manager=run_manager, projection_repo=projection_repo)
     finally:
         conn.close()
@@ -247,7 +250,7 @@ def build_runs_context(data_dir: str) -> Iterator[RunsContext]:
     """Composition-root context manager for runs subcommands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        yield RunsContext(conn=conn, repo=SqliteModelRunRepo(conn))
+        yield RunsContext(conn=conn, repo=SqliteModelRunRepo(SingleConnectionProvider(conn)))
     finally:
         conn.close()
 
@@ -266,8 +269,8 @@ def build_experiment_context(data_dir: str) -> Iterator[ExperimentContext]:
     try:
         yield ExperimentContext(
             conn=conn,
-            repo=SqliteExperimentRepo(conn),
-            checkpoint_repo=SqliteCheckpointRepo(conn),
+            repo=SqliteExperimentRepo(SingleConnectionProvider(conn)),
+            checkpoint_repo=SqliteCheckpointRepo(SingleConnectionProvider(conn)),
         )
     finally:
         conn.close()
@@ -284,7 +287,7 @@ def build_datasets_context(data_dir: str) -> Iterator[DatasetsContext]:  # pragm
     """Composition-root context manager for datasets subcommands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        yield DatasetsContext(conn=conn, catalog=DatasetCatalogService(conn))
+        yield DatasetsContext(conn=conn, catalog=DatasetCatalogService(SingleConnectionProvider(conn)))
     finally:
         conn.close()
 
@@ -304,9 +307,9 @@ def build_import_context(data_dir: str) -> Iterator[ImportContext]:
     try:
         yield ImportContext(
             conn=conn,
-            player_repo=SqlitePlayerRepo(conn),
-            proj_repo=SqliteProjectionRepo(conn),
-            log_repo=SqliteLoadLogRepo(conn),
+            player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+            proj_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
+            log_repo=SqliteLoadLogRepo(SingleConnectionProvider(conn)),
         )
     finally:
         conn.close()
@@ -330,26 +333,26 @@ class IngestContainer:
 
     @functools.cached_property
     def statcast_pitch_repo(self) -> SqliteStatcastPitchRepo:
-        return SqliteStatcastPitchRepo(self.statcast_conn)
+        return SqliteStatcastPitchRepo(SingleConnectionProvider(self.statcast_conn))
 
     def statcast_source(self) -> DataSource:
         return StatcastSavantSource()
 
     @functools.cached_property
     def player_repo(self) -> SqlitePlayerRepo:
-        return SqlitePlayerRepo(self._conn)
+        return SqlitePlayerRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def batting_stats_repo(self) -> SqliteBattingStatsRepo:
-        return SqliteBattingStatsRepo(self._conn)
+        return SqliteBattingStatsRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def pitching_stats_repo(self) -> SqlitePitchingStatsRepo:
-        return SqlitePitchingStatsRepo(self._conn)
+        return SqlitePitchingStatsRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def log_repo(self) -> SqliteLoadLogRepo:
-        return SqliteLoadLogRepo(self._conn)
+        return SqliteLoadLogRepo(SingleConnectionProvider(self._conn))
 
     def player_source(self) -> DataSource:
         return ChadwickRegisterSource()
@@ -362,7 +365,7 @@ class IngestContainer:
 
     @functools.cached_property
     def il_stint_repo(self) -> SqliteILStintRepo:  # pragma: no cover
-        return SqliteILStintRepo(self._conn)
+        return SqliteILStintRepo(SingleConnectionProvider(self._conn))
 
     def il_source(self) -> DataSource:  # pragma: no cover
         return MLBTransactionsSource()
@@ -372,23 +375,23 @@ class IngestContainer:
 
     @functools.cached_property
     def position_appearance_repo(self) -> SqlitePositionAppearanceRepo:
-        return SqlitePositionAppearanceRepo(self._conn)
+        return SqlitePositionAppearanceRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def roster_stint_repo(self) -> SqliteRosterStintRepo:
-        return SqliteRosterStintRepo(self._conn)
+        return SqliteRosterStintRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def team_repo(self) -> SqliteTeamRepo:
-        return SqliteTeamRepo(self._conn)
+        return SqliteTeamRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def minor_league_batting_stats_repo(self) -> SqliteMinorLeagueBattingStatsRepo:
-        return SqliteMinorLeagueBattingStatsRepo(self._conn)
+        return SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def sprint_speed_repo(self) -> SqliteSprintSpeedRepo:  # pragma: no cover
-        return SqliteSprintSpeedRepo(self.statcast_conn)
+        return SqliteSprintSpeedRepo(SingleConnectionProvider(self.statcast_conn))
 
     def sprint_speed_source(self) -> DataSource:
         return SprintSpeedSource()
@@ -404,7 +407,7 @@ class IngestContainer:
 
     @functools.cached_property
     def adp_repo(self) -> SqliteADPRepo:  # pragma: no cover
-        return SqliteADPRepo(self._conn)
+        return SqliteADPRepo(SingleConnectionProvider(self._conn))
 
 
 @contextmanager
@@ -513,15 +516,15 @@ class ComputeContainer:
 
     @functools.cached_property
     def league_environment_repo(self) -> SqliteLeagueEnvironmentRepo:
-        return SqliteLeagueEnvironmentRepo(self._conn)
+        return SqliteLeagueEnvironmentRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def level_factor_repo(self) -> SqliteLevelFactorRepo:  # pragma: no cover
-        return SqliteLevelFactorRepo(self._conn)
+        return SqliteLevelFactorRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def minor_league_batting_stats_repo(self) -> SqliteMinorLeagueBattingStatsRepo:
-        return SqliteMinorLeagueBattingStatsRepo(self._conn)
+        return SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(self._conn))
 
     @functools.cached_property
     def league_environment_service(self) -> LeagueEnvironmentService:
@@ -634,8 +637,8 @@ def build_category_needs_context(data_dir: str) -> Iterator[CategoryNeedsContext
     try:
         yield CategoryNeedsContext(
             conn=conn,
-            player_repo=SqlitePlayerRepo(conn),
-            projection_repo=SqliteProjectionRepo(conn),
+            player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+            projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
         )
     finally:
         conn.close()
@@ -745,17 +748,17 @@ def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContex
         client = YahooFantasyClient(auth)
         yield YahooContext(
             conn=conn,
-            yahoo_league_repo=SqliteYahooLeagueRepo(conn),
-            yahoo_team_repo=SqliteYahooTeamRepo(conn),
-            yahoo_player_map_repo=SqliteYahooPlayerMapRepo(conn),
-            yahoo_roster_repo=SqliteYahooRosterRepo(conn),
-            yahoo_draft_repo=SqliteYahooDraftRepo(conn),
-            yahoo_transaction_repo=SqliteYahooTransactionRepo(conn),
-            player_repo=SqlitePlayerRepo(conn),
-            projection_repo=SqliteProjectionRepo(conn),
-            valuation_repo=SqliteValuationRepo(conn),
-            adp_repo=SqliteADPRepo(conn),
-            keeper_repo=SqliteKeeperCostRepo(conn),
+            yahoo_league_repo=SqliteYahooLeagueRepo(SingleConnectionProvider(conn)),
+            yahoo_team_repo=SqliteYahooTeamRepo(SingleConnectionProvider(conn)),
+            yahoo_player_map_repo=SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn)),
+            yahoo_roster_repo=SqliteYahooRosterRepo(SingleConnectionProvider(conn)),
+            yahoo_draft_repo=SqliteYahooDraftRepo(SingleConnectionProvider(conn)),
+            yahoo_transaction_repo=SqliteYahooTransactionRepo(SingleConnectionProvider(conn)),
+            player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+            projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
+            valuation_repo=SqliteValuationRepo(SingleConnectionProvider(conn)),
+            adp_repo=SqliteADPRepo(SingleConnectionProvider(conn)),
+            keeper_repo=SqliteKeeperCostRepo(SingleConnectionProvider(conn)),
             client=client,
         )
     finally:
@@ -778,20 +781,20 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:  # pragma: n
     """Composition-root context manager for keeper commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        position_repo = SqlitePositionAppearanceRepo(conn)
-        pitching_stats_repo = SqlitePitchingStatsRepo(conn)
+        position_repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
+        pitching_stats_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
         eligibility_service = PlayerEligibilityService(
             position_repo,
             pitching_stats_repo=pitching_stats_repo,
         )
         yield KeeperContext(
             conn=conn,
-            keeper_repo=SqliteKeeperCostRepo(conn),
-            player_repo=SqlitePlayerRepo(conn),
-            valuation_repo=SqliteValuationRepo(conn),
-            projection_repo=SqliteProjectionRepo(conn),
+            keeper_repo=SqliteKeeperCostRepo(SingleConnectionProvider(conn)),
+            player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+            valuation_repo=SqliteValuationRepo(SingleConnectionProvider(conn)),
+            projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
             eligibility_service=eligibility_service,
-            adp_repo=SqliteADPRepo(conn),
+            adp_repo=SqliteADPRepo(SingleConnectionProvider(conn)),
         )
     finally:
         conn.close()
@@ -810,9 +813,11 @@ def build_profile_context(data_dir: str) -> Iterator[ProfileContext]:  # pragma:
     statcast_conn = create_statcast_connection(Path(data_dir) / "statcast.db")
     stats_conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        scanner = CorrelationScanner(statcast_conn, stats_conn)
+        sc_provider = SingleConnectionProvider(statcast_conn)
+        st_provider = SingleConnectionProvider(stats_conn)
+        scanner = CorrelationScanner(sc_provider, st_provider)
         yield ProfileContext(
-            profiler=StatcastColumnProfiler(statcast_conn),
+            profiler=StatcastColumnProfiler(sc_provider),
             scanner=scanner,
             stability_checker=TemporalStabilityChecker(scanner),
         )
@@ -838,8 +843,8 @@ def build_feature_context(data_dir: str) -> Iterator[FeatureContext]:
         yield FeatureContext(
             statcast_conn=statcast_conn,
             fbm_conn=fbm_conn,
-            candidate_repo=SqliteFeatureCandidateRepo(fbm_conn),
-            scanner=CorrelationScanner(statcast_conn, fbm_conn),
+            candidate_repo=SqliteFeatureCandidateRepo(SingleConnectionProvider(fbm_conn)),
+            scanner=CorrelationScanner(SingleConnectionProvider(statcast_conn), SingleConnectionProvider(fbm_conn)),
         )
     finally:
         fbm_conn.close()
@@ -861,21 +866,21 @@ def build_injury_adjusted_valuations_context(data_dir: str) -> Iterator[InjuryAd
     """Composition-root context manager for injury-adjusted valuation commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        position_repo = SqlitePositionAppearanceRepo(conn)
-        pitching_stats_repo = SqlitePitchingStatsRepo(conn)
+        position_repo = SqlitePositionAppearanceRepo(SingleConnectionProvider(conn))
+        pitching_stats_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
         eligibility_service = PlayerEligibilityService(
             position_repo,
             pitching_stats_repo=pitching_stats_repo,
         )
         yield InjuryAdjustedValuationsContext(
             conn=conn,
-            projection_repo=SqliteProjectionRepo(conn),
-            player_repo=SqlitePlayerRepo(conn),
-            valuation_repo=SqliteValuationRepo(conn),
+            projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
+            player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+            valuation_repo=SqliteValuationRepo(SingleConnectionProvider(conn)),
             eligibility_service=eligibility_service,
             profiler=InjuryProfiler(
-                player_repo=SqlitePlayerRepo(conn),
-                il_stint_repo=SqliteILStintRepo(conn),
+                player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+                il_stint_repo=SqliteILStintRepo(SingleConnectionProvider(conn)),
             ),
         )
     finally:
@@ -896,8 +901,8 @@ def build_injury_profile_context(data_dir: str) -> Iterator[InjuryProfileContext
         yield InjuryProfileContext(
             conn=conn,
             profiler=InjuryProfiler(
-                player_repo=SqlitePlayerRepo(conn),
-                il_stint_repo=SqliteILStintRepo(conn),
+                player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+                il_stint_repo=SqliteILStintRepo(SingleConnectionProvider(conn)),
             ),
         )
     finally:
@@ -915,7 +920,7 @@ def build_breakout_bust_report_context(data_dir: str) -> Iterator[BreakoutBustRe
     """Composition-root context manager for breakout/bust report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        assembler = SqliteDatasetAssembler(conn, statcast_path=Path(data_dir) / "statcast.db")
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(conn), statcast_path=Path(data_dir) / "statcast.db")
         label_source = DbLabelSource(conn)
         result = create_model("breakout-bust", assembler=assembler, label_source=label_source)
         if isinstance(result, Err):

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
 
@@ -27,7 +28,7 @@ def _make_env(**overrides: object) -> LeagueEnvironment:
 
 class TestLeagueEnvironmentRepo:
     def test_upsert_and_get_by_league_season_level(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLeagueEnvironmentRepo(conn)
+        repo = SqliteLeagueEnvironmentRepo(SingleConnectionProvider(conn))
         env = _make_env()
 
         row_id = repo.upsert(env)
@@ -49,7 +50,7 @@ class TestLeagueEnvironmentRepo:
         assert result.babip == 0.300
 
     def test_upsert_idempotency(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLeagueEnvironmentRepo(conn)
+        repo = SqliteLeagueEnvironmentRepo(SingleConnectionProvider(conn))
 
         repo.upsert(_make_env(avg=0.260))
         conn.commit()
@@ -62,7 +63,7 @@ class TestLeagueEnvironmentRepo:
         assert result.avg == 0.275
 
     def test_get_by_season_level(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLeagueEnvironmentRepo(conn)
+        repo = SqliteLeagueEnvironmentRepo(SingleConnectionProvider(conn))
 
         repo.upsert(_make_env(league="International League", level="AAA"))
         repo.upsert(_make_env(league="Pacific Coast League", level="AAA"))
@@ -75,7 +76,7 @@ class TestLeagueEnvironmentRepo:
         assert leagues == {"International League", "Pacific Coast League"}
 
     def test_get_by_season(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLeagueEnvironmentRepo(conn)
+        repo = SqliteLeagueEnvironmentRepo(SingleConnectionProvider(conn))
 
         repo.upsert(_make_env(league="International League", level="AAA"))
         repo.upsert(_make_env(league="Eastern League", level="AA"))
@@ -88,6 +89,6 @@ class TestLeagueEnvironmentRepo:
         assert levels == {"AAA", "AA", "A"}
 
     def test_get_nonexistent_returns_none(self, conn: sqlite3.Connection) -> None:
-        repo = SqliteLeagueEnvironmentRepo(conn)
+        repo = SqliteLeagueEnvironmentRepo(SingleConnectionProvider(conn))
         result = repo.get_by_league_season_level("Nonexistent", 2024, "AAA")
         assert result is None

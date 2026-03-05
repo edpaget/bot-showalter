@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.transforms.batted_ball import BATTED_BALL
 from fantasy_baseball_manager.features.transforms.pitch_mix import PITCH_MIX
@@ -46,7 +47,7 @@ class TestMixedFeatureSet:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         assert len(rows) == 2
@@ -64,7 +65,7 @@ class TestMixedFeatureSet:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         for row in rows:
@@ -82,7 +83,7 @@ class TestTransformOnly:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         assert len(rows) == 2
@@ -110,7 +111,7 @@ class TestLaggedStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         # 2 players in season 2023, should get 2022 statcast data
@@ -134,7 +135,7 @@ class TestLaggedStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}
@@ -159,7 +160,7 @@ class TestAvgLagStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         assert len(rows) == 2
@@ -184,7 +185,7 @@ class TestAvgLagStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         assert len(rows) == 2
@@ -208,7 +209,7 @@ class TestAvgLagStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}
@@ -241,7 +242,7 @@ class TestAvgLagStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         single_rows = assembler.read(assembler.materialize(fs_single))
         avg_rows = assembler.read(assembler.materialize(fs_avg))
         assert set(single_rows[0].keys()) == set(avg_rows[0].keys())
@@ -264,7 +265,7 @@ class TestWeightedLagStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         assert len(rows) == 2
@@ -290,7 +291,7 @@ class TestWeightedLagStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}
@@ -321,7 +322,7 @@ class TestWeightedLagStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         w_rows = assembler.read(assembler.materialize(fs_w))
         p_rows = assembler.read(assembler.materialize(fs_p))
         w_by_player = {r["player_id"]: r for r in w_rows}
@@ -351,7 +352,7 @@ class TestWeightedLagStatcastTransform:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         single_rows = assembler.read(assembler.materialize(fs_single))
         weighted_rows = assembler.read(assembler.materialize(fs_weighted))
         assert set(single_rows[0].keys()) == set(weighted_rows[0].keys())
@@ -372,7 +373,7 @@ class TestStatcastIntegration:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         # 2 players x 2 seasons = 4 rows
@@ -395,7 +396,7 @@ class TestStatcastIntegration:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}
@@ -419,7 +420,7 @@ class TestStatcastIntegration:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         assert len(rows) == 2
@@ -444,7 +445,7 @@ class TestStatcastIntegration:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         assert len(rows) == 2
@@ -465,7 +466,9 @@ class TestStatcastIntegration:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="pitcher"),
         )
-        assembler = SqliteDatasetAssembler(pitcher_seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(
+            SingleConnectionProvider(pitcher_seeded_conn), statcast_path=statcast_db_path
+        )
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         # 2 pitchers x 2 seasons = 4 rows
@@ -488,7 +491,9 @@ class TestStatcastIntegration:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="pitcher"),
         )
-        assembler = SqliteDatasetAssembler(pitcher_seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(
+            SingleConnectionProvider(pitcher_seeded_conn), statcast_path=statcast_db_path
+        )
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}
@@ -512,7 +517,9 @@ class TestStatcastIntegration:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(pitcher_seeded_conn, statcast_path=statcast_db_path)
+        assembler = SqliteDatasetAssembler(
+            SingleConnectionProvider(pitcher_seeded_conn), statcast_path=statcast_db_path
+        )
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}

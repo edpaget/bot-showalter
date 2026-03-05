@@ -10,6 +10,7 @@ from fantasy_baseball_manager.cli.commands.quick_eval import _parse_params
 from fantasy_baseball_manager.cli.factory import DbLabelSource, create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import Err, Experimentable
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
@@ -43,7 +44,9 @@ def compare_features_cmd(  # pragma: no cover
 
     conn = create_connection(Path(resolved_data_dir) / "fbm.db")
     try:
-        assembler = SqliteDatasetAssembler(conn, statcast_path=Path(resolved_data_dir) / "statcast.db")
+        assembler = SqliteDatasetAssembler(
+            SingleConnectionProvider(conn), statcast_path=Path(resolved_data_dir) / "statcast.db"
+        )
         model_result = create_model(model, assembler=assembler, label_source=DbLabelSource(conn))
         match model_result:
             case Err(e):
@@ -77,7 +80,7 @@ def compare_features_cmd(  # pragma: no cover
         if missing_columns:
             statcast_conn = create_statcast_connection(Path(resolved_data_dir) / "statcast.db")
             try:
-                candidate_repo = SqliteFeatureCandidateRepo(conn)
+                candidate_repo = SqliteFeatureCandidateRepo(SingleConnectionProvider(conn))
                 all_seasons = list(rows_by_season.keys())
                 mlbam_to_internal: dict[int, int] = dict(conn.execute("SELECT mlbam_id, id FROM player").fetchall())
                 for col_name in missing_columns:

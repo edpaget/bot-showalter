@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -38,7 +39,7 @@ def _seed_projection(
     version: str = "latest",
     player_type: str = "batter",
 ) -> None:
-    repo = SqliteProjectionRepo(conn)
+    repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
     repo.upsert(
         Projection(
             player_id=player_id,
@@ -86,7 +87,7 @@ def _test_league() -> LeagueSettings:
 
 
 def _get_projections(conn: sqlite3.Connection, season: int = 2026) -> list[Projection]:
-    repo = SqliteProjectionRepo(conn)
+    repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
     return repo.get_by_season(season)
 
 

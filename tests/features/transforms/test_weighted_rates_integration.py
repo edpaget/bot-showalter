@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.types import (
     FeatureSet,
@@ -33,7 +34,7 @@ class TestWeightedRatesMaterialization:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         assert len(rows) == 2
@@ -53,7 +54,7 @@ class TestWeightedRatesMaterialization:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         by_player = {r["player_id"]: r for r in rows}
@@ -89,7 +90,7 @@ class TestWeightedRatesMaterialization:
             source_filter="fangraphs",
             spine_filter=SpineFilter(player_type="batter"),
         )
-        assembler = SqliteDatasetAssembler(seeded_conn)
+        assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
         rows = assembler.read(handle)
         for row in rows:

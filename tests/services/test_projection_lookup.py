@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
@@ -20,7 +21,7 @@ def _seed_projection(
     stat_json: dict | None = None,
     source_type: str = "third_party",
 ) -> None:
-    repo = SqliteProjectionRepo(conn)
+    repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
     repo.upsert(
         Projection(
             player_id=player_id,
@@ -35,7 +36,9 @@ def _seed_projection(
 
 
 def _make_service(conn: sqlite3.Connection) -> ProjectionLookupService:
-    return ProjectionLookupService(SqlitePlayerRepo(conn), SqliteProjectionRepo(conn))
+    return ProjectionLookupService(
+        SqlitePlayerRepo(SingleConnectionProvider(conn)), SqliteProjectionRepo(SingleConnectionProvider(conn))
+    )
 
 
 class TestLookup:

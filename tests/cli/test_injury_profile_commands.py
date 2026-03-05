@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import ILStint
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from tests.helpers import seed_player
@@ -22,7 +23,7 @@ def _seed_il_data(conn: sqlite3.Connection) -> None:
     seed_player(conn, player_id=2, name_first="Aaron", name_last="Judge")
     seed_player(conn, player_id=3, name_first="Healthy", name_last="Player")
 
-    il_repo = SqliteILStintRepo(conn)
+    il_repo = SqliteILStintRepo(SingleConnectionProvider(conn))
     # Mike Trout: chronically injured
     il_repo.upsert(
         ILStint(player_id=1, season=2023, start_date="2023-04-15", il_type="10-day", days=15, injury_location="calf")

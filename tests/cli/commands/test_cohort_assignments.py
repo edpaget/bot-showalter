@@ -5,6 +5,7 @@ import pytest
 from fantasy_baseball_manager.cli.commands.standalone import _build_cohort_assignments
 from fantasy_baseball_manager.cli.factory import EvalContext
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import BattingStats, Player
 from fantasy_baseball_manager.repos import (
     SqliteBattingStatsRepo,
@@ -18,10 +19,10 @@ from fantasy_baseball_manager.services import ProjectionEvaluator
 def _make_eval_context() -> EvalContext:
     """Build an EvalContext backed by an in-memory database."""
     conn = create_connection(":memory:")
-    player_repo = SqlitePlayerRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
-    projection_repo = SqliteProjectionRepo(conn)
-    pitching_repo = SqlitePitchingStatsRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+    batting_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+    projection_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
+    pitching_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
     evaluator = ProjectionEvaluator(projection_repo, batting_repo, pitching_repo)
     return EvalContext(
         conn=conn,

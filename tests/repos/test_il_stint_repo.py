@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from tests.helpers import seed_player
@@ -6,7 +7,7 @@ from tests.helpers import seed_player
 class TestSqliteILStintRepo:
     def test_upsert_and_get_by_player_season(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqliteILStintRepo(conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
         stint = ILStint(
             player_id=player_id,
             season=2024,
@@ -31,7 +32,7 @@ class TestSqliteILStintRepo:
 
     def test_upsert_idempotency(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqliteILStintRepo(conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
         stint = ILStint(
             player_id=player_id,
             season=2024,
@@ -63,7 +64,7 @@ class TestSqliteILStintRepo:
     def test_get_by_season(self, conn) -> None:
         p1 = seed_player(conn, mlbam_id=545361)
         p2 = seed_player(conn, mlbam_id=660271)
-        repo = SqliteILStintRepo(conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
         repo.upsert(ILStint(player_id=p1, season=2024, start_date="2024-05-15", il_type="15"))
         repo.upsert(ILStint(player_id=p2, season=2024, start_date="2024-06-01", il_type="10"))
         repo.upsert(ILStint(player_id=p1, season=2023, start_date="2023-07-01", il_type="60"))
@@ -77,7 +78,7 @@ class TestSqliteILStintRepo:
 
     def test_get_by_player_returns_all_seasons(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqliteILStintRepo(conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
         repo.upsert(ILStint(player_id=player_id, season=2023, start_date="2023-04-10", il_type="15"))
         repo.upsert(ILStint(player_id=player_id, season=2024, start_date="2024-05-15", il_type="10"))
 
@@ -88,7 +89,7 @@ class TestSqliteILStintRepo:
 
     def test_get_by_player_empty(self, conn) -> None:
         player_id = seed_player(conn)
-        repo = SqliteILStintRepo(conn)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
 
         results = repo.get_by_player(player_id)
         assert results == []

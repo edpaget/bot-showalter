@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel import MarcelModel
@@ -121,7 +122,7 @@ class TestImportCommand:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        proj_repo = SqliteProjectionRepo(verify_conn)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
         projections = proj_repo.get_by_season(2025, system="steamer")
         assert len(projections) == 1
         assert projections[0].source_type == "third_party"
@@ -160,7 +161,7 @@ class TestImportCommand:
         assert result.exit_code == 0, result.output
 
         verify_conn = create_connection(db_path)
-        proj_repo = SqliteProjectionRepo(verify_conn)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
         projections = proj_repo.get_by_season(2025, system="steamer")
         assert len(projections) == 1
         assert projections[0].source_type == "third_party"
@@ -195,8 +196,8 @@ def _seed_eval_data(conn: sqlite3.Connection, system: str = "steamer", version: 
         "INSERT OR IGNORE INTO player (id, name_first, name_last, birth_date, bats) "
         "VALUES (2, 'Aaron', 'Judge', '1992-04-26', 'R')"
     )
-    proj_repo = SqliteProjectionRepo(conn)
-    batting_repo = SqliteBattingStatsRepo(conn)
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
+    batting_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
     proj_repo.upsert(
         Projection(
             player_id=1,
@@ -226,7 +227,7 @@ def _seed_eval_data(conn: sqlite3.Connection, system: str = "steamer", version: 
 
 def _seed_better_system(conn: sqlite3.Connection) -> None:
     """Seed a 'better' system that predicts closer to actuals than steamer."""
-    proj_repo = SqliteProjectionRepo(conn)
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
     # Closer to actuals: Trout actual=28/0.265, Judge actual=40/0.300
     proj_repo.upsert(
         Projection(
@@ -255,7 +256,7 @@ def _seed_better_system(conn: sqlite3.Connection) -> None:
 
 def _seed_worse_system(conn: sqlite3.Connection) -> None:
     """Seed a 'worse' system that predicts farther from actuals than steamer."""
-    proj_repo = SqliteProjectionRepo(conn)
+    proj_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
     # Farther from actuals: Trout actual=28/0.265, Judge actual=40/0.300
     proj_repo.upsert(
         Projection(

@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.model_run import ModelRunRecord
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 
@@ -17,7 +18,7 @@ runner = CliRunner()
 
 
 def _seed_model_run(conn: object, system: str = "marcel", version: str = "v1") -> None:
-    repo = SqliteModelRunRepo(conn)  # type: ignore[arg-type]
+    repo = SqliteModelRunRepo(SingleConnectionProvider(conn))  # type: ignore[arg-type]
     repo.upsert(
         ModelRunRecord(
             system=system,
@@ -106,7 +107,7 @@ class TestRunsDeleteCommand:
 
         # Verify with a SECOND connection — proves deletion was committed
         verify_conn = create_connection(db_path)
-        repo = SqliteModelRunRepo(verify_conn)
+        repo = SqliteModelRunRepo(SingleConnectionProvider(verify_conn))
         assert repo.get("marcel", "v1") is None
         verify_conn.close()
 

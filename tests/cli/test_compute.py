@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import ComputeContainer
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.minor_league_batting_stats import MinorLeagueBattingStats
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.league_environment_repo import SqliteLeagueEnvironmentRepo
@@ -21,10 +22,10 @@ runner = CliRunner()
 
 def _seed_milb_stats(conn: sqlite3.Connection) -> None:
     """Seed a player and minor league stats for testing."""
-    player_repo = SqlitePlayerRepo(conn)
+    player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
     pid = player_repo.upsert(Player(name_first="Test", name_last="Player", mlbam_id=12345))
 
-    stats_repo = SqliteMinorLeagueBattingStatsRepo(conn)
+    stats_repo = SqliteMinorLeagueBattingStatsRepo(SingleConnectionProvider(conn))
     stats_repo.upsert(
         MinorLeagueBattingStats(
             player_id=pid,
@@ -77,7 +78,7 @@ class TestComputeLeagueEnv:
         assert "1 league(s) computed" in result.output
         assert "Done" in result.output
 
-        env_repo = SqliteLeagueEnvironmentRepo(conn)
+        env_repo = SqliteLeagueEnvironmentRepo(SingleConnectionProvider(conn))
         envs = env_repo.get_by_season_level(2024, "AAA")
         assert len(envs) == 1
         assert envs[0].league == "International League"

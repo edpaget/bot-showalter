@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.ingest.column_maps import chadwick_row_to_player
 from fantasy_baseball_manager.ingest.loader import Loader
@@ -26,9 +27,11 @@ def _chadwick_rows(*rows: dict[str, Any]) -> list[dict[str, Any]]:
 class TestPlayerLoader:
     def test_loads_players_and_writes_success_log(self, conn) -> None:
         source = FakeDataSource(_chadwick_rows({}))
-        player_repo = SqlitePlayerRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, player_repo, log_repo, chadwick_row_to_player, "player", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -52,9 +55,11 @@ class TestPlayerLoader:
             {"name_first": "Nobody", "key_mlbam": float("nan")},
         )
         source = FakeDataSource(rows)
-        player_repo = SqlitePlayerRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, player_repo, log_repo, chadwick_row_to_player, "player", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -65,9 +70,11 @@ class TestPlayerLoader:
 
     def test_upsert_is_idempotent(self, conn) -> None:
         source = FakeDataSource(_chadwick_rows({}))
-        player_repo = SqlitePlayerRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, player_repo, log_repo, chadwick_row_to_player, "player", provider=SingleConnectionProvider(conn)
+        )
 
         loader.load()
         loader.load()
@@ -76,9 +83,11 @@ class TestPlayerLoader:
 
     def test_error_during_fetch_writes_error_log_and_reraises(self, conn) -> None:
         source = ErrorDataSource()
-        player_repo = SqlitePlayerRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, player_repo, log_repo, chadwick_row_to_player, "player", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -93,9 +102,11 @@ class TestPlayerLoader:
 
     def test_timestamps_are_valid_iso_strings(self, conn) -> None:
         source = FakeDataSource(_chadwick_rows({}))
-        player_repo = SqlitePlayerRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, player_repo, log_repo, chadwick_row_to_player, "player", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -107,9 +118,11 @@ class TestPlayerLoader:
 
     def test_empty_list_loads_zero_rows(self, conn) -> None:
         source = FakeDataSource([])
-        player_repo = SqlitePlayerRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, player_repo, log_repo, chadwick_row_to_player, "player", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
@@ -139,9 +152,11 @@ class TestPlayerLoader:
             },
         )
         source = FakeDataSource(rows)
-        player_repo = SqlitePlayerRepo(conn)
-        log_repo = SqliteLoadLogRepo(conn)
-        loader = Loader(source, player_repo, log_repo, chadwick_row_to_player, "player", conn=conn)
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        log_repo = SqliteLoadLogRepo(SingleConnectionProvider(conn))
+        loader = Loader(
+            source, player_repo, log_repo, chadwick_row_to_player, "player", provider=SingleConnectionProvider(conn)
+        )
 
         result = loader.load()
 
