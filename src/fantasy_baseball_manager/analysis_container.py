@@ -33,6 +33,7 @@ from fantasy_baseball_manager.services import (
     ValuationEvaluator,
     ValuationLookupService,
 )
+from fantasy_baseball_manager.team_resolver import TeamResolver
 
 if TYPE_CHECKING:
     import sqlite3
@@ -102,6 +103,10 @@ class AnalysisContainer:
         return PlayerProfileService(player_repo=self.player_repo)
 
     @functools.cached_property
+    def team_resolver(self) -> TeamResolver:
+        return TeamResolver(self.team_repo)
+
+    @functools.cached_property
     def player_bio_service(self) -> PlayerBiographyService:
         return PlayerBiographyService(
             player_repo=self.player_repo,
@@ -111,6 +116,7 @@ class AnalysisContainer:
             pitching_stats_repo=self.pitching_stats_repo,
             position_appearance_repo=self.position_appearance_repo,
             player_team_provider=self.player_team_provider,
+            team_resolver=self.team_resolver,
         )
 
     @functools.cached_property

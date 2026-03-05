@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+import pytest
+
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Team
@@ -14,15 +16,19 @@ from fantasy_baseball_manager.services.player_biography import PlayerBiographySe
 from fantasy_baseball_manager.services.player_team_provider import (
     MlbApiPlayerTeamProvider,
 )
+from fantasy_baseball_manager.team_resolver import TeamResolver
 from tests.helpers import seed_player
 
 if TYPE_CHECKING:
     import sqlite3
 
+    from fantasy_baseball_manager.repos import TeamResolverProto
+
 
 def _make_service(
     conn: sqlite3.Connection,
     player_team_provider: MlbApiPlayerTeamProvider | None = None,
+    team_resolver: TeamResolverProto | None = None,
 ) -> PlayerBiographyService:
     return PlayerBiographyService(
         player_repo=SqlitePlayerRepo(conn),
@@ -32,6 +38,7 @@ def _make_service(
         pitching_stats_repo=SqlitePitchingStatsRepo(conn),
         position_appearance_repo=SqlitePositionAppearanceRepo(conn),
         player_team_provider=player_team_provider,
+        team_resolver=team_resolver,
     )
 
 
@@ -378,3 +385,63 @@ class TestProviderFallback:
         result = svc.get_bio(pid, 2025)
         assert result is not None
         assert result.team == "NYY"
+
+
+class TestFuzzyTeamResolution:
+    """Tests for fuzzy team name resolution in find()."""
+
+    @staticmethod
+    def _setup_two_teams(conn: sqlite3.Connection) -> tuple[int, int, int, int]:
+        """Seed NYY and NYM with one player each. Returns (nyy_id, nym_id, pid_nyy, pid_nym)."""
+        nyy_id = _seed_team(conn, "NYY", "New York Yankees")
+        nym_id = _seed_team(conn, "NYM", "New York Mets")
+        pid_nyy = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+        pid_nym = seed_player(conn, name_first="Pete", name_last="Alonso", mlbam_id=624413)
+        _seed_roster_stint(conn, pid_nyy, nyy_id, season=2025)
+        _seed_roster_stint(conn, pid_nym, nym_id, season=2025)
+        _seed_position(conn, pid_nyy, 2025, "OF")
+        _seed_position(conn, pid_nym, 2025, "1B")
+        return nyy_id, nym_id, pid_nyy, pid_nym
+
+    def test_find_by_nickname(self, conn: sqlite3.Connection) -> None:
+        """find(team='Yankees') returns same results as find(team='NYY')."""
+        self._setup_two_teams(conn)
+        resolver = TeamResolver(SqliteTeamRepo(conn))
+        svc = _make_service(conn, team_resolver=resolver)
+
+        by_abbrev = svc.find(season=2025, team="NYY")
+        by_nickname = svc.find(season=2025, team="Yankees")
+
+        assert len(by_abbrev) == 1
+        assert len(by_nickname) == 1
+        assert by_abbrev[0].name == by_nickname[0].name == "Aaron Judge"
+
+    def test_find_ambiguous_city(self, conn: sqlite3.Connection) -> None:
+        """find(team='New York') returns players from both NYY and NYM."""
+        self._setup_two_teams(conn)
+        resolver = TeamResolver(SqliteTeamRepo(conn))
+        svc = _make_service(conn, team_resolver=resolver)
+
+        results = svc.find(season=2025, team="New York")
+        names = {r.name for r in results}
+        assert "Aaron Judge" in names
+        assert "Pete Alonso" in names
+
+    def test_find_exact_abbrev_still_works(self, conn: sqlite3.Connection) -> None:
+        """find(team='NYY') still works with resolver present (backward compatible)."""
+        self._setup_two_teams(conn)
+        resolver = TeamResolver(SqliteTeamRepo(conn))
+        svc = _make_service(conn, team_resolver=resolver)
+
+        results = svc.find(season=2025, team="NYY")
+        assert len(results) == 1
+        assert results[0].name == "Aaron Judge"
+
+    def test_find_no_match_raises_valueerror(self, conn: sqlite3.Connection) -> None:
+        """find(team='xyzabc') raises ValueError when resolver finds no match."""
+        self._setup_two_teams(conn)
+        resolver = TeamResolver(SqliteTeamRepo(conn))
+        svc = _make_service(conn, team_resolver=resolver)
+
+        with pytest.raises(ValueError, match="No team found matching 'xyzabc'"):
+            svc.find(season=2025, team="xyzabc")

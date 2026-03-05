@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         PositionAppearanceRepo,
         RosterStintRepo,
         TeamRepo,
+        TeamResolverProto,
     )
 _EXPERIENCE_YEAR_RANGE = range(2000, 2030)
 
@@ -35,6 +36,7 @@ class PlayerBiographyService:
         pitching_stats_repo: PitchingStatsRepo,
         position_appearance_repo: PositionAppearanceRepo,
         player_team_provider: PlayerTeamProvider | None = None,
+        team_resolver: TeamResolverProto | None = None,
     ) -> None:
         self._player_repo = player_repo
         self._team_repo = team_repo
@@ -43,6 +45,7 @@ class PlayerBiographyService:
         self._pitching_stats_repo = pitching_stats_repo
         self._position_appearance_repo = position_appearance_repo
         self._player_team_provider = player_team_provider
+        self._team_resolver = team_resolver
         self._team_map: dict[int, str] | None = None
 
     def _get_team_map(self) -> dict[int, str]:
@@ -105,16 +108,28 @@ class PlayerBiographyService:
 
         # Try roster stints first (existing path)
         if team is not None:
-            # Try the team abbreviation as-is first, then try reverse alias
-            team_obj = self._team_repo.get_by_abbreviation(team)
-            if team_obj is None:
-                lahman = to_lahman(team)
-                if lahman != team:
-                    team_obj = self._team_repo.get_by_abbreviation(lahman)
+            if self._team_resolver is not None:
+                # Resolver path: handles abbreviations, full names, nicknames, fuzzy
+                abbreviations = self._team_resolver.resolve(team)
+                if not abbreviations:
+                    msg = f"No team found matching '{team}'"
+                    raise ValueError(msg)
+                for abbrev in abbreviations:
+                    team_obj = self._team_repo.get_by_abbreviation(abbrev)
+                    if team_obj is not None and team_obj.id is not None:
+                        stints = self._roster_stint_repo.get_by_team_season(team_obj.id, season)
+                        player_ids.update(s.player_id for s in stints)
+            else:
+                # Legacy path: exact abbreviation + Lahman alias
+                team_obj = self._team_repo.get_by_abbreviation(team)
+                if team_obj is None:
+                    lahman = to_lahman(team)
+                    if lahman != team:
+                        team_obj = self._team_repo.get_by_abbreviation(lahman)
 
-            if team_obj is not None and team_obj.id is not None:
-                stints = self._roster_stint_repo.get_by_team_season(team_obj.id, season)
-                player_ids.update(s.player_id for s in stints)
+                if team_obj is not None and team_obj.id is not None:
+                    stints = self._roster_stint_repo.get_by_team_season(team_obj.id, season)
+                    player_ids.update(s.player_id for s in stints)
 
             # Fallback: use provider if stints are empty
             if not player_ids and self._player_team_provider is not None:
