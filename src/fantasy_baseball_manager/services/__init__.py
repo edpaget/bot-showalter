@@ -197,7 +197,11 @@ from fantasy_baseball_manager.services.yahoo_draft_setup import (
     YahooDraftSetup,
     build_yahoo_draft_setup,
 )
-from fantasy_baseball_manager.services.yahoo_keeper import derive_and_store_keeper_costs, derive_best_n_keeper_costs
+from fantasy_baseball_manager.services.yahoo_keeper import (
+    derive_and_store_keeper_costs,
+    derive_best_n_keeper_costs,
+    ensure_prior_season_teams,
+)
 from fantasy_baseball_manager.services.yahoo_sync import sync_league_metadata, sync_transactions
 
 __all__ = [
@@ -334,6 +338,7 @@ __all__ = [
     "value_at",
     "derive_and_store_keeper_costs",
     "derive_best_n_keeper_costs",
+    "ensure_prior_season_teams",
     "YahooDraftSetup",
     "build_yahoo_draft_setup",
     "sync_league_metadata",

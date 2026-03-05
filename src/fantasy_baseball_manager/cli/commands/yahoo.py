@@ -30,6 +30,7 @@ from fantasy_baseball_manager.services import (
     compute_surplus,
     derive_and_store_keeper_costs,
     derive_best_n_keeper_costs,
+    ensure_prior_season_teams,
     recommend,
     set_keeper_cost,
     sync_league_metadata,
@@ -675,6 +676,23 @@ def _resolve_prior_league_key(ctx: YahooContext, league_key: str, prior_season: 
     return fallback
 
 
+def _ensure_prior_season(
+    ctx: YahooContext,
+    prior_league_key: str,
+    prior_game_key: str,
+) -> None:
+    """Auto-sync prior-season league/team metadata if missing, then commit."""
+    league_source = YahooLeagueSource(ctx.client)
+    ensure_prior_season_teams(
+        team_repo=ctx.yahoo_team_repo,
+        league_source=league_source,
+        league_repo=ctx.yahoo_league_repo,
+        prior_league_key=prior_league_key,
+        prior_game_key=prior_game_key,
+    )
+    ctx.conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # Keeper commands
 # ---------------------------------------------------------------------------
@@ -698,6 +716,14 @@ def yahoo_keeper_costs(  # pragma: no cover
 
         prior_season = season - 1
         prior_league_key = _resolve_prior_league_key(ctx, league_key, prior_season)
+        prior_game_key = prior_league_key.split(".l.")[0]
+
+        try:
+            _ensure_prior_season(ctx, prior_league_key, prior_game_key)
+        except ValueError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
+
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
         roster_source = YahooRosterSource(ctx.client, mapper)
         try:
@@ -776,6 +802,14 @@ def yahoo_keeper_decisions(  # pragma: no cover
         # Auto-derive costs first
         prior_season = season - 1
         prior_league_key = _resolve_prior_league_key(ctx, league_key, prior_season)
+        prior_game_key = prior_league_key.split(".l.")[0]
+
+        try:
+            _ensure_prior_season(ctx, prior_league_key, prior_game_key)
+        except ValueError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
+
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
         roster_source = YahooRosterSource(ctx.client, mapper)
         try:

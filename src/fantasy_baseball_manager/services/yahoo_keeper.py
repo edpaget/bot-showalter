@@ -5,14 +5,45 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import KeeperCost
 from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
+from fantasy_baseball_manager.services.yahoo_sync import sync_league_metadata
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import (
         KeeperCostRepo,
         YahooDraftSourceProto,
+        YahooLeagueRepo,
+        YahooLeagueSourceProto,
         YahooRosterSourceProto,
         YahooTeamRepo,
     )
+
+
+def ensure_prior_season_teams(
+    team_repo: YahooTeamRepo,
+    league_source: YahooLeagueSourceProto,
+    league_repo: YahooLeagueRepo,
+    prior_league_key: str,
+    prior_game_key: str,
+) -> None:
+    """Ensure prior-season teams exist in the DB, syncing from Yahoo if needed.
+
+    Does NOT commit — caller is responsible for committing.
+    Raises ValueError if the prior season has no user team after syncing.
+    """
+    if team_repo.get_user_team(prior_league_key) is not None:
+        return
+
+    sync_league_metadata(
+        league_source=league_source,
+        league_repo=league_repo,
+        team_repo=team_repo,
+        league_key=prior_league_key,
+        game_key=prior_game_key,
+    )
+
+    if team_repo.get_user_team(prior_league_key) is None:
+        msg = f"No user team found for {prior_league_key}. The prior season may not have this user as a league member."
+        raise ValueError(msg)
 
 
 def derive_and_store_keeper_costs(
@@ -36,7 +67,7 @@ def derive_and_store_keeper_costs(
 
     user_team = team_repo.get_user_team(prior_league_key)
     if user_team is None:
-        msg = f"No user team found for {prior_league_key}. Run 'fbm yahoo sync --season {prior_season}' first."
+        msg = f"No user team found for {prior_league_key}. The prior season may not have this user as a league member."
         raise ValueError(msg)
 
     today = datetime.date.today()
@@ -76,7 +107,7 @@ def derive_best_n_keeper_costs(
     """
     user_team = team_repo.get_user_team(prior_league_key)
     if user_team is None:
-        msg = f"No user team found for {prior_league_key}. Run 'fbm yahoo sync --season {prior_season}' first."
+        msg = f"No user team found for {prior_league_key}. The prior season may not have this user as a league member."
         raise ValueError(msg)
 
     today = datetime.date.today()

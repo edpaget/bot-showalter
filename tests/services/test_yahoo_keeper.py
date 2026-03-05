@@ -18,7 +18,11 @@ from fantasy_baseball_manager.repos import (
     SqliteYahooLeagueRepo,
     SqliteYahooTeamRepo,
 )
-from fantasy_baseball_manager.services.yahoo_keeper import derive_and_store_keeper_costs, derive_best_n_keeper_costs
+from fantasy_baseball_manager.services.yahoo_keeper import (
+    derive_and_store_keeper_costs,
+    derive_best_n_keeper_costs,
+    ensure_prior_season_teams,
+)
 
 if TYPE_CHECKING:
     import sqlite3
@@ -37,6 +41,19 @@ class FakeDraftSource:
 
     def fetch_draft_results(self, league_key: str, season: int) -> list[YahooDraftPick]:
         return self._picks
+
+
+class FakeLeagueSource:
+    """Returns canned league + teams, and tracks calls."""
+
+    def __init__(self, league: YahooLeague, teams: list[YahooTeam]) -> None:
+        self._league = league
+        self._teams = teams
+        self.call_count = 0
+
+    def fetch(self, *, league_key: str, game_key: str) -> tuple[YahooLeague, list[YahooTeam]]:
+        self.call_count += 1
+        return self._league, self._teams
 
 
 class FakeRosterSource:
@@ -258,7 +275,7 @@ class TestDeriveAndStoreKeeperCosts:
         team_repo = SqliteYahooTeamRepo(conn)
         keeper_repo = SqliteKeeperCostRepo(conn)
 
-        with pytest.raises(ValueError, match="No user team found"):
+        with pytest.raises(ValueError, match="No user team found for"):
             derive_and_store_keeper_costs(
                 draft_source=draft_source,
                 roster_source=roster_source,
@@ -434,3 +451,97 @@ class TestDeriveBestNKeeperCosts:
         assert len(player_costs) == 1
         assert player_costs[0].source == "manual"
         assert player_costs[0].cost == 10.0
+
+
+# ---------------------------------------------------------------------------
+# ensure_prior_season_teams tests
+# ---------------------------------------------------------------------------
+
+_PRIOR_GAME_KEY = "422"
+
+_PRIOR_LEAGUE = YahooLeague(
+    league_key=_PRIOR_LEAGUE_KEY,
+    name="Test League",
+    season=2025,
+    num_teams=10,
+    draft_type="live_standard_draft",
+    is_keeper=True,
+    game_key=_PRIOR_GAME_KEY,
+)
+
+_PRIOR_USER_TEAM = YahooTeam(
+    team_key="422.l.200.t.1",
+    league_key=_PRIOR_LEAGUE_KEY,
+    team_id=1,
+    name="My Team",
+    manager_name="Me",
+    is_owned_by_user=True,
+)
+
+_PRIOR_OTHER_TEAM = YahooTeam(
+    team_key="422.l.200.t.2",
+    league_key=_PRIOR_LEAGUE_KEY,
+    team_id=2,
+    name="Other Team",
+    manager_name="Other",
+    is_owned_by_user=False,
+)
+
+
+class TestEnsurePriorSeasonTeams:
+    def test_no_sync_when_teams_already_exist(self, conn: sqlite3.Connection) -> None:
+        """When user team exists in DB, no sync call is made."""
+        team_repo = SqliteYahooTeamRepo(conn)
+        league_repo = SqliteYahooLeagueRepo(conn)
+
+        # Pre-seed prior league and user team
+        league_repo.upsert(_PRIOR_LEAGUE)
+        team_repo.upsert(_PRIOR_USER_TEAM)
+        conn.commit()
+
+        league_source = FakeLeagueSource(_PRIOR_LEAGUE, [_PRIOR_USER_TEAM])
+
+        ensure_prior_season_teams(
+            team_repo=team_repo,
+            league_source=league_source,
+            league_repo=league_repo,
+            prior_league_key=_PRIOR_LEAGUE_KEY,
+            prior_game_key=_PRIOR_GAME_KEY,
+        )
+
+        assert league_source.call_count == 0
+
+    def test_syncs_when_teams_missing(self, conn: sqlite3.Connection) -> None:
+        """When user team is absent, sync is called and teams are populated."""
+        team_repo = SqliteYahooTeamRepo(conn)
+        league_repo = SqliteYahooLeagueRepo(conn)
+
+        league_source = FakeLeagueSource(_PRIOR_LEAGUE, [_PRIOR_USER_TEAM, _PRIOR_OTHER_TEAM])
+
+        ensure_prior_season_teams(
+            team_repo=team_repo,
+            league_source=league_source,
+            league_repo=league_repo,
+            prior_league_key=_PRIOR_LEAGUE_KEY,
+            prior_game_key=_PRIOR_GAME_KEY,
+        )
+
+        assert league_source.call_count == 1
+        assert team_repo.get_user_team(_PRIOR_LEAGUE_KEY) is not None
+
+    def test_raises_when_sync_finds_no_user_team(self, conn: sqlite3.Connection) -> None:
+        """When sync completes but no user team exists, ValueError is raised."""
+        team_repo = SqliteYahooTeamRepo(conn)
+        league_repo = SqliteYahooLeagueRepo(conn)
+
+        # Sync returns teams but none is_owned_by_user
+        league_source = FakeLeagueSource(_PRIOR_LEAGUE, [_PRIOR_OTHER_TEAM])
+
+        with pytest.raises(ValueError, match="No user team found"):
+            ensure_prior_season_teams(
+                team_repo=team_repo,
+                league_source=league_source,
+                league_repo=league_repo,
+                prior_league_key=_PRIOR_LEAGUE_KEY,
+                prior_game_key=_PRIOR_GAME_KEY,
+            )
