@@ -4,6 +4,7 @@ import typer
 
 import fantasy_baseball_manager.models  # noqa: F401 — trigger model registration
 from fantasy_baseball_manager.cli._logging import configure_logging
+from fantasy_baseball_manager.cli.commands.bio import bio as bio_cmd
 from fantasy_baseball_manager.cli.commands.compare_features import compare_features_cmd
 from fantasy_baseball_manager.cli.commands.compute import compute_app
 from fantasy_baseball_manager.cli.commands.datasets import datasets_app
@@ -78,6 +79,7 @@ app.command()(info)
 app.command()(features)
 app.command("import")(import_cmd)
 app.command("compare")(compare_cmd)
+app.command("bio")(bio_cmd)
 app.command("chat")(chat_cmd)
 app.command("discord")(discord_cmd)
 

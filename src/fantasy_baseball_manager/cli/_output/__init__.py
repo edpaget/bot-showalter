@@ -1,6 +1,7 @@
 import sys
 import types
 
+from fantasy_baseball_manager.cli._output._bio import print_player_summaries
 from fantasy_baseball_manager.cli._output._common import console, err_console, print_error
 from fantasy_baseball_manager.cli._output._datasets import print_dataset_list
 from fantasy_baseball_manager.cli._output._draft import (
@@ -110,6 +111,7 @@ from fantasy_baseball_manager.cli._output._valuations import (
 )
 
 _SUBMODULE_NAMES = (
+    "_bio",
     "_common",
     "_datasets",
     "_draft",
@@ -206,6 +208,7 @@ __all__ = [
     "print_marginal_value_results",
     "print_mock_draft_result",
     "print_opportunity_costs",
+    "print_player_summaries",
     "print_performance_report",
     "print_position_check",
     "print_preflight_result",

@@ -97,6 +97,7 @@ if TYPE_CHECKING:
         ADPMoversService,
         ADPReportService,
         PerformanceReportService,
+        PlayerBiographyService,
         PlayerProfileService,
         ProjectionLookupService,
         ResidualAnalysisDiagnostic,
@@ -106,6 +107,7 @@ if TYPE_CHECKING:
         ValuationEvaluator,
         ValuationLookupService,
     )
+    from fantasy_baseball_manager.team_resolver import TeamResolver
 
 
 class _DbLabelSource:
@@ -430,6 +432,28 @@ def build_projections_context(data_dir: str) -> Iterator[ProjectionsContext]:
     try:
         container = AnalysisContainer(conn)
         yield ProjectionsContext(conn=conn, lookup_service=container.projection_lookup_service)
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class BioContext:
+    bio_service: PlayerBiographyService
+    team_resolver: TeamResolver
+    team_repo: SqliteTeamRepo
+
+
+@contextmanager
+def build_bio_context(data_dir: str) -> Iterator[BioContext]:
+    """Composition-root context manager for bio commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        container = AnalysisContainer(conn)
+        yield BioContext(
+            bio_service=container.player_bio_service,
+            team_resolver=container.team_resolver,
+            team_repo=container.team_repo,
+        )
     finally:
         conn.close()
 
