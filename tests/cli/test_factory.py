@@ -1,3 +1,4 @@
+import sqlite3
 from sqlite3 import ProgrammingError
 
 import pytest
@@ -6,6 +7,8 @@ from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.cli._dispatcher import dispatch
 from fantasy_baseball_manager.cli.factory import (
     IngestContainer,
+    _DbLabelSource,
+    build_breakout_bust_report_context,
     build_chat_context,
     build_eval_context,
     build_import_context,
@@ -18,11 +21,15 @@ from fantasy_baseball_manager.cli.factory import (
 )
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
+from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.errors import ConfigError
 from fantasy_baseball_manager.domain.result import Err, Ok
+from fantasy_baseball_manager.domain.valuation import Valuation
+from fantasy_baseball_manager.models.breakout_bust.model import BreakoutBustModel
 from fantasy_baseball_manager.models.composite.engine import GBMEngine, MarcelEngine
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
 from fantasy_baseball_manager.models.registry import _clear, register
+from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
@@ -30,9 +37,11 @@ from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingSta
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.statcast_pitch_repo import SqliteStatcastPitchRepo
+from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from fantasy_baseball_manager.services.projection_evaluator import ProjectionEvaluator
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from fantasy_baseball_manager.services.valuation_lookup import ValuationLookupService
+from tests.helpers import seed_player
 
 
 class _NoArgModel:
@@ -535,6 +544,117 @@ class TestBuildChatContext:
             lambda path, **kwargs: create_connection(":memory:"),
         )
         with build_chat_context("./data") as ctx:
+            conn = ctx.conn
+        with pytest.raises(ProgrammingError):
+            conn.execute("SELECT 1")
+
+
+def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
+    """Seed ADP and valuation data so _DbLabelSource can generate labels."""
+    seed_player(conn, player_id=1, name_first="Player", name_last="One")
+    seed_player(conn, player_id=2, name_first="Player", name_last="Two")
+    seed_player(conn, player_id=3, name_first="Player", name_last="Three")
+
+    adp_repo = SqliteADPRepo(conn)
+    val_repo = SqliteValuationRepo(conn)
+
+    # Player 1: ADP rank 50, actual rank 10 → rank_delta = 40 → BREAKOUT
+    adp_repo.upsert(ADP(player_id=1, season=2023, provider="fantasypros", overall_pick=50.0, rank=50, positions="OF"))
+    val_repo.upsert(
+        Valuation(
+            player_id=1,
+            season=2023,
+            system="z",
+            version="1.0",
+            projection_system="actual",
+            projection_version="1.0",
+            player_type="batter",
+            position="OF",
+            value=25.0,
+            rank=10,
+            category_scores={},
+        )
+    )
+
+    # Player 2: ADP rank 20, actual rank 80 → rank_delta = -60 → BUST
+    adp_repo.upsert(ADP(player_id=2, season=2023, provider="fantasypros", overall_pick=20.0, rank=20, positions="1B"))
+    val_repo.upsert(
+        Valuation(
+            player_id=2,
+            season=2023,
+            system="z",
+            version="1.0",
+            projection_system="actual",
+            projection_version="1.0",
+            player_type="batter",
+            position="1B",
+            value=5.0,
+            rank=80,
+            category_scores={},
+        )
+    )
+
+    # Player 3: ADP rank 100, actual rank 105 → rank_delta = -5 → NEUTRAL
+    adp_repo.upsert(ADP(player_id=3, season=2023, provider="fantasypros", overall_pick=100.0, rank=100, positions="SS"))
+    val_repo.upsert(
+        Valuation(
+            player_id=3,
+            season=2023,
+            system="z",
+            version="1.0",
+            projection_system="actual",
+            projection_version="1.0",
+            player_type="batter",
+            position="SS",
+            value=1.0,
+            rank=105,
+            category_scores={},
+        )
+    )
+    conn.commit()
+
+
+class TestDbLabelSource:
+    def test_get_labels_returns_labeled_seasons(self) -> None:
+        conn = create_connection(":memory:")
+        _seed_adp_and_valuation(conn)
+        source = _DbLabelSource(conn)
+
+        labels = source.get_labels(2023)
+        assert len(labels) == 3
+
+        by_pid = {ls.player_id: ls for ls in labels}
+        assert by_pid[1].label.value == "breakout"
+        assert by_pid[2].label.value == "bust"
+        assert by_pid[3].label.value == "neutral"
+        conn.close()
+
+    def test_get_labels_empty_when_no_data(self) -> None:
+        conn = create_connection(":memory:")
+        source = _DbLabelSource(conn)
+
+        labels = source.get_labels(2023)
+        assert labels == []
+        conn.close()
+
+
+class TestBuildBreakoutBustReportContext:
+    def test_yields_context_with_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("breakout-bust")(BreakoutBustModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_breakout_bust_report_context("./data") as ctx:
+            assert ctx.model.name == "breakout-bust"
+
+    def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        register("breakout-bust")(BreakoutBustModel)
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.factory.create_connection",
+            lambda path: create_connection(":memory:"),
+        )
+        with build_breakout_bust_report_context("./data") as ctx:
             conn = ctx.conn
         with pytest.raises(ProgrammingError):
             conn.execute("SELECT 1")

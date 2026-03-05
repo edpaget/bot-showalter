@@ -6,7 +6,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 
 | Roadmap | Phases | Progress | Hard Dependencies |
 |---------|--------|----------|-------------------|
-| [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 | phases 1-3 done | ADP, projections, valuations (all done) |
 | [Injury Valuation Cleanup](injury-valuation-cleanup.md) | 3 | not started | injury-risk-discount (done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
@@ -56,6 +55,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Coverage](test-coverage.md) | 5 |
 | [Projection Blender](projection-blender.md) | 4 |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 |
+| [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 |
 | [Roster Stint Preload](roster-stint-preload.md) | 2 |
 | [Yahoo Integration Improvements](yahoo-integration-improvements.md) | 3 |
 

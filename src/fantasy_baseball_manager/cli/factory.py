@@ -12,6 +12,8 @@ from fantasy_baseball_manager.db.statcast_connection import create_statcast_conn
 from fantasy_baseball_manager.domain import (
     ConfigError,
     Err,
+    LabelConfig,
+    LabeledSeason,
     Ok,
     Result,
 )
@@ -79,6 +81,7 @@ from fantasy_baseball_manager.services import (
     StatcastColumnProfiler,
     StatsBasedPlayerUniverse,
     TemporalStabilityChecker,
+    generate_labels,
 )
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
@@ -103,6 +106,20 @@ if TYPE_CHECKING:
         ValuationEvaluator,
         ValuationLookupService,
     )
+
+
+class _DbLabelSource:
+    """LabelSource that generates labels from ADP and valuation data in the database."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._adp_repo = SqliteADPRepo(conn)
+        self._val_repo = SqliteValuationRepo(conn)
+
+    def get_labels(self, season: int) -> list[LabeledSeason]:
+        adp = self._adp_repo.get_by_season(season)
+        all_vals = self._val_repo.get_by_season(season, system="z")
+        vals = [v for v in all_vals if v.projection_system == "actual"]
+        return generate_labels(adp, vals, LabelConfig())
 
 
 def create_model(name: str, **kwargs: Any) -> Result[Model, ConfigError]:
@@ -159,6 +176,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             batting_repo=batting_stats_repo,
             pitching_repo=pitching_stats_repo,
         )
+        label_source = _DbLabelSource(conn)
         result = create_model(
             model_name,
             assembler=assembler,
@@ -173,6 +191,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             valuation_repo=SqliteValuationRepo(conn),
             eligibility_service=eligibility_service,
             player_universe=player_universe,
+            label_source=label_source,
         )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)
@@ -857,5 +876,26 @@ def build_injury_profile_context(data_dir: str) -> Iterator[InjuryProfileContext
                 il_stint_repo=SqliteILStintRepo(conn),
             ),
         )
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
+class BreakoutBustReportContext:
+    conn: sqlite3.Connection
+    model: Model
+
+
+@contextmanager
+def build_breakout_bust_report_context(data_dir: str) -> Iterator[BreakoutBustReportContext]:
+    """Composition-root context manager for breakout/bust report commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        assembler = SqliteDatasetAssembler(conn, statcast_path=Path(data_dir) / "statcast.db")
+        label_source = _DbLabelSource(conn)
+        result = create_model("breakout-bust", assembler=assembler, label_source=label_source)
+        if isinstance(result, Err):
+            raise RuntimeError(result.error.message)
+        yield BreakoutBustReportContext(conn=conn, model=result.value)
     finally:
         conn.close()

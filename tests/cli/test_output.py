@@ -10,11 +10,13 @@ from fantasy_baseball_manager.cli._output import (
     print_adp_movers_report,
     print_batch_simulation_result,
     print_bin_target_means,
+    print_breakout_candidates,
     print_candidate_values,
     print_cascade_result,
     print_category_needs,
     print_checkpoint_detail,
     print_checkpoint_list,
+    print_classifier_evaluation,
     print_cohort_bias_report,
     print_cohort_bias_summary,
     print_compare_features_result,
@@ -74,12 +76,17 @@ from fantasy_baseball_manager.cli._output import (
     print_variance_targets,
 )
 from fantasy_baseball_manager.domain import (
+    BreakoutPrediction,
+    ClassifierCalibrationBin,
+    ClassifierEvaluation,
     KeeperDecision,
     KeeperScenario,
     KeeperSet,
     KeeperSolution,
     KeeperTradeImpact,
+    LiftResult,
     SensitivityEntry,
+    ThresholdMetrics,
 )
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.adp_accuracy import ADPAccuracyReport, ADPAccuracyResult, SystemAccuracyResult
@@ -3377,3 +3384,118 @@ class TestPrintPositionCheck:
         print_position_check([])
         captured = capsys.readouterr()
         assert "No position check data" in captured.out
+
+
+class TestPrintBreakoutCandidates:
+    def test_prints_candidates(self, capsys: pytest.CaptureFixture[str]) -> None:
+        predictions = [
+            BreakoutPrediction(
+                player_id=1,
+                player_name="Mike Trout",
+                player_type="batter",
+                position="OF",
+                p_breakout=0.65,
+                p_bust=0.10,
+                p_neutral=0.25,
+                top_features=[("exit_velo", 0.3), ("age", 0.2), ("sprint_speed", 0.1)],
+            ),
+            BreakoutPrediction(
+                player_id=2,
+                player_name="Aaron Judge",
+                player_type="batter",
+                position="OF",
+                p_breakout=0.45,
+                p_bust=0.20,
+                p_neutral=0.35,
+                top_features=[("barrel_rate", 0.4)],
+            ),
+        ]
+        print_breakout_candidates(predictions)
+        captured = capsys.readouterr()
+        assert "Breakout Candidates" in captured.out
+        assert "Mike Trout" in captured.out
+        assert "Aaron Judge" in captured.out
+        assert "0.650" in captured.out
+        assert "exit_velo" in captured.out
+
+    def test_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_breakout_candidates([])
+        captured = capsys.readouterr()
+        assert "No candidates found" in captured.out
+
+    def test_custom_title(self, capsys: pytest.CaptureFixture[str]) -> None:
+        predictions = [
+            BreakoutPrediction(
+                player_id=1,
+                player_name="Test",
+                player_type="batter",
+                position="1B",
+                p_breakout=0.1,
+                p_bust=0.8,
+                p_neutral=0.1,
+            ),
+        ]
+        print_breakout_candidates(predictions, title="Bust Risks")
+        captured = capsys.readouterr()
+        assert "Bust Risks" in captured.out
+
+
+class TestPrintClassifierEvaluation:
+    def test_prints_full_report(self, capsys: pytest.CaptureFixture[str]) -> None:
+        evaluation = ClassifierEvaluation(
+            threshold_metrics=[
+                ThresholdMetrics(
+                    label="breakout",
+                    threshold=0.3,
+                    precision=0.45,
+                    recall=0.60,
+                    f1=0.51,
+                    flagged=20,
+                    true_positives=9,
+                ),
+            ],
+            calibration_bins=[
+                ClassifierCalibrationBin(
+                    bin_center=0.25,
+                    mean_predicted=0.24,
+                    mean_actual=0.20,
+                    count=50,
+                ),
+            ],
+            lift_results=[
+                LiftResult(
+                    label="breakout",
+                    top_n=20,
+                    flagged_rate=0.35,
+                    base_rate=0.17,
+                    lift=2.06,
+                ),
+            ],
+            log_loss=0.85,
+            base_rate_log_loss=1.05,
+            n_evaluated=200,
+        )
+        print_classifier_evaluation(evaluation)
+        captured = capsys.readouterr()
+        assert "Classifier Evaluation" in captured.out
+        assert "200 players" in captured.out
+        assert "0.8500" in captured.out
+        assert "1.0500" in captured.out
+        assert "Threshold Metrics" in captured.out
+        assert "breakout" in captured.out
+        assert "Lift Results" in captured.out
+        assert "2.06" in captured.out
+        assert "Calibration Bins" in captured.out
+
+    def test_empty_evaluation(self, capsys: pytest.CaptureFixture[str]) -> None:
+        evaluation = ClassifierEvaluation(
+            threshold_metrics=[],
+            calibration_bins=[],
+            lift_results=[],
+            log_loss=0.0,
+            base_rate_log_loss=0.0,
+            n_evaluated=0,
+        )
+        print_classifier_evaluation(evaluation)
+        captured = capsys.readouterr()
+        assert "0 players" in captured.out

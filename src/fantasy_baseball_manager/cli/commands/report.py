@@ -8,6 +8,7 @@ from fantasy_baseball_manager.cli._output import (
     console,
     print_adp_accuracy_report,
     print_adp_movers_report,
+    print_breakout_candidates,
     print_error,
     print_games_lost_leaderboard,
     print_injury_estimate,
@@ -28,13 +29,19 @@ from fantasy_baseball_manager.cli.factory import (
     build_adp_accuracy_context,
     build_adp_movers_context,
     build_adp_report_context,
+    build_breakout_bust_report_context,
     build_confidence_report_context,
     build_injury_adjusted_valuations_context,
     build_injury_profile_context,
     build_report_context,
 )
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import ConfidenceReport, InjuryValueDelta, VarianceClassification
+from fantasy_baseball_manager.domain import (
+    BreakoutPrediction,
+    ConfidenceReport,
+    InjuryValueDelta,
+    VarianceClassification,
+)
 from fantasy_baseball_manager.models import ModelConfig
 from fantasy_baseball_manager.models.zar.model import ZarModel
 from fantasy_baseball_manager.services import classify_variance, compute_confidence
@@ -601,3 +608,81 @@ def report_injury_adjusted_values(  # pragma: no cover
         deltas.sort(key=lambda d: d.value_delta)
 
     print_injury_value_deltas(deltas, top=top)
+
+
+@report_app.command("breakout-candidates")
+def report_breakout_candidates(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    player_type: Annotated[str | None, typer.Option("--player-type", help="batter or pitcher")] = None,
+    min_probability: Annotated[float, typer.Option("--min-probability", help="Minimum p_breakout")] = 0.0,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show players ranked by breakout probability."""
+    with build_breakout_bust_report_context(data_dir) as ctx:
+        config = ModelConfig(seasons=[season], data_dir=data_dir)
+        result = ctx.model.predict(config)  # type: ignore[union-attr]
+
+    candidates = [
+        BreakoutPrediction(
+            player_id=p["player_id"],
+            player_name=p["player_name"],
+            player_type=p["player_type"],
+            position=p["position"],
+            p_breakout=p["p_breakout"],
+            p_bust=p["p_bust"],
+            p_neutral=p["p_neutral"],
+            top_features=p.get("top_features", []),
+        )
+        for p in result.predictions
+    ]
+
+    if player_type is not None:
+        candidates = [c for c in candidates if c.player_type == player_type]
+
+    candidates = [c for c in candidates if c.p_breakout >= min_probability]
+    candidates.sort(key=lambda c: c.p_breakout, reverse=True)
+
+    if top is not None:
+        candidates = candidates[:top]
+
+    print_breakout_candidates(candidates, title="Breakout Candidates")
+
+
+@report_app.command("bust-risks")
+def report_bust_risks(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    player_type: Annotated[str | None, typer.Option("--player-type", help="batter or pitcher")] = None,
+    min_probability: Annotated[float, typer.Option("--min-probability", help="Minimum p_bust")] = 0.0,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show players ranked by bust probability."""
+    with build_breakout_bust_report_context(data_dir) as ctx:
+        config = ModelConfig(seasons=[season], data_dir=data_dir)
+        result = ctx.model.predict(config)  # type: ignore[union-attr]
+
+    candidates = [
+        BreakoutPrediction(
+            player_id=p["player_id"],
+            player_name=p["player_name"],
+            player_type=p["player_type"],
+            position=p["position"],
+            p_breakout=p["p_breakout"],
+            p_bust=p["p_bust"],
+            p_neutral=p["p_neutral"],
+            top_features=p.get("top_features", []),
+        )
+        for p in result.predictions
+    ]
+
+    if player_type is not None:
+        candidates = [c for c in candidates if c.player_type == player_type]
+
+    candidates = [c for c in candidates if c.p_bust >= min_probability]
+    candidates.sort(key=lambda c: c.p_bust, reverse=True)
+
+    if top is not None:
+        candidates = candidates[:top]
+
+    print_breakout_candidates(candidates, title="Bust Risks")

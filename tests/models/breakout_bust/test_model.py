@@ -13,7 +13,7 @@ from fantasy_baseball_manager.models.breakout_bust.model import (
     LABEL_TO_INT,
     BreakoutBustModel,
 )
-from fantasy_baseball_manager.models.protocols import Model, ModelConfig
+from fantasy_baseball_manager.models.protocols import Evaluable, Model, ModelConfig
 from fantasy_baseball_manager.models.registry import _clear, get, register
 
 # ---------------------------------------------------------------------------
@@ -365,3 +365,46 @@ class TestBreakoutBustModelPredict:
         player_types = {p["player_type"] for p in result.predictions}
         assert "batter" in player_types
         assert "pitcher" in player_types
+
+
+# ---------------------------------------------------------------------------
+# Evaluate tests
+# ---------------------------------------------------------------------------
+
+
+class TestBreakoutBustModelEvaluate:
+    def test_supports_evaluate_operation(self) -> None:
+        model = BreakoutBustModel.__new__(BreakoutBustModel)
+        assert "evaluate" in model.supported_operations
+
+    def test_satisfies_evaluable_protocol(self) -> None:
+        model = BreakoutBustModel.__new__(BreakoutBustModel)
+        assert isinstance(model, Evaluable)
+
+    def test_evaluate_produces_system_metrics(self, tmp_path: Path) -> None:
+        batter_labels, batter_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="batter",
+        )
+        pitcher_labels, pitcher_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="pitcher",
+        )
+        all_labels = batter_labels + pitcher_labels
+        all_rows = batter_rows + pitcher_rows
+
+        model, config = _make_model_and_config(tmp_path, all_labels, all_rows, seasons=[2020, 2021, 2022, 2023])
+        result = model.evaluate(config)
+
+        assert result.system == "breakout-bust"
+        assert result.version == ""
+        assert "log_loss" in result.metrics
+        assert "base_rate_log_loss" in result.metrics
+
+    def test_evaluate_requires_at_least_2_seasons(self, tmp_path: Path) -> None:
+        labels, rows = _generate_synthetic_data([2023], players_per_season=10, player_type="batter")
+        model, config = _make_model_and_config(tmp_path, labels, rows, seasons=[2023])
+        with pytest.raises(ValueError, match="at least 2"):
+            model.evaluate(config)

@@ -6,14 +6,15 @@ features and historical ADP-relative outcome labels.
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import log_loss
 
-from fantasy_baseball_manager.domain import LabeledSeason, OutcomeLabel
+from fantasy_baseball_manager.domain import LabeledSeason, OutcomeLabel, StatMetrics, SystemMetrics
+from fantasy_baseball_manager.features import DatasetAssembler  # noqa: TC001 – needed at runtime by inspect.signature()
 from fantasy_baseball_manager.models.gbm_training import extract_features
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, TrainResult
 from fantasy_baseball_manager.models.registry import register
@@ -25,9 +26,6 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     preseason_weighted_batter_curated_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
-
-if TYPE_CHECKING:
-    from fantasy_baseball_manager.features import DatasetAssembler
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +120,7 @@ class BreakoutBustModel:
 
     @property
     def supported_operations(self) -> frozenset[str]:
-        return frozenset({"train", "predict"})
+        return frozenset({"train", "predict", "evaluate"})
 
     @property
     def artifact_type(self) -> str:
@@ -290,4 +288,82 @@ class BreakoutBustModel:
             model_name=self.name,
             predictions=predictions,
             output_path=str(artifact_path),
+        )
+
+    def evaluate(self, config: ModelConfig) -> SystemMetrics:
+        """Walk-forward evaluation: train on all seasons except last, predict last, score."""
+        seasons = sorted(config.seasons)
+        if len(seasons) < 2:
+            msg = f"Training requires at least 2 seasons (got {len(seasons)})"
+            raise ValueError(msg)
+
+        holdout_season = seasons[-1]
+
+        all_y_holdout: list[int] = []
+        all_proba: list[np.ndarray[Any, np.dtype[np.floating[Any]]]] = []
+
+        for player_type in ("batter", "pitcher"):
+            feature_columns = self._feature_columns(config, player_type)
+            joined = self._build_joined_rows(seasons, player_type)
+            if not joined:
+                continue
+
+            train_rows = [r for r in joined if r["season"] != holdout_season]
+            holdout_rows = [r for r in joined if r["season"] == holdout_season]
+            if not train_rows or not holdout_rows:
+                continue
+
+            X_train = extract_features(train_rows, feature_columns)
+            y_train = [LABEL_TO_INT[r["label"]] for r in train_rows]
+
+            clf = HistGradientBoostingClassifier(
+                max_iter=200,
+                max_depth=5,
+                learning_rate=0.1,
+                min_samples_leaf=10,
+            )
+            clf.fit(X_train, y_train)
+
+            X_holdout = extract_features(holdout_rows, feature_columns)
+            y_holdout = [LABEL_TO_INT[r["label"]] for r in holdout_rows]
+            proba = clf.predict_proba(X_holdout)
+
+            all_y_holdout.extend(y_holdout)
+            all_proba.append(proba)
+
+        n_evaluated = len(all_y_holdout)
+        if n_evaluated > 0 and all_proba:
+            combined_proba = np.vstack(all_proba)
+            holdout_log_loss = float(log_loss(all_y_holdout, combined_proba, labels=[0, 1, 2]))
+            base_rate_ll = _compute_base_rate_log_loss(all_y_holdout)
+        else:
+            holdout_log_loss = 0.0
+            base_rate_ll = 0.0
+
+        metrics: dict[str, StatMetrics] = {
+            "log_loss": StatMetrics(
+                rmse=holdout_log_loss,
+                mae=0.0,
+                correlation=0.0,
+                rank_correlation=0.0,
+                r_squared=0.0,
+                mean_error=0.0,
+                n=n_evaluated,
+            ),
+            "base_rate_log_loss": StatMetrics(
+                rmse=base_rate_ll,
+                mae=0.0,
+                correlation=0.0,
+                rank_correlation=0.0,
+                r_squared=0.0,
+                mean_error=0.0,
+                n=n_evaluated,
+            ),
+        }
+
+        return SystemMetrics(
+            system=self.name,
+            version=config.version or "",
+            source_type="breakout-bust-classifier",
+            metrics=metrics,
         )

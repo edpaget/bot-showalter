@@ -11,7 +11,7 @@ This roadmap depends on: ADP integration (done), feature infrastructure (done �
 | 1 — Label generation | done (2026-03-04) |
 | 2 — Classification model | done (2026-03-04) |
 | 3 — Calibration and evaluation | done (2026-03-04) |
-| 4 — CLI commands | not started |
+| 4 — CLI commands | done (2026-03-05) |
 
 ## Phase 1: Label Generation
 

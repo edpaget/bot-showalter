@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         ADPAccuracyReport,
         ADPMoversReport,
+        BreakoutPrediction,
+        ClassifierEvaluation,
         PlayerStatDelta,
         Projection,
         ResidualAnalysisReport,
@@ -782,3 +784,117 @@ def print_system_disagreements(player: PlayerConfidence, projections: list[Proje
         table.add_row(*cells)
 
     console.print(table)
+
+
+def print_breakout_candidates(
+    predictions: list[BreakoutPrediction],
+    *,
+    title: str = "Breakout Candidates",
+) -> None:
+    """Print a ranked list of breakout or bust candidates."""
+    if not predictions:
+        console.print("No candidates found.")
+        return
+
+    console.print(f"[bold]{title}[/bold] ({len(predictions)} players)")
+    console.print()
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Player")
+    table.add_column("Type")
+    table.add_column("Pos")
+    table.add_column("P(Breakout)", justify="right")
+    table.add_column("P(Bust)", justify="right")
+    table.add_column("Top Features")
+
+    for pred in predictions:
+        feature_str = ", ".join(f"{name}" for name, _ in pred.top_features[:3]) if pred.top_features else ""
+        table.add_row(
+            pred.player_name,
+            pred.player_type,
+            pred.position,
+            f"{pred.p_breakout:.3f}",
+            f"{pred.p_bust:.3f}",
+            feature_str,
+        )
+
+    console.print(table)
+
+
+def print_classifier_evaluation(evaluation: ClassifierEvaluation) -> None:
+    """Print a classifier evaluation report with threshold metrics, lift, and calibration."""
+    console.print(f"[bold]Classifier Evaluation[/bold] ({evaluation.n_evaluated} players evaluated)")
+    console.print()
+
+    console.print(f"  Log-loss:           {evaluation.log_loss:.4f}")
+    console.print(f"  Base-rate log-loss: {evaluation.base_rate_log_loss:.4f}")
+    improvement = (
+        (1 - evaluation.log_loss / evaluation.base_rate_log_loss) * 100 if evaluation.base_rate_log_loss > 0 else 0.0
+    )
+    color = "green" if improvement > 0 else "red"
+    console.print(f"  Improvement:        [{color}]{improvement:+.1f}%[/{color}]")
+    console.print()
+
+    # Threshold metrics
+    if evaluation.threshold_metrics:
+        console.print("[bold]Threshold Metrics[/bold]")
+        thresh_table = Table(show_edge=False, pad_edge=False)
+        thresh_table.add_column("Label")
+        thresh_table.add_column("Threshold", justify="right")
+        thresh_table.add_column("Precision", justify="right")
+        thresh_table.add_column("Recall", justify="right")
+        thresh_table.add_column("F1", justify="right")
+        thresh_table.add_column("Flagged", justify="right")
+        thresh_table.add_column("TP", justify="right")
+        for tm in evaluation.threshold_metrics:
+            thresh_table.add_row(
+                tm.label,
+                f"{tm.threshold:.1f}",
+                f"{tm.precision:.3f}",
+                f"{tm.recall:.3f}",
+                f"{tm.f1:.3f}",
+                str(tm.flagged),
+                str(tm.true_positives),
+            )
+        console.print(thresh_table)
+        console.print()
+
+    # Lift results
+    if evaluation.lift_results:
+        console.print("[bold]Lift Results[/bold]")
+        lift_table = Table(show_edge=False, pad_edge=False)
+        lift_table.add_column("Label")
+        lift_table.add_column("Top N", justify="right")
+        lift_table.add_column("Flagged Rate", justify="right")
+        lift_table.add_column("Base Rate", justify="right")
+        lift_table.add_column("Lift", justify="right")
+        for lr in evaluation.lift_results:
+            lift_color = "green" if lr.lift > 1.0 else "red" if lr.lift < 1.0 else ""
+            lift_str = f"[{lift_color}]{lr.lift:.2f}x[/{lift_color}]" if lift_color else f"{lr.lift:.2f}x"
+            lift_table.add_row(
+                lr.label,
+                str(lr.top_n),
+                f"{lr.flagged_rate:.3f}",
+                f"{lr.base_rate:.3f}",
+                lift_str,
+            )
+        console.print(lift_table)
+        console.print()
+
+    # Calibration bins
+    if evaluation.calibration_bins:
+        console.print("[bold]Calibration Bins[/bold]")
+        cal_table = Table(show_edge=False, pad_edge=False)
+        cal_table.add_column("Bin Center", justify="right")
+        cal_table.add_column("Mean Predicted", justify="right")
+        cal_table.add_column("Mean Actual", justify="right")
+        cal_table.add_column("Count", justify="right")
+        for cb in evaluation.calibration_bins:
+            cal_table.add_row(
+                f"{cb.bin_center:.2f}",
+                f"{cb.mean_predicted:.3f}",
+                f"{cb.mean_actual:.3f}",
+                str(cb.count),
+            )
+        console.print(cal_table)
+        console.print()
