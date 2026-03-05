@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import ArtifactType
+from fantasy_baseball_manager.domain import ArtifactType, resolve_playing_time
 from fantasy_baseball_manager.features import (
     AnyFeature,
     DatasetAssembler,
@@ -31,6 +31,9 @@ from fantasy_baseball_manager.models.protocols import (
     PrepareResult,
 )
 from fantasy_baseball_manager.models.registry import register
+from fantasy_baseball_manager.repos import (
+    ProjectionRepo,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -149,9 +152,11 @@ class MarcelModel:
         self,
         assembler: DatasetAssembler,
         evaluator: Evaluator | None = None,
+        projection_repo: ProjectionRepo | None = None,
     ) -> None:
         self._assembler = assembler
         self._evaluator = evaluator
+        self._projection_repo = projection_repo
 
     @property
     def name(self) -> str:
@@ -211,7 +216,16 @@ class MarcelModel:
         bat_pt_lookup: dict[int, float] | None = None
         pitch_pt_lookup: dict[int, float] | None = None
 
-        if pt_mode in _PT_COL:
+        if pt_mode != "native" and self._projection_repo is not None:
+            consensus = resolve_playing_time(
+                pt_mode,
+                projected_season,
+                fetch_projections=self._projection_repo.get_by_season,
+            )
+            if consensus is not None:
+                bat_pt_lookup = consensus.batting_pt or None
+                pitch_pt_lookup = consensus.pitching_pt or None
+        elif pt_mode in _PT_COL:
             bat_col, pitch_col = _PT_COL[pt_mode]
             bat_pt_lookup = extract_pt_from_rows(bat_rows, bat_col) or None
             pitch_pt_lookup = extract_pt_from_rows(pitch_rows, pitch_col) or None

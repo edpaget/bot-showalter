@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from fantasy_baseball_manager.domain import (
     ArtifactType,
     ConsensusLookup,
-    build_consensus_lookup,
+    resolve_playing_time,
 )
 from fantasy_baseball_manager.models.ensemble.engine import (
     blend_rates,
@@ -109,13 +109,11 @@ class EnsembleModel:
                 system_projections[system] = self._projection_repo.get_by_season(season, system=system)
 
         # Build consensus PT lookup when requested
-        consensus: ConsensusLookup | None = None
-        if pt_mode == "consensus":
-            consensus_systems: Sequence[str] = params.get("consensus_systems", ["steamer", "zips"])
-            consensus_proj_lists = [
-                self._projection_repo.get_by_season(season, system=sys) for sys in consensus_systems
-            ]
-            consensus = build_consensus_lookup(*consensus_proj_lists)
+        consensus: ConsensusLookup | None = resolve_playing_time(
+            pt_mode,
+            season,
+            fetch_projections=self._projection_repo.get_by_season,
+        )
 
         # Group by (player_id, player_type)
         grouped: dict[tuple[int, str], dict[str, Projection]] = defaultdict(dict)

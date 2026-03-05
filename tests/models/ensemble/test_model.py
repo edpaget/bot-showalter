@@ -552,8 +552,8 @@ class TestEnsembleConsensusPT:
         expected_avg = (0.280 * 0.6 + 0.260 * 0.4) / (0.6 + 0.4)
         assert pred["avg"] == pytest.approx(expected_avg)
 
-    def test_consensus_pt_three_systems(self) -> None:
-        """Consensus PT with 3 systems averages all three."""
+    def test_consensus_inline_three_systems(self) -> None:
+        """Inline consensus syntax with 3 systems averages all three."""
         repo = FakeProjectionRepo(
             [
                 _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
@@ -572,14 +572,62 @@ class TestEnsembleConsensusPT:
                 "season": 2025,
                 "stats": ["avg"],
                 "pt_stat": "pa",
-                "playing_time": "consensus",
-                "consensus_systems": ["steamer", "zips", "atc"],
+                "playing_time": "consensus:steamer,zips,atc",
             },
         )
         result = model.predict(config)
         pred = result.predictions[0]
         # Consensus PA = avg(600, 500, 400) = 500
         assert pred["pa"] == pytest.approx(500.0)
+
+    def test_single_system_pt(self) -> None:
+        """playing_time='steamer' uses Steamer PA directly."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.260, "pa": 500.0}),
+                _make_projection(1, "steamer", "batter", {"pa": 550.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg"],
+                "pt_stat": "pa",
+                "playing_time": "steamer",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["pa"] == 550.0
+
+    def test_unknown_system_falls_back_to_native(self) -> None:
+        """Unknown system returns empty lookup, so PT falls back to weight-averaged."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "marcel", "batter", {"avg": 0.280, "pa": 600.0}),
+                _make_projection(1, "statcast-gbm", "batter", {"avg": 0.260, "pa": 500.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            model_params={
+                "components": {"marcel": 0.6, "statcast-gbm": 0.4},
+                "mode": "blend_rates",
+                "season": 2025,
+                "stats": ["avg"],
+                "pt_stat": "pa",
+                "playing_time": "no-such-system",
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # Falls back to weight-averaged PA since system has no projections
+        expected_pa = (600.0 * 0.6 + 500.0 * 0.4) / (0.6 + 0.4)
+        assert pred["pa"] == expected_pa
 
     def test_native_pt_mode_is_default(self) -> None:
         """When playing_time not specified, behavior unchanged (PT weight-averaged)."""

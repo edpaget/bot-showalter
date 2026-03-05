@@ -225,6 +225,7 @@ from fantasy_baseball_manager.domain.pt_normalization import (
     build_consensus_lookup,
     normalize_projection_pt,
 )
+from fantasy_baseball_manager.domain.pt_resolution import resolve_playing_time
 from fantasy_baseball_manager.domain.residual_analysis import (
     CalibrationBin,
     ResidualAnalysisReport,
@@ -504,6 +505,7 @@ __all__ = [
     "missing_batting_comparisons",
     "missing_pitching_comparisons",
     "normalize_projection_pt",
+    "resolve_playing_time",
     "rank_residuals",
     "split_direction",
     "split_residuals_by_quality",

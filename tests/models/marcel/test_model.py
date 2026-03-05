@@ -1,6 +1,9 @@
 from typing import TYPE_CHECKING, Any
 
+import pytest
+
 from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.marcel import MarcelModel
@@ -13,6 +16,7 @@ from fantasy_baseball_manager.models.protocols import (
     Preparable,
     Trainable,
 )
+from tests.fakes.repos import FakeProjectionRepo
 
 if TYPE_CHECKING:
     import sqlite3
@@ -717,3 +721,125 @@ class TestMarcelConsensusPT:
         result = MarcelModel(assembler=assembler).predict(config)
         # Native formula: 0.5*600 + 0.1*550 + 200 = 555
         assert result.predictions[0]["pa"] == 555
+
+
+def _proj(player_id: int, system: str, player_type: str, stats: dict) -> Projection:
+    return Projection(
+        player_id=player_id,
+        season=2024,
+        system=system,
+        version="latest",
+        player_type=player_type,
+        stat_json=stats,
+    )
+
+
+class TestMarcelResolverPT:
+    """Marcel uses resolve_playing_time() when projection_repo is provided."""
+
+    def _base_batter_row(self) -> dict[str, object]:
+        return {
+            "player_id": 1,
+            "season": 2023,
+            "age": 29,
+            "pa_1": 600,
+            "pa_2": 550,
+            "pa_3": 500,
+            "hr_1": 30.0,
+            "hr_2": 25.0,
+            "hr_3": 20.0,
+            "hr_wavg": 310.0 / 6700.0,
+            "weighted_pt": 6700.0,
+            "league_hr_rate": 50.0 / 1100.0,
+        }
+
+    def test_single_system_pt(self) -> None:
+        """playing_time='steamer' uses Steamer PA from projection repo."""
+        rows = [self._base_batter_row()]
+        assembler = FakeAssembler(rows)
+        repo = FakeProjectionRepo([_proj(1, "steamer", "batter", {"pa": 480.0})])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "steamer"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        assert result.predictions[0]["pa"] == 480.0
+
+    def test_consensus_inline(self) -> None:
+        """playing_time='consensus:steamer,zips,atc' averages three systems."""
+        rows = [self._base_batter_row()]
+        assembler = FakeAssembler(rows)
+        repo = FakeProjectionRepo(
+            [
+                _proj(1, "steamer", "batter", {"pa": 600.0}),
+                _proj(1, "zips", "batter", {"pa": 500.0}),
+                _proj(1, "atc", "batter", {"pa": 400.0}),
+            ]
+        )
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "consensus:steamer,zips,atc"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        assert result.predictions[0]["pa"] == pytest.approx(500.0)
+
+    def test_consensus_default_with_repo(self) -> None:
+        """playing_time='consensus' with repo uses resolver (steamer+zips)."""
+        rows = [self._base_batter_row()]
+        assembler = FakeAssembler(rows)
+        repo = FakeProjectionRepo(
+            [
+                _proj(1, "steamer", "batter", {"pa": 600.0}),
+                _proj(1, "zips", "batter", {"pa": 500.0}),
+            ]
+        )
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "consensus"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        assert result.predictions[0]["pa"] == pytest.approx(550.0)
+
+    def test_playing_time_model_with_repo(self) -> None:
+        """playing_time='playing-time-model' works via resolver too."""
+        rows = [self._base_batter_row()]
+        assembler = FakeAssembler(rows)
+        repo = FakeProjectionRepo([_proj(1, "playing-time-model", "batter", {"pa": 475.0})])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "playing-time-model"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        assert result.predictions[0]["pa"] == 475.0
+
+    def test_native_mode_ignores_repo(self) -> None:
+        """playing_time='native' still uses Marcel formula even with repo."""
+        rows = [self._base_batter_row()]
+        assembler = FakeAssembler(rows)
+        repo = FakeProjectionRepo([_proj(1, "steamer", "batter", {"pa": 480.0})])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"batting_categories": ["hr"], "playing_time": "native"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        # Native formula: 0.5*600 + 0.1*550 + 200 = 555
+        assert result.predictions[0]["pa"] == 555
+
+    def test_pitcher_single_system(self) -> None:
+        """Single system PT works for pitchers too."""
+        pitching_rows = [_pitcher_row(10, "P")]
+        assembler = FakeAssembler([], pitching_rows)
+        repo = FakeProjectionRepo([_proj(10, "steamer", "pitcher", {"ip": 175.0})])
+        config = ModelConfig(
+            seasons=[2023],
+            model_params={"pitching_categories": ["so"], "playing_time": "steamer"},
+        )
+        model = MarcelModel(assembler=assembler, projection_repo=repo)
+        result = model.predict(config)
+        pitcher_preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
+        assert pitcher_preds[0]["ip"] == 175.0
