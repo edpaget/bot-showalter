@@ -13,15 +13,16 @@ class SqliteYahooLeagueRepo:
     def upsert(self, league: YahooLeague) -> int:
         cursor = self._conn.execute(
             "INSERT INTO yahoo_league"
-            "    (league_key, name, season, num_teams, draft_type, is_keeper, game_key)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "    (league_key, name, season, num_teams, draft_type, is_keeper, game_key, renew)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(league_key) DO UPDATE SET"
             "    name=excluded.name,"
             "    season=excluded.season,"
             "    num_teams=excluded.num_teams,"
             "    draft_type=excluded.draft_type,"
             "    is_keeper=excluded.is_keeper,"
-            "    game_key=excluded.game_key",
+            "    game_key=excluded.game_key,"
+            "    renew=excluded.renew",
             (
                 league.league_key,
                 league.name,
@@ -30,6 +31,7 @@ class SqliteYahooLeagueRepo:
                 league.draft_type,
                 int(league.is_keeper),
                 league.game_key,
+                league.renew,
             ),
         )
         return cursor.lastrowid  # type: ignore[return-value]
@@ -49,7 +51,9 @@ class SqliteYahooLeagueRepo:
 
     @staticmethod
     def _select_sql() -> str:
-        return "SELECT id, league_key, name, season, num_teams, draft_type, is_keeper, game_key FROM yahoo_league"
+        return (
+            "SELECT id, league_key, name, season, num_teams, draft_type, is_keeper, game_key, renew FROM yahoo_league"
+        )
 
     @staticmethod
     def _row_to_league(row: sqlite3.Row) -> YahooLeague:
@@ -62,6 +66,7 @@ class SqliteYahooLeagueRepo:
             draft_type=row["draft_type"],
             is_keeper=bool(row["is_keeper"]),
             game_key=row["game_key"],
+            renew=row["renew"],
         )
 
 

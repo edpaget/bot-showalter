@@ -1,10 +1,14 @@
 import logging
-import re
-import unicodedata
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain import ADP, Player
+from fantasy_baseball_manager.name_utils import (
+    normalize_name as _normalize_name,
+)
+from fantasy_baseball_manager.name_utils import (
+    strip_name_decorations,
+)
 from fantasy_baseball_manager.team_aliases import TEAM_ALIASES
 
 if TYPE_CHECKING:
@@ -21,49 +25,6 @@ _PROVIDER_SLUGS: dict[str, str] = {
     "RTS": "rts",
     "FT": "ft",
 }
-
-_SUFFIX_RE = re.compile(r"\s+(Jr\.?|Sr\.?|II|III|IV|V)\s*$", re.IGNORECASE)
-_PARENTHETICAL_RE = re.compile(r"\s*\((?:Batter|Pitcher)\)\s*$", re.IGNORECASE)
-_INITIAL_DOT_RE = re.compile(r"(?<!\w)([A-Za-z])\.")
-_ADJACENT_INITIALS_RE = re.compile(r"(?<=\b[A-Za-z]) (?=[A-Za-z]\b)")
-
-# Formal name → common short form used in baseball databases.
-# Applied during normalization so "Matthew Boyd" matches "Matt Boyd".
-_NICK_ALIASES: dict[str, str] = {
-    "matthew": "matt",
-    "michael": "mike",
-    "christopher": "chris",
-    "nicholas": "nick",
-    "alexander": "alex",
-    "benjamin": "ben",
-    "gregory": "greg",
-    "timothy": "tim",
-    "stephen": "steve",
-    "steven": "steve",
-    "jeffrey": "jeff",
-    "zachary": "zach",
-    "frederick": "fred",
-    "nathaniel": "nate",
-    "jonathan": "jon",
-    "abraham": "abe",
-}
-
-
-def _normalize_name(name: str) -> str:
-    name = _PARENTHETICAL_RE.sub("", name)
-    name = _SUFFIX_RE.sub("", name)
-    nfkd = unicodedata.normalize("NFKD", name)
-    stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
-    # Strip periods from initials: "J. T." -> "J  T " / "J.T." -> "JT "
-    stripped = _INITIAL_DOT_RE.sub(r"\1", stripped)
-    # Collapse whitespace, then merge adjacent single-letter tokens: "J T" -> "JT"
-    stripped = " ".join(stripped.split())
-    stripped = _ADJACENT_INITIALS_RE.sub("", stripped)
-    lowered = stripped.strip().lower()
-    # Apply nickname aliases to each token
-    tokens = lowered.split()
-    tokens = [_NICK_ALIASES.get(t, t) for t in tokens]
-    return " ".join(tokens)
 
 
 def _build_player_lookups(
@@ -125,8 +86,7 @@ def _discover_provider_columns(header: list[str]) -> list[tuple[str, str]]:
 
 def _split_raw_name(raw_name: str) -> tuple[str, str]:
     """Split a raw ADP player name into (first, last) for stub creation."""
-    name = _PARENTHETICAL_RE.sub("", raw_name).strip()
-    name = _SUFFIX_RE.sub("", name).strip()
+    name = strip_name_decorations(raw_name)
     parts = name.rsplit(" ", 1)
     if len(parts) == 2:
         return parts[0], parts[1]

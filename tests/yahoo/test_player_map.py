@@ -147,6 +147,87 @@ class TestTwoWayPlayer:
         assert batter_result.yahoo_player_key != pitcher_result.yahoo_player_key
 
 
+class TestNameNormalizationFallback:
+    """Name search resolves players whose Yahoo name includes suffixes, parentheticals, or accents."""
+
+    def test_resolves_jr_suffix(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Bobby", name_last="Witt", mlbam_id=677951))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve({"player_key": "449.p.30001", "name": "Bobby Witt Jr.", "eligible_positions": ["SS"]})
+        assert result is not None
+        assert result.player_id == player_id
+
+    def test_resolves_parenthetical_batter(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Shohei", name_last="Ohtani", mlbam_id=660271))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve(
+            {"player_key": "449.p.30002", "name": "Shohei Ohtani (Batter)", "eligible_positions": ["DH"]}
+        )
+        assert result is not None
+        assert result.player_id == player_id
+
+    def test_resolves_roman_numeral_suffix(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Michael", name_last="Harris", mlbam_id=671739))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve(
+            {"player_key": "449.p.30003", "name": "Michael Harris II", "eligible_positions": ["CF"]}
+        )
+        assert result is not None
+        assert result.player_id == player_id
+
+    def test_resolves_initial_dots(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="JD", name_last="Martinez", mlbam_id=502110))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve({"player_key": "449.p.30004", "name": "J.D. Martinez", "eligible_positions": ["DH"]})
+        assert result is not None
+        assert result.player_id == player_id
+
+    def test_resolves_accent_characters(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Ronald", name_last="Acuna", mlbam_id=660670))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve({"player_key": "449.p.30005", "name": "Ronald Acuña Jr.", "eligible_positions": ["CF"]})
+        assert result is not None
+        assert result.player_id == player_id
+
+    def test_mlbam_still_takes_priority(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        player_id = player_repo.upsert(Player(name_first="Bobby", name_last="Witt", mlbam_id=677951))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        result = mapper.resolve(
+            {
+                "player_key": "449.p.30006",
+                "name": "Bobby Witt Jr.",
+                "eligible_positions": ["SS"],
+                "player_id": 677951,
+            }
+        )
+        assert result is not None
+        assert result.player_id == player_id
+
+
 class TestUnresolved:
     def test_returns_none_and_logs_warning(self, conn: sqlite3.Connection) -> None:
         player_repo = SqlitePlayerRepo(conn)

@@ -18,6 +18,8 @@ class YahooLeagueConfig:
     name: str
     league_id: int
     keeper: bool = False
+    keeper_format: str = "auction"
+    max_keepers: int | None = None
 
 
 @dataclass(frozen=True)
@@ -51,7 +53,21 @@ def load_yahoo_config(config_dir: Path) -> YahooConfig:
     for name, raw_league in raw_leagues.items():
         league_id: int = _require_field(raw_league, "league_id", f"[yahoo.leagues.{name}]")
         keeper: bool = bool(raw_league.get("keeper", False))
-        leagues[name] = YahooLeagueConfig(name=name, league_id=league_id, keeper=keeper)
+        keeper_format: str = raw_league.get("keeper_format", "auction")
+        if keeper_format not in ("auction", "best_n"):
+            raise YahooConfigError(
+                f"[yahoo.leagues.{name}]: keeper_format must be 'auction' or 'best_n', got '{keeper_format}'"
+            )
+        max_keepers: int | None = raw_league.get("max_keepers")
+        if keeper_format == "best_n" and max_keepers is None:
+            raise YahooConfigError(f"[yahoo.leagues.{name}]: max_keepers is required when keeper_format is 'best_n'")
+        leagues[name] = YahooLeagueConfig(
+            name=name,
+            league_id=league_id,
+            keeper=keeper,
+            keeper_format=keeper_format,
+            max_keepers=max_keepers,
+        )
 
     return YahooConfig(
         client_id=client_id,

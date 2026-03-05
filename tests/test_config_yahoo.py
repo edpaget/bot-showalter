@@ -187,6 +187,77 @@ name = "keeper"
         with pytest.raises(YahooConfigError, match="league_id"):
             load_yahoo_config(tmp_path)
 
+    def test_parses_keeper_format_and_max_keepers(self, tmp_path: Path) -> None:
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+client_id = "id"
+client_secret = "secret"
+
+[yahoo.leagues.keeper]
+league_id = 40214
+keeper = true
+keeper_format = "best_n"
+max_keepers = 4
+""",
+        )
+        config = load_yahoo_config(tmp_path)
+        lc = config.leagues["keeper"]
+        assert lc.keeper is True
+        assert lc.keeper_format == "best_n"
+        assert lc.max_keepers == 4
+
+    def test_keeper_format_defaults_to_auction(self, tmp_path: Path) -> None:
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+client_id = "id"
+client_secret = "secret"
+
+[yahoo.leagues.keeper]
+league_id = 12345
+keeper = true
+""",
+        )
+        config = load_yahoo_config(tmp_path)
+        lc = config.leagues["keeper"]
+        assert lc.keeper_format == "auction"
+        assert lc.max_keepers is None
+
+    def test_best_n_without_max_keepers_raises(self, tmp_path: Path) -> None:
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+client_id = "id"
+client_secret = "secret"
+
+[yahoo.leagues.keeper]
+league_id = 12345
+keeper_format = "best_n"
+""",
+        )
+        with pytest.raises(YahooConfigError, match="max_keepers is required"):
+            load_yahoo_config(tmp_path)
+
+    def test_invalid_keeper_format_raises(self, tmp_path: Path) -> None:
+        _write_toml(
+            tmp_path,
+            """
+[yahoo]
+client_id = "id"
+client_secret = "secret"
+
+[yahoo.leagues.keeper]
+league_id = 12345
+keeper_format = "invalid"
+""",
+        )
+        with pytest.raises(YahooConfigError, match="keeper_format must be"):
+            load_yahoo_config(tmp_path)
+
 
 class TestResolveDefaultLeague:
     def test_env_var_overrides_config(self, monkeypatch: pytest.MonkeyPatch) -> None:

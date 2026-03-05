@@ -70,7 +70,10 @@ class YahooRosterSource:
     def _parse_roster_entries(self, data: dict[str, Any]) -> list[RosterEntry]:
         entries: list[RosterEntry] = []
         team_section = data["fantasy_content"]["team"]
-        roster_data = team_section[1]["roster"]["0"]["players"]
+        roster_section = team_section[1].get("roster")
+        if roster_section is None:
+            return entries
+        roster_data = roster_section["0"]["players"]
 
         for key, value in roster_data.items():
             if key == "count":

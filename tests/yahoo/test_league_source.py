@@ -115,6 +115,31 @@ class TestYahooLeagueSource:
         assert teams[1].manager_name == "Bob"
         assert teams[1].is_owned_by_user is False
 
+    def test_fetch_parses_renew(self) -> None:
+        source = YahooLeagueSource(FakeYahooFantasyClient())  # type: ignore[arg-type]
+        league, _teams = source.fetch(league_key="449.l.12345", game_key="449")
+        assert league.renew == "422.l.54321"
+
+    def test_fetch_renew_absent(self) -> None:
+        settings = {
+            "fantasy_content": {
+                "league": [
+                    {
+                        "league_key": "449.l.99999",
+                        "league_id": "99999",
+                        "name": "New League",
+                        "season": "2026",
+                        "num_teams": 10,
+                        "game_code": "mlb",
+                    },
+                    {"settings": [{"draft_type": "live_auction", "uses_keeper": "0"}]},
+                ]
+            }
+        }
+        source = YahooLeagueSource(FakeYahooFantasyClient(league_settings=settings))  # type: ignore[arg-type]
+        league, _teams = source.fetch(league_key="449.l.99999", game_key="449")
+        assert league.renew is None
+
     def test_fetch_non_keeper_league(self) -> None:
         settings = {
             "fantasy_content": {

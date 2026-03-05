@@ -36,14 +36,19 @@ class YahooLeagueSource:
         meta = league_parts[0]
         settings = league_parts[1]["settings"][0]
 
+        is_keeper = settings.get("uses_keeper", "0") == "1"
+
+        renew: str | None = meta.get("renew")
+
         return YahooLeague(
             league_key=meta["league_key"],
             name=meta["name"],
             season=int(meta["season"]),
             num_teams=meta["num_teams"],
             draft_type=settings["draft_type"],
-            is_keeper=False,
+            is_keeper=is_keeper,
             game_key=game_key,
+            renew=renew,
         )
 
     @staticmethod

@@ -9,7 +9,7 @@ import typer
 from rich.table import Table
 
 from fantasy_baseball_manager.cli._output import console, print_error, print_keeper_decisions
-from fantasy_baseball_manager.cli.factory import build_yahoo_context
+from fantasy_baseball_manager.cli.factory import YahooContext, build_yahoo_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import (
     YahooConfig,
@@ -29,6 +29,7 @@ from fantasy_baseball_manager.services import (
     build_yahoo_draft_setup,
     compute_surplus,
     derive_and_store_keeper_costs,
+    derive_best_n_keeper_costs,
     recommend,
     set_keeper_cost,
     sync_league_metadata,
@@ -658,6 +659,22 @@ def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, Y
     return league, config
 
 
+def _resolve_prior_league_key(ctx: YahooContext, league_key: str, prior_season: int) -> str:  # pragma: no cover
+    """Resolve the prior-season league key using the stored renew chain.
+
+    Falls back to same-league-ID construction with a warning if renew is unavailable.
+    """
+    stored_league = ctx.yahoo_league_repo.get_by_league_key(league_key)
+    if stored_league is not None and stored_league.renew is not None:
+        return stored_league.renew
+
+    prior_game_key = ctx.client.get_game_key(prior_season)
+    league_id = league_key.split(".l.")[1]
+    fallback = f"{prior_game_key}.l.{league_id}"
+    logger.warning("No renew chain for %s — assuming prior league key %s", league_key, fallback)
+    return fallback
+
+
 # ---------------------------------------------------------------------------
 # Keeper commands
 # ---------------------------------------------------------------------------
@@ -680,24 +697,34 @@ def yahoo_keeper_costs(  # pragma: no cover
         league_key = f"{game_key}.l.{league_config.league_id}"
 
         prior_season = season - 1
-        prior_game_key = ctx.client.get_game_key(prior_season)
-        prior_league_key = f"{prior_game_key}.l.{league_key.split('.l.')[1]}"
+        prior_league_key = _resolve_prior_league_key(ctx, league_key, prior_season)
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        draft_source = YahooDraftSource(ctx.client, mapper)
         roster_source = YahooRosterSource(ctx.client, mapper)
         try:
-            derive_and_store_keeper_costs(
-                draft_source=draft_source,
-                roster_source=roster_source,
-                team_repo=ctx.yahoo_team_repo,
-                keeper_repo=ctx.keeper_repo,
-                league_key=league_key,
-                prior_league_key=prior_league_key,
-                prior_season=prior_season,
-                season=season,
-                league_name=league_name,
-                cost_floor=cost_floor,
-            )
+            if league_config.keeper_format == "best_n":
+                derive_best_n_keeper_costs(
+                    roster_source=roster_source,
+                    team_repo=ctx.yahoo_team_repo,
+                    keeper_repo=ctx.keeper_repo,
+                    prior_league_key=prior_league_key,
+                    prior_season=prior_season,
+                    season=season,
+                    league_name=league_name,
+                )
+            else:
+                draft_source = YahooDraftSource(ctx.client, mapper)
+                derive_and_store_keeper_costs(
+                    draft_source=draft_source,
+                    roster_source=roster_source,
+                    team_repo=ctx.yahoo_team_repo,
+                    keeper_repo=ctx.keeper_repo,
+                    league_key=league_key,
+                    prior_league_key=prior_league_key,
+                    prior_season=prior_season,
+                    season=season,
+                    league_name=league_name,
+                    cost_floor=cost_floor,
+                )
             ctx.conn.commit()
         except ValueError as exc:
             print_error(str(exc))
@@ -748,24 +775,34 @@ def yahoo_keeper_decisions(  # pragma: no cover
 
         # Auto-derive costs first
         prior_season = season - 1
-        prior_game_key = ctx.client.get_game_key(prior_season)
-        prior_league_key = f"{prior_game_key}.l.{league_key.split('.l.')[1]}"
+        prior_league_key = _resolve_prior_league_key(ctx, league_key, prior_season)
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        draft_source = YahooDraftSource(ctx.client, mapper)
         roster_source = YahooRosterSource(ctx.client, mapper)
         try:
-            derive_and_store_keeper_costs(
-                draft_source=draft_source,
-                roster_source=roster_source,
-                team_repo=ctx.yahoo_team_repo,
-                keeper_repo=ctx.keeper_repo,
-                league_key=league_key,
-                prior_league_key=prior_league_key,
-                prior_season=prior_season,
-                season=season,
-                league_name=league_name,
-                cost_floor=cost_floor,
-            )
+            if league_config.keeper_format == "best_n":
+                derive_best_n_keeper_costs(
+                    roster_source=roster_source,
+                    team_repo=ctx.yahoo_team_repo,
+                    keeper_repo=ctx.keeper_repo,
+                    prior_league_key=prior_league_key,
+                    prior_season=prior_season,
+                    season=season,
+                    league_name=league_name,
+                )
+            else:
+                draft_source = YahooDraftSource(ctx.client, mapper)
+                derive_and_store_keeper_costs(
+                    draft_source=draft_source,
+                    roster_source=roster_source,
+                    team_repo=ctx.yahoo_team_repo,
+                    keeper_repo=ctx.keeper_repo,
+                    league_key=league_key,
+                    prior_league_key=prior_league_key,
+                    prior_season=prior_season,
+                    season=season,
+                    league_name=league_name,
+                    cost_floor=cost_floor,
+                )
             ctx.conn.commit()
         except ValueError as exc:
             print_error(str(exc))
@@ -779,7 +816,10 @@ def yahoo_keeper_decisions(  # pragma: no cover
         valuations = ctx.valuation_repo.get_by_season(season, system)
         players = ctx.player_repo.all()
 
+    max_keepers = league_config.max_keepers
     decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
+    if max_keepers is not None:
+        decisions = decisions[:max_keepers]
     print_keeper_decisions(decisions)
 
 

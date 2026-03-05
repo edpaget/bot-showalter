@@ -84,6 +84,20 @@ class TestSqliteYahooLeagueRepo:
         assert result is not None
         assert result.is_keeper is True
 
+    def test_renew_round_trips(self, conn: sqlite3.Connection) -> None:
+        repo = SqliteYahooLeagueRepo(conn)
+        repo.upsert(_make_yahoo_league(renew="422.l.99999"))
+        result = repo.get_by_league_key("449.l.12345")
+        assert result is not None
+        assert result.renew == "422.l.99999"
+
+    def test_renew_defaults_to_none(self, conn: sqlite3.Connection) -> None:
+        repo = SqliteYahooLeagueRepo(conn)
+        repo.upsert(_make_yahoo_league())
+        result = repo.get_by_league_key("449.l.12345")
+        assert result is not None
+        assert result.renew is None
+
 
 class TestSqliteYahooTeamRepo:
     def _seed_league(self, conn: sqlite3.Connection) -> None:

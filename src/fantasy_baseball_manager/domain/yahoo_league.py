@@ -10,6 +10,7 @@ class YahooLeague:
     draft_type: str
     is_keeper: bool
     game_key: str
+    renew: str | None = None
     id: int | None = None
 
 

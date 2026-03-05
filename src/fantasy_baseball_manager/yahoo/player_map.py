@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain import YahooPlayerMap
+from fantasy_baseball_manager.name_utils import normalize_name, strip_accents, strip_name_decorations
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import PlayerRepo, YahooPlayerMapRepo
@@ -49,30 +50,29 @@ class YahooPlayerMapper:
                 self._map_repo.upsert(mapping)
                 return self._map_repo.get_by_yahoo_key(yahoo_key)
 
-        # Strategy 3: name search
+        # Strategy 3: normalized name search
         if name:
-            parts = name.split()
+            clean_name = strip_name_decorations(name)
+            parts = clean_name.split()
             if len(parts) >= 2:
-                last_name = parts[-1]
-                first_name = parts[0]
+                last_name = strip_accents(parts[-1])
+                normalized_yahoo = normalize_name(name)
                 candidates = self._player_repo.get_by_last_name(last_name)
-                # Try exact first+last match
+                # Try normalized first+last match
                 for candidate in candidates:
-                    if (
-                        candidate.name_first
-                        and candidate.name_first.lower() == first_name.lower()
-                        and candidate.id is not None
-                    ):
-                        mapping = YahooPlayerMap(
-                            yahoo_player_key=yahoo_key,
-                            player_id=candidate.id,
-                            player_type=player_type,
-                            yahoo_name=name,
-                            yahoo_team=team,
-                            yahoo_positions=positions_str,
-                        )
-                        self._map_repo.upsert(mapping)
-                        return self._map_repo.get_by_yahoo_key(yahoo_key)
+                    if candidate.name_first and candidate.id is not None:
+                        candidate_full = f"{candidate.name_first} {candidate.name_last}"
+                        if normalize_name(candidate_full) == normalized_yahoo:
+                            mapping = YahooPlayerMap(
+                                yahoo_player_key=yahoo_key,
+                                player_id=candidate.id,
+                                player_type=player_type,
+                                yahoo_name=name,
+                                yahoo_team=team,
+                                yahoo_positions=positions_str,
+                            )
+                            self._map_repo.upsert(mapping)
+                            return self._map_repo.get_by_yahoo_key(yahoo_key)
                 # Single last-name match as fallback
                 if len(candidates) == 1 and candidates[0].id is not None:
                     mapping = YahooPlayerMap(
