@@ -51,7 +51,7 @@ fbm draft export --season 2025 --output draft-board.csv --version latest --leagu
 | 1 — Per-stat routing engine | done (2026-03-04) |
 | 2 — Stat group presets and config | done (2026-03-04) |
 | 3 — Coverage validation and diagnostics | done (2026-03-04) |
-| 4 — Draft-day pipeline integration | in progress |
+| 4 — Draft-day pipeline integration | done (2026-03-04) |
 
 ## Phase 1: Per-stat routing engine
 
