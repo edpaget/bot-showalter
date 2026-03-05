@@ -7,7 +7,7 @@ from typing import Annotated, Any
 import typer
 
 from fantasy_baseball_manager.cli._output import console, print_error, print_quick_eval_result
-from fantasy_baseball_manager.cli.factory import create_model
+from fantasy_baseball_manager.cli.factory import DbLabelSource, create_model
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
@@ -70,7 +70,7 @@ def quick_eval_cmd(  # pragma: no cover
     conn = create_connection(Path(resolved_data_dir) / "fbm.db")
     try:
         assembler = SqliteDatasetAssembler(conn, statcast_path=Path(resolved_data_dir) / "statcast.db")
-        model_result = create_model(model, assembler=assembler)
+        model_result = create_model(model, assembler=assembler, label_source=DbLabelSource(conn))
         match model_result:
             case Err(e):
                 print_error(e.message)

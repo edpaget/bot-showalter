@@ -77,7 +77,7 @@ def _patch_heavy_deps(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.setattr(f"{mod}.SqliteDatasetAssembler", _FakeAssembler)
     monkeypatch.setattr(
         f"{mod}.create_model",
-        lambda model, assembler: Ok(_FakeModel()),
+        lambda model, **kwargs: Ok(_FakeModel()),
     )
     return db_path
 

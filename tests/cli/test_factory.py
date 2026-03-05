@@ -6,8 +6,8 @@ import pytest
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.cli._dispatcher import dispatch
 from fantasy_baseball_manager.cli.factory import (
+    DbLabelSource,
     IngestContainer,
-    _DbLabelSource,
     build_breakout_bust_report_context,
     build_chat_context,
     build_eval_context,
@@ -550,7 +550,7 @@ class TestBuildChatContext:
 
 
 def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
-    """Seed ADP and valuation data so _DbLabelSource can generate labels."""
+    """Seed ADP and valuation data so DbLabelSource can generate labels."""
     seed_player(conn, player_id=1, name_first="Player", name_last="One")
     seed_player(conn, player_id=2, name_first="Player", name_last="Two")
     seed_player(conn, player_id=3, name_first="Player", name_last="Three")
@@ -618,7 +618,7 @@ class TestDbLabelSource:
     def test_get_labels_returns_labeled_seasons(self) -> None:
         conn = create_connection(":memory:")
         _seed_adp_and_valuation(conn)
-        source = _DbLabelSource(conn)
+        source = DbLabelSource(conn)
 
         labels = source.get_labels(2023)
         assert len(labels) == 3
@@ -631,7 +631,7 @@ class TestDbLabelSource:
 
     def test_get_labels_empty_when_no_data(self) -> None:
         conn = create_connection(":memory:")
-        source = _DbLabelSource(conn)
+        source = DbLabelSource(conn)
 
         labels = source.get_labels(2023)
         assert labels == []

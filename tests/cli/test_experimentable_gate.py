@@ -60,7 +60,7 @@ def _patch_deps(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mod: str) -> No
     monkeypatch.setattr(f"{mod}.SqliteDatasetAssembler", _FakeAssembler)
     monkeypatch.setattr(
         f"{mod}.create_model",
-        lambda model, assembler: Ok(_NonExperimentableModel()),
+        lambda model, **kwargs: Ok(_NonExperimentableModel()),
     )
 
 

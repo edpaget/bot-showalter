@@ -15,6 +15,7 @@ from sklearn.metrics import log_loss
 
 from fantasy_baseball_manager.domain import LabeledSeason, OutcomeLabel, StatMetrics, SystemMetrics
 from fantasy_baseball_manager.features import DatasetAssembler  # noqa: TC001 – needed at runtime by inspect.signature()
+from fantasy_baseball_manager.models.breakout_bust.classification_backend import ClassificationTrainingBackend
 from fantasy_baseball_manager.models.gbm_training import extract_features
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, TrainResult
 from fantasy_baseball_manager.models.registry import register
@@ -152,6 +153,25 @@ class BreakoutBustModel:
         if override is not None:
             return list(override)
         return _DEFAULT_FEATURE_COLUMNS[player_type]
+
+    def experiment_player_types(self) -> list[str]:
+        return ["batter", "pitcher"]
+
+    def experiment_feature_columns(self, player_type: str) -> list[str]:
+        return list(_DEFAULT_FEATURE_COLUMNS[player_type])
+
+    def experiment_targets(self, player_type: str) -> list[str]:
+        return ["p_breakout", "p_bust"]
+
+    def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]:
+        joined = self._build_joined_rows(seasons, player_type)
+        rows_by_season: dict[int, list[dict[str, Any]]] = {}
+        for row in joined:
+            rows_by_season.setdefault(row["season"], []).append(row)
+        return rows_by_season
+
+    def experiment_training_backend(self) -> ClassificationTrainingBackend:
+        return ClassificationTrainingBackend()
 
     def train(self, config: ModelConfig) -> TrainResult:
         seasons = sorted(config.seasons)

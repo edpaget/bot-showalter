@@ -41,6 +41,7 @@ from fantasy_baseball_manager.models.playing_time.features import (
     build_pitching_pt_training_features,
     pitching_pt_feature_columns,
 )
+from fantasy_baseball_manager.models.playing_time.ols_backend import OLSTrainingBackend
 from fantasy_baseball_manager.models.playing_time.serialization import (
     load_aging_curves,
     load_coefficients,
@@ -143,6 +144,39 @@ class PlayingTimeModel:
 
     def _artifact_path(self, config: ModelConfig) -> Path:
         return Path(config.artifacts_dir) / self.name / (config.version or "latest")
+
+    def experiment_player_types(self) -> list[str]:
+        return ["batter", "pitcher"]
+
+    def experiment_feature_columns(self, player_type: str) -> list[str]:
+        if player_type == "batter":
+            return batting_pt_feature_columns() + ["age_pt_factor"]
+        return pitching_pt_feature_columns() + ["age_pt_factor"]
+
+    def experiment_targets(self, player_type: str) -> list[str]:
+        return ["pa"] if player_type == "batter" else ["ip"]
+
+    def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]:
+        batting_fs, pitching_fs = self._build_feature_sets(seasons, training=True)
+        fs = batting_fs if player_type == "batter" else pitching_fs
+
+        handle = self._assembler.get_or_materialize(fs)
+        rows = self._assembler.read(handle)
+
+        # Fit aging curve and enrich rows
+        if player_type == "batter":
+            curve = fit_playing_time_aging_curve(rows, "batter", "target_pa", "pa_1", min_pt=50.0)
+        else:
+            curve = fit_playing_time_aging_curve(rows, "pitcher", "target_ip", "ip_1", min_pt=10.0)
+        rows = enrich_rows_with_age_pt_factor(rows, curve)
+
+        rows_by_season: dict[int, list[dict[str, Any]]] = {}
+        for row in rows:
+            rows_by_season.setdefault(row["season"], []).append(row)
+        return rows_by_season
+
+    def experiment_training_backend(self) -> OLSTrainingBackend:
+        return OLSTrainingBackend()
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
 

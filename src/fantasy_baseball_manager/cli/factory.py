@@ -110,7 +110,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.team_resolver import TeamResolver
 
 
-class _DbLabelSource:
+class DbLabelSource:
     """LabelSource that generates labels from ADP and valuation data in the database."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
@@ -178,7 +178,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             batting_repo=batting_stats_repo,
             pitching_repo=pitching_stats_repo,
         )
-        label_source = _DbLabelSource(conn)
+        label_source = DbLabelSource(conn)
         result = create_model(
             model_name,
             assembler=assembler,
@@ -916,7 +916,7 @@ def build_breakout_bust_report_context(data_dir: str) -> Iterator[BreakoutBustRe
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
         assembler = SqliteDatasetAssembler(conn, statcast_path=Path(data_dir) / "statcast.db")
-        label_source = _DbLabelSource(conn)
+        label_source = DbLabelSource(conn)
         result = create_model("breakout-bust", assembler=assembler, label_source=label_source)
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)

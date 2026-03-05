@@ -30,11 +30,16 @@ from fantasy_baseball_manager.models import (
     statcast_gbm,  # noqa: F401
     zar,  # noqa: F401
 )
+from fantasy_baseball_manager.models.breakout_bust.classification_backend import (
+    ClassificationFittedModels,
+    ClassificationTrainingBackend,
+)
 from fantasy_baseball_manager.models.gbm_training import (
     PerTargetBest,
     extract_per_target_best,
 )
 from fantasy_baseball_manager.models.gbm_training_backend import GBMFittedModels, GBMTrainingBackend
+from fantasy_baseball_manager.models.playing_time.ols_backend import OLSFittedModels, OLSTrainingBackend
 from fantasy_baseball_manager.models.registry import (
     get,
     list_models,
@@ -46,10 +51,14 @@ from fantasy_baseball_manager.models.run_manager import RunContext, RunManager
 __all__ = [
     "Ablatable",
     "AblationResult",
+    "ClassificationFittedModels",
+    "ClassificationTrainingBackend",
     "PerTargetBest",
     "extract_per_target_best",
     "GBMFittedModels",
     "GBMTrainingBackend",
+    "OLSFittedModels",
+    "OLSTrainingBackend",
     "Evaluable",
     "Evaluator",
     "FeatureIntrospectable",
