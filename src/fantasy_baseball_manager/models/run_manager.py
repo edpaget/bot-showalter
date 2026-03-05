@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
 import shutil
 import subprocess
@@ -13,6 +14,17 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.models.protocols import Model, ModelConfig
     from fantasy_baseball_manager.repos import ModelRunRepo
 logger = logging.getLogger(__name__)
+
+
+def _make_json_safe(obj: Any) -> Any:
+    """Recursively convert non-JSON-serializable objects (dataclasses, enums) to plain dicts/values."""
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return dataclasses.asdict(obj)
+    if isinstance(obj, dict):
+        return {k: _make_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_make_json_safe(v) for v in obj]
+    return obj
 
 
 class RunContext:
@@ -82,7 +94,7 @@ class RunManager:
             "data_dir": config.data_dir,
             "artifacts_dir": config.artifacts_dir,
             "seasons": config.seasons,
-            "model_params": config.model_params,
+            "model_params": _make_json_safe(config.model_params),
         }
 
         metrics = context.metrics or None

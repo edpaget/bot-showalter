@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from fantasy_baseball_manager.domain import CategoryConfig, Direction, LeagueFormat, LeagueSettings, StatType
 from fantasy_baseball_manager.models.protocols import ModelConfig
 from fantasy_baseball_manager.models.run_manager import RunContext, RunManager
 
@@ -347,6 +348,41 @@ class TestRunManager:
         mgr.finalize_run(ctx, config)
 
         assert repo._records[0].artifact_type == "none"
+
+    def test_finalize_run_serializes_dataclass_in_model_params(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """model_params containing a dataclass (e.g. LeagueSettings) must be JSON-serializable."""
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args=[], returncode=1),
+        )
+
+        league = LeagueSettings(
+            name="test",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=12,
+            budget=260,
+            roster_batters=9,
+            roster_pitchers=8,
+            batting_categories=(
+                CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            ),
+            pitching_categories=(),
+        )
+        config = ModelConfig(version="v1", model_params={"league": league, "season": 2025})
+
+        repo = FakeModelRunRepo()
+        mgr = RunManager(model_run_repo=repo, artifacts_root=tmp_path)
+        ctx = RunContext(system="fake", version="v1", run_dir=tmp_path / "fake" / "v1", artifact_type="none")
+
+        # Should not raise TypeError
+        mgr.finalize_run(ctx, config)
+
+        record = repo._records[0]
+        assert record.config_json["model_params"]["league"]["name"] == "test"
+        assert record.config_json["model_params"]["season"] == 2025
 
     def test_delete_run_no_artifact_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 

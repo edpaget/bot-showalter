@@ -4,6 +4,46 @@ Extend the existing ensemble model with per-stat routing so that different proje
 
 The ensemble model (`src/fantasy_baseball_manager/models/ensemble/`) already supports weighted-average blending with per-system version selection and consensus PT normalization. What's missing is the ability to route specific stats (or stat groups) to specific systems, validate that all league-required stats are covered, and wire the output through the valuation pipeline in a single command.
 
+## Recommended Workflow
+
+### 1. Configure the blend
+
+Edit `fbm.toml` under `[models.ensemble.params]`. The default config uses a **league-blend** strategy:
+
+- `league_required = "steamer"` — all stats needed by the league come from Steamer (counting stats, rate-stat components like `er`, `ip`)
+- `batting_rate = "statcast-gbm"` / `pitching_rate = "statcast-gbm"` — rate stats (OBP, ERA, WHIP, etc.) are overridden with statcast-gbm predictions
+- `fallback = "steamer"` — any stat not explicitly routed falls back to Steamer
+
+Steamer is fetched by season (no version pinning needed since Steamer uses year-based versions). statcast-gbm uses `version = "latest"`.
+
+### 2. Run the pipeline
+
+```bash
+# Preview the routing table (no DB writes)
+fbm predict ensemble --season 2025 --version latest --param league=h2h --dry-run
+
+# Generate blended projections
+fbm predict ensemble --season 2025 --version latest --param league=h2h --check
+
+# Generate ZAR valuations from blended projections
+fbm predict zar --season 2025 --version latest \
+  --param projection_system=ensemble --param projection_version=latest --param league=h2h
+
+# Export the draft board
+fbm draft export --season 2025 --output draft-board.csv --version latest --league h2h
+```
+
+### 3. Verify results
+
+- **Dry-run** (`--dry-run`): shows which system provides each stat without fetching projections.
+- **Coverage check** (`--check`): errors if any league-required stat is uncovered by the routing config.
+- **Compare against baselines**: `fbm compare ensemble/latest steamer/2025 --season 2025 --top 300 --stat obp --stat era --stat whip` to verify rate-stat accuracy.
+
+### Notes
+
+- When running for a holdout season (e.g., 2024), pass `--param season=2024` explicitly — the `--season` CLI flag only controls which actuals to compare against, not the ensemble's internal season parameter.
+- The statcast-gbm model only produces rate stats. Counting stats (HR, R, RBI, SB, SO, W, SV) always come from Steamer via the `league_required` route group.
+
 ## Status
 
 | Phase | Status |
