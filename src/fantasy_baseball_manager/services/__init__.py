@@ -84,6 +84,7 @@ from fantasy_baseball_manager.services.keeper_optimizer import (
     solve_keepers_with_pool,
 )
 from fantasy_baseball_manager.services.keeper_service import (
+    adjust_valuations_for_league_keepers,
     compute_adjusted_valuations,
     compute_surplus,
     estimate_other_keepers,
@@ -286,6 +287,7 @@ __all__ = [
     "build_keeper_histories",
     "build_team_map",
     "classify_variance",
+    "adjust_valuations_for_league_keepers",
     "compute_adjusted_valuations",
     "compute_category_balance_scores",
     "compute_confidence",

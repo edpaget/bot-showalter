@@ -17,6 +17,7 @@ from fantasy_baseball_manager.domain import (
 )
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.services.keeper_service import (
+    adjust_valuations_for_league_keepers,
     compute_adjusted_valuations,
     compute_surplus,
     estimate_other_keepers,
@@ -766,3 +767,78 @@ class TestEstimateOtherKeepers:
         result = estimate_other_keepers(rosters, valuations, max_keepers=2)
 
         assert result == {1}
+
+
+class TestAdjustValuationsForLeagueKeepers:
+    """Tests for the combined estimation + valuation adjustment pipeline."""
+
+    def _league(self) -> LeagueSettings:
+        return _adj_league()
+
+    def test_adjusts_valuations_for_estimated_keepers(self) -> None:
+        """Valuations are adjusted when league keepers are estimated."""
+        rosters = [_roster("t.1", [1, 5])]  # other team has catcher 1 + OF 5
+        projections = _adj_projections()
+        batter_positions = _adj_batter_positions()
+        players = _adj_players()
+        league = self._league()
+
+        # Build baseline valuations from all players
+        baseline = compute_adjusted_valuations(
+            kept_player_ids=set(),
+            projections=projections,
+            batter_positions=batter_positions,
+            pitcher_positions={},
+            league=league,
+            original_valuations=[],
+            players=players,
+        )
+        valuations = [
+            Valuation(
+                player_id=a.player_id,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="composite",
+                projection_version="v1",
+                player_type=a.player_type,
+                position=a.position,
+                value=a.adjusted_value,
+                rank=0,
+                category_scores={},
+            )
+            for a in baseline
+        ]
+
+        result = adjust_valuations_for_league_keepers(
+            rosters=rosters,
+            valuations=valuations,
+            projections=projections,
+            batter_positions=batter_positions,
+            pitcher_positions={},
+            league=league,
+            players=players,
+            max_keepers=1,
+        )
+
+        # Estimated keeper is player 1 (highest val on the roster)
+        result_ids = {v.player_id for v in result}
+        assert 1 not in result_ids  # kept player excluded
+        assert len(result) < len(valuations)
+
+    def test_returns_original_when_no_keepers_estimated(self) -> None:
+        """Empty rosters → no keepers estimated → original valuations returned unchanged."""
+        valuations = [_valuation(1, 25.0), _valuation(2, 15.0)]
+
+        result = adjust_valuations_for_league_keepers(
+            rosters=[],
+            valuations=valuations,
+            projections=[],
+            batter_positions={},
+            pitcher_positions={},
+            league=_adj_league(),
+            players=[],
+            max_keepers=2,
+        )
+
+        assert result == valuations

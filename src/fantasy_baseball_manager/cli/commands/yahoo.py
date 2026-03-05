@@ -2,7 +2,6 @@ import datetime
 import functools
 import logging
 import queue
-from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -31,14 +30,13 @@ from fantasy_baseball_manager.repos import (
 from fantasy_baseball_manager.services import (
     DraftSession,
     PlayerEligibilityService,
+    adjust_valuations_for_league_keepers,
     build_keeper_histories,
     build_yahoo_draft_setup,
-    compute_adjusted_valuations,
     compute_surplus,
     derive_and_store_keeper_costs,
     derive_best_n_keeper_costs,
     ensure_prior_season_teams,
-    estimate_other_keepers,
     fetch_league_rosters,
     recommend,
     set_keeper_cost,
@@ -876,9 +874,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
                     prior_league_key=prior_league_key,
                     prior_season=prior_season,
                 )
-                estimated_ids = estimate_other_keepers(other_rosters, valuations, max_keepers)
-
-                if estimated_ids:
+                if other_rosters:
                     fbm_league = load_league(league_name, Path(config_dir))
                     proj_system = valuations[0].projection_system if valuations else "composite"
                     projections = ctx.projection_repo.get_by_season(season, proj_system)
@@ -891,26 +887,24 @@ def yahoo_keeper_decisions(  # pragma: no cover
                     pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
                     pitcher_positions = eligibility.get_pitcher_positions(season, fbm_league, pitcher_ids)
 
-                    adjusted = compute_adjusted_valuations(
-                        estimated_ids, projections, batter_positions, pitcher_positions, fbm_league, valuations, players
+                    original_valuations = valuations
+                    valuations = adjust_valuations_for_league_keepers(
+                        rosters=other_rosters,
+                        valuations=valuations,
+                        projections=projections,
+                        batter_positions=batter_positions,
+                        pitcher_positions=pitcher_positions,
+                        league=fbm_league,
+                        players=players,
+                        max_keepers=max_keepers,
                     )
 
-                    # Build replacement valuations from adjusted results
-                    adj_lookup = {a.player_id: a for a in adjusted}
-                    adjusted_valuations = []
-                    for v in valuations:
-                        adj = adj_lookup.get(v.player_id)
-                        if adj is not None:
-                            adjusted_valuations.append(replace(v, value=adj.adjusted_value))
-                        elif v.player_id not in estimated_ids:
-                            adjusted_valuations.append(v)
-                    valuations = adjusted_valuations
-
-                    num_teams = len(other_rosters)
-                    console.print(
-                        f"[dim]Estimated {len(estimated_ids)} keepers from {num_teams} other teams"
-                        " — surplus adjusted for draft pool depletion[/dim]"
-                    )
+                    if len(valuations) < len(original_valuations):
+                        num_estimated = len(original_valuations) - len(valuations)
+                        console.print(
+                            f"[dim]Estimated {num_estimated} keepers from {len(other_rosters)} other teams"
+                            " — surplus adjusted for draft pool depletion[/dim]"
+                        )
 
     max_keepers = league_config.max_keepers
     decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)

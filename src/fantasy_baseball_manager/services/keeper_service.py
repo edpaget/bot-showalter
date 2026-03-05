@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import (
@@ -153,6 +154,44 @@ def estimate_other_keepers(
             keeper_ids.add(pid)
 
     return keeper_ids
+
+
+def adjust_valuations_for_league_keepers(
+    rosters: list[Roster],
+    valuations: list[Valuation],
+    projections: list[Projection],
+    batter_positions: dict[int, list[str]],
+    pitcher_positions: dict[int, list[str]],
+    league: LeagueSettings,
+    players: list[Player],
+    max_keepers: int,
+) -> list[Valuation]:
+    """Estimate other teams' keepers and return valuations adjusted for draft pool depletion.
+
+    Combines keeper estimation with ZAR revaluation: estimates which players
+    other teams will keep, removes them from the draft pool, re-runs valuations,
+    and returns a new valuation list with adjusted dollar values.
+
+    Returns the original valuations unchanged if no keepers are estimated.
+    """
+    estimated_ids = estimate_other_keepers(rosters, valuations, max_keepers)
+    if not estimated_ids:
+        return valuations
+
+    adjusted = compute_adjusted_valuations(
+        estimated_ids, projections, batter_positions, pitcher_positions, league, valuations, players
+    )
+
+    adj_lookup = {a.player_id: a for a in adjusted}
+    result: list[Valuation] = []
+    for v in valuations:
+        adj = adj_lookup.get(v.player_id)
+        if adj is not None:
+            result.append(replace(v, value=adj.adjusted_value))
+        elif v.player_id not in estimated_ids:
+            result.append(v)
+
+    return result
 
 
 def evaluate_trade(
