@@ -8,6 +8,7 @@ from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keep
 from fantasy_baseball_manager.services.yahoo_sync import sync_league_metadata
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain import Roster
     from fantasy_baseball_manager.repos import (
         KeeperCostRepo,
         YahooDraftSourceProto,
@@ -139,3 +140,30 @@ def derive_best_n_keeper_costs(
 
     if to_upsert:
         keeper_repo.upsert_batch(to_upsert)
+
+
+def fetch_league_rosters(
+    roster_source: YahooRosterSourceProto,
+    team_repo: YahooTeamRepo,
+    prior_league_key: str,
+    prior_season: int,
+) -> list[Roster]:
+    """Fetch rosters for all non-user teams in the prior season's league.
+
+    Returns a list of Roster objects, one per non-user team.
+    """
+    teams = team_repo.get_by_league_key(prior_league_key)
+    other_teams = [t for t in teams if not t.is_owned_by_user]
+
+    today = datetime.date.today()
+    rosters: list[Roster] = []
+    for team in other_teams:
+        roster = roster_source.fetch_team_roster(
+            team_key=team.team_key,
+            league_key=prior_league_key,
+            season=prior_season,
+            as_of=today,
+        )
+        rosters.append(roster)
+
+    return rosters

@@ -6,6 +6,7 @@ from fantasy_baseball_manager.domain import (
     KeeperCost,
     KeeperDecision,
     Ok,
+    Roster,
     TradeEvaluation,
     TradePlayerDetail,
 )
@@ -121,6 +122,37 @@ def compute_surplus(
 
     decisions.sort(key=lambda d: d.surplus, reverse=True)
     return decisions
+
+
+def estimate_other_keepers(
+    rosters: list[Roster],
+    valuations: list[Valuation],
+    max_keepers: int,
+) -> set[int]:
+    """Estimate which players other teams will keep based on projected value.
+
+    For each roster, takes the top `max_keepers` players by valuation value.
+    Returns the union of all estimated keeper player IDs.
+    """
+    val_lookup: dict[int, float] = {}
+    for v in valuations:
+        existing = val_lookup.get(v.player_id)
+        if existing is None or v.value > existing:
+            val_lookup[v.player_id] = v.value
+
+    keeper_ids: set[int] = set()
+    for roster in rosters:
+        candidates: list[tuple[int, float]] = []
+        for entry in roster.entries:
+            if entry.player_id is None:
+                continue
+            value = val_lookup.get(entry.player_id, 0.0)
+            candidates.append((entry.player_id, value))
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        for pid, _ in candidates[:max_keepers]:
+            keeper_ids.add(pid)
+
+    return keeper_ids
 
 
 def evaluate_trade(

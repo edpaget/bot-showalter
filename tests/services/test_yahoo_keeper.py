@@ -22,6 +22,7 @@ from fantasy_baseball_manager.services.yahoo_keeper import (
     derive_and_store_keeper_costs,
     derive_best_n_keeper_costs,
     ensure_prior_season_teams,
+    fetch_league_rosters,
 )
 
 if TYPE_CHECKING:
@@ -57,10 +58,11 @@ class FakeLeagueSource:
 
 
 class FakeRosterSource:
-    """Returns a canned roster."""
+    """Returns canned rosters, optionally keyed by team_key."""
 
-    def __init__(self, roster: Roster) -> None:
-        self._roster = roster
+    def __init__(self, roster: Roster | None = None, *, rosters: dict[str, Roster] | None = None) -> None:
+        self._default = roster
+        self._rosters = rosters or {}
 
     def fetch_team_roster(
         self,
@@ -71,7 +73,12 @@ class FakeRosterSource:
         week: int | None = None,
         as_of: datetime.date,
     ) -> Roster:
-        return self._roster
+        if team_key in self._rosters:
+            return self._rosters[team_key]
+        if self._default is not None:
+            return self._default
+        msg = f"No roster configured for team_key={team_key}"
+        raise ValueError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -545,3 +552,91 @@ class TestEnsurePriorSeasonTeams:
                 prior_league_key=_PRIOR_LEAGUE_KEY,
                 prior_game_key=_PRIOR_GAME_KEY,
             )
+
+
+# ---------------------------------------------------------------------------
+# fetch_league_rosters tests
+# ---------------------------------------------------------------------------
+
+_OTHER_TEAM_2 = YahooTeam(
+    team_key="422.l.200.t.3",
+    league_key=_PRIOR_LEAGUE_KEY,
+    team_id=3,
+    name="Third Team",
+    manager_name="Third",
+    is_owned_by_user=False,
+)
+
+
+def _make_roster(team_key: str, player_ids: list[int]) -> Roster:
+    entries = tuple(
+        RosterEntry(
+            player_id=pid,
+            yahoo_player_key=f"449.p.{pid}",
+            player_name=f"Player {pid}",
+            position="UTIL",
+            roster_status="active",
+            acquisition_type="draft",
+        )
+        for pid in player_ids
+    )
+    return Roster(
+        team_key=team_key,
+        league_key=_PRIOR_LEAGUE_KEY,
+        season=2025,
+        week=1,
+        as_of=datetime.date(2025, 10, 1),
+        entries=entries,
+    )
+
+
+class TestFetchLeagueRosters:
+    def test_returns_rosters_for_non_user_teams_only(self, conn: sqlite3.Connection) -> None:
+        """User team is excluded; only other teams' rosters are returned."""
+        _seed_prior_league(conn)
+        team_repo = SqliteYahooTeamRepo(conn)
+        team_repo.upsert(_PRIOR_USER_TEAM)
+        team_repo.upsert(_PRIOR_OTHER_TEAM)
+        conn.commit()
+
+        other_roster = _make_roster(_PRIOR_OTHER_TEAM.team_key, [10, 11])
+        roster_source = FakeRosterSource(rosters={_PRIOR_OTHER_TEAM.team_key: other_roster})
+
+        result = fetch_league_rosters(
+            roster_source=roster_source,
+            team_repo=team_repo,
+            prior_league_key=_PRIOR_LEAGUE_KEY,
+            prior_season=2025,
+        )
+
+        assert len(result) == 1
+        assert result[0].team_key == _PRIOR_OTHER_TEAM.team_key
+
+    def test_fetches_correct_team_keys(self, conn: sqlite3.Connection) -> None:
+        """Multiple non-user teams each get their own roster fetched."""
+        _seed_prior_league(conn)
+        team_repo = SqliteYahooTeamRepo(conn)
+        team_repo.upsert(_PRIOR_USER_TEAM)
+        team_repo.upsert(_PRIOR_OTHER_TEAM)
+        team_repo.upsert(_OTHER_TEAM_2)
+        conn.commit()
+
+        roster_t2 = _make_roster(_PRIOR_OTHER_TEAM.team_key, [10])
+        roster_t3 = _make_roster(_OTHER_TEAM_2.team_key, [20])
+        roster_source = FakeRosterSource(
+            rosters={
+                _PRIOR_OTHER_TEAM.team_key: roster_t2,
+                _OTHER_TEAM_2.team_key: roster_t3,
+            }
+        )
+
+        result = fetch_league_rosters(
+            roster_source=roster_source,
+            team_repo=team_repo,
+            prior_league_key=_PRIOR_LEAGUE_KEY,
+            prior_season=2025,
+        )
+
+        assert len(result) == 2
+        team_keys = {r.team_key for r in result}
+        assert team_keys == {_PRIOR_OTHER_TEAM.team_key, _OTHER_TEAM_2.team_key}

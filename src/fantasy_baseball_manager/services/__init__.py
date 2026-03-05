@@ -86,6 +86,7 @@ from fantasy_baseball_manager.services.keeper_optimizer import (
 from fantasy_baseball_manager.services.keeper_service import (
     compute_adjusted_valuations,
     compute_surplus,
+    estimate_other_keepers,
     evaluate_trade,
     set_keeper_cost,
 )
@@ -201,6 +202,7 @@ from fantasy_baseball_manager.services.yahoo_keeper import (
     derive_and_store_keeper_costs,
     derive_best_n_keeper_costs,
     ensure_prior_season_teams,
+    fetch_league_rosters,
 )
 from fantasy_baseball_manager.services.yahoo_sync import sync_league_metadata, sync_transactions
 
@@ -296,6 +298,7 @@ __all__ = [
     "compute_value_curves",
     "scarcity_adjusted_value",
     "compute_surplus",
+    "estimate_other_keepers",
     "derive_keeper_costs",
     "draft_report",
     "evaluate_pick_trade",
@@ -339,6 +342,7 @@ __all__ = [
     "derive_and_store_keeper_costs",
     "derive_best_n_keeper_costs",
     "ensure_prior_season_teams",
+    "fetch_league_rosters",
     "YahooDraftSetup",
     "build_yahoo_draft_setup",
     "sync_league_metadata",

@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 
 from fantasy_baseball_manager.domain import (
@@ -8,6 +10,8 @@ from fantasy_baseball_manager.domain import (
     LeagueSettings,
     Player,
     Projection,
+    Roster,
+    RosterEntry,
     StatType,
     Valuation,
 )
@@ -15,6 +19,7 @@ from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.services.keeper_service import (
     compute_adjusted_valuations,
     compute_surplus,
+    estimate_other_keepers,
     evaluate_trade,
     set_keeper_cost,
 )
@@ -655,3 +660,109 @@ class TestEvaluateTrade:
         assert b.player_id == 2
         assert b.player_name == "Shohei Ohtani"
         assert b.position == "DH"
+
+
+def _roster(team_key: str, player_ids: list[int]) -> Roster:
+    """Build a minimal roster for testing estimate_other_keepers."""
+    entries = tuple(
+        RosterEntry(
+            player_id=pid,
+            yahoo_player_key=f"449.p.{pid}",
+            player_name=f"Player {pid}",
+            position="UTIL",
+            roster_status="active",
+            acquisition_type="draft",
+        )
+        for pid in player_ids
+    )
+    return Roster(
+        team_key=team_key,
+        league_key="449.l.100",
+        season=2025,
+        week=1,
+        as_of=datetime.date(2025, 10, 1),
+        entries=entries,
+    )
+
+
+class TestEstimateOtherKeepers:
+    def test_top_n_from_each_team(self) -> None:
+        """Two teams with 3 players each, max_keepers=2 → returns top 2 from each (4 IDs)."""
+        rosters = [
+            _roster("t.1", [1, 2, 3]),
+            _roster("t.2", [4, 5, 6]),
+        ]
+        valuations = [
+            _valuation(1, 30.0),
+            _valuation(2, 20.0),
+            _valuation(3, 10.0),
+            _valuation(4, 25.0),
+            _valuation(5, 15.0),
+            _valuation(6, 5.0),
+        ]
+
+        result = estimate_other_keepers(rosters, valuations, max_keepers=2)
+
+        assert result == {1, 2, 4, 5}
+
+    def test_no_valuation_treated_as_zero(self) -> None:
+        """Players with no valuation are sorted last (value 0)."""
+        rosters = [_roster("t.1", [1, 2, 3])]
+        valuations = [_valuation(1, 10.0)]  # no vals for 2, 3
+
+        result = estimate_other_keepers(rosters, valuations, max_keepers=2)
+
+        # Player 1 (val 10) is top, then either 2 or 3 (val 0) fills second slot
+        assert 1 in result
+        assert len(result) == 2
+
+    def test_fewer_players_than_max_keepers(self) -> None:
+        """Team with fewer qualifying players than max_keepers keeps all."""
+        rosters = [_roster("t.1", [1])]
+        valuations = [_valuation(1, 20.0)]
+
+        result = estimate_other_keepers(rosters, valuations, max_keepers=3)
+
+        assert result == {1}
+
+    def test_empty_roster_list(self) -> None:
+        """Empty roster list → empty set."""
+        result = estimate_other_keepers([], [], max_keepers=2)
+
+        assert result == set()
+
+    def test_skips_entries_with_no_player_id(self) -> None:
+        """Roster entries with player_id=None are excluded."""
+        entries = (
+            RosterEntry(
+                player_id=1,
+                yahoo_player_key="449.p.1",
+                player_name="Player 1",
+                position="UTIL",
+                roster_status="active",
+                acquisition_type="draft",
+            ),
+            RosterEntry(
+                player_id=None,
+                yahoo_player_key="449.p.999",
+                player_name="Unknown",
+                position="UTIL",
+                roster_status="active",
+                acquisition_type="add",
+            ),
+        )
+        rosters = [
+            Roster(
+                team_key="t.1",
+                league_key="449.l.100",
+                season=2025,
+                week=1,
+                as_of=datetime.date(2025, 10, 1),
+                entries=entries,
+            )
+        ]
+        valuations = [_valuation(1, 20.0)]
+
+        result = estimate_other_keepers(rosters, valuations, max_keepers=2)
+
+        assert result == {1}

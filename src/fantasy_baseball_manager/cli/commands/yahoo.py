@@ -2,6 +2,7 @@ import datetime
 import functools
 import logging
 import queue
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -23,14 +24,22 @@ from fantasy_baseball_manager.domain import (
     YahooDraftPick,
     YahooPlayerMap,
 )
+from fantasy_baseball_manager.repos import (
+    SqlitePitchingStatsRepo,
+    SqlitePositionAppearanceRepo,
+)
 from fantasy_baseball_manager.services import (
     DraftSession,
+    PlayerEligibilityService,
     build_keeper_histories,
     build_yahoo_draft_setup,
+    compute_adjusted_valuations,
     compute_surplus,
     derive_and_store_keeper_costs,
     derive_best_n_keeper_costs,
     ensure_prior_season_teams,
+    estimate_other_keepers,
+    fetch_league_rosters,
     recommend,
     set_keeper_cost,
     sync_league_metadata,
@@ -788,6 +797,9 @@ def yahoo_keeper_decisions(  # pragma: no cover
     threshold: Annotated[float, typer.Option("--threshold", help="Minimum surplus for keep recommendation")] = 0.0,
     decay: Annotated[float, typer.Option("--decay", help="Decay factor for multi-year surplus")] = 0.85,
     cost_floor: Annotated[float, typer.Option("--cost-floor", help="Minimum keeper cost for FA pickups")] = 1.0,
+    estimate_league_keepers: Annotated[
+        bool, typer.Option("--estimate-league-keepers", help="Estimate other teams' keepers to adjust surplus")
+    ] = False,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
@@ -849,6 +861,56 @@ def yahoo_keeper_decisions(  # pragma: no cover
 
         valuations = ctx.valuation_repo.get_by_season(season, system)
         players = ctx.player_repo.all()
+
+        # Estimate other teams' keepers and adjust valuations
+        if estimate_league_keepers:
+            max_keepers = league_config.max_keepers
+            if max_keepers is None:
+                console.print(
+                    "[yellow]Warning: max_keepers not configured — skipping league keeper estimation.[/yellow]"
+                )
+            else:
+                other_rosters = fetch_league_rosters(
+                    roster_source=roster_source,
+                    team_repo=ctx.yahoo_team_repo,
+                    prior_league_key=prior_league_key,
+                    prior_season=prior_season,
+                )
+                estimated_ids = estimate_other_keepers(other_rosters, valuations, max_keepers)
+
+                if estimated_ids:
+                    fbm_league = load_league(league_name, Path(config_dir))
+                    proj_system = valuations[0].projection_system if valuations else "composite"
+                    projections = ctx.projection_repo.get_by_season(season, proj_system)
+
+                    eligibility = PlayerEligibilityService(
+                        SqlitePositionAppearanceRepo(ctx.conn),
+                        pitching_stats_repo=SqlitePitchingStatsRepo(ctx.conn),
+                    )
+                    batter_positions = eligibility.get_batter_positions(season, fbm_league)
+                    pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
+                    pitcher_positions = eligibility.get_pitcher_positions(season, fbm_league, pitcher_ids)
+
+                    adjusted = compute_adjusted_valuations(
+                        estimated_ids, projections, batter_positions, pitcher_positions, fbm_league, valuations, players
+                    )
+
+                    # Build replacement valuations from adjusted results
+                    adj_lookup = {a.player_id: a for a in adjusted}
+                    adjusted_valuations = []
+                    for v in valuations:
+                        adj = adj_lookup.get(v.player_id)
+                        if adj is not None:
+                            adjusted_valuations.append(replace(v, value=adj.adjusted_value))
+                        elif v.player_id not in estimated_ids:
+                            adjusted_valuations.append(v)
+                    valuations = adjusted_valuations
+
+                    num_teams = len(other_rosters)
+                    console.print(
+                        f"[dim]Estimated {len(estimated_ids)} keepers from {num_teams} other teams"
+                        " — surplus adjusted for draft pool depletion[/dim]"
+                    )
 
     max_keepers = league_config.max_keepers
     decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
