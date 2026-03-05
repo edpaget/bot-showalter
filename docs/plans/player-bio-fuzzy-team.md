@@ -7,7 +7,7 @@ The `PlayerBiographyService.find()` method currently requires an exact team abbr
 | Phase | Status |
 |-------|--------|
 | 1 — Team name resolver | done (2026-03-04) |
-| 2 — Wire into biography service | not started |
+| 2 — Wire into biography service | in progress |
 | 3 — CLI integration & error messages | not started |
 
 ## Phase 1: Team name resolver
