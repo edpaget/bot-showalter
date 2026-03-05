@@ -18,6 +18,7 @@ from fantasy_baseball_manager.repos import (  # noqa: TC001 — used in __init__
     ProjectionRepo,
     ValuationRepo,
 )
+from fantasy_baseball_manager.services.injury_discount import discount_projections
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 
 if TYPE_CHECKING:
@@ -82,6 +83,11 @@ class ZarModel:
         else:
             projections = self._projection_repo.get_by_season(season, system=proj_system)
         position_map = self._eligibility_service.get_batter_positions(season, league)
+
+        # 1b. Apply injury discounts if provided
+        injury_discounts: dict[int, float] | None = config.model_params.get("injury_discounts")
+        if injury_discounts:
+            projections = discount_projections(projections, injury_discounts)
 
         # 2. Split into batters and pitchers
         batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) > 0]

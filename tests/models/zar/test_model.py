@@ -497,6 +497,54 @@ class TestZarModelPredict:
         assert player_ids == {1}
 
 
+class TestZarModelInjuryDiscounts:
+    """Tests for injury discount integration in ZarModel.predict()."""
+
+    def test_injury_discounts_reduces_valuations(self) -> None:
+        """Player with injury discount should have lower value than without."""
+        model_base, val_repo_base = _build_model()
+        result_base = model_base.predict(_standard_config())
+        base_values = {p["player_id"]: p["value"] for p in result_base.predictions}
+
+        model_disc, val_repo_disc = _build_model()
+        config_disc = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "injury_discounts": {1: 60},  # Player 1 loses 60 days
+            },
+            version="1.0",
+        )
+        result_disc = model_disc.predict(config_disc)
+        disc_values = {p["player_id"]: p["value"] for p in result_disc.predictions}
+
+        # Player 1 should have lower value with injury discount
+        assert disc_values[1] < base_values[1]
+        # Player 2 (no discount) value should remain the same or change only due to pool effects
+        # But player 1's value should be strictly lower
+
+    def test_injury_discounts_absent_unchanged(self) -> None:
+        """Without injury_discounts param, predictions are identical to baseline."""
+        model1, _ = _build_model()
+        result1 = model1.predict(_standard_config())
+
+        model2, _ = _build_model()
+        config2 = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+            },
+            version="1.0",
+        )
+        result2 = model2.predict(config2)
+
+        values1 = {p["player_id"]: p["value"] for p in result1.predictions}
+        values2 = {p["player_id"]: p["value"] for p in result2.predictions}
+        assert values1 == values2
+
+
 class TestZarModelEligibilityService:
     """Tests for PlayerEligibilityService integration into ZarModel."""
 

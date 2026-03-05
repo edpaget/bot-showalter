@@ -13,6 +13,7 @@ from fantasy_baseball_manager.cli._output import (
     print_injury_estimate,
     print_injury_profile,
     print_injury_risk_leaderboard,
+    print_injury_value_deltas,
     print_performance_report,
     print_projection_confidence,
     print_residual_analysis_report,
@@ -28,11 +29,14 @@ from fantasy_baseball_manager.cli.factory import (
     build_adp_movers_context,
     build_adp_report_context,
     build_confidence_report_context,
+    build_injury_adjusted_valuations_context,
     build_injury_profile_context,
     build_report_context,
 )
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import ConfidenceReport, VarianceClassification
+from fantasy_baseball_manager.domain import ConfidenceReport, InjuryValueDelta, VarianceClassification
+from fantasy_baseball_manager.models import ModelConfig
+from fantasy_baseball_manager.models.zar.model import ZarModel
 from fantasy_baseball_manager.services import classify_variance, compute_confidence
 
 report_app = typer.Typer(name="report", help="Over/underperformance reports vs model predictions")
@@ -515,3 +519,85 @@ def report_games_lost(
         )
 
     print_games_lost_leaderboard(results)
+
+
+@report_app.command("injury-adjusted-values")
+def report_injury_adjusted_values(  # pragma: no cover
+    season: Annotated[int, typer.Option("--season", help="Projection season year")],
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")],
+    projection_system: Annotated[str, typer.Option("--projection-system", help="Projection system")],
+    projection_version: Annotated[str | None, typer.Option("--projection-version", help="Projection version")] = None,
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    seasons_back: Annotated[int, typer.Option("--seasons-back", help="Lookback window")] = 5,
+    top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show biggest value changes from injury adjustment."""
+    league = load_league(league_name, Path.cwd())
+    season_list = list(range(season - seasons_back + 1, season + 1))
+
+    with build_injury_adjusted_valuations_context(data_dir) as ctx:
+        # 1. Read original valuations
+        original_vals = ctx.valuation_repo.get_by_season(season, system=system)
+        original_vals = [v for v in original_vals if v.version == version]
+        if not original_vals:
+            print_error(f"No valuations found for {system}/{version} season {season}")
+            raise typer.Exit(code=1)
+
+        orig_by_player = {v.player_id: v for v in original_vals}
+
+        # 2. Compute injury discounts
+        estimates = ctx.profiler.list_games_lost_estimates(season_list, projection_season=season)
+        injury_map = {est.player_id: est.expected_days_lost for est, _, _ in estimates}
+
+        # 3. Re-run ZAR with discounted projections
+        model = ZarModel(
+            projection_repo=ctx.projection_repo,
+            position_repo=ctx.projection_repo,  # type: ignore[arg-type]  # unused — eligibility_service handles positions
+            player_repo=ctx.player_repo,
+            eligibility_service=ctx.eligibility_service,
+        )
+        config = ModelConfig(
+            seasons=[season],
+            model_params={
+                "league": league,
+                "projection_system": projection_system,
+                "projection_version": projection_version,
+                "injury_discounts": injury_map,
+            },
+            version="injury-adjusted",
+        )
+        result = model.predict(config)
+        adj_by_player = {p["player_id"]: p for p in result.predictions}
+
+        # 4. Resolve player names
+        all_ids = set(orig_by_player.keys()) | set(adj_by_player.keys())
+        players = ctx.player_repo.get_by_ids(list(all_ids))
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        # 5. Build deltas for players present in both
+        deltas: list[InjuryValueDelta] = []
+        for pid in orig_by_player:
+            adj = adj_by_player.get(pid)
+            if adj is None:
+                continue
+            orig_val = orig_by_player[pid]
+            delta_val = adj["value"] - orig_val.value
+            deltas.append(
+                InjuryValueDelta(
+                    player_name=player_names.get(pid, f"Player {pid}"),
+                    original_value=orig_val.value,
+                    adjusted_value=adj["value"],
+                    value_delta=delta_val,
+                    original_rank=orig_val.rank,
+                    adjusted_rank=adj["rank"],
+                    rank_change=orig_val.rank - adj["rank"],
+                    expected_days_lost=injury_map.get(pid, 0.0),
+                )
+            )
+
+        # 6. Sort by value_delta ascending (biggest losers first)
+        deltas.sort(key=lambda d: d.value_delta)
+
+    print_injury_value_deltas(deltas, top=top)

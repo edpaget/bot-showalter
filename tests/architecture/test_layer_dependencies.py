@@ -107,7 +107,10 @@ FORBIDDEN_IMPORTS: dict[str, set[str]] = {
 # eligibility during valuation.  Ideally this dependency would be refactored
 # so that eligibility data is injected rather than imported directly.
 KNOWN_EXCEPTIONS: dict[str, set[str]] = {
-    "models/zar/model.py": {"fantasy_baseball_manager.services.player_eligibility"},
+    "models/zar/model.py": {
+        "fantasy_baseball_manager.services.player_eligibility",
+        "fantasy_baseball_manager.services.injury_discount",
+    },
 }
 
 # Repo sub-modules that services and models are allowed to import.

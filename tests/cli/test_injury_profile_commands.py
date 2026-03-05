@@ -255,3 +255,10 @@ class TestGamesLostCommand:
         )
         assert result.exit_code == 0
         assert "No players found" in result.output
+
+
+class TestInjuryAdjustedValuesCommand:
+    def test_help(self) -> None:
+        result = runner.invoke(app, ["report", "injury-adjusted-values", "--help"])
+        assert result.exit_code == 0
+        assert "injury" in result.output.lower()

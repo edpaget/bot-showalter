@@ -17,7 +17,11 @@ from fantasy_baseball_manager.cli._output import (
     print_train_result,
     print_tune_result,
 )
-from fantasy_baseball_manager.cli.factory import build_eval_context, build_model_context
+from fantasy_baseball_manager.cli.factory import (
+    build_eval_context,
+    build_injury_profile_context,
+    build_model_context,
+)
 from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain import (
@@ -49,6 +53,8 @@ _BaselineOpt = Annotated[str, typer.Option("--baseline", help="Baseline version 
 _KeepOpt = Annotated[bool, typer.Option("--keep", help="Retain candidate predictions in DB after gate finishes")]
 _DryRunOpt = Annotated[bool, typer.Option("--dry-run", help="Show routing table without fetching projections")]
 _CheckOpt = Annotated[bool, typer.Option("--check", help="Error on uncovered league-required stats")]
+_InjuryAdjustedOpt = Annotated[bool, typer.Option("--injury-adjusted", help="Apply injury risk discount")]
+_SeasonsBackOpt = Annotated[int, typer.Option("--seasons-back", help="Lookback window for injury data")]
 
 
 def _run_action(
@@ -139,6 +145,8 @@ def predict(  # pragma: no cover
     param: _ParamOpt = None,
     dry_run: _DryRunOpt = False,
     check: _CheckOpt = False,
+    injury_adjusted: _InjuryAdjustedOpt = False,
+    seasons_back: _SeasonsBackOpt = 5,
 ) -> None:
     """Generate predictions from a projection model."""
     tags = parse_tags(tag)
@@ -149,6 +157,13 @@ def predict(  # pragma: no cover
         params["dry_run"] = True
     if check:
         params["check"] = True
+    if injury_adjusted:
+        data_dir = output_dir or "./data"
+        projection_season = season[0] if season else 2026
+        season_list = list(range(projection_season - seasons_back + 1, projection_season + 1))
+        with build_injury_profile_context(data_dir) as inj_ctx:
+            estimates = inj_ctx.profiler.list_games_lost_estimates(season_list, projection_season=projection_season)
+        params["injury_discounts"] = {est.player_id: est.expected_days_lost for est, _, _ in estimates}
     config = load_config(
         model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
     )

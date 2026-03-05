@@ -5,7 +5,7 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._output._common import console
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import ExpectedGamesLost, InjuryProfile
+    from fantasy_baseball_manager.domain import ExpectedGamesLost, InjuryProfile, InjuryValueDelta
 
 
 def print_injury_profile(profile: InjuryProfile, player_name: str) -> None:
@@ -100,6 +100,41 @@ def print_injury_estimate(estimate: ExpectedGamesLost, profile: InjuryProfile, p
         console.print("[bold]Injury Locations:[/bold]")
         for location, count in sorted(profile.injury_locations.items(), key=lambda x: x[1], reverse=True):
             console.print(f"  {location}: {count}")
+
+
+def print_injury_value_deltas(deltas: list[InjuryValueDelta], top: int | None = None) -> None:
+    """Print injury-adjusted value delta table."""
+    if not deltas:
+        console.print("No injury value deltas found.")
+        return
+
+    display = deltas[:top] if top is not None else deltas
+    console.print(f"[bold]Injury-Adjusted Value Changes[/bold] — {len(display)} players")
+    console.print()
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Player")
+    table.add_column("Orig $", justify="right")
+    table.add_column("Adj $", justify="right")
+    table.add_column("Delta $", justify="right")
+    table.add_column("Orig Rank", justify="right")
+    table.add_column("New Rank", justify="right")
+    table.add_column("Rank Chg", justify="right")
+    table.add_column("Exp Days", justify="right")
+
+    for d in display:
+        table.add_row(
+            d.player_name,
+            f"{d.original_value:.1f}",
+            f"{d.adjusted_value:.1f}",
+            f"{d.value_delta:+.1f}",
+            str(d.original_rank),
+            str(d.adjusted_rank),
+            f"{d.rank_change:+d}",
+            f"{d.expected_days_lost:.1f}",
+        )
+
+    console.print(table)
 
 
 def print_games_lost_leaderboard(results: list[tuple[ExpectedGamesLost, InjuryProfile, str]]) -> None:

@@ -68,6 +68,7 @@ from fantasy_baseball_manager.services.feature_factory import (
     validate_expression,
 )
 from fantasy_baseball_manager.services.games_lost_estimator import estimate_games_lost
+from fantasy_baseball_manager.services.injury_discount import apply_injury_discount, discount_projections
 from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
 from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
 from fantasy_baseball_manager.services.keeper_history import build_keeper_histories
@@ -263,7 +264,9 @@ __all__ = [
     "assign_age_cohorts",
     "assign_experience_cohorts",
     "assign_top300_cohorts",
+    "apply_injury_discount",
     "build_profiles",
+    "discount_projections",
     "estimate_games_lost",
     "build_draft_board",
     "build_draft_roster_slots",

@@ -804,6 +804,42 @@ def build_feature_context(data_dir: str) -> Iterator[FeatureContext]:
 
 
 @dataclass(frozen=True)
+class InjuryAdjustedValuationsContext:
+    conn: sqlite3.Connection
+    projection_repo: SqliteProjectionRepo
+    player_repo: SqlitePlayerRepo
+    valuation_repo: SqliteValuationRepo
+    eligibility_service: PlayerEligibilityService
+    profiler: InjuryProfiler
+
+
+@contextmanager
+def build_injury_adjusted_valuations_context(data_dir: str) -> Iterator[InjuryAdjustedValuationsContext]:
+    """Composition-root context manager for injury-adjusted valuation commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        position_repo = SqlitePositionAppearanceRepo(conn)
+        pitching_stats_repo = SqlitePitchingStatsRepo(conn)
+        eligibility_service = PlayerEligibilityService(
+            position_repo,
+            pitching_stats_repo=pitching_stats_repo,
+        )
+        yield InjuryAdjustedValuationsContext(
+            conn=conn,
+            projection_repo=SqliteProjectionRepo(conn),
+            player_repo=SqlitePlayerRepo(conn),
+            valuation_repo=SqliteValuationRepo(conn),
+            eligibility_service=eligibility_service,
+            profiler=InjuryProfiler(
+                player_repo=SqlitePlayerRepo(conn),
+                il_stint_repo=SqliteILStintRepo(conn),
+            ),
+        )
+    finally:
+        conn.close()
+
+
+@dataclass(frozen=True)
 class InjuryProfileContext:
     conn: sqlite3.Connection
     profiler: InjuryProfiler

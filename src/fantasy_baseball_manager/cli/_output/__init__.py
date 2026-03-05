@@ -47,6 +47,7 @@ from fantasy_baseball_manager.cli._output._injury import (
     print_injury_estimate,
     print_injury_profile,
     print_injury_risk_leaderboard,
+    print_injury_value_deltas,
 )
 from fantasy_baseball_manager.cli._output._keeper import (
     print_adjusted_rankings,
@@ -192,6 +193,7 @@ __all__ = [
     "print_injury_estimate",
     "print_injury_profile",
     "print_injury_risk_leaderboard",
+    "print_injury_value_deltas",
     "print_keeper_decisions",
     "print_keeper_scenarios",
     "print_keeper_solution",
