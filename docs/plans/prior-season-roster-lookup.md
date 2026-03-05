@@ -10,7 +10,7 @@ The sibling project (`fantasy-baseball`) solves this by walking the Yahoo renewa
 |-------|--------|
 | 1 — Auto-sync prior season | done (2026-03-04) |
 | 2 — End-of-season roster fetch | done (2026-03-05) |
-| 3 — League-wide keeper intelligence | not started |
+| 3 — League-wide keeper intelligence | in progress |
 
 ## Phase 1: Auto-sync prior season
 
