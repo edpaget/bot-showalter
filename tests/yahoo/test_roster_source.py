@@ -130,6 +130,19 @@ _DEFAULT_ROSTER_RESPONSE: dict[str, Any] = {
 }
 
 
+_EMPTY_PLAYERS_ROSTER_RESPONSE: dict[str, Any] = {
+    "fantasy_content": {
+        "team": [
+            [
+                {"team_key": "449.l.12345.t.1"},
+                {"name": "My Team"},
+            ],
+            {"roster": {"0": {"players": []}}},
+        ]
+    }
+}
+
+
 _EMPTY_ROSTER_RESPONSE: dict[str, Any] = {
     "fantasy_content": {
         "team": [
@@ -279,6 +292,23 @@ class TestYahooRosterSource:
 
         assert fake_client.last_week == 5
         assert roster.week == 5
+
+    def test_empty_players_list_returns_empty_entries(self, conn: sqlite3.Connection) -> None:
+        """Yahoo returns players as [] (not {}) when the roster has no players."""
+        player_repo = SqlitePlayerRepo(conn)
+        map_repo = SqliteYahooPlayerMapRepo(conn)
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        source = YahooRosterSource(FakeClient(_EMPTY_PLAYERS_ROSTER_RESPONSE), mapper)  # type: ignore[arg-type]
+
+        roster = source.fetch_team_roster(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2026,
+            week=1,
+            as_of=datetime.date(2026, 3, 27),
+        )
+
+        assert roster.entries == ()
 
     def test_empty_roster_returns_empty_entries(self, conn: sqlite3.Connection) -> None:
         player_repo = SqlitePlayerRepo(conn)

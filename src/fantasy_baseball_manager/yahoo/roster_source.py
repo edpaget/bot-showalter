@@ -76,6 +76,10 @@ class YahooRosterSource:
             return entries
         roster_data = roster_section["0"]["players"]
 
+        # Yahoo returns an empty list when there are no players, but a dict otherwise.
+        if isinstance(roster_data, list):
+            return entries
+
         for key, value in roster_data.items():
             if key == "count":
                 continue
