@@ -6,6 +6,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 
 | Roadmap | Phases | Progress | Hard Dependencies |
 |---------|--------|----------|-------------------|
+| [Connection Pool Repos](connection-pool-repos.md) | 4 | phase 1 done | none |
 | [Injury Valuation Cleanup](injury-valuation-cleanup.md) | 3 | not started | injury-risk-discount (done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
@@ -15,7 +16,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Playing Time Flexibility](playing-time-flexibility.md) | 4 | phases 1-3 done | none |
 | [Experiment System Generalization](experiment-system-generalization.md) | 4 | phase 1 done | experiment-journal (done), fast-feedback-loop (done) |
-| [Connection Pool Repos](connection-pool-repos.md) | 4 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 
 ## Completed Roadmaps

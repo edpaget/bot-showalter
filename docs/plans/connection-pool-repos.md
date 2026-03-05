@@ -8,7 +8,7 @@ The key design challenge is that repos serve two modes: **read-only** (agent too
 
 | Phase | Status |
 |-------|--------|
-| 1 — ConnectionProvider protocol | not started |
+| 1 — ConnectionProvider protocol | done (2026-03-05) |
 | 2 — Migrate repos | not started |
 | 3 — Migrate composition roots and tests | not started |
 | 4 — Wire pool into agent path | not started |
