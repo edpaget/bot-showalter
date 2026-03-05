@@ -341,12 +341,18 @@ class _StatcastGBMBase:
         )
 
     def train(self, config: ModelConfig) -> TrainResult:
-        if len(config.seasons) < 2:
-            msg = f"train requires at least 2 seasons (got {len(config.seasons)})"
+        production = config.model_params.get("production", False)
+        min_seasons = 1 if production else 2
+        if len(config.seasons) < min_seasons:
+            msg = f"train requires at least {min_seasons} seasons (got {len(config.seasons)})"
             raise ValueError(msg)
 
-        train_seasons = config.seasons[:-1]
-        holdout_seasons = [config.seasons[-1]]
+        if production:
+            train_seasons = config.seasons
+            holdout_seasons: list[int] = []
+        else:
+            train_seasons = config.seasons[:-1]
+            holdout_seasons = [config.seasons[-1]]
         metrics: dict[str, float] = {}
         artifact_path = self._artifact_path(config)
         artifact_path.mkdir(parents=True, exist_ok=True)
@@ -357,7 +363,7 @@ class _StatcastGBMBase:
         # --- Batter training ---
         bat_fs = self._batter_training_set_builder(config.seasons)
         bat_handle = self._assembler.get_or_materialize(bat_fs)
-        bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=holdout_seasons)
+        bat_splits = self._assembler.split(bat_handle, train=train_seasons, holdout=holdout_seasons or None)
 
         bat_train_rows = self._assembler.read(bat_splits.train)
         bat_min_pa = self._resolve_min_pa(batter_params)
@@ -424,7 +430,7 @@ class _StatcastGBMBase:
         # --- Pitcher training ---
         pit_fs = self._pitcher_training_set_builder(config.seasons)
         pit_handle = self._assembler.get_or_materialize(pit_fs)
-        pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=holdout_seasons)
+        pit_splits = self._assembler.split(pit_handle, train=train_seasons, holdout=holdout_seasons or None)
 
         pit_train_rows = self._assembler.read(pit_splits.train)
         pit_min_ip = self._resolve_min_ip(pitcher_params)

@@ -148,13 +148,9 @@ class FakeAssembler:
     ) -> DatasetSplits:
         source = self._select_rows(handle.table_name)
         train_seasons = list(train)
-        holdout_seasons = holdout or []
         train_rows = []
         for s in train_seasons:
             train_rows.extend(source.get(s, []))
-        holdout_rows = []
-        for s in holdout_seasons:
-            holdout_rows.extend(source.get(s, []))
         train_handle = DatasetHandle(
             dataset_id=self._next_id,
             feature_set_id=handle.feature_set_id,
@@ -163,14 +159,19 @@ class FakeAssembler:
             seasons=tuple(train_seasons),
         )
         self._next_id += 1
-        holdout_handle = DatasetHandle(
-            dataset_id=self._next_id,
-            feature_set_id=handle.feature_set_id,
-            table_name=f"{handle.table_name}_holdout",
-            row_count=len(holdout_rows),
-            seasons=tuple(holdout_seasons),
-        )
-        self._next_id += 1
+        holdout_handle: DatasetHandle | None = None
+        if holdout:
+            holdout_rows = []
+            for s in holdout:
+                holdout_rows.extend(source.get(s, []))
+            holdout_handle = DatasetHandle(
+                dataset_id=self._next_id,
+                feature_set_id=handle.feature_set_id,
+                table_name=f"{handle.table_name}_holdout",
+                row_count=len(holdout_rows),
+                seasons=tuple(holdout),
+            )
+            self._next_id += 1
         return DatasetSplits(train=train_handle, validation=None, holdout=holdout_handle)
 
     def read(self, handle: DatasetHandle) -> list[dict[str, Any]]:
@@ -365,6 +366,34 @@ class TestStatcastGBMTrain:
             artifacts_dir=str(tmp_path),
         )
         model.train(config)
+        batter_path = tmp_path / "statcast-gbm" / "latest" / "batter_models.joblib"
+        pitcher_path = tmp_path / "statcast-gbm" / "latest" / "pitcher_models.joblib"
+        assert batter_path.exists()
+        assert pitcher_path.exists()
+
+    def test_train_production_uses_all_seasons(self, tmp_path: Path) -> None:
+        rows_by_season = {
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
+            2024: _make_rows(10, 2024),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+            2024: _make_pitcher_rows(10, 2024),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        config = ModelConfig(
+            seasons=[2022, 2023, 2024],
+            artifacts_dir=str(tmp_path),
+            model_params={"production": True},
+        )
+        result = model.train(config)
+        assert isinstance(result, TrainResult)
+        # No holdout metrics in production mode
+        assert result.metrics == {}
+        # Artifacts still saved
         batter_path = tmp_path / "statcast-gbm" / "latest" / "batter_models.joblib"
         pitcher_path = tmp_path / "statcast-gbm" / "latest" / "pitcher_models.joblib"
         assert batter_path.exists()

@@ -112,6 +112,7 @@ def train(  # pragma: no cover
     tag: _TagOpt = None,
     param: _ParamOpt = None,
     pt_systems: _PTSystemsOpt = None,
+    production: Annotated[bool, typer.Option("--production", help="Train on all seasons with no holdout")] = False,
 ) -> None:
     """Train a projection model."""
     tags = parse_tags(tag)
@@ -119,6 +120,9 @@ def train(  # pragma: no cover
     if pt_systems is not None:
         params = params or {}
         params["pt_systems"] = pt_systems
+    if production:
+        params = params or {}
+        params["production"] = True
     config = load_config(
         model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
     )
