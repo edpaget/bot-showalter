@@ -18,6 +18,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Playing Time Flexibility](playing-time-flexibility.md) | 4 | phase 1 done | none |
+| [Experiment System Generalization](experiment-system-generalization.md) | 4 | not started | experiment-journal (done), fast-feedback-loop (done) |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 
 ## Completed Roadmaps
