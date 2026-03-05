@@ -13,6 +13,8 @@ from fantasy_baseball_manager.models.playing_time.features import (
 )
 
 _THREE_SYSTEMS = (("steamer", 1.0), ("zips", 1.0), ("atc", 1.0))
+_EMPTY_SYSTEMS: tuple[tuple[str, float], ...] = ()
+_SINGLE_SYSTEM = (("steamer", 1.0),)
 
 
 class TestBattingPtFeatures:
@@ -518,3 +520,72 @@ class TestPitchingFeaturesThreeSystems:
         assert "zips_ip" not in columns
         assert "atc_ip" not in columns
         assert "consensus_ip" in columns
+
+
+class TestEmptySystemsBatting:
+    def test_empty_systems_produces_no_projection_features(self) -> None:
+        features = build_batting_pt_features(pt_systems=_EMPTY_SYSTEMS)
+        proj_features = [f for f in features if isinstance(f, Feature) and f.source == Source.PROJECTION]
+        assert len(proj_features) == 0
+
+    def test_empty_systems_derived_transforms_skip_consensus(self) -> None:
+        transforms = build_batting_pt_derived_transforms(pt_systems=_EMPTY_SYSTEMS)
+        assert len(transforms) == 5
+        names = [t.name for t in transforms]
+        assert "consensus_pa" not in names
+
+    def test_empty_systems_feature_columns_no_consensus(self) -> None:
+        columns = batting_pt_feature_columns(pt_systems=_EMPTY_SYSTEMS)
+        assert "consensus_pa" not in columns
+        assert "steamer_pa" not in columns
+        assert "zips_pa" not in columns
+        # Base features still present
+        assert "age" in columns
+        assert "pa_1" in columns
+
+
+class TestEmptySystemsPitching:
+    def test_empty_systems_produces_no_projection_features(self) -> None:
+        features = build_pitching_pt_features(pt_systems=_EMPTY_SYSTEMS)
+        proj_features = [f for f in features if isinstance(f, Feature) and f.source == Source.PROJECTION]
+        assert len(proj_features) == 0
+
+    def test_empty_systems_derived_transforms_skip_consensus(self) -> None:
+        transforms = build_pitching_pt_derived_transforms(pt_systems=_EMPTY_SYSTEMS)
+        assert len(transforms) == 6
+        names = [t.name for t in transforms]
+        assert "consensus_ip" not in names
+
+    def test_empty_systems_feature_columns_no_consensus(self) -> None:
+        columns = pitching_pt_feature_columns(pt_systems=_EMPTY_SYSTEMS)
+        assert "consensus_ip" not in columns
+        assert "steamer_ip" not in columns
+        assert "zips_ip" not in columns
+        assert "age" in columns
+        assert "ip_1" in columns
+
+
+class TestSingleSystemBatting:
+    def test_single_system_produces_one_projection_feature(self) -> None:
+        features = build_batting_pt_features(pt_systems=_SINGLE_SYSTEM)
+        proj_features = [f for f in features if isinstance(f, Feature) and f.source == Source.PROJECTION]
+        assert len(proj_features) == 1
+        assert proj_features[0].name == "steamer_pa"
+
+    def test_single_system_consensus_uses_single_input(self) -> None:
+        transforms = build_batting_pt_derived_transforms(pt_systems=_SINGLE_SYSTEM)
+        consensus = next(t for t in transforms if t.name == "consensus_pa")
+        assert set(consensus.inputs) == {"steamer_pa"}
+
+
+class TestSingleSystemPitching:
+    def test_single_system_produces_one_projection_feature(self) -> None:
+        features = build_pitching_pt_features(pt_systems=_SINGLE_SYSTEM)
+        proj_features = [f for f in features if isinstance(f, Feature) and f.source == Source.PROJECTION]
+        assert len(proj_features) == 1
+        assert proj_features[0].name == "steamer_ip"
+
+    def test_single_system_consensus_uses_single_input(self) -> None:
+        transforms = build_pitching_pt_derived_transforms(pt_systems=_SINGLE_SYSTEM)
+        consensus = next(t for t in transforms if t.name == "consensus_ip")
+        assert set(consensus.inputs) == {"steamer_ip"}

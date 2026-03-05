@@ -1,7 +1,12 @@
 """Playing-time model — projects PA (batters) and IP (pitchers) via OLS regression."""
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 from fantasy_baseball_manager.domain import ArtifactType
 from fantasy_baseball_manager.features import (
@@ -26,6 +31,7 @@ from fantasy_baseball_manager.models.playing_time.engine import (
     select_alpha,
 )
 from fantasy_baseball_manager.models.playing_time.features import (
+    _DEFAULT_PT_SYSTEMS,
     batting_pt_feature_columns,
     build_batting_pt_derived_transforms,
     build_batting_pt_features,
@@ -58,6 +64,29 @@ _AGING_CURVES_FILENAME = "pt_aging_curves.joblib"
 _RESIDUAL_BUCKETS_FILENAME = "pt_residual_buckets.joblib"
 
 
+def _parse_pt_systems(model_params: dict[str, Any]) -> tuple[tuple[str, float], ...]:
+    """Parse ``pt_systems`` from model config params.
+
+    Accepts:
+    - ``["steamer", "zips", "atc"]`` — equal weights (1.0 each)
+    - ``[["steamer", 1.0], ["zips", 0.5]]`` — explicit weights
+    - ``[]`` — autoregressive mode (no external systems)
+
+    Returns the default systems when ``pt_systems`` is absent.
+    """
+    raw = model_params.get("pt_systems")
+    if raw is None:
+        return _DEFAULT_PT_SYSTEMS
+
+    result: list[tuple[str, float]] = []
+    for entry in raw:
+        if isinstance(entry, str):
+            result.append((entry, 1.0))
+        else:
+            result.append((entry[0], float(entry[1])))
+    return tuple(result)
+
+
 @register("playing_time")
 class PlayingTimeModel:
     def __init__(self, assembler: DatasetAssembler) -> None:
@@ -85,15 +114,16 @@ class PlayingTimeModel:
         *,
         training: bool = False,
         lags: int = 3,
+        pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
     ) -> tuple[FeatureSet, FeatureSet]:
         if training:
-            bat_features = build_batting_pt_training_features(lags)
-            pitch_features = build_pitching_pt_training_features(lags)
+            bat_features = build_batting_pt_training_features(lags, pt_systems)
+            pitch_features = build_pitching_pt_training_features(lags, pt_systems)
         else:
-            bat_features: list[AnyFeature] = list(build_batting_pt_features(lags))
-            bat_features.extend(build_batting_pt_derived_transforms(lags))
-            pitch_features: list[AnyFeature] = list(build_pitching_pt_features(lags))
-            pitch_features.extend(build_pitching_pt_derived_transforms(lags))
+            bat_features: list[AnyFeature] = list(build_batting_pt_features(lags, pt_systems))
+            bat_features.extend(build_batting_pt_derived_transforms(lags, pt_systems))
+            pitch_features: list[AnyFeature] = list(build_pitching_pt_features(lags, pt_systems))
+            pitch_features.extend(build_pitching_pt_derived_transforms(lags, pt_systems))
 
         batting_fs = FeatureSet(
             name="playing_time_batting_train" if training else "playing_time_batting",
@@ -117,7 +147,8 @@ class PlayingTimeModel:
     def prepare(self, config: ModelConfig) -> PrepareResult:
 
         lags = config.model_params.get("lags", 3)
-        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags)
+        pt_systems = _parse_pt_systems(config.model_params)
+        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags, pt_systems=pt_systems)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -132,7 +163,10 @@ class PlayingTimeModel:
 
         lags = config.model_params.get("lags", 3)
         aging_min_samples: int = config.model_params.get("aging_min_samples", 30)
-        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, training=True, lags=lags)
+        pt_systems = _parse_pt_systems(config.model_params)
+        batting_fs, pitching_fs = self._build_feature_sets(
+            config.seasons, training=True, lags=lags, pt_systems=pt_systems
+        )
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -162,8 +196,8 @@ class PlayingTimeModel:
         bat_rows = enrich_rows_with_age_pt_factor(bat_rows, bat_curve)
         pitch_rows = enrich_rows_with_age_pt_factor(pitch_rows, pitch_curve)
 
-        bat_columns = batting_pt_feature_columns(lags) + ["age_pt_factor"]
-        pitch_columns = pitching_pt_feature_columns(lags) + ["age_pt_factor"]
+        bat_columns = batting_pt_feature_columns(lags, pt_systems) + ["age_pt_factor"]
+        pitch_columns = pitching_pt_feature_columns(lags, pt_systems) + ["age_pt_factor"]
 
         alpha_override: float | None = config.model_params.get("alpha", None)
 
@@ -239,6 +273,7 @@ class PlayingTimeModel:
     def predict(self, config: ModelConfig) -> PredictResult:
 
         lags = config.model_params.get("lags", 3)
+        pt_systems = _parse_pt_systems(config.model_params)
 
         artifact_path = self._artifact_path(config)
         coefficients = load_coefficients(artifact_path / _ARTIFACT_FILENAME)
@@ -250,7 +285,7 @@ class PlayingTimeModel:
         residual_buckets_path = artifact_path / _RESIDUAL_BUCKETS_FILENAME
         residual_buckets = load_residual_buckets(residual_buckets_path) if residual_buckets_path.exists() else None
 
-        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags)
+        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags, pt_systems=pt_systems)
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -366,11 +401,14 @@ class PlayingTimeModel:
 
         lags = config.model_params.get("lags", 3)
         aging_min_samples: int = config.model_params.get("aging_min_samples", 30)
+        pt_systems = _parse_pt_systems(config.model_params)
 
         if len(config.seasons) < 2:
             return AblationResult(model_name=self.name, feature_impacts={})
 
-        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, training=True, lags=lags)
+        batting_fs, pitching_fs = self._build_feature_sets(
+            config.seasons, training=True, lags=lags, pt_systems=pt_systems
+        )
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
         bat_rows = self._assembler.read(bat_handle)
@@ -397,8 +435,9 @@ class PlayingTimeModel:
             ("war_thresholds", ["war_above_2", "war_above_4", "war_below_0"]),
             ("interactions", ["war_trend", "pt_trend"]),
             ("aging", ["age_pt_factor"]),
-            ("consensus_pt", ["consensus_pa"]),
         ]
+        if pt_systems:
+            batting_groups.append(("consensus_pt", ["consensus_pa"]))
 
         pitching_groups: list[tuple[str, list[str]]] = [
             ("base", ["age", "ip_1", "ip_2", "ip_3", "g_1", "g_2", "g_3", "gs_1"]),
@@ -407,8 +446,9 @@ class PlayingTimeModel:
             ("interactions", ["war_trend", "pt_trend"]),
             ("aging", ["age_pt_factor"]),
             ("starter_ratio", ["starter_ratio"]),
-            ("consensus_pt", ["consensus_ip"]),
         ]
+        if pt_systems:
+            pitching_groups.append(("consensus_pt", ["consensus_ip"]))
 
         feature_impacts: dict[str, float] = {}
         use_auto_alpha = alpha_override is None

@@ -40,6 +40,8 @@ def _build_projection_features(
     pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
 ) -> list[Feature]:
     """Build per-system projection features for the given stat."""
+    if not pt_systems:
+        return []
     if pt_systems == _DEFAULT_PT_SYSTEMS:
         # Use pre-built module-level features for default systems
         if stat == "pa":
@@ -115,7 +117,7 @@ def build_batting_pt_derived_transforms(
     if lags >= 2:
         pt_inputs = ("pa_1", "pa_2")
 
-    return [
+    transforms = [
         DerivedTransformFeature(
             name="il_summary",
             inputs=il_inputs,
@@ -151,8 +153,10 @@ def build_batting_pt_derived_transforms(
             transform=make_pt_interaction_transform(),
             outputs=("war_trend", "age_il_interact"),
         ),
-        _build_consensus_derived("pa", pt_systems),
     ]
+    if pt_systems:
+        transforms.append(_build_consensus_derived("pa", pt_systems))
+    return transforms
 
 
 def build_pitching_pt_derived_transforms(
@@ -168,7 +172,7 @@ def build_pitching_pt_derived_transforms(
     if lags >= 2:
         pt_inputs = ("ip_1", "ip_2")
 
-    return [
+    transforms = [
         DerivedTransformFeature(
             name="il_summary",
             inputs=il_inputs,
@@ -211,8 +215,10 @@ def build_pitching_pt_derived_transforms(
             transform=make_pt_interaction_transform(),
             outputs=("war_trend", "age_il_interact"),
         ),
-        _build_consensus_derived("ip", pt_systems),
     ]
+    if pt_systems:
+        transforms.append(_build_consensus_derived("ip", pt_systems))
+    return transforms
 
 
 def build_batting_pt_training_features(

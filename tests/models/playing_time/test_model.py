@@ -694,3 +694,197 @@ class TestPlayingTimeAblate:
         result = model.train(_train_config(tmp_path))
         assert result.metrics["r_squared_batter"] >= 0.0
         assert result.metrics["r_squared_pitcher"] >= 0.0
+
+
+def _make_batting_row_three_systems(player_id: int, season: int, pa_1: float = 500.0) -> dict[str, Any]:
+    """Create a batting row with three projection systems."""
+    row = _make_batting_row(player_id, season, pa_1)
+    row["atc_pa"] = 590.0
+    row["consensus_pa"] = (row["steamer_pa"] + row["zips_pa"] + row["atc_pa"]) / 3
+    return row
+
+
+def _make_pitching_row_three_systems(player_id: int, season: int, ip_1: float = 180.0) -> dict[str, Any]:
+    """Create a pitching row with three projection systems."""
+    row = _make_pitching_row(player_id, season, ip_1)
+    row["atc_ip"] = 185.0
+    row["consensus_ip"] = (row["steamer_ip"] + row["zips_ip"] + row["atc_ip"]) / 3
+    return row
+
+
+def _make_batting_row_single_system(player_id: int, season: int, pa_1: float = 500.0) -> dict[str, Any]:
+    """Create a batting row with only steamer projections."""
+    row = _make_batting_row(player_id, season, pa_1)
+    del row["zips_pa"]
+    row["consensus_pa"] = row["steamer_pa"]
+    return row
+
+
+def _make_pitching_row_single_system(player_id: int, season: int, ip_1: float = 180.0) -> dict[str, Any]:
+    """Create a pitching row with only steamer projections."""
+    row = _make_pitching_row(player_id, season, ip_1)
+    del row["zips_ip"]
+    row["consensus_ip"] = row["steamer_ip"]
+    return row
+
+
+def _make_batting_row_autoregressive(player_id: int, season: int, pa_1: float = 500.0) -> dict[str, Any]:
+    """Create a batting row with no projection systems."""
+    row = _make_batting_row(player_id, season, pa_1)
+    del row["steamer_pa"]
+    del row["zips_pa"]
+    del row["consensus_pa"]
+    return row
+
+
+def _make_pitching_row_autoregressive(player_id: int, season: int, ip_1: float = 180.0) -> dict[str, Any]:
+    """Create a pitching row with no projection systems."""
+    row = _make_pitching_row(player_id, season, ip_1)
+    del row["steamer_ip"]
+    del row["zips_ip"]
+    del row["consensus_ip"]
+    return row
+
+
+class TestPlayingTimeTrainThreeSystems:
+    def test_train_with_three_systems(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row_three_systems(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row_three_systems(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "pt_systems": ["steamer", "zips", "atc"]},
+        )
+        result = model.train(config)
+        assert result.metrics["r_squared_batter"] >= 0.0
+        assert result.metrics["r_squared_pitcher"] >= 0.0
+
+    def test_train_with_three_systems_produces_predictions(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row_three_systems(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row_three_systems(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "pt_systems": ["steamer", "zips", "atc"]},
+        )
+        model.train(config)
+        predict_config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"pt_systems": ["steamer", "zips", "atc"]},
+        )
+        result = model.predict(predict_config)
+        assert len(result.predictions) == 20
+
+
+class TestPlayingTimeTrainSingleSystem:
+    def test_train_with_single_system(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row_single_system(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row_single_system(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "pt_systems": ["steamer"]},
+        )
+        result = model.train(config)
+        assert result.metrics["r_squared_batter"] >= 0.0
+        assert result.metrics["r_squared_pitcher"] >= 0.0
+
+
+class TestPlayingTimeTrainAutoregressive:
+    def test_train_autoregressive(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row_autoregressive(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row_autoregressive(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "pt_systems": []},
+        )
+        result = model.train(config)
+        assert result.metrics["r_squared_batter"] >= 0.0
+        assert result.metrics["r_squared_pitcher"] >= 0.0
+
+
+def _make_multi_season_batting_rows_three_systems(
+    seasons: list[int], players_per_season: int = 10
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for season in seasons:
+        for i in range(players_per_season):
+            rows.append(_make_batting_row_three_systems(i, season, pa_1=400.0 + i * 20 + season % 10))
+    return rows
+
+
+def _make_multi_season_pitching_rows_three_systems(
+    seasons: list[int], players_per_season: int = 10
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for season in seasons:
+        for i in range(players_per_season):
+            rows.append(_make_pitching_row_three_systems(i + 100, season, ip_1=150.0 + i * 10 + season % 10))
+    return rows
+
+
+def _make_multi_season_batting_rows_autoregressive(
+    seasons: list[int], players_per_season: int = 10
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for season in seasons:
+        for i in range(players_per_season):
+            rows.append(_make_batting_row_autoregressive(i, season, pa_1=400.0 + i * 20 + season % 10))
+    return rows
+
+
+def _make_multi_season_pitching_rows_autoregressive(
+    seasons: list[int], players_per_season: int = 10
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for season in seasons:
+        for i in range(players_per_season):
+            rows.append(_make_pitching_row_autoregressive(i + 100, season, ip_1=150.0 + i * 10 + season % 10))
+    return rows
+
+
+class TestPlayingTimeAblateThreeSystems:
+    def test_ablate_with_three_systems(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows_three_systems(seasons)
+        pitching_rows = _make_multi_season_pitching_rows_three_systems(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=seasons,
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "pt_systems": ["steamer", "zips", "atc"]},
+        )
+        result = model.ablate(config)
+        assert "batter:consensus_pt" in result.feature_impacts
+        assert "pitcher:consensus_pt" in result.feature_impacts
+
+
+class TestPlayingTimeAblateAutoregressive:
+    def test_ablate_autoregressive(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows_autoregressive(seasons)
+        pitching_rows = _make_multi_season_pitching_rows_autoregressive(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=seasons,
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "pt_systems": []},
+        )
+        result = model.ablate(config)
+        assert "batter:consensus_pt" not in result.feature_impacts
+        assert "pitcher:consensus_pt" not in result.feature_impacts
+        # Still has base groups
+        assert "batter:base" in result.feature_impacts
+        assert "pitcher:base" in result.feature_impacts
