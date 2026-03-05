@@ -14,6 +14,7 @@ from fantasy_baseball_manager.domain.evaluation import (
     SystemMetrics,
 )
 from fantasy_baseball_manager.models import ModelConfig, PredictResult, TrainResult
+from fantasy_baseball_manager.models.gbm_training_backend import GBMTrainingBackend
 from fantasy_baseball_manager.services.validation_gate import (
     FullValidationConfig,
     FullValidationRunner,
@@ -238,7 +239,7 @@ class TestScoreCvFolds:
         seasons = [2020, 2021, 2022, 2023, 2024]
         params: dict[str, int | float] = {"max_iter": 50, "max_depth": 3}
 
-        result = score_cv_folds(columns, targets, rows_by_season, seasons, params)
+        result = score_cv_folds(columns, targets, rows_by_season, seasons, params, GBMTrainingBackend())
 
         # 5 seasons → 3 CV folds (temporal expanding, last season reserved for holdout)
         assert len(result) == 3
@@ -257,9 +258,10 @@ class TestScoreCvFolds:
         params: dict[str, int | float] = {"max_iter": 100, "max_depth": 3}
 
         # Baseline: only feat_a
-        baseline_result = score_cv_folds(["feat_a"], targets, rows_by_season, seasons, params)
+        backend = GBMTrainingBackend()
+        baseline_result = score_cv_folds(["feat_a"], targets, rows_by_season, seasons, params, backend)
         # Candidate: both features
-        candidate_result = score_cv_folds(["feat_a", "feat_b"], targets, rows_by_season, seasons, params)
+        candidate_result = score_cv_folds(["feat_a", "feat_b"], targets, rows_by_season, seasons, params, backend)
 
         # Check with preflight_check
         pf = preflight_check(candidate_result, baseline_result)

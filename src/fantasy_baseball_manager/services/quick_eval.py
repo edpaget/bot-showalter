@@ -1,16 +1,16 @@
 """Single-target quick evaluation and marginal value estimation."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from fantasy_baseball_manager.models.gbm_training import (
-    extract_features,
-    extract_targets,
-    fit_models,
-)
 from fantasy_baseball_manager.models.sampling import holdout_metrics
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain import TrainingBackend
 
 
 @dataclass(frozen=True)
@@ -62,6 +62,7 @@ def quick_eval(
     params: dict[str, Any] | None = None,
     *,
     baseline_rmse: float | None = None,
+    backend: TrainingBackend,
 ) -> QuickEvalResult:
     """Train a single target GBM and evaluate on one holdout season.
 
@@ -70,19 +71,18 @@ def quick_eval(
     train_rows = [row for s in train_seasons for row in rows_by_season.get(s, [])]
     holdout_rows = rows_by_season.get(holdout_season, [])
 
-    X_train = extract_features(train_rows, feature_columns)
-    y_train = extract_targets(train_rows, [target])
+    X_train = backend.extract_features(train_rows, feature_columns)
+    y_train = backend.extract_targets(train_rows, [target])
 
-    X_holdout = extract_features(holdout_rows, feature_columns)
-    y_holdout = extract_targets(holdout_rows, [target])
+    X_holdout = backend.extract_features(holdout_rows, feature_columns)
+    y_holdout = backend.extract_targets(holdout_rows, [target])
 
     model_params = params or {}
-    models = fit_models(X_train, y_train, model_params)
+    fitted = backend.fit(X_train, y_train, model_params)
 
-    model = models[target]
     tv = y_holdout[target]
     X_holdout_filtered = [X_holdout[i] for i in tv.indices]
-    y_pred = model.predict(X_holdout_filtered)
+    y_pred = fitted.predict(target, X_holdout_filtered)
 
     metrics = holdout_metrics(np.array(tv.values), y_pred)
 
@@ -111,10 +111,12 @@ def marginal_value(
     train_seasons: list[int],
     holdout_season: int,
     params: dict[str, Any] | None = None,
+    *,
+    backend: TrainingBackend,
 ) -> MarginalValueResult:
     """Compare baseline features vs baseline + candidate on identical data.
 
-    Trains two GBMs per target — one with the current feature set, one with
+    Trains two models per target — one with the current feature set, one with
     the candidate column appended — and reports per-target RMSE deltas.
 
     Pure computation — no files written, no database changes.
@@ -124,20 +126,20 @@ def marginal_value(
     model_params = params or {}
 
     # Baseline model
-    baseline_X_train = extract_features(train_rows, feature_columns)
-    baseline_y_train = extract_targets(train_rows, targets)
-    baseline_models = fit_models(baseline_X_train, baseline_y_train, model_params)
+    baseline_X_train = backend.extract_features(train_rows, feature_columns)
+    baseline_y_train = backend.extract_targets(train_rows, targets)
+    baseline_fitted = backend.fit(baseline_X_train, baseline_y_train, model_params)
 
-    baseline_X_holdout = extract_features(holdout_rows, feature_columns)
-    baseline_y_holdout = extract_targets(holdout_rows, targets)
+    baseline_X_holdout = backend.extract_features(holdout_rows, feature_columns)
+    baseline_y_holdout = backend.extract_targets(holdout_rows, targets)
 
     # Candidate model (baseline + candidate column)
     candidate_columns = feature_columns + [candidate_column]
-    candidate_X_train = extract_features(train_rows, candidate_columns)
-    candidate_y_train = extract_targets(train_rows, targets)
-    candidate_models = fit_models(candidate_X_train, candidate_y_train, model_params)
+    candidate_X_train = backend.extract_features(train_rows, candidate_columns)
+    candidate_y_train = backend.extract_targets(train_rows, targets)
+    candidate_fitted = backend.fit(candidate_X_train, candidate_y_train, model_params)
 
-    candidate_X_holdout = extract_features(holdout_rows, candidate_columns)
+    candidate_X_holdout = backend.extract_features(holdout_rows, candidate_columns)
 
     # Score each target
     deltas: list[TargetDelta] = []
@@ -145,12 +147,12 @@ def marginal_value(
         # Baseline scoring
         b_tv = baseline_y_holdout[target]
         b_X_filtered = [baseline_X_holdout[i] for i in b_tv.indices]
-        b_pred = baseline_models[target].predict(b_X_filtered)
+        b_pred = baseline_fitted.predict(target, b_X_filtered)
         b_metrics = holdout_metrics(np.array(b_tv.values), b_pred)
 
         # Candidate scoring — use same holdout indices for fair comparison
         c_X_filtered = [candidate_X_holdout[i] for i in b_tv.indices]
-        c_pred = candidate_models[target].predict(c_X_filtered)
+        c_pred = candidate_fitted.predict(target, c_X_filtered)
         c_metrics = holdout_metrics(np.array(b_tv.values), c_pred)
 
         delta = c_metrics["rmse"] - b_metrics["rmse"]
@@ -184,20 +186,21 @@ def _score_feature_set(
     train_rows: list[dict[str, Any]],
     holdout_rows: list[dict[str, Any]],
     model_params: dict[str, Any],
+    backend: TrainingBackend,
 ) -> dict[str, float]:
     """Train on train_rows with given columns, return per-target RMSE on holdout."""
-    X_train = extract_features(train_rows, columns)
-    y_train = extract_targets(train_rows, targets)
-    models = fit_models(X_train, y_train, model_params)
+    X_train = backend.extract_features(train_rows, columns)
+    y_train = backend.extract_targets(train_rows, targets)
+    fitted = backend.fit(X_train, y_train, model_params)
 
-    X_holdout = extract_features(holdout_rows, columns)
-    y_holdout = extract_targets(holdout_rows, targets)
+    X_holdout = backend.extract_features(holdout_rows, columns)
+    y_holdout = backend.extract_targets(holdout_rows, targets)
 
     rmses: dict[str, float] = {}
     for target in targets:
         tv = y_holdout[target]
         X_filtered = [X_holdout[i] for i in tv.indices]
-        y_pred = models[target].predict(X_filtered)
+        y_pred = fitted.predict(target, X_filtered)
         metrics = holdout_metrics(np.array(tv.values), y_pred)
         rmses[target] = metrics["rmse"]
     return rmses
@@ -210,6 +213,8 @@ def compare_feature_sets(
     rows_by_season: dict[int, list[dict[str, Any]]],
     seasons: list[int],
     params: dict[str, Any] | None = None,
+    *,
+    backend: TrainingBackend,
 ) -> FeatureSetComparisonResult:
     """Compare two feature sets on identical data splits.
 
@@ -240,8 +245,8 @@ def compare_feature_sets(
         train_rows = [row for s in train_seasons for row in rows_by_season.get(s, [])]
         holdout_rows = rows_by_season.get(holdout_season, [])
 
-        fold_rmses_a = _score_feature_set(columns_a, targets, train_rows, holdout_rows, model_params)
-        fold_rmses_b = _score_feature_set(columns_b, targets, train_rows, holdout_rows, model_params)
+        fold_rmses_a = _score_feature_set(columns_a, targets, train_rows, holdout_rows, model_params, backend)
+        fold_rmses_b = _score_feature_set(columns_b, targets, train_rows, holdout_rows, model_params, backend)
 
         for target in targets:
             rmses_a_by_target[target].append(fold_rmses_a[target])

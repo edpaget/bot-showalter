@@ -5,6 +5,8 @@ change is likely to pass the full comparison protocol, and orchestrates
 the complete train → predict → compare sequence for multiple holdout seasons.
 """
 
+from __future__ import annotations
+
 import logging
 import statistics
 from dataclasses import dataclass, field
@@ -19,16 +21,10 @@ from fantasy_baseball_manager.domain import (
     check_regression,
     summarize_comparison,
 )
-from fantasy_baseball_manager.models.gbm_training import (
-    extract_features,
-    extract_targets,
-    fit_models,
-    score_predictions,
-)
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import RegressionCheckResult
+    from fantasy_baseball_manager.domain import RegressionCheckResult, TrainingBackend
     from fantasy_baseball_manager.models import Model
 
 
@@ -131,10 +127,11 @@ def score_cv_folds(
     rows_by_season: dict[int, list[dict[str, Any]]],
     seasons: list[int],
     params: dict[str, Any],
+    backend: TrainingBackend,
 ) -> list[dict[str, float]]:
     """Score a feature set across temporal expanding CV folds.
 
-    Builds temporal expanding CV folds, trains a GBM on each fold's training
+    Builds temporal expanding CV folds, trains on each fold's training
     data, and records per-target RMSE on the holdout fold.
 
     Args:
@@ -142,7 +139,8 @@ def score_cv_folds(
         targets: Target names (without ``target_`` prefix).
         rows_by_season: Training data grouped by season.
         seasons: Season years to use for CV splits.
-        params: GBM hyperparameters.
+        params: Model hyperparameters.
+        backend: Training backend to use for feature extraction, fitting, and scoring.
 
     Returns:
         List of per-fold dicts mapping target name → RMSE.
@@ -154,19 +152,15 @@ def score_cv_folds(
         train_rows = [row for s in train_seasons for row in rows_by_season.get(s, [])]
         test_rows = rows_by_season.get(test_season, [])
 
-        X_train = extract_features(train_rows, columns)
-        y_train = extract_targets(train_rows, targets)
-        X_test = extract_features(test_rows, columns)
-        y_test = extract_targets(test_rows, targets)
+        X_train = backend.extract_features(train_rows, columns)
+        y_train = backend.extract_targets(train_rows, targets)
+        X_test = backend.extract_features(test_rows, columns)
+        y_test = backend.extract_targets(test_rows, targets)
 
-        models = fit_models(X_train, y_train, params)
-        metrics = score_predictions(models, X_test, y_test)
+        fitted = backend.fit(X_train, y_train, params)
+        metrics = fitted.score(X_test, y_test)
 
-        fold_dict: dict[str, float] = {}
-        for key, value in metrics.items():
-            target_name = key.removeprefix("rmse_")
-            fold_dict[target_name] = value
-        fold_results.append(fold_dict)
+        fold_results.append(metrics)
 
     return fold_results
 

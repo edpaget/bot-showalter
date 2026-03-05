@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.models.gbm_training_backend import GBMTrainingBackend
 from fantasy_baseball_manager.services.quick_eval import (
     FeatureSetComparisonResult,
     QuickEvalResult,
@@ -7,6 +8,8 @@ from fantasy_baseball_manager.services.quick_eval import (
     marginal_value,
     quick_eval,
 )
+
+_backend = GBMTrainingBackend()
 
 
 def _make_rows(n: int, seasons: list[int]) -> dict[int, list[dict[str, float | int]]]:
@@ -42,6 +45,7 @@ class TestQuickEvalCorrectRMSE:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         assert result.rmse < 0.05
         assert isinstance(result.rmse, float)
@@ -56,6 +60,7 @@ class TestQuickEvalSingleTargetIsolation:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         assert result.target == "slg"
 
@@ -67,6 +72,7 @@ class TestQuickEvalSingleTargetIsolation:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         assert result.target == "avg"
         assert result.rmse < 0.05
@@ -82,6 +88,7 @@ class TestQuickEvalDeltaWithBaseline:
             train_seasons=[2022, 2023],
             holdout_season=2024,
             baseline_rmse=0.1,
+            backend=_backend,
         )
         assert result.baseline_rmse == 0.1
         assert result.delta is not None
@@ -99,6 +106,7 @@ class TestQuickEvalDeltaWithoutBaseline:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         assert result.baseline_rmse is None
         assert result.delta is None
@@ -114,6 +122,7 @@ class TestQuickEvalRSquaredAndN:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         assert result.r_squared > 0.5
         assert result.n == 50
@@ -136,6 +145,7 @@ class TestQuickEvalCustomParams:
             train_seasons=[2022, 2023],
             holdout_season=2024,
             params={"max_iter": 50, "max_depth": 3},
+            backend=_backend,
         )
         assert result.rmse >= 0.0
 
@@ -189,6 +199,7 @@ class TestMarginalValuePredictiveCandidate:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         assert result.candidate == "feature_c"
         # feature_c is predictive of slg, so at least one target should improve
@@ -208,6 +219,7 @@ class TestMarginalValueNoiseCandidate:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         assert result.candidate == "noise"
         # Noise should not substantially improve prediction (delta_pct > -5%)
@@ -224,6 +236,7 @@ class TestMarginalValueMultiTarget:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         assert result.n_total == 3
         target_names = {d.target for d in result.deltas}
@@ -240,6 +253,7 @@ class TestMarginalValueIdenticalData:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         qe_result = quick_eval(
             feature_columns=["feature_a", "feature_b"],
@@ -247,6 +261,7 @@ class TestMarginalValueIdenticalData:
             rows_by_season=rows,
             train_seasons=[2022, 2023],
             holdout_season=2024,
+            backend=_backend,
         )
         slg_delta = [d for d in mv_result.deltas if d.target == "slg"][0]
         assert abs(slg_delta.baseline_rmse - qe_result.rmse) < 1e-10
@@ -265,6 +280,7 @@ class TestMarginalValueMultiCandidateRanking:
                     rows_by_season=rows,
                     train_seasons=[2022, 2023],
                     holdout_season=2024,
+                    backend=_backend,
                 )
             )
         ranked = sorted(results, key=lambda r: r.avg_delta_pct)
@@ -283,6 +299,7 @@ class TestMarginalValueCustomParams:
             train_seasons=[2022, 2023],
             holdout_season=2024,
             params={"max_iter": 50, "max_depth": 3},
+            backend=_backend,
         )
         # Should complete successfully with custom params
         assert result.candidate == "feature_c"
@@ -303,6 +320,7 @@ class TestCompareFeatureSetsSingleHoldout:
             targets=["slg"],
             rows_by_season=rows,
             seasons=[2022, 2023],
+            backend=_backend,
         )
         assert isinstance(result, FeatureSetComparisonResult)
         assert result.columns_a == ("feature_a", "feature_b")
@@ -323,6 +341,7 @@ class TestCompareFeatureSetsSingleHoldout:
                 targets=["slg"],
                 rows_by_season=rows,
                 seasons=[2022],
+                backend=_backend,
             )
 
 
@@ -335,6 +354,7 @@ class TestCompareFeatureSetsCVMode:
             targets=["slg", "avg", "obp"],
             rows_by_season=rows,
             seasons=[2021, 2022, 2023, 2024],
+            backend=_backend,
         )
         assert result.n_folds > 1
         assert result.n_total == 3
@@ -351,6 +371,7 @@ class TestCompareFeatureSetsIdenticalSets:
             targets=["slg", "avg"],
             rows_by_season=rows,
             seasons=[2022, 2023],
+            backend=_backend,
         )
         for d in result.deltas:
             assert abs(d.delta) < 1e-10
@@ -368,6 +389,7 @@ class TestCompareFeatureSetsConsistentWithMarginalValue:
             rows_by_season=rows,
             train_seasons=[2022],
             holdout_season=2023,
+            backend=_backend,
         )
         # compare_feature_sets with 2 seasons: single-holdout (train 2022, holdout 2023)
         cfs_result = compare_feature_sets(
@@ -376,6 +398,7 @@ class TestCompareFeatureSetsConsistentWithMarginalValue:
             targets=["slg"],
             rows_by_season=rows,
             seasons=[2022, 2023],
+            backend=_backend,
         )
         mv_slg = [d for d in mv_result.deltas if d.target == "slg"][0]
         cfs_slg = [d for d in cfs_result.deltas if d.target == "slg"][0]
@@ -395,6 +418,7 @@ class TestCompareFeatureSetsCustomParams:
             rows_by_season=rows,
             seasons=[2022, 2023],
             params={"max_iter": 50, "max_depth": 3},
+            backend=_backend,
         )
         assert result.n_total == 1
         assert len(result.deltas) == 1
@@ -409,6 +433,7 @@ class TestCompareFeatureSetsCVAveraging:
             targets=["slg"],
             rows_by_season=rows,
             seasons=[2022, 2023, 2024],
+            backend=_backend,
         )
         # 3 seasons → expanding CV: (train=[2022], test=2023), (train=[2022,2023], test=2024)
         assert result.n_folds == 2

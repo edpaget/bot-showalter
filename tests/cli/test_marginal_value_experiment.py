@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain import Experiment, Ok, TargetResult
+from fantasy_baseball_manager.models.gbm_training_backend import GBMTrainingBackend
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
 from fantasy_baseball_manager.services.quick_eval import MarginalValueResult, TargetDelta
 
@@ -58,6 +59,9 @@ class _FakeModel:
                 },
             ],
         }
+
+    def experiment_training_backend(self) -> GBMTrainingBackend:
+        return GBMTrainingBackend()
 
 
 class _FakeAssembler:

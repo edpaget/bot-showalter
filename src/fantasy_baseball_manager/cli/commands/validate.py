@@ -84,9 +84,12 @@ def preflight_cmd(
         )
 
         gbm_params: dict[str, int | float] = params if params is not None else {}
+        backend = model_instance.experiment_training_backend()
 
-        baseline_cv = score_cv_folds(baseline_columns, targets, rows_by_season, sorted_seasons, gbm_params)
-        candidate_cv = score_cv_folds(all_candidate_columns, targets, rows_by_season, sorted_seasons, gbm_params)
+        baseline_cv = score_cv_folds(baseline_columns, targets, rows_by_season, sorted_seasons, gbm_params, backend)
+        candidate_cv = score_cv_folds(
+            all_candidate_columns, targets, rows_by_season, sorted_seasons, gbm_params, backend
+        )
 
         result = preflight_check(candidate_cv, baseline_cv)
         print_preflight_result(result)
@@ -201,9 +204,10 @@ def _run_preflight(
         return None
 
     gbm_params: dict[str, int | float] = params if params else {}
+    backend = model_instance.experiment_training_backend()
 
-    baseline_cv = score_cv_folds(baseline_columns, targets, rows_by_season, sorted_seasons, gbm_params)
-    candidate_cv = score_cv_folds(all_candidate_columns, targets, rows_by_season, sorted_seasons, gbm_params)
+    baseline_cv = score_cv_folds(baseline_columns, targets, rows_by_season, sorted_seasons, gbm_params, backend)
+    candidate_cv = score_cv_folds(all_candidate_columns, targets, rows_by_season, sorted_seasons, gbm_params, backend)
 
     pf_result = preflight_check(candidate_cv, baseline_cv)
     print_preflight_result(pf_result)

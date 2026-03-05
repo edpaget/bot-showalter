@@ -34,6 +34,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     PerTargetBest,
     extract_per_target_best,
 )
+from fantasy_baseball_manager.models.gbm_training_backend import GBMFittedModels, GBMTrainingBackend
 from fantasy_baseball_manager.models.registry import (
     get,
     list_models,
@@ -47,6 +48,8 @@ __all__ = [
     "AblationResult",
     "PerTargetBest",
     "extract_per_target_best",
+    "GBMFittedModels",
+    "GBMTrainingBackend",
     "Evaluable",
     "Evaluator",
     "FeatureIntrospectable",

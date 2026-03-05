@@ -144,6 +144,8 @@ def quick_eval_cmd(  # pragma: no cover
         console.print(f"  Train: {train_seasons}  Holdout: {holdout_season}")
         console.print(f"  Features: {len(feature_columns)} columns")
 
+        backend = model_instance.experiment_training_backend()
+
         eval_result = quick_eval(
             feature_columns=feature_columns,
             target=target,
@@ -152,6 +154,7 @@ def quick_eval_cmd(  # pragma: no cover
             holdout_season=holdout_season,
             params=params,
             baseline_rmse=baseline,
+            backend=backend,
         )
 
         print_quick_eval_result(eval_result)

@@ -99,6 +99,8 @@ def marginal_value_cmd(  # pragma: no cover
         console.print(f"  Baseline features: {len(feature_columns)} columns")
         console.print(f"  Candidates: {', '.join(candidate)}")
 
+        backend = model_instance.experiment_training_backend()
+
         results: list[MarginalValueResult] = []
         for cand in candidate:
             result = marginal_value(
@@ -109,6 +111,7 @@ def marginal_value_cmd(  # pragma: no cover
                 train_seasons=train_seasons,
                 holdout_season=holdout_season,
                 params=params,
+                backend=backend,
             )
             results.append(result)
 

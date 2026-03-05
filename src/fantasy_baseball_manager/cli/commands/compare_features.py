@@ -99,6 +99,8 @@ def compare_features_cmd(  # pragma: no cover
         console.print(f"  Set A: {len(columns_a)} columns")
         console.print(f"  Set B: {len(columns_b)} columns")
 
+        backend = model_instance.experiment_training_backend()
+
         result = compare_feature_sets(
             columns_a=columns_a,
             columns_b=columns_b,
@@ -106,6 +108,7 @@ def compare_features_cmd(  # pragma: no cover
             rows_by_season=rows_by_season,
             seasons=sorted_seasons,
             params=params,
+            backend=backend,
         )
 
         print_compare_features_result(result)

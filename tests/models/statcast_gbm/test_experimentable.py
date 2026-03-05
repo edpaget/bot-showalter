@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from fantasy_baseball_manager.domain.model_protocol import Experimentable
+from fantasy_baseball_manager.domain.model_protocol import Experimentable, TrainingBackend
 from fantasy_baseball_manager.models.statcast_gbm.model import StatcastGBMModel
 
 
@@ -34,6 +34,11 @@ class TestStatcastGBMExperimentable:
         assert isinstance(pitcher_targets, list)
         assert len(batter_targets) > 0
         assert len(pitcher_targets) > 0
+
+    def test_experiment_training_backend_returns_training_backend(self) -> None:
+        model = StatcastGBMModel(MagicMock(), MagicMock())
+        backend = model.experiment_training_backend()
+        assert isinstance(backend, TrainingBackend)
 
     def test_experiment_training_data_delegates_to_assembler(self) -> None:
         assembler = MagicMock()

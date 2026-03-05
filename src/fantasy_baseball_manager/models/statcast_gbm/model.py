@@ -25,6 +25,7 @@ from fantasy_baseball_manager.models.gbm_training import (
     score_predictions,
     sweep_cv,
 )
+from fantasy_baseball_manager.models.gbm_training_backend import GBMTrainingBackend
 from fantasy_baseball_manager.models.protocols import (
     AblationResult,
     Evaluator,
@@ -322,6 +323,9 @@ class _StatcastGBMBase:
         for row in all_rows:
             rows_by_season.setdefault(row["season"], []).append(row)
         return rows_by_season
+
+    def experiment_training_backend(self) -> GBMTrainingBackend:
+        return GBMTrainingBackend()
 
     def prepare(self, config: ModelConfig) -> PrepareResult:
         batter_fs = self._batter_feature_set_builder(config.seasons)

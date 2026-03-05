@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from fantasy_baseball_manager.domain.evaluation import SystemMetrics
     from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 
@@ -165,12 +167,31 @@ class PlayerUniverseProvider(Protocol):
     ) -> set[int]: ...
 
 
+class TargetVector(NamedTuple):
+    indices: list[int]
+    values: list[float]
+
+
+@runtime_checkable
+class FittedModels(Protocol):
+    def predict(self, target: str, X: list[list[float]]) -> np.ndarray: ...
+    def score(self, X: list[list[float]], targets: dict[str, TargetVector]) -> dict[str, float]: ...
+
+
+@runtime_checkable
+class TrainingBackend(Protocol):
+    def extract_features(self, rows: list[dict[str, Any]], columns: list[str]) -> list[list[float]]: ...
+    def extract_targets(self, rows: list[dict[str, Any]], targets: list[str]) -> dict[str, TargetVector]: ...
+    def fit(self, X: list[list[float]], targets: dict[str, TargetVector], params: dict[str, Any]) -> FittedModels: ...
+
+
 @runtime_checkable
 class Experimentable(Protocol):
     def experiment_player_types(self) -> list[str]: ...
     def experiment_feature_columns(self, player_type: str) -> list[str]: ...
     def experiment_targets(self, player_type: str) -> list[str]: ...
     def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]: ...
+    def experiment_training_backend(self) -> TrainingBackend: ...
 
 
 @runtime_checkable

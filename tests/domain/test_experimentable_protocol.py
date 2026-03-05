@@ -2,7 +2,22 @@
 
 from typing import Any
 
-from fantasy_baseball_manager.domain.model_protocol import Experimentable
+from fantasy_baseball_manager.domain.model_protocol import (
+    Experimentable,
+    TargetVector,
+    TrainingBackend,
+)
+
+
+class _FakeTrainingBackend:
+    def extract_features(self, rows: list[dict[str, Any]], columns: list[str]) -> list[list[float]]:
+        return []
+
+    def extract_targets(self, rows: list[dict[str, Any]], targets: list[str]) -> dict[str, TargetVector]:
+        return {}
+
+    def fit(self, X: list[list[float]], targets: dict[str, TargetVector], params: dict[str, Any]) -> Any:
+        return None  # not called in these tests
 
 
 class _ValidExperimentable:
@@ -17,6 +32,9 @@ class _ValidExperimentable:
 
     def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]:
         return {}
+
+    def experiment_training_backend(self) -> TrainingBackend:
+        return _FakeTrainingBackend()  # type: ignore[return-value]
 
 
 class _MissingMethod:

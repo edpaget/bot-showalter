@@ -8,13 +8,13 @@ import time
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any, NamedTuple
+from typing import Any
 
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 from threadpoolctl import threadpool_limits
 
-from fantasy_baseball_manager.models.protocols import TargetComparison, ValidationResult
+from fantasy_baseball_manager.models.protocols import TargetComparison, TargetVector, ValidationResult
 from fantasy_baseball_manager.models.sample_weight_transforms import WeightTransform, get_transform
 from fantasy_baseball_manager.models.sampling import holdout_metrics
 
@@ -32,11 +32,6 @@ class MinValueFilter:
 
     def __call__(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [r for r in rows if (r.get(self.column) or 0) >= self.threshold]
-
-
-class TargetVector(NamedTuple):
-    indices: list[int]
-    values: list[float]
 
 
 @dataclass(frozen=True)

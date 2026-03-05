@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain import Experiment, Ok, TargetResult
+from fantasy_baseball_manager.models.gbm_training_backend import GBMTrainingBackend
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
 from fantasy_baseball_manager.services.quick_eval import QuickEvalResult
 
@@ -38,6 +39,9 @@ class _FakeModel:
             2023: [{"season": 2023, "col_a": 1.0, "col_b": 2.0, "barrel_rate": 0.1, "slg": 0.400}],
             2024: [{"season": 2024, "col_a": 1.1, "col_b": 2.1, "barrel_rate": 0.2, "slg": 0.420}],
         }
+
+    def experiment_training_backend(self) -> GBMTrainingBackend:
+        return GBMTrainingBackend()
 
 
 class _FakeAssembler:
