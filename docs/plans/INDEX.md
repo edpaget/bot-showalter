@@ -17,6 +17,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Roster Stint Preload](roster-stint-preload.md) | 2 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
+| [Playing Time Flexibility](playing-time-flexibility.md) | 4 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 
 ## Completed Roadmaps
@@ -89,3 +90,4 @@ These aren't hard blockers but enhance the consuming roadmap when available:
 - **Feature candidate factory** enhances: fast-feedback-loop (--inject flag uses named candidates)
 - **Fast feedback loop** enhances: experiment-journal (auto-logging from quick-eval/marginal-value), validation-gate (shared CV infrastructure)
 - **Experiment journal** enhances: validation-gate (auto-log full validation results)
+- **Playing time flexibility** enhances: projection-blender (flexible PT source for blended projections)
