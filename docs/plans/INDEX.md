@@ -12,6 +12,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Player Bio Fuzzy Team](player-bio-fuzzy-team.md) | 3 | not started | none |
+| [Prior-Season Roster Lookup](prior-season-roster-lookup.md) | 3 | not started | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Roster Stint Preload](roster-stint-preload.md) | 2 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
