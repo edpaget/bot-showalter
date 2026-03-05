@@ -59,6 +59,11 @@ class TeamRepo(Protocol):
 
 
 @runtime_checkable
+class TeamResolverProto(Protocol):
+    def resolve(self, query: str) -> list[str]: ...
+
+
+@runtime_checkable
 class BattingStatsRepo(Protocol):
     def upsert(self, stats: BattingStats) -> int: ...
     def get_by_player_season(self, player_id: int, season: int, source: str | None = None) -> list[BattingStats]: ...
