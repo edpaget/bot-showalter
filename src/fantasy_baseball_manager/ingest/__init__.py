@@ -43,6 +43,7 @@ from fantasy_baseball_manager.ingest.mlb_transactions_source import (
     MLBTransactionsSource,
 )
 from fantasy_baseball_manager.ingest.protocols import DataSource
+from fantasy_baseball_manager.ingest.roster_api import RosterApiResult, ingest_roster_api
 from fantasy_baseball_manager.ingest.sprint_speed_source import SprintSpeedSource
 from fantasy_baseball_manager.ingest.statcast_savant_source import StatcastSavantSource
 from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
@@ -63,12 +64,14 @@ __all__ = [
     "Loader",
     "MLBMinorLeagueBattingSource",
     "MLBTransactionsSource",
+    "RosterApiResult",
     "SprintSpeedSource",
     "StatcastSavantSource",
     "chadwick_row_to_player",
     "chunk_date_range",
     "default_http_retry",
     "extract_distributions",
+    "ingest_roster_api",
     "fetch_mlb_active_teams",
     "import_keeper_costs",
     "ingest_fantasypros_adp",

@@ -13,7 +13,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Player Bio Fuzzy Team](player-bio-fuzzy-team.md) | 3 | not started | none |
 | [Prior-Season Roster Lookup](prior-season-roster-lookup.md) | 3 | not started | none |
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
-| [Roster Stint Preload](roster-stint-preload.md) | 2 | not started | none |
+| [Roster Stint Preload](roster-stint-preload.md) | 2 | phase 1 done | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Playing Time Flexibility](playing-time-flexibility.md) | 4 | not started | none |

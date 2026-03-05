@@ -20,6 +20,7 @@ from fantasy_baseball_manager.ingest import (
     Loader,
     chadwick_row_to_player,
     ingest_fantasypros_adp,
+    ingest_roster_api,
     lahman_team_row_to_team,
     make_fg_batting_mapper,
     make_fg_pitching_mapper,
@@ -282,6 +283,29 @@ def ingest_roster(
                 case Err(e):
                     print_error(e.message)
                     continue
+
+
+@ingest_app.command("roster-api")
+def ingest_roster_api_cmd(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    as_of: Annotated[str | None, typer.Option("--as-of", help="Snapshot date (ISO)")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Pre-populate roster stints from the MLB Stats API."""
+    if as_of is None:
+        as_of = datetime.date.today().isoformat()
+
+    with build_ingest_container(data_dir) as container:
+        result = ingest_roster_api(
+            fetch_mlb_active_teams,
+            container.player_repo,
+            container.team_repo,
+            container.roster_stint_repo,
+            season=season,
+            as_of=as_of,
+        )
+        container.conn.commit()
+        console.print(f"  Loaded {result.loaded} roster stints, skipped {result.skipped}")
 
 
 def _auto_register_players(rows: list[dict[str, Any]], container: IngestContainer) -> None:
