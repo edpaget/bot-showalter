@@ -291,6 +291,28 @@ class TestBreakoutBustModelTrain:
         assert "batter_cv_log_loss" in result.metrics
         assert "pitcher_cv_log_loss" in result.metrics
 
+    def test_train_saves_training_metadata(
+        self,
+        tmp_path: Path,
+        _combined_data: tuple[list[LabeledSeason], list[dict[str, Any]]],
+    ) -> None:
+        all_labels, all_rows = _combined_data
+        model, config = _make_model_and_config(tmp_path, all_labels, all_rows, seasons=[2020, 2021, 2022, 2023])
+        model.train(config)
+        assert (tmp_path / "breakout-bust-classifier" / "training_metadata.json").exists()
+
+    def test_predict_raises_on_leakage(
+        self,
+        tmp_path: Path,
+        _combined_data: tuple[list[LabeledSeason], list[dict[str, Any]]],
+    ) -> None:
+        all_labels, all_rows = _combined_data
+        model, config = _make_model_and_config(tmp_path, all_labels, all_rows, seasons=[2020, 2021, 2022, 2023])
+        model.train(config)
+        predict_config = ModelConfig(artifacts_dir=str(tmp_path), seasons=[2023], model_params=_MODEL_PARAMS)
+        with pytest.raises(ValueError, match="Data leakage"):
+            model.predict(predict_config)
+
 
 # ---------------------------------------------------------------------------
 # Predict tests
@@ -302,12 +324,12 @@ class TestBreakoutBustModelPredict:
     def _trained_model(self, tmp_path: Path) -> BreakoutBustModel:
         """Train a model and return it."""
         batter_labels, batter_rows = _generate_synthetic_data(
-            seasons=[2020, 2021, 2022, 2023],
+            seasons=[2020, 2021, 2022, 2023, 2024],
             players_per_season=60,
             player_type="batter",
         )
         pitcher_labels, pitcher_rows = _generate_synthetic_data(
-            seasons=[2020, 2021, 2022, 2023],
+            seasons=[2020, 2021, 2022, 2023, 2024],
             players_per_season=60,
             player_type="pitcher",
         )
@@ -321,7 +343,7 @@ class TestBreakoutBustModelPredict:
     def _predict_config(self, tmp_path: Path) -> ModelConfig:
         return ModelConfig(
             artifacts_dir=str(tmp_path),
-            seasons=[2023],
+            seasons=[2024],
             model_params=_MODEL_PARAMS,
         )
 

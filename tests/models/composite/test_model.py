@@ -886,6 +886,32 @@ class TestCompositeModelTrain:
         assert call["bat_feature_cols"] == expected_bat_cols
         assert call["pitch_feature_cols"] == expected_pitch_cols
 
+    def test_train_saves_training_metadata(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        model_params: dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
+        model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(seasons=[2022, 2023], model_params=model_params, artifacts_dir=str(tmp_path))
+        model.train(config)
+        metadata_path = tmp_path / "composite" / "latest" / "training_metadata.json"
+        assert metadata_path.exists()
+
+    def test_predict_raises_on_leakage(
+        self,
+        assembler: SeasonAwareFakeAssembler,
+        model_params: dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
+        model = CompositeModel(assembler=assembler, engine=GBMEngine(), group_lookup=_test_lookup)
+        config = ModelConfig(seasons=[2022, 2023], model_params=model_params, artifacts_dir=str(tmp_path))
+        model.train(config)
+        # Composite predicts max(seasons)+1, so seasons=[2022] predicts 2023 which is the holdout
+        predict_config = ModelConfig(seasons=[2022], model_params=model_params, artifacts_dir=str(tmp_path))
+        with pytest.raises(ValueError, match="Data leakage"):
+            model.predict(predict_config)
+
 
 class TestCompositeAblate:
     def test_ablate_requires_at_least_2_seasons(self) -> None:

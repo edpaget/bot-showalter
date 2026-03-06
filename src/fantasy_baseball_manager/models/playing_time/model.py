@@ -59,6 +59,7 @@ from fantasy_baseball_manager.models.protocols import (
 )
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.sampling import temporal_holdout_split
+from fantasy_baseball_manager.models.training_metadata import save_training_metadata, validate_no_leakage
 
 _ARTIFACT_FILENAME = "pt_coefficients.joblib"
 _AGING_CURVES_FILENAME = "pt_aging_curves.joblib"
@@ -249,6 +250,7 @@ class PlayingTimeModel:
 
         artifact_path = self._artifact_path(config)
         artifact_path.mkdir(parents=True, exist_ok=True)
+        save_training_metadata(artifact_path, config.seasons, [])
         save_coefficients(
             {"batter": bat_coeff, "pitcher": pitch_coeff},
             artifact_path / _ARTIFACT_FILENAME,
@@ -310,6 +312,7 @@ class PlayingTimeModel:
         pt_systems = _parse_pt_systems(config.model_params)
 
         artifact_path = self._artifact_path(config)
+        validate_no_leakage(artifact_path, [max(config.seasons) + 1])
         coefficients = load_coefficients(artifact_path / _ARTIFACT_FILENAME)
         bat_coeff = coefficients["batter"]
         pitch_coeff = coefficients["pitcher"]

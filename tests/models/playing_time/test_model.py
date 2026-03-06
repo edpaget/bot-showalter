@@ -284,6 +284,27 @@ class TestPlayingTimeTrain:
         assert coefficients["batter"].alpha == 3.0
         assert coefficients["pitcher"].alpha == 3.0
 
+    def test_train_saves_training_metadata(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        model.train(_train_config(tmp_path))
+        metadata_path = tmp_path / "playing_time" / "latest" / "training_metadata.json"
+        assert metadata_path.exists()
+
+    def test_predict_raises_on_leakage(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        model.train(_train_config(tmp_path))
+        # Playing-time predicts max(seasons)+1, so seasons=[2023] predicts 2024.
+        # Training on [2023] means predicting 2023 (seasons=[2022]) would be leakage.
+        predict_config = ModelConfig(seasons=[2022], artifacts_dir=str(tmp_path))
+        with pytest.raises(ValueError, match="Data leakage"):
+            model.predict(predict_config)
+
 
 def _save_test_coefficients(tmp_path: Path) -> None:
     """Save known coefficients and aging curves for predict tests."""

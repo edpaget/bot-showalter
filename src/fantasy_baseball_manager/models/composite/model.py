@@ -43,6 +43,7 @@ from fantasy_baseball_manager.models.protocols import (
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.sample_weight_transforms import get_transform
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
+from fantasy_baseball_manager.models.training_metadata import save_training_metadata, validate_no_leakage
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import SystemMetrics
@@ -265,6 +266,8 @@ class CompositeModel:
             pitch_sw = get_transform(pitch_transform_name)(pitch_sw)
 
         artifact_path = Path(config.artifacts_dir) / self._model_name / (config.version or "latest")
+        artifact_path.mkdir(parents=True, exist_ok=True)
+        save_training_metadata(artifact_path, train_seasons, holdout_seasons)
 
         metrics = self._engine.train(
             bat_train_rows,
@@ -411,6 +414,7 @@ class CompositeModel:
         gbm_kwargs: dict[str, Any] = {}
         if isinstance(self._engine, GBMEngine):
             artifact_path = Path(config.artifacts_dir) / self._model_name / (config.version or "latest")
+            validate_no_leakage(artifact_path, [projected_season])
             gbm_kwargs["artifact_path"] = artifact_path
             gbm_kwargs["bat_feature_cols"] = tuple(feature_columns(batting_fs))
             gbm_kwargs["pitch_feature_cols"] = tuple(feature_columns(pitching_fs))

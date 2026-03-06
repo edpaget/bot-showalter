@@ -74,6 +74,7 @@ from fantasy_baseball_manager.models.statcast_gbm.targets import (
     BATTER_TARGETS,
     PITCHER_TARGETS,
 )
+from fantasy_baseball_manager.models.training_metadata import save_training_metadata, validate_no_leakage
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import SystemMetrics
@@ -356,6 +357,7 @@ class _StatcastGBMBase:
         metrics: dict[str, float] = {}
         artifact_path = self._artifact_path(config)
         artifact_path.mkdir(parents=True, exist_ok=True)
+        save_training_metadata(artifact_path, train_seasons, holdout_seasons)
 
         batter_params = config.model_params.get("batter", config.model_params)
         pitcher_params = config.model_params.get("pitcher", config.model_params)
@@ -505,6 +507,7 @@ class _StatcastGBMBase:
 
     def predict(self, config: ModelConfig) -> PredictResult:
         artifact_path = self._artifact_path(config)
+        validate_no_leakage(artifact_path, config.seasons)
         predictions_by_row: list[dict[str, Any]] = []
 
         # --- Batter predictions ---

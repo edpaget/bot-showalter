@@ -27,6 +27,7 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
     preseason_weighted_batter_curated_columns,
 )
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
+from fantasy_baseball_manager.models.training_metadata import save_training_metadata, validate_no_leakage
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,7 @@ class BreakoutBustModel:
 
         artifact_path = Path(config.artifacts_dir) / self.artifact_type
         artifact_path.mkdir(parents=True, exist_ok=True)
+        save_training_metadata(artifact_path, seasons[:-1], [seasons[-1]])
         metrics: dict[str, float] = {}
 
         holdout_season = seasons[-1]
@@ -268,6 +270,7 @@ class BreakoutBustModel:
 
     def predict(self, config: ModelConfig) -> PredictResult:
         artifact_path = Path(config.artifacts_dir) / self.artifact_type
+        validate_no_leakage(artifact_path, config.seasons)
         seasons = sorted(config.seasons)
         predictions: list[dict[str, Any]] = []
 

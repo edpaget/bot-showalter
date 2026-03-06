@@ -47,6 +47,12 @@ from fantasy_baseball_manager.models.registry import (
     register_alias,
 )
 from fantasy_baseball_manager.models.run_manager import RunContext, RunManager
+from fantasy_baseball_manager.models.training_metadata import (
+    TrainingMetadata,
+    load_training_metadata,
+    save_training_metadata,
+    validate_no_leakage,
+)
 
 __all__ = [
     "Ablatable",
@@ -76,11 +82,15 @@ __all__ = [
     "TargetComparison",
     "Trainable",
     "TrainResult",
+    "TrainingMetadata",
     "Tunable",
     "TuneResult",
     "ValidationResult",
     "get",
     "list_models",
+    "load_training_metadata",
     "register",
     "register_alias",
+    "save_training_metadata",
+    "validate_no_leakage",
 ]

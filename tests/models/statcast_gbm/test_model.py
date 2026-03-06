@@ -399,11 +399,7 @@ class TestStatcastGBMTrain:
         assert batter_path.exists()
         assert pitcher_path.exists()
 
-
-@pytest.mark.slow
-class TestStatcastGBMPredict:
-    def test_predict_returns_predictions(self, tmp_path: Path) -> None:
-        # First train to create artifact
+    def test_train_saves_training_metadata(self, tmp_path: Path) -> None:
         rows_by_season = {
             2022: _make_rows(10, 2022),
             2023: _make_rows(10, 2023),
@@ -419,9 +415,55 @@ class TestStatcastGBMPredict:
             artifacts_dir=str(tmp_path),
         )
         model.train(config)
+        metadata_path = tmp_path / "statcast-gbm" / "latest" / "training_metadata.json"
+        assert metadata_path.exists()
 
-        # Now predict
-        result = model.predict(config)
+    def test_predict_raises_on_leakage(self, tmp_path: Path) -> None:
+        rows_by_season = {
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        train_config = ModelConfig(seasons=[2022, 2023], artifacts_dir=str(tmp_path))
+        model.train(train_config)
+        predict_config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        with pytest.raises(ValueError, match="Data leakage"):
+            model.predict(predict_config)
+
+
+@pytest.mark.slow
+class TestStatcastGBMPredict:
+    def test_predict_returns_predictions(self, tmp_path: Path) -> None:
+        # First train to create artifact
+        rows_by_season = {
+            2022: _make_rows(10, 2022),
+            2023: _make_rows(10, 2023),
+            2024: _make_rows(10, 2024),
+        }
+        pitcher_rows_by_season = {
+            2022: _make_pitcher_rows(10, 2022),
+            2023: _make_pitcher_rows(10, 2023),
+            2024: _make_pitcher_rows(10, 2024),
+        }
+        assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
+        model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
+        train_config = ModelConfig(
+            seasons=[2022, 2023],
+            artifacts_dir=str(tmp_path),
+        )
+        model.train(train_config)
+
+        # Predict on a season not in training data
+        predict_config = ModelConfig(
+            seasons=[2024],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.predict(predict_config)
         assert isinstance(result, PredictResult)
         assert result.model_name == "statcast-gbm"
         assert len(result.predictions) > 0
@@ -430,19 +472,25 @@ class TestStatcastGBMPredict:
         rows_by_season = {
             2022: _make_rows(5, 2022),
             2023: _make_rows(5, 2023),
+            2024: _make_rows(5, 2024),
         }
         pitcher_rows_by_season = {
             2022: _make_pitcher_rows(5, 2022),
             2023: _make_pitcher_rows(5, 2023),
+            2024: _make_pitcher_rows(5, 2024),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
-        config = ModelConfig(
+        train_config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
         )
-        model.train(config)
-        result = model.predict(config)
+        model.train(train_config)
+        predict_config = ModelConfig(
+            seasons=[2024],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.predict(predict_config)
         batter_preds = [p for p in result.predictions if p["player_type"] == "batter"]
         pitcher_preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
         for pred in batter_preds:
@@ -460,19 +508,25 @@ class TestStatcastGBMPredict:
         rows_by_season = {
             2022: _make_rows(5, 2022),
             2023: _make_rows(5, 2023),
+            2024: _make_rows(5, 2024),
         }
         pitcher_rows_by_season = {
             2022: _make_pitcher_rows(5, 2022),
             2023: _make_pitcher_rows(5, 2023),
+            2024: _make_pitcher_rows(5, 2024),
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows_by_season)
         model = StatcastGBMModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
-        config = ModelConfig(
+        train_config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
         )
-        model.train(config)
-        result = model.predict(config)
+        model.train(train_config)
+        predict_config = ModelConfig(
+            seasons=[2024],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.predict(predict_config)
         player_types = {p["player_type"] for p in result.predictions}
         assert "batter" in player_types
         assert "pitcher" in player_types
@@ -733,19 +787,25 @@ class TestStatcastGBMPreseasonPredict:
         rows_by_season = {
             2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
             2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+            2024: [_make_preseason_row(f"p_{i}", 2024) for i in range(10)],
         }
         pitcher_rows = {
             2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
             2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+            2024: [_make_preseason_pitcher_row(f"pit_{i}", 2024) for i in range(10)],
         }
         assembler = FakeAssembler(rows_by_season, pitcher_rows)
         model = StatcastGBMPreseasonModel(assembler=assembler, evaluator=_NULL_EVALUATOR)
-        config = ModelConfig(
+        train_config = ModelConfig(
             seasons=[2022, 2023],
             artifacts_dir=str(tmp_path),
         )
-        model.train(config)
-        result = model.predict(config)
+        model.train(train_config)
+        predict_config = ModelConfig(
+            seasons=[2024],
+            artifacts_dir=str(tmp_path),
+        )
+        result = model.predict(predict_config)
         assert isinstance(result, PredictResult)
         assert len(result.predictions) > 0
 
@@ -2220,16 +2280,18 @@ class TestPreseasonPredictFallback:
         rows = {
             2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
             2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+            2024: [_make_preseason_row(f"p_{i}", 2024) for i in range(10)],
         }
         pitcher_rows = {
             2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
             2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+            2024: [_make_preseason_pitcher_row(f"pit_{i}", 2024) for i in range(10)],
         }
         assembler = FakeAssembler(rows, pitcher_rows)
         provider = FakePlayerUniverseProvider(
             {
-                (2023, "batter"): {1, 2, 3},
-                (2023, "pitcher"): {4, 5, 6},
+                (2024, "batter"): {1, 2, 3},
+                (2024, "pitcher"): {4, 5, 6},
             }
         )
         model = StatcastGBMPreseasonModel(
@@ -2244,9 +2306,9 @@ class TestPreseasonPredictFallback:
         )
         model.train(train_config)
 
-        # Predict on a season that HAS rows
+        # Predict on a season that HAS rows and doesn't overlap with training
         predict_config = ModelConfig(
-            seasons=[2023],
+            seasons=[2024],
             artifacts_dir=str(tmp_path),
         )
         result = model.predict(predict_config)
@@ -2287,14 +2349,16 @@ class TestPreseasonPredictFallback:
 
     def test_fallback_supplements_missing_seasons(self, tmp_path: Path) -> None:
         """When some predict seasons have rows and others don't, fallback fills gaps."""
-        # Season 2023 has regular rows; season 2026 only via player_id fallback
+        # Season 2024 has regular rows; season 2026 only via player_id fallback
         rows = {
             2022: [_make_preseason_row(f"p_{i}", 2022) for i in range(10)],
             2023: [_make_preseason_row(f"p_{i}", 2023) for i in range(10)],
+            2024: [_make_preseason_row(f"p_{i}", 2024) for i in range(10)],
         }
         pitcher_rows = {
             2022: [_make_preseason_pitcher_row(f"pit_{i}", 2022) for i in range(10)],
             2023: [_make_preseason_pitcher_row(f"pit_{i}", 2023) for i in range(10)],
+            2024: [_make_preseason_pitcher_row(f"pit_{i}", 2024) for i in range(10)],
         }
         fallback_bat = {2026: [_make_preseason_row(f"p_{i}", 2026) for i in range(5)]}
         fallback_pit = {2026: [_make_preseason_pitcher_row(f"pit_{i}", 2026) for i in range(5)]}
@@ -2323,22 +2387,22 @@ class TestPreseasonPredictFallback:
         )
         model.train(train_config)
 
-        # Predict on mix of historical (has rows) and future (needs fallback)
+        # Predict on mix of non-training (has rows) and future (needs fallback)
         predict_config = ModelConfig(
-            seasons=[2023, 2026],
+            seasons=[2024, 2026],
             artifacts_dir=str(tmp_path),
         )
         result = model.predict(predict_config)
 
         # Both seasons should appear in predictions
         result_seasons = {p["season"] for p in result.predictions}
-        assert 2023 in result_seasons
+        assert 2024 in result_seasons
         assert 2026 in result_seasons
 
-        # Provider should have been called for 2026 but NOT for 2023
+        # Provider should have been called for 2026 but NOT for 2024
         called_seasons = {s for s, _ in provider.calls}
         assert 2026 in called_seasons
-        assert 2023 not in called_seasons
+        assert 2024 not in called_seasons
 
 
 def _make_pitcher_rows_varied(n: int, season: int) -> list[dict[str, Any]]:
