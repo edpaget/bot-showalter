@@ -1,6 +1,7 @@
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
+    EligibilityRules,
     LeagueFormat,
     LeagueSettings,
     StatType,
@@ -15,6 +16,7 @@ def _league(
     positions: dict[str, int] | None = None,
     roster_util: int = 1,
     pitcher_positions: dict[str, int] | None = None,
+    eligibility: EligibilityRules | None = None,
 ) -> LeagueSettings:
     return LeagueSettings(
         name="Test",
@@ -32,6 +34,7 @@ def _league(
         roster_util=roster_util,
         positions=positions or {"c": 1, "of": 3},
         pitcher_positions=pitcher_positions or {},
+        eligibility=eligibility or EligibilityRules(),
     )
 
 
@@ -104,7 +107,8 @@ class TestGetBatterPositionsMinGames:
             PositionAppearance(player_id=2, season=2025, position="OF", games=150),
         ]
         service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
-        result = service.get_batter_positions(2025, _league(), min_games=3)
+        league = _league(eligibility=EligibilityRules(batter_min_games=3))
+        result = service.get_batter_positions(2025, league)
         # Player 1 has 5 games >= 3, should be included
         assert 1 in result
         assert 2 in result
@@ -395,5 +399,109 @@ class TestGetPitcherPositionsCarryover:
         league = _league(pitcher_positions=_SP_RP_LEAGUE)
         result = service.get_pitcher_positions(2025, league, [10])
         # max(g)=20, max(gs)=18 → gs>=3 so SP, (20-18)=2 < 5 so NOT RP
+        assert "sp" in result[10]
+        assert "rp" not in result[10]
+
+
+# ---------------------------------------------------------------------------
+# Configurable eligibility rules
+# ---------------------------------------------------------------------------
+
+
+class TestCarryoverSeasons:
+    """carryover_seasons controls how many prior seasons are included."""
+
+    def test_carryover_zero_disables_multi_season(self) -> None:
+        """With carryover_seasons=0, only current season data is used."""
+        appearances = [
+            PositionAppearance(player_id=1, season=2024, position="OF", games=65),
+        ]
+        service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
+        league = _league(eligibility=EligibilityRules(carryover_seasons=0))
+        result = service.get_batter_positions(2025, league)
+        # No data for 2025, and carryover disabled → empty
+        assert 1 not in result
+
+    def test_carryover_two_looks_back_two_years(self) -> None:
+        """With carryover_seasons=2, data from season-2 is included."""
+        appearances = [
+            PositionAppearance(player_id=1, season=2023, position="C", games=100),
+        ]
+        service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
+        league = _league(eligibility=EligibilityRules(carryover_seasons=2))
+        result = service.get_batter_positions(2025, league)
+        assert 1 in result
+        assert "c" in result[1]
+
+    def test_carryover_one_does_not_reach_two_years_back(self) -> None:
+        """Default carryover_seasons=1 does NOT include season-2."""
+        appearances = [
+            PositionAppearance(player_id=1, season=2023, position="C", games=100),
+        ]
+        service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
+        league = _league(eligibility=EligibilityRules(carryover_seasons=1))
+        result = service.get_batter_positions(2025, league)
+        assert 1 not in result
+
+    def test_pitcher_carryover_zero(self) -> None:
+        """Pitcher with carryover_seasons=0 ignores prior season stats."""
+        stats = [_pitching_stats(10, 2024, g=30, gs=30)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(
+            pitcher_positions=_SP_RP_LEAGUE,
+            eligibility=EligibilityRules(carryover_seasons=0),
+        )
+        result = service.get_pitcher_positions(2025, league, [10])
+        # No data for 2025, carryover disabled → rookie fallback
+        assert result[10] == ["p"]
+
+    def test_pitcher_carryover_two(self) -> None:
+        """Pitcher with carryover_seasons=2 includes season-2 stats."""
+        stats = [_pitching_stats(10, 2023, g=30, gs=30)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(
+            pitcher_positions=_SP_RP_LEAGUE,
+            eligibility=EligibilityRules(carryover_seasons=2),
+        )
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" in result[10]
+
+
+class TestCustomPitcherThresholds:
+    """Custom sp_min_starts and rp_min_relief override defaults."""
+
+    def test_custom_sp_min_starts(self) -> None:
+        """With sp_min_starts=5, pitcher with gs=4 is NOT SP-eligible."""
+        stats = [_pitching_stats(10, 2025, g=30, gs=4)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(
+            pitcher_positions=_SP_RP_LEAGUE,
+            eligibility=EligibilityRules(sp_min_starts=5),
+        )
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" not in result[10]
+        assert "rp" in result[10]
+
+    def test_custom_rp_min_relief(self) -> None:
+        """With rp_min_relief=10, pitcher with 8 relief apps is NOT RP-eligible."""
+        stats = [_pitching_stats(10, 2025, g=20, gs=12)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(
+            pitcher_positions=_SP_RP_LEAGUE,
+            eligibility=EligibilityRules(rp_min_relief=10),
+        )
+        result = service.get_pitcher_positions(2025, league, [10])
         assert "sp" in result[10]
         assert "rp" not in result[10]

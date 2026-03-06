@@ -4,6 +4,7 @@ from fantasy_baseball_manager.config_toml import load_toml
 from fantasy_baseball_manager.domain import (
     CategoryConfig,
     Direction,
+    EligibilityRules,
     LeagueFormat,
     LeagueSettings,
     StatType,
@@ -113,6 +114,9 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
     batting_categories = tuple(parse_category(c) for c in raw_batting)
     pitching_categories = tuple(parse_category(c) for c in raw_pitching)
 
+    eligibility_raw = raw.get("eligibility", {})
+    eligibility = EligibilityRules(**eligibility_raw)
+
     settings = LeagueSettings(
         name=name,
         format=league_format,
@@ -125,6 +129,7 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
         roster_util=raw.get("roster_util", 0),
         positions=dict(raw.get("positions", {})),
         pitcher_positions=dict(raw.get("pitcher_positions", {})),
+        eligibility=eligibility,
     )
 
     validate_league(settings)

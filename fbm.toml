@@ -106,6 +106,12 @@ sp = 2
 rp = 2
 p = 4
 
+[leagues.h2h.eligibility]
+batter_min_games = 5
+sp_min_starts = 3
+rp_min_relief = 5
+carryover_seasons = 1
+
 [[leagues.h2h.batting_categories]]
 key = "hr"
 name = "Home Runs"

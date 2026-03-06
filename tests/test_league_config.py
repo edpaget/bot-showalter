@@ -14,6 +14,7 @@ from fantasy_baseball_manager.config_league import (
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
+    EligibilityRules,
     LeagueFormat,
     LeagueSettings,
     StatType,
@@ -71,6 +72,20 @@ class TestLeagueSettingsDefaults:
     def test_pitcher_positions_with_values(self) -> None:
         settings = _minimal_settings(pitcher_positions={"sp": 2, "rp": 2, "p": 4})
         assert settings.pitcher_positions == {"sp": 2, "rp": 2, "p": 4}
+
+    def test_eligibility_defaults(self) -> None:
+        settings = _minimal_settings()
+        assert settings.eligibility == EligibilityRules()
+        assert settings.eligibility.batter_min_games == 5
+        assert settings.eligibility.sp_min_starts == 3
+        assert settings.eligibility.rp_min_relief == 5
+        assert settings.eligibility.carryover_seasons == 1
+
+    def test_eligibility_custom(self) -> None:
+        rules = EligibilityRules(batter_min_games=10, carryover_seasons=2)
+        settings = _minimal_settings(eligibility=rules)
+        assert settings.eligibility.batter_min_games == 10
+        assert settings.eligibility.carryover_seasons == 2
 
 
 # -- validate_category -------------------------------------------------------
@@ -295,6 +310,92 @@ class TestParseLeague:
         settings = parse_league("side", raw)
         assert settings.roster_util == 2
         assert settings.positions == {"c": 1, "ss": 1, "of": 5}
+
+    def test_without_eligibility_uses_defaults(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.eligibility == EligibilityRules()
+
+    def test_with_eligibility_section(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "eligibility": {
+                "batter_min_games": 10,
+                "sp_min_starts": 5,
+                "rp_min_relief": 8,
+                "carryover_seasons": 2,
+            },
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.eligibility.batter_min_games == 10
+        assert settings.eligibility.sp_min_starts == 5
+        assert settings.eligibility.rp_min_relief == 8
+        assert settings.eligibility.carryover_seasons == 2
+
+    def test_with_partial_eligibility(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "eligibility": {"batter_min_games": 10},
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.eligibility.batter_min_games == 10
+        # Other fields use defaults
+        assert settings.eligibility.sp_min_starts == 3
+        assert settings.eligibility.rp_min_relief == 5
+        assert settings.eligibility.carryover_seasons == 1
 
     def test_with_pitcher_positions(self) -> None:
         raw = {

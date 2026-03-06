@@ -27,19 +27,17 @@ class PlayerEligibilityService:
         self,
         season: int,
         league: LeagueSettings,
-        *,
-        min_games: int = 5,
     ) -> dict[int, list[str]]:
         """Return a map of player IDs to eligible league-settings position keys.
 
-        Combines position data from *season* and *season - 1* (Yahoo-style
-        carryover). If neither season has data, returns an empty dict.
-        Each season's appearances are filtered by *min_games* independently.
+        Combines position data from *season* and prior seasons controlled by
+        ``league.eligibility.carryover_seasons``. Each season's appearances are
+        filtered by ``league.eligibility.batter_min_games`` independently.
         """
-        current = self._position_repo.get_by_season(season)
-        prior = self._position_repo.get_by_season(season - 1)
-        appearances = current + prior
-        return build_position_map(appearances, league, min_games=min_games)
+        appearances = list(self._position_repo.get_by_season(season))
+        for i in range(1, league.eligibility.carryover_seasons + 1):
+            appearances.extend(self._position_repo.get_by_season(season - i))
+        return build_position_map(appearances, league, min_games=league.eligibility.batter_min_games)
 
     def get_pitcher_positions(
         self,
@@ -59,16 +57,23 @@ class PlayerEligibilityService:
         if not league.pitcher_positions:
             return {pid: ["p"] for pid in pitcher_ids}
 
-        stats = self._get_pitching_stats(season)
+        stats = self._get_pitching_stats(season, league.eligibility.carryover_seasons)
         aggregated = self._aggregate_pitching_stats(stats, pitcher_ids)
-        return self._classify(aggregated, pitcher_ids, league)
+        return self._classify(
+            aggregated,
+            pitcher_ids,
+            league,
+            sp_min_starts=league.eligibility.sp_min_starts,
+            rp_min_relief=league.eligibility.rp_min_relief,
+        )
 
-    def _get_pitching_stats(self, season: int) -> list[PitchingStats]:
+    def _get_pitching_stats(self, season: int, carryover_seasons: int) -> list[PitchingStats]:
         if self._pitching_stats_repo is None:
             return []
-        current = self._pitching_stats_repo.get_by_season(season)
-        prior = self._pitching_stats_repo.get_by_season(season - 1)
-        return current + prior
+        result = list(self._pitching_stats_repo.get_by_season(season))
+        for i in range(1, carryover_seasons + 1):
+            result.extend(self._pitching_stats_repo.get_by_season(season - i))
+        return result
 
     @staticmethod
     def _aggregate_pitching_stats(
@@ -95,6 +100,9 @@ class PlayerEligibilityService:
         aggregated: dict[int, tuple[int, int]],
         pitcher_ids: list[int],
         league: LeagueSettings,
+        *,
+        sp_min_starts: int,
+        rp_min_relief: int,
     ) -> dict[int, list[str]]:
         config = league.pitcher_positions
         result: dict[int, list[str]] = {}
@@ -102,9 +110,9 @@ class PlayerEligibilityService:
             positions: list[str] = []
             if pid in aggregated:
                 g, gs = aggregated[pid]
-                if gs >= 3 and "sp" in config:
+                if gs >= sp_min_starts and "sp" in config:
                     positions.append("sp")
-                if (g - gs) >= 5 and "rp" in config:
+                if (g - gs) >= rp_min_relief and "rp" in config:
                     positions.append("rp")
                 if positions and "p" in config:
                     positions.append("p")

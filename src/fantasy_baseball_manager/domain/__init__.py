@@ -131,6 +131,7 @@ from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
+    EligibilityRules,
     LeagueFormat,
     LeagueSettings,
     StatType,
@@ -348,6 +349,7 @@ __all__ = [
     "DraftReport",
     "DraftResult",
     "EligibilityProvider",
+    "EligibilityRules",
     "Err",
     "Evaluable",
     "Evaluator",

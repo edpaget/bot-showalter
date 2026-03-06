@@ -28,6 +28,14 @@ class CategoryConfig:
 
 
 @dataclass(frozen=True)
+class EligibilityRules:
+    batter_min_games: int = 5
+    sp_min_starts: int = 3
+    rp_min_relief: int = 5
+    carryover_seasons: int = 1
+
+
+@dataclass(frozen=True)
 class LeagueSettings:
     name: str
     format: LeagueFormat
@@ -40,3 +48,4 @@ class LeagueSettings:
     roster_util: int = 0
     positions: dict[str, int] = field(default_factory=dict)
     pitcher_positions: dict[str, int] = field(default_factory=dict)
+    eligibility: EligibilityRules = field(default_factory=EligibilityRules)

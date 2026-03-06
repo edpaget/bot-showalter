@@ -200,8 +200,6 @@ class EligibilityProvider(Protocol):
         self,
         season: int,
         league: LeagueSettings,
-        *,
-        min_games: int = 5,
     ) -> dict[int, list[str]]: ...
 
     def get_pitcher_positions(
