@@ -10,7 +10,7 @@ The optimizer sits on top of the valuation, tier, and positional scarcity system
 |-------|--------|
 | 1 — Auction budget allocator | done (2026-03-05) |
 | 2 — Snake draft position targets | done (2026-03-05) |
-| 3 — Monte Carlo draft simulation | not started |
+| 3 — Monte Carlo draft simulation | in progress |
 
 ## Phase 1: Auction budget allocator
 
