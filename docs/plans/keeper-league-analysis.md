@@ -8,7 +8,7 @@ Both features build on existing infrastructure: `estimate_other_keepers()` for p
 
 | Phase | Status |
 |-------|--------|
-| 1 — League-wide keeper overview | not started |
+| 1 — League-wide keeper overview | done (2026-03-05) |
 | 2 — Post-keeper draft board | not started |
 | 3 — Category gap analysis | not started |
 
