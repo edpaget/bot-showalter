@@ -34,11 +34,13 @@ from fantasy_baseball_manager.cli.factory import (
     build_injury_adjusted_valuations_context,
     build_injury_profile_context,
     build_report_context,
+    create_model,
 )
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain import (
     BreakoutPrediction,
     ConfidenceReport,
+    Err,
     VarianceClassification,
 )
 from fantasy_baseball_manager.models import ModelConfig
@@ -534,6 +536,7 @@ def report_injury_adjusted_values(  # pragma: no cover
     projection_version: Annotated[str | None, typer.Option("--projection-version", help="Projection version")] = None,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    model_name: Annotated[str, typer.Option("--model", help="Valuation model")] = "zar",
     seasons_back: Annotated[int, typer.Option("--seasons-back", help="Lookback window")] = 5,
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
     data_dir: _DataDirOpt = "./data",
@@ -543,6 +546,18 @@ def report_injury_adjusted_values(  # pragma: no cover
     season_list = list(range(season - seasons_back + 1, season + 1))
 
     with build_injury_adjusted_valuations_context(data_dir) as ctx:
+        result = create_model(
+            model_name,
+            projection_repo=ctx.projection_repo,
+            position_repo=ctx.projection_repo,
+            player_repo=ctx.player_repo,
+            eligibility_service=ctx.eligibility_service,
+        )
+        if isinstance(result, Err):
+            print_error(result.error.message)
+            raise typer.Exit(code=1)
+        model = result.value
+
         deltas = compute_injury_adjusted_deltas(
             season=season,
             league=league,
@@ -550,10 +565,9 @@ def report_injury_adjusted_values(  # pragma: no cover
             projection_version=projection_version,
             season_list=season_list,
             profiler=ctx.profiler,
-            projection_repo=ctx.projection_repo,
+            model=model,  # type: ignore[arg-type]  # Model satisfies Predictable structurally
             player_repo=ctx.player_repo,
             valuation_repo=ctx.valuation_repo,
-            eligibility_service=ctx.eligibility_service,
             system=system,
             version=version,
         )

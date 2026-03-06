@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import EligibilityProvider, InjuryValueDelta, PlayerValuation
+from fantasy_baseball_manager.domain import InjuryValueDelta, PlayerValuation
 from fantasy_baseball_manager.models import ModelConfig
-from fantasy_baseball_manager.models.zar.model import ZarModel
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.repos import PlayerRepo, ProjectionRepo, ValuationRepo
+    from fantasy_baseball_manager.domain import Predictable
+    from fantasy_baseball_manager.repos import PlayerRepo, ValuationRepo
     from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler
 
 
@@ -18,20 +18,13 @@ def _run_injury_adjusted_predictions(
     projection_version: str | None,
     season_list: list[int],
     profiler: InjuryProfiler,
-    projection_repo: ProjectionRepo,
+    model: Predictable,
     player_repo: PlayerRepo,
-    eligibility_service: EligibilityProvider,
 ) -> tuple[list[dict[str, Any]], dict[int, float], dict[int, str]]:
     """Shared core: compute injury-adjusted predictions, injury_map, and player names."""
     estimates = profiler.list_games_lost_estimates(season_list, projection_season=season)
     injury_map = {est.player_id: est.expected_days_lost for est, _, _ in estimates}
 
-    model = ZarModel(
-        projection_repo=projection_repo,
-        position_repo=projection_repo,  # type: ignore[arg-type]  # unused — eligibility_service handles positions
-        player_repo=player_repo,
-        eligibility_service=eligibility_service,
-    )
     config = ModelConfig(
         seasons=[season],
         model_params={
@@ -58,9 +51,8 @@ def compute_injury_adjusted_valuations_list(
     projection_version: str | None,
     season_list: list[int],
     profiler: InjuryProfiler,
-    projection_repo: ProjectionRepo,
+    model: Predictable,
     player_repo: PlayerRepo,
-    eligibility_service: EligibilityProvider,
 ) -> list[PlayerValuation]:
     """Compute injury-adjusted valuations and return as PlayerValuation objects."""
     predictions, _, player_names = _run_injury_adjusted_predictions(
@@ -70,9 +62,8 @@ def compute_injury_adjusted_valuations_list(
         projection_version,
         season_list,
         profiler,
-        projection_repo,
+        model,
         player_repo,
-        eligibility_service,
     )
 
     valuations: list[PlayerValuation] = []
@@ -102,10 +93,9 @@ def compute_injury_adjusted_deltas(
     projection_version: str | None,
     season_list: list[int],
     profiler: InjuryProfiler,
-    projection_repo: ProjectionRepo,
+    model: Predictable,
     player_repo: PlayerRepo,
     valuation_repo: ValuationRepo,
-    eligibility_service: EligibilityProvider,
     system: str = "zar",
     version: str = "1.0",
 ) -> list[InjuryValueDelta]:
@@ -124,9 +114,8 @@ def compute_injury_adjusted_deltas(
         projection_version,
         season_list,
         profiler,
-        projection_repo,
+        model,
         player_repo,
-        eligibility_service,
     )
     adj_by_player = {p["player_id"]: p for p in predictions}
 

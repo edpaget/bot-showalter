@@ -13,8 +13,10 @@ from fantasy_baseball_manager.cli.factory import (
     build_injury_adjusted_valuations_context,
     build_valuation_eval_context,
     build_valuations_context,
+    create_model,
 )
 from fantasy_baseball_manager.config_league import load_league
+from fantasy_baseball_manager.domain import Err
 from fantasy_baseball_manager.services import compute_injury_adjusted_valuations_list
 
 valuations_app = typer.Typer(name="valuations", help="Look up and explore player valuations")
@@ -48,6 +50,7 @@ def valuations_rankings(  # pragma: no cover
     ] = None,
     projection_system: Annotated[str | None, typer.Option("--projection-system", help="Projection system")] = None,
     projection_version: Annotated[str | None, typer.Option("--projection-version", help="Projection version")] = None,
+    model_name: Annotated[str, typer.Option("--model", help="Valuation model")] = "zar",
     seasons_back: Annotated[int, typer.Option("--seasons-back", help="Lookback window for injury data")] = 5,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
@@ -68,6 +71,18 @@ def valuations_rankings(  # pragma: no cover
     season_list = list(range(season - seasons_back + 1, season + 1))
 
     with build_injury_adjusted_valuations_context(data_dir) as ctx:
+        result = create_model(
+            model_name,
+            projection_repo=ctx.projection_repo,
+            position_repo=ctx.projection_repo,
+            player_repo=ctx.player_repo,
+            eligibility_service=ctx.eligibility_service,
+        )
+        if isinstance(result, Err):
+            print_error(result.error.message)
+            raise typer.Exit(code=1)
+        model = result.value
+
         valuations = compute_injury_adjusted_valuations_list(
             season=season,
             league=league,
@@ -75,9 +90,8 @@ def valuations_rankings(  # pragma: no cover
             projection_version=projection_version,
             season_list=season_list,
             profiler=ctx.profiler,
-            projection_repo=ctx.projection_repo,
+            model=model,  # type: ignore[arg-type]  # Model satisfies Predictable structurally
             player_repo=ctx.player_repo,
-            eligibility_service=ctx.eligibility_service,
         )
 
     if player_type is not None:
