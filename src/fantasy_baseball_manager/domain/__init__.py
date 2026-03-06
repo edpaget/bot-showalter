@@ -255,7 +255,11 @@ from fantasy_baseball_manager.domain.residual_persistence import (
 )
 from fantasy_baseball_manager.domain.result import Err, Ok, Result
 from fantasy_baseball_manager.domain.roster import Roster, RosterEntry
-from fantasy_baseball_manager.domain.roster_optimizer import BudgetAllocation
+from fantasy_baseball_manager.domain.roster_optimizer import (
+    BudgetAllocation,
+    RoundTarget,
+    SnakeDraftPlan,
+)
 from fantasy_baseball_manager.domain.roster_stint import RosterStint
 from fantasy_baseball_manager.domain.season_data import SeasonData
 from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
@@ -434,6 +438,8 @@ __all__ = [
     "ResidualPersistenceSummary",
     "Result",
     "BudgetAllocation",
+    "RoundTarget",
+    "SnakeDraftPlan",
     "Roster",
     "RosterEntry",
     "RosterSlot",

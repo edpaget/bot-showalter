@@ -1,3 +1,4 @@
+import csv
 import functools
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -56,6 +57,8 @@ from fantasy_baseball_manager.services import (
     identify_needs,
     load_draft,
     optimize_auction_budget,
+    parse_league_keepers,
+    plan_snake_draft,
     recommend,
     tier_summary,
 )
@@ -502,6 +505,87 @@ def budget_command(
 
     table.add_section()
     table.add_row("TOTAL", f"${sum(a.budget for a in allocations):.0f}", "", "")
+    console.print(table)
+
+
+@draft_app.command("plan")
+def plan_command(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    slot: Annotated[int, typer.Option("--slot", help="Your draft slot (1-indexed)")],
+    teams: Annotated[int, typer.Option("--teams", help="Number of teams")] = 12,
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    method: Annotated[str, typer.Option("--method", help="Tiering method: gap or jenks")] = "gap",
+    max_tiers: Annotated[int, typer.Option("--max-tiers", help="Max tiers per position")] = 5,
+    keepers: Annotated[str | None, typer.Option("--keepers", help="Your keepers: 'Name:pos,Name:pos'")] = None,
+    league_keepers: Annotated[Path | None, typer.Option("--league-keepers", help="CSV of all league keepers")] = None,
+    keepers_per_team: Annotated[int, typer.Option("--keepers-per-team", help="Keepers per team")] = 0,
+    data_dir: _DataDirOpt = "./data",
+) -> None:  # pragma: no cover
+    """Compute a round-by-round snake draft plan for a given draft slot."""
+    league = load_league(league_name, Path.cwd())
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+        name_to_id = {name: pid for pid, name in player_names.items()}
+
+        tiers = generate_tiers(valuations, ctx.player_repo, method=method, max_tiers=max_tiers)
+
+        my_keepers_list: list[tuple[int, str]] | None = None
+        if keepers is not None:
+            my_keepers_list = []
+            for entry in keepers.split(","):
+                name, pos = entry.rsplit(":", 1)
+                pid = name_to_id.get(name.strip())
+                if pid is None:
+                    console.print(f"[yellow]Keeper '{name.strip()}' not found, skipping[/yellow]")
+                    continue
+                my_keepers_list.append((pid, pos.strip().lower()))
+
+        league_keeper_ids: set[int] | None = None
+        if league_keepers is not None:
+            with open(league_keepers, newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            all_players = ctx.player_repo.all()
+            league_keeper_ids, _unmatched = parse_league_keepers(rows, all_players)
+
+        plan = plan_snake_draft(
+            valuations,
+            league,
+            player_names,
+            draft_slot=slot,
+            tiers=tiers,
+            my_keepers=my_keepers_list,
+            league_keeper_ids=league_keeper_ids,
+            keepers_per_team=keepers_per_team,
+        )
+
+    table = Table(title=f"Snake Draft Plan — Slot {slot}/{teams}")
+    table.add_column("Round", justify="right")
+    table.add_column("Pick#", justify="right")
+    table.add_column("Position", style="bold")
+    table.add_column("Tier", justify="center")
+    table.add_column("Value", justify="right")
+    table.add_column("Alternatives")
+
+    for rnd in plan.rounds:
+        tier_str = str(rnd.target_tier) if rnd.target_tier is not None else "-"
+        alt_str = ", ".join(p.upper() for p in rnd.alternative_positions) if rnd.alternative_positions else "-"
+        table.add_row(
+            str(rnd.round),
+            str(rnd.pick_number),
+            rnd.recommended_position.upper(),
+            tier_str,
+            f"{rnd.expected_value:.1f}",
+            alt_str,
+        )
+
     console.print(table)
 
 

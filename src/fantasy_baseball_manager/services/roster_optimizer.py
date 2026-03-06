@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import BudgetAllocation
+from fantasy_baseball_manager.domain import BudgetAllocation, RoundTarget, SnakeDraftPlan
 
 if TYPE_CHECKING:
+    from collections.abc import Set
+
     from fantasy_baseball_manager.domain import LeagueSettings, PlayerTier, Valuation
 
 
@@ -192,3 +194,185 @@ def optimize_auction_budget(
         )
 
     return result
+
+
+_PITCHER_TYPES = frozenset({"sp", "rp"})
+_BATTER_TYPES = frozenset({"c", "1b", "2b", "3b", "ss", "of", "dh"})
+
+
+def _snake_pick_numbers(draft_slot: int, teams: int, total_rounds: int) -> list[int]:
+    """Return 1-indexed overall pick numbers for *draft_slot* in a snake draft."""
+    picks: list[int] = []
+    for rnd in range(total_rounds):
+        pick = rnd * teams + draft_slot if rnd % 2 == 0 else rnd * teams + (teams - draft_slot + 1)
+        picks.append(pick)
+    return picks
+
+
+def _build_needs(
+    slots: list[str],
+    my_keepers: list[tuple[int, str]] | None,
+) -> dict[str, int]:
+    """Build a dict of {position: remaining_slots} after accounting for keepers."""
+    needs: dict[str, int] = {}
+    for pos in slots:
+        needs[pos] = needs.get(pos, 0) + 1
+    if my_keepers:
+        for _pid, pos in my_keepers:
+            lpos = pos.lower()
+            if lpos in needs and needs[lpos] > 0:
+                needs[lpos] -= 1
+            elif "util" in needs and needs["util"] > 0 and lpos in _BATTER_TYPES:
+                needs["util"] -= 1
+            elif "p" in needs and needs["p"] > 0 and lpos in _PITCHER_TYPES:
+                needs["p"] -= 1
+    return {pos: count for pos, count in needs.items() if count > 0}
+
+
+def _positions_for_slot(slot_pos: str) -> Set[str]:
+    """Return the set of valuation positions that can fill *slot_pos*."""
+    if slot_pos == "util":
+        return _BATTER_TYPES
+    if slot_pos == "p":
+        return _PITCHER_TYPES
+    return frozenset({slot_pos})
+
+
+def _best_available(
+    pool: dict[str, list[Valuation]],
+    candidate_positions: Set[str],
+) -> Valuation | None:
+    """Return the highest-value available player matching any of *candidate_positions*."""
+    best: Valuation | None = None
+    for pos in candidate_positions:
+        candidates = pool.get(pos)
+        if candidates and (best is None or candidates[0].value > best.value):
+            best = candidates[0]
+    return best
+
+
+def _remove_from_pool(pool: dict[str, list[Valuation]], player_id: int) -> None:
+    """Remove a player from every position list in the pool."""
+    for candidates in pool.values():
+        for i, v in enumerate(candidates):
+            if v.player_id == player_id:
+                candidates.pop(i)
+                break
+
+
+def _simulate_opponent_picks(
+    pool: dict[str, list[Valuation]],
+    n_picks: int,
+) -> None:
+    """Remove *n_picks* best-available players from the pool (opponent simulation)."""
+    for _ in range(n_picks):
+        best: Valuation | None = None
+        for candidates in pool.values():
+            if candidates and (best is None or candidates[0].value > best.value):
+                best = candidates[0]
+        if best is not None:
+            _remove_from_pool(pool, best.player_id)
+
+
+def plan_snake_draft(
+    valuations: list[Valuation],
+    league: LeagueSettings,
+    player_names: dict[int, str],
+    draft_slot: int,
+    tiers: list[PlayerTier] | None = None,
+    my_keepers: list[tuple[int, str]] | None = None,
+    league_keeper_ids: set[int] | None = None,
+    keepers_per_team: int = 0,
+) -> SnakeDraftPlan:
+    """Produce a round-by-round snake draft plan for the given draft slot."""
+    slots = _build_slot_list(league)
+    total_slots = len(slots)
+    total_rounds = total_slots - keepers_per_team
+
+    # Build needs (positions still to fill)
+    needs = _build_needs(slots, my_keepers)
+
+    # Build pool — remove league keepers
+    pool_valuations = valuations
+    if league_keeper_ids:
+        pool_valuations = [v for v in pool_valuations if v.player_id not in league_keeper_ids]
+    pool = _group_by_position(pool_valuations)
+
+    # Build tier lookup
+    tier_lookup: dict[int, int] = {}
+    if tiers is not None:
+        for t in tiers:
+            tier_lookup[t.player_id] = t.tier
+
+    # Calculate pick numbers
+    pick_numbers = _snake_pick_numbers(draft_slot, league.teams, total_rounds)
+
+    rounds: list[RoundTarget] = []
+
+    for round_idx, pick_number in enumerate(pick_numbers):
+        # Simulate opponent picks between last user pick and this one
+        opponent_picks = pick_number - 1 if round_idx == 0 else abs(pick_number - pick_numbers[round_idx - 1]) - 1
+        _simulate_opponent_picks(pool, opponent_picks)
+
+        # For each unfilled position slot, compute marginal value
+        scored: list[tuple[str, float, Valuation]] = []
+        for slot_pos, remaining in needs.items():
+            if remaining <= 0:
+                continue
+            candidate_positions = _positions_for_slot(slot_pos)
+            best = _best_available(pool, candidate_positions)
+            if best is None:
+                continue
+
+            # Replacement value: value expected at NEXT pick
+            if round_idx + 1 < len(pick_numbers):
+                next_pick = pick_numbers[round_idx + 1]
+                picks_between = abs(next_pick - pick_number) - 1
+                # Estimate how many of this position will be taken
+                # by counting down the pool
+                candidates = pool.get(best.position, [])
+                # After picks_between opponent picks, roughly
+                # (picks_between / total_remaining_positions) * len(candidates) taken
+                # Simplified: look at the (picks_between // league.teams + 1)th player
+                depth = picks_between // league.teams + 1
+                replacement_value = candidates[depth].value if depth < len(candidates) else 0.0
+            else:
+                replacement_value = 0.0
+
+            marginal = best.value - replacement_value
+            scored.append((slot_pos, marginal, best))
+
+        if not scored:
+            break
+
+        # Sort by marginal value descending
+        scored.sort(key=lambda x: x[1], reverse=True)
+        best_slot, _best_marginal, best_player = scored[0]
+
+        # Alternatives: next best positions
+        alternatives = tuple(s[0] for s in scored[1:4])
+
+        tier_val = tier_lookup.get(best_player.player_id)
+
+        rounds.append(
+            RoundTarget(
+                round=round_idx + 1,
+                pick_number=pick_number,
+                recommended_position=best_slot,
+                target_tier=tier_val,
+                expected_value=best_player.value,
+                alternative_positions=alternatives,
+            )
+        )
+
+        # Update state
+        _remove_from_pool(pool, best_player.player_id)
+        needs[best_slot] -= 1
+        if needs[best_slot] <= 0:
+            del needs[best_slot]
+
+    return SnakeDraftPlan(
+        draft_slot=draft_slot,
+        teams=league.teams,
+        rounds=rounds,
+    )

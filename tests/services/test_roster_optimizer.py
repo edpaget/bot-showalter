@@ -7,7 +7,11 @@ from fantasy_baseball_manager.domain.league_settings import (
 )
 from fantasy_baseball_manager.domain.tier import PlayerTier
 from fantasy_baseball_manager.domain.valuation import Valuation
-from fantasy_baseball_manager.services.roster_optimizer import optimize_auction_budget
+from fantasy_baseball_manager.services.roster_optimizer import (
+    _snake_pick_numbers,
+    optimize_auction_budget,
+    plan_snake_draft,
+)
 
 
 def _league(
@@ -215,3 +219,193 @@ class TestTargetPlayerNames:
         result = optimize_auction_budget(valuations, league, names, strategy="balanced")
         for alloc in result:
             assert len(alloc.target_player_names) > 0
+
+
+def _make_deep_valuations() -> tuple[list[Valuation], dict[int, str]]:
+    """Build a large pool suitable for 12-team snake draft simulation.
+
+    Each position gets 15 players with descending values so the pool
+    doesn't run out during opponent simulation.
+    """
+    valuations: list[Valuation] = []
+    names: dict[int, str] = {}
+    pid = 1
+
+    # Different top values and dropoff rates per position to produce
+    # meaningfully different plans for different draft slots.
+    # Different top values and dropoff rates per position to produce
+    # meaningfully different plans for different draft slots.
+    # 30 players per position (180 total) to ensure the pool never
+    # runs dry in a 12-team × 10-round (120 pick) simulation.
+    batter_specs = {"c": (40.0, 1.2), "1b": (45.0, 1.3), "ss": (50.0, 1.5), "of": (48.0, 1.0)}
+    pitcher_specs = {"sp": (47.0, 1.3), "rp": (38.0, 1.1)}
+
+    for pos, (top_val, dropoff) in batter_specs.items():
+        for i in range(30):
+            val = top_val - i * dropoff
+            valuations.append(_valuation(pid, pos, max(val, 1.0)))
+            names[pid] = f"{pos.upper()} {i + 1}"
+            pid += 1
+
+    for pos, (top_val, dropoff) in pitcher_specs.items():
+        for i in range(30):
+            val = top_val - i * dropoff
+            valuations.append(_valuation(pid, pos, max(val, 1.0), player_type="pitcher"))
+            names[pid] = f"{pos.upper()} {i + 1}"
+            pid += 1
+
+    return valuations, names
+
+
+# --- Snake Draft Tests ---
+
+
+class TestSnakePickNumbers:
+    def test_slot_1_in_12_team(self) -> None:
+        picks = _snake_pick_numbers(1, 12, 4)
+        assert picks == [1, 24, 25, 48]
+
+    def test_slot_12_in_12_team(self) -> None:
+        picks = _snake_pick_numbers(12, 12, 4)
+        assert picks == [12, 13, 36, 37]
+
+    def test_slot_6_in_12_team(self) -> None:
+        picks = _snake_pick_numbers(6, 12, 3)
+        assert picks == [6, 19, 30]
+
+
+class TestPlanCoversAllSlots:
+    def test_plan_covers_all_roster_slots(self) -> None:
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        total_slots = sum(league.positions.values()) + league.roster_util + sum(league.pitcher_positions.values())
+        plan = plan_snake_draft(valuations, league, names, draft_slot=1)
+        assert len(plan.rounds) == total_slots
+
+    def test_plan_with_util(self) -> None:
+        league = _league(roster_util=1)
+        valuations, names = _make_deep_valuations()
+        total_slots = sum(league.positions.values()) + league.roster_util + sum(league.pitcher_positions.values())
+        plan = plan_snake_draft(valuations, league, names, draft_slot=1)
+        assert len(plan.rounds) == total_slots
+
+
+class TestPickNumbersCorrect:
+    def test_slot_1_pick_numbers(self) -> None:
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        plan = plan_snake_draft(valuations, league, names, draft_slot=1)
+        total_slots = sum(league.positions.values()) + league.roster_util + sum(league.pitcher_positions.values())
+        expected_picks = _snake_pick_numbers(1, 12, total_slots)
+        actual_picks = [r.pick_number for r in plan.rounds]
+        assert actual_picks == expected_picks
+
+    def test_slot_12_pick_numbers(self) -> None:
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        plan = plan_snake_draft(valuations, league, names, draft_slot=12)
+        total_slots = sum(league.positions.values()) + league.roster_util + sum(league.pitcher_positions.values())
+        expected_picks = _snake_pick_numbers(12, 12, total_slots)
+        actual_picks = [r.pick_number for r in plan.rounds]
+        assert actual_picks == expected_picks
+
+
+class TestEarlyPicksTargetHighValue:
+    def test_round_1_targets_high_value_position(self) -> None:
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        plan = plan_snake_draft(valuations, league, names, draft_slot=1)
+        first_pos = plan.rounds[0].recommended_position
+        # The first pick should be one of the high-value positions
+        assert first_pos in {"of", "sp", "ss", "c", "1b"}
+
+
+class TestPlanAdaptsToDraftSlot:
+    def test_different_slots_different_plans(self) -> None:
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        plan_1 = plan_snake_draft(valuations, league, names, draft_slot=1)
+        plan_12 = plan_snake_draft(valuations, league, names, draft_slot=12)
+        # Different slots produce different pick numbers
+        assert plan_1.rounds[0].pick_number != plan_12.rounds[0].pick_number
+        # Expected values differ because pool depletion is different
+        values_1 = [r.expected_value for r in plan_1.rounds]
+        values_12 = [r.expected_value for r in plan_12.rounds]
+        assert values_1 != values_12
+
+
+class TestAllPositionsFilled:
+    def test_every_position_targeted(self) -> None:
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        plan = plan_snake_draft(valuations, league, names, draft_slot=6)
+        targeted_positions = [r.recommended_position for r in plan.rounds]
+        # All positions with slots should appear
+        for pos, count in league.positions.items():
+            assert targeted_positions.count(pos) == count, f"{pos} should appear {count} times"
+        for pos, count in league.pitcher_positions.items():
+            assert targeted_positions.count(pos) == count, f"{pos} should appear {count} times"
+
+
+# --- Keeper League Tests ---
+
+
+class TestKeeperPositionsPreFilled:
+    def test_keeper_position_excluded(self) -> None:
+        # League with 1 SS slot; keeper at SS means no SS in plan
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        # SS 1 has pid starting at c(30)+1b(30)+1 = 61
+        ss_pid = 61  # first SS player
+        my_keepers = [(ss_pid, "ss")]
+        plan = plan_snake_draft(
+            valuations,
+            league,
+            names,
+            draft_slot=1,
+            my_keepers=my_keepers,
+            keepers_per_team=1,
+        )
+        positions = [r.recommended_position for r in plan.rounds]
+        assert "ss" not in positions
+
+
+class TestKeptPlayersRemovedFromPool:
+    def test_league_keepers_removed(self) -> None:
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        # OF starts at pid c(30)+1b(30)+ss(30)+1 = 91; OF 1 is pid 91 with value 48.0
+        of_top_pid = 91
+        plan = plan_snake_draft(
+            valuations,
+            league,
+            names,
+            draft_slot=1,
+            league_keeper_ids={of_top_pid},
+            keepers_per_team=1,
+        )
+        # The top OF (value 48.0) should be removed; next OF is value 47.0
+        for rnd in plan.rounds:
+            if rnd.recommended_position == "of":
+                assert rnd.expected_value <= 47.0
+
+
+class TestFewerRoundsInKeeperMode:
+    def test_fewer_rounds(self) -> None:
+        league = _league()
+        valuations, names = _make_deep_valuations()
+        total_slots = sum(league.positions.values()) + league.roster_util + sum(league.pitcher_positions.values())
+
+        plan_redraft = plan_snake_draft(valuations, league, names, draft_slot=1)
+        ss_pid = 61
+        plan_keeper = plan_snake_draft(
+            valuations,
+            league,
+            names,
+            draft_slot=1,
+            my_keepers=[(ss_pid, "ss")],
+            league_keeper_ids={ss_pid},
+            keepers_per_team=1,
+        )
+        assert len(plan_redraft.rounds) == total_slots
+        assert len(plan_keeper.rounds) == total_slots - 1
