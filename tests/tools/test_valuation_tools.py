@@ -43,7 +43,7 @@ def _seed_valuation(
 
 class TestLookupValuations:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_lookup_valuations_tool(container)
         assert tool.name == "lookup_valuations"
         assert tool.description
@@ -52,7 +52,7 @@ class TestLookupValuations:
     def test_returns_valuation_data(self, conn: sqlite3.Connection) -> None:
         pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         _seed_valuation(conn, pid)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_lookup_valuations_tool(container)
 
         result = tool.run({"player_name": "Soto", "season": 2025})
@@ -63,7 +63,7 @@ class TestLookupValuations:
         assert "hr=2.10" in result
 
     def test_no_results(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_lookup_valuations_tool(container)
 
         result = tool.run({"player_name": "Nobody", "season": 2025})
@@ -72,7 +72,7 @@ class TestLookupValuations:
 
 class TestGetRankings:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_rankings_tool(container)
         assert tool.name == "get_rankings"
         assert tool.description
@@ -83,7 +83,7 @@ class TestGetRankings:
         pid2 = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
         _seed_valuation(conn, pid1, value=42.50, rank=1)
         _seed_valuation(conn, pid2, value=38.00, rank=2)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_rankings_tool(container)
 
         result = tool.run({"season": 2025, "system": "zar"})
@@ -93,7 +93,7 @@ class TestGetRankings:
         assert soto_pos < judge_pos
 
     def test_no_results(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_rankings_tool(container)
 
         result = tool.run({"season": 2025, "system": "zar"})

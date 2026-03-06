@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
-from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.db.pool import ConnectionPool, SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import (
     ConfigError,
@@ -227,7 +227,7 @@ def build_eval_context(data_dir: str) -> Iterator[EvalContext]:
     """Composition-root context manager for eval/compare commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield EvalContext(
             conn=conn,
             evaluator=container.projection_evaluator,
@@ -433,7 +433,7 @@ def build_projections_context(data_dir: str) -> Iterator[ProjectionsContext]:
     """Composition-root context manager for projections commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ProjectionsContext(conn=conn, lookup_service=container.projection_lookup_service)
     finally:
         conn.close()
@@ -451,7 +451,7 @@ def build_bio_context(data_dir: str) -> Iterator[BioContext]:
     """Composition-root context manager for bio commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield BioContext(
             bio_service=container.player_bio_service,
             team_resolver=container.team_resolver,
@@ -475,7 +475,7 @@ def build_report_context(data_dir: str) -> Iterator[ReportContext]:
     """Composition-root context manager for report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ReportContext(
             conn=conn,
             report_service=container.performance_report_service,
@@ -498,7 +498,7 @@ def build_residuals_context(data_dir: str) -> Iterator[ResidualsContext]:
     """Composition-root context manager for residuals commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ResidualsContext(conn=conn, analyzer=container.residual_analyzer)
     finally:
         conn.close()
@@ -555,7 +555,7 @@ def build_valuations_context(data_dir: str) -> Iterator[ValuationsContext]:
     """Composition-root context manager for valuations commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ValuationsContext(conn=conn, lookup_service=container.valuation_lookup_service)
     finally:
         conn.close()
@@ -572,7 +572,7 @@ def build_valuation_eval_context(data_dir: str) -> Iterator[ValuationEvalContext
     """Composition-root context manager for valuation evaluation commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ValuationEvalContext(conn=conn, evaluator=container.valuation_evaluator)
     finally:
         conn.close()
@@ -589,7 +589,7 @@ def build_adp_report_context(data_dir: str) -> Iterator[ADPReportContext]:  # pr
     """Composition-root context manager for ADP report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ADPReportContext(conn=conn, service=container.adp_report_service)
     finally:
         conn.close()
@@ -614,7 +614,7 @@ def build_draft_board_context(data_dir: str) -> Iterator[DraftBoardContext]:
     """Composition-root context manager for draft board commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield DraftBoardContext(
             conn=conn,
             player_repo=container.player_repo,
@@ -663,7 +663,7 @@ def build_adp_accuracy_context(data_dir: str) -> Iterator[ADPAccuracyContext]:  
     """Composition-root context manager for ADP accuracy evaluation commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ADPAccuracyContext(conn=conn, evaluator=container.adp_accuracy_evaluator)
     finally:
         conn.close()
@@ -680,7 +680,7 @@ def build_adp_movers_context(data_dir: str) -> Iterator[ADPMoversContext]:  # pr
     """Composition-root context manager for ADP movers commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ADPMoversContext(conn=conn, service=container.adp_movers_service)
     finally:
         conn.close()
@@ -700,7 +700,7 @@ def build_confidence_report_context(data_dir: str) -> Iterator[ConfidenceReportC
     """Composition-root context manager for projection confidence report commands."""
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         yield ConfidenceReportContext(
             conn=conn,
             player_repo=container.player_repo,
@@ -714,19 +714,19 @@ def build_confidence_report_context(data_dir: str) -> Iterator[ConfidenceReportC
 
 @dataclass(frozen=True)
 class ChatContext:
-    conn: sqlite3.Connection
+    pool: ConnectionPool
     container: AnalysisContainer
 
 
 @contextmanager
-def build_chat_context(data_dir: str, *, check_same_thread: bool = True) -> Iterator[ChatContext]:
+def build_chat_context(data_dir: str) -> Iterator[ChatContext]:
     """Composition-root context manager for the chat/discord commands."""
-    conn = create_connection(Path(data_dir) / "fbm.db", check_same_thread=check_same_thread)
+    pool = ConnectionPool(Path(data_dir) / "fbm.db", size=5)
     try:
-        container = AnalysisContainer(conn)
-        yield ChatContext(conn=conn, container=container)
+        container = AnalysisContainer(pool)
+        yield ChatContext(pool=pool, container=container)
     finally:
-        conn.close()
+        pool.close_all()
 
 
 @dataclass(frozen=True)

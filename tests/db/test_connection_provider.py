@@ -1,5 +1,7 @@
 import sqlite3
+import threading
 
+from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.db.pool import (
     ConnectionPool,
     SingleConnectionProvider,
@@ -57,3 +59,38 @@ class TestSingleConnectionProvider:
         # Row should still be visible — no rollback
         row = raw.execute("SELECT x FROM t").fetchone()
         assert row == (42,)
+
+
+class TestConnectionPoolMultiThreaded:
+    """Integration test: concurrent reads through a ConnectionPool don't raise."""
+
+    def test_concurrent_reads_through_repos(self, tmp_path: object) -> None:
+        db_path = f"{tmp_path}/test.db"
+        # Seed data via a temporary connection
+        setup_conn = sqlite3.connect(db_path)
+        setup_conn.execute("CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY, name TEXT)")
+        setup_conn.execute("INSERT INTO players VALUES (1, 'Test Player')")
+        setup_conn.commit()
+        setup_conn.close()
+
+        pool = ConnectionPool(db_path, size=4)
+        container = AnalysisContainer(pool)
+        errors: list[Exception] = []
+        barrier = threading.Barrier(4)
+
+        def _read_from_thread() -> None:
+            try:
+                barrier.wait(timeout=5)
+                # Access a repo — this checks out a connection from the pool
+                container.player_repo.all()
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=_read_from_thread) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        pool.close_all()
+        assert errors == [], f"Threads raised: {errors}"

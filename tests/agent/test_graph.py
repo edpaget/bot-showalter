@@ -9,6 +9,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from fantasy_baseball_manager.agent.graph import _DEFAULT_MODEL, build_agent
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 
 if TYPE_CHECKING:
@@ -73,7 +74,7 @@ class _ToolCallingFakeLLM(BaseChatModel):
 
 class TestBuildAgent:
     def test_returns_compiled_graph(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         agent = build_agent(container, season=2025, llm=_FakeChatModel())
         assert isinstance(agent, CompiledStateGraph)
 
@@ -81,14 +82,14 @@ class TestBuildAgent:
         assert _DEFAULT_MODEL == "claude-haiku-4-5-20251001"
 
     def test_agent_has_tools_bound(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         agent = build_agent(container, season=2025, llm=_FakeChatModel())
         node_names = set(agent.get_graph().nodes.keys())
         assert "agent" in node_names
         assert "tools" in node_names
 
     def test_agent_processes_simple_message(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         agent = build_agent(container, season=2025, llm=_FakeChatModel())
         result = agent.invoke({"messages": [("user", "Hello")]})
         messages = result["messages"]
@@ -96,7 +97,7 @@ class TestBuildAgent:
         assert len(ai_messages) >= 1
 
     def test_agent_executes_tool_and_responds(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         container.player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
         agent = build_agent(container, season=2025, llm=_ToolCallingFakeLLM())
         result = agent.invoke({"messages": [("user", "Tell me about Trout")]})

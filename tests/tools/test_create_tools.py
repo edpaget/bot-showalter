@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.tools import create_tools
 
 if TYPE_CHECKING:
@@ -21,18 +22,18 @@ EXPECTED_TOOL_NAMES = {
 
 class TestCreateTools:
     def test_returns_nine_tools(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tools = create_tools(container)
         assert len(tools) == 9
 
     def test_all_tools_have_expected_names(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tools = create_tools(container)
         names = {t.name for t in tools}
         assert names == EXPECTED_TOOL_NAMES
 
     def test_all_tools_have_description_and_schema(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tools = create_tools(container)
         for t in tools:
             assert t.description, f"Tool {t.name} has no description"

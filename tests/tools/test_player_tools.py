@@ -36,7 +36,7 @@ def _seed_position(conn: sqlite3.Connection, player_id: int, season: int, positi
 
 class TestSearchPlayers:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_search_players_tool(container)
         assert tool.name == "search_players"
         assert tool.description
@@ -47,7 +47,7 @@ class TestSearchPlayers:
         pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742, birth_date="1998-10-25")
         _seed_roster_stint(conn, pid, team_id, season=2025)
         _seed_position(conn, pid, 2025, "OF", games=150)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_search_players_tool(container)
 
         result = tool.run({"name": "Soto", "season": 2025})
@@ -55,7 +55,7 @@ class TestSearchPlayers:
         assert "NYY" in result
 
     def test_no_results(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_search_players_tool(container)
 
         result = tool.run({"name": "Nobody", "season": 2025})
@@ -64,7 +64,7 @@ class TestSearchPlayers:
 
 class TestGetPlayerBio:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_player_bio_tool(container)
         assert tool.name == "get_player_bio"
         assert tool.description
@@ -75,7 +75,7 @@ class TestGetPlayerBio:
         pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742, birth_date="1998-10-25", bats="L")
         _seed_roster_stint(conn, pid, team_id, season=2025)
         _seed_position(conn, pid, 2025, "OF", games=150)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_player_bio_tool(container)
 
         result = tool.run({"player_name": "Soto", "season": 2025})
@@ -91,7 +91,7 @@ class TestGetPlayerBio:
         for pid in (pid1, pid2):
             _seed_roster_stint(conn, pid, team_id, season=2025)
             _seed_position(conn, pid, 2025, "1B")
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_player_bio_tool(container)
 
         result = tool.run({"player_name": "Smith", "season": 2025})
@@ -100,7 +100,7 @@ class TestGetPlayerBio:
         assert "John Smith" in result
 
     def test_no_match_returns_message(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_player_bio_tool(container)
 
         result = tool.run({"player_name": "Nobody", "season": 2025})
@@ -109,7 +109,7 @@ class TestGetPlayerBio:
 
 class TestFindPlayers:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_find_players_tool(container)
         assert tool.name == "find_players"
         assert tool.description
@@ -124,7 +124,7 @@ class TestFindPlayers:
         _seed_roster_stint(conn, pid2, bos_id, season=2025)
         _seed_position(conn, pid1, 2025, "OF")
         _seed_position(conn, pid2, 2025, "3B")
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_find_players_tool(container)
 
         result = tool.run({"season": 2025, "team": "NYY"})
@@ -132,14 +132,14 @@ class TestFindPlayers:
         assert "Rafael Devers" not in result
 
     def test_no_results(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_find_players_tool(container)
 
         result = tool.run({"season": 2025})
         assert "No players found" in result
 
     def test_no_roster_data_message_when_filtering_by_team(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_find_players_tool(container)
 
         result = tool.run({"season": 2030, "team": "NYY"})

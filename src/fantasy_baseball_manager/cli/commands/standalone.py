@@ -277,6 +277,6 @@ def discord_cmd(  # pragma: no cover
     if not token:
         print_error("FBM_DISCORD_TOKEN environment variable is required.")
         raise typer.Exit(code=1)
-    with build_chat_context(data_dir, check_same_thread=False) as ctx:
+    with build_chat_context(data_dir) as ctx:
         agent = build_agent(ctx.container, season=current_season(), model=model)
         FBMDiscordBot(agent).run(token)

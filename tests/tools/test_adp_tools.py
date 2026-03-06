@@ -60,7 +60,7 @@ def _seed_adp(
 
 class TestGetValueOverADP:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_value_over_adp_tool(container)
         assert tool.name == "get_value_over_adp"
         assert tool.description
@@ -71,7 +71,7 @@ class TestGetValueOverADP:
         # ZAR rank 1, ADP rank 10 -> delta = +9 (buy target)
         _seed_valuation(conn, pid, rank=1, value=42.50)
         _seed_adp(conn, pid, rank=10, overall_pick=10.0)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_value_over_adp_tool(container)
 
         result = tool.run({"season": 2025, "system": "zar", "version": "v1.0"})
@@ -83,7 +83,7 @@ class TestGetValueOverADP:
         # ZAR rank 10, ADP rank 1 -> delta = -9 (overvalued)
         _seed_valuation(conn, pid, rank=10, value=20.00)
         _seed_adp(conn, pid, rank=1, overall_pick=1.0)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_value_over_adp_tool(container)
 
         result = tool.run({"season": 2025, "system": "zar", "version": "v1.0"})
@@ -94,7 +94,7 @@ class TestGetValueOverADP:
         pid = seed_player(conn, name_first="Hidden", name_last="Gem", mlbam_id=100002)
         # ZAR rank 50 with no ADP -> unranked sleeper
         _seed_valuation(conn, pid, rank=50, value=15.00)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_value_over_adp_tool(container)
 
         result = tool.run({"season": 2025, "system": "zar", "version": "v1.0"})
@@ -102,7 +102,7 @@ class TestGetValueOverADP:
         assert "Hidden Gem" in result
 
     def test_empty_report(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_value_over_adp_tool(container)
 
         result = tool.run({"season": 2025, "system": "zar", "version": "v1.0"})

@@ -20,7 +20,7 @@ from fantasy_baseball_manager.cli.factory import (
     create_model,
 )
 from fantasy_baseball_manager.db.connection import create_connection
-from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.db.pool import ConnectionPool, SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.errors import ConfigError
@@ -533,21 +533,21 @@ class TestBuildValuationEvalContext:
 class TestBuildChatContext:
     def test_yields_chat_context_with_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.factory.create_connection",
-            lambda path, **kwargs: create_connection(":memory:"),
+            "fantasy_baseball_manager.cli.factory.ConnectionPool",
+            lambda path, **kwargs: ConnectionPool(":memory:", **kwargs),
         )
         with build_chat_context("./data") as ctx:
             assert isinstance(ctx.container, AnalysisContainer)
 
-    def test_connection_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_pool_closed_on_exit(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "fantasy_baseball_manager.cli.factory.create_connection",
-            lambda path, **kwargs: create_connection(":memory:"),
+            "fantasy_baseball_manager.cli.factory.ConnectionPool",
+            lambda path, **kwargs: ConnectionPool(":memory:", **kwargs),
         )
         with build_chat_context("./data") as ctx:
-            conn = ctx.conn
-        with pytest.raises(ProgrammingError):
-            conn.execute("SELECT 1")
+            pool = ctx.pool
+        with pytest.raises(RuntimeError, match="closed"):
+            pool.get()
 
 
 def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:

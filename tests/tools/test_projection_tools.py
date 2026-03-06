@@ -35,7 +35,7 @@ def _seed_projection(
 
 class TestLookupProjections:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_lookup_projections_tool(container)
         assert tool.name == "lookup_projections"
         assert tool.description
@@ -44,7 +44,7 @@ class TestLookupProjections:
     def test_returns_projection_stats(self, conn: sqlite3.Connection) -> None:
         pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         _seed_projection(conn, pid, stats={"hr": 35, "avg": 0.280, "_mode": "mean"})
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_lookup_projections_tool(container)
 
         result = tool.run({"player_name": "Soto", "season": 2025})
@@ -56,7 +56,7 @@ class TestLookupProjections:
         assert "_mode" not in result
 
     def test_no_results(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_lookup_projections_tool(container)
 
         result = tool.run({"player_name": "Nobody", "season": 2025})

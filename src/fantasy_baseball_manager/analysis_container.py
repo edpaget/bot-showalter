@@ -3,7 +3,6 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
@@ -37,56 +36,52 @@ from fantasy_baseball_manager.services import (
 from fantasy_baseball_manager.team_resolver import TeamResolver
 
 if TYPE_CHECKING:
-    import sqlite3
+    from fantasy_baseball_manager.repos import ConnectionProvider
 
 
 class AnalysisContainer:
     """DI container for analysis services shared by the CLI and future agent."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self._conn = conn
-
-    @property
-    def conn(self) -> sqlite3.Connection:
-        return self._conn
+    def __init__(self, provider: ConnectionProvider) -> None:
+        self._provider = provider
 
     # --- Repos ---
 
     @functools.cached_property
     def player_repo(self) -> SqlitePlayerRepo:
-        return SqlitePlayerRepo(SingleConnectionProvider(self._conn))
+        return SqlitePlayerRepo(self._provider)
 
     @functools.cached_property
     def team_repo(self) -> SqliteTeamRepo:
-        return SqliteTeamRepo(SingleConnectionProvider(self._conn))
+        return SqliteTeamRepo(self._provider)
 
     @functools.cached_property
     def projection_repo(self) -> SqliteProjectionRepo:
-        return SqliteProjectionRepo(SingleConnectionProvider(self._conn))
+        return SqliteProjectionRepo(self._provider)
 
     @functools.cached_property
     def valuation_repo(self) -> SqliteValuationRepo:
-        return SqliteValuationRepo(SingleConnectionProvider(self._conn))
+        return SqliteValuationRepo(self._provider)
 
     @functools.cached_property
     def adp_repo(self) -> SqliteADPRepo:
-        return SqliteADPRepo(SingleConnectionProvider(self._conn))
+        return SqliteADPRepo(self._provider)
 
     @functools.cached_property
     def batting_stats_repo(self) -> SqliteBattingStatsRepo:
-        return SqliteBattingStatsRepo(SingleConnectionProvider(self._conn))
+        return SqliteBattingStatsRepo(self._provider)
 
     @functools.cached_property
     def pitching_stats_repo(self) -> SqlitePitchingStatsRepo:
-        return SqlitePitchingStatsRepo(SingleConnectionProvider(self._conn))
+        return SqlitePitchingStatsRepo(self._provider)
 
     @functools.cached_property
     def position_appearance_repo(self) -> SqlitePositionAppearanceRepo:
-        return SqlitePositionAppearanceRepo(SingleConnectionProvider(self._conn))
+        return SqlitePositionAppearanceRepo(self._provider)
 
     @functools.cached_property
     def roster_stint_repo(self) -> SqliteRosterStintRepo:
-        return SqliteRosterStintRepo(SingleConnectionProvider(self._conn))
+        return SqliteRosterStintRepo(self._provider)
 
     # --- Services ---
 

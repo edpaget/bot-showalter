@@ -37,7 +37,7 @@ def _seed_batting(conn: sqlite3.Connection, player_id: int, **kwargs: object) ->
 
 class TestGetOverperformers:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_overperformers_tool(container)
         assert tool.name == "get_overperformers"
         assert tool.description
@@ -52,7 +52,7 @@ class TestGetOverperformers:
         _seed_projection(conn, pid_b, {"avg": 0.270})
         _seed_batting(conn, pid_a, avg=0.300)
         _seed_batting(conn, pid_b, avg=0.280)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_overperformers_tool(container)
 
         result = tool.run(
@@ -70,7 +70,7 @@ class TestGetOverperformers:
         assert big_pos < small_pos
 
     def test_no_results(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_overperformers_tool(container)
 
         result = tool.run(
@@ -86,7 +86,7 @@ class TestGetOverperformers:
 
 class TestGetUnderperformers:
     def test_tool_has_valid_attributes(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_underperformers_tool(container)
         assert tool.name == "get_underperformers"
         assert tool.description
@@ -101,7 +101,7 @@ class TestGetUnderperformers:
         _seed_projection(conn, pid_b, {"avg": 0.280})
         _seed_batting(conn, pid_a, avg=0.250)
         _seed_batting(conn, pid_b, avg=0.270)
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_underperformers_tool(container)
 
         result = tool.run(
@@ -119,7 +119,7 @@ class TestGetUnderperformers:
         assert big_pos < small_pos
 
     def test_no_results(self, conn: sqlite3.Connection) -> None:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         tool = create_get_underperformers_tool(container)
 
         result = tool.run(
