@@ -11,7 +11,7 @@ The key design challenge is that repos serve two modes: **read-only** (agent too
 | 1 — ConnectionProvider protocol | done (2026-03-05) |
 | 2 — Migrate repos | done (2026-03-05) |
 | 3 — Migrate composition roots and tests | done (2026-03-05) |
-| 4 — Wire pool into agent path | in progress |
+| 4 — Wire pool into agent path | done (2026-03-05) |
 
 ## Phase 1: ConnectionProvider protocol
 
