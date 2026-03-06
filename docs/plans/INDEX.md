@@ -17,7 +17,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Model Training Inspector](model-training-inspector.md) | 3 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 | [Keeper League Analysis](keeper-league-analysis.md) | 3 | not started | yahoo-fantasy-integration (done), keeper-surplus-value (done) |
-| [Auction Budget Optimizer](auction-budget-optimizer.md) | 3 | not started | live-draft-tracker (done) |
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
@@ -104,5 +103,4 @@ These aren't hard blockers but enhance the consuming roadmap when available:
 - **Playing time flexibility** enhances: projection-blender (flexible PT source for blended projections)
 - **Opponent draft model** enhances: live-draft-tracker (threat/run alerts in REPL), mock-draft-insights (opponent behavior modeling)
 - **ADP arbitrage alerts** enhances: live-draft-tracker (falling player alerts in REPL)
-- **Auction budget optimizer** enhances: live-draft-tracker (bid recommendations in auction REPL)
 - **Mock draft insights** enhances: live-draft-tracker (mock-informed recommendations)
