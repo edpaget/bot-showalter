@@ -8,7 +8,7 @@ Address architectural warnings from the Phase 3 injury-risk-discount review. Thr
 |-------|--------|
 | 1 — Extract injury-adjusted valuation service | done (2026-03-05) |
 | 2 — Use model registry instead of hardcoded ZarModel | done (2026-03-06) |
-| 3 — Inject discount function into ZarModel | not started |
+| 3 — Inject discount function into ZarModel | in progress |
 
 ## Phase 1: Extract injury-adjusted valuation service
 
