@@ -74,6 +74,10 @@ from fantasy_baseball_manager.services.feature_factory import (
 from fantasy_baseball_manager.services.games_lost_estimator import estimate_games_lost
 from fantasy_baseball_manager.services.injury_discount import apply_injury_discount, discount_projections
 from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
+from fantasy_baseball_manager.services.injury_valuation import (
+    compute_injury_adjusted_deltas,
+    compute_injury_adjusted_valuations_list,
+)
 from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
 from fantasy_baseball_manager.services.keeper_history import build_keeper_histories
 from fantasy_baseball_manager.services.keeper_optimizer import (
@@ -285,6 +289,8 @@ __all__ = [
     "apply_injury_discount",
     "build_profiles",
     "discount_projections",
+    "compute_injury_adjusted_deltas",
+    "compute_injury_adjusted_valuations_list",
     "estimate_games_lost",
     "build_draft_board",
     "build_draft_roster_slots",
