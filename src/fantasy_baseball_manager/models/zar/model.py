@@ -1,7 +1,7 @@
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import ArtifactType, EligibilityProvider, Valuation, discount_projections
+from fantasy_baseball_manager.domain import ArtifactType, EligibilityProvider, Valuation
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.zar.engine import (
@@ -77,18 +77,15 @@ class ZarModel:
         season = config.seasons[0] if config.seasons else 2025
         version = config.version or "1.0"
 
-        # 1. Read projections and positions
-        if proj_version is not None:
-            projections = self._projection_repo.get_by_system_version(proj_system, proj_version)
-            projections = [p for p in projections if p.season == season]
-        else:
-            projections = self._projection_repo.get_by_season(season, system=proj_system)
+        # 1. Read projections (use pre-loaded if provided, otherwise read from repo)
+        projections: list[Projection] = config.model_params.get("projections") or []
+        if not projections:
+            if proj_version is not None:
+                projections = self._projection_repo.get_by_system_version(proj_system, proj_version)
+                projections = [p for p in projections if p.season == season]
+            else:
+                projections = self._projection_repo.get_by_season(season, system=proj_system)
         position_map = self._eligibility_service.get_batter_positions(season, league)
-
-        # 1b. Apply injury discounts if provided
-        injury_discounts: dict[int, float] | None = config.model_params.get("injury_discounts")
-        if injury_discounts:
-            projections = discount_projections(projections, injury_discounts)
 
         # 2. Split into batters and pitchers
         batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) > 0]

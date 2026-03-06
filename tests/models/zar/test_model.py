@@ -499,35 +499,48 @@ class TestZarModelPredict:
         assert player_ids == {1}
 
 
-class TestZarModelInjuryDiscounts:
-    """Tests for injury discount integration in ZarModel.predict()."""
+class TestZarModelPreloadedProjections:
+    """Tests for passing pre-loaded projections via model_params."""
 
-    def test_injury_discounts_reduces_valuations(self) -> None:
-        """Player with injury discount should have lower value than without."""
-        model_base, val_repo_base = _build_model()
-        result_base = model_base.predict(_standard_config())
-        base_values = {p["player_id"]: p["value"] for p in result_base.predictions}
+    def test_preloaded_projections_used_instead_of_repo(self) -> None:
+        """When projections are in model_params, the model uses them directly."""
+        # Build model with full projections in repo
+        model, val_repo = _build_model()
 
-        model_disc, val_repo_disc = _build_model()
-        config_disc = ModelConfig(
+        # Pass only a subset as pre-loaded projections
+        subset = _build_projections()[:2]  # Only first 2 batters
+        config = ModelConfig(
             seasons=[2025],
             model_params={
                 "league": _standard_league(),
                 "projection_system": "steamer",
-                "injury_discounts": {1: 60},  # Player 1 loses 60 days
+                "projections": subset,
             },
             version="1.0",
         )
-        result_disc = model_disc.predict(config_disc)
-        disc_values = {p["player_id"]: p["value"] for p in result_disc.predictions}
+        result = model.predict(config)
+        player_ids = {p["player_id"] for p in result.predictions}
+        # Should only contain the 2 players from the subset
+        assert player_ids == {1, 2}
 
-        # Player 1 should have lower value with injury discount
-        assert disc_values[1] < base_values[1]
-        # Player 2 (no discount) value should remain the same or change only due to pool effects
-        # But player 1's value should be strictly lower
+    def test_empty_projections_list_falls_back_to_repo(self) -> None:
+        """An empty projections list should fall back to reading from repo."""
+        model, _ = _build_model()
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "projections": [],
+            },
+            version="1.0",
+        )
+        result = model.predict(config)
+        player_ids = {p["player_id"] for p in result.predictions}
+        assert player_ids == {1, 2, 3, 4, 5}
 
-    def test_injury_discounts_absent_unchanged(self) -> None:
-        """Without injury_discounts param, predictions are identical to baseline."""
+    def test_no_projections_key_reads_from_repo(self) -> None:
+        """Without projections key, predictions use repo (unchanged behavior)."""
         model1, _ = _build_model()
         result1 = model1.predict(_standard_config())
 

@@ -568,6 +568,7 @@ def report_injury_adjusted_values(  # pragma: no cover
             model=model,  # type: ignore[arg-type]  # Model satisfies Predictable structurally
             player_repo=ctx.player_repo,
             valuation_repo=ctx.valuation_repo,
+            projection_repo=ctx.projection_repo,
             system=system,
             version=version,
         )

@@ -30,6 +30,7 @@ from fantasy_baseball_manager.domain import (
     Projection,
     StatDistribution,
     SystemMetrics,
+    discount_projections,
 )
 from fantasy_baseball_manager.models import (
     AblationResult,
@@ -188,12 +189,24 @@ def predict(  # pragma: no cover
         season_list = list(range(projection_season - seasons_back + 1, projection_season + 1))
         with build_injury_profile_context(data_dir) as inj_ctx:
             estimates = inj_ctx.profiler.list_games_lost_estimates(season_list, projection_season=projection_season)
-        params["injury_discounts"] = {est.player_id: est.expected_days_lost for est, _, _ in estimates}
+        params["_injury_discounts"] = {est.player_id: est.expected_days_lost for est, _, _ in estimates}
     config = load_config(
         model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
     )
 
     with build_model_context(model, config) as ctx:
+        # Apply injury discounts: read projections, discount, pass pre-discounted to model
+        if "_injury_discounts" in config.model_params and ctx.projection_repo is not None:
+            season_val = config.seasons[0] if config.seasons else 2026
+            proj_system = config.model_params.get("projection_system", "")
+            proj_version = config.model_params.get("projection_version")
+            if proj_version:
+                projs = ctx.projection_repo.get_by_system_version(proj_system, proj_version)
+                projs = [p for p in projs if p.season == season_val]
+            else:
+                projs = ctx.projection_repo.get_by_season(season_val, system=proj_system)
+            projs = discount_projections(projs, config.model_params.pop("_injury_discounts"))
+            config.model_params["projections"] = projs
         match dispatch("predict", ctx.model, config, run_manager=ctx.run_manager):
             case Ok(PredictResult() as result):
                 if dry_run:

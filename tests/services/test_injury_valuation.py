@@ -157,6 +157,7 @@ def _build_deps(
     FakePlayerRepo,
     FakeValuationRepo,
     InjuryProfiler,
+    FakeProjectionRepo,
 ]:
     projection_repo = FakeProjectionRepo(_projections())
     player_repo = FakePlayerRepo(_players())
@@ -171,12 +172,12 @@ def _build_deps(
         player_repo=player_repo,
         eligibility_service=eligibility_service,
     )
-    return model, player_repo, valuation_repo, profiler
+    return model, player_repo, valuation_repo, profiler, projection_repo
 
 
 class TestComputeInjuryAdjustedValuationsList:
     def test_returns_player_valuations(self) -> None:
-        model, player_repo, _, profiler = _build_deps()
+        model, player_repo, _, profiler, projection_repo = _build_deps()
         result = compute_injury_adjusted_valuations_list(
             season=2025,
             league=_league(),
@@ -186,12 +187,13 @@ class TestComputeInjuryAdjustedValuationsList:
             profiler=profiler,
             model=model,
             player_repo=player_repo,
+            projection_repo=projection_repo,
         )
         assert len(result) > 0
         assert all(isinstance(v, PlayerValuation) for v in result)
 
     def test_valuations_have_injury_adjusted_version(self) -> None:
-        model, player_repo, _, profiler = _build_deps()
+        model, player_repo, _, profiler, projection_repo = _build_deps()
         result = compute_injury_adjusted_valuations_list(
             season=2025,
             league=_league(),
@@ -201,12 +203,13 @@ class TestComputeInjuryAdjustedValuationsList:
             profiler=profiler,
             model=model,
             player_repo=player_repo,
+            projection_repo=projection_repo,
         )
         for v in result:
             assert v.version == "injury-adjusted"
 
     def test_player_names_are_resolved(self) -> None:
-        model, player_repo, _, profiler = _build_deps()
+        model, player_repo, _, profiler, projection_repo = _build_deps()
         result = compute_injury_adjusted_valuations_list(
             season=2025,
             league=_league(),
@@ -216,12 +219,13 @@ class TestComputeInjuryAdjustedValuationsList:
             profiler=profiler,
             model=model,
             player_repo=player_repo,
+            projection_repo=projection_repo,
         )
         names = {v.player_name for v in result}
         assert "Mike Trout" in names
 
     def test_no_il_stints_returns_unmodified_valuations(self) -> None:
-        model, player_repo, _, profiler = _build_deps(stints=[])
+        model, player_repo, _, profiler, projection_repo = _build_deps(stints=[])
         result = compute_injury_adjusted_valuations_list(
             season=2025,
             league=_league(),
@@ -231,6 +235,7 @@ class TestComputeInjuryAdjustedValuationsList:
             profiler=profiler,
             model=model,
             player_repo=player_repo,
+            projection_repo=projection_repo,
         )
         # Should still return valid valuations even with no injury data
         assert len(result) > 0
@@ -286,7 +291,7 @@ class TestComputeInjuryAdjustedDeltas:
         )
 
     def test_returns_deltas_for_matching_players(self) -> None:
-        model, player_repo, valuation_repo, profiler = _build_deps()
+        model, player_repo, valuation_repo, profiler, projection_repo = _build_deps()
         self._seed_original_valuations(valuation_repo)
 
         deltas = compute_injury_adjusted_deltas(
@@ -299,12 +304,13 @@ class TestComputeInjuryAdjustedDeltas:
             model=model,
             player_repo=player_repo,
             valuation_repo=valuation_repo,
+            projection_repo=projection_repo,
         )
         assert len(deltas) > 0
         assert all(isinstance(d, InjuryValueDelta) for d in deltas)
 
     def test_deltas_sorted_ascending_by_value_delta(self) -> None:
-        model, player_repo, valuation_repo, profiler = _build_deps()
+        model, player_repo, valuation_repo, profiler, projection_repo = _build_deps()
         self._seed_original_valuations(valuation_repo)
 
         deltas = compute_injury_adjusted_deltas(
@@ -317,12 +323,13 @@ class TestComputeInjuryAdjustedDeltas:
             model=model,
             player_repo=player_repo,
             valuation_repo=valuation_repo,
+            projection_repo=projection_repo,
         )
         values = [d.value_delta for d in deltas]
         assert values == sorted(values)
 
     def test_no_original_valuations_returns_empty(self) -> None:
-        model, player_repo, valuation_repo, profiler = _build_deps()
+        model, player_repo, valuation_repo, profiler, projection_repo = _build_deps()
         # Don't seed any valuations
 
         deltas = compute_injury_adjusted_deltas(
@@ -335,11 +342,12 @@ class TestComputeInjuryAdjustedDeltas:
             model=model,
             player_repo=player_repo,
             valuation_repo=valuation_repo,
+            projection_repo=projection_repo,
         )
         assert deltas == []
 
     def test_injured_player_has_lower_adjusted_value(self) -> None:
-        model, player_repo, _, profiler = _build_deps()
+        model, player_repo, _, profiler, projection_repo = _build_deps()
 
         # Compute non-injured valuations first
         no_injury = compute_injury_adjusted_valuations_list(
@@ -354,6 +362,7 @@ class TestComputeInjuryAdjustedDeltas:
             ),
             model=model,
             player_repo=player_repo,
+            projection_repo=projection_repo,
         )
         # Compute injury-adjusted valuations
         with_injury = compute_injury_adjusted_valuations_list(
@@ -365,6 +374,7 @@ class TestComputeInjuryAdjustedDeltas:
             profiler=profiler,
             model=model,
             player_repo=player_repo,
+            projection_repo=projection_repo,
         )
 
         baseline = {v.player_name: v.value for v in no_injury}

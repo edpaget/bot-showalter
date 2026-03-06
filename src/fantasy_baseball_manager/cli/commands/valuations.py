@@ -92,6 +92,7 @@ def valuations_rankings(  # pragma: no cover
             profiler=ctx.profiler,
             model=model,  # type: ignore[arg-type]  # Model satisfies Predictable structurally
             player_repo=ctx.player_repo,
+            projection_repo=ctx.projection_repo,
         )
 
     if player_type is not None:
