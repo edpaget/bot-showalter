@@ -50,16 +50,17 @@ class TestGetBatterPositionsCurrentSeason:
         assert 2 in result
         assert "of" in result[2]
 
-    def test_does_not_fall_back_when_current_season_has_data(self) -> None:
+    def test_prior_season_data_also_included(self) -> None:
+        """Multi-season: player 2 from 2024 SHOULD appear when querying 2025."""
         appearances = [
             PositionAppearance(player_id=1, season=2025, position="C", games=100),
             PositionAppearance(player_id=2, season=2024, position="OF", games=150),
         ]
         service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
         result = service.get_batter_positions(2025, _league())
-        # Only player 1 from 2025 should appear, not player 2 from 2024
         assert 1 in result
-        assert 2 not in result
+        assert 2 in result
+        assert "of" in result[2]
 
 
 class TestGetBatterPositionsFallback:
@@ -86,14 +87,14 @@ class TestGetBatterPositionsFallback:
 class TestGetBatterPositionsMinGames:
     """Positions with fewer than min_games are excluded."""
 
-    def test_default_min_games_filters_below_10(self) -> None:
+    def test_default_min_games_filters_below_5(self) -> None:
         appearances = [
-            PositionAppearance(player_id=1, season=2025, position="C", games=5),
+            PositionAppearance(player_id=1, season=2025, position="C", games=3),
             PositionAppearance(player_id=2, season=2025, position="OF", games=150),
         ]
         service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
         result = service.get_batter_positions(2025, _league())
-        # Player 1 has only 5 games at C, below default min_games=10
+        # Player 1 has only 3 games at C, below default min_games=5
         assert 1 not in result
         assert 2 in result
 
@@ -110,26 +111,62 @@ class TestGetBatterPositionsMinGames:
 
     def test_min_games_applied_to_fallback_data(self) -> None:
         appearances = [
-            PositionAppearance(player_id=1, season=2025, position="C", games=5),
+            PositionAppearance(player_id=1, season=2025, position="C", games=3),
             PositionAppearance(player_id=2, season=2025, position="OF", games=150),
         ]
         service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
         result = service.get_batter_positions(2026, _league())
-        # Fallback to 2025; player 1 still filtered out by min_games=10
+        # Fallback to 2025; player 1 still filtered out by min_games=5
         assert 1 not in result
         assert 2 in result
 
     def test_multi_position_player_partial_filter(self) -> None:
         appearances = [
-            PositionAppearance(player_id=1, season=2025, position="C", games=5),
+            PositionAppearance(player_id=1, season=2025, position="C", games=3),
             PositionAppearance(player_id=1, season=2025, position="OF", games=50),
         ]
         service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
         result = service.get_batter_positions(2025, _league())
-        # C filtered out (5 < 10), OF kept (50 >= 10)
+        # C filtered out (3 < 5), OF kept (50 >= 5)
         assert 1 in result
         assert "c" not in result[1]
         assert "of" in result[1]
+
+
+class TestGetBatterPositionsCarryover:
+    """Prior-season eligibility carries forward (Yahoo-style)."""
+
+    def test_prior_season_only_carries_forward(self) -> None:
+        """Player has OF in 2024 (>= 5 games), no data in 2025 → eligible at OF for 2025."""
+        appearances = [
+            PositionAppearance(player_id=1, season=2024, position="OF", games=65),
+        ]
+        service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
+        result = service.get_batter_positions(2025, _league())
+        assert 1 in result
+        assert "of" in result[1]
+
+    def test_union_of_both_seasons(self) -> None:
+        """Player has C in 2024, OF in 2025 → eligible at both for 2025."""
+        appearances = [
+            PositionAppearance(player_id=1, season=2024, position="C", games=50),
+            PositionAppearance(player_id=1, season=2025, position="OF", games=30),
+        ]
+        service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
+        result = service.get_batter_positions(2025, _league())
+        assert 1 in result
+        assert "c" in result[1]
+        assert "of" in result[1]
+
+    def test_preseason_uses_prior_season(self) -> None:
+        """No data for 2026 or 2025, data in 2025 used as sole source for 2026."""
+        appearances = [
+            PositionAppearance(player_id=1, season=2025, position="C", games=100),
+        ]
+        service = PlayerEligibilityService(FakePositionAppearanceRepo(appearances))
+        result = service.get_batter_positions(2026, _league())
+        assert 1 in result
+        assert "c" in result[1]
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +295,7 @@ class TestGetPitcherPositionsMultiSource:
         )
         league = _league(pitcher_positions=_SP_RP_LEAGUE)
         result = service.get_pitcher_positions(2025, league, [10])
-        # max(g)=25, max(gs)=15 → gs>0 so SP, (25-15)=10>0 so RP
+        # max(g)=25, max(gs)=15 → gs>=3 so SP, (25-15)=10>=5 so RP
         assert "sp" in result[10]
         assert "rp" in result[10]
         assert "p" in result[10]
@@ -278,3 +315,85 @@ class TestGetPitcherPositionsFilteredByConfig:
         assert "sp" in result[10]
         assert "rp" not in result[10]
         assert "p" not in result[10]
+
+
+class TestGetPitcherPositionsYahooThresholds:
+    """Yahoo thresholds: SP requires gs>=3, RP requires (g-gs)>=5."""
+
+    def test_below_sp_threshold(self) -> None:
+        """gs=2 → NOT SP-eligible."""
+        stats = [_pitching_stats(10, 2025, g=60, gs=2)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" not in result[10]
+        assert "rp" in result[10]
+
+    def test_below_rp_threshold(self) -> None:
+        """g=30, gs=27 (3 relief apps) → NOT RP-eligible."""
+        stats = [_pitching_stats(10, 2025, g=30, gs=27)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" in result[10]
+        assert "rp" not in result[10]
+
+    def test_at_sp_threshold(self) -> None:
+        """gs=3 → exactly at threshold, SP-eligible."""
+        stats = [_pitching_stats(10, 2025, g=3, gs=3)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" in result[10]
+
+    def test_at_rp_threshold(self) -> None:
+        """g=5, gs=0 → exactly 5 relief apps, RP-eligible."""
+        stats = [_pitching_stats(10, 2025, g=5, gs=0)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "rp" in result[10]
+
+
+class TestGetPitcherPositionsCarryover:
+    """Pitcher multi-season carryover."""
+
+    def test_prior_season_only(self) -> None:
+        """Stats only in 2024 → used for 2025 classification."""
+        stats = [_pitching_stats(10, 2024, g=30, gs=25)]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        assert "sp" in result[10]
+        assert "rp" in result[10]
+
+    def test_multi_season_takes_max(self) -> None:
+        """Stats in both years, takes max g and max gs."""
+        stats = [
+            _pitching_stats(10, 2024, g=20, gs=18),
+            _pitching_stats(10, 2025, g=10, gs=2),
+        ]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [10])
+        # max(g)=20, max(gs)=18 → gs>=3 so SP, (20-18)=2 < 5 so NOT RP
+        assert "sp" in result[10]
+        assert "rp" not in result[10]

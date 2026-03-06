@@ -28,16 +28,17 @@ class PlayerEligibilityService:
         season: int,
         league: LeagueSettings,
         *,
-        min_games: int = 10,
+        min_games: int = 5,
     ) -> dict[int, list[str]]:
         """Return a map of player IDs to eligible league-settings position keys.
 
-        If no position data exists for *season*, falls back to *season - 1*.
-        Positions with fewer than *min_games* appearances are excluded.
+        Combines position data from *season* and *season - 1* (Yahoo-style
+        carryover). If neither season has data, returns an empty dict.
+        Each season's appearances are filtered by *min_games* independently.
         """
-        appearances = self._position_repo.get_by_season(season)
-        if not appearances:
-            appearances = self._position_repo.get_by_season(season - 1)
+        current = self._position_repo.get_by_season(season)
+        prior = self._position_repo.get_by_season(season - 1)
+        appearances = current + prior
         return build_position_map(appearances, league, min_games=min_games)
 
     def get_pitcher_positions(
@@ -65,10 +66,9 @@ class PlayerEligibilityService:
     def _get_pitching_stats(self, season: int) -> list[PitchingStats]:
         if self._pitching_stats_repo is None:
             return []
-        stats = self._pitching_stats_repo.get_by_season(season)
-        if not stats:
-            stats = self._pitching_stats_repo.get_by_season(season - 1)
-        return stats
+        current = self._pitching_stats_repo.get_by_season(season)
+        prior = self._pitching_stats_repo.get_by_season(season - 1)
+        return current + prior
 
     @staticmethod
     def _aggregate_pitching_stats(
@@ -102,9 +102,9 @@ class PlayerEligibilityService:
             positions: list[str] = []
             if pid in aggregated:
                 g, gs = aggregated[pid]
-                if gs > 0 and "sp" in config:
+                if gs >= 3 and "sp" in config:
                     positions.append("sp")
-                if (g - gs) > 0 and "rp" in config:
+                if (g - gs) >= 5 and "rp" in config:
                     positions.append("rp")
                 if positions and "p" in config:
                     positions.append("p")
