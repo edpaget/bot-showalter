@@ -41,11 +41,13 @@ In a standard auction draft (e.g., $260 budget, 23 roster spots), the key strate
 
 ## Phase 2: Snake draft position targets
 
-For snake drafts, compute recommended position targets for each round given a specific draft slot.
+For snake drafts, compute recommended position targets for each round given a specific draft slot. Supports both redraft and keeper league formats.
 
 ### Context
 
 In a snake draft, the key strategic decision is which position to target in each round. With a 1st-overall pick you should target differently than with a 12th pick, because the player pool available at your next pick (24th vs. 13th) is very different. This phase maps the value curves and scarcity data to a specific draft slot.
+
+In keeper leagues, the draft pool is depleted (kept players are unavailable) and your roster is partially filled (your keepers occupy slots). The plan must account for both: fewer rounds to draft (one pick lost per keeper), a reduced player pool, and only the unfilled roster slots need targeting. This phase integrates with the keeper optimization solver's `compute_adjusted_draft_pool()` to get the reduced pool and recalculated replacement-level baselines.
 
 ### Steps
 
@@ -55,8 +57,15 @@ In a snake draft, the key strategic decision is which position to target in each
    - At each pick, estimates the available player pool based on ADP (if available) or value-based ranking.
    - Recommends the position that maximizes remaining roster value using a greedy look-ahead.
 3. Show alternative positions at each pick for flexibility.
-4. Add `fbm draft plan --season <year> --system <system> --slot <n> --teams <n>` CLI command.
-5. Write tests with known valuations and a fixed draft slot verifying sensible position targeting.
+4. Add keeper league support:
+   - Accept optional `my_keepers` (your kept players with positions) and `league_keepers` (all teams' kept player IDs).
+   - Use `compute_adjusted_draft_pool()` from the keeper optimization solver to remove kept players and recompute replacement-level baselines.
+   - Pre-fill roster slots occupied by your keepers — the plan only targets unfilled positions.
+   - Reduce the number of draft rounds by the number of keepers per team (one pick lost per keeper).
+   - Remove other teams' keepers from the ADP/value-based opponent pick simulation.
+5. Add `fbm draft plan --season <year> --system <system> --slot <n> --teams <n>` CLI command with optional `--keepers` and `--league-keepers <csv-path>` flags for keeper league mode.
+6. Write tests with known valuations and a fixed draft slot verifying sensible position targeting.
+7. Write keeper-specific tests: verify that pre-filled positions are skipped, the draft pool excludes kept players, and the plan has fewer rounds than a redraft.
 
 ### Acceptance criteria
 
@@ -64,6 +73,10 @@ In a snake draft, the key strategic decision is which position to target in each
 - Pick numbers are correct for the snake format.
 - Early picks target scarce high-value positions; late picks fill deep positions.
 - Plan adapts to draft slot (early vs. late first-round picks produce different strategies).
+- In keeper mode, roster slots filled by keepers are excluded from the plan.
+- In keeper mode, kept players (yours and league-wide) are removed from the draft pool.
+- In keeper mode, the number of draft rounds is reduced by keepers per team.
+- In keeper mode, replacement-level baselines reflect the depleted pool (via keeper optimizer integration).
 
 ## Phase 3: Monte Carlo draft simulation
 
@@ -79,8 +92,9 @@ The greedy optimizer from phases 1-2 finds a locally optimal plan but doesn't ac
 2. Implement `simulate_drafts(valuations, adp, league_settings, strategy, n_simulations)` that runs N simulated drafts and records the resulting roster value for each.
 3. Report percentile outcomes (p10, p25, p50, p75, p90) for total roster value.
 4. Compare strategies (balanced vs. stars_and_scrubs, different position-targeting orders) by their outcome distributions.
-5. Add `fbm draft simulate --season <year> --slot <n> --simulations <n>` CLI command.
-6. Write tests verifying simulation mechanics (correct pick order, roster constraint enforcement, value tallying).
+5. Support keeper league inputs (same `--keepers` / `--league-keepers` flags from phase 2): pre-fill rosters with keepers, reduce draft rounds, and use the adjusted pool for simulations.
+6. Add `fbm draft simulate --season <year> --slot <n> --simulations <n>` CLI command.
+7. Write tests verifying simulation mechanics (correct pick order, roster constraint enforcement, value tallying).
 
 ### Acceptance criteria
 
@@ -88,7 +102,8 @@ The greedy optimizer from phases 1-2 finds a locally optimal plan but doesn't ac
 - Output shows percentile outcomes for total roster value.
 - Different strategies produce measurably different outcome distributions.
 - Opponent behavior roughly matches ADP patterns.
+- In keeper mode, simulations respect the reduced draft pool and pre-filled rosters.
 
 ## Ordering
 
-Phase 1 and phase 2 are independent and can be built in parallel. Phase 3 depends on both and also benefits from the ADP integration roadmap being complete (for realistic opponent modeling). Phase 1 is higher priority for auction leagues, phase 2 for snake leagues — choose based on the primary league format.
+Phase 1 and phase 2 are independent and can be built in parallel. Phase 2's keeper league support depends on the keeper optimization solver roadmap (done) for `compute_adjusted_draft_pool()` and replacement-level recomputation. Phase 3 depends on both and also benefits from the ADP integration roadmap being complete (for realistic opponent modeling). Phase 1 is higher priority for auction leagues, phase 2 for snake leagues — choose based on the primary league format.
