@@ -7,7 +7,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases | Progress | Hard Dependencies |
 |---------|--------|----------|-------------------|
 | [Connection Pool Repos](connection-pool-repos.md) | 4 | phases 1-3 done | none |
-| [Keeper League Analysis](keeper-league-analysis.md) | 3 | phases 1-2 done | keeper-surplus-value (done), yahoo-fantasy-integration (done) |
 | [Injury Valuation Cleanup](injury-valuation-cleanup.md) | 3 | not started | injury-risk-discount (done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
@@ -53,6 +52,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Validation Gate](validation-gate.md) | 2 |
 | [Yahoo Architecture Fixes](yahoo-architecture-fixes.md) | 3 |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 |
+| [Keeper League Analysis](keeper-league-analysis.md) | 3 |
 | [Test Coverage](test-coverage.md) | 5 |
 | [Projection Blender](projection-blender.md) | 4 |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 |
