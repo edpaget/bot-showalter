@@ -36,7 +36,7 @@ class SqliteLevelFactorRepo:
                     factor.loaded_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_level_season(self, level: str, season: int) -> LevelFactor | None:
         with self._provider.connection() as conn:

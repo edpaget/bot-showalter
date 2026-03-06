@@ -33,7 +33,7 @@ class SqliteYahooPlayerMapRepo:
                     mapping.yahoo_positions,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_yahoo_key(self, yahoo_player_key: str) -> YahooPlayerMap | None:
         with self._provider.connection() as conn:

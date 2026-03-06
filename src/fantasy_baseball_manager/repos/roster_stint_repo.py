@@ -31,7 +31,7 @@ class SqliteRosterStintRepo:
                     stint.loaded_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_player(self, player_id: int) -> list[RosterStint]:
         with self._provider.connection() as conn:

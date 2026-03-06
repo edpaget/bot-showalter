@@ -37,7 +37,7 @@ class SqliteYahooLeagueRepo:
                     league.renew,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_league_key(self, league_key: str) -> YahooLeague | None:
         with self._provider.connection() as conn:
@@ -100,7 +100,7 @@ class SqliteYahooTeamRepo:
                     int(team.is_owned_by_user),
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_league_key(self, league_key: str) -> list[YahooTeam]:
         with self._provider.connection() as conn:

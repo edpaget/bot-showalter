@@ -265,7 +265,7 @@ def compute_stat_metrics(
                 correlation = 0.0
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", ConstantInputWarning)
-                rho: float = spearmanr(projected, actual)[0]  # type: ignore[assignment]
+                rho: float = spearmanr(projected, actual)[0]
             rank_correlation = 0.0 if math.isnan(rho) else rho
 
         ss_res = sum(e * e for e in errors)

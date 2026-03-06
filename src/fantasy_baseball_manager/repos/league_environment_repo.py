@@ -44,7 +44,7 @@ class SqliteLeagueEnvironmentRepo:
                     env.loaded_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_league_season_level(self, league: str, season: int, level: str) -> LeagueEnvironment | None:
         with self._provider.connection() as conn:

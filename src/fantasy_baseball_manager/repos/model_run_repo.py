@@ -51,7 +51,7 @@ class SqliteModelRunRepo:
                     record.created_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get(self, system: str, version: str, operation: str = "train") -> ModelRunRecord | None:
         with self._provider.connection() as conn:

@@ -80,7 +80,7 @@ class _FakeModel:
 def _fake_context(data_dir: str) -> Iterator[BreakoutBustReportContext]:
     conn = create_connection(":memory:")
     try:
-        yield BreakoutBustReportContext(conn=conn, model=_FakeModel())  # type: ignore[arg-type]
+        yield BreakoutBustReportContext(conn=conn, model=_FakeModel())
     finally:
         conn.close()
 

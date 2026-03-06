@@ -81,7 +81,7 @@ class SqliteStatcastPitchRepo:
                     pitch.loaded_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_pitcher_date(self, pitcher_id: int, game_date: str) -> list[StatcastPitch]:
         with self._provider.connection() as conn:

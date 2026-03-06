@@ -32,7 +32,7 @@ class SqliteSprintSpeedRepo:
                     record.loaded_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def count(self) -> int:
         with self._provider.connection() as conn:

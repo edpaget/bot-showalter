@@ -51,7 +51,7 @@ class SqliteDatasetAssembler:
                 "INSERT INTO feature_set (name, version, source_query, created_at) VALUES (?, ?, ?, ?)",
                 (feature_set.name, feature_set.version, source_query, now),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def _create_dataset(
         self, feature_set_id: int, feature_set: FeatureSet, select_sql: str, params: list[object]
@@ -66,7 +66,7 @@ class SqliteDatasetAssembler:
                 "VALUES (?, ?, NULL, NULL, 0, ?, ?)",
                 (feature_set_id, feature_set.name, seasons_json, now),
             )
-            dataset_id: int = cursor.lastrowid  # type: ignore[assignment]
+            dataset_id: int = cursor.lastrowid
             table_name = f"ds_{dataset_id}"
 
             conn.execute(f"CREATE TABLE [{table_name}] AS {select_sql}", params)
@@ -344,7 +344,7 @@ class SqliteDatasetAssembler:
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (handle.feature_set_id, split_table, split_name, split_table, row_count, seasons_json, now),
             )
-            dataset_id: int = cursor.lastrowid  # type: ignore[assignment]
+            dataset_id: int = cursor.lastrowid
 
             return DatasetHandle(
                 dataset_id=dataset_id,

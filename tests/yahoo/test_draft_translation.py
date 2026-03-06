@@ -108,21 +108,21 @@ class TestIngestYahooPick:
 
     def test_unmapped_player_skipped(self) -> None:
         yahoo_pick = _make_yahoo_pick(player_id=None)
-        result = ingest_yahoo_pick(lambda *a, **kw: None, frozenset(), yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
+        result = ingest_yahoo_pick(lambda *a, **kw: None, frozenset(), yahoo_pick, _TEAM_MAP)
 
         assert result is None
 
     def test_player_not_in_pool_skipped(self) -> None:
         available = frozenset({200})  # player_id 100 is not in the pool
         yahoo_pick = _make_yahoo_pick(player_id=100)
-        result = ingest_yahoo_pick(lambda *a, **kw: None, available, yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
+        result = ingest_yahoo_pick(lambda *a, **kw: None, available, yahoo_pick, _TEAM_MAP)
 
         assert result is None
 
     def test_unknown_team_key_skipped(self) -> None:
         available = frozenset({100})
         yahoo_pick = _make_yahoo_pick(team_key="449.l.99999.t.99")
-        result = ingest_yahoo_pick(lambda *a, **kw: None, available, yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
+        result = ingest_yahoo_pick(lambda *a, **kw: None, available, yahoo_pick, _TEAM_MAP)
 
         assert result is None
 

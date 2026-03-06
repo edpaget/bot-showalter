@@ -57,7 +57,7 @@ class SqliteExperimentRepo:
                     experiment.parent_id,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get(self, experiment_id: int) -> Experiment | None:
         with self._provider.connection() as conn:

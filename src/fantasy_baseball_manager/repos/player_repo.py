@@ -58,7 +58,7 @@ class SqlitePlayerRepo:
                         player.birth_date,
                     ),
                 )
-                return cursor.lastrowid  # type: ignore[return-value]
+                return cursor.lastrowid
             except sqlite3.IntegrityError:
                 self._raise_conflict(player)
 
@@ -158,7 +158,7 @@ class SqliteTeamRepo:
                        name=excluded.name, league=excluded.league, division=excluded.division""",
                 (team.abbreviation, team.name, team.league, team.division),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_abbreviation(self, abbreviation: str) -> Team | None:
         with self._provider.connection() as conn:

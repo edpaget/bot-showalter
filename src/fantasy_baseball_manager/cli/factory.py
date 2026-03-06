@@ -120,7 +120,7 @@ class DbLabelSource:
 
     def get_labels(self, season: int) -> list[LabeledSeason]:
         adp = self._adp_repo.get_by_season(season)
-        all_vals = self._val_repo.get_by_season(season, system="z")
+        all_vals = self._val_repo.get_by_season(season, system="zar")
         vals = [v for v in all_vals if v.projection_system == "actual"]
         return generate_labels(adp, vals, LabelConfig())
 
@@ -622,8 +622,8 @@ def build_draft_board_context(data_dir: str) -> Iterator[DraftBoardContext]:
             adp_repo=container.adp_repo,
             profile_service=container.player_profile_service,
             projection_repo=container.projection_repo,
-            yahoo_roster_repo=SqliteYahooRosterRepo(conn),
-            yahoo_league_repo=SqliteYahooLeagueRepo(conn),
+            yahoo_roster_repo=SqliteYahooRosterRepo(SingleConnectionProvider(conn)),
+            yahoo_league_repo=SqliteYahooLeagueRepo(SingleConnectionProvider(conn)),
             position_appearance_repo=container.position_appearance_repo,
             pitching_stats_repo=container.pitching_stats_repo,
         )

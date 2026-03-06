@@ -565,7 +565,7 @@ def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
         Valuation(
             player_id=1,
             season=2023,
-            system="z",
+            system="zar",
             version="1.0",
             projection_system="actual",
             projection_version="1.0",
@@ -583,7 +583,7 @@ def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
         Valuation(
             player_id=2,
             season=2023,
-            system="z",
+            system="zar",
             version="1.0",
             projection_system="actual",
             projection_version="1.0",
@@ -601,7 +601,7 @@ def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
         Valuation(
             player_id=3,
             season=2023,
-            system="z",
+            system="zar",
             version="1.0",
             projection_system="actual",
             projection_version="1.0",

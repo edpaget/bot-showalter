@@ -73,7 +73,7 @@ class SqliteMinorLeagueBattingStatsRepo:
                     stats.loaded_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_player(self, player_id: int) -> list[MinorLeagueBattingStats]:
         with self._provider.connection() as conn:

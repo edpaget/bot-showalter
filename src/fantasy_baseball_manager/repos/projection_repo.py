@@ -94,7 +94,7 @@ class SqliteProjectionRepo:
                     projection.player_type,
                 ),
             ).fetchone()
-            return row[0]  # type: ignore[index]
+            return row[0]
 
     def get_by_player_season(
         self, player_id: int, season: int, system: str | None = None, *, include_distributions: bool = False

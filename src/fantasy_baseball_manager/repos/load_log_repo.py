@@ -30,7 +30,7 @@ class SqliteLoadLogRepo:
                     log.error_message,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_recent(self, limit: int = 20) -> list[LoadLog]:
         with self._provider.connection() as conn:

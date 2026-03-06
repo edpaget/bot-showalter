@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.services.actual_valuations import compute_actual_valuations
 from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
 from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
@@ -210,6 +211,7 @@ from fantasy_baseball_manager.services.yahoo_keeper import (
 from fantasy_baseball_manager.services.yahoo_sync import sync_league_metadata, sync_transactions
 
 __all__ = [
+    "compute_actual_valuations",
     "ADPAccuracyEvaluator",
     "ADPBot",
     "assemble_labeled_dataset",

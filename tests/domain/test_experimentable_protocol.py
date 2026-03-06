@@ -34,7 +34,7 @@ class _ValidExperimentable:
         return {}
 
     def experiment_training_backend(self) -> TrainingBackend:
-        return _FakeTrainingBackend()  # type: ignore[return-value]
+        return _FakeTrainingBackend()
 
 
 class _MissingMethod:

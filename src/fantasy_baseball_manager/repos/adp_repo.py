@@ -35,7 +35,7 @@ class SqliteADPRepo:
                     adp.loaded_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_player_season(self, player_id: int, season: int) -> list[ADP]:
         with self._provider.connection() as conn:

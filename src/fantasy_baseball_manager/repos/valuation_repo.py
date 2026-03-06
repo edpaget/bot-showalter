@@ -44,7 +44,7 @@ class SqliteValuationRepo:
                     valuation.loaded_at,
                 ),
             )
-            return cursor.lastrowid  # type: ignore[return-value]
+            return cursor.lastrowid
 
     def get_by_player_season(self, player_id: int, season: int, system: str | None = None) -> list[Valuation]:
         with self._provider.connection() as conn:
