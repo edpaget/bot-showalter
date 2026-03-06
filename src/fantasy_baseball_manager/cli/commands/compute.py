@@ -8,6 +8,7 @@ from fantasy_baseball_manager.cli._output import console
 from fantasy_baseball_manager.cli.factory import build_compute_container
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.services import compute_actual_valuations
 
 compute_app = typer.Typer(name="compute", help="Compute derived data from ingested stats")
@@ -44,7 +45,7 @@ def compute_actual_valuations_cmd(
     league = load_league(league_name, Path.cwd())
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
-        container = AnalysisContainer(conn)
+        container = AnalysisContainer(SingleConnectionProvider(conn))
         for yr in season:
             valuations = compute_actual_valuations(
                 season=yr,

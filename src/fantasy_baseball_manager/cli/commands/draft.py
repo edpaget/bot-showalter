@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
+from rich.table import Table
 
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.cli._output import (
@@ -54,6 +55,7 @@ from fantasy_baseball_manager.services import (
     generate_tiers,
     identify_needs,
     load_draft,
+    optimize_auction_budget,
     recommend,
     tier_summary,
 )
@@ -460,6 +462,47 @@ def draft_tier_summary(
         tiers = generate_tiers(valuations, ctx.player_repo, method=method, max_tiers=max_tiers)
         report = tier_summary(tiers)
         print_tier_summary(report)
+
+
+@draft_app.command("budget")
+def budget_command(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    strategy: Annotated[str, typer.Option("--strategy", help="balanced or stars_and_scrubs")] = "balanced",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    method: Annotated[str, typer.Option("--method", help="Tiering method: gap or jenks")] = "gap",
+    max_tiers: Annotated[int, typer.Option("--max-tiers", help="Max tiers per position")] = 5,
+    data_dir: _DataDirOpt = "./data",
+) -> None:  # pragma: no cover
+    """Compute optimal auction budget allocation across roster positions."""
+    league = load_league(league_name, Path.cwd())
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        tiers = generate_tiers(valuations, ctx.player_repo, method=method, max_tiers=max_tiers)
+
+        allocations = optimize_auction_budget(valuations, league, player_names, strategy=strategy, tiers=tiers)
+
+    table = Table(title=f"Auction Budget — {strategy}")
+    table.add_column("Position", style="bold")
+    table.add_column("Budget", justify="right")
+    table.add_column("Tier", justify="center")
+    table.add_column("Target Players")
+
+    for alloc in sorted(allocations, key=lambda a: a.budget, reverse=True):
+        tier_str = str(alloc.target_tier) if alloc.target_tier is not None else "-"
+        names_str = ", ".join(alloc.target_player_names) if alloc.target_player_names else "-"
+        table.add_row(alloc.position.upper(), f"${alloc.budget:.0f}", tier_str, names_str)
+
+    table.add_section()
+    table.add_row("TOTAL", f"${sum(a.budget for a in allocations):.0f}", "", "")
+    console.print(table)
 
 
 @draft_app.command("needs")

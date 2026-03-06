@@ -180,6 +180,7 @@ from fantasy_baseball_manager.services.residual_analyzer import ResidualAnalyzer
 from fantasy_baseball_manager.services.residual_persistence_diagnostic import (
     ResidualPersistenceDiagnostic,
 )
+from fantasy_baseball_manager.services.roster_optimizer import optimize_auction_budget
 from fantasy_baseball_manager.services.tier_generator import (
     generate_tiers,
     tier_summary,
@@ -345,6 +346,7 @@ __all__ = [
     "parse_league_keepers",
     "solve_keepers",
     "solve_keepers_with_pool",
+    "optimize_auction_budget",
     "tier_summary",
     "value_at",
     "derive_and_store_keeper_costs",
