@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import (
     AdjustedValuation,
+    CategoryNeed,
     Err,
     KeeperCost,
     KeeperDecision,
@@ -10,6 +11,7 @@ from fantasy_baseball_manager.domain import (
     Ok,
     ProjectedKeeper,
     Roster,
+    RosterAnalysis,
     TeamKeeperProjection,
     TradeEvaluation,
     TradePlayerDetail,
@@ -17,6 +19,7 @@ from fantasy_baseball_manager.domain import (
 )
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import best_position, build_roster_spots
+from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
@@ -267,6 +270,62 @@ def build_league_keeper_overview(
         trade_targets=tuple(trade_targets),
         category_names=tuple(sorted(all_category_names)),
     )
+
+
+def build_keeper_draft_needs(
+    rosters: list[Roster],
+    valuations: list[Valuation],
+    players: list[Player],
+    projections: list[Projection],
+    max_keepers: int,
+    user_team_key: str,
+    team_names: dict[str, str],
+    league: LeagueSettings,
+    *,
+    top_n: int = 5,
+) -> tuple[RosterAnalysis, list[CategoryNeed]]:
+    """Combine keeper projection with category needs analysis.
+
+    Returns the user's roster analysis (strengths/weaknesses from keepers)
+    and a list of category needs with recommended players from the post-keeper pool.
+    """
+    overview = build_league_keeper_overview(
+        rosters=rosters,
+        valuations=valuations,
+        players=players,
+        max_keepers=max_keepers,
+        user_team_key=user_team_key,
+        team_names=team_names,
+    )
+
+    # Find user's projected keepers
+    user_proj = next((tp for tp in overview.team_projections if tp.is_user), None)
+    user_keeper_ids = [k.player_id for k in user_proj.keepers] if user_proj else []
+
+    # Get all estimated keeper IDs (all teams)
+    all_keeper_ids = estimate_other_keepers(rosters, valuations, max_keepers)
+
+    # Available pool = players with projections minus all keepers
+    proj_player_ids = {p.player_id for p in projections}
+    available_ids = sorted(proj_player_ids - all_keeper_ids)
+
+    # Build player name lookup for recommendations
+    player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+    # Analyze the user's keeper roster
+    analysis = analyze_roster(user_keeper_ids, projections, league)
+
+    # Identify needs
+    needs = identify_needs(
+        roster_ids=user_keeper_ids,
+        available_ids=available_ids,
+        projections=projections,
+        league=league,
+        player_names=player_names,
+        top_n=top_n,
+    )
+
+    return analysis, needs
 
 
 def adjust_valuations_for_league_keepers(

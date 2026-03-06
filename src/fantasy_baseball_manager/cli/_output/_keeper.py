@@ -3,15 +3,18 @@ from typing import TYPE_CHECKING
 from rich.table import Table
 
 from fantasy_baseball_manager.cli._output._common import console
+from fantasy_baseball_manager.cli._output._draft import print_category_needs
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         AdjustedValuation,
+        CategoryNeed,
         KeeperDecision,
         KeeperScenario,
         KeeperSolution,
         KeeperTradeImpact,
         LeagueKeeperOverview,
+        RosterAnalysis,
         TradeEvaluation,
         TradePlayerDetail,
     )
@@ -297,3 +300,52 @@ def print_league_keeper_overview(overview: LeagueKeeperOverview, *, top_targets:
         console.print(target_table)
     else:
         console.print("[dim]No trade targets found.[/dim]")
+
+
+def print_keeper_draft_needs(
+    overview: LeagueKeeperOverview,
+    analysis: RosterAnalysis,
+    needs: list[CategoryNeed],
+    num_teams: int,
+) -> None:
+    """Render keeper draft needs: keeper summary, category strengths, and recommendations."""
+    # 1. Your Keepers table
+    user_proj = next((tp for tp in overview.team_projections if tp.is_user), None)
+    if user_proj and user_proj.keepers:
+        keeper_table = Table(title="Your Keepers", show_edge=False, pad_edge=False)
+        keeper_table.add_column("Player", justify="left")
+        keeper_table.add_column("Pos", justify="left")
+        keeper_table.add_column("Value", justify="right")
+
+        for k in user_proj.keepers:
+            keeper_table.add_row(k.player_name, k.position, f"${k.value:.1f}")
+
+        console.print(keeper_table)
+        console.print()
+    else:
+        console.print("[yellow]No keepers projected.[/yellow]\n")
+
+    # 2. Category Strengths table
+    if analysis.projections:
+        strength_table = Table(title="Category Strengths", show_edge=False, pad_edge=False)
+        strength_table.add_column("Category", justify="left")
+        strength_table.add_column("Value", justify="right")
+        strength_table.add_column("Rank", justify="right")
+        strength_table.add_column("Strength", justify="left")
+
+        strength_colors = {"strong": "green", "average": "yellow", "weak": "red"}
+
+        for proj in analysis.projections:
+            color = strength_colors.get(proj.strength, "")
+            strength_table.add_row(
+                proj.category,
+                f"{proj.projected_value:.1f}",
+                f"{proj.league_rank_estimate}/{num_teams}",
+                f"[{color}]{proj.strength}[/{color}]",
+            )
+
+        console.print(strength_table)
+        console.print()
+
+    # 3. Delegate to existing category needs renderer
+    print_category_needs(needs, num_teams)

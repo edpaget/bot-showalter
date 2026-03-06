@@ -18,6 +18,7 @@ from fantasy_baseball_manager.domain import (
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.services.keeper_service import (
     adjust_valuations_for_league_keepers,
+    build_keeper_draft_needs,
     build_league_keeper_overview,
     compute_adjusted_valuations,
     compute_surplus,
@@ -1082,3 +1083,164 @@ class TestBuildLeagueKeeperOverview:
         target = result.trade_targets[0]
         assert target.player_id == 7
         assert target.rank_on_team == 3
+
+
+# ---------------------------------------------------------------------------
+# build_keeper_draft_needs
+# ---------------------------------------------------------------------------
+
+
+def _needs_league() -> LeagueSettings:
+    """League with 2 batting + 2 pitching categories for needs tests."""
+    return LeagueSettings(
+        name="test",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=2,
+        budget=100,
+        roster_batters=3,
+        roster_pitchers=3,
+        batting_categories=(
+            CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            CategoryConfig(key="sb", name="SB", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        pitching_categories=(
+            CategoryConfig(key="k", name="K", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            CategoryConfig(key="w", name="W", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        positions={"c": 1, "of": 1},
+        roster_util=0,
+    )
+
+
+def _needs_projection(player_id: int, player_type: str, stats: dict[str, float]) -> Projection:
+    return Projection(
+        player_id=player_id,
+        season=2026,
+        system="composite",
+        version="v1",
+        player_type=player_type,
+        stat_json=stats,
+    )
+
+
+class TestBuildKeeperDraftNeeds:
+    def test_identifies_weak_categories(self) -> None:
+        """User's keepers are pitching-heavy → batting categories flagged as weak."""
+        # User team keeps pitcher-heavy roster (players 1=pitcher, 2=pitcher)
+        # Other team keeps batter-heavy roster (players 3=batter, 4=batter)
+        rosters = [
+            _roster("user", [1, 2, 5]),
+            _roster("other", [3, 4, 6]),
+        ]
+        valuations = [
+            _val_with_cats(1, 30.0, {"k": 3.0, "w": 2.0}),
+            _val_with_cats(2, 25.0, {"k": 2.5, "w": 1.5}),
+            _val_with_cats(3, 28.0, {"hr": 3.0, "sb": 2.0}),
+            _val_with_cats(4, 22.0, {"hr": 2.0, "sb": 1.0}),
+            _val_with_cats(5, 10.0, {"hr": 0.5, "sb": 0.5}),
+            _val_with_cats(6, 8.0, {"k": 0.5, "w": 0.5}),
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 7)]
+        projections = [
+            _needs_projection(1, "pitcher", {"ip": 200, "k": 200, "w": 15}),
+            _needs_projection(2, "pitcher", {"ip": 180, "k": 180, "w": 12}),
+            _needs_projection(3, "batter", {"pa": 600, "hr": 35, "sb": 20}),
+            _needs_projection(4, "batter", {"pa": 550, "hr": 25, "sb": 15}),
+            _needs_projection(5, "batter", {"pa": 400, "hr": 5, "sb": 5}),
+            _needs_projection(6, "pitcher", {"ip": 100, "k": 60, "w": 5}),
+            # Available batter who should be recommended
+            _needs_projection(7, "batter", {"pa": 600, "hr": 40, "sb": 25}),
+        ]
+        # Add valuation for the available player
+        valuations.append(_val_with_cats(7, 35.0, {"hr": 4.0, "sb": 2.5}))
+        players.append(Player(name_first="P", name_last="7", id=7))
+
+        league = _needs_league()
+        team_names = {"user": "User Team", "other": "Other Team"}
+
+        analysis, needs = build_keeper_draft_needs(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            projections=projections,
+            max_keepers=2,
+            user_team_key="user",
+            team_names=team_names,
+            league=league,
+        )
+
+        # User's keepers are pitchers → batting should be weak
+        assert "hr" in analysis.weakest_categories or "sb" in analysis.weakest_categories
+        # Should have recommendations
+        assert len(needs) > 0
+        # Recommendations should include batter player 7
+        all_rec_ids = {rec.player_id for need in needs for rec in need.best_available}
+        assert 7 in all_rec_ids
+
+    def test_excludes_keepers_from_available(self) -> None:
+        """Recommended players should not be in any team's keeper set."""
+        rosters = [
+            _roster("user", [1, 2]),
+            _roster("other", [3, 4]),
+        ]
+        valuations = [
+            _val_with_cats(1, 30.0, {"hr": 3.0}),
+            _val_with_cats(2, 20.0, {"hr": 1.0}),
+            _val_with_cats(3, 25.0, {"hr": 2.5}),
+            _val_with_cats(4, 15.0, {"hr": 1.5}),
+            _val_with_cats(5, 10.0, {"hr": 0.5}),
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 6)]
+        projections = [_needs_projection(i, "batter", {"pa": 600, "hr": (6 - i) * 10}) for i in range(1, 6)]
+        league = _needs_league()
+        team_names = {"user": "User", "other": "Other"}
+
+        _analysis, needs = build_keeper_draft_needs(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            projections=projections,
+            max_keepers=2,
+            user_team_key="user",
+            team_names=team_names,
+            league=league,
+        )
+
+        # Keepers: user keeps 1, 2; other keeps 3, 4 → only 5 available
+        all_rec_ids = {rec.player_id for need in needs for rec in need.best_available}
+        keeper_ids = {1, 2, 3, 4}
+        assert all_rec_ids.isdisjoint(keeper_ids)
+
+    def test_empty_keepers_all_categories_weak(self) -> None:
+        """If user has no projected keepers, all categories start weak."""
+        rosters = [
+            _roster("user", []),  # empty roster
+            _roster("other", [1, 2]),
+        ]
+        valuations = [
+            _val_with_cats(1, 30.0, {"hr": 3.0}),
+            _val_with_cats(2, 25.0, {"hr": 2.5}),
+            _val_with_cats(3, 10.0, {"hr": 1.0}),
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 4)]
+        projections = [
+            _needs_projection(1, "batter", {"pa": 600, "hr": 40}),
+            _needs_projection(2, "batter", {"pa": 550, "hr": 30}),
+            _needs_projection(3, "batter", {"pa": 500, "hr": 20}),
+        ]
+        league = _needs_league()
+        team_names = {"user": "User", "other": "Other"}
+
+        analysis, _needs = build_keeper_draft_needs(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            projections=projections,
+            max_keepers=2,
+            user_team_key="user",
+            team_names=team_names,
+            league=league,
+        )
+
+        # With no keepers, all projections should be zero → all weak
+        assert len(analysis.projections) == 0 or all(p.projected_value == 0.0 for p in analysis.projections)
