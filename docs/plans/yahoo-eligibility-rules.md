@@ -21,7 +21,7 @@ data recovers ~110 additional players with legitimate position eligibility.
 
 | Phase | Status |
 |-------|--------|
-| 1 — Multi-season eligibility and Yahoo thresholds | in progress |
+| 1 — Multi-season eligibility and Yahoo thresholds | done (2026-03-05) |
 | 2 — Configurable eligibility rules on LeagueSettings | not started |
 
 ## Phase 1: Multi-season eligibility and Yahoo thresholds
