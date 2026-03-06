@@ -10,7 +10,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
-| [Roster Optimizer](roster-optimizer.md) | 3 | phases 1-2 done | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
@@ -43,6 +42,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Mock Draft Simulator](mock-draft-simulator.md) | 4 |
 | [Positional Scarcity](positional-scarcity.md) | 3 |
 | [Positional Upgrade Calculator](positional-upgrade-calculator.md) | 4 |
+| [Roster Optimizer](roster-optimizer.md) | 3 |
 | [Tier Generator](tier-generator.md) | 3 |
 | [Fast Feedback Loop](fast-feedback-loop.md) | 3 |
 | [Feature Candidate Factory](feature-candidate-factory.md) | 3 |
