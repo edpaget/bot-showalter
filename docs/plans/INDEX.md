@@ -17,6 +17,10 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Model Training Inspector](model-training-inspector.md) | 3 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 | [Keeper League Analysis](keeper-league-analysis.md) | 3 | not started | yahoo-fantasy-integration (done), keeper-surplus-value (done) |
+| [Auction Budget Optimizer](auction-budget-optimizer.md) | 3 | not started | live-draft-tracker (done) |
+| [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
+| [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
+| [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
 
 ## Completed Roadmaps
 
@@ -79,7 +83,9 @@ data-profiling-tools (done) ──► feature-candidate-factory (--correlate fla
 fast-feedback-loop ──► validation-gate (CV infrastructure)
 ```
 
-All other dependencies (valuations, ADP, draft board, projections) are already satisfied by completed work.
+mock-draft-simulator ─────► mock-draft-insights (simulation data)
+
+All other dependencies (valuations, ADP, draft board, projections, live-draft-tracker, mock-draft-simulator) are already satisfied by completed work.
 
 ## Optional Integrations
 
@@ -96,3 +102,7 @@ These aren't hard blockers but enhance the consuming roadmap when available:
 - **Fast feedback loop** enhances: experiment-journal (auto-logging from quick-eval/marginal-value), validation-gate (shared CV infrastructure)
 - **Experiment journal** enhances: validation-gate (auto-log full validation results)
 - **Playing time flexibility** enhances: projection-blender (flexible PT source for blended projections)
+- **Opponent draft model** enhances: live-draft-tracker (threat/run alerts in REPL), mock-draft-insights (opponent behavior modeling)
+- **ADP arbitrage alerts** enhances: live-draft-tracker (falling player alerts in REPL)
+- **Auction budget optimizer** enhances: live-draft-tracker (bid recommendations in auction REPL)
+- **Mock draft insights** enhances: live-draft-tracker (mock-informed recommendations)
