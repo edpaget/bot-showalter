@@ -5,12 +5,14 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.domain.mock_draft import BatchSimulationResult
 from fantasy_baseball_manager.domain.tier import PlayerTier
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.services.roster_optimizer import (
     _snake_pick_numbers,
     optimize_auction_budget,
     plan_snake_draft,
+    simulate_drafts,
 )
 
 
@@ -409,3 +411,149 @@ class TestFewerRoundsInKeeperMode:
         )
         assert len(plan_redraft.rounds) == total_slots
         assert len(plan_keeper.rounds) == total_slots - 1
+
+
+# --- Monte Carlo Simulation Tests ---
+
+
+def _sim_league() -> LeagueSettings:
+    """4-team league with minimal roster for fast simulations."""
+    return LeagueSettings(
+        name="Sim Test",
+        format=LeagueFormat.H2H_CATEGORIES,
+        teams=4,
+        budget=260,
+        roster_batters=3,
+        roster_pitchers=1,
+        batting_categories=(
+            CategoryConfig(key="HR", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        pitching_categories=(
+            CategoryConfig(key="K", name="K", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+        ),
+        positions={"C": 1, "1B": 1, "OF": 1},
+        roster_util=1,
+    )
+
+
+def _sim_valuation(player_id: int, position: str, value: float) -> Valuation:
+    player_type = "pitcher" if position in ("SP", "RP") else "batter"
+    return Valuation(
+        player_id=player_id,
+        season=2025,
+        system="zar",
+        version="1.0",
+        projection_system="steamer",
+        projection_version="1.0",
+        player_type=player_type,
+        position=position,
+        value=value,
+        rank=1,
+        category_scores={},
+    )
+
+
+def _sim_pool() -> tuple[list[Valuation], dict[int, str]]:
+    """Build a pool with enough players for 4 teams × 5 slots = 20 picks."""
+    valuations: list[Valuation] = []
+    names: dict[int, str] = {}
+    positions = ["C", "1B", "OF", "SP"]
+    for i in range(40):
+        pos = positions[i % len(positions)]
+        pid = i + 1
+        valuations.append(_sim_valuation(pid, pos, 40.0 - i))
+        names[pid] = f"Player {pid}"
+    return valuations, names
+
+
+class TestSimulateDraftsBasic:
+    def test_returns_batch_result(self) -> None:
+        league = _sim_league()
+        valuations, names = _sim_pool()
+        result = simulate_drafts(valuations, league, names, draft_slot=1, n_simulations=5, seed=42)
+        assert isinstance(result, BatchSimulationResult)
+        assert result.summary.n_simulations == 5
+
+    def test_team_idx_matches_slot(self) -> None:
+        league = _sim_league()
+        valuations, names = _sim_pool()
+        result = simulate_drafts(valuations, league, names, draft_slot=3, n_simulations=5, seed=42)
+        assert result.summary.team_idx == 2  # 1-indexed slot -> 0-indexed
+
+    def test_deterministic_with_seed(self) -> None:
+        league = _sim_league()
+        valuations, names = _sim_pool()
+        r1 = simulate_drafts(valuations, league, names, draft_slot=1, n_simulations=10, seed=99)
+        r2 = simulate_drafts(valuations, league, names, draft_slot=1, n_simulations=10, seed=99)
+        assert r1.summary == r2.summary
+        assert r1.player_frequencies == r2.player_frequencies
+
+    def test_percentile_ordering(self) -> None:
+        league = _sim_league()
+        valuations, names = _sim_pool()
+        result = simulate_drafts(valuations, league, names, draft_slot=1, n_simulations=20, seed=42)
+        s = result.summary
+        assert s.p10_roster_value <= s.p25_roster_value
+        assert s.p25_roster_value <= s.median_roster_value
+        assert s.median_roster_value <= s.p75_roster_value
+        assert s.p75_roster_value <= s.p90_roster_value
+
+
+class TestSimulateDraftsKeepers:
+    def test_keeper_excluded_from_pool(self) -> None:
+        league = _sim_league()
+        valuations, names = _sim_pool()
+        # Player 1 is the top player (value 40.0, C)
+        result = simulate_drafts(
+            valuations,
+            league,
+            names,
+            draft_slot=1,
+            n_simulations=10,
+            league_keeper_ids={1},
+            seed=42,
+        )
+        # Player 1 should not appear in frequencies with pct > 0
+        for f in result.player_frequencies:
+            if f.player_id == 1:
+                assert f.pct_drafted == 0.0
+
+    def test_keeper_value_added(self) -> None:
+        league = _sim_league()
+        valuations, names = _sim_pool()
+        # Run without keepers
+        r_no_keepers = simulate_drafts(valuations, league, names, draft_slot=1, n_simulations=10, seed=42)
+        # Run with keeper: Player 1 (C, value 40.0) as my keeper
+        r_keepers = simulate_drafts(
+            valuations,
+            league,
+            names,
+            draft_slot=1,
+            n_simulations=10,
+            my_keepers=[(1, "C")],
+            league_keeper_ids={1},
+            keepers_per_team=1,
+            seed=42,
+        )
+        # Keeper value (40.0) should be added; result should be higher
+        assert r_keepers.summary.avg_roster_value > r_no_keepers.summary.avg_roster_value
+
+    def test_fewer_rounds_with_keepers(self) -> None:
+        league = _sim_league()
+        valuations, names = _sim_pool()
+        r_no_keepers = simulate_drafts(valuations, league, names, draft_slot=1, n_simulations=5, seed=42)
+        r_keepers = simulate_drafts(
+            valuations,
+            league,
+            names,
+            draft_slot=1,
+            n_simulations=5,
+            my_keepers=[(1, "C")],
+            league_keeper_ids={1},
+            keepers_per_team=1,
+            seed=42,
+        )
+        # With keepers, fewer players are drafted per simulation
+        total_pct_no_k = sum(f.pct_drafted for f in r_no_keepers.player_frequencies)
+        total_pct_k = sum(f.pct_drafted for f in r_keepers.player_frequencies)
+        assert total_pct_k < total_pct_no_k

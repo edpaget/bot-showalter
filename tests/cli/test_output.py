@@ -3284,6 +3284,8 @@ class TestPrintBatchSimulationTeamIdx:
                 avg_roster_value=150.0,
                 median_roster_value=148.0,
                 p10_roster_value=130.0,
+                p25_roster_value=140.0,
+                p75_roster_value=160.0,
                 p90_roster_value=170.0,
             ),
             player_frequencies=[],

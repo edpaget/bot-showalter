@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import BudgetAllocation, RoundTarget, SnakeDraftPlan
+from fantasy_baseball_manager.domain import BudgetAllocation, DraftBoard, RoundTarget, SnakeDraftPlan
+from fantasy_baseball_manager.services.draft_board import build_draft_board
+from fantasy_baseball_manager.services.mock_draft import run_batch_simulation
+from fantasy_baseball_manager.services.mock_draft_bots import ADPBot, BestValueBot
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Set
 
-    from fantasy_baseball_manager.domain import LeagueSettings, PlayerTier, Valuation
+    from fantasy_baseball_manager.domain import (
+        BatchSimulationResult,
+        LeagueSettings,
+        PlayerTier,
+        SimulationSummary,
+        Valuation,
+    )
 
 
 def _build_slot_list(league: LeagueSettings) -> list[str]:
@@ -376,3 +387,167 @@ def plan_snake_draft(
         teams=league.teams,
         rounds=rounds,
     )
+
+
+def _adjust_summary_for_keepers(summary: SimulationSummary, keeper_total: float) -> SimulationSummary:
+    """Add constant keeper value to all percentile fields."""
+    return dataclasses.replace(
+        summary,
+        avg_roster_value=summary.avg_roster_value + keeper_total,
+        median_roster_value=summary.median_roster_value + keeper_total,
+        p10_roster_value=summary.p10_roster_value + keeper_total,
+        p25_roster_value=summary.p25_roster_value + keeper_total,
+        p75_roster_value=summary.p75_roster_value + keeper_total,
+        p90_roster_value=summary.p90_roster_value + keeper_total,
+    )
+
+
+def _reduce_league_for_keepers(
+    league: LeagueSettings,
+    my_keepers: list[tuple[int, str]],
+) -> LeagueSettings:
+    """Return a league with roster slots reduced for keeper positions."""
+    batter_reduction = 0
+    pitcher_reduction = 0
+    positions = dict(league.positions)
+    pitcher_positions = dict(league.pitcher_positions)
+    util_reduction = 0
+
+    for _pid, pos in my_keepers:
+        upper_pos = pos.upper()
+        if upper_pos in positions and positions[upper_pos] > 0:
+            positions[upper_pos] -= 1
+            batter_reduction += 1
+        elif upper_pos in pitcher_positions and pitcher_positions[upper_pos] > 0:
+            pitcher_positions[upper_pos] -= 1
+            pitcher_reduction += 1
+        elif upper_pos in _BATTER_TYPES and league.roster_util - util_reduction > 0:
+            util_reduction += 1
+            batter_reduction += 1
+        elif upper_pos in _PITCHER_TYPES:
+            # Try generic P slot
+            if "P" in pitcher_positions and pitcher_positions["P"] > 0:
+                pitcher_positions["P"] -= 1
+                pitcher_reduction += 1
+
+    return dataclasses.replace(
+        league,
+        positions=positions,
+        pitcher_positions=pitcher_positions,
+        roster_batters=league.roster_batters - batter_reduction,
+        roster_pitchers=league.roster_pitchers - pitcher_reduction,
+        roster_util=league.roster_util - util_reduction,
+    )
+
+
+def simulate_drafts(
+    valuations: list[Valuation],
+    league: LeagueSettings,
+    player_names: dict[int, str],
+    draft_slot: int,
+    n_simulations: int = 1000,
+    my_keepers: list[tuple[int, str]] | None = None,
+    league_keeper_ids: set[int] | None = None,
+    keepers_per_team: int = 0,
+    seed: int | None = None,
+) -> BatchSimulationResult:
+    """Run Monte Carlo draft simulations and return aggregated results.
+
+    Args:
+        valuations: Player valuations to build the draft board from.
+        league: League settings defining roster structure.
+        player_names: Map of player_id to display name.
+        draft_slot: 1-indexed draft position.
+        n_simulations: Number of simulations to run.
+        my_keepers: List of (player_id, position) tuples for user's keepers.
+        league_keeper_ids: Set of player_ids kept by any team (removed from pool).
+        keepers_per_team: Number of keepers per team (reduces rounds).
+        seed: Random seed for reproducibility.
+    """
+    # Filter pool for keepers
+    filtered_valuations = valuations
+    if league_keeper_ids:
+        filtered_valuations = [v for v in filtered_valuations if v.player_id not in league_keeper_ids]
+
+    # Build draft board and normalize player_type for mock draft engine
+    raw_board = build_draft_board(filtered_valuations, league, player_names)
+    normalized_rows = [
+        dataclasses.replace(r, player_type="P" if r.player_type == "pitcher" else "B") for r in raw_board.rows
+    ]
+    board = DraftBoard(
+        rows=normalized_rows,
+        batting_categories=raw_board.batting_categories,
+        pitching_categories=raw_board.pitching_categories,
+    )
+
+    # Modify league for keeper mode
+    sim_league = league
+    if my_keepers:
+        sim_league = _reduce_league_for_keepers(league, my_keepers)
+
+    # Reduce rounds for keepers_per_team
+    if keepers_per_team > 0:
+        extra_reductions = keepers_per_team - len(my_keepers or [])
+        if extra_reductions > 0:
+            # Remove extra slots from the largest position group
+            pos = dict(sim_league.positions)
+            pitcher_pos = dict(sim_league.pitcher_positions)
+            util = sim_league.roster_util
+            batter_red = 0
+            pitcher_red = 0
+            for _ in range(extra_reductions):
+                if util > 0:
+                    util -= 1
+                    batter_red += 1
+                else:
+                    # Find largest remaining position group
+                    all_pos = [(k, v, "bat") for k, v in pos.items()] + [(k, v, "pit") for k, v in pitcher_pos.items()]
+                    all_pos.sort(key=lambda x: x[1], reverse=True)
+                    if all_pos and all_pos[0][1] > 0:
+                        key, _, ptype = all_pos[0]
+                        if ptype == "bat":
+                            pos[key] -= 1
+                            batter_red += 1
+                        else:
+                            pitcher_pos[key] -= 1
+                            pitcher_red += 1
+            sim_league = dataclasses.replace(
+                sim_league,
+                positions=pos,
+                pitcher_positions=pitcher_pos,
+                roster_batters=sim_league.roster_batters - batter_red,
+                roster_pitchers=sim_league.roster_pitchers - pitcher_red,
+                roster_util=util,
+            )
+
+    # Compute keeper value
+    keeper_total = 0.0
+    if my_keepers:
+        val_lookup = {v.player_id: v.value for v in valuations}
+        keeper_total = sum(val_lookup.get(pid, 0.0) for pid, _pos in my_keepers)
+
+    # Set up bot factories
+    num_opponents = sim_league.teams - 1
+
+    def user_factory(rng: random.Random) -> BestValueBot:
+        return BestValueBot(rng=rng)
+
+    opponent_factories = [lambda rng: ADPBot(rng=rng, noise=0.15) for _ in range(num_opponents)]
+
+    # Run simulation
+    result = run_batch_simulation(
+        n_simulations=n_simulations,
+        board=board,
+        league=sim_league,
+        user_strategy_factory=user_factory,
+        opponent_strategy_factories=opponent_factories,
+        draft_position=draft_slot - 1,
+        seed=seed,
+    )
+
+    # Adjust for keeper value
+    if keeper_total > 0:
+        adjusted_summary = _adjust_summary_for_keepers(result.summary, keeper_total)
+        result = dataclasses.replace(result, summary=adjusted_summary)
+
+    return result

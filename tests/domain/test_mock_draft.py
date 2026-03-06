@@ -87,6 +87,8 @@ class TestSimulationSummary:
             avg_roster_value=100.0,
             median_roster_value=99.0,
             p10_roster_value=80.0,
+            p25_roster_value=90.0,
+            p75_roster_value=110.0,
             p90_roster_value=120.0,
         )
         with pytest.raises(FrozenInstanceError):
@@ -99,6 +101,8 @@ class TestSimulationSummary:
             avg_roster_value=95.5,
             median_roster_value=94.0,
             p10_roster_value=80.0,
+            p25_roster_value=88.0,
+            p75_roster_value=105.0,
             p90_roster_value=110.0,
         )
         assert s.n_simulations == 50
@@ -106,6 +110,8 @@ class TestSimulationSummary:
         assert s.avg_roster_value == 95.5
         assert s.median_roster_value == 94.0
         assert s.p10_roster_value == 80.0
+        assert s.p25_roster_value == 88.0
+        assert s.p75_roster_value == 105.0
         assert s.p90_roster_value == 110.0
 
 
@@ -157,6 +163,8 @@ class TestBatchSimulationResult:
             avg_roster_value=100.0,
             median_roster_value=99.0,
             p10_roster_value=80.0,
+            p25_roster_value=90.0,
+            p75_roster_value=110.0,
             p90_roster_value=120.0,
         )
         result = BatchSimulationResult(
@@ -174,6 +182,8 @@ class TestBatchSimulationResult:
             avg_roster_value=100.0,
             median_roster_value=99.0,
             p10_roster_value=80.0,
+            p25_roster_value=90.0,
+            p75_roster_value=110.0,
             p90_roster_value=120.0,
         )
         freq = PlayerDraftFrequency(

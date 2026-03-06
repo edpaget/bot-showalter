@@ -36,6 +36,8 @@ class SimulationSummary:
     avg_roster_value: float
     median_roster_value: float
     p10_roster_value: float
+    p25_roster_value: float
+    p75_roster_value: float
     p90_roster_value: float
 
 

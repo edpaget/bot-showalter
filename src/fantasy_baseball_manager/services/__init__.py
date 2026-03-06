@@ -187,6 +187,7 @@ from fantasy_baseball_manager.services.residual_persistence_diagnostic import (
 from fantasy_baseball_manager.services.roster_optimizer import (
     optimize_auction_budget,
     plan_snake_draft,
+    simulate_drafts,
 )
 from fantasy_baseball_manager.services.tier_generator import (
     generate_tiers,
@@ -357,6 +358,7 @@ __all__ = [
     "solve_keepers_with_pool",
     "optimize_auction_budget",
     "plan_snake_draft",
+    "simulate_drafts",
     "tier_summary",
     "value_at",
     "derive_and_store_keeper_costs",

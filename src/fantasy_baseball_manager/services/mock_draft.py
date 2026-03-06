@@ -262,14 +262,17 @@ def run_batch_simulation(
     # --- Aggregation ---
 
     # SimulationSummary
-    quantiles = statistics.quantiles(user_values, n=10)
+    deciles = statistics.quantiles(user_values, n=10)
+    quartiles = statistics.quantiles(user_values, n=4)
     summary = SimulationSummary(
         n_simulations=n_simulations,
         team_idx=draft_position,
         avg_roster_value=statistics.mean(user_values),
         median_roster_value=statistics.median(user_values),
-        p10_roster_value=quantiles[0],
-        p90_roster_value=quantiles[8],
+        p10_roster_value=deciles[0],
+        p25_roster_value=quartiles[0],
+        p75_roster_value=quartiles[2],
+        p90_roster_value=deciles[8],
     )
 
     # PlayerDraftFrequency

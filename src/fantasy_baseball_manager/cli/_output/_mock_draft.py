@@ -74,6 +74,8 @@ def print_batch_simulation_result(result: BatchSimulationResult, top_n: int = 20
     summary_table.add_row("Avg", f"${s.avg_roster_value:.1f}")
     summary_table.add_row("Median", f"${s.median_roster_value:.1f}")
     summary_table.add_row("P10", f"${s.p10_roster_value:.1f}")
+    summary_table.add_row("P25", f"${s.p25_roster_value:.1f}")
+    summary_table.add_row("P75", f"${s.p75_roster_value:.1f}")
     summary_table.add_row("P90", f"${s.p90_roster_value:.1f}")
 
     console.print(summary_table)

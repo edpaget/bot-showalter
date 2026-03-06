@@ -9,6 +9,7 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.cli._output import (
     console,
+    print_batch_simulation_result,
     print_cascade_result,
     print_category_needs,
     print_draft_board,
@@ -60,6 +61,7 @@ from fantasy_baseball_manager.services import (
     parse_league_keepers,
     plan_snake_draft,
     recommend,
+    simulate_drafts,
     tier_summary,
 )
 from fantasy_baseball_manager.services import (
@@ -587,6 +589,65 @@ def plan_command(
         )
 
     console.print(table)
+
+
+@draft_app.command("simulate")
+def simulate_command(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    slot: Annotated[int, typer.Option("--slot", help="Your draft slot (1-indexed)")],
+    simulations: Annotated[int, typer.Option("--simulations", help="Number of simulations")] = 1000,
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    keepers: Annotated[str | None, typer.Option("--keepers", help="Your keepers: 'Name:pos,Name:pos'")] = None,
+    league_keepers: Annotated[Path | None, typer.Option("--league-keepers", help="CSV of all league keepers")] = None,
+    keepers_per_team: Annotated[int, typer.Option("--keepers-per-team", help="Keepers per team")] = 0,
+    seed: Annotated[int | None, typer.Option("--seed", help="Random seed")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:  # pragma: no cover
+    """Run Monte Carlo draft simulations to estimate expected roster value."""
+    league = load_league(league_name, Path.cwd())
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system)
+        valuations = [v for v in valuations if v.version == version]
+
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+        name_to_id = {name: pid for pid, name in player_names.items()}
+
+        my_keepers_list: list[tuple[int, str]] | None = None
+        if keepers is not None:
+            my_keepers_list = []
+            for entry in keepers.split(","):
+                name, pos = entry.rsplit(":", 1)
+                pid = name_to_id.get(name.strip())
+                if pid is None:
+                    console.print(f"[yellow]Keeper '{name.strip()}' not found, skipping[/yellow]")
+                    continue
+                my_keepers_list.append((pid, pos.strip().upper()))
+
+        league_keeper_ids: set[int] | None = None
+        if league_keepers is not None:
+            with open(league_keepers, newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            all_players = ctx.player_repo.all()
+            league_keeper_ids, _unmatched = parse_league_keepers(rows, all_players)
+
+        result = simulate_drafts(
+            valuations,
+            league,
+            player_names,
+            draft_slot=slot,
+            n_simulations=simulations,
+            my_keepers=my_keepers_list,
+            league_keeper_ids=league_keeper_ids,
+            keepers_per_team=keepers_per_team,
+            seed=seed,
+        )
+
+    print_batch_simulation_result(result)
 
 
 @draft_app.command("needs")

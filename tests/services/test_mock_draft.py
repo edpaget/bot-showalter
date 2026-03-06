@@ -700,3 +700,21 @@ class TestBatchSimulation:
             seed=42,
         )
         assert result.summary.team_idx == 2
+
+    def test_percentile_ordering(self) -> None:
+        """p10 <= p25 <= median <= p75 <= p90."""
+        board = _small_board()
+        league = _small_league()
+        result = run_batch_simulation(
+            n_simulations=20,
+            board=board,
+            league=league,
+            user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+            opponent_strategy_factories=[lambda rng: ADPBot(rng=rng) for _ in range(3)],
+            seed=42,
+        )
+        s = result.summary
+        assert s.p10_roster_value <= s.p25_roster_value
+        assert s.p25_roster_value <= s.median_roster_value
+        assert s.median_roster_value <= s.p75_roster_value
+        assert s.p75_roster_value <= s.p90_roster_value
