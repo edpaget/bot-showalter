@@ -65,6 +65,14 @@ AUCTION_CONFIG = DraftConfig(
     budget=10,
 )
 
+LIVE_CONFIG = DraftConfig(
+    teams=4,
+    roster_slots={"C": 1, "1B": 1, "OF": 2, "P": 1},
+    format=DraftFormat.LIVE,
+    user_team=1,
+    season=2026,
+)
+
 
 def _make_league() -> LeagueSettings:
     batting_cat = CategoryConfig(key="HR", name="Home Runs", stat_type=StatType.COUNTING, direction=Direction.HIGHER)
@@ -92,6 +100,7 @@ class TestTypes:
     def test_draft_format_values(self) -> None:
         assert DraftFormat.SNAKE == "snake"
         assert DraftFormat.AUCTION == "auction"
+        assert DraftFormat.LIVE == "live"
 
     def test_draft_error_is_exception(self) -> None:
         with pytest.raises(DraftError):
@@ -785,6 +794,55 @@ class TestIntegrationSnake:
         roster = engine.my_roster()
         assert [p.player_id for p in roster] == [1, 8]
         assert engine.my_needs() == {}
+
+
+# ---------------------------------------------------------------------------
+# Live format — any team in any order
+# ---------------------------------------------------------------------------
+
+
+class TestLiveFormat:
+    def test_any_team_any_order(self) -> None:
+        """LIVE format allows picks from any team in any order."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, LIVE_CONFIG)
+        # Team 2 picks first, then team 1 — no snake error
+        engine.pick(player_id=1, team=2, position="C")
+        engine.pick(player_id=2, team=1, position="1B")
+        engine.pick(player_id=3, team=4, position="OF")
+        engine.pick(player_id=4, team=3, position="OF")
+        state = engine.state
+        assert len(state.picks) == 4
+        assert state.current_pick == 5
+
+    def test_pool_tracking(self) -> None:
+        """Pool and roster tracking work in LIVE mode."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, LIVE_CONFIG)
+        engine.pick(player_id=1, team=2, position="C")
+        assert 1 not in engine.state.available_pool
+        assert len(engine.state.team_rosters[2]) == 1
+
+    def test_team_on_clock_raises(self) -> None:
+        """team_on_clock() is not applicable for LIVE format."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, LIVE_CONFIG)
+        with pytest.raises(DraftError, match="not applicable"):
+            engine.team_on_clock()
+
+    def test_undo_works(self) -> None:
+        engine = DraftEngine()
+        engine.start(PLAYERS, LIVE_CONFIG)
+        engine.pick(player_id=1, team=3, position="C")
+        engine.undo()
+        assert 1 in engine.state.available_pool
+        assert engine.state.current_pick == 1
+
+    def test_budget_zero_for_live(self) -> None:
+        engine = DraftEngine()
+        state = engine.start(PLAYERS, LIVE_CONFIG)
+        for team in range(1, LIVE_CONFIG.teams + 1):
+            assert state.team_budgets[team] == 0
 
 
 class TestIntegrationAuction:

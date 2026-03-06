@@ -70,6 +70,14 @@ AUCTION_CONFIG = DraftConfig(
     budget=100,
 )
 
+LIVE_CONFIG = DraftConfig(
+    teams=4,
+    roster_slots={"C": 1, "1B": 1, "OF": 2, "UTIL": 1, "P": 1},
+    format=DraftFormat.LIVE,
+    user_team=1,
+    season=2026,
+)
+
 
 def _make_player(player_id: int, name: str, position: str, value: float, player_type: str = "batter") -> DraftBoardRow:
     return DraftBoardRow(
@@ -191,6 +199,22 @@ class TestParseCommandOther:
     def test_exit_alias(self) -> None:
         cmd = parse_command("exit", DraftFormat.SNAKE, VALID_POSITIONS)
         assert isinstance(cmd, QuitCommand)
+
+
+class TestParseCommandLive:
+    def test_pick_trailing_digits_not_parsed_as_price(self) -> None:
+        """LIVE format should not parse trailing digits as price (like snake)."""
+        cmd = parse_command("pick Mike Trout 25", DraftFormat.LIVE, VALID_POSITIONS)
+        assert isinstance(cmd, PickCommand)
+        assert cmd.query == "Mike Trout 25"
+        assert cmd.price is None
+
+    def test_pick_with_position(self) -> None:
+        cmd = parse_command("pick Mike Trout OF", DraftFormat.LIVE, VALID_POSITIONS)
+        assert isinstance(cmd, PickCommand)
+        assert cmd.query == "Mike Trout"
+        assert cmd.position == "OF"
+        assert cmd.price is None
 
 
 class TestParseCommandEdgeCases:
@@ -438,6 +462,46 @@ class TestDraftSessionREPL:
         session.save_path = save_path
         session.run()
         assert save_path.exists()
+
+
+class TestDraftSessionLive:
+    """Test DraftSession in LIVE format — picks use user_team, not team_on_clock."""
+
+    def _make_live_session(self, commands: list[str]) -> tuple[StringIO, DraftSession]:
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        engine = DraftEngine()
+        engine.start(PLAYERS, LIVE_CONFIG)
+
+        cmd_iter = iter(commands)
+
+        def fake_input(_prompt: str = "") -> str:
+            return next(cmd_iter)
+
+        def fake_recommend(state: object, *, limit: int = 5) -> list[Recommendation]:
+            return []
+
+        session = DraftSession(
+            engine=engine,
+            players=PLAYERS,
+            console=test_console,
+            recommend_fn=fake_recommend,
+            input_fn=fake_input,
+        )
+        return buf, session
+
+    def test_pick_uses_user_team(self) -> None:
+        buf, session = self._make_live_session(["pick Mike Trout OF", "quit"])
+        session.run()
+        state = session.engine.state
+        assert len(state.picks) == 1
+        assert state.picks[0].team == LIVE_CONFIG.user_team
+
+    def test_status_does_not_crash(self) -> None:
+        buf, session = self._make_live_session(["status", "quit"])
+        session.run()
+        output = buf.getvalue()
+        assert "Pick" in output or "pick" in output.lower()
 
 
 # ---------------------------------------------------------------------------

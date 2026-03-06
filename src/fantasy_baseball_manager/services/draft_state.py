@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 class DraftFormat(StrEnum):
     SNAKE = "snake"
     AUCTION = "auction"
+    LIVE = "live"
 
 
 class DraftError(Exception): ...
@@ -197,8 +198,8 @@ class DraftEngine:
 
     def team_on_clock(self) -> int:
         state = self._require_state()
-        if state.config.format == DraftFormat.AUCTION:
-            msg = "team_on_clock is not applicable for auction drafts"
+        if state.config.format != DraftFormat.SNAKE:
+            msg = f"team_on_clock is not applicable for {state.config.format.value} drafts"
             raise DraftError(msg)
         return self._snake_team(state.current_pick, state.config.teams)
 

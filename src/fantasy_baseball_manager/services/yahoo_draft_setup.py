@@ -85,7 +85,7 @@ def build_yahoo_draft_setup(
 
     roster_slots = build_draft_roster_slots(fbm_league)
     draft_type = yahoo_league.draft_type
-    draft_format = DraftFormat.AUCTION if "auction" in draft_type.lower() else DraftFormat.SNAKE
+    draft_format = DraftFormat.AUCTION if "auction" in draft_type.lower() else DraftFormat.LIVE
     draft_config = DraftConfig(
         teams=yahoo_league.num_teams,
         roster_slots=roster_slots,

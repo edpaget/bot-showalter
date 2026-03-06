@@ -163,7 +163,7 @@ class TestBuildYahooDraftSetup:
         setup = _call_build(conn)
 
         assert setup.engine.state.config.teams == 2
-        assert setup.engine.state.config.format.value == "snake"
+        assert setup.engine.state.config.format.value == "live"
         assert setup.engine.state.config.user_team == 1
 
     def test_team_map_is_correct(self, conn: sqlite3.Connection) -> None:
