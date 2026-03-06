@@ -603,6 +603,10 @@ class DraftBoardContext:
     adp_repo: SqliteADPRepo
     profile_service: PlayerProfileService
     projection_repo: SqliteProjectionRepo
+    yahoo_roster_repo: SqliteYahooRosterRepo
+    yahoo_league_repo: SqliteYahooLeagueRepo
+    position_appearance_repo: SqlitePositionAppearanceRepo
+    pitching_stats_repo: SqlitePitchingStatsRepo
 
 
 @contextmanager
@@ -618,6 +622,10 @@ def build_draft_board_context(data_dir: str) -> Iterator[DraftBoardContext]:
             adp_repo=container.adp_repo,
             profile_service=container.player_profile_service,
             projection_repo=container.projection_repo,
+            yahoo_roster_repo=SqliteYahooRosterRepo(conn),
+            yahoo_league_repo=SqliteYahooLeagueRepo(conn),
+            position_appearance_repo=container.position_appearance_repo,
+            pitching_stats_repo=container.pitching_stats_repo,
         )
     finally:
         conn.close()

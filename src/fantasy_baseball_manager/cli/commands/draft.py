@@ -21,14 +21,21 @@ from fantasy_baseball_manager.cli._output import (
     print_upgrades,
     print_value_curve,
 )
-from fantasy_baseball_manager.cli.factory import build_category_needs_context, build_draft_board_context
+from fantasy_baseball_manager.cli.factory import (
+    DraftBoardContext,
+    build_category_needs_context,
+    build_draft_board_context,
+)
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade
+from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config
+from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade, Valuation
 from fantasy_baseball_manager.services import (
     DraftConfig,
     DraftEngine,
     DraftFormat,
     DraftSession,
+    PlayerEligibilityService,
+    adjust_valuations_for_league_keepers,
     build_draft_board,
     build_draft_roster_slots,
     build_roster_state,
@@ -63,6 +70,91 @@ draft_app = typer.Typer(name="draft", help="Draft board display and export")
 _DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
+def _apply_keeper_exclusion(  # pragma: no cover
+    ctx: DraftBoardContext,
+    valuations: list[Valuation],
+    exclude_keepers: str,
+    season: int,
+) -> list[Valuation]:
+    """Remove estimated league keepers from valuations and recalculate values."""
+    try:
+        yahoo_config = load_yahoo_config(Path.cwd())
+    except YahooConfigError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    if exclude_keepers not in yahoo_config.leagues:
+        console.print(f"[red]Yahoo league '{exclude_keepers}' not found in [yahoo.leagues][/red]")
+        raise typer.Exit(code=1)
+
+    league_config = yahoo_config.leagues[exclude_keepers]
+    max_keepers = league_config.max_keepers
+    if max_keepers is None:
+        console.print(f"[red]max_keepers not configured for Yahoo league '{exclude_keepers}'[/red]")
+        raise typer.Exit(code=1)
+
+    # Find the current-season league key by matching league_id
+    all_leagues = ctx.yahoo_league_repo.get_all()
+    current_league = next(
+        (lg for lg in all_leagues if lg.season == season and str(league_config.league_id) in lg.league_key),
+        None,
+    )
+    if current_league is None:
+        console.print(
+            f"[red]No Yahoo league found for season {season}. Run `yahoo sync --league {exclude_keepers}` first.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    if current_league.renew is None:
+        console.print(f"[red]No renew chain for league {current_league.league_key} — cannot find prior season.[/red]")
+        raise typer.Exit(code=1)
+
+    prior_league_key = current_league.renew.replace("_", ".l.", 1)
+
+    rosters = ctx.yahoo_roster_repo.get_by_league_latest(prior_league_key)
+    if not rosters:
+        console.print(
+            f"[red]No rosters found for prior league {prior_league_key}."
+            " Run `yahoo rosters` or `yahoo keeper-league` first.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    fbm_league = load_league(exclude_keepers, Path.cwd())
+    proj_system = valuations[0].projection_system if valuations else "composite"
+    projections = ctx.projection_repo.get_by_season(season, proj_system)
+
+    eligibility = PlayerEligibilityService(
+        ctx.position_appearance_repo,
+        pitching_stats_repo=ctx.pitching_stats_repo,
+    )
+    batter_positions = eligibility.get_batter_positions(season, fbm_league)
+    pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
+    pitcher_positions = eligibility.get_pitcher_positions(season, fbm_league, pitcher_ids)
+
+    players = ctx.player_repo.all()
+
+    original_count = len(valuations)
+    valuations = adjust_valuations_for_league_keepers(
+        rosters=rosters,
+        valuations=valuations,
+        projections=projections,
+        batter_positions=batter_positions,
+        pitcher_positions=pitcher_positions,
+        league=fbm_league,
+        players=players,
+        max_keepers=max_keepers,
+    )
+
+    excluded = original_count - len(valuations)
+    if excluded > 0:
+        console.print(
+            f"[dim]Excluded {excluded} estimated keepers from {len(rosters)} teams"
+            " — valuations adjusted for draft pool depletion[/dim]"
+        )
+
+    return valuations
+
+
 def _fetch_draft_board_data(
     season: int,
     system: str,
@@ -73,11 +165,16 @@ def _fetch_draft_board_data(
     player_type: str | None,
     position: str | None,
     top: int | None,
+    exclude_keepers: str | None = None,
 ) -> tuple[DraftBoard, LeagueSettings]:
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system)
         valuations = [v for v in valuations if v.version == version]
+
+        if exclude_keepers is not None:
+            valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
+
         if player_type is not None:
             valuations = [v for v in valuations if v.player_type == player_type]
         if position is not None:
@@ -114,11 +211,14 @@ def draft_board(
     position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display the draft board in the terminal."""
     board, _league = _fetch_draft_board_data(
-        season, system, version, league_name, provider, data_dir, player_type, position, top
+        season, system, version, league_name, provider, data_dir, player_type, position, top, exclude_keepers
     )
     print_draft_board(board)
 
@@ -135,11 +235,14 @@ def draft_export(
     position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Export the draft board to a file (CSV or HTML)."""
     board, league = _fetch_draft_board_data(
-        season, system, version, league_name, provider, data_dir, player_type, position, top
+        season, system, version, league_name, provider, data_dir, player_type, position, top, exclude_keepers
     )
     with open(output, "w", newline="", encoding="utf-8") as f:
         if fmt == "html":
@@ -312,12 +415,19 @@ def draft_tiers(
     max_tiers: Annotated[int, typer.Option("--max-tiers", help="Max tiers per position")] = 5,
     position: Annotated[str | None, typer.Option("--position", help="Filter to a single position")] = None,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display position-grouped tier assignments."""
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system)
         valuations = [v for v in valuations if v.version == version]
+
+        if exclude_keepers is not None:
+            valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
+
         if position is not None:
             valuations = [v for v in valuations if v.position == position]
 
@@ -454,6 +564,9 @@ def draft_scarcity(
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     position: Annotated[str | None, typer.Option("--position", help="Filter to a single position")] = None,
     detail: Annotated[bool, typer.Option("--detail", help="Show full value curve instead of summary")] = False,
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display positional scarcity analysis ranked by dropoff severity."""
@@ -461,6 +574,9 @@ def draft_scarcity(
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system)
         valuations = [v for v in valuations if v.version == version]
+
+        if exclude_keepers is not None:
+            valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
 
         if detail:
             player_ids = [v.player_id for v in valuations]
@@ -485,6 +601,9 @@ def draft_scarcity_rankings(
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display scarcity-adjusted player rankings."""
@@ -492,6 +611,9 @@ def draft_scarcity_rankings(
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system)
         valuations = [v for v in valuations if v.version == version]
+
+        if exclude_keepers is not None:
+            valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.player_repo.get_by_ids(player_ids)
@@ -547,6 +669,9 @@ def draft_upgrades(
     ] = False,
     picks_until_next: Annotated[int, typer.Option("--picks-until-next", help="Picks between your turns")] = 12,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Re-rank available players by marginal value given your current roster."""
@@ -558,6 +683,9 @@ def draft_upgrades(
 
         valuations = ctx.valuation_repo.get_by_season(season, system=system)
         valuations = [v for v in valuations if v.version == version]
+
+        if exclude_keepers is not None:
+            valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.player_repo.get_by_ids(player_ids)
