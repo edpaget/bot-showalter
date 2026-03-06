@@ -23,7 +23,7 @@ from fantasy_baseball_manager.config_yahoo import (
     load_yahoo_config,
     resolve_default_league,
 )
-from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.db.pool import ConnectionPool, SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
     Err,
     Ok,
@@ -32,7 +32,9 @@ from fantasy_baseball_manager.domain import (
 )
 from fantasy_baseball_manager.repos import (
     SqlitePitchingStatsRepo,
+    SqlitePlayerRepo,
     SqlitePositionAppearanceRepo,
+    SqliteYahooPlayerMapRepo,
 )
 from fantasy_baseball_manager.services import (
     DraftSession,
@@ -487,6 +489,7 @@ def yahoo_draft_live(  # pragma: no cover
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
         draft_source = YahooDraftSource(ctx.client, mapper)
+        yahoo_client = ctx.client
         try:
             setup = build_yahoo_draft_setup(
                 team_repo=ctx.yahoo_team_repo,
@@ -511,9 +514,20 @@ def yahoo_draft_live(  # pragma: no cover
     if setup.replayed_count:
         console.print(f"[green]Replayed {setup.replayed_count} existing picks.[/green]")
 
+    # Create a pool-backed source for the background poller thread.
+    # The main thread's connection (from build_yahoo_context) is closed after
+    # the with block exits, and SQLite rejects cross-thread access by default.
+    # A ConnectionPool with check_same_thread=False solves both issues.
+    poller_pool = ConnectionPool(Path(data_dir) / "fbm.db", size=1)
+    poller_mapper = YahooPlayerMapper(
+        SqliteYahooPlayerMapRepo(poller_pool),
+        SqlitePlayerRepo(poller_pool),
+    )
+    poller_source = YahooDraftSource(yahoo_client, poller_mapper)
+
     pick_queue: queue.Queue[YahooDraftPick] = queue.Queue()
     poller = YahooDraftPoller(
-        source=setup.source,
+        source=poller_source,
         league_key=league_key,
         season=season,
         interval=poll_interval,
@@ -542,6 +556,7 @@ def yahoo_draft_live(  # pragma: no cover
         session.run()
     finally:
         poller.stop()
+        poller_pool.close_all()
 
 
 @yahoo_app.command("transactions")
