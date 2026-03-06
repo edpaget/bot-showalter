@@ -59,7 +59,7 @@ def _standard_league() -> LeagueSettings:
             CategoryConfig(key="sv", name="Saves", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
         ),
         roster_util=1,
-        positions={"c": 1, "of": 1},
+        positions={"C": 1, "OF": 1},
     )
 
 
@@ -253,7 +253,7 @@ class TestZarModelPredict:
     def test_predict_assigns_valid_positions(self) -> None:
         model, val_repo = _build_model()
         model.predict(_standard_config())
-        valid_positions = {"c", "of", "util"}
+        valid_positions = {"C", "OF", "UTIL"}
         batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
         for v in batter_vals:
             assert v.position in valid_positions, f"Player {v.player_id} got position {v.position!r}"
@@ -263,7 +263,7 @@ class TestZarModelPredict:
         model.predict(_standard_config())
         pitcher_vals = [v for v in val_repo.upserted if v.player_type == "pitcher"]
         for v in pitcher_vals:
-            assert v.position == "p"
+            assert v.position == "P"
 
     def test_predict_empty_projections(self) -> None:
         model, val_repo = _build_model(projections=[], appearances=[])
@@ -287,7 +287,7 @@ class TestZarModelPredict:
         config = _standard_config()
         model.predict(config)
         assert len(val_repo.upserted) == 1
-        assert val_repo.upserted[0].position == "util"
+        assert val_repo.upserted[0].position == "UTIL"
 
     def test_predict_filters_by_projection_version(self) -> None:
         """When projection_version is set, only that version's projections are used."""
@@ -585,7 +585,7 @@ class TestZarModelEligibilityService:
         model.predict(_standard_config())
         batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
         # With fallback to 2024 data, batters should have valid positions
-        valid_positions = {"c", "of", "util"}
+        valid_positions = {"C", "OF", "UTIL"}
         for v in batter_vals:
             assert v.position in valid_positions
 
@@ -640,7 +640,7 @@ class TestZarModelEligibilityService:
         batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
         # Without fallback, all batters would be "util". With fallback to 2025,
         # at least one batter should have a non-util position (c or of).
-        non_util = [v for v in batter_vals if v.position != "util"]
+        non_util = [v for v in batter_vals if v.position != "UTIL"]
         assert len(non_util) > 0, "Fallback should assign real positions, not all util"
 
     def test_eligibility_service_always_injected(self) -> None:
@@ -650,7 +650,7 @@ class TestZarModelEligibilityService:
         # Positions from same season via the injected service
         batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
         assert len(batter_vals) == 3
-        valid_positions = {"c", "of", "util"}
+        valid_positions = {"C", "OF", "UTIL"}
         for v in batter_vals:
             assert v.position in valid_positions
 
@@ -665,7 +665,7 @@ def _sp_rp_league() -> LeagueSettings:
     return dataclasses.replace(
         _standard_league(),
         roster_pitchers=6,
-        pitcher_positions={"sp": 2, "rp": 2, "p": 2},
+        pitcher_positions={"SP": 2, "RP": 2, "P": 2},
     )
 
 
@@ -678,7 +678,7 @@ class TestZarModelPitcherPositions:
         model.predict(_standard_config())
         pitcher_vals = [v for v in val_repo.upserted if v.player_type == "pitcher"]
         for v in pitcher_vals:
-            assert v.position == "p"
+            assert v.position == "P"
 
     def test_sp_rp_split_produces_separate_positions(self) -> None:
         """With pitcher_positions, pitchers get SP or RP based on stats."""
@@ -706,9 +706,9 @@ class TestZarModelPitcherPositions:
         model.predict(config)
         pitcher_vals = {v.player_id: v for v in val_repo.upserted if v.player_type == "pitcher"}
         # Player 4 (SP only) should be assigned sp or p
-        assert pitcher_vals[4].position in {"sp", "p"}
+        assert pitcher_vals[4].position in {"SP", "P"}
         # Player 5 (RP only) should be assigned rp or p
-        assert pitcher_vals[5].position in {"rp", "p"}
+        assert pitcher_vals[5].position in {"RP", "P"}
 
     def test_dual_eligible_pitcher_gets_best_position(self) -> None:
         """A dual SP/RP pitcher should be assigned whichever has lower replacement level."""
@@ -736,7 +736,7 @@ class TestZarModelPitcherPositions:
         model.predict(config)
         dual_val = next(v for v in val_repo.upserted if v.player_id == 4)
         # Dual-eligible pitcher should get a valid pitcher position
-        assert dual_val.position in {"sp", "rp", "p"}
+        assert dual_val.position in {"SP", "RP", "P"}
 
 
 # ---------------------------------------------------------------------------

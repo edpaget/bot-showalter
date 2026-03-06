@@ -180,10 +180,10 @@ class ZarModel:
             return []
 
         stats_list = _extract_stats(projections)
-        if pitcher_roster_spots is not None and "p" in pitcher_roster_spots:
-            no_pos: list[str] = ["p"]
+        if pitcher_roster_spots is not None and "P" in pitcher_roster_spots:
+            no_pos: list[str] = ["P"]
         elif league.roster_util > 0:
-            no_pos = ["util"]
+            no_pos = ["UTIL"]
         else:
             no_pos = []
         player_positions = [position_map.get(p.player_id, no_pos) for p in projections]

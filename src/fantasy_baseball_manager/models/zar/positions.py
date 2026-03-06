@@ -1,20 +1,24 @@
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.domain import Position, consolidate_outfield, position_from_raw
+
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import LeagueSettings, PositionAppearance
-# Maps PositionAppearance position codes to league-settings keys.
-POSITION_ALIASES: dict[str, str] = {
-    "C": "c",
-    "1B": "1b",
-    "2B": "2b",
-    "3B": "3b",
-    "SS": "ss",
-    "LF": "of",
-    "CF": "of",
-    "RF": "of",
-    "OF": "of",
-    "DH": "util",
-}
+
+
+def _normalize_position(raw: str) -> str | None:
+    """Convert a raw position string to a league-slot key (uppercase).
+
+    Returns None for positions that don't map to league slots.
+    """
+    try:
+        pos = position_from_raw(raw)
+    except ValueError:
+        return None
+    pos = consolidate_outfield(pos)
+    if pos == Position.DH:
+        return Position.UTIL.value
+    return pos.value
 
 
 def build_position_map(
@@ -25,13 +29,13 @@ def build_position_map(
     """Map player IDs to lists of eligible league-settings position keys."""
     valid_positions = set(league.positions.keys())
     if league.roster_util > 0:
-        valid_positions.add("util")
+        valid_positions.add("UTIL")
 
     result: dict[int, list[str]] = {}
     for app in appearances:
         if app.games < min_games:
             continue
-        league_pos = POSITION_ALIASES.get(app.position)
+        league_pos = _normalize_position(app.position)
         if league_pos and league_pos in valid_positions:
             result.setdefault(app.player_id, [])
             if league_pos not in result[app.player_id]:
@@ -40,8 +44,8 @@ def build_position_map(
     # Every batter with position data qualifies for util if util slots exist.
     if league.roster_util > 0:
         for positions in result.values():
-            if "util" not in positions:
-                positions.append("util")
+            if "UTIL" not in positions:
+                positions.append("UTIL")
 
     return result
 
@@ -56,12 +60,12 @@ def build_roster_spots(
         return pitcher_roster_spots
     roster_spots = dict(league.positions)
     if league.roster_util > 0:
-        roster_spots["util"] = league.roster_util
+        roster_spots["UTIL"] = league.roster_util
     return roster_spots
 
 
 def best_position(eligible: list[str], replacement: dict[str, float]) -> str:
     """Pick the position with the lowest replacement level (highest VAR)."""
     if not eligible:
-        return "util"
+        return "UTIL"
     return min(eligible, key=lambda p: replacement.get(p, float("inf")))

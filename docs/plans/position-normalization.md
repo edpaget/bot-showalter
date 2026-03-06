@@ -6,7 +6,7 @@ Player positions flow through three inconsistent representations: uppercase from
 
 | Phase | Status |
 |-------|--------|
-| 1 — Position enum and core fix | not started |
+| 1 — Position enum and core fix | in progress |
 | 2 — Propagate enum to services and domain | not started |
 | 3 — Normalize at ingest/Yahoo boundaries | not started |
 

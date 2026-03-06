@@ -47,7 +47,7 @@ class PlayerEligibilityService:
     ) -> dict[int, list[str]]:
         """Return a map of pitcher IDs to eligible pitcher position keys.
 
-        If ``league.pitcher_positions`` is empty, returns ``["p"]`` for every
+        If ``league.pitcher_positions`` is empty, returns ``["P"]`` for every
         pitcher (backward-compatible behaviour).
 
         Otherwise derives SP/RP eligibility from pitching stats (games started
@@ -55,7 +55,7 @@ class PlayerEligibilityService:
         exist for the target season.
         """
         if not league.pitcher_positions:
-            return {pid: ["p"] for pid in pitcher_ids}
+            return {pid: ["P"] for pid in pitcher_ids}
 
         stats = self._get_pitching_stats(season, league.eligibility.carryover_seasons)
         aggregated = self._aggregate_pitching_stats(stats, pitcher_ids)
@@ -110,14 +110,14 @@ class PlayerEligibilityService:
             positions: list[str] = []
             if pid in aggregated:
                 g, gs = aggregated[pid]
-                if gs >= sp_min_starts and "sp" in config:
-                    positions.append("sp")
-                if (g - gs) >= rp_min_relief and "rp" in config:
-                    positions.append("rp")
-                if positions and "p" in config:
-                    positions.append("p")
-            if not positions and "p" in config:
-                # Rookie / no stats — get flex "p" if available
-                positions = ["p"]
+                if gs >= sp_min_starts and "SP" in config:
+                    positions.append("SP")
+                if (g - gs) >= rp_min_relief and "RP" in config:
+                    positions.append("RP")
+                if positions and "P" in config:
+                    positions.append("P")
+            if not positions and "P" in config:
+                # Rookie / no stats — get flex "P" if available
+                positions = ["P"]
             result[pid] = positions
         return result

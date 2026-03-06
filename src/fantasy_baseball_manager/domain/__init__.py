@@ -191,6 +191,12 @@ from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player, Team
 from fantasy_baseball_manager.domain.player_bio import PlayerSummary
 from fantasy_baseball_manager.domain.player_profile import PlayerProfile, compute_age
+from fantasy_baseball_manager.domain.position import (
+    OF_POSITIONS,
+    Position,
+    consolidate_outfield,
+    position_from_raw,
+)
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.domain.positional_scarcity import (
     PositionScarcity,
@@ -419,7 +425,11 @@ __all__ = [
     "PlayerTier",
     "PlayerUniverseProvider",
     "PlayerValuation",
+    "OF_POSITIONS",
+    "Position",
     "PositionAppearance",
+    "consolidate_outfield",
+    "position_from_raw",
     "Predictable",
     "PredictResult",
     "Preparable",
