@@ -16,7 +16,7 @@ from fantasy_baseball_manager.domain.league_settings import (
 )
 from fantasy_baseball_manager.domain.player_profile import PlayerProfile
 from fantasy_baseball_manager.domain.valuation import Valuation
-from fantasy_baseball_manager.services.draft_board import build_draft_board, export_csv, export_html
+from fantasy_baseball_manager.services.draft_board import _group_rows, build_draft_board, export_csv, export_html
 
 
 def _league(
@@ -1432,3 +1432,80 @@ class TestExportHtmlAgeBatsThrows:
         html_out = buf.getvalue()
         assert "<th>Age</th>" not in html_out
         assert "<th>B/T</th>" not in html_out
+
+
+def _row(
+    player_id: int,
+    position: str,
+    value: float,
+    player_type: str = "batter",
+) -> DraftBoardRow:
+    return DraftBoardRow(
+        player_id=player_id,
+        player_name=f"Player {player_id}",
+        rank=1,
+        player_type=player_type,
+        position=position,
+        value=value,
+        category_z_scores={},
+    )
+
+
+class TestPositionGrouping:
+    def test_batters_grouped_by_position_in_order(self) -> None:
+        rows = [
+            _row(1, "OF", 20.0),
+            _row(2, "C", 15.0),
+            _row(3, "1B", 10.0),
+        ]
+        groups = _group_rows(rows)
+        assert len(groups) == 1
+        type_label, pos_groups = groups[0]
+        assert type_label == "Batters"
+        positions = [pos for pos, _ in pos_groups]
+        assert positions == ["C", "1B", "OF"]
+
+    def test_pitchers_grouped_by_sp_then_rp(self) -> None:
+        rows = [
+            _row(1, "RP", 10.0, player_type="pitcher"),
+            _row(2, "SP", 20.0, player_type="pitcher"),
+        ]
+        groups = _group_rows(rows)
+        assert len(groups) == 1
+        type_label, pos_groups = groups[0]
+        assert type_label == "Pitchers"
+        positions = [pos for pos, _ in pos_groups]
+        assert positions == ["SP", "RP"]
+
+    def test_util_sorts_after_named_batter_positions(self) -> None:
+        rows = [
+            _row(1, "UTIL", 5.0),
+            _row(2, "OF", 20.0),
+            _row(3, "C", 15.0),
+        ]
+        groups = _group_rows(rows)
+        _, pos_groups = groups[0]
+        positions = [pos for pos, _ in pos_groups]
+        assert positions == ["C", "OF", "UTIL"]
+
+    def test_batters_and_pitchers_in_separate_groups(self) -> None:
+        rows = [
+            _row(1, "SS", 25.0),
+            _row(2, "SP", 20.0, player_type="pitcher"),
+            _row(3, "OF", 15.0),
+        ]
+        groups = _group_rows(rows)
+        assert len(groups) == 2
+        assert groups[0][0] == "Batters"
+        assert groups[1][0] == "Pitchers"
+
+    def test_rows_within_position_sorted_by_value_desc(self) -> None:
+        rows = [
+            _row(1, "OF", 10.0),
+            _row(2, "OF", 30.0),
+            _row(3, "OF", 20.0),
+        ]
+        groups = _group_rows(rows)
+        _, pos_groups = groups[0]
+        of_rows = pos_groups[0][1]
+        assert [r.player_id for r in of_rows] == [2, 3, 1]

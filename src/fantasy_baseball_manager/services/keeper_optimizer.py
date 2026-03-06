@@ -343,16 +343,15 @@ def compute_adjusted_draft_pool(
     """Remove kept players from the pool and compute replacement-level baselines."""
     filtered = [v for v in valuations if v.player_id not in league_keeper_ids]
 
-    # Group by position (case-normalized)
     by_position: dict[str, list[Valuation]] = defaultdict(list)
     for v in filtered:
-        by_position[v.position.lower()].append(v)
+        by_position[v.position].append(v)
     for pos_list in by_position.values():
         pos_list.sort(key=lambda v: v.value, reverse=True)
 
     # Compute replacement level per position
-    all_positions = {pos.lower(): slots for pos, slots in league.positions.items()}
-    all_positions.update({pos.lower(): slots for pos, slots in league.pitcher_positions.items()})
+    all_positions = dict(league.positions)
+    all_positions.update(league.pitcher_positions)
 
     replacement_levels: dict[str, float] = {}
     for pos, slots in all_positions.items():
@@ -377,8 +376,8 @@ def _estimated_draft_value(
     available = [v for v in base_pool if v.player_id not in keeper_ids]
 
     # Compute unfilled slots per position
-    all_positions = {pos.lower(): slots for pos, slots in league.positions.items()}
-    all_positions.update({pos.lower(): slots for pos, slots in league.pitcher_positions.items()})
+    all_positions = dict(league.positions)
+    all_positions.update(league.pitcher_positions)
 
     unfilled: dict[str, int] = {}
     for pos, slots in all_positions.items():
@@ -388,7 +387,7 @@ def _estimated_draft_value(
     # Group available by position
     by_position: dict[str, list[float]] = defaultdict(list)
     for v in available:
-        by_position[v.position.lower()].append(v.value)
+        by_position[v.position].append(v.value)
 
     total_value = 0.0
     used_ids: set[int] = set()
@@ -403,14 +402,14 @@ def _estimated_draft_value(
         # Mark consumed players as used from available pool
         consumed = 0
         for v in available:
-            if v.position.lower() == pos and v.player_id not in used_ids:
+            if v.position == pos and v.player_id not in used_ids:
                 used_ids.add(v.player_id)
                 consumed += 1
                 if consumed >= min(slots_needed, len(pos_values)):
                     break
 
     # Fill UTIL slots with best remaining batters
-    util_slots = max(0, league.roster_util - keeper_set.positions_filled.get("util", 0))
+    util_slots = max(0, league.roster_util - keeper_set.positions_filled.get("UTIL", 0))
     if util_slots > 0:
         remaining = [v for v in available if v.player_id not in used_ids and v.player_type == "batter"]
         for v in remaining[:util_slots]:

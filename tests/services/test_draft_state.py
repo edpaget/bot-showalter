@@ -194,7 +194,7 @@ class TestBuildDraftRosterSlots:
         assert "UTIL" not in slots
 
     def test_uppercase_keys(self) -> None:
-        """Positions from league config (possibly lowercase) are uppercased."""
+        """Positions from league config are passed through as-is (already uppercase)."""
         batting_cat = CategoryConfig(
             key="HR", name="Home Runs", stat_type=StatType.COUNTING, direction=Direction.HIGHER
         )
@@ -202,7 +202,7 @@ class TestBuildDraftRosterSlots:
             key="K", name="Strikeouts", stat_type=StatType.COUNTING, direction=Direction.HIGHER
         )
         league = LeagueSettings(
-            name="Lower",
+            name="Upper",
             format=LeagueFormat.H2H_CATEGORIES,
             teams=12,
             budget=260,
@@ -211,7 +211,7 @@ class TestBuildDraftRosterSlots:
             batting_categories=(batting_cat,),
             pitching_categories=(pitching_cat,),
             roster_util=1,
-            positions={"ss": 1, "of": 3, "c": 1},
+            positions={"SS": 1, "OF": 3, "C": 1},
         )
         slots = build_draft_roster_slots(league)
         assert "SS" in slots
@@ -219,7 +219,6 @@ class TestBuildDraftRosterSlots:
         assert "C" in slots
         assert "UTIL" in slots
         assert "P" in slots
-        # No lowercase keys
         assert all(k == k.upper() for k in slots)
 
     def test_empty_positions(self) -> None:

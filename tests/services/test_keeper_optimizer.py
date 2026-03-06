@@ -21,7 +21,7 @@ from fantasy_baseball_manager.services import (
 def _decision(
     player_id: int,
     surplus: float,
-    position: str = "of",
+    position: str = "OF",
     cost: float = 10.0,
     name: str | None = None,
     original_round: int | None = None,
@@ -56,9 +56,9 @@ class TestSolveKeepersBasic:
 
     def test_keeper_set_fields(self) -> None:
         candidates = [
-            _decision(1, 30.0, position="c", cost=15.0),
-            _decision(2, 20.0, position="of", cost=10.0),
-            _decision(3, 10.0, position="of", cost=5.0),
+            _decision(1, 30.0, position="C", cost=15.0),
+            _decision(2, 20.0, position="OF", cost=10.0),
+            _decision(3, 10.0, position="OF", cost=5.0),
         ]
         constraints = KeeperConstraints(max_keepers=2)
 
@@ -66,7 +66,7 @@ class TestSolveKeepersBasic:
 
         assert result.optimal.total_surplus == pytest.approx(50.0)
         assert result.optimal.total_cost == pytest.approx(25.0)
-        assert result.optimal.positions_filled == {"c": 1, "of": 1}
+        assert result.optimal.positions_filled == {"C": 1, "OF": 1}
         assert result.optimal.score == pytest.approx(50.0)
 
     def test_single_candidate(self) -> None:
@@ -90,12 +90,12 @@ class TestSolveKeepersBasic:
 class TestPositionConstraints:
     def test_position_limit_excludes_excess(self) -> None:
         candidates = [
-            _decision(1, 20.0, position="c"),
-            _decision(2, 15.0, position="c"),
-            _decision(3, 10.0, position="c"),
-            _decision(4, 12.0, position="of"),
+            _decision(1, 20.0, position="C"),
+            _decision(2, 15.0, position="C"),
+            _decision(3, 10.0, position="C"),
+            _decision(4, 12.0, position="OF"),
         ]
-        constraints = KeeperConstraints(max_keepers=2, max_per_position={"c": 1})
+        constraints = KeeperConstraints(max_keepers=2, max_per_position={"C": 1})
 
         result = solve_keepers(candidates, constraints)
 
@@ -105,13 +105,13 @@ class TestPositionConstraints:
 
     def test_multiple_position_limits(self) -> None:
         candidates = [
-            _decision(1, 25.0, position="c"),
-            _decision(2, 20.0, position="c"),
-            _decision(3, 18.0, position="of"),
-            _decision(4, 15.0, position="of"),
-            _decision(5, 12.0, position="of"),
+            _decision(1, 25.0, position="C"),
+            _decision(2, 20.0, position="C"),
+            _decision(3, 18.0, position="OF"),
+            _decision(4, 15.0, position="OF"),
+            _decision(5, 12.0, position="OF"),
         ]
-        constraints = KeeperConstraints(max_keepers=3, max_per_position={"c": 1, "of": 2})
+        constraints = KeeperConstraints(max_keepers=3, max_per_position={"C": 1, "OF": 2})
 
         result = solve_keepers(candidates, constraints)
 
@@ -120,11 +120,11 @@ class TestPositionConstraints:
 
     def test_unlisted_position_unconstrained(self) -> None:
         candidates = [
-            _decision(1, 20.0, position="c"),
-            _decision(2, 18.0, position="of"),
-            _decision(3, 15.0, position="of"),
+            _decision(1, 20.0, position="C"),
+            _decision(2, 18.0, position="OF"),
+            _decision(3, 15.0, position="OF"),
         ]
-        constraints = KeeperConstraints(max_keepers=3, max_per_position={"c": 1})
+        constraints = KeeperConstraints(max_keepers=3, max_per_position={"C": 1})
 
         result = solve_keepers(candidates, constraints)
 
@@ -132,9 +132,9 @@ class TestPositionConstraints:
 
     def test_position_limit_none(self) -> None:
         candidates = [
-            _decision(1, 20.0, position="c"),
-            _decision(2, 18.0, position="c"),
-            _decision(3, 15.0, position="c"),
+            _decision(1, 20.0, position="C"),
+            _decision(2, 18.0, position="C"),
+            _decision(3, 15.0, position="C"),
         ]
         constraints = KeeperConstraints(max_keepers=3)
 
@@ -187,13 +187,13 @@ class TestRequiredKeepers:
 
     def test_required_with_position_constraint(self) -> None:
         candidates = [
-            _decision(1, 25.0, position="c"),
-            _decision(2, 20.0, position="c"),  # required
-            _decision(3, 15.0, position="of"),
+            _decision(1, 25.0, position="C"),
+            _decision(2, 20.0, position="C"),  # required
+            _decision(3, 15.0, position="OF"),
         ]
         constraints = KeeperConstraints(
             max_keepers=2,
-            max_per_position={"c": 1},
+            max_per_position={"C": 1},
             required_keepers=[2],
         )
 
@@ -317,10 +317,10 @@ class TestEdgeCases:
 
     def test_no_valid_sets_raises(self) -> None:
         candidates = [
-            _decision(1, 20.0, position="c"),
-            _decision(2, 15.0, position="c"),
+            _decision(1, 20.0, position="C"),
+            _decision(2, 15.0, position="C"),
         ]
-        constraints = KeeperConstraints(max_keepers=2, max_per_position={"c": 1})
+        constraints = KeeperConstraints(max_keepers=2, max_per_position={"C": 1})
 
         with pytest.raises(ValueError, match="no valid"):
             solve_keepers(candidates, constraints)
@@ -462,7 +462,7 @@ def _valuation(
         version="v1",
         projection_system="test",
         projection_version="v1",
-        player_type="batter" if position != "sp" else "pitcher",
+        player_type="batter" if position != "SP" else "pitcher",
         position=position,
         value=value,
         rank=0,
@@ -485,8 +485,8 @@ def _league(
         roster_pitchers=9,
         batting_categories=(),
         pitching_categories=(),
-        positions=positions or {"c": 1, "ss": 1, "of": 3},
-        pitcher_positions=pitcher_positions or {"sp": 2},
+        positions=positions or {"C": 1, "SS": 1, "OF": 3},
+        pitcher_positions=pitcher_positions or {"SP": 2},
         roster_util=roster_util,
     )
 
@@ -497,9 +497,9 @@ def _league(
 class TestComputeAdjustedDraftPool:
     def test_removes_kept_players(self) -> None:
         valuations = [
-            _valuation(1, "ss", 30.0),
-            _valuation(2, "ss", 20.0),
-            _valuation(3, "of", 15.0),
+            _valuation(1, "SS", 30.0),
+            _valuation(2, "SS", 20.0),
+            _valuation(3, "OF", 15.0),
         ]
         league = _league(teams=1)
 
@@ -512,48 +512,48 @@ class TestComputeAdjustedDraftPool:
     def test_replacement_level_per_position(self) -> None:
         # 2 teams, 1 SS slot each → replacement level = value at rank 2
         valuations = [
-            _valuation(1, "ss", 40.0),
-            _valuation(2, "ss", 30.0),
-            _valuation(3, "ss", 20.0),
-            _valuation(4, "ss", 10.0),
+            _valuation(1, "SS", 40.0),
+            _valuation(2, "SS", 30.0),
+            _valuation(3, "SS", 20.0),
+            _valuation(4, "SS", 10.0),
         ]
-        league = _league(teams=2, positions={"ss": 1})
+        league = _league(teams=2, positions={"SS": 1})
 
         _pool, levels = compute_adjusted_draft_pool(set(), valuations, league)
 
         # rank 2 (0-indexed) = 3rd player = 20.0
-        assert levels["ss"] == pytest.approx(20.0)
+        assert levels["SS"] == pytest.approx(20.0)
 
     def test_replacement_level_changes_when_keepers_removed(self) -> None:
         valuations = [
-            _valuation(1, "ss", 40.0),
-            _valuation(2, "ss", 30.0),
-            _valuation(3, "ss", 20.0),
-            _valuation(4, "ss", 10.0),
+            _valuation(1, "SS", 40.0),
+            _valuation(2, "SS", 30.0),
+            _valuation(3, "SS", 20.0),
+            _valuation(4, "SS", 10.0),
         ]
-        league = _league(teams=2, positions={"ss": 1})
+        league = _league(teams=2, positions={"SS": 1})
 
         _pool_before, levels_before = compute_adjusted_draft_pool(set(), valuations, league)
         _pool_after, levels_after = compute_adjusted_draft_pool({1}, valuations, league)
 
         # Before: replacement = rank 2 of [40, 30, 20, 10] → 20.0
         # After: replacement = rank 2 of [30, 20, 10] → 10.0
-        assert levels_before["ss"] == pytest.approx(20.0)
-        assert levels_after["ss"] == pytest.approx(10.0)
+        assert levels_before["SS"] == pytest.approx(20.0)
+        assert levels_after["SS"] == pytest.approx(10.0)
 
     def test_position_with_no_pool_entries_gets_zero(self) -> None:
-        valuations = [_valuation(1, "of", 20.0)]
-        league = _league(teams=1, positions={"c": 1, "of": 1})
+        valuations = [_valuation(1, "OF", 20.0)]
+        league = _league(teams=1, positions={"C": 1, "OF": 1})
 
         _pool, levels = compute_adjusted_draft_pool(set(), valuations, league)
 
-        assert levels["c"] == pytest.approx(0.0)
+        assert levels["C"] == pytest.approx(0.0)
 
     def test_returned_pool_sorted_by_value_desc(self) -> None:
         valuations = [
-            _valuation(1, "of", 10.0),
-            _valuation(2, "ss", 30.0),
-            _valuation(3, "c", 20.0),
+            _valuation(1, "OF", 10.0),
+            _valuation(2, "SS", 30.0),
+            _valuation(3, "C", 20.0),
         ]
         league = _league(teams=1)
 
@@ -565,26 +565,26 @@ class TestComputeAdjustedDraftPool:
     def test_case_normalized_positions(self) -> None:
         valuations = [
             _valuation(1, "SS", 40.0),
-            _valuation(2, "ss", 30.0),
+            _valuation(2, "SS", 30.0),
         ]
-        league = _league(teams=1, positions={"ss": 1})
+        league = _league(teams=1, positions={"SS": 1})
 
         _pool, levels = compute_adjusted_draft_pool(set(), valuations, league)
 
-        assert "ss" in levels
+        assert "SS" in levels
 
     def test_includes_pitcher_positions(self) -> None:
         valuations = [
-            _valuation(1, "sp", 30.0),
-            _valuation(2, "sp", 25.0),
-            _valuation(3, "sp", 20.0),
+            _valuation(1, "SP", 30.0),
+            _valuation(2, "SP", 25.0),
+            _valuation(3, "SP", 20.0),
         ]
-        league = _league(teams=1, pitcher_positions={"sp": 2})
+        league = _league(teams=1, pitcher_positions={"SP": 2})
 
         _pool, levels = compute_adjusted_draft_pool(set(), valuations, league)
 
         # 1 team * 2 SP slots → replacement at rank 2 (0-indexed) = 20.0
-        assert levels["sp"] == pytest.approx(20.0)
+        assert levels["SP"] == pytest.approx(20.0)
 
 
 # ── solve_keepers_with_pool tests ─────────────────────────────────────────────
@@ -596,8 +596,8 @@ class TestSolveKeepersWithPool:
         # Without pool: player 1 (OF, surplus 25) beats player 2 (SS, surplus 20)
         # With pool: league keeps 10 SS, depleting SS pool → SS keeper more valuable
         candidates = [
-            _decision(1, 25.0, position="of"),
-            _decision(2, 20.0, position="ss"),
+            _decision(1, 25.0, position="OF"),
+            _decision(2, 20.0, position="SS"),
         ]
         constraints = KeeperConstraints(max_keepers=1)
 
@@ -606,15 +606,15 @@ class TestSolveKeepersWithPool:
         assert basic.optimal.players[0].player_id == 1  # OF wins on surplus alone
 
         # Build a pool where SS is scarce but OF is deep
-        valuations = [_valuation(100 + i, "of", 30.0 - i * 0.5) for i in range(40)] + [
-            _valuation(200 + i, "ss", 28.0 - i * 2.0) for i in range(15)
+        valuations = [_valuation(100 + i, "OF", 30.0 - i * 0.5) for i in range(40)] + [
+            _valuation(200 + i, "SS", 28.0 - i * 2.0) for i in range(15)
         ]
         # League keeps 10 of the top SS
         league_keeper_ids = {200 + i for i in range(10)}
 
         league = _league(
             teams=12,
-            positions={"of": 3, "ss": 1},
+            positions={"OF": 3, "SS": 1},
             pitcher_positions={},
         )
 
@@ -626,18 +626,18 @@ class TestSolveKeepersWithPool:
     def test_deep_position_reduces_keeper_value(self) -> None:
         """When draft pool is deep at a position, keeping there is less valuable."""
         candidates = [
-            _decision(1, 22.0, position="c"),
-            _decision(2, 20.0, position="of"),
+            _decision(1, 22.0, position="C"),
+            _decision(2, 20.0, position="OF"),
         ]
         constraints = KeeperConstraints(max_keepers=1)
 
         # OF is very deep, C is scarce
-        valuations = [_valuation(100 + i, "of", 25.0 - i * 0.3) for i in range(40)] + [
-            _valuation(200 + i, "c", 15.0 - i * 3.0) for i in range(5)
+        valuations = [_valuation(100 + i, "OF", 25.0 - i * 0.3) for i in range(40)] + [
+            _valuation(200 + i, "C", 15.0 - i * 3.0) for i in range(5)
         ]
         league = _league(
             teams=12,
-            positions={"c": 1, "of": 3},
+            positions={"C": 1, "OF": 3},
             pitcher_positions={},
         )
 
@@ -648,13 +648,13 @@ class TestSolveKeepersWithPool:
 
     def test_returns_valid_solution_structure(self) -> None:
         candidates = [
-            _decision(1, 25.0, position="of"),
-            _decision(2, 20.0, position="ss"),
-            _decision(3, 15.0, position="c"),
+            _decision(1, 25.0, position="OF"),
+            _decision(2, 20.0, position="SS"),
+            _decision(3, 15.0, position="C"),
         ]
         constraints = KeeperConstraints(max_keepers=2)
-        valuations = [_valuation(100 + i, "of", 20.0 - i) for i in range(20)]
-        league = _league(teams=2, positions={"of": 3, "ss": 1, "c": 1}, pitcher_positions={})
+        valuations = [_valuation(100 + i, "OF", 20.0 - i) for i in range(20)]
+        league = _league(teams=2, positions={"OF": 3, "SS": 1, "C": 1}, pitcher_positions={})
 
         result = solve_keepers_with_pool(candidates, constraints, set(), valuations, league)
 
@@ -667,12 +667,12 @@ class TestSolveKeepersWithPool:
         """More keepers → fewer draft slots → lower estimated draft value component."""
         # All candidates at OF so keeping more reduces OF draft slots
         candidates = [
-            _decision(1, 30.0, position="of"),
-            _decision(2, 25.0, position="of"),
-            _decision(3, 20.0, position="of"),
+            _decision(1, 30.0, position="OF"),
+            _decision(2, 25.0, position="OF"),
+            _decision(3, 20.0, position="OF"),
         ]
-        valuations = [_valuation(100 + i, "of", 20.0 - i * 0.5) for i in range(30)]
-        league = _league(teams=2, positions={"of": 5}, pitcher_positions={})
+        valuations = [_valuation(100 + i, "OF", 20.0 - i * 0.5) for i in range(30)]
+        league = _league(teams=2, positions={"OF": 5}, pitcher_positions={})
 
         # Keep 1: 4 unfilled OF slots
         result_1 = solve_keepers_with_pool(
