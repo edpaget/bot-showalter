@@ -119,9 +119,8 @@ def yahoo_sync(  # pragma: no cover
     league_config = config.leagues[league]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        # Get game key for current season
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
         game_key = ctx.client.get_game_key(season)
-        league_key = f"{game_key}.l.{league_config.league_id}"
 
         league_source = YahooLeagueSource(ctx.client)
         yahoo_league = sync_league_metadata(
@@ -228,14 +227,8 @@ def yahoo_rosters(  # pragma: no cover
     league_config = config.leagues[league]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
         game_key = ctx.client.get_game_key(season)
-        league_key = f"{game_key}.l.{league_config.league_id}"
-
-        # For prior seasons the league ID may differ; resolve via renew chain
-        current_game_key = ctx.client.get_game_key(datetime.date.today().year)
-        current_league_key = f"{current_game_key}.l.{league_config.league_id}"
-        if current_league_key != league_key:
-            league_key = _resolve_prior_league_key(ctx, current_league_key, season)
 
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
         if not teams:
@@ -323,8 +316,7 @@ def yahoo_my_roster(  # pragma: no cover
     league_config = config.leagues[league]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        game_key = ctx.client.get_game_key(2026)
-        league_key = f"{game_key}.l.{league_config.league_id}"
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
 
         user_team = ctx.yahoo_team_repo.get_user_team(league_key)
         if user_team is None:
@@ -419,8 +411,7 @@ def yahoo_draft_results(  # pragma: no cover
     league_config = config.leagues[league]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        game_key = ctx.client.get_game_key(season)
-        league_key = f"{game_key}.l.{league_config.league_id}"
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
         source = YahooDraftSource(ctx.client, mapper)
@@ -492,8 +483,7 @@ def yahoo_draft_live(  # pragma: no cover
     fbm_league = load_league(league_name, Path.cwd())
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        game_key = ctx.client.get_game_key(season)
-        league_key = f"{game_key}.l.{league_config.league_id}"
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
         draft_source = YahooDraftSource(ctx.client, mapper)
@@ -567,8 +557,7 @@ def yahoo_transactions(  # pragma: no cover
     league_config = config.leagues[league_name]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        game_key = ctx.client.get_game_key(season)
-        league_key = f"{game_key}.l.{league_config.league_id}"
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
         txn_source = YahooTransactionSource(ctx.client, mapper)
@@ -619,8 +608,8 @@ def yahoo_refresh(  # pragma: no cover
     league_config = config.leagues[league_name]
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
         game_key = ctx.client.get_game_key(season)
-        league_key = f"{game_key}.l.{league_config.league_id}"
 
         # Step 1: Ensure teams exist (auto-sync if needed)
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
@@ -695,7 +684,27 @@ def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, Y
     return league, config
 
 
-def _resolve_prior_league_key(ctx: YahooContext, league_key: str, prior_season: int) -> str:  # pragma: no cover
+def resolve_league_key(ctx: YahooContext, league_id: int, season: int, *, current_year: int | None = None) -> str:
+    """Resolve the Yahoo league key for any season.
+
+    For the current (or future) season, constructs directly from league_id.
+    For prior seasons, follows the renew chain from the current-season league.
+    """
+    if current_year is None:
+        current_year = datetime.date.today().year
+
+    game_key = ctx.client.get_game_key(season)
+
+    if season >= current_year:
+        return f"{game_key}.l.{league_id}"
+
+    # For prior seasons, resolve via renew chain from current league
+    current_game_key = ctx.client.get_game_key(current_year)
+    current_league_key = f"{current_game_key}.l.{league_id}"
+    return _resolve_prior_league_key(ctx, current_league_key, season)
+
+
+def _resolve_prior_league_key(ctx: YahooContext, league_key: str, prior_season: int) -> str:
     """Resolve the prior-season league key using the stored renew chain.
 
     Falls back to same-league-ID construction with a warning if renew is unavailable.
