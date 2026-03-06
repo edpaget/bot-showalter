@@ -87,9 +87,11 @@ class ZarModel:
                 projections = self._projection_repo.get_by_season(season, system=proj_system)
         position_map = self._eligibility_service.get_batter_positions(season, league)
 
-        # 2. Split into batters and pitchers
-        batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) > 0]
-        pitcher_projs = [p for p in projections if p.player_type == "pitcher" and p.stat_json.get("ip", 0) > 0]
+        # 2. Split into batters and pitchers (apply playing-time cutoffs)
+        min_pa = league.eligibility.min_pa or 1
+        min_ip = league.eligibility.min_ip or 1
+        batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) >= min_pa]
+        pitcher_projs = [p for p in projections if p.player_type == "pitcher" and p.stat_json.get("ip", 0) >= min_ip]
 
         # 3. Budget split proportional to category count
         batter_budget, pitcher_budget = compute_budget_split(league)

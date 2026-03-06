@@ -397,6 +397,32 @@ class TestParseLeague:
         assert settings.eligibility.rp_min_relief == 5
         assert settings.eligibility.carryover_seasons == 1
 
+    def test_with_min_pa_and_min_ip(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "eligibility": {"min_pa": 200, "min_ip": 30},
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.eligibility.min_pa == 200
+        assert settings.eligibility.min_ip == 30
+
     def test_with_pitcher_positions(self) -> None:
         raw = {
             "format": "h2h_categories",

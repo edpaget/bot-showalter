@@ -11,6 +11,7 @@ from fantasy_baseball_manager.domain import (
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
+    EligibilityRules,
     LeagueFormat,
     LeagueSettings,
     StatType,
@@ -736,3 +737,130 @@ class TestZarModelPitcherPositions:
         dual_val = next(v for v in val_repo.upserted if v.player_id == 4)
         # Dual-eligible pitcher should get a valid pitcher position
         assert dual_val.position in {"sp", "rp", "p"}
+
+
+# ---------------------------------------------------------------------------
+# min_pa / min_ip cutoff tests
+# ---------------------------------------------------------------------------
+
+
+class TestZarModelPlayingTimeCutoffs:
+    def test_min_pa_filters_low_pa_batters(self) -> None:
+        """Batters with PA below min_pa are excluded from valuations."""
+        league = dataclasses.replace(
+            _standard_league(),
+            eligibility=EligibilityRules(min_pa=100),
+        )
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+            ),
+            Projection(
+                player_id=2,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 50, "hr": 2.0, "r": 5.0, "h": 10.0, "ab": 45.0},
+            ),
+            Projection(
+                player_id=4,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections, appearances=[])
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={"league": league, "projection_system": "steamer"},
+            version="1.0",
+        )
+        model.predict(config)
+        player_ids = {v.player_id for v in val_repo.upserted}
+        assert 1 in player_ids
+        assert 2 not in player_ids  # PA=50 < min_pa=100
+
+    def test_min_ip_filters_low_ip_pitchers(self) -> None:
+        """Pitchers with IP below min_ip are excluded from valuations."""
+        league = dataclasses.replace(
+            _standard_league(),
+            eligibility=EligibilityRules(min_ip=50),
+        )
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
+            ),
+            Projection(
+                player_id=4,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
+            ),
+            Projection(
+                player_id=5,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 10, "w": 1.0, "sv": 2.0},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections, appearances=[])
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={"league": league, "projection_system": "steamer"},
+            version="1.0",
+        )
+        model.predict(config)
+        player_ids = {v.player_id for v in val_repo.upserted}
+        assert 4 in player_ids
+        assert 5 not in player_ids  # IP=10 < min_ip=50
+
+    def test_default_min_pa_zero_includes_all_nonzero(self) -> None:
+        """Default (min_pa=0) still excludes PA=0 but includes PA=1."""
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 1, "hr": 0.0, "r": 0.0, "h": 0.0, "ab": 1.0},
+            ),
+            Projection(
+                player_id=2,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 0, "hr": 0.0, "r": 0.0, "h": 0.0, "ab": 0.0},
+            ),
+            Projection(
+                player_id=4,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
+            ),
+        ]
+        model, val_repo = _build_model(projections=projections, appearances=[])
+        model.predict(_standard_config())
+        player_ids = {v.player_id for v in val_repo.upserted}
+        assert 1 in player_ids  # PA=1 included
+        assert 2 not in player_ids  # PA=0 excluded

@@ -33,6 +33,8 @@ class EligibilityRules:
     sp_min_starts: int = 3
     rp_min_relief: int = 5
     carryover_seasons: int = 1
+    min_pa: int = 0
+    min_ip: int = 0
 
 
 @dataclass(frozen=True)

@@ -111,6 +111,8 @@ batter_min_games = 5
 sp_min_starts = 3
 rp_min_relief = 5
 carryover_seasons = 1
+min_pa = 200
+min_ip = 30
 
 [[leagues.h2h.batting_categories]]
 key = "hr"

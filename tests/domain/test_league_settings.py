@@ -3,6 +3,7 @@ import pytest
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
+    EligibilityRules,
     LeagueFormat,
     LeagueSettings,
     StatType,
@@ -75,6 +76,24 @@ class TestCategoryConfig:
         )
         with pytest.raises(AttributeError):
             cat.key = "sb"  # type: ignore[misc]
+
+
+class TestEligibilityRules:
+    def test_min_pa_defaults_to_zero(self) -> None:
+        rules = EligibilityRules()
+        assert rules.min_pa == 0
+
+    def test_min_ip_defaults_to_zero(self) -> None:
+        rules = EligibilityRules()
+        assert rules.min_ip == 0
+
+    def test_min_pa_custom(self) -> None:
+        rules = EligibilityRules(min_pa=200)
+        assert rules.min_pa == 200
+
+    def test_min_ip_custom(self) -> None:
+        rules = EligibilityRules(min_ip=30)
+        assert rules.min_ip == 30
 
 
 class TestLeagueSettings:
