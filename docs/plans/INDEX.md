@@ -7,7 +7,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases | Progress | Hard Dependencies |
 |---------|--------|----------|-------------------|
 | [Connection Pool Repos](connection-pool-repos.md) | 4 | phases 1-3 done | none |
-| [Keeper League Analysis](keeper-league-analysis.md) | 3 | phase 1 done | keeper-surplus-value (done), yahoo-fantasy-integration (done) |
+| [Keeper League Analysis](keeper-league-analysis.md) | 3 | phases 1-2 done | keeper-surplus-value (done), yahoo-fantasy-integration (done) |
 | [Injury Valuation Cleanup](injury-valuation-cleanup.md) | 3 | not started | injury-risk-discount (done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
@@ -16,7 +16,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
-| [Keeper League Analysis](keeper-league-analysis.md) | 3 | not started | yahoo-fantasy-integration (done), keeper-surplus-value (done) |
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
