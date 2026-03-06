@@ -84,6 +84,31 @@ class TestLookup:
         assert len(results) == 1
         assert results[0].player_name == "Joe Smith"
 
+    def test_first_last_format(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Cristopher", name_last="Sánchez", mlbam_id=100010)
+        _seed_projection(conn, pid)
+        svc = _make_service(conn)
+
+        results = svc.lookup("Cristopher Sanchez", 2025)
+        assert len(results) == 1
+        assert results[0].player_name == "Cristopher Sánchez"
+
+    def test_accent_stripping_last_name_only(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Ronald", name_last="Acuña", mlbam_id=100011)
+        _seed_projection(conn, pid)
+        svc = _make_service(conn)
+
+        results = svc.lookup("Acuna", 2025)
+        assert len(results) == 1
+
+    def test_nickname_alias_match(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Christopher", name_last="Smith", mlbam_id=100012)
+        _seed_projection(conn, pid)
+        svc = _make_service(conn)
+
+        results = svc.lookup("Chris Smith", 2025)
+        assert len(results) == 1
+
     def test_player_with_no_projections_excluded(self, conn: sqlite3.Connection) -> None:
         seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
         svc = _make_service(conn)

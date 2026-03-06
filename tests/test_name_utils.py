@@ -1,4 +1,6 @@
-from fantasy_baseball_manager.name_utils import normalize_name, strip_name_decorations
+from fantasy_baseball_manager.domain.player import Player
+from fantasy_baseball_manager.name_utils import normalize_name, resolve_players, strip_name_decorations
+from tests.fakes.repos import FakePlayerRepo
 
 
 class TestNormalizeName:
@@ -32,6 +34,59 @@ class TestNormalizeName:
 
     def test_combined_suffix_and_accent(self) -> None:
         assert normalize_name("Ronald Acuña Jr.") == "ronald acuna"
+
+
+def _player(name_first: str, name_last: str, pid: int = 1) -> Player:
+    return Player(id=pid, name_first=name_first, name_last=name_last, mlbam_id=pid)
+
+
+class TestResolvePlayers:
+    def test_first_last_with_accent(self) -> None:
+        repo = FakePlayerRepo([_player("Cristopher", "Sánchez")])
+        result = resolve_players(repo, "Cristopher Sanchez")
+        assert len(result) == 1
+
+    def test_last_only_with_accent(self) -> None:
+        repo = FakePlayerRepo([_player("Ronald", "Acuña")])
+        result = resolve_players(repo, "Acuna")
+        assert len(result) == 1
+
+    def test_comma_format(self) -> None:
+        repo = FakePlayerRepo(
+            [
+                _player("Joe", "Smith", pid=1),
+                _player("John", "Smith", pid=2),
+            ]
+        )
+        result = resolve_players(repo, "Smith, Joe")
+        assert len(result) == 1
+        assert result[0].name_first == "Joe"
+
+    def test_nickname_alias(self) -> None:
+        repo = FakePlayerRepo([_player("Christopher", "Sale")])
+        result = resolve_players(repo, "Chris Sale")
+        assert len(result) == 1
+
+    def test_single_word_last_name(self) -> None:
+        repo = FakePlayerRepo([_player("Mike", "Trout")])
+        result = resolve_players(repo, "Trout")
+        assert len(result) == 1
+
+    def test_no_match(self) -> None:
+        repo = FakePlayerRepo([_player("Mike", "Trout")])
+        result = resolve_players(repo, "Nobody")
+        assert result == []
+
+    def test_first_name_narrows_results(self) -> None:
+        repo = FakePlayerRepo(
+            [
+                _player("Joe", "Smith", pid=1),
+                _player("John", "Smith", pid=2),
+            ]
+        )
+        result = resolve_players(repo, "Joe Smith")
+        assert len(result) == 1
+        assert result[0].name_first == "Joe"
 
 
 class TestStripNameDecorations:

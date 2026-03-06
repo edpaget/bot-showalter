@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import PlayerValuation
+from fantasy_baseball_manager.name_utils import resolve_players
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import Player
@@ -16,18 +17,7 @@ class ValuationLookupService:
 
     def lookup(self, player_name: str, season: int, system: str | None = None) -> list[PlayerValuation]:
         logger.debug("Valuation lookup: player=%s season=%d system=%s", player_name, season, system)
-        if "," in player_name:
-            last, _, first = player_name.partition(",")
-            last = last.strip()
-            first = first.strip()
-        else:
-            last = player_name.strip()
-            first = None
-
-        players = self._player_repo.get_by_last_name(last)
-
-        if first:
-            players = [p for p in players if p.name_first and p.name_first.lower() == first.lower()]
+        players = resolve_players(self._player_repo, player_name)
 
         results: list[PlayerValuation] = []
         for player in players:

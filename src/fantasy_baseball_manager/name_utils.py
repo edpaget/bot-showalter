@@ -1,5 +1,10 @@
 import re
 import unicodedata
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain import Player
+    from fantasy_baseball_manager.repos import PlayerRepo
 
 _SUFFIX_RE = re.compile(r"\s+(Jr\.?|Sr\.?|II|III|IV|V)\s*$", re.IGNORECASE)
 _PARENTHETICAL_RE = re.compile(r"\s*\((?:Batter|Pitcher)\)\s*$", re.IGNORECASE)
@@ -60,3 +65,36 @@ def normalize_name(name: str) -> str:
     tokens = lowered.split()
     tokens = [NICK_ALIASES.get(t, t) for t in tokens]
     return " ".join(tokens)
+
+
+def resolve_players(player_repo: PlayerRepo, name: str) -> list[Player]:
+    """Resolve a player name query to matching Player records.
+
+    Handles these input formats:
+    - "Last, First" — comma-separated
+    - "First Last" — space-separated (last token is last name)
+    - "Last" — single word
+
+    Uses accent-stripped, nickname-normalized matching so
+    "Cristopher Sanchez" finds "Cristopher Sánchez".
+    """
+    if "," in name:
+        last, _, first = name.partition(",")
+        last = last.strip()
+        first = first.strip() or None
+    else:
+        parts = name.strip().split()
+        if len(parts) >= 2:
+            first = " ".join(parts[:-1])
+            last = parts[-1]
+        else:
+            first = None
+            last = parts[0] if parts else name.strip()
+
+    players = player_repo.search_by_last_name_normalized(strip_accents(last))
+
+    if first:
+        norm_first = normalize_name(first)
+        players = [p for p in players if p.name_first and normalize_name(p.name_first) == norm_first]
+
+    return players
