@@ -11,7 +11,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Position Normalization](position-normalization.md) | 3 | not started | none |
-| [Yahoo Live Draft Fixes](yahoo-live-draft-fixes.md) | 3 | phases 1-2 done | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
@@ -59,6 +58,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Coverage](test-coverage.md) | 5 |
 | [Projection Blender](projection-blender.md) | 4 |
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 |
+| [Yahoo Live Draft Fixes](yahoo-live-draft-fixes.md) | 3 |
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 |
 | [Connection Pool Repos](connection-pool-repos.md) | 4 |
 | [Experiment System Generalization](experiment-system-generalization.md) | 4 |
