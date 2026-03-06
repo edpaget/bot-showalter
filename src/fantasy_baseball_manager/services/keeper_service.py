@@ -6,10 +6,14 @@ from fantasy_baseball_manager.domain import (
     Err,
     KeeperCost,
     KeeperDecision,
+    LeagueKeeperOverview,
     Ok,
+    ProjectedKeeper,
     Roster,
+    TeamKeeperProjection,
     TradeEvaluation,
     TradePlayerDetail,
+    TradeTarget,
 )
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import best_position, build_roster_spots
@@ -154,6 +158,115 @@ def estimate_other_keepers(
             keeper_ids.add(pid)
 
     return keeper_ids
+
+
+def build_league_keeper_overview(
+    rosters: list[Roster],
+    valuations: list[Valuation],
+    players: list[Player],
+    max_keepers: int,
+    user_team_key: str,
+    team_names: dict[str, str],
+) -> LeagueKeeperOverview:
+    """Build a league-wide keeper overview with per-team projections and trade targets."""
+    # Build lookups
+    val_lookup: dict[int, Valuation] = {}
+    for v in valuations:
+        existing = val_lookup.get(v.player_id)
+        if existing is None or v.value > existing.value:
+            val_lookup[v.player_id] = v
+
+    player_lookup: dict[int, Player] = {}
+    for p in players:
+        if p.id is not None:
+            player_lookup[p.id] = p
+
+    all_category_names: set[str] = set()
+    team_projections: list[TeamKeeperProjection] = []
+    # Track per-team ranked candidates for trade target identification
+    team_ranked: dict[str, list[tuple[int, float, str, str, dict[str, float]]]] = {}
+
+    for roster in rosters:
+        candidates: list[tuple[int, float, str, str, dict[str, float]]] = []
+        for entry in roster.entries:
+            if entry.player_id is None:
+                continue
+            val = val_lookup.get(entry.player_id)
+            value = val.value if val is not None else 0.0
+            position = val.position if val is not None else "UTIL"
+            cat_scores = val.category_scores if val is not None else {}
+            player = player_lookup.get(entry.player_id)
+            name = f"{player.name_first} {player.name_last}" if player is not None else entry.player_name
+            candidates.append((entry.player_id, value, position, name, cat_scores))
+
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        team_ranked[roster.team_key] = candidates
+
+        keeper_candidates = candidates[:max_keepers]
+        keepers = tuple(
+            ProjectedKeeper(
+                player_id=pid,
+                player_name=name,
+                position=pos,
+                value=val,
+                category_scores=cats,
+            )
+            for pid, val, pos, name, cats in keeper_candidates
+        )
+
+        category_totals: dict[str, float] = {}
+        for keeper in keepers:
+            for cat, score in keeper.category_scores.items():
+                category_totals[cat] = category_totals.get(cat, 0.0) + score
+            all_category_names.update(keeper.category_scores.keys())
+
+        total_value = sum(k.value for k in keepers)
+        team_projections.append(
+            TeamKeeperProjection(
+                team_key=roster.team_key,
+                team_name=team_names.get(roster.team_key, roster.team_key),
+                is_user=(roster.team_key == user_team_key),
+                keepers=keepers,
+                total_value=total_value,
+                category_totals=category_totals,
+            )
+        )
+
+    team_projections.sort(key=lambda t: t.total_value, reverse=True)
+
+    # Find user's worst keeper value
+    user_proj = next((tp for tp in team_projections if tp.is_user), None)
+    user_worst = min((k.value for k in user_proj.keepers), default=0.0) if user_proj else 0.0
+
+    # Build trade targets: non-user surplus players above user's worst keeper
+    trade_targets: list[TradeTarget] = []
+    for roster in rosters:
+        if roster.team_key == user_team_key:
+            continue
+        ranked = team_ranked.get(roster.team_key, [])
+        for rank_idx, (pid, value, pos, name, _cats) in enumerate(ranked, 1):
+            if rank_idx <= max_keepers:
+                continue
+            if value > user_worst:
+                trade_targets.append(
+                    TradeTarget(
+                        player_id=pid,
+                        player_name=name,
+                        position=pos,
+                        value=value,
+                        owning_team_name=team_names.get(roster.team_key, roster.team_key),
+                        owning_team_key=roster.team_key,
+                        rank_on_team=rank_idx,
+                    )
+                )
+
+    trade_targets.sort(key=lambda t: t.value, reverse=True)
+
+    return LeagueKeeperOverview(
+        team_projections=tuple(team_projections),
+        trade_targets=tuple(trade_targets),
+        category_names=tuple(sorted(all_category_names)),
+    )
 
 
 def adjust_valuations_for_league_keepers(

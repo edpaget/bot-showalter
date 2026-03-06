@@ -8,7 +8,12 @@ from typing import Annotated, Any
 import typer
 from rich.table import Table
 
-from fantasy_baseball_manager.cli._output import console, print_error, print_keeper_decisions
+from fantasy_baseball_manager.cli._output import (
+    console,
+    print_error,
+    print_keeper_decisions,
+    print_league_keeper_overview,
+)
 from fantasy_baseball_manager.cli.factory import YahooContext, build_yahoo_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import (
@@ -32,6 +37,7 @@ from fantasy_baseball_manager.services import (
     PlayerEligibilityService,
     adjust_valuations_for_league_keepers,
     build_keeper_histories,
+    build_league_keeper_overview,
     build_yahoo_draft_setup,
     compute_surplus,
     derive_and_store_keeper_costs,
@@ -932,6 +938,85 @@ def yahoo_keeper_decisions(  # pragma: no cover
     if max_keepers is not None:
         decisions = decisions[:max_keepers]
     print_keeper_decisions(decisions)
+
+
+@yahoo_app.command("keeper-league")
+def yahoo_keeper_league(  # pragma: no cover
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    max_keepers_opt: Annotated[int | None, typer.Option("--max-keepers", help="Override max keepers")] = None,
+    top_targets: Annotated[int, typer.Option("--top-targets", help="Number of trade targets to show")] = 15,
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Show league-wide keeper projections, category comparison, and trade targets."""
+    league_name, config = _resolve_league_context(league, config_dir)
+    league_config = config.leagues[league_name]
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        game_key = ctx.client.get_game_key(season)
+        league_key = f"{game_key}.l.{league_config.league_id}"
+
+        prior_season = season - 1
+        prior_league_key = _resolve_prior_league_key(ctx, league_key, prior_season)
+        prior_game_key = prior_league_key.split(".l.")[0]
+
+        try:
+            _ensure_prior_season(ctx, prior_league_key, prior_game_key)
+        except ValueError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
+
+        # Determine max_keepers
+        max_keepers = max_keepers_opt or league_config.max_keepers
+        if max_keepers is None:
+            print_error("max_keepers not configured and --max-keepers not provided")
+            raise typer.Exit(code=1)
+
+        # Get rosters (DB-first, auto-sync if missing)
+        rosters = ctx.yahoo_roster_repo.get_by_league_latest(prior_league_key)
+        if not rosters:
+            mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
+            roster_source = YahooRosterSource(ctx.client, mapper)
+            teams = ctx.yahoo_team_repo.get_by_league_key(prior_league_key)
+            today = datetime.date.today()
+            for team in teams:
+                roster = roster_source.fetch_team_roster(
+                    team_key=team.team_key,
+                    league_key=prior_league_key,
+                    season=prior_season,
+                    as_of=today,
+                )
+                ctx.yahoo_roster_repo.save_snapshot(roster)
+            ctx.conn.commit()
+            rosters = ctx.yahoo_roster_repo.get_by_league_latest(prior_league_key)
+
+        # Build team_names and find user_team_key
+        teams = ctx.yahoo_team_repo.get_by_league_key(prior_league_key)
+        team_names = {t.team_key: t.name for t in teams}
+        user_team = next((t for t in teams if t.is_owned_by_user), None)
+        if user_team is None:
+            print_error("Could not identify user's team in the league")
+            raise typer.Exit(code=1)
+        user_team_key = user_team.team_key
+
+        # Get valuations and players
+        valuations = ctx.valuation_repo.get_by_season(season, system)
+        if not valuations:
+            print_error(f"No valuations found for season {season}, system '{system}'")
+            raise typer.Exit(code=1)
+        players = ctx.player_repo.all()
+
+        overview = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=max_keepers,
+            user_team_key=user_team_key,
+            team_names=team_names,
+        )
+        print_league_keeper_overview(overview, top_targets=top_targets)
 
 
 @yahoo_app.command("keeper-history")

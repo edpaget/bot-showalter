@@ -18,6 +18,7 @@ from fantasy_baseball_manager.domain import (
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.services.keeper_service import (
     adjust_valuations_for_league_keepers,
+    build_league_keeper_overview,
     compute_adjusted_valuations,
     compute_surplus,
     estimate_other_keepers,
@@ -842,3 +843,242 @@ class TestAdjustValuationsForLeagueKeepers:
         )
 
         assert result == valuations
+
+
+# ---------------------------------------------------------------------------
+# build_league_keeper_overview
+# ---------------------------------------------------------------------------
+
+
+def _val_with_cats(player_id: int, value: float, cats: dict[str, float], position: str = "SS") -> Valuation:
+    return Valuation(
+        player_id=player_id,
+        season=2026,
+        system="zar",
+        version="v1",
+        projection_system="composite",
+        projection_version="v1",
+        player_type="batter",
+        position=position,
+        value=value,
+        rank=1,
+        category_scores=cats,
+    )
+
+
+class TestBuildLeagueKeeperOverview:
+    def test_projects_top_n_keepers_per_team(self) -> None:
+        rosters = [
+            _roster("t1", [1, 2, 3, 4]),
+            _roster("t2", [5, 6, 7, 8]),
+        ]
+        valuations = [
+            _val_with_cats(1, 30.0, {"hr": 2.0}),
+            _val_with_cats(2, 20.0, {"hr": 1.0}),
+            _val_with_cats(3, 10.0, {"hr": 0.5}),
+            _val_with_cats(4, 5.0, {"hr": 0.2}),
+            _val_with_cats(5, 25.0, {"hr": 1.8}),
+            _val_with_cats(6, 15.0, {"hr": 0.7}),
+            _val_with_cats(7, 8.0, {"hr": 0.3}),
+            _val_with_cats(8, 3.0, {"hr": 0.1}),
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 9)]
+        team_names = {"t1": "Team Alpha", "t2": "Team Beta"}
+
+        result = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=2,
+            user_team_key="t1",
+            team_names=team_names,
+        )
+
+        for tp in result.team_projections:
+            assert len(tp.keepers) == 2
+
+        # Team Alpha keepers: players 1 (30) and 2 (20)
+        alpha = next(tp for tp in result.team_projections if tp.team_key == "t1")
+        assert alpha.keepers[0].player_id == 1
+        assert alpha.keepers[1].player_id == 2
+
+    def test_teams_ranked_by_total_value(self) -> None:
+        rosters = [
+            _roster("t1", [1, 2]),
+            _roster("t2", [3, 4]),
+            _roster("t3", [5, 6]),
+        ]
+        valuations = [
+            _val_with_cats(1, 10.0, {}),
+            _val_with_cats(2, 5.0, {}),
+            _val_with_cats(3, 30.0, {}),
+            _val_with_cats(4, 25.0, {}),
+            _val_with_cats(5, 20.0, {}),
+            _val_with_cats(6, 15.0, {}),
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 7)]
+        team_names = {"t1": "A", "t2": "B", "t3": "C"}
+
+        result = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=2,
+            user_team_key="t1",
+            team_names=team_names,
+        )
+
+        keys = [tp.team_key for tp in result.team_projections]
+        assert keys == ["t2", "t3", "t1"]
+
+    def test_category_totals_are_sums(self) -> None:
+        rosters = [_roster("t1", [1, 2])]
+        valuations = [
+            _val_with_cats(1, 20.0, {"hr": 2.0, "obp": 0.5}),
+            _val_with_cats(2, 15.0, {"hr": 1.0, "obp": 0.3}),
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in [1, 2]]
+        team_names = {"t1": "Team"}
+
+        result = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=2,
+            user_team_key="t1",
+            team_names=team_names,
+        )
+
+        tp = result.team_projections[0]
+        assert tp.category_totals["hr"] == pytest.approx(3.0)
+        assert tp.category_totals["obp"] == pytest.approx(0.8)
+
+    def test_trade_targets_above_user_worst_keeper(self) -> None:
+        # User team: keepers are players 1 (30) and 2 (10) — worst keeper value = 10
+        # Other team: keepers are 3 (25) and 4 (20), surplus: 5 (15) and 6 (8)
+        # Player 5 (value 15) > 10 → trade target; player 6 (value 8) < 10 → not a target
+        rosters = [
+            _roster("t1", [1, 2]),
+            _roster("t2", [3, 4, 5, 6]),
+        ]
+        valuations = [
+            _val_with_cats(1, 30.0, {}),
+            _val_with_cats(2, 10.0, {}),
+            _val_with_cats(3, 25.0, {}),
+            _val_with_cats(4, 20.0, {}),
+            _val_with_cats(5, 15.0, {}),
+            _val_with_cats(6, 8.0, {}),
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 7)]
+        team_names = {"t1": "User", "t2": "Other"}
+
+        result = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=2,
+            user_team_key="t1",
+            team_names=team_names,
+        )
+
+        assert len(result.trade_targets) == 1
+        assert result.trade_targets[0].player_id == 5
+        assert result.trade_targets[0].owning_team_name == "Other"
+
+    def test_unmapped_player_skipped(self) -> None:
+        entries = (
+            RosterEntry(
+                player_id=None,
+                yahoo_player_key="449.p.999",
+                player_name="Unknown",
+                position="UTIL",
+                roster_status="active",
+                acquisition_type="draft",
+            ),
+            RosterEntry(
+                player_id=1,
+                yahoo_player_key="449.p.1",
+                player_name="Player 1",
+                position="UTIL",
+                roster_status="active",
+                acquisition_type="draft",
+            ),
+        )
+        rosters = [
+            Roster(
+                team_key="t1",
+                league_key="449.l.100",
+                season=2025,
+                week=1,
+                as_of=datetime.date(2025, 10, 1),
+                entries=entries,
+            )
+        ]
+        valuations = [_val_with_cats(1, 20.0, {})]
+        players = [Player(name_first="P", name_last="1", id=1)]
+        team_names = {"t1": "Team"}
+
+        result = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=2,
+            user_team_key="t1",
+            team_names=team_names,
+        )
+
+        tp = result.team_projections[0]
+        assert len(tp.keepers) == 1
+        assert tp.keepers[0].player_id == 1
+
+    def test_category_names_populated(self) -> None:
+        rosters = [_roster("t1", [1, 2])]
+        valuations = [
+            _val_with_cats(1, 20.0, {"hr": 2.0, "obp": 0.5}),
+            _val_with_cats(2, 15.0, {"sb": 1.0, "obp": 0.3}),
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in [1, 2]]
+        team_names = {"t1": "Team"}
+
+        result = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=2,
+            user_team_key="t1",
+            team_names=team_names,
+        )
+
+        assert set(result.category_names) == {"hr", "obp", "sb"}
+
+    def test_trade_target_rank_on_team(self) -> None:
+        # Team t2 has 4 players. With max_keepers=2, players ranked 3+ are surplus.
+        # Player 7 is rank 3, player 8 is rank 4.
+        rosters = [
+            _roster("t1", [1, 2]),
+            _roster("t2", [5, 6, 7, 8]),
+        ]
+        valuations = [
+            _val_with_cats(1, 30.0, {}),
+            _val_with_cats(2, 20.0, {}),
+            _val_with_cats(5, 25.0, {}),
+            _val_with_cats(6, 22.0, {}),
+            _val_with_cats(7, 21.0, {}),  # rank 3 on t2, value > user worst (20)
+            _val_with_cats(8, 18.0, {}),  # rank 4, value < user worst (20)
+        ]
+        players = [Player(name_first="P", name_last=str(i), id=i) for i in [1, 2, 5, 6, 7, 8]]
+        team_names = {"t1": "User", "t2": "Other"}
+
+        result = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=2,
+            user_team_key="t1",
+            team_names=team_names,
+        )
+
+        assert len(result.trade_targets) == 1
+        target = result.trade_targets[0]
+        assert target.player_id == 7
+        assert target.rank_on_team == 3

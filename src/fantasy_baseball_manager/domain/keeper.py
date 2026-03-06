@@ -48,6 +48,43 @@ class TradeEvaluation:
 
 
 @dataclass(frozen=True)
+class ProjectedKeeper:
+    player_id: int
+    player_name: str
+    position: str
+    value: float
+    category_scores: dict[str, float]
+
+
+@dataclass(frozen=True)
+class TeamKeeperProjection:
+    team_key: str
+    team_name: str
+    is_user: bool
+    keepers: tuple[ProjectedKeeper, ...]  # sorted by value desc
+    total_value: float
+    category_totals: dict[str, float]
+
+
+@dataclass(frozen=True)
+class TradeTarget:
+    player_id: int
+    player_name: str
+    position: str
+    value: float
+    owning_team_name: str
+    owning_team_key: str
+    rank_on_team: int
+
+
+@dataclass(frozen=True)
+class LeagueKeeperOverview:
+    team_projections: tuple[TeamKeeperProjection, ...]  # sorted by total_value desc
+    trade_targets: tuple[TradeTarget, ...]  # sorted by value desc
+    category_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class AdjustedValuation:
     player_id: int
     player_name: str

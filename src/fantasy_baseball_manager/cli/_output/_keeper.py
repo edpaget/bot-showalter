@@ -11,6 +11,7 @@ if TYPE_CHECKING:
         KeeperScenario,
         KeeperSolution,
         KeeperTradeImpact,
+        LeagueKeeperOverview,
         TradeEvaluation,
         TradePlayerDetail,
     )
@@ -218,3 +219,81 @@ def print_keeper_trade_impact(impact: KeeperTradeImpact) -> None:
     color = "green" if impact.score_delta >= 0 else "red"
     delta_str = f"+${impact.score_delta:.1f}" if impact.score_delta >= 0 else f"-${abs(impact.score_delta):.1f}"
     console.print(f"Score delta: [{color}]{delta_str}[/{color}]")
+
+
+def print_league_keeper_overview(overview: LeagueKeeperOverview, *, top_targets: int = 15) -> None:
+    """Render league-wide keeper overview: team rankings, category comparison, and trade targets."""
+    # A) Team Rankings
+    team_table = Table(title="Team Keeper Rankings", show_edge=False, pad_edge=False)
+    team_table.add_column("Rank", justify="right")
+    team_table.add_column("Team", justify="left")
+    team_table.add_column("Keepers", justify="left")
+    team_table.add_column("Total", justify="right")
+
+    for i, tp in enumerate(overview.team_projections, 1):
+        keeper_strs = [f"{k.player_name} (${k.value:.0f})" for k in tp.keepers]
+        keepers_text = ", ".join(keeper_strs)
+        style = "bold" if tp.is_user else ""
+        team_table.add_row(
+            str(i),
+            tp.team_name,
+            keepers_text,
+            f"${tp.total_value:.1f}",
+            style=style,
+        )
+
+    console.print(team_table)
+    console.print()
+
+    # B) Category Comparison
+    user_proj = next((tp for tp in overview.team_projections if tp.is_user), None)
+    if user_proj and overview.category_names:
+        cat_table = Table(title="Category Comparison", show_edge=False, pad_edge=False)
+        cat_table.add_column("Category", justify="left")
+        cat_table.add_column("Your Total", justify="right")
+        cat_table.add_column("Rank", justify="right")
+        cat_table.add_column("Leader", justify="left")
+
+        for cat in overview.category_names:
+            user_score = user_proj.category_totals.get(cat, 0.0)
+            # Rank teams by this category
+            scores = [(tp.team_name, tp.category_totals.get(cat, 0.0)) for tp in overview.team_projections]
+            scores.sort(key=lambda x: x[1], reverse=True)
+            rank = next(
+                (i for i, (name, _) in enumerate(scores, 1) if name == user_proj.team_name),
+                len(scores),
+            )
+            leader_name, leader_score = scores[0]
+            n_teams = len(overview.team_projections)
+            cat_table.add_row(
+                cat,
+                f"{user_score:.1f}",
+                f"{rank}/{n_teams}",
+                f"{leader_name} ({leader_score:.1f})",
+            )
+
+        console.print(cat_table)
+        console.print()
+
+    # C) Trade Targets
+    if overview.trade_targets:
+        target_table = Table(title="Trade Targets", show_edge=False, pad_edge=False)
+        target_table.add_column("Player", justify="left")
+        target_table.add_column("Pos", justify="left")
+        target_table.add_column("Value", justify="right")
+        target_table.add_column("Owner", justify="left")
+        target_table.add_column("Rank", justify="right")
+
+        display = overview.trade_targets[:top_targets]
+        for tt in display:
+            target_table.add_row(
+                tt.player_name,
+                tt.position,
+                f"${tt.value:.1f}",
+                tt.owning_team_name,
+                f"#{tt.rank_on_team}",
+            )
+
+        console.print(target_table)
+    else:
+        console.print("[dim]No trade targets found.[/dim]")
