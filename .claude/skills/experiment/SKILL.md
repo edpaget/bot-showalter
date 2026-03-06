@@ -1,6 +1,6 @@
 ---
 name: experiment
-description: Run an autonomous feature-engineering experiment loop on the statcast GBM model. Analyzes residuals, generates feature hypotheses, tests them with fast feedback tools, logs results to the experiment journal, and validates winners. Use when the user asks to "experiment on", "explore features for", or "improve" the statcast-gbm model.
+description: Run an autonomous feature-engineering experiment loop on the statcast-gbm model (default). Analyzes residuals, generates feature hypotheses, screens via correlation, tests with fast feedback tools, logs results to the experiment journal, and validates winners. Use when the user asks to "experiment on", "explore features for", or "improve" the statcast-gbm model, or says "experiment on batter/pitcher" without specifying a model. Do NOT use for breakout-bust or playing-time — those have dedicated skills.
 allowed-tools: Bash(uv run fbm *)
 argument-hint: <player-type> [target] [--budget N]
 ---
