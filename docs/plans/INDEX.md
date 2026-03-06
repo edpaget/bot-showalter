@@ -15,7 +15,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Roster Optimizer](roster-optimizer.md) | 3 | not started | valuations (done) |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Model Training Inspector](model-training-inspector.md) | 3 | not started | none |
 | [Web UI Foundation](web-ui-foundation.md) | 3 | not started | none |
 | [Keeper League Analysis](keeper-league-analysis.md) | 3 | not started | yahoo-fantasy-integration (done), keeper-surplus-value (done) |
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
@@ -60,6 +59,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Yahoo Fantasy Integration](yahoo-fantasy-integration.md) | 5 |
 | [Breakout / Bust Classifier](breakout-bust-classifier.md) | 4 |
 | [Experiment System Generalization](experiment-system-generalization.md) | 4 |
+| [Model Training Inspector](model-training-inspector.md) | 3 |
 | [Player Bio Fuzzy Team](player-bio-fuzzy-team.md) | 3 |
 | [Roster Stint Preload](roster-stint-preload.md) | 2 |
 | [Playing Time Flexibility](playing-time-flexibility.md) | 4 |

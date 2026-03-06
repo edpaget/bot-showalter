@@ -132,6 +132,38 @@ class TestSqliteModelRunRepo:
         assert repo.get("marcel", "2026.1", operation="predict") is None
         assert repo.get("marcel", "2026.1", operation="train") is not None
 
+    def test_get_latest_returns_most_recent(self, conn: sqlite3.Connection) -> None:
+        repo = SqliteModelRunRepo(conn)
+        repo.upsert(_make_record(system="marcel", version="2026.1", created_at="2026-02-14T10:00:00"))
+        repo.upsert(_make_record(system="marcel", version="2026.2", created_at="2026-02-14T12:00:00"))
+        repo.upsert(_make_record(system="marcel", version="2026.3", created_at="2026-02-14T11:00:00"))
+
+        result = repo.get_latest("marcel")
+        assert result is not None
+        assert result.version == "2026.2"
+
+    def test_get_latest_returns_none_when_no_runs(self, conn: sqlite3.Connection) -> None:
+        repo = SqliteModelRunRepo(conn)
+        assert repo.get_latest("nonexistent") is None
+
+    def test_get_latest_filters_by_operation(self, conn: sqlite3.Connection) -> None:
+        repo = SqliteModelRunRepo(conn)
+        repo.upsert(
+            _make_record(system="marcel", version="2026.1", operation="train", created_at="2026-02-14T10:00:00")
+        )
+        repo.upsert(
+            _make_record(system="marcel", version="2026.2", operation="predict", created_at="2026-02-14T12:00:00")
+        )
+
+        result = repo.get_latest("marcel", operation="predict")
+        assert result is not None
+        assert result.version == "2026.2"
+        assert result.operation == "predict"
+
+        result_train = repo.get_latest("marcel", operation="train")
+        assert result_train is not None
+        assert result_train.version == "2026.1"
+
     def test_json_round_trip(self, conn: sqlite3.Connection) -> None:
         repo = SqliteModelRunRepo(conn)
         config = {"nested": {"key": [1, 2, 3]}, "flag": True}

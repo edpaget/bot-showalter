@@ -107,7 +107,13 @@ from fantasy_baseball_manager.cli._output._residuals import (
     print_error_decomposition_report,
     print_feature_gap_report,
 )
-from fantasy_baseball_manager.cli._output._runs import print_run_detail, print_run_list
+from fantasy_baseball_manager.cli._output._runs import (
+    diff_records,
+    print_run_detail,
+    print_run_diff,
+    print_run_inspect,
+    print_run_list,
+)
 from fantasy_baseball_manager.cli._output._validate import print_preflight_result, print_validation_result
 from fantasy_baseball_manager.cli._output._valuations import (
     print_player_valuations,
@@ -234,7 +240,10 @@ __all__ = [
     "print_scarcity_report",
     "print_residual_analysis_report",
     "print_residual_persistence_report",
+    "diff_records",
     "print_run_detail",
+    "print_run_diff",
+    "print_run_inspect",
     "print_run_list",
     "print_stability_result",
     "print_strategy_comparison_table",

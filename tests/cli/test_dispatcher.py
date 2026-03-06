@@ -111,6 +111,9 @@ class _FakeModelRunRepo:
     def list(self, system: str | None = None) -> builtins.list[ModelRunRecord]:
         return builtins.list(self._records)
 
+    def get_latest(self, system: str, operation: str = "train") -> ModelRunRecord | None:
+        return None
+
     def delete(self, system: str, version: str, operation: str = "train") -> None:
         pass
 

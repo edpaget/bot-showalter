@@ -71,6 +71,15 @@ class SqliteModelRunRepo:
             ).fetchall()
         return [self._row_to_record(row) for row in rows]
 
+    def get_latest(self, system: str, operation: str = "train") -> ModelRunRecord | None:
+        row = self._conn.execute(
+            "SELECT * FROM model_run WHERE system = ? AND operation = ? ORDER BY created_at DESC LIMIT 1",
+            (system, operation),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_record(row)
+
     def delete(self, system: str, version: str, operation: str = "train") -> None:
         self._conn.execute(
             "DELETE FROM model_run WHERE system = ? AND version = ? AND operation = ?",

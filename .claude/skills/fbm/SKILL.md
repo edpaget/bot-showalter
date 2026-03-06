@@ -301,6 +301,23 @@ Manually set a keeper cost for a Yahoo league player:
 uv run fbm yahoo keeper-cost-set "<player-name>" --cost <n> --league <name> [--season <year>] [--years <n>] [--source <type>]
 ```
 
+### Model run inspection
+
+Inspect the latest (or a specific) model run with structured output:
+```
+uv run fbm runs inspect <system> [--version <version>] [--section config|metrics|tags] [--operation <op>]
+```
+Example: `uv run fbm runs inspect statcast-gbm` (shows latest train run)
+Example: `uv run fbm runs inspect statcast-gbm --version 2026.1 --section metrics`
+
+Compare two model runs side by side:
+```
+uv run fbm runs diff <run_a> <run_b> [--operation <op>]
+```
+Each argument is `system/version` or just `system` (uses latest).
+Example: `uv run fbm runs diff statcast-gbm/2026.1 statcast-gbm/2026.2`
+Example: `uv run fbm runs diff statcast-gbm marcel` (compares latest of each)
+
 ## Argument mapping
 
 When the user says something like:
@@ -342,6 +359,11 @@ When the user says something like:
 - "Yahoo keeper decisions" → `uv run fbm yahoo keeper-decisions --league keeper --system zar`
 - "recent transactions" → `uv run fbm yahoo transactions --league keeper --days 7`
 - "refresh Yahoo data" → `uv run fbm yahoo refresh --league keeper`
+- "inspect statcast-gbm" → `uv run fbm runs inspect statcast-gbm`
+- "show latest statcast-gbm run" → `uv run fbm runs inspect statcast-gbm`
+- "inspect statcast-gbm metrics" → `uv run fbm runs inspect statcast-gbm --section metrics`
+- "diff statcast-gbm runs" → `uv run fbm runs diff statcast-gbm/2026.1 statcast-gbm/2026.2`
+- "compare model runs" → `uv run fbm runs diff <system/version_a> <system/version_b>`
 
 For `--league` in yahoo commands, use the league name from `[yahoo.leagues]` in `fbm.toml` (e.g., `keeper`, `redraft`).
 For `--league` in non-yahoo commands, use the league name from `[leagues]` in `fbm.toml` (e.g., `default`, `dynasty`).

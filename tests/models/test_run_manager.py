@@ -37,6 +37,10 @@ class FakeModelRunRepo:
             return [r for r in self._records if r.system == system]
         return builtins.list(self._records)
 
+    def get_latest(self, system: str, operation: str = "train") -> ModelRunRecord | None:
+        matches = [r for r in self._records if r.system == system and r.operation == operation]
+        return matches[-1] if matches else None
+
     def delete(self, system: str, version: str, operation: str = "train") -> None:
         self._records = [
             r for r in self._records if not (r.system == system and r.version == version and r.operation == operation)

@@ -6,9 +6,9 @@ Inspecting model training parameters currently requires ad-hoc SQLite queries ag
 
 | Phase | Status |
 |-------|--------|
-| 1 --- Structured inspect command | not started |
-| 2 --- Config diff across versions | not started |
-| 3 --- Update fbm skill documentation | not started |
+| 1 --- Structured inspect command | done (2026-03-05) |
+| 2 --- Config diff across versions | done (2026-03-05) |
+| 3 --- Update fbm skill documentation | done (2026-03-05) |
 
 ## Phase 1: Structured inspect command
 
@@ -55,7 +55,7 @@ When iterating on model training --- changing seasons, tuning hyperparameters, a
 
 ### Steps
 
-1. Add a `diff_records(a: ModelRunRecord, b: ModelRunRecord)` function in a new `cli/_output/_runs_diff.py` module that computes a structured diff of `config_json` and `metrics_json`:
+1. Add a `diff_records(a: ModelRunRecord, b: ModelRunRecord)` function in `cli/_output/_runs.py` that computes a structured diff of `config_json` and `metrics_json`:
    - For each top-level key, show "added", "removed", or "changed (old -> new)".
    - For nested dicts (e.g., `model_params`), recurse one level.
    - For `metrics_json`, show the delta (e.g., `rmse: 0.45 -> 0.42 (-0.03)`).

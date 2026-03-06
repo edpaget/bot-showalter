@@ -4,6 +4,7 @@ from rich.console import Console
 
 from fantasy_baseball_manager.cli import _output
 from fantasy_baseball_manager.cli._output import (
+    diff_records,
     print_ablation_result,
     print_adjusted_rankings,
     print_adp_accuracy_report,
@@ -55,6 +56,8 @@ from fantasy_baseball_manager.cli._output import (
     print_residual_persistence_report,
     print_routing_table,
     print_run_detail,
+    print_run_diff,
+    print_run_inspect,
     print_run_list,
     print_scarcity_rankings,
     print_scarcity_report,
@@ -3499,3 +3502,92 @@ class TestPrintClassifierEvaluation:
         print_classifier_evaluation(evaluation)
         captured = capsys.readouterr()
         assert "0 players" in captured.out
+
+
+class TestPrintRunInspect:
+    def _make_record(self) -> ModelRunRecord:
+        return ModelRunRecord(
+            system="statcast-gbm",
+            version="2026.1",
+            operation="train",
+            config_json={
+                "seasons": [2022, 2023, 2024],
+                "model_params": {"n_estimators": 500, "learning_rate": 0.05},
+                "feature_set": "v3",
+            },
+            metrics_json={"rmse": 0.1234, "r_squared": 0.8765},
+            artifact_type="file",
+            created_at="2026-03-01T12:00:00",
+            git_commit="abc1234",
+            tags_json={"experiment": "baseline"},
+        )
+
+    def test_output_contains_section_headers(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=200))
+        print_run_inspect(self._make_record())
+        captured = capsys.readouterr()
+        assert "Run Info" in captured.out
+        assert "Config" in captured.out
+        assert "Metrics" in captured.out
+        assert "Tags" in captured.out
+
+    def test_section_filter_limits_output(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=200))
+        print_run_inspect(self._make_record(), section="metrics")
+        captured = capsys.readouterr()
+        assert "rmse" in captured.out
+        assert "Run Info" not in captured.out
+        assert "Tags" not in captured.out
+
+
+class TestDiffRecords:
+    def _make_record(self, **overrides: Any) -> ModelRunRecord:
+        defaults: dict[str, Any] = {
+            "system": "statcast-gbm",
+            "version": "2026.1",
+            "operation": "train",
+            "config_json": {"seasons": [2022, 2023], "model_params": {"n_estimators": 500}},
+            "metrics_json": {"rmse": 0.15, "r_squared": 0.85},
+            "artifact_type": "file",
+            "created_at": "2026-03-01T12:00:00",
+        }
+        defaults.update(overrides)
+        return ModelRunRecord(**defaults)
+
+    def test_added_removed_changed_keys(self) -> None:
+        a = self._make_record(config_json={"alpha": 1, "beta": 2})
+        b = self._make_record(version="2026.2", config_json={"beta": 3, "gamma": 4})
+        diff = diff_records(a, b)
+        assert diff["config"]["added"] == {"gamma": 4}
+        assert diff["config"]["removed"] == {"alpha": 1}
+        assert "beta" in diff["config"]["changed"]
+        assert diff["config"]["changed"]["beta"]["old"] == 2
+        assert diff["config"]["changed"]["beta"]["new"] == 3
+
+    def test_nested_dict_diffs(self) -> None:
+        a = self._make_record(config_json={"model_params": {"n_estimators": 500}})
+        b = self._make_record(version="2026.2", config_json={"model_params": {"n_estimators": 1000}})
+        diff = diff_records(a, b)
+        assert "model_params" in diff["config"]["changed"]
+
+    def test_metric_deltas_computed(self) -> None:
+        a = self._make_record(metrics_json={"rmse": 0.15, "r_squared": 0.85})
+        b = self._make_record(version="2026.2", metrics_json={"rmse": 0.12, "r_squared": 0.88})
+        diff = diff_records(a, b)
+        rmse_change = diff["metrics"]["changed"]["rmse"]
+        assert abs(rmse_change["delta"] - (-0.03)) < 1e-9
+        r2_change = diff["metrics"]["changed"]["r_squared"]
+        assert abs(r2_change["delta"] - 0.03) < 1e-9
+
+    def test_print_run_diff_output(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        monkeypatch.setattr(_output, "console", Console(highlight=False, width=200))
+        a = self._make_record(config_json={"alpha": 1}, metrics_json={"rmse": 0.15})
+        b = self._make_record(version="2026.2", config_json={"alpha": 2}, metrics_json={"rmse": 0.12})
+        print_run_diff(a, b)
+        captured = capsys.readouterr()
+        assert "Diff:" in captured.out
+        assert "changed" in captured.out
