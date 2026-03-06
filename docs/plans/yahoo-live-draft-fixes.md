@@ -7,7 +7,7 @@ Fix three bugs discovered when testing `fbm yahoo draft-live` against a complete
 | Phase | Status |
 |-------|--------|
 | 1 — Position case normalization | done (2026-03-06) |
-| 2 — Live draft team ordering | not started |
+| 2 — Live draft team ordering | in progress |
 | 3 — Thread-safe draft poller | not started |
 
 ## Phase 1: Position case normalization
