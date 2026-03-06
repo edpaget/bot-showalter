@@ -62,7 +62,7 @@ def ingest_yahoo_pick(
         return pick_fn(
             yahoo_pick.player_id,
             team,
-            yahoo_pick.position,
+            yahoo_pick.position.upper(),
             price=yahoo_pick.cost,
         )
     except DraftError as exc:

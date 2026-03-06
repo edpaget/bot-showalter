@@ -126,6 +126,18 @@ class TestIngestYahooPick:
 
         assert result is None
 
+    def test_position_normalized_to_uppercase(self) -> None:
+        """ingest_yahoo_pick uppercases the position before calling pick_fn."""
+        players = [_make_player(100, "Mike Trout", "OF")]
+        engine = DraftEngine()
+        engine.start(players, _SNAKE_CONFIG)
+
+        yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1", position="of")
+        result = ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP)
+
+        assert result is not None
+        assert result.position == "OF"
+
     def test_pick_fn_raises_draft_error_returns_none(self) -> None:
         available = frozenset({100})
         yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1")

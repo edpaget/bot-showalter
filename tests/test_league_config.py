@@ -309,7 +309,7 @@ class TestParseLeague:
         }
         settings = parse_league("side", raw)
         assert settings.roster_util == 2
-        assert settings.positions == {"c": 1, "ss": 1, "of": 5}
+        assert settings.positions == {"C": 1, "SS": 1, "OF": 5}
 
     def test_without_eligibility_uses_defaults(self) -> None:
         raw = {
@@ -420,7 +420,7 @@ class TestParseLeague:
             ],
         }
         settings = parse_league("main", raw)
-        assert settings.pitcher_positions == {"sp": 2, "rp": 2, "p": 4}
+        assert settings.pitcher_positions == {"SP": 2, "RP": 2, "P": 4}
 
     def test_missing_required_field(self) -> None:
         raw = {
@@ -566,7 +566,7 @@ class TestLoadLeague:
         assert settings.name == "main"
         assert settings.teams == 12
         assert settings.roster_util == 1
-        assert settings.positions == {"c": 1, "ss": 1, "of": 5}
+        assert settings.positions == {"C": 1, "SS": 1, "OF": 5}
         assert len(settings.batting_categories) == 2
         assert len(settings.pitching_categories) == 1
 

@@ -184,6 +184,35 @@ class TestBuildDraftRosterSlots:
         slots = build_draft_roster_slots(league_no_util)
         assert "UTIL" not in slots
 
+    def test_uppercase_keys(self) -> None:
+        """Positions from league config (possibly lowercase) are uppercased."""
+        batting_cat = CategoryConfig(
+            key="HR", name="Home Runs", stat_type=StatType.COUNTING, direction=Direction.HIGHER
+        )
+        pitching_cat = CategoryConfig(
+            key="K", name="Strikeouts", stat_type=StatType.COUNTING, direction=Direction.HIGHER
+        )
+        league = LeagueSettings(
+            name="Lower",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=12,
+            budget=260,
+            roster_batters=10,
+            roster_pitchers=5,
+            batting_categories=(batting_cat,),
+            pitching_categories=(pitching_cat,),
+            roster_util=1,
+            positions={"ss": 1, "of": 3, "c": 1},
+        )
+        slots = build_draft_roster_slots(league)
+        assert "SS" in slots
+        assert "OF" in slots
+        assert "C" in slots
+        assert "UTIL" in slots
+        assert "P" in slots
+        # No lowercase keys
+        assert all(k == k.upper() for k in slots)
+
     def test_empty_positions(self) -> None:
         league = LeagueSettings(
             name="Empty",
@@ -371,6 +400,21 @@ class TestPickRosterConstraints:
         # Pick 4: team 1 — try to draft another C when slot is full
         with pytest.raises(DraftError, match="roster slot.*full"):
             engine.pick(player_id=4, team=1, position="C")
+
+    def test_pick_accepts_lowercase_position(self) -> None:
+        """pick() normalizes position to uppercase before validation."""
+        config = DraftConfig(
+            teams=2,
+            roster_slots={"C": 1, "OF": 2},
+            format=DraftFormat.SNAKE,
+            user_team=1,
+            season=2026,
+        )
+        players = [_make_player(1, "P1", "C", 30.0)]
+        engine = DraftEngine()
+        engine.start(players, config)
+        result = engine.pick(player_id=1, team=1, position="c")
+        assert result.position == "C"
 
     def test_reject_unknown_position_slot(self) -> None:
         engine = DraftEngine()

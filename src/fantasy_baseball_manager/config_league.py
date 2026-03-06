@@ -127,8 +127,8 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
         batting_categories=batting_categories,
         pitching_categories=pitching_categories,
         roster_util=raw.get("roster_util", 0),
-        positions=dict(raw.get("positions", {})),
-        pitcher_positions=dict(raw.get("pitcher_positions", {})),
+        positions={k.upper(): v for k, v in raw.get("positions", {}).items()},
+        pitcher_positions={k.upper(): v for k, v in raw.get("pitcher_positions", {}).items()},
         eligibility=eligibility,
     )
 

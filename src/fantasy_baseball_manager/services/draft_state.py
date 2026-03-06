@@ -85,6 +85,7 @@ class DraftEngine:
         *,
         price: int | None = None,
     ) -> DraftPick:
+        position = position.upper()
         state = self._require_state()
         config = state.config
 
@@ -219,7 +220,7 @@ def build_draft_roster_slots(league: LeagueSettings) -> dict[str, int]:
     slots: dict[str, int] = {}
     for pos, count in league.positions.items():
         if count > 0:
-            slots[pos] = count
+            slots[pos.upper()] = count
     if league.roster_util > 0:
         slots["UTIL"] = league.roster_util
     if league.roster_pitchers > 0:
