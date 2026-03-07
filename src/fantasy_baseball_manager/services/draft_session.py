@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         Recommendation,
         YahooDraftPick,
     )
+    from fantasy_baseball_manager.repos import DraftSessionRepo
 # ---------------------------------------------------------------------------
 # Command types (tagged union)
 # ---------------------------------------------------------------------------
@@ -260,6 +261,40 @@ def load_draft(path: Path, players: list[DraftBoardRow]) -> DraftEngine:
             team=pick_data["team"],
             position=pick_data["position"],
             price=pick_data.get("price"),
+        )
+
+    return engine
+
+
+def load_draft_from_db(
+    session_id: int,
+    players: list[DraftBoardRow],
+    repo: DraftSessionRepo,
+) -> DraftEngine:
+    """Load a draft from the database by replaying picks."""
+    record = repo.load_session(session_id)
+    if record is None:
+        msg = f"Draft session {session_id} not found"
+        raise ValueError(msg)
+
+    config = DraftConfig(
+        teams=record.teams,
+        roster_slots=record.roster_slots,
+        format=DraftFormat(record.format),
+        user_team=record.user_team,
+        season=record.season,
+        budget=record.budget,
+    )
+
+    engine = DraftEngine()
+    engine.start(players, config)
+
+    for pick in repo.load_picks(session_id):
+        engine.pick(
+            player_id=pick.player_id,
+            team=pick.team,
+            position=pick.position,
+            price=pick.price,
         )
 
     return engine

@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         ADP,
         BattingStats,
+        DraftSessionPick,
+        DraftSessionRecord,
         Experiment,
         FeatureCandidate,
         FeatureCheckpoint,
@@ -280,6 +282,20 @@ class YahooTransactionRepo(Protocol):
     def get_recent(
         self, league_key: str, *, days: int
     ) -> builtins.list[tuple[Transaction, builtins.list[TransactionPlayer]]]: ...
+
+
+@runtime_checkable
+class DraftSessionRepo(Protocol):
+    def create_session(self, record: DraftSessionRecord) -> int: ...
+    def save_pick(self, pick: DraftSessionPick) -> None: ...
+    def delete_pick(self, session_id: int, pick_number: int) -> None: ...
+    def load_session(self, session_id: int) -> DraftSessionRecord | None: ...
+    def load_picks(self, session_id: int) -> builtins.list[DraftSessionPick]: ...
+    def list_sessions(
+        self, *, league: str | None = None, season: int | None = None
+    ) -> builtins.list[DraftSessionRecord]: ...
+    def update_status(self, session_id: int, status: str) -> None: ...
+    def update_timestamp(self, session_id: int, updated_at: str) -> None: ...
 
 
 # ---------------------------------------------------------------------------

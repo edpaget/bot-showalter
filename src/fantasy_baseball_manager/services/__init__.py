@@ -42,7 +42,7 @@ from fantasy_baseball_manager.services.draft_board import (
 )
 from fantasy_baseball_manager.services.draft_recommender import recommend
 from fantasy_baseball_manager.services.draft_report import draft_report
-from fantasy_baseball_manager.services.draft_session import DraftSession, load_draft
+from fantasy_baseball_manager.services.draft_session import DraftSession, load_draft, load_draft_from_db
 from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
     DraftEngine,
@@ -337,6 +337,7 @@ __all__ = [
     "ingest_yahoo_pick",
     "resolve_draft_position",
     "load_draft",
+    "load_draft_from_db",
     "BINNING_METHODS",
     "INTERACTION_OPERATIONS",
     "aggregate_candidate",

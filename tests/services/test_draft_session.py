@@ -1,13 +1,16 @@
 import json
+from contextlib import contextmanager
 from io import StringIO
 from typing import TYPE_CHECKING
 
 import pytest
 from rich.console import Console
 
+from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
 from fantasy_baseball_manager.domain.draft_report import DraftReport
+from fantasy_baseball_manager.domain.draft_session import DraftSessionPick, DraftSessionRecord
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -16,6 +19,7 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.repos.draft_session_repo import SqliteDraftSessionRepo
 from fantasy_baseball_manager.services.draft_session import (
     BalanceCommand,
     BestCommand,
@@ -34,6 +38,7 @@ from fantasy_baseball_manager.services.draft_session import (
     UndoCommand,
     auto_detect_position,
     load_draft,
+    load_draft_from_db,
     parse_command,
     save_draft,
 )
@@ -744,3 +749,65 @@ class TestCategoryBalanceREPL:
         output = buf.getvalue()
         # Should not contain category strength labels
         assert "weak:" not in output.lower() and "strong:" not in output.lower()
+
+
+# ---------------------------------------------------------------------------
+# load_draft_from_db
+# ---------------------------------------------------------------------------
+
+
+class _InMemoryProvider:
+    """Minimal ConnectionProvider for test use."""
+
+    def __init__(self) -> None:
+        self._conn = create_connection(":memory:")
+
+    def connection(self):  # noqa: ANN201
+        @contextmanager
+        def _ctx():  # noqa: ANN202
+            yield self._conn
+
+        return _ctx()
+
+
+class TestLoadDraftFromDB:
+    def test_load_restores_engine_state(self) -> None:
+        repo = SqliteDraftSessionRepo(_InMemoryProvider())
+
+        record = DraftSessionRecord(
+            league="test",
+            season=2026,
+            teams=4,
+            format="snake",
+            user_team=1,
+            roster_slots={"C": 1, "1B": 1, "OF": 2, "UTIL": 1, "P": 1},
+            budget=0,
+            status="in_progress",
+            created_at="2026-03-07T10:00:00",
+            updated_at="2026-03-07T10:00:00",
+        )
+        session_id = repo.create_session(record)
+
+        repo.save_pick(
+            DraftSessionPick(
+                session_id=session_id, pick_number=1, team=1, player_id=1, player_name="Mike Trout", position="OF"
+            )
+        )
+        repo.save_pick(
+            DraftSessionPick(
+                session_id=session_id, pick_number=2, team=2, player_id=5, player_name="Freddie Freeman", position="1B"
+            )
+        )
+
+        engine = load_draft_from_db(session_id, PLAYERS, repo)
+        state = engine.state
+        assert len(state.picks) == 2
+        assert state.current_pick == 3
+        assert 1 not in state.available_pool
+        assert 5 not in state.available_pool
+
+    def test_not_found_raises(self) -> None:
+        repo = SqliteDraftSessionRepo(_InMemoryProvider())
+
+        with pytest.raises(ValueError, match="not found"):
+            load_draft_from_db(9999, PLAYERS, repo)

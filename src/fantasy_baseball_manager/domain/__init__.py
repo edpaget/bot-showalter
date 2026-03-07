@@ -48,6 +48,10 @@ from fantasy_baseball_manager.domain.draft_report import (
     PickGrade,
     StealOrReach,
 )
+from fantasy_baseball_manager.domain.draft_session import (
+    DraftSessionPick,
+    DraftSessionRecord,
+)
 from fantasy_baseball_manager.domain.error_decomposition import (
     CohortBias,
     CohortBiasReport,
@@ -358,6 +362,8 @@ __all__ = [
     "PlayerDraftFrequency",
     "DraftReport",
     "DraftResult",
+    "DraftSessionPick",
+    "DraftSessionRecord",
     "EligibilityProvider",
     "EligibilityRules",
     "Err",

@@ -1,6 +1,7 @@
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.checkpoint_repo import SqliteCheckpointRepo
+from fantasy_baseball_manager.repos.draft_session_repo import SqliteDraftSessionRepo
 from fantasy_baseball_manager.repos.errors import DuplicateCheckpointError, PlayerConflictError
 from fantasy_baseball_manager.repos.experiment_repo import ExperimentFilter, SqliteExperimentRepo
 from fantasy_baseball_manager.repos.feature_candidate_repo import SqliteFeatureCandidateRepo
@@ -26,6 +27,7 @@ from fantasy_baseball_manager.repos.protocols import (
     BattingStatsRepo,
     CheckpointRepo,
     ConnectionProvider,
+    DraftSessionRepo,
     ExperimentRepo,
     FeatureCandidateRepo,
     ILStintRepo,
@@ -77,8 +79,10 @@ __all__ = [
     "ADPRepo",
     "CheckpointRepo",
     "ConnectionProvider",
+    "DraftSessionRepo",
     "DuplicateCheckpointError",
     "SqliteCheckpointRepo",
+    "SqliteDraftSessionRepo",
     "BattingStatsRepo",
     "ExperimentFilter",
     "ExperimentRepo",
