@@ -548,6 +548,7 @@ def yahoo_draft_live(  # pragma: no cover
         report_fn=report_fn,
         yahoo_pick_queue=pick_queue,
         team_map=setup.team_map,
+        id_aliases=setup.id_aliases,
     )
 
     console.print(f"[bold]Starting live Yahoo draft[/bold] — polling every {poll_interval}s")

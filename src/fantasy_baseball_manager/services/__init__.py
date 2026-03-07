@@ -54,6 +54,7 @@ from fantasy_baseball_manager.services.draft_state import (
 )
 from fantasy_baseball_manager.services.draft_translation import (
     PickFn,
+    build_player_id_aliases,
     build_team_map,
     ingest_yahoo_pick,
     resolve_draft_position,
@@ -301,6 +302,7 @@ __all__ = [
     "build_draft_roster_slots",
     "build_roster_state",
     "build_keeper_histories",
+    "build_player_id_aliases",
     "build_team_map",
     "classify_variance",
     "adjust_valuations_for_league_keepers",

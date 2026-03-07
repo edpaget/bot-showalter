@@ -360,6 +360,7 @@ class DraftSession:
         save_path: Path | None = None,
         yahoo_pick_queue: queue.Queue[YahooDraftPick] | None = None,
         team_map: dict[str, int] | None = None,
+        id_aliases: dict[int, int] | None = None,
         projections: list[Projection] | None = None,
         league: LeagueSettings | None = None,
     ) -> None:
@@ -374,6 +375,7 @@ class DraftSession:
         self._valid_positions = set(engine.state.config.roster_slots.keys()) - {"BN"}
         self._yahoo_pick_queue = yahoo_pick_queue
         self._team_map = team_map or {}
+        self._id_aliases = id_aliases
         self._projections = projections
         self._league = league
 
@@ -419,6 +421,7 @@ class DraftSession:
                 set(self.engine.state.available_pool),
                 yahoo_pick,
                 self._team_map,
+                id_aliases=self._id_aliases,
                 roster_slots=self.engine.state.config.roster_slots,
                 team_rosters=self.engine.state.team_rosters,
             )

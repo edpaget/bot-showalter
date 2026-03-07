@@ -1,6 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Protocol
 
+from fantasy_baseball_manager.name_utils import normalize_name
 from fantasy_baseball_manager.services.draft_state import DraftError
 
 if TYPE_CHECKING:
@@ -28,6 +29,40 @@ class PickFn(Protocol):
 
 def build_team_map(teams: list[YahooTeam]) -> dict[str, int]:
     return {team.team_key: team.team_id for team in teams}
+
+
+def build_player_id_aliases(
+    yahoo_picks: list[YahooDraftPick],
+    board_names: dict[int, str],
+) -> dict[int, int]:
+    """Build a mapping from Yahoo player IDs to board player IDs via name matching.
+
+    For each Yahoo pick whose player_id is not in the board, normalize both names
+    and look for an exact match. If exactly one board entry matches, create an alias.
+    """
+    norm_to_board: dict[str, list[int]] = {}
+    for board_id, name in board_names.items():
+        norm = normalize_name(name)
+        norm_to_board.setdefault(norm, []).append(board_id)
+
+    aliases: dict[int, int] = {}
+    for pick in yahoo_picks:
+        if pick.player_id is None or pick.player_id in board_names:
+            continue
+        if pick.player_id in aliases:
+            continue
+        norm_pick = normalize_name(pick.player_name)
+        candidates = norm_to_board.get(norm_pick, [])
+        if len(candidates) == 1:
+            aliases[pick.player_id] = candidates[0]
+            logger.info(
+                "Aliased Yahoo player %s (id=%d) → board id %d",
+                pick.player_name,
+                pick.player_id,
+                candidates[0],
+            )
+
+    return aliases
 
 
 def resolve_draft_position(
@@ -73,6 +108,7 @@ def ingest_yahoo_pick(
     yahoo_pick: YahooDraftPick,
     team_map: dict[str, int],
     *,
+    id_aliases: dict[int, int] | None = None,
     roster_slots: dict[str, int] | None = None,
     team_rosters: dict[int, list[DraftPick]] | None = None,
 ) -> DraftPick | None:
@@ -93,7 +129,11 @@ def ingest_yahoo_pick(
         )
         return None
 
-    if yahoo_pick.player_id not in available_ids:
+    effective_id = yahoo_pick.player_id
+    if id_aliases and effective_id not in available_ids and effective_id in id_aliases:
+        effective_id = id_aliases[effective_id]
+
+    if effective_id not in available_ids:
         logger.warning(
             "Player %s (id=%d) not in available pool — skipping",
             yahoo_pick.player_name,
@@ -111,7 +151,7 @@ def ingest_yahoo_pick(
 
     try:
         return pick_fn(
-            yahoo_pick.player_id,
+            effective_id,
             team,
             position,
             price=yahoo_pick.cost,

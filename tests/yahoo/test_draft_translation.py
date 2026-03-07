@@ -3,6 +3,7 @@ from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
 from fantasy_baseball_manager.domain.yahoo_league import YahooTeam
 from fantasy_baseball_manager.services.draft_state import DraftConfig, DraftEngine, DraftError, DraftFormat
 from fantasy_baseball_manager.services.draft_translation import (
+    build_player_id_aliases,
     build_team_map,
     ingest_yahoo_pick,
     resolve_draft_position,
@@ -263,6 +264,36 @@ class TestIngestYahooPick:
         assert r3 is not None
         assert r3.position == "BN"
 
+    def test_id_alias_resolves_mismatched_id(self) -> None:
+        """Yahoo ID 9007 aliased to board ID 22036 — pick uses board ID."""
+        players = [_make_player(22036, "Jose Ramirez", "OF")]
+        engine = DraftEngine()
+        engine.start(players, _SNAKE_CONFIG)
+
+        yahoo_pick = _make_yahoo_pick(player_id=9007, player_name="José Ramírez", position="OF")
+        aliases = {9007: 22036}
+        result = ingest_yahoo_pick(
+            engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP, id_aliases=aliases
+        )
+
+        assert result is not None
+        assert result.player_id == 22036
+
+    def test_id_alias_not_used_when_id_already_in_pool(self) -> None:
+        """Alias skipped if direct ID works."""
+        players = [_make_player(100, "Mike Trout", "OF"), _make_player(200, "Other Trout", "OF")]
+        engine = DraftEngine()
+        engine.start(players, _SNAKE_CONFIG)
+
+        yahoo_pick = _make_yahoo_pick(player_id=100, player_name="Mike Trout", position="OF")
+        aliases = {100: 200}  # alias exists but shouldn't be used
+        result = ingest_yahoo_pick(
+            engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP, id_aliases=aliases
+        )
+
+        assert result is not None
+        assert result.player_id == 100
+
 
 class TestResolveDraftPosition:
     def test_direct_slot_with_room(self) -> None:
@@ -291,3 +322,66 @@ class TestResolveDraftPosition:
 
     def test_direct_slot_partially_filled(self) -> None:
         assert resolve_draft_position("OF", {"OF": 3, "UTIL": 1}, {"OF": 1}) == "OF"
+
+
+class TestBuildPlayerIdAliases:
+    def test_exact_name_match_creates_alias(self) -> None:
+        yahoo_picks = [_make_yahoo_pick(player_id=9007, player_name="Jose Ramirez")]
+        board_names = {22036: "Jose Ramirez"}
+
+        aliases = build_player_id_aliases(yahoo_picks, board_names)
+
+        assert aliases == {9007: 22036}
+
+    def test_nickname_match_creates_alias(self) -> None:
+        """'Michael Busch' matches 'Mike Busch' via nickname normalization."""
+        yahoo_picks = [_make_yahoo_pick(player_id=18185, player_name="Michael Busch")]
+        board_names = {19681: "Mike Busch"}
+
+        aliases = build_player_id_aliases(yahoo_picks, board_names)
+
+        assert aliases == {18185: 19681}
+
+    def test_accent_match_creates_alias(self) -> None:
+        """'José Ramírez' matches 'Jose Ramirez' via accent stripping."""
+        yahoo_picks = [_make_yahoo_pick(player_id=9007, player_name="José Ramírez")]
+        board_names = {22036: "Jose Ramirez"}
+
+        aliases = build_player_id_aliases(yahoo_picks, board_names)
+
+        assert aliases == {9007: 22036}
+
+    def test_no_match_no_alias(self) -> None:
+        yahoo_picks = [_make_yahoo_pick(player_id=9999, player_name="Unknown Player")]
+        board_names = {1: "Someone Else"}
+
+        aliases = build_player_id_aliases(yahoo_picks, board_names)
+
+        assert aliases == {}
+
+    def test_already_in_board_no_alias(self) -> None:
+        """Player already in board — no alias needed."""
+        yahoo_picks = [_make_yahoo_pick(player_id=100, player_name="Mike Trout")]
+        board_names = {100: "Mike Trout"}
+
+        aliases = build_player_id_aliases(yahoo_picks, board_names)
+
+        assert aliases == {}
+
+    def test_ambiguous_name_no_alias(self) -> None:
+        """Two board players match the same name — no alias created."""
+        yahoo_picks = [_make_yahoo_pick(player_id=9007, player_name="Jose Ramirez")]
+        board_names = {22036: "Jose Ramirez", 33333: "Jose Ramirez"}
+
+        aliases = build_player_id_aliases(yahoo_picks, board_names)
+
+        assert aliases == {}
+
+    def test_parenthetical_stripped(self) -> None:
+        """'Shohei Ohtani (Pitcher)' matches 'Shohei Ohtani'."""
+        yahoo_picks = [_make_yahoo_pick(player_id=5000, player_name="Shohei Ohtani (Pitcher)")]
+        board_names = {3771: "Shohei Ohtani"}
+
+        aliases = build_player_id_aliases(yahoo_picks, board_names)
+
+        assert aliases == {5000: 3771}

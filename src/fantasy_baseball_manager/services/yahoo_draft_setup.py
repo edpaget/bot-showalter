@@ -10,7 +10,11 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftFormat,
     build_draft_roster_slots,
 )
-from fantasy_baseball_manager.services.draft_translation import build_team_map, ingest_yahoo_pick
+from fantasy_baseball_manager.services.draft_translation import (
+    build_player_id_aliases,
+    build_team_map,
+    ingest_yahoo_pick,
+)
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, LeagueSettings
@@ -32,6 +36,7 @@ class YahooDraftSetup:
     team_map: dict[str, int]
     source: YahooDraftSourceProto
     replayed_count: int
+    id_aliases: dict[int, int]
 
 
 def build_yahoo_draft_setup(
@@ -99,6 +104,9 @@ def build_yahoo_draft_setup(
     engine.start(draft_players, draft_config)
 
     existing_picks = draft_source.fetch_draft_results(league_key, season)
+    board_names = {row.player_id: row.player_name for row in board.rows}
+    aliases = build_player_id_aliases(existing_picks, board_names)
+
     for pick in existing_picks:
         draft_repo.upsert(pick)
         ingest_yahoo_pick(
@@ -106,6 +114,7 @@ def build_yahoo_draft_setup(
             set(engine.state.available_pool),
             pick,
             team_map,
+            id_aliases=aliases,
             roster_slots=roster_slots,
             team_rosters=engine.state.team_rosters,
         )
@@ -116,4 +125,5 @@ def build_yahoo_draft_setup(
         team_map=team_map,
         source=draft_source,
         replayed_count=len(existing_picks),
+        id_aliases=aliases,
     )
