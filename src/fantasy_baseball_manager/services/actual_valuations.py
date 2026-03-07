@@ -4,7 +4,7 @@ import dataclasses
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import Valuation
+from fantasy_baseball_manager.domain import Position, Valuation
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import best_position, build_position_map, build_roster_spots
 
@@ -81,7 +81,7 @@ def compute_actual_valuations(
 
     # Value pitchers
     pitcher_ids = [pid for pid in pitcher_stats if pitcher_stats[pid].get("ip", 0) > 0]
-    pitcher_position_map: dict[int, list[str]] = {pid: ["p"] for pid in pitcher_ids}
+    pitcher_position_map: dict[int, list[str]] = {pid: [Position.P] for pid in pitcher_ids}
     pitcher_vals = _value_pool(
         player_ids=pitcher_ids,
         stats_map=pitcher_stats,
@@ -92,7 +92,7 @@ def compute_actual_valuations(
         player_type="pitcher",
         season=season,
         version=version,
-        pitcher_roster_spots={"p": league.roster_pitchers},
+        pitcher_roster_spots={Position.P: league.roster_pitchers},
     )
 
     # Combine and rank by value descending
@@ -125,10 +125,10 @@ def _value_pool(
         return []
 
     stats_list = [stats_map[pid] for pid in player_ids]
-    if pitcher_roster_spots is not None and "p" in pitcher_roster_spots:
-        no_pos: list[str] = ["p"]
+    if pitcher_roster_spots is not None and Position.P in pitcher_roster_spots:
+        no_pos: list[str] = [Position.P]
     elif league.roster_util > 0:
-        no_pos = ["util"]
+        no_pos = [Position.UTIL]
     else:
         no_pos = []
     player_positions = [position_map.get(pid, no_pos) for pid in player_ids]

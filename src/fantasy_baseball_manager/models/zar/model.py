@@ -1,7 +1,7 @@
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import ArtifactType, EligibilityProvider, Valuation
+from fantasy_baseball_manager.domain import ArtifactType, EligibilityProvider, Position, Valuation
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.zar.engine import (
@@ -116,7 +116,7 @@ class ZarModel:
         if league.pitcher_positions:
             pitcher_roster_spots = dict(league.pitcher_positions)
         else:
-            pitcher_roster_spots = {"p": league.roster_pitchers}
+            pitcher_roster_spots = {Position.P: league.roster_pitchers}
         pitcher_valuations = self._value_pool(
             pitcher_projs,
             list(league.pitching_categories),
