@@ -9,7 +9,7 @@ from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run
 from fantasy_baseball_manager.models.zar.positions import best_position, build_position_map, build_roster_spots
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import LeagueSettings
+    from fantasy_baseball_manager.domain import EligibilityProvider, LeagueSettings
     from fantasy_baseball_manager.repos import (
         BattingStatsRepo,
         PitchingStatsRepo,
@@ -43,6 +43,7 @@ def compute_actual_valuations(
     *,
     actuals_source: str = "fangraphs",
     version: str = "1.0",
+    eligibility_provider: EligibilityProvider | None = None,
 ) -> list[Valuation]:
     """Compute ZAR valuations from actual stats and persist them.
 
@@ -81,7 +82,12 @@ def compute_actual_valuations(
 
     # Value pitchers
     pitcher_ids = [pid for pid in pitcher_stats if pitcher_stats[pid].get("ip", 0) > 0]
-    pitcher_position_map: dict[int, list[str]] = {pid: [Position.P] for pid in pitcher_ids}
+    if league.pitcher_positions and eligibility_provider is not None:
+        pitcher_position_map = eligibility_provider.get_pitcher_positions(season, league, pitcher_ids)
+        pitcher_roster_spots = dict(league.pitcher_positions)
+    else:
+        pitcher_position_map: dict[int, list[str]] = {pid: [Position.P] for pid in pitcher_ids}
+        pitcher_roster_spots: dict[str, int] = {Position.P: league.roster_pitchers}
     pitcher_vals = _value_pool(
         player_ids=pitcher_ids,
         stats_map=pitcher_stats,
@@ -92,7 +98,7 @@ def compute_actual_valuations(
         player_type="pitcher",
         season=season,
         version=version,
-        pitcher_roster_spots={Position.P: league.roster_pitchers},
+        pitcher_roster_spots=pitcher_roster_spots,
     )
 
     # Combine and rank by value descending

@@ -9,7 +9,7 @@ from fantasy_baseball_manager.cli.factory import build_compute_container
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
-from fantasy_baseball_manager.services import compute_actual_valuations
+from fantasy_baseball_manager.services import PlayerEligibilityService, compute_actual_valuations
 
 compute_app = typer.Typer(name="compute", help="Compute derived data from ingested stats")
 
@@ -46,6 +46,10 @@ def compute_actual_valuations_cmd(
     conn = create_connection(Path(data_dir) / "fbm.db")
     try:
         container = AnalysisContainer(SingleConnectionProvider(conn))
+        eligibility = PlayerEligibilityService(
+            container.position_appearance_repo,
+            pitching_stats_repo=container.pitching_stats_repo,
+        )
         for yr in season:
             valuations = compute_actual_valuations(
                 season=yr,
@@ -54,6 +58,7 @@ def compute_actual_valuations_cmd(
                 pitching_repo=container.pitching_stats_repo,
                 position_repo=container.position_appearance_repo,
                 valuation_repo=container.valuation_repo,
+                eligibility_provider=eligibility,
             )
             conn.commit()
             console.print(f"  {yr}: {len(valuations)} actual valuations computed")

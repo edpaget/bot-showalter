@@ -25,6 +25,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 
 | Roadmap | Phases |
 |---------|--------|
+| [Actual Valuation SP/RP Split](actual-valuation-sp-rp.md) | 1 |
 | [ADP Integration](adp-integration.md) | 5 |
 | [Data Profiling Tools](data-profiling-tools.md) | 3 |
 | [Category Balance Tracker](category-balance-tracker.md) | 3 |

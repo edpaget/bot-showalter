@@ -6,6 +6,7 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.domain.model_protocol import EligibilityProvider
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.services.actual_valuations import compute_actual_valuations
@@ -15,6 +16,33 @@ from tests.fakes.repos import (
     FakePositionAppearanceRepo,
     FakeValuationRepo,
 )
+
+
+class FakeEligibilityProvider:
+    """Fake that returns pre-configured pitcher positions."""
+
+    def __init__(self, pitcher_positions: dict[int, list[str]]) -> None:
+        self._pitcher_positions = pitcher_positions
+
+    def get_batter_positions(
+        self,
+        season: int,
+        league: LeagueSettings,
+        *,
+        min_games: int = 10,
+    ) -> dict[int, list[str]]:
+        return {}
+
+    def get_pitcher_positions(
+        self,
+        season: int,
+        league: LeagueSettings,
+        pitcher_ids: list[int],
+    ) -> dict[int, list[str]]:
+        return {pid: self._pitcher_positions.get(pid, ["p"]) for pid in pitcher_ids}
+
+
+assert isinstance(FakeEligibilityProvider({}), EligibilityProvider)
 
 
 def _counting_league() -> LeagueSettings:
@@ -91,6 +119,96 @@ class TestComputeActualValuations:
             valuation_repo=FakeValuationRepo(),
         )
         assert result == []
+
+    def test_sp_rp_split_when_pitcher_positions_defined(self) -> None:
+        """With eligibility_provider and pitcher_positions, pitchers get SP/RP/P."""
+        league = LeagueSettings(
+            name="Test League",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=2,
+            budget=260,
+            roster_batters=2,
+            roster_pitchers=4,
+            batting_categories=(
+                CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            ),
+            pitching_categories=(
+                CategoryConfig(key="w", name="Wins", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+                CategoryConfig(key="sv", name="Saves", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            ),
+            roster_util=0,
+            positions={"of": 2},
+            pitcher_positions={"sp": 2, "rp": 2, "p": 4},
+        )
+        pitching_repo = FakePitchingStatsRepo(
+            [
+                PitchingStats(player_id=10, season=2023, source="fangraphs", ip=180.0, w=15, sv=0),
+                PitchingStats(player_id=20, season=2023, source="fangraphs", ip=60.0, w=3, sv=25),
+            ]
+        )
+        eligibility = FakeEligibilityProvider(
+            pitcher_positions={10: ["sp", "p"], 20: ["rp", "p"]},
+        )
+        valuation_repo = FakeValuationRepo()
+
+        result = compute_actual_valuations(
+            season=2023,
+            league=league,
+            batting_repo=FakeBattingStatsRepo(),
+            pitching_repo=pitching_repo,
+            position_repo=FakePositionAppearanceRepo(),
+            valuation_repo=valuation_repo,
+            eligibility_provider=eligibility,
+        )
+
+        pitcher_positions = {v.player_id: v.position for v in result}
+        # Pitchers should get SP or RP, not just P
+        assert pitcher_positions[10] in ("sp", "p")
+        assert pitcher_positions[20] in ("rp", "p")
+        # At least one should have a specific position (not all "p")
+        all_positions = set(pitcher_positions.values())
+        assert all_positions != {"p"}, "Expected SP/RP positions, got all P"
+
+    def test_fallback_to_single_pool_when_no_eligibility_provider(self) -> None:
+        """With pitcher_positions defined but no eligibility_provider, all pitchers get P."""
+        league = LeagueSettings(
+            name="Test League",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=2,
+            budget=260,
+            roster_batters=2,
+            roster_pitchers=4,
+            batting_categories=(
+                CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            ),
+            pitching_categories=(
+                CategoryConfig(key="w", name="Wins", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+                CategoryConfig(key="sv", name="Saves", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            ),
+            roster_util=0,
+            positions={"of": 2},
+            pitcher_positions={"sp": 2, "rp": 2, "p": 4},
+        )
+        pitching_repo = FakePitchingStatsRepo(
+            [
+                PitchingStats(player_id=10, season=2023, source="fangraphs", ip=180.0, w=15, sv=0),
+                PitchingStats(player_id=20, season=2023, source="fangraphs", ip=60.0, w=3, sv=25),
+            ]
+        )
+        valuation_repo = FakeValuationRepo()
+
+        result = compute_actual_valuations(
+            season=2023,
+            league=league,
+            batting_repo=FakeBattingStatsRepo(),
+            pitching_repo=pitching_repo,
+            position_repo=FakePositionAppearanceRepo(),
+            valuation_repo=valuation_repo,
+            # No eligibility_provider — should fall back to single P pool
+        )
+
+        for v in result:
+            assert v.position == "p", f"Expected position 'p', got '{v.position}'"
 
     def test_batters_only_when_no_pitching_stats(self) -> None:
         batting_repo = FakeBattingStatsRepo(
