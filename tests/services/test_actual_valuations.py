@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.domain import Position
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -208,7 +209,7 @@ class TestComputeActualValuations:
         )
 
         for v in result:
-            assert v.position == "p", f"Expected position 'p', got '{v.position}'"
+            assert v.position == Position.P, f"Expected Position.P, got '{v.position}'"
 
     def test_batters_only_when_no_pitching_stats(self) -> None:
         batting_repo = FakeBattingStatsRepo(
