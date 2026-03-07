@@ -38,7 +38,7 @@ The existing CSV import path (`fbm import`) already handles FanGraphs projection
 
 | Phase | Status |
 |-------|--------|
-| 1 — FanGraphs projection source | not started |
+| 1 — FanGraphs projection source | in progress |
 | 2 — Sync CLI command | not started |
 | 3 — In-season refresh support | not started |
 
