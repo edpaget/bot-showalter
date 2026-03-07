@@ -22,6 +22,10 @@ from fantasy_baseball_manager.ingest.column_maps import (
 )
 from fantasy_baseball_manager.ingest.csv_source import CsvSource
 from fantasy_baseball_manager.ingest.date_utils import chunk_date_range
+from fantasy_baseball_manager.ingest.fangraphs_projection_source import (
+    PROJECTION_SYSTEMS,
+    FgProjectionSource,
+)
 from fantasy_baseball_manager.ingest.fangraphs_source import FgStatsSource
 from fantasy_baseball_manager.ingest.fantasypros_adp_source import FantasyProsADPSource
 from fantasy_baseball_manager.ingest.il_parser import ILParseResult, parse_il_transaction
@@ -54,6 +58,7 @@ __all__ = [
     "CsvSource",
     "DataSource",
     "FantasyProsADPSource",
+    "FgProjectionSource",
     "FgStatsSource",
     "ILParseResult",
     "KeeperImportResult",
@@ -76,6 +81,7 @@ __all__ = [
     "import_keeper_costs",
     "ingest_fantasypros_adp",
     "lahman_team_row_to_team",
+    "PROJECTION_SYSTEMS",
     "make_fg_batting_mapper",
     "make_fg_pitching_mapper",
     "make_fg_projection_batting_mapper",
