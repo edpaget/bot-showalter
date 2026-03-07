@@ -112,8 +112,8 @@ Collapsible panel at the bottom showing all picks in draft order:
 ## Session Controls
 
 Top bar with:
-- **Start session** — configure league, format (snake/auction), teams, user slot, season, system. If an in-progress session exists for the same league/season, auto-resumes it.
-- **Resume session** — pick from a list of past sessions (shows league, season, pick count, timestamps). Uses `SqliteDraftSessionRepo` for crash-safe persistence — every pick is written to SQLite immediately, so there is no explicit "save" action.
+- **Start session** — configure league, format (snake/auction), teams, user slot, season, system. Returns a session ID that the frontend stores and passes on all subsequent queries and mutations.
+- **Session picker** — dropdown or list of past/in-progress sessions (shows league, season, pick count, timestamps). Selecting a session ID loads it — the backend hydrates the `DraftEngine` from SQLite on first access. Uses `SqliteDraftSessionRepo` for crash-safe persistence — every pick is written to SQLite immediately, so there is no explicit "save" action.
 - **Yahoo poll** — start/stop Yahoo draft polling with connection status indicator
 - **Undo** — reverse last pick
 - **End session** — mark session complete and show post-draft report

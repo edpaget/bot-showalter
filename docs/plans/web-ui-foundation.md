@@ -60,33 +60,33 @@ Session persistence uses `SqliteDraftSessionRepo` rather than JSON files. Every 
 ### Steps
 
 1. Define Strawberry types for session state: `DraftPickType`, `DraftStateType`, `DraftSessionSummaryType`, `RecommendationType`, `RosterSlotType`, `CategoryBalanceType`.
-2. Create a session manager class that holds the active `DraftEngine` and `DraftState` in memory (one session at a time — this is a single-user tool). Inject `SqliteDraftSessionRepo` for persistence. Store the manager in Strawberry's context so resolvers can access it.
-3. Implement mutations:
-   - `startSession(league, season, system, teams, slot, format) -> DraftStateType` — checks for an existing `in_progress` session for the same `(league, season)` via the repo. If found, returns it with a `resumed: true` flag so the frontend can notify the user. Otherwise creates a new session via `repo.create_session()` and initializes `DraftEngine.start()`.
-   - `resumeSession(sessionId) -> DraftStateType` — loads a specific session by ID from the database and replays its picks into a `DraftEngine`.
-   - `pick(playerId, position, price) -> PickResultType` — records a pick via `DraftEngine.pick()`, persists it via `repo.save_pick()`, returns the pick plus updated recommendations, roster, and needs.
-   - `undo() -> PickResultType` — reverses the last pick via `DraftEngine.undo()`, deletes it via `repo.delete_pick()`, returns updated state.
-   - `endSession() -> Boolean` — marks the session `complete` via `repo.update_status()`.
-4. Implement session queries:
-   - `session -> DraftStateType` — current session state (picks, current pick, team on clock, session ID).
+2. Create a session manager class that maintains a cache of hydrated `DraftEngine` instances keyed by session ID (`dict[int, DraftEngine]`). When a resolver requests a session ID that isn't in the cache, the manager hydrates it from SQLite by loading the config and replaying picks. Inject `SqliteDraftSessionRepo` for persistence. Store the manager in Strawberry's context so resolvers can access it. Initially only one session will be active at a time, but the `sessionId`-keyed design keeps the door open for concurrent sessions later.
+3. Implement mutations (all scoped by `sessionId`):
+   - `startSession(league, season, system, teams, slot, format) -> DraftStateType` — creates a new session via `repo.create_session()`, initializes `DraftEngine.start()`, caches the engine, and returns the state including the new session ID.
+   - `pick(sessionId, playerId, position, price) -> PickResultType` — records a pick via `DraftEngine.pick()`, persists it via `repo.save_pick()`, returns the pick plus updated recommendations, roster, and needs.
+   - `undo(sessionId) -> PickResultType` — reverses the last pick via `DraftEngine.undo()`, deletes it via `repo.delete_pick()`, returns updated state.
+   - `endSession(sessionId) -> Boolean` — marks the session `complete` via `repo.update_status()` and evicts it from the cache.
+4. Implement session queries (all scoped by `sessionId` where applicable):
+   - `session(sessionId) -> DraftStateType` — session state (picks, current pick, team on clock). Hydrates the engine from SQLite on first access if not already cached.
    - `sessions(league, season, status) -> list[DraftSessionSummaryType]` — lists past and in-progress sessions with metadata (ID, league, season, format, pick count, status, timestamps). Wraps `repo.list_sessions()`.
-   - `recommendations(position, limit) -> list[RecommendationType]` — wraps `recommend()` with category balance integration.
-   - `roster(team) -> list[DraftPickType]` — team roster (defaults to user's team).
-   - `needs() -> list[RosterSlotType]` — unfilled positions with slot counts.
-   - `balance() -> list[CategoryBalanceType]` — category projections and strength rankings.
-   - `available(position, limit) -> list[DraftBoardRowType]` — remaining player pool.
+   - `recommendations(sessionId, position, limit) -> list[RecommendationType]` — wraps `recommend()` with category balance integration.
+   - `roster(sessionId, team) -> list[DraftPickType]` — team roster (defaults to user's team).
+   - `needs(sessionId) -> list[RosterSlotType]` — unfilled positions with slot counts.
+   - `balance(sessionId) -> list[CategoryBalanceType]` — category projections and strength rankings.
+   - `available(sessionId, position, limit) -> list[DraftBoardRowType]` — remaining player pool.
 5. Define a `PickResultType` that bundles the pick confirmation with recommendations, roster, needs, and balance — enabling the frontend to update all panels from one mutation response.
-6. Write tests: start session (new and resumed), pick/undo sequences with repo verification, recommendation changes as roster fills, session listing, crash recovery (kill server, restart, verify session resumes).
+6. Write tests: start session, query by session ID (cache miss triggers hydration from DB), pick/undo sequences with repo verification, recommendation changes as roster fills, session listing, crash recovery (kill server, restart, query same session ID and verify it hydrates correctly).
 
 ### Acceptance criteria
 
-- `startSession` mutation auto-detects and resumes an existing in-progress session for the same league/season.
-- `resumeSession` loads a session by ID and replays picks into a working `DraftEngine`.
+- All mutations and session-specific queries accept a `sessionId` parameter.
+- Querying a session ID that exists in SQLite but not in the in-memory cache hydrates it automatically (replays picks into a `DraftEngine`).
+- `startSession` mutation creates a new session and returns its ID.
 - `pick` mutation validates roster constraints and budget limits, persists the pick to SQLite immediately, and returns updated recommendations and needs.
 - `undo` mutation fully reverses the last pick (player returns to pool, budget restored) and deletes the pick from SQLite.
 - `sessions` query returns past and in-progress sessions with pick counts and timestamps.
 - `endSession` marks the session complete in the database.
-- If the server crashes after N picks, restarting and calling `startSession` with the same league/season resumes from pick N.
+- If the server crashes after N picks, querying the same session ID on restart hydrates from SQLite at pick N.
 - `recommendations` query reflects current roster state — unfilled positions are boosted, scarcity is factored in.
 - `PickResultType` bundles all panel data so the frontend can update in one round trip.
 
@@ -100,12 +100,12 @@ During a live Yahoo draft, opponents' picks arrive via the Yahoo API poller (`Ya
 
 ### Steps
 
-1. Define a `DraftEventType` union: `PickEvent` (a pick was made), `UndoEvent` (a pick was reversed), `SessionEvent` (session started/loaded/saved).
-2. Implement a Strawberry subscription `draftEvents() -> AsyncGenerator[DraftEventType]` that yields events as they occur. Use an `asyncio.Queue` as the event bus between mutations/poller and the subscription resolver.
-3. Wire mutations (`pick`, `undo`, `startSession`) to publish events to the subscription queue.
+1. Define a `DraftEventType` union: `PickEvent` (a pick was made), `UndoEvent` (a pick was reversed), `SessionEvent` (session started/ended).
+2. Implement a Strawberry subscription `draftEvents(sessionId) -> AsyncGenerator[DraftEventType]` that yields events for a specific session. Use a per-session `asyncio.Queue` as the event bus between mutations/poller and the subscription resolver.
+3. Wire mutations (`pick`, `undo`, `startSession`, `endSession`) to publish events to the session's subscription queue.
 4. Add mutations for Yahoo polling control:
-   - `startYahooPoll(leagueKey) -> Boolean` — starts `YahooDraftPoller` in a background thread, translates incoming picks via `ingest_yahoo_pick()`, and publishes them as `PickEvent`s.
-   - `stopYahooPoll() -> Boolean` — stops the poller.
+   - `startYahooPoll(sessionId, leagueKey) -> Boolean` — starts `YahooDraftPoller` in a background thread, translates incoming picks via `ingest_yahoo_pick()`, and publishes them as `PickEvent`s on the session's queue.
+   - `stopYahooPoll(sessionId) -> Boolean` — stops the poller.
 5. Add a `yahooPollStatus` query returning whether polling is active and the last poll timestamp.
 6. Configure Strawberry's WebSocket integration with FastAPI for subscription transport.
 7. Write tests: subscription receives events from mutations, Yahoo poller events propagate to subscription, poller start/stop lifecycle.
