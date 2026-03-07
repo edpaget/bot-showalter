@@ -403,6 +403,28 @@ class TestResolveDraftPosition:
         fills = {"SS": 1, "UTIL": 1, "BN": 1, "OF": 1}
         assert resolve_draft_position("SS", slots, fills) == "OF"
 
+    def test_sp_direct_slot_with_pitcher_sub_slots(self) -> None:
+        """SP with room when SP is a roster slot → returns SP."""
+        slots = {"SP": 2, "RP": 2, "P": 4, "OF": 3, "BN": 4}
+        assert resolve_draft_position("SP", slots, {}) == "SP"
+
+    def test_sp_overflow_to_p_with_pitcher_sub_slots(self) -> None:
+        """SP full, P has room → returns P."""
+        slots = {"SP": 2, "RP": 2, "P": 4, "OF": 3, "BN": 4}
+        fills = {"SP": 2}
+        assert resolve_draft_position("SP", slots, fills) == "P"
+
+    def test_rp_direct_slot_with_pitcher_sub_slots(self) -> None:
+        """RP with room when RP is a roster slot → returns RP."""
+        slots = {"SP": 2, "RP": 2, "P": 4, "OF": 3}
+        assert resolve_draft_position("RP", slots, {}) == "RP"
+
+    def test_rp_overflow_to_p_with_pitcher_sub_slots(self) -> None:
+        """RP full, P has room → returns P."""
+        slots = {"SP": 2, "RP": 2, "P": 4, "OF": 3, "BN": 4}
+        fills = {"RP": 2}
+        assert resolve_draft_position("RP", slots, fills) == "P"
+
     def test_any_open_slot_when_all_full_returns_original(self) -> None:
         """All slots full → returns original position unchanged."""
         slots = {"SS": 1, "UTIL": 1, "BN": 1}

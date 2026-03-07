@@ -293,6 +293,44 @@ class TestFullDraft:
             for pos, count in filled.items():
                 assert count <= slots[pos], f"Team {team_idx} has {count} at {pos}, max {slots[pos]}"
 
+    def test_12_team_pitcher_sub_slots(self) -> None:
+        """Mock draft with SP/RP/P sub-slots completes without exceeding any slot."""
+        league = LeagueSettings(
+            name="Pitcher Sub-Slots 12-Team",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=12,
+            budget=260,
+            roster_batters=10,
+            roster_pitchers=8,
+            batting_categories=(_BATTING_CAT,),
+            pitching_categories=(_PITCHING_CAT,),
+            positions={"C": 1, "1B": 1, "2B": 1, "3B": 1, "SS": 1, "OF": 3, "MI": 1, "CI": 1},
+            roster_util=1,
+            pitcher_positions={"SP": 2, "RP": 2, "P": 4},
+        )
+        board = _12_team_board()
+        bots = _make_bots(12, seed=42)
+        result = run_mock_draft(board, league, bots, seed=123)
+
+        slots = build_draft_roster_slots(league)
+        total_slots = sum(slots.values())
+
+        # All 12 teams filled
+        assert len(result.rosters) == 12
+        for team_idx in range(12):
+            assert len(result.rosters[team_idx]) == total_slots
+
+        # Positional limits — SP, RP, P are separate slots
+        assert "SP" in slots
+        assert "RP" in slots
+        assert "P" in slots
+        for team_idx, roster in result.rosters.items():
+            filled: dict[str, int] = {}
+            for pick in roster:
+                filled[pick.position] = filled.get(pick.position, 0) + 1
+            for pos, count in filled.items():
+                assert count <= slots[pos], f"Team {team_idx} has {count} at {pos}, max {slots[pos]}"
+
     def test_12_team_deterministic(self) -> None:
         """AC: Each bot strategy produces deterministic results given a fixed random seed."""
         league = _12_team_league()

@@ -11,7 +11,7 @@ The `fbm yahoo draft-live` command replays Yahoo draft picks into the internal d
 |-------|--------|
 | 1 — Player ID reconciliation | done (2026-03-07) |
 | 2 — Greedy slot assignment | done (2026-03-07) |
-| 3 — Pitcher position slots | not started |
+| 3 — Pitcher position slots | done (2026-03-07) |
 
 ## Phase 1: Player ID reconciliation
 

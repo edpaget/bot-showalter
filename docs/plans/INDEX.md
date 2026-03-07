@@ -18,7 +18,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
 | [Injury Model Fixes](injury-model-fixes.md) | 3 | phase 1 done | injury-risk-discount (done), player-bio-fuzzy-team (done) |
-| [Yahoo Draft Ingestion Fixes](yahoo-draft-ingestion-fixes.md) | 3 | phases 1-2 done | yahoo-live-draft-fixes (done) |
 | [Draft Session Persistence](draft-session-persistence.md) | 3 | phase 1 done | live-draft-tracker (done) |
 
 ## Completed Roadmaps
@@ -26,6 +25,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases |
 |---------|--------|
 | [Actual Valuation SP/RP Split](actual-valuation-sp-rp.md) | 1 |
+| [Yahoo Draft Ingestion Fixes](yahoo-draft-ingestion-fixes.md) | 3 |
 | [ADP Integration](adp-integration.md) | 5 |
 | [Data Profiling Tools](data-profiling-tools.md) | 3 |
 | [Category Balance Tracker](category-balance-tracker.md) | 3 |

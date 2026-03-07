@@ -221,6 +221,42 @@ class TestBuildDraftRosterSlots:
         assert "P" in slots
         assert all(k == k.upper() for k in slots)
 
+    def test_pitcher_positions_creates_separate_slots(self) -> None:
+        """When pitcher_positions is set, create SP/RP/P slots instead of generic P."""
+        batting_cat = CategoryConfig(
+            key="HR", name="Home Runs", stat_type=StatType.COUNTING, direction=Direction.HIGHER
+        )
+        pitching_cat = CategoryConfig(
+            key="K", name="Strikeouts", stat_type=StatType.COUNTING, direction=Direction.HIGHER
+        )
+        league = LeagueSettings(
+            name="Pitcher Sub-Slots",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=12,
+            budget=260,
+            roster_batters=10,
+            roster_pitchers=8,
+            batting_categories=(batting_cat,),
+            pitching_categories=(pitching_cat,),
+            positions={"C": 1, "1B": 1, "OF": 3},
+            roster_util=1,
+            pitcher_positions={"SP": 2, "RP": 2, "P": 4},
+        )
+        slots = build_draft_roster_slots(league)
+        assert slots["SP"] == 2
+        assert slots["RP"] == 2
+        assert slots["P"] == 4
+        assert "UTIL" in slots
+        # Should NOT have a single P=8 from roster_pitchers
+        assert sum(slots[k] for k in ("SP", "RP", "P")) == 8
+
+    def test_empty_pitcher_positions_uses_roster_pitchers(self) -> None:
+        """Backward compat: empty pitcher_positions falls back to generic P slot."""
+        league = _make_league()
+        assert league.pitcher_positions == {}
+        slots = build_draft_roster_slots(league)
+        assert slots["P"] == 8
+
     def test_empty_positions(self) -> None:
         league = LeagueSettings(
             name="Empty",
