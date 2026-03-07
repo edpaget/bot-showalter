@@ -12,7 +12,7 @@ Three issues surfaced when exercising the injury risk reports end-to-end:
 
 | Phase | Status |
 |-------|--------|
-| 1 -- Unified player name resolver | in progress |
+| 1 -- Unified player name resolver | done (2026-03-07) |
 | 2 -- Multi-year IL data ingestion | not started |
 | 3 -- Games-lost estimator accuracy | not started |
 
