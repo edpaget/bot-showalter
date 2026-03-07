@@ -49,39 +49,45 @@ The existing Flask server (`cli/_live_server.py`) renders HTML server-side with 
 
 ## Phase 2: Session mutations and queries
 
-Add stateful draft session management — start a session, record picks, undo, and query recommendations, roster, needs, and category balance through GraphQL.
+Add stateful draft session management — start a session, record picks, undo, and query recommendations, roster, needs, and category balance through GraphQL. Session state is persisted to SQLite on every mutation via `SqliteDraftSessionRepo` (from the [draft-session-persistence](draft-session-persistence.md) roadmap), making sessions crash-safe and resumable.
 
 ### Context
 
 The live draft tracker's core value is the `DraftEngine` (state management) and `recommend()` (pick suggestions). These are currently only accessible via the CLI REPL in `DraftSession`. Exposing them as GraphQL mutations and queries lets the React frontend drive a draft session with the same capabilities. Mutations naturally return the updated state, so the frontend can refresh all panels (recommendations, roster, needs, balance) in a single round trip after each pick.
 
+Session persistence uses `SqliteDraftSessionRepo` rather than JSON files. Every pick and undo is written to the database immediately, so if the browser closes or the server crashes, the session can be resumed from exactly where it left off. This also enables a `sessions` query for listing and resuming past drafts.
+
 ### Steps
 
-1. Define Strawberry types for session state: `DraftPickType`, `DraftStateType`, `RecommendationType`, `RosterSlotType`, `CategoryBalanceType`.
-2. Create a session manager class that holds the active `DraftEngine` and `DraftState` in memory (one session at a time — this is a single-user tool). Store it in Strawberry's context so resolvers can access it.
+1. Define Strawberry types for session state: `DraftPickType`, `DraftStateType`, `DraftSessionSummaryType`, `RecommendationType`, `RosterSlotType`, `CategoryBalanceType`.
+2. Create a session manager class that holds the active `DraftEngine` and `DraftState` in memory (one session at a time — this is a single-user tool). Inject `SqliteDraftSessionRepo` for persistence. Store the manager in Strawberry's context so resolvers can access it.
 3. Implement mutations:
-   - `startSession(season, system, teams, slot, format) -> DraftStateType` — initializes `DraftEngine.start()` with the full player pool.
-   - `pick(playerId, position, price) -> PickResultType` — records a pick via `DraftEngine.pick()`, returns the pick plus updated recommendations, roster, and needs.
-   - `undo() -> PickResultType` — reverses the last pick, returns updated state.
-   - `saveSession(name) -> Boolean` — persists draft state to JSON.
-   - `loadSession(name) -> DraftStateType` — restores a saved session.
+   - `startSession(league, season, system, teams, slot, format) -> DraftStateType` — checks for an existing `in_progress` session for the same `(league, season)` via the repo. If found, returns it with a `resumed: true` flag so the frontend can notify the user. Otherwise creates a new session via `repo.create_session()` and initializes `DraftEngine.start()`.
+   - `resumeSession(sessionId) -> DraftStateType` — loads a specific session by ID from the database and replays its picks into a `DraftEngine`.
+   - `pick(playerId, position, price) -> PickResultType` — records a pick via `DraftEngine.pick()`, persists it via `repo.save_pick()`, returns the pick plus updated recommendations, roster, and needs.
+   - `undo() -> PickResultType` — reverses the last pick via `DraftEngine.undo()`, deletes it via `repo.delete_pick()`, returns updated state.
+   - `endSession() -> Boolean` — marks the session `complete` via `repo.update_status()`.
 4. Implement session queries:
-   - `session -> DraftStateType` — current session state (picks, current pick, team on clock).
+   - `session -> DraftStateType` — current session state (picks, current pick, team on clock, session ID).
+   - `sessions(league, season, status) -> list[DraftSessionSummaryType]` — lists past and in-progress sessions with metadata (ID, league, season, format, pick count, status, timestamps). Wraps `repo.list_sessions()`.
    - `recommendations(position, limit) -> list[RecommendationType]` — wraps `recommend()` with category balance integration.
    - `roster(team) -> list[DraftPickType]` — team roster (defaults to user's team).
    - `needs() -> list[RosterSlotType]` — unfilled positions with slot counts.
    - `balance() -> list[CategoryBalanceType]` — category projections and strength rankings.
    - `available(position, limit) -> list[DraftBoardRowType]` — remaining player pool.
 5. Define a `PickResultType` that bundles the pick confirmation with recommendations, roster, needs, and balance — enabling the frontend to update all panels from one mutation response.
-6. Write tests: start session, pick/undo sequences, recommendation changes as roster fills, save/load round-trip.
+6. Write tests: start session (new and resumed), pick/undo sequences with repo verification, recommendation changes as roster fills, session listing, crash recovery (kill server, restart, verify session resumes).
 
 ### Acceptance criteria
 
-- `startSession` mutation initializes a draft with the correct player pool and snake/auction configuration.
-- `pick` mutation validates roster constraints and budget limits, returns the pick plus updated recommendations and needs.
-- `undo` mutation fully reverses the last pick (player returns to pool, budget restored).
+- `startSession` mutation auto-detects and resumes an existing in-progress session for the same league/season.
+- `resumeSession` loads a session by ID and replays picks into a working `DraftEngine`.
+- `pick` mutation validates roster constraints and budget limits, persists the pick to SQLite immediately, and returns updated recommendations and needs.
+- `undo` mutation fully reverses the last pick (player returns to pool, budget restored) and deletes the pick from SQLite.
+- `sessions` query returns past and in-progress sessions with pick counts and timestamps.
+- `endSession` marks the session complete in the database.
+- If the server crashes after N picks, restarting and calling `startSession` with the same league/season resumes from pick N.
 - `recommendations` query reflects current roster state — unfilled positions are boosted, scarcity is factored in.
-- `saveSession` and `loadSession` round-trip correctly.
 - `PickResultType` bundles all panel data so the frontend can update in one round trip.
 
 ## Phase 3: Subscriptions and Yahoo polling
@@ -172,7 +178,7 @@ This is the capstone phase — the reason the roadmap exists. It replaces both t
 7. Add pick interaction: "Draft" button on board rows and recommendation rows triggers the `pick` mutation. Show a confirmation if the pick is unusual (e.g., drafting a position that's already filled).
 8. Add undo button that triggers the `undo` mutation.
 9. Wire Apollo Client subscriptions so Yahoo-polled picks update all panels automatically.
-10. Add session controls: start session (with format/teams/slot config), save, load, and end session.
+10. Add session controls: start session (with league/format/teams/slot config), resume session (from session list), and end session. No explicit save button — persistence is automatic via the repo on every pick.
 11. Write integration tests: start session, pick sequence, verify panels update, subscription events propagate.
 
 ### Acceptance criteria
@@ -182,7 +188,7 @@ This is the capstone phase — the reason the roadmap exists. It replaces both t
 - Undo reverses the last pick and updates all panels.
 - Yahoo subscription events update the board and pick log in real time.
 - Category balance visualization shows relative strengths across all categories.
-- Session can be started, saved, loaded, and resumed.
+- Session can be started, resumed from the session list, and ended. Persistence is automatic — no manual save step.
 - Dashboard is usable under draft-day time pressure — interactions are fast, layout is clear, no unnecessary clicks.
 
 ## Phase 6: Analysis views and navigation
@@ -225,4 +231,6 @@ Phases 4 can start as soon as phase 1 is complete (it only needs read-only queri
 
 The critical path for draft day is: **1 -> 2 -> 3 -> 4 -> 5**. Phase 6 is a post-draft-season enhancement.
 
-This roadmap has no hard dependencies on other roadmaps — it consumes `AnalysisContainer` and the existing services which are already built. It replaces the Flask live-draft server (`cli/_live_server.py`) and the static HTML export with a richer, interactive alternative. The CLI remains fully functional.
+Phase 2 depends on the [draft-session-persistence](draft-session-persistence.md) roadmap (at least phases 1-2) for `SqliteDraftSessionRepo` and the `draft_session` / `draft_pick` tables. If draft-session-persistence is not yet complete when phase 2 begins, its first two phases should be implemented first.
+
+This roadmap replaces the Flask live-draft server (`cli/_live_server.py`) and the static HTML export with a richer, interactive alternative. The CLI remains fully functional.
