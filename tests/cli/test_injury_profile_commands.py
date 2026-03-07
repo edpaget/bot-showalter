@@ -80,7 +80,7 @@ class TestInjuryProfileCommand:
 
         result = runner.invoke(
             app,
-            ["report", "injury-profile", "Healthy", "--data-dir", "./data"],
+            ["report", "injury-profile", "Healthy Player", "--data-dir", "./data"],
         )
         assert result.exit_code == 0, result.output
         assert "Total IL stints:      0" in result.output
@@ -207,7 +207,7 @@ class TestInjuryEstimateCommand:
 
         result = runner.invoke(
             app,
-            ["report", "injury-estimate", "Healthy", "--season", "2026", "--data-dir", "./data"],
+            ["report", "injury-estimate", "Healthy Player", "--season", "2026", "--data-dir", "./data"],
         )
         assert result.exit_code == 0, result.output
         # Even healthy players should have nonzero baseline

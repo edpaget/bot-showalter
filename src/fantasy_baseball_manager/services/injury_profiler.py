@@ -5,6 +5,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import InjuryProfile
+from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.services.games_lost_estimator import estimate_games_lost
 
 if TYPE_CHECKING:
@@ -113,7 +114,7 @@ class InjuryProfiler:
 
     def lookup_profile(self, player_name: str, seasons: list[int]) -> tuple[InjuryProfile, str] | None:
         """Look up injury profile for a single player by name."""
-        players = self._player_repo.search_by_name(player_name)
+        players = resolve_players(self._player_repo, player_name)
         if not players:
             return None
 

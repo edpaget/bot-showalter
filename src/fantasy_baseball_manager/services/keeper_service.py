@@ -19,6 +19,7 @@ from fantasy_baseball_manager.domain import (
 )
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import best_position, build_roster_spots
+from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ def set_keeper_cost(
     Returns Ok(KeeperCost) on success, or Err(message) if the player
     cannot be uniquely resolved.
     """
-    matches = player_repo.search_by_name(player_name)
+    matches = resolve_players(player_repo, player_name)
 
     if len(matches) == 0:
         return Err(f"no player found matching '{player_name}'")

@@ -30,6 +30,7 @@ from fantasy_baseball_manager.domain import (
     YahooDraftPick,
     YahooPlayerMap,
 )
+from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.repos import (
     SqlitePitchingStatsRepo,
     SqlitePlayerRepo,
@@ -167,8 +168,8 @@ def yahoo_map_player(  # pragma: no cover
         matches = [p for p in candidates if p.name_first and p.name_first.lower() == first]
 
         if not matches:
-            # Fall back to search_by_name
-            matches = ctx.player_repo.search_by_name(player_name)
+            # Fall back to resolve_players for accent/nickname handling
+            matches = resolve_players(ctx.player_repo, player_name)
 
         if not matches:
             print_error(f"No player found matching '{player_name}'")
@@ -1157,7 +1158,7 @@ def yahoo_keeper_history(  # pragma: no cover
     league_name, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
-        matches = ctx.player_repo.search_by_name(player)
+        matches = resolve_players(ctx.player_repo, player)
         if not matches:
             print_error(f"No player found matching '{player}'")
             raise typer.Exit(code=1)

@@ -17,6 +17,7 @@ from fantasy_baseball_manager.cli.factory import build_keeper_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain import Err, KeeperConstraints, KeeperDecision, Ok
 from fantasy_baseball_manager.ingest import import_keeper_costs
+from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.services import (
     compare_scenarios,
     compute_adjusted_valuations,
@@ -33,6 +34,7 @@ from fantasy_baseball_manager.services import (
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.cli.factory import KeeperContext
+    from fantasy_baseball_manager.repos import PlayerRepo
 
 keeper_app = typer.Typer(name="keeper", help="Keeper league cost management")
 
@@ -260,7 +262,7 @@ def trade_eval_cmd(
     with build_keeper_context(data_dir) as ctx:
         give_ids: list[int] = []
         for name in gives:
-            matches = ctx.player_repo.search_by_name(name)
+            matches = resolve_players(ctx.player_repo, name)
             if len(matches) == 0:
                 typer.echo(f"Error: no player found matching '{name}'", err=True)
                 raise typer.Exit(code=1)
@@ -273,7 +275,7 @@ def trade_eval_cmd(
 
         receive_ids: list[int] = []
         for name in receives:
-            matches = ctx.player_repo.search_by_name(name)
+            matches = resolve_players(ctx.player_repo, name)
             if len(matches) == 0:
                 typer.echo(f"Error: no player found matching '{name}'", err=True)
                 raise typer.Exit(code=1)
@@ -292,9 +294,9 @@ def trade_eval_cmd(
     print_trade_evaluation(result)
 
 
-def _resolve_player_id(name: str, player_repo: object) -> int:
+def _resolve_player_id(name: str, player_repo: PlayerRepo) -> int:
     """Resolve a player name to a single ID, or exit with an error."""
-    matches = player_repo.search_by_name(name)  # type: ignore[union-attr]
+    matches = resolve_players(player_repo, name)
     if len(matches) == 0:
         typer.echo(f"Error: no player found matching '{name}'", err=True)
         raise typer.Exit(code=1)

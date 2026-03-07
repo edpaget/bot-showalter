@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import PlayerSummary, compute_age
+from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.team_aliases import to_lahman, to_modern
 
 if TYPE_CHECKING:
@@ -90,7 +91,7 @@ class PlayerBiographyService:
         )
 
     def search(self, name: str, season: int) -> list[PlayerSummary]:
-        players = self._player_repo.search_by_name(name)
+        players = resolve_players(self._player_repo, name)
         return [self._build_summary(p, season) for p in players]
 
     def find(

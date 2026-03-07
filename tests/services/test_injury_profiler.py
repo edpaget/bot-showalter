@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fantasy_baseball_manager.domain import ILStint, Player
+from fantasy_baseball_manager.name_utils import strip_accents
 from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
 
 
@@ -175,6 +176,10 @@ class _FakePlayerRepo:
         name_lower = name.lower()
         return [p for p in self._players if name_lower in f"{p.name_first} {p.name_last}".lower()]
 
+    def search_by_last_name_normalized(self, last_name: str) -> list[Player]:
+        query = strip_accents(last_name).lower()
+        return [p for p in self._players if strip_accents(p.name_last).lower() == query]
+
     def get_by_ids(self, player_ids: list[int]) -> list[Player]:
         id_set = set(player_ids)
         return [p for p in self._players if p.id in id_set]
@@ -193,9 +198,6 @@ class _FakePlayerRepo:
         raise NotImplementedError
 
     def get_by_last_name(self, last_name: str) -> list[Player]:
-        raise NotImplementedError
-
-    def search_by_last_name_normalized(self, last_name: str) -> list[Player]:
         raise NotImplementedError
 
     def all(self) -> list[Player]:
@@ -248,7 +250,7 @@ class TestInjuryProfiler:
         player = Player(id=1, name_first="Healthy", name_last="Guy", bats="R", birth_date="1990-01-01")
         profiler = self._make_profiler([player], [])
 
-        result = profiler.lookup_profile("Healthy", [2022, 2023])
+        result = profiler.lookup_profile("Healthy Guy", [2022, 2023])
         assert result is not None
         profile, name = result
         assert name == "Healthy Guy"
@@ -351,3 +353,51 @@ class TestInjuryProfiler:
         profiler = self._make_profiler(players, stints)
         results = profiler.list_games_lost_estimates([2024], projection_season=2026, top_n=1)
         assert len(results) == 1
+
+
+class TestNameResolution:
+    """Tests for resolve_players integration in InjuryProfiler."""
+
+    def _make_profiler(self, players: list[Player], stints: list[ILStint]) -> InjuryProfiler:
+        return InjuryProfiler(
+            player_repo=_FakePlayerRepo(players),
+            il_stint_repo=_FakeILStintRepo(stints),
+        )
+
+    def test_full_name_resolves(self) -> None:
+        bo = Player(id=1, name_first="Bo", name_last="Bichette", bats="R", birth_date="1998-03-05")
+        dante = Player(id=2, name_first="Dante", name_last="Bichette", bats="R", birth_date="1963-11-18")
+        stints = [_stint(player_id=1, season=2024, days=30)]
+        profiler = self._make_profiler([bo, dante], stints)
+
+        result = profiler.lookup_profile("Bo Bichette", [2024])
+        assert result is not None
+        _, name = result
+        assert name == "Bo Bichette"
+
+    def test_comma_format_resolves(self) -> None:
+        bo = Player(id=1, name_first="Bo", name_last="Bichette", bats="R", birth_date="1998-03-05")
+        dante = Player(id=2, name_first="Dante", name_last="Bichette", bats="R", birth_date="1963-11-18")
+        profiler = self._make_profiler([bo, dante], [])
+
+        result = profiler.lookup_profile("Bichette, Bo", [2024])
+        assert result is not None
+        _, name = result
+        assert name == "Bo Bichette"
+
+    def test_last_name_only_returns_result(self) -> None:
+        player = Player(id=1, name_first="Bo", name_last="Bichette", bats="R", birth_date="1998-03-05")
+        profiler = self._make_profiler([player], [])
+
+        result = profiler.lookup_profile("Bichette", [2024])
+        assert result is not None
+
+    def test_accent_insensitive(self) -> None:
+        player = Player(id=1, name_first="Ronald", name_last="Acuña", bats="R", birth_date="1997-12-18")
+        stints = [_stint(player_id=1, season=2024, days=60)]
+        profiler = self._make_profiler([player], stints)
+
+        result = profiler.lookup_profile("Acuna", [2024])
+        assert result is not None
+        _, name = result
+        assert name == "Ronald Acuña"

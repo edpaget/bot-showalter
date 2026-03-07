@@ -32,6 +32,7 @@ from fantasy_baseball_manager.cli.factory import (
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config
 from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade, Valuation
+from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.services import (
     DraftConfig,
     DraftEngine,
@@ -818,7 +819,7 @@ def _resolve_roster_names(roster_names: list[str], player_repo: SqlitePlayerRepo
     """Resolve player names to IDs, printing warnings for ambiguous/missing names."""
     roster_ids: list[int] = []
     for name in roster_names:
-        matches = player_repo.search_by_name(name)
+        matches = resolve_players(player_repo, name)
         if len(matches) == 1 and matches[0].id is not None:
             roster_ids.append(matches[0].id)
         elif len(matches) > 1:
