@@ -112,5 +112,5 @@ class YahooDraftSource:
 
     @staticmethod
     def _primary_position(positions: list[str]) -> str:
-        non_generic = [p for p in positions if p not in ("Util", "BN", "IL", "IL+", "NA", "DL")]
-        return non_generic[0] if non_generic else (positions[0] if positions else "Util")
+        non_generic = [p for p in positions if p not in ("UTIL", "BN", "IL", "IL+", "NA", "DL")]
+        return non_generic[0] if non_generic else (positions[0] if positions else "UTIL")

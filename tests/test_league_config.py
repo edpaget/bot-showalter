@@ -521,6 +521,56 @@ class TestParseLeague:
         with pytest.raises(LeagueConfigError, match="teams"):
             parse_league("main", raw)
 
+    def test_unknown_position_rejected(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "positions": {"XX": 1},
+            "batting_categories": [
+                {"key": "hr", "name": "HR", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        with pytest.raises(LeagueConfigError, match="unknown position 'XX'"):
+            parse_league("main", raw)
+
+    def test_unknown_pitcher_position_rejected(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "pitcher_positions": {"XX": 2},
+            "batting_categories": [
+                {"key": "hr", "name": "HR", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        with pytest.raises(LeagueConfigError, match="unknown position 'XX'"):
+            parse_league("main", raw)
+
 
 # -- TOML round-trip helpers -------------------------------------------------
 

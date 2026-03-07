@@ -409,8 +409,8 @@ class TestPickRosterConstraints:
         with pytest.raises(DraftError, match="roster slot.*full"):
             engine.pick(player_id=4, team=1, position="C")
 
-    def test_pick_accepts_lowercase_position(self) -> None:
-        """pick() normalizes position to uppercase before validation."""
+    def test_pick_uses_position_as_given(self) -> None:
+        """pick() uses position as-is (callers must pass canonical form)."""
         config = DraftConfig(
             teams=2,
             roster_slots={"C": 1, "OF": 2},
@@ -421,7 +421,7 @@ class TestPickRosterConstraints:
         players = [_make_player(1, "P1", "C", 30.0)]
         engine = DraftEngine()
         engine.start(players, config)
-        result = engine.pick(player_id=1, team=1, position="c")
+        result = engine.pick(player_id=1, team=1, position="C")
         assert result.position == "C"
 
     def test_reject_unknown_position_slot(self) -> None:

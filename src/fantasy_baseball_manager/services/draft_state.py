@@ -86,7 +86,6 @@ class DraftEngine:
         *,
         price: int | None = None,
     ) -> DraftPick:
-        position = position.upper()
         state = self._require_state()
         config = state.config
 

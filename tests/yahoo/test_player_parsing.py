@@ -16,7 +16,7 @@ class TestExtractPlayerData:
         assert result["player_key"] == "449.p.12345"
         assert result["name"] == "Mike Trout"
         assert result["editorial_team_abbr"] == "LAA"
-        assert result["eligible_positions"] == ["CF", "Util"]
+        assert result["eligible_positions"] == ["CF", "UTIL"]
         assert result["player_id"] == "12345"
 
     def test_skips_non_dict_items(self) -> None:
@@ -40,4 +40,22 @@ class TestExtractPlayerData:
 
         result = extract_player_data(player_meta)
 
-        assert result["eligible_positions"] == ["SS", "Util"]
+        assert result["eligible_positions"] == ["SS", "UTIL"]
+
+    def test_filters_non_position_entries(self) -> None:
+        player_meta = [
+            {
+                "eligible_positions": [
+                    {"position": "CF"},
+                    {"position": "OF"},
+                    {"position": "Util"},
+                    {"position": "BN"},
+                    {"position": "IL"},
+                    {"position": "IL+"},
+                ]
+            },
+        ]
+
+        result = extract_player_data(player_meta)
+
+        assert result["eligible_positions"] == ["CF", "OF", "UTIL"]

@@ -15,6 +15,7 @@ from fantasy_baseball_manager.domain import (
     StatcastPitch,
     StatDistribution,
     Team,
+    position_from_raw,
 )
 from fantasy_baseball_manager.ingest.il_parser import parse_il_transaction
 
@@ -583,7 +584,7 @@ def make_position_appearance_mapper(
         return PositionAppearance(
             player_id=player.id,
             season=int(row["yearID"]),
-            position=str(row["position"]),
+            position=position_from_raw(str(row["position"])),
             games=int(row["games"]),
         )
 

@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain import (
     LeagueFormat,
     LeagueSettings,
     StatType,
+    position_from_raw,
 )
 from fantasy_baseball_manager.exceptions import FbmException
 
@@ -94,6 +95,17 @@ def parse_category(raw: dict[str, Any]) -> CategoryConfig:
     )
 
 
+def _parse_positions(raw: dict[str, Any], context: str) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for key, value in raw.items():
+        try:
+            pos = position_from_raw(key)
+        except ValueError:
+            raise LeagueConfigError(f"{context}: unknown position '{key}'") from None
+        result[pos] = value
+    return result
+
+
 def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
     context = f"League '{name}'"
 
@@ -127,8 +139,8 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
         batting_categories=batting_categories,
         pitching_categories=pitching_categories,
         roster_util=raw.get("roster_util", 0),
-        positions={k.upper(): v for k, v in raw.get("positions", {}).items()},
-        pitcher_positions={k.upper(): v for k, v in raw.get("pitcher_positions", {}).items()},
+        positions=_parse_positions(raw.get("positions", {}), context),
+        pitcher_positions=_parse_positions(raw.get("pitcher_positions", {}), context),
         eligibility=eligibility,
     )
 
