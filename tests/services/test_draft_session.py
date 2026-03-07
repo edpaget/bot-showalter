@@ -811,3 +811,155 @@ class TestLoadDraftFromDB:
 
         with pytest.raises(ValueError, match="not found"):
             load_draft_from_db(9999, PLAYERS, repo)
+
+
+# ---------------------------------------------------------------------------
+# Fake repo for persistence tests
+# ---------------------------------------------------------------------------
+
+
+class FakeDraftSessionRepo:
+    """In-memory fake implementing the DraftSessionRepo protocol."""
+
+    def __init__(self) -> None:
+        self.created_sessions: list[DraftSessionRecord] = []
+        self.saved_picks: list[DraftSessionPick] = []
+        self.deleted_picks: list[tuple[int, int]] = []  # (session_id, pick_number)
+        self.status_updates: list[tuple[int, str]] = []
+        self.timestamp_updates: list[tuple[int, str]] = []
+        self._next_id = 1
+
+    def create_session(self, record: DraftSessionRecord) -> int:
+        self.created_sessions.append(record)
+        sid = self._next_id
+        self._next_id += 1
+        return sid
+
+    def save_pick(self, pick: DraftSessionPick) -> None:
+        self.saved_picks.append(pick)
+
+    def delete_pick(self, session_id: int, pick_number: int) -> None:
+        self.deleted_picks.append((session_id, pick_number))
+
+    def load_session(self, session_id: int) -> DraftSessionRecord | None:
+        return None
+
+    def load_picks(self, session_id: int) -> list[DraftSessionPick]:
+        return []
+
+    def list_sessions(self, *, league: str | None = None, season: int | None = None) -> list[DraftSessionRecord]:
+        return []
+
+    def update_status(self, session_id: int, status: str) -> None:
+        self.status_updates.append((session_id, status))
+
+    def update_timestamp(self, session_id: int, updated_at: str) -> None:
+        self.timestamp_updates.append((session_id, updated_at))
+
+
+# ---------------------------------------------------------------------------
+# DraftSession DB persistence (phase 2)
+# ---------------------------------------------------------------------------
+
+
+class TestDraftSessionPersistence:
+    """Test that DraftSession persists picks/undo/quit to the repo."""
+
+    def _make_session(
+        self,
+        commands: list[str],
+        *,
+        repo: FakeDraftSessionRepo | None = None,
+        session_id: int | None = None,
+    ) -> tuple[StringIO, DraftSession, FakeDraftSessionRepo]:
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+
+        cmd_iter = iter(commands)
+
+        def fake_input(_prompt: str = "") -> str:
+            return next(cmd_iter)
+
+        def fake_recommend(state: object, *, limit: int = 5) -> list[Recommendation]:
+            return []
+
+        fake_repo = repo or FakeDraftSessionRepo()
+
+        session = DraftSession(
+            engine=engine,
+            players=PLAYERS,
+            console=test_console,
+            recommend_fn=fake_recommend,
+            input_fn=fake_input,
+            session_repo=fake_repo,
+            session_id=session_id,
+            league_name="test-league",
+        )
+        return buf, session, fake_repo
+
+    def test_session_created_on_run(self) -> None:
+        _buf, session, repo = self._make_session(["quit"])
+        session.run()
+        assert len(repo.created_sessions) == 1
+        record = repo.created_sessions[0]
+        assert record.league == "test-league"
+        assert record.season == 2026
+        assert record.teams == 4
+        assert record.format == "snake"
+        assert record.status == "in_progress"
+
+    def test_resume_with_session_id_skips_create(self) -> None:
+        _buf, session, repo = self._make_session(["quit"], session_id=42)
+        session.run()
+        assert len(repo.created_sessions) == 0
+
+    def test_pick_persists_to_repo(self) -> None:
+        _buf, session, repo = self._make_session(["pick Mike Trout OF", "quit"])
+        session.run()
+        assert len(repo.saved_picks) == 1
+        pick = repo.saved_picks[0]
+        assert pick.session_id == 1
+        assert pick.pick_number == 1
+        assert pick.player_id == 1
+        assert pick.player_name == "Mike Trout"
+        assert pick.position == "OF"
+        assert len(repo.timestamp_updates) >= 1
+
+    def test_undo_deletes_from_repo(self) -> None:
+        _buf, session, repo = self._make_session(["pick Mike Trout OF", "undo", "quit"])
+        session.run()
+        assert len(repo.saved_picks) == 1
+        assert len(repo.deleted_picks) == 1
+        assert repo.deleted_picks[0] == (1, 1)  # session_id=1, pick_number=1
+
+    def test_quit_sets_complete_status(self) -> None:
+        _buf, session, repo = self._make_session(["quit"])
+        session.run()
+        assert len(repo.status_updates) == 1
+        assert repo.status_updates[0] == (1, "complete")
+
+    def test_no_repo_works_fine(self) -> None:
+        """DraftSession without a repo should work without errors."""
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+
+        cmd_iter = iter(["pick Mike Trout OF", "undo", "quit"])
+
+        def fake_input(_prompt: str = "") -> str:
+            return next(cmd_iter)
+
+        def fake_recommend(state: object, *, limit: int = 5) -> list[Recommendation]:
+            return []
+
+        session = DraftSession(
+            engine=engine,
+            players=PLAYERS,
+            console=test_console,
+            recommend_fn=fake_recommend,
+            input_fn=fake_input,
+        )
+        session.run()  # should not raise

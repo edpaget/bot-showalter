@@ -1,14 +1,17 @@
 import json
 import queue
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
+from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord
 from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
 from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
     DraftEngine,
     DraftError,
     DraftFormat,
+    DraftPick,
     DraftState,
 )
 from fantasy_baseball_manager.services.draft_translation import ingest_yahoo_pick
@@ -398,6 +401,9 @@ class DraftSession:
         id_aliases: dict[int, int] | None = None,
         projections: list[Projection] | None = None,
         league: LeagueSettings | None = None,
+        session_repo: DraftSessionRepo | None = None,
+        session_id: int | None = None,
+        league_name: str = "",
     ) -> None:
         self.engine = engine
         self.players = players
@@ -413,9 +419,13 @@ class DraftSession:
         self._id_aliases = id_aliases
         self._projections = projections
         self._league = league
+        self._session_repo = session_repo
+        self._session_id = session_id
+        self._league_name = league_name
 
     def run(self) -> None:
         """Main REPL loop."""
+        self._maybe_create_session()
         state = self.engine.state
         self.console.print(
             f"[bold]Draft session started[/bold] — {state.config.teams} teams, {state.config.format.value} format"
@@ -440,6 +450,51 @@ class DraftSession:
             if not self._handle_command(cmd):
                 break
 
+    def _maybe_create_session(self) -> None:
+        """Create a new DB session if a repo is injected and no session_id was provided."""
+        if self._session_repo is None or self._session_id is not None:
+            return
+        config = self.engine.state.config
+        now = datetime.now(tz=UTC).isoformat()
+        record = DraftSessionRecord(
+            league=self._league_name,
+            season=config.season,
+            teams=config.teams,
+            format=config.format.value,
+            user_team=config.user_team,
+            roster_slots=dict(config.roster_slots),
+            budget=config.budget,
+            status="in_progress",
+            created_at=now,
+            updated_at=now,
+        )
+        self._session_id = self._session_repo.create_session(record)
+
+    def _persist_pick(self, pick: DraftPick) -> None:
+        """Write a pick to the DB if a repo is available."""
+        if self._session_repo is None or self._session_id is None:
+            return
+        now = datetime.now(tz=UTC).isoformat()
+        db_pick = DraftSessionPick(
+            session_id=self._session_id,
+            pick_number=pick.pick_number,
+            team=pick.team,
+            player_id=pick.player_id,
+            player_name=pick.player_name,
+            position=pick.position,
+            price=pick.price,
+        )
+        self._session_repo.save_pick(db_pick)
+        self._session_repo.update_timestamp(self._session_id, now)
+
+    def _persist_undo(self, pick: DraftPick) -> None:
+        """Delete an undone pick from the DB if a repo is available."""
+        if self._session_repo is None or self._session_id is None:
+            return
+        now = datetime.now(tz=UTC).isoformat()
+        self._session_repo.delete_pick(self._session_id, pick.pick_number)
+        self._session_repo.update_timestamp(self._session_id, now)
+
     def _drain_yahoo_picks(self) -> None:
         if self._yahoo_pick_queue is None:
             return
@@ -461,6 +516,7 @@ class DraftSession:
                 team_rosters=self.engine.state.team_rosters,
             )
             if result is not None:
+                self._persist_pick(result)
                 self._unsaved = True
                 price_str = f" for ${result.price}" if result.price is not None else ""
                 self.console.print(
@@ -548,6 +604,7 @@ class DraftSession:
             self.console.print(f"[red]{e}[/red]")
             return
 
+        self._persist_pick(pick)
         self._unsaved = True
         price_str = f" for ${pick.price}" if pick.price is not None else ""
         self.console.print(
@@ -566,6 +623,7 @@ class DraftSession:
         except DraftError as e:
             self.console.print(f"[red]{e}[/red]")
             return
+        self._persist_undo(pick)
         self._unsaved = True
         self.console.print(f"[yellow]Undid pick #{pick.pick_number}: {pick.player_name}[/yellow]")
 
@@ -793,5 +851,7 @@ class DraftSession:
     def _handle_quit(self) -> bool:  # pragma: no cover
         if self._unsaved and self.save_path is not None:
             self._handle_save()
+        if self._session_repo is not None and self._session_id is not None:
+            self._session_repo.update_status(self._session_id, "complete")
         self.console.print("Goodbye!")
         return False

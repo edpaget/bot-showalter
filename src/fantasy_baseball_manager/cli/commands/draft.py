@@ -31,8 +31,11 @@ from fantasy_baseball_manager.cli.factory import (
 )
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config
+from fantasy_baseball_manager.db.connection import create_connection
+from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade, Valuation
 from fantasy_baseball_manager.name_utils import resolve_players
+from fantasy_baseball_manager.repos import SqliteDraftSessionRepo
 from fantasy_baseball_manager.services import (
     DraftConfig,
     DraftEngine,
@@ -364,6 +367,9 @@ def draft_start(  # pragma: no cover
 
     recommend_fn = functools.partial(recommend, category_balance_fn=_cat_balance_fn)
 
+    db_conn = create_connection(Path(data_dir) / "fbm.db")
+    session_repo = SqliteDraftSessionRepo(SingleConnectionProvider(db_conn))
+
     session = DraftSession(
         engine=engine,
         players=draft_players,
@@ -373,6 +379,8 @@ def draft_start(  # pragma: no cover
         save_path=save_path,
         projections=projections,
         league=league,
+        session_repo=session_repo,
+        league_name=league_name,
     )
     session.run()
 
