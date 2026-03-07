@@ -20,6 +20,13 @@ from fantasy_baseball_manager.models.gbm_training import extract_features
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, TrainResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
+from fantasy_baseball_manager.models.statcast_gbm.calibration import (
+    FoldData,
+    apply_calibrators,
+    fit_multifold_calibrators,
+    load_calibrators,
+    save_calibrators,
+)
 from fantasy_baseball_manager.models.statcast_gbm.features import (
     build_batter_preseason_weighted_set,
     build_pitcher_preseason_averaged_set,
@@ -104,6 +111,61 @@ def _compute_feature_importances(
         reverse=True,
     )
     return [(name, float(imp)) for name, imp in pairs[:10]]
+
+
+def _renormalize_probabilities(
+    p_breakout: np.ndarray,
+    p_bust: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Clamp negatives and renormalize (p_breakout, p_bust, p_neutral) to sum to 1."""
+    p_breakout = np.maximum(p_breakout, 0.0)
+    p_bust = np.maximum(p_bust, 0.0)
+    p_neutral = np.maximum(1.0 - p_breakout - p_bust, 0.0)
+    total = p_breakout + p_bust + p_neutral
+    # Avoid division by zero — shouldn't happen but be safe
+    total = np.where(total > 0, total, 1.0)
+    return p_breakout / total, p_bust / total, p_neutral / total
+
+
+def _collect_classification_fold_data(
+    joined: list[dict[str, Any]],
+    feature_columns: list[str],
+    seasons: list[int],
+) -> list[FoldData]:
+    """Collect per-fold (predicted_proba, binary_actual) for calibration fitting."""
+    folds: list[FoldData] = []
+
+    for cv_train_seasons, cv_test_season in temporal_expanding_cv(seasons):
+        cv_train = [r for r in joined if r["season"] in set(cv_train_seasons)]
+        cv_test = [r for r in joined if r["season"] == cv_test_season]
+        if not cv_train or not cv_test:
+            continue
+
+        X_cv_train = extract_features(cv_train, feature_columns)
+        y_cv_train = [LABEL_TO_INT[r["label"]] for r in cv_train]
+        X_cv_test = extract_features(cv_test, feature_columns)
+        y_cv_test = np.array([LABEL_TO_INT[r["label"]] for r in cv_test])
+
+        cv_clf = HistGradientBoostingClassifier(
+            max_iter=200,
+            max_depth=5,
+            learning_rate=0.1,
+            min_samples_leaf=10,
+        )
+        cv_clf.fit(X_cv_train, y_cv_train)
+        cv_proba = cv_clf.predict_proba(X_cv_test)
+
+        class_to_idx = {c: i for i, c in enumerate(cv_clf.classes_)}
+        breakout_idx = class_to_idx.get(1, 1)
+        bust_idx = class_to_idx.get(2, 2)
+
+        fold: FoldData = {
+            "p_breakout": (cv_proba[:, breakout_idx], (y_cv_test == 1).astype(float)),
+            "p_bust": (cv_proba[:, bust_idx], (y_cv_test == 2).astype(float)),
+        }
+        folds.append(fold)
+
+    return folds
 
 
 @register("breakout-bust")
@@ -219,6 +281,14 @@ class BreakoutBustModel:
                 artifact_path / f"{player_type}_classifier.joblib",
             )
 
+            # Fit calibrators via temporal expanding CV
+            if len(seasons) >= 3:
+                fold_data = _collect_classification_fold_data(joined, feature_columns, seasons)
+                if fold_data:
+                    calibrators = fit_multifold_calibrators(fold_data, method="isotonic")
+                    save_calibrators(calibrators, artifact_path / f"{player_type}_calibrators.joblib")
+                    logger.info("%s calibrators fitted from %d folds", player_type, len(fold_data))
+
             # Score on holdout
             if holdout_rows:
                 X_holdout = extract_features(holdout_rows, feature_columns)
@@ -289,9 +359,22 @@ class BreakoutBustModel:
 
             # Map clf.classes_ to our label indices
             class_to_idx = {c: i for i, c in enumerate(clf.classes_)}
-            neutral_idx = class_to_idx.get(0, 0)
             breakout_idx = class_to_idx.get(1, 1)
             bust_idx = class_to_idx.get(2, 2)
+
+            p_breakout = proba[:, breakout_idx]
+            p_bust = proba[:, bust_idx]
+
+            # Apply calibration if calibrators exist
+            cal_path = artifact_path / f"{player_type}_calibrators.joblib"
+            if cal_path.exists():
+                calibrators = load_calibrators(cal_path)
+                raw_preds = {"p_breakout": list(p_breakout), "p_bust": list(p_bust)}
+                calibrated = apply_calibrators(raw_preds, calibrators)
+                p_breakout = np.array(calibrated["p_breakout"])
+                p_bust = np.array(calibrated["p_bust"])
+
+            p_breakout, p_bust, p_neutral = _renormalize_probabilities(p_breakout, p_bust)
 
             for i, row in enumerate(joined):
                 predictions.append(
@@ -300,9 +383,9 @@ class BreakoutBustModel:
                         "player_name": "",
                         "player_type": player_type,
                         "position": "",
-                        "p_breakout": float(proba[i, breakout_idx]),
-                        "p_bust": float(proba[i, bust_idx]),
-                        "p_neutral": float(proba[i, neutral_idx]),
+                        "p_breakout": float(p_breakout[i]),
+                        "p_bust": float(p_bust[i]),
+                        "p_neutral": float(p_neutral[i]),
                         "top_features": top_features,
                     }
                 )
@@ -350,6 +433,24 @@ class BreakoutBustModel:
             X_holdout = extract_features(holdout_rows, feature_columns)
             y_holdout = [LABEL_TO_INT[r["label"]] for r in holdout_rows]
             proba = clf.predict_proba(X_holdout)
+
+            # Fit calibrators from CV folds and apply to holdout
+            if len(seasons) >= 3:
+                fold_data = _collect_classification_fold_data(joined, feature_columns, seasons)
+                if fold_data:
+                    calibrators = fit_multifold_calibrators(fold_data, method="isotonic")
+                    class_to_idx = {c: i for i, c in enumerate(clf.classes_)}
+                    breakout_idx = class_to_idx.get(1, 1)
+                    bust_idx = class_to_idx.get(2, 2)
+                    raw_preds = {
+                        "p_breakout": list(proba[:, breakout_idx]),
+                        "p_bust": list(proba[:, bust_idx]),
+                    }
+                    cal_preds = apply_calibrators(raw_preds, calibrators)
+                    p_bo = np.array(cal_preds["p_breakout"])
+                    p_bu = np.array(cal_preds["p_bust"])
+                    p_bo, p_bu, p_ne = _renormalize_probabilities(p_bo, p_bu)
+                    proba = np.column_stack([p_ne, p_bo, p_bu])
 
             all_y_holdout.extend(y_holdout)
             all_proba.append(proba)

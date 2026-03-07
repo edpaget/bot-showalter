@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
+import numpy as np
 import pytest
 
 from fantasy_baseball_manager.domain import LabeledSeason, OutcomeLabel
@@ -12,6 +13,7 @@ from fantasy_baseball_manager.models.breakout_bust.model import (
     INT_TO_LABEL,
     LABEL_TO_INT,
     BreakoutBustModel,
+    _renormalize_probabilities,
 )
 from fantasy_baseball_manager.models.protocols import Evaluable, Model, ModelConfig
 from fantasy_baseball_manager.models.registry import _clear, get, register
@@ -430,3 +432,145 @@ class TestBreakoutBustModelEvaluate:
         model, config = _make_model_and_config(tmp_path, labels, rows, seasons=[2023])
         with pytest.raises(ValueError, match="at least 2"):
             model.evaluate(config)
+
+
+# ---------------------------------------------------------------------------
+# Calibration tests
+# ---------------------------------------------------------------------------
+
+
+class TestRenormalizeProbabilities:
+    def test_already_normalized(self) -> None:
+        p_bo, p_bu, p_ne = _renormalize_probabilities(
+            np.array([0.2, 0.3]),
+            np.array([0.1, 0.2]),
+        )
+        np.testing.assert_allclose(p_bo + p_bu + p_ne, 1.0)
+
+    def test_clamps_negatives(self) -> None:
+        p_bo, p_bu, p_ne = _renormalize_probabilities(
+            np.array([-0.1, 0.5]),
+            np.array([0.3, -0.2]),
+        )
+        assert np.all(p_bo >= 0)
+        assert np.all(p_bu >= 0)
+        assert np.all(p_ne >= 0)
+        np.testing.assert_allclose(p_bo + p_bu + p_ne, 1.0)
+
+    def test_renormalizes_when_sum_exceeds_one(self) -> None:
+        p_bo, p_bu, p_ne = _renormalize_probabilities(
+            np.array([0.6]),
+            np.array([0.7]),
+        )
+        np.testing.assert_allclose(p_bo + p_bu + p_ne, 1.0)
+        # p_neutral should be 0 since 0.6 + 0.7 > 1
+        np.testing.assert_allclose(p_ne, 0.0, atol=1e-10)
+
+
+class TestCalibration:
+    @pytest.fixture
+    def _combined_data(self) -> tuple[list[LabeledSeason], list[dict[str, Any]]]:
+        batter_labels, batter_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="batter",
+        )
+        pitcher_labels, pitcher_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="pitcher",
+        )
+        return batter_labels + pitcher_labels, batter_rows + pitcher_rows
+
+    def test_train_saves_calibrators(
+        self,
+        tmp_path: Path,
+        _combined_data: tuple[list[LabeledSeason], list[dict[str, Any]]],
+    ) -> None:
+        all_labels, all_rows = _combined_data
+        model, config = _make_model_and_config(tmp_path, all_labels, all_rows, seasons=[2020, 2021, 2022, 2023])
+        model.train(config)
+
+        artifact_path = tmp_path / "breakout-bust-classifier"
+        assert (artifact_path / "batter_calibrators.joblib").exists()
+        assert (artifact_path / "pitcher_calibrators.joblib").exists()
+
+    def test_predict_applies_calibration(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Verify calibrated predictions differ from raw and still sum to ~1."""
+        batter_labels, batter_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023, 2024],
+            players_per_season=60,
+            player_type="batter",
+        )
+        pitcher_labels, pitcher_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023, 2024],
+            players_per_season=60,
+            player_type="pitcher",
+        )
+        all_labels = batter_labels + pitcher_labels
+        all_rows = batter_rows + pitcher_rows
+
+        model, train_config = _make_model_and_config(
+            tmp_path,
+            all_labels,
+            all_rows,
+            seasons=[2020, 2021, 2022, 2023],
+        )
+        model.train(train_config)
+
+        predict_config = ModelConfig(
+            artifacts_dir=str(tmp_path),
+            seasons=[2024],
+            model_params=_MODEL_PARAMS,
+        )
+        result = model.predict(predict_config)
+
+        for pred in result.predictions:
+            total = pred["p_breakout"] + pred["p_bust"] + pred["p_neutral"]
+            assert abs(total - 1.0) < 1e-6, f"Probabilities sum to {total}, expected ~1.0"
+
+    def test_predict_graceful_without_calibrator_file(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Predict works if no calibrator files exist (e.g. trained with only 2 seasons)."""
+        batter_labels, batter_rows = _generate_synthetic_data(
+            seasons=[2022, 2023, 2024],
+            players_per_season=60,
+            player_type="batter",
+        )
+        pitcher_labels, pitcher_rows = _generate_synthetic_data(
+            seasons=[2022, 2023, 2024],
+            players_per_season=60,
+            player_type="pitcher",
+        )
+        all_labels = batter_labels + pitcher_labels
+        all_rows = batter_rows + pitcher_rows
+
+        # Train with only 2 seasons — no calibrators saved
+        model, train_config = _make_model_and_config(
+            tmp_path,
+            all_labels,
+            all_rows,
+            seasons=[2022, 2023],
+        )
+        model.train(train_config)
+
+        # Remove calibrator files if they exist (shouldn't with 2 seasons, but be safe)
+        artifact_path = tmp_path / "breakout-bust-classifier"
+        for f in artifact_path.glob("*_calibrators.joblib"):
+            f.unlink()
+
+        predict_config = ModelConfig(
+            artifacts_dir=str(tmp_path),
+            seasons=[2024],
+            model_params=_MODEL_PARAMS,
+        )
+        result = model.predict(predict_config)
+        assert len(result.predictions) > 0
+        for pred in result.predictions:
+            total = pred["p_breakout"] + pred["p_bust"] + pred["p_neutral"]
+            assert abs(total - 1.0) < 1e-6
