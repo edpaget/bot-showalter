@@ -20,7 +20,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Injury Model Fixes](injury-model-fixes.md) | 3 | phase 1 done | injury-risk-discount (done), player-bio-fuzzy-team (done) |
 | [Yahoo Draft Ingestion Fixes](yahoo-draft-ingestion-fixes.md) | 3 | phases 1-2 done | yahoo-live-draft-fixes (done) |
 | [Draft Session Persistence](draft-session-persistence.md) | 3 | phase 1 done | live-draft-tracker (done) |
-| [FanGraphs Projection Sync](fangraphs-projection-sync.md) | 3 | not started | none |
 
 ## Completed Roadmaps
 
