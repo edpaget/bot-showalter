@@ -99,6 +99,11 @@ def resolve_draft_position(
     if _has_room("BN"):
         return "BN"
 
+    # Final fallback: any open slot (for roster bookkeeping, not eligibility)
+    for slot in roster_slots:
+        if _has_room(slot):
+            return slot
+
     return position
 
 

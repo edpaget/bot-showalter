@@ -264,6 +264,80 @@ class TestIngestYahooPick:
         assert r3 is not None
         assert r3.position == "BN"
 
+    def test_overflow_to_any_open_slot(self) -> None:
+        """25 picks into 25 roster slots — SS unused, last OF pick lands in SS via any-open-slot."""
+        config = DraftConfig(
+            teams=2,
+            roster_slots={"C": 1, "1B": 1, "2B": 1, "3B": 1, "SS": 1, "OF": 3, "UTIL": 1, "P": 8, "BN": 8},
+            format=DraftFormat.LIVE,
+            user_team=1,
+            season=2026,
+        )
+        # 25 players: 4 OF, 13 pitchers (SP), 7 batters at various positions, 1 more OF at end
+        players = []
+        pid = 1
+        # 3 OF to fill OF slots
+        for i in range(3):
+            players.append(_make_player(pid, f"OF Player {i}", "OF"))
+            pid += 1
+        # 1B, 2B, 3B, C to fill those slots
+        for pos in ["1B", "2B", "3B", "C"]:
+            players.append(_make_player(pid, f"{pos} Player", pos))
+            pid += 1
+        # 1 UTIL-bound batter
+        players.append(_make_player(pid, "UTIL Batter", "OF"))
+        pid += 1
+        # 8 pitchers to fill P slots
+        for i in range(8):
+            players.append(_make_player(pid, f"SP Player {i}", "SP"))
+            pid += 1
+        # 8 BN fillers (batters)
+        for i in range(8):
+            players.append(_make_player(pid, f"BN Batter {i}", "OF"))
+            pid += 1
+        # The 25th pick: OF that should overflow to SS
+        players.append(_make_player(pid, "Wilyer Abreu", "OF"))
+        last_pid = pid
+
+        engine = DraftEngine()
+        engine.start(players, config)
+
+        # Ingest first 24 picks for team 2
+        for p in players[:-1]:
+            yahoo_pick = _make_yahoo_pick(
+                player_id=p.player_id,
+                player_name=p.player_name,
+                team_key="449.l.12345.t.2",
+                position=p.position,
+            )
+            result = ingest_yahoo_pick(
+                engine.pick,
+                set(engine.state.available_pool),
+                yahoo_pick,
+                _TEAM_MAP,
+                roster_slots=config.roster_slots,
+                team_rosters=engine.state.team_rosters,
+            )
+            assert result is not None, f"Pick {p.player_name} failed"
+
+        # 25th pick — should land in SS (the only open slot)
+        yahoo_pick_25 = _make_yahoo_pick(
+            player_id=last_pid,
+            player_name="Wilyer Abreu",
+            team_key="449.l.12345.t.2",
+            position="OF",
+        )
+        result_25 = ingest_yahoo_pick(
+            engine.pick,
+            set(engine.state.available_pool),
+            yahoo_pick_25,
+            _TEAM_MAP,
+            roster_slots=config.roster_slots,
+            team_rosters=engine.state.team_rosters,
+        )
+        assert result_25 is not None
+        assert result_25.position == "SS"
+
     def test_id_alias_resolves_mismatched_id(self) -> None:
         """Yahoo ID 9007 aliased to board ID 22036 — pick uses board ID."""
         players = [_make_player(22036, "Jose Ramirez", "OF")]
@@ -322,6 +396,18 @@ class TestResolveDraftPosition:
 
     def test_direct_slot_partially_filled(self) -> None:
         assert resolve_draft_position("OF", {"OF": 3, "UTIL": 1}, {"OF": 1}) == "OF"
+
+    def test_any_open_slot_fallback(self) -> None:
+        """When SS, UTIL, and BN are full but OF has room, falls back to OF."""
+        slots = {"SS": 1, "UTIL": 1, "BN": 1, "OF": 3}
+        fills = {"SS": 1, "UTIL": 1, "BN": 1, "OF": 1}
+        assert resolve_draft_position("SS", slots, fills) == "OF"
+
+    def test_any_open_slot_when_all_full_returns_original(self) -> None:
+        """All slots full → returns original position unchanged."""
+        slots = {"SS": 1, "UTIL": 1, "BN": 1}
+        fills = {"SS": 1, "UTIL": 1, "BN": 1}
+        assert resolve_draft_position("SS", slots, fills) == "SS"
 
 
 class TestBuildPlayerIdAliases:
