@@ -1,5 +1,6 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import httpx
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
@@ -7,11 +8,14 @@ from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
+from fantasy_baseball_manager.ingest.fangraphs_projection_source import FgProjectionSource
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
+from tests.helpers import seed_player
 
 if TYPE_CHECKING:
     import sqlite3
+    from pathlib import Path
 
     import pytest
 
@@ -91,3 +95,174 @@ class TestProjectionsSystemsCommand:
         result = runner.invoke(app, ["projections", "systems", "--season", "2025", "--data-dir", "./data"])
         assert result.exit_code == 0, result.output
         assert "No projection systems found" in result.output
+
+
+# --- Canned API data for sync tests ---
+
+_BATTING_ROW: dict[str, Any] = {
+    "playerid": "10155",
+    "xMLBAMID": 545361,
+    "PlayerName": "Mike Trout",
+    "PA": 600,
+    "AB": 530,
+    "H": 160,
+    "2B": 30,
+    "3B": 5,
+    "HR": 35,
+    "RBI": 90,
+    "R": 100,
+    "SB": 15,
+    "CS": 3,
+    "BB": 60,
+    "SO": 120,
+    "AVG": 0.302,
+    "OBP": 0.395,
+    "SLG": 0.575,
+    "OPS": 0.970,
+    "wOBA": 0.410,
+    "wRC+": 170.0,
+    "WAR": 8.5,
+}
+
+_PITCHING_ROW: dict[str, Any] = {
+    "playerid": "19755",
+    "xMLBAMID": 669373,
+    "PlayerName": "Corbin Burnes",
+    "W": 15,
+    "L": 5,
+    "G": 30,
+    "GS": 30,
+    "SV": 0,
+    "IP": 180.0,
+    "H": 120,
+    "ER": 50,
+    "HR": 15,
+    "BB": 40,
+    "SO": 200,
+    "ERA": 2.80,
+    "WHIP": 0.95,
+    "K/9": 10.0,
+    "BB/9": 2.0,
+    "FIP": 2.90,
+    "WAR": 6.0,
+}
+
+
+class _FakeTransport(httpx.BaseTransport):
+    """Returns canned JSON for any request URL."""
+
+    def __init__(self, batting_rows: list[dict[str, Any]], pitching_rows: list[dict[str, Any]]) -> None:
+        self._batting = batting_rows
+        self._pitching = pitching_rows
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        stats = dict(request.url.params).get("stats", "bat")
+        data = self._pitching if stats == "pit" else self._batting
+        return httpx.Response(200, json=data)
+
+
+def _seed_sync_db(db_path: Path) -> None:
+    """Create and seed a file-based DB with test players."""
+    conn = create_connection(db_path)
+    seed_player(conn, fangraphs_id=10155, mlbam_id=545361, name_first="Mike", name_last="Trout")
+    seed_player(conn, fangraphs_id=19755, mlbam_id=669373, name_first="Corbin", name_last="Burnes")
+    conn.commit()
+    conn.close()
+
+
+def _patch_sync_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    db_path: Path,
+    batting_rows: list[dict[str, Any]] | None = None,
+    pitching_rows: list[dict[str, Any]] | None = None,
+) -> None:
+    """Monkeypatch create_connection to use file DB and inject fake HTTP transport."""
+    monkeypatch.setattr(
+        "fantasy_baseball_manager.cli.factory.create_connection",
+        lambda path: create_connection(db_path),
+    )
+    transport = _FakeTransport(batting_rows or [_BATTING_ROW], pitching_rows or [_PITCHING_ROW])
+    real_init = FgProjectionSource.__init__
+
+    def _patched_init(self: FgProjectionSource, *args: Any, **kwargs: Any) -> None:
+        kwargs["client"] = httpx.Client(transport=transport)
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "fantasy_baseball_manager.cli.commands.projections.FgProjectionSource.__init__",
+        _patched_init,
+    )
+
+
+class TestProjectionsSyncCommand:
+    def test_sync_single_system(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_path = tmp_path / "fbm.db"
+        _seed_sync_db(db_path)
+        _patch_sync_transport(monkeypatch, db_path)
+
+        result = runner.invoke(app, ["projections", "sync", "fangraphs-dc", "--season", "2026", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
+        projs = proj_repo.get_by_season(2026, system="fangraphs-dc")
+        assert len(projs) == 2  # 1 batter + 1 pitcher
+        types = {p.player_type for p in projs}
+        assert types == {"batter", "pitcher"}
+        for p in projs:
+            assert p.source_type == "third_party"
+        verify_conn.close()
+
+    def test_sync_all_systems(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_path = tmp_path / "fbm.db"
+        _seed_sync_db(db_path)
+        _patch_sync_transport(monkeypatch, db_path)
+
+        result = runner.invoke(app, ["projections", "sync", "--all", "--season", "2026", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
+        systems = {p.system for p in proj_repo.get_by_season(2026)}
+        assert systems == {"fangraphs-dc", "steamer", "zips"}
+        verify_conn.close()
+
+    def test_sync_custom_version(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_path = tmp_path / "fbm.db"
+        _seed_sync_db(db_path)
+        _patch_sync_transport(monkeypatch, db_path)
+
+        result = runner.invoke(
+            app,
+            [
+                "projections",
+                "sync",
+                "steamer",
+                "--season",
+                "2026",
+                "--version",
+                "2026-preseason",
+                "--data-dir",
+                "./data",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
+        projs = proj_repo.get_by_season(2026, system="steamer")
+        assert all(p.version == "2026-preseason" for p in projs)
+        verify_conn.close()
+
+    def test_sync_invalid_system(self) -> None:
+        result = runner.invoke(app, ["projections", "sync", "bogus", "--season", "2026", "--data-dir", "./data"])
+        assert result.exit_code != 0
+
+    def test_sync_requires_system_or_all(self) -> None:
+        result = runner.invoke(app, ["projections", "sync", "--season", "2026", "--data-dir", "./data"])
+        assert result.exit_code != 0
+
+    def test_sync_help(self) -> None:
+        result = runner.invoke(app, ["projections", "sync", "--help"])
+        assert result.exit_code == 0
+        assert "sync" in result.output.lower() or "season" in result.output.lower()
