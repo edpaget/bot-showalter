@@ -8,6 +8,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 |---------|--------|----------|-------------------|
 | [Keeper League Analysis](keeper-league-analysis.md) | 3 | phase 1 done | keeper-surplus-value (done), yahoo-fantasy-integration (done) |
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
+| [FanGraphs Projection Sync](fangraphs-projection-sync.md) | 3 | phase 1 done | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
