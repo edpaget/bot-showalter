@@ -64,6 +64,13 @@ class SqliteILStintRepo:
             ).fetchall()
             return [self._row_to_stint(row) for row in rows]
 
+    def count_by_season(self) -> dict[int, int]:
+        with self._provider.connection() as conn:
+            rows = conn.execute(
+                "SELECT season, COUNT(*) AS cnt FROM il_stint GROUP BY season ORDER BY season",
+            ).fetchall()
+            return {row["season"]: row["cnt"] for row in rows}
+
     @staticmethod
     def _row_to_stint(row: sqlite3.Row) -> ILStint:
         return ILStint(

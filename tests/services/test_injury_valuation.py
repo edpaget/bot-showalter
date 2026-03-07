@@ -149,6 +149,12 @@ class FakeILStintRepo:
     def get_by_season(self, season: int) -> list[ILStint]:
         return [s for s in self._stints if s.season == season]
 
+    def count_by_season(self) -> dict[int, int]:
+        counts: dict[int, int] = {}
+        for s in self._stints:
+            counts[s.season] = counts.get(s.season, 0) + 1
+        return counts
+
 
 def _build_deps(
     stints: list[ILStint] | None = None,

@@ -8,8 +8,10 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.cli.factory import IngestContainer
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.domain.load_log import LoadLog
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
+from fantasy_baseball_manager.repos.il_stint_repo import SqliteILStintRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import SqliteMinorLeagueBattingStatsRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
@@ -733,4 +735,46 @@ class TestIngestRosterApi:
         stint_repo = SqliteRosterStintRepo(SingleConnectionProvider(conn))
         stints = stint_repo.get_by_season(2026)
         assert len(stints) == 2
+        conn.close()
+
+
+class TestIngestILCoverage:
+    def test_il_coverage_shows_season_counts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        p1 = seed_player(conn, mlbam_id=545361)
+        il_repo = SqliteILStintRepo(SingleConnectionProvider(conn))
+        il_repo.upsert(ILStint(player_id=p1, season=2023, start_date="2023-04-10", il_type="15"))
+        il_repo.upsert(ILStint(player_id=p1, season=2024, start_date="2024-05-15", il_type="10"))
+        il_repo.upsert(ILStint(player_id=p1, season=2024, start_date="2024-07-01", il_type="60"))
+        conn.commit()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
+            lambda data_dir: _build_test_container(
+                conn,
+                _FakeSource([], "chadwick_bureau", "chadwick_register"),
+            ),
+        )
+
+        result = runner.invoke(app, ["ingest", "il-coverage"])
+        assert result.exit_code == 0, result.output
+        assert "2023" in result.output
+        assert "2024" in result.output
+        assert "3" in result.output  # total stints
+        conn.close()
+
+    def test_il_coverage_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.ingest.build_ingest_container",
+            lambda data_dir: _build_test_container(
+                conn,
+                _FakeSource([], "chadwick_bureau", "chadwick_register"),
+            ),
+        )
+
+        result = runner.invoke(app, ["ingest", "il-coverage"])
+        assert result.exit_code == 0, result.output
+        assert "No IL stint data" in result.output
         conn.close()

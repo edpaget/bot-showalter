@@ -6,6 +6,7 @@ from pathlib import Path  # noqa: TC003 — used at runtime by typer
 from typing import Annotated, Any
 
 import typer
+from rich.table import Table
 
 from fantasy_baseball_manager.cli._output import console, print_error, print_ingest_result
 from fantasy_baseball_manager.cli.factory import IngestContainer, build_ingest_container
@@ -221,6 +222,31 @@ def ingest_il(  # pragma: no cover
                 case Err(e):
                     print_error(e.message)
                     continue
+
+
+@ingest_app.command("il-coverage")
+def ingest_il_coverage(
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show IL stint data coverage by season."""
+    with build_ingest_container(data_dir) as container:
+        counts = container.il_stint_repo.count_by_season()
+        if not counts:
+            console.print("  No IL stint data found.")
+            return
+        table = Table(title="IL Stint Coverage")
+        table.add_column("Season", justify="right")
+        table.add_column("Stints", justify="right")
+        table.add_column("Status")
+        total = 0
+        for season in sorted(counts):
+            count = counts[season]
+            total += count
+            status = "[green]✓[/green]" if count > 0 else "[red]✗[/red]"
+            table.add_row(str(season), str(count), status)
+        table.add_section()
+        table.add_row("Total", str(total), "")
+        console.print(table)
 
 
 @ingest_app.command("appearances")

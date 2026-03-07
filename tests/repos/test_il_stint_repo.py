@@ -87,6 +87,23 @@ class TestSqliteILStintRepo:
         seasons = {r.season for r in results}
         assert seasons == {2023, 2024}
 
+    def test_count_by_season(self, conn) -> None:
+        p1 = seed_player(conn, mlbam_id=545361)
+        p2 = seed_player(conn, mlbam_id=660271)
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
+        repo.upsert(ILStint(player_id=p1, season=2024, start_date="2024-05-15", il_type="15"))
+        repo.upsert(ILStint(player_id=p2, season=2024, start_date="2024-06-01", il_type="10"))
+        repo.upsert(ILStint(player_id=p1, season=2023, start_date="2023-07-01", il_type="60"))
+        repo.upsert(ILStint(player_id=p1, season=2022, start_date="2022-04-10", il_type="15"))
+        repo.upsert(ILStint(player_id=p2, season=2022, start_date="2022-08-20", il_type="10"))
+
+        counts = repo.count_by_season()
+        assert counts == {2022: 2, 2023: 1, 2024: 2}
+
+    def test_count_by_season_empty(self, conn) -> None:
+        repo = SqliteILStintRepo(SingleConnectionProvider(conn))
+        assert repo.count_by_season() == {}
+
     def test_get_by_player_empty(self, conn) -> None:
         player_id = seed_player(conn)
         repo = SqliteILStintRepo(SingleConnectionProvider(conn))
