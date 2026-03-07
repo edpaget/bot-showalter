@@ -371,7 +371,7 @@ class DraftSession:
         self.input_fn = input_fn or (lambda prompt: input(prompt))
         self.save_path = save_path
         self._unsaved = False
-        self._valid_positions = set(engine.state.config.roster_slots.keys())
+        self._valid_positions = set(engine.state.config.roster_slots.keys()) - {"BN"}
         self._yahoo_pick_queue = yahoo_pick_queue
         self._team_map = team_map or {}
         self._projections = projections
@@ -415,7 +415,12 @@ class DraftSession:
                 break
 
             result = ingest_yahoo_pick(
-                self.engine.pick, set(self.engine.state.available_pool), yahoo_pick, self._team_map
+                self.engine.pick,
+                set(self.engine.state.available_pool),
+                yahoo_pick,
+                self._team_map,
+                roster_slots=self.engine.state.config.roster_slots,
+                team_rosters=self.engine.state.team_rosters,
             )
             if result is not None:
                 self._unsaved = True

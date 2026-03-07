@@ -92,6 +92,7 @@ budget = 260
 roster_batters = 9
 roster_pitchers = 8
 roster_util = 1
+roster_bench = 8
 
 [leagues.h2h.positions]
 c = 1

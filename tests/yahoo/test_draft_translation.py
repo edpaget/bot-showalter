@@ -2,7 +2,11 @@ from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
 from fantasy_baseball_manager.domain.yahoo_league import YahooTeam
 from fantasy_baseball_manager.services.draft_state import DraftConfig, DraftEngine, DraftError, DraftFormat
-from fantasy_baseball_manager.services.draft_translation import build_team_map, ingest_yahoo_pick
+from fantasy_baseball_manager.services.draft_translation import (
+    build_team_map,
+    ingest_yahoo_pick,
+    resolve_draft_position,
+)
 
 
 def _make_yahoo_pick(**overrides: object) -> YahooDraftPick:
@@ -148,3 +152,142 @@ class TestIngestYahooPick:
         result = ingest_yahoo_pick(raising_pick_fn, available, yahoo_pick, _TEAM_MAP)  # type: ignore[arg-type]
 
         assert result is None
+
+    def test_sp_resolved_to_p_with_roster_slots(self) -> None:
+        """SP position maps to P slot when roster_slots are provided."""
+        config = DraftConfig(
+            teams=2,
+            roster_slots={"OF": 3, "P": 8, "C": 1, "BN": 4},
+            format=DraftFormat.LIVE,
+            user_team=1,
+            season=2026,
+        )
+        players = [_make_player(100, "Gerrit Cole", "SP")]
+        engine = DraftEngine()
+        engine.start(players, config)
+
+        yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1", position="SP")
+        result = ingest_yahoo_pick(
+            engine.pick,
+            set(engine.state.available_pool),
+            yahoo_pick,
+            _TEAM_MAP,
+            roster_slots=config.roster_slots,
+            team_rosters=engine.state.team_rosters,
+        )
+
+        assert result is not None
+        assert result.position == "P"
+
+    def test_batter_overflow_to_util(self) -> None:
+        """Batter position overflows to UTIL when primary slot is full."""
+        config = DraftConfig(
+            teams=2,
+            roster_slots={"SS": 1, "UTIL": 1, "P": 2, "BN": 2},
+            format=DraftFormat.LIVE,
+            user_team=1,
+            season=2026,
+        )
+        players = [
+            _make_player(100, "Player A", "SS"),
+            _make_player(101, "Player B", "SS"),
+        ]
+        engine = DraftEngine()
+        engine.start(players, config)
+
+        # First SS pick fills the SS slot
+        pick1 = _make_yahoo_pick(player_id=100, player_name="Player A", team_key="449.l.12345.t.1", position="SS")
+        r1 = ingest_yahoo_pick(
+            engine.pick,
+            set(engine.state.available_pool),
+            pick1,
+            _TEAM_MAP,
+            roster_slots=config.roster_slots,
+            team_rosters=engine.state.team_rosters,
+        )
+        assert r1 is not None
+        assert r1.position == "SS"
+
+        # Second SS pick overflows to UTIL
+        pick2 = _make_yahoo_pick(player_id=101, player_name="Player B", team_key="449.l.12345.t.1", position="SS")
+        r2 = ingest_yahoo_pick(
+            engine.pick,
+            set(engine.state.available_pool),
+            pick2,
+            _TEAM_MAP,
+            roster_slots=config.roster_slots,
+            team_rosters=engine.state.team_rosters,
+        )
+        assert r2 is not None
+        assert r2.position == "UTIL"
+
+    def test_batter_overflow_to_bn(self) -> None:
+        """Batter overflows to BN when both primary and UTIL are full."""
+        config = DraftConfig(
+            teams=2,
+            roster_slots={"SS": 1, "UTIL": 1, "P": 2, "BN": 2},
+            format=DraftFormat.LIVE,
+            user_team=1,
+            season=2026,
+        )
+        players = [
+            _make_player(100, "Player A", "SS"),
+            _make_player(101, "Player B", "SS"),
+            _make_player(102, "Player C", "SS"),
+        ]
+        engine = DraftEngine()
+        engine.start(players, config)
+
+        # Fill SS and UTIL
+        for pid, name in [(100, "Player A"), (101, "Player B")]:
+            pick = _make_yahoo_pick(player_id=pid, player_name=name, team_key="449.l.12345.t.1", position="SS")
+            ingest_yahoo_pick(
+                engine.pick,
+                set(engine.state.available_pool),
+                pick,
+                _TEAM_MAP,
+                roster_slots=config.roster_slots,
+                team_rosters=engine.state.team_rosters,
+            )
+
+        # Third SS pick overflows to BN
+        pick3 = _make_yahoo_pick(player_id=102, player_name="Player C", team_key="449.l.12345.t.1", position="SS")
+        r3 = ingest_yahoo_pick(
+            engine.pick,
+            set(engine.state.available_pool),
+            pick3,
+            _TEAM_MAP,
+            roster_slots=config.roster_slots,
+            team_rosters=engine.state.team_rosters,
+        )
+        assert r3 is not None
+        assert r3.position == "BN"
+
+
+class TestResolveDraftPosition:
+    def test_direct_slot_with_room(self) -> None:
+        assert resolve_draft_position("OF", {"OF": 3, "P": 2}, {}) == "OF"
+
+    def test_sp_maps_to_p(self) -> None:
+        assert resolve_draft_position("SP", {"P": 8, "OF": 3}, {}) == "P"
+
+    def test_rp_maps_to_p(self) -> None:
+        assert resolve_draft_position("RP", {"P": 8, "OF": 3}, {}) == "P"
+
+    def test_sp_maps_to_bn_when_p_full(self) -> None:
+        assert resolve_draft_position("SP", {"P": 1, "BN": 4}, {"P": 1}) == "BN"
+
+    def test_batter_overflow_to_util(self) -> None:
+        assert resolve_draft_position("SS", {"SS": 1, "UTIL": 1}, {"SS": 1}) == "UTIL"
+
+    def test_batter_overflow_to_bn(self) -> None:
+        assert resolve_draft_position("SS", {"SS": 1, "UTIL": 1, "BN": 4}, {"SS": 1, "UTIL": 1}) == "BN"
+
+    def test_returns_original_when_no_fallback(self) -> None:
+        assert resolve_draft_position("SS", {"SS": 1}, {"SS": 1}) == "SS"
+
+    def test_sp_returns_original_when_no_fallback(self) -> None:
+        assert resolve_draft_position("SP", {"OF": 3}, {}) == "SP"
+
+    def test_direct_slot_partially_filled(self) -> None:
+        assert resolve_draft_position("OF", {"OF": 3, "UTIL": 1}, {"OF": 1}) == "OF"

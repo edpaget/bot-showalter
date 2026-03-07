@@ -101,7 +101,14 @@ def build_yahoo_draft_setup(
     existing_picks = draft_source.fetch_draft_results(league_key, season)
     for pick in existing_picks:
         draft_repo.upsert(pick)
-        ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), pick, team_map)
+        ingest_yahoo_pick(
+            engine.pick,
+            set(engine.state.available_pool),
+            pick,
+            team_map,
+            roster_slots=roster_slots,
+            team_rosters=engine.state.team_rosters,
+        )
 
     return YahooDraftSetup(
         engine=engine,

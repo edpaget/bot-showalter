@@ -56,6 +56,7 @@ from fantasy_baseball_manager.services.draft_translation import (
     PickFn,
     build_team_map,
     ingest_yahoo_pick,
+    resolve_draft_position,
 )
 from fantasy_baseball_manager.services.experiment_summary import summarize_exploration
 from fantasy_baseball_manager.services.feature_factory import (
@@ -332,6 +333,7 @@ __all__ = [
     "grouped_projections",
     "identify_needs",
     "ingest_yahoo_pick",
+    "resolve_draft_position",
     "load_draft",
     "BINNING_METHODS",
     "INTERACTION_OPERATIONS",

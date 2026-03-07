@@ -139,6 +139,7 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
         batting_categories=batting_categories,
         pitching_categories=pitching_categories,
         roster_util=raw.get("roster_util", 0),
+        roster_bench=raw.get("roster_bench", 0),
         positions=_parse_positions(raw.get("positions", {}), context),
         pitcher_positions=_parse_positions(raw.get("pitcher_positions", {}), context),
         eligibility=eligibility,

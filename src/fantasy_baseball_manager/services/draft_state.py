@@ -225,4 +225,6 @@ def build_draft_roster_slots(league: LeagueSettings) -> dict[str, int]:
         slots["UTIL"] = league.roster_util
     if league.roster_pitchers > 0:
         slots["P"] = league.roster_pitchers
+    if league.roster_bench > 0:
+        slots["BN"] = league.roster_bench
     return slots
