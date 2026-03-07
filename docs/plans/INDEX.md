@@ -16,6 +16,8 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
+| [Yahoo Draft Ingestion Fixes](yahoo-draft-ingestion-fixes.md) | 3 | not started | yahoo-live-draft-fixes (done) |
+| [Draft Session Persistence](draft-session-persistence.md) | 3 | not started | live-draft-tracker (done) |
 
 ## Completed Roadmaps
 
