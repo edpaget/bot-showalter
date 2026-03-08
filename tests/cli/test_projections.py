@@ -149,13 +149,15 @@ _PITCHING_ROW: dict[str, Any] = {
 
 
 class _FakeTransport(httpx.BaseTransport):
-    """Returns canned JSON for any request URL."""
+    """Returns canned JSON for any request URL and records requests."""
 
     def __init__(self, batting_rows: list[dict[str, Any]], pitching_rows: list[dict[str, Any]]) -> None:
         self._batting = batting_rows
         self._pitching = pitching_rows
+        self.requests: list[httpx.Request] = []
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
         stats = dict(request.url.params).get("stats", "bat")
         data = self._pitching if stats == "pit" else self._batting
         return httpx.Response(200, json=data)
@@ -175,7 +177,7 @@ def _patch_sync_transport(
     db_path: Path,
     batting_rows: list[dict[str, Any]] | None = None,
     pitching_rows: list[dict[str, Any]] | None = None,
-) -> None:
+) -> _FakeTransport:
     """Monkeypatch create_connection to use file DB and inject fake HTTP transport."""
     monkeypatch.setattr(
         "fantasy_baseball_manager.cli.factory.create_connection",
@@ -192,6 +194,7 @@ def _patch_sync_transport(
         "fantasy_baseball_manager.cli.commands.projections.FgProjectionSource.__init__",
         _patched_init,
     )
+    return transport
 
 
 class TestProjectionsSyncCommand:
@@ -266,3 +269,76 @@ class TestProjectionsSyncCommand:
         result = runner.invoke(app, ["projections", "sync", "--help"])
         assert result.exit_code == 0
         assert "sync" in result.output.lower() or "season" in result.output.lower()
+
+    def test_sync_ros_flag(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_path = tmp_path / "fbm.db"
+        _seed_sync_db(db_path)
+        transport = _patch_sync_transport(monkeypatch, db_path)
+
+        result = runner.invoke(
+            app, ["projections", "sync", "steamer", "--season", "2026", "--ros", "--data-dir", "./data"]
+        )
+        assert result.exit_code == 0, result.output
+
+        # Verify API type used was steamerr (ROS variant)
+        api_types = {dict(r.url.params)["type"] for r in transport.requests}
+        assert api_types == {"steamerr"}
+
+        # Verify version has -ros suffix
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
+        projs = proj_repo.get_by_season(2026, system="steamer")
+        assert len(projs) == 2
+        assert all(p.version.endswith("-ros") for p in projs)
+        verify_conn.close()
+
+    def test_sync_ros_all(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_path = tmp_path / "fbm.db"
+        _seed_sync_db(db_path)
+        transport = _patch_sync_transport(monkeypatch, db_path)
+
+        result = runner.invoke(
+            app, ["projections", "sync", "--all", "--season", "2026", "--ros", "--data-dir", "./data"]
+        )
+        assert result.exit_code == 0, result.output
+
+        # Verify ROS API types were used
+        api_types = {dict(r.url.params)["type"] for r in transport.requests}
+        assert api_types == {"rfangraphsdc", "steamerr", "rzips"}
+
+        # Verify all 3 systems stored with -ros version
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
+        systems = {p.system for p in proj_repo.get_by_season(2026)}
+        assert systems == {"fangraphs-dc", "steamer", "zips"}
+        projs = proj_repo.get_by_season(2026)
+        assert all(p.version.endswith("-ros") for p in projs)
+        verify_conn.close()
+
+
+class TestProjectionsRefreshCommand:
+    def test_refresh_command(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        db_path = tmp_path / "fbm.db"
+        _seed_sync_db(db_path)
+        transport = _patch_sync_transport(monkeypatch, db_path)
+
+        result = runner.invoke(app, ["projections", "refresh", "--season", "2026", "--data-dir", "./data"])
+        assert result.exit_code == 0, result.output
+
+        # Verify ROS API types were used
+        api_types = {dict(r.url.params)["type"] for r in transport.requests}
+        assert api_types == {"rfangraphsdc", "steamerr", "rzips"}
+
+        # Verify all 3 systems stored with -ros version
+        verify_conn = create_connection(db_path)
+        proj_repo = SqliteProjectionRepo(SingleConnectionProvider(verify_conn))
+        systems = {p.system for p in proj_repo.get_by_season(2026)}
+        assert systems == {"fangraphs-dc", "steamer", "zips"}
+        projs = proj_repo.get_by_season(2026)
+        assert all(p.version.endswith("-ros") for p in projs)
+        verify_conn.close()
+
+    def test_refresh_help(self) -> None:
+        result = runner.invoke(app, ["projections", "refresh", "--help"])
+        assert result.exit_code == 0
+        assert "refresh" in result.output.lower() or "rest-of-season" in result.output.lower()

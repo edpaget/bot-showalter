@@ -43,6 +43,18 @@ Example: `uv run fbm projections lookup "Soto" --season 2025`
 uv run fbm projections systems --season <year>
 ```
 
+### Sync FanGraphs projections
+```
+uv run fbm projections sync <system> --season <year> [--version <version>] [--ros]
+```
+Systems: `fangraphs-dc`, `steamer`, `zips`. Use `--all` instead of a system name to sync all three. Use `--ros` for rest-of-season variants.
+
+### Refresh all FanGraphs projections (rest-of-season)
+```
+uv run fbm projections refresh --season <year>
+```
+Equivalent to `projections sync --all --season <year> --ros`.
+
 ### Look up a player's valuations
 ```
 uv run fbm valuations lookup "<player name>" --season <year> [--system <system>]
@@ -364,6 +376,10 @@ When the user says something like:
 - "inspect statcast-gbm metrics" → `uv run fbm runs inspect statcast-gbm --section metrics`
 - "diff statcast-gbm runs" → `uv run fbm runs diff statcast-gbm/2026.1 statcast-gbm/2026.2`
 - "compare model runs" → `uv run fbm runs diff <system/version_a> <system/version_b>`
+- "sync steamer projections" → `uv run fbm projections sync steamer --season 2026`
+- "sync all projections" → `uv run fbm projections sync --all --season 2026`
+- "sync ROS projections" → `uv run fbm projections sync --all --season 2026 --ros`
+- "refresh projections" → `uv run fbm projections refresh --season 2026`
 
 For `--league` in yahoo commands, use the league name from `[yahoo.leagues]` in `fbm.toml` (e.g., `keeper`, `redraft`).
 For `--league` in non-yahoo commands, use the league name from `[leagues]` in `fbm.toml` (e.g., `default`, `dynasty`).

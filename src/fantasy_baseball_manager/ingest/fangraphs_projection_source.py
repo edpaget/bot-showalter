@@ -34,6 +34,12 @@ PROJECTION_SYSTEMS: dict[str, str] = {
     "zips": "zips",
 }
 
+ROS_PROJECTION_SYSTEMS: dict[str, str] = {
+    "fangraphs-dc": "rfangraphsdc",
+    "steamer": "steamerr",
+    "zips": "rzips",
+}
+
 
 def _parse_response(response: httpx.Response) -> list[dict[str, Any]]:
     """Parse JSON response, handling both bare array and {"data": [...]} formats."""

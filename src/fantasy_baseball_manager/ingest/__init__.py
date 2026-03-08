@@ -24,6 +24,7 @@ from fantasy_baseball_manager.ingest.csv_source import CsvSource
 from fantasy_baseball_manager.ingest.date_utils import chunk_date_range
 from fantasy_baseball_manager.ingest.fangraphs_projection_source import (
     PROJECTION_SYSTEMS,
+    ROS_PROJECTION_SYSTEMS,
     FgProjectionSource,
 )
 from fantasy_baseball_manager.ingest.fangraphs_source import FgStatsSource
@@ -82,6 +83,7 @@ __all__ = [
     "ingest_fantasypros_adp",
     "lahman_team_row_to_team",
     "PROJECTION_SYSTEMS",
+    "ROS_PROJECTION_SYSTEMS",
     "make_fg_batting_mapper",
     "make_fg_pitching_mapper",
     "make_fg_projection_batting_mapper",

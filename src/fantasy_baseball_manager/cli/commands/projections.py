@@ -15,6 +15,7 @@ from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import Err, Ok, Projection
 from fantasy_baseball_manager.ingest import (
     PROJECTION_SYSTEMS,
+    ROS_PROJECTION_SYSTEMS,
     FgProjectionSource,
     Loader,
     make_fg_projection_batting_mapper,
@@ -67,6 +68,7 @@ def projections_sync(
     season: Annotated[int, typer.Option("--season", help="Season year")] = ...,  # type: ignore[assignment]
     version: Annotated[str | None, typer.Option("--version", help="Version (default: today's date)")] = None,
     all_systems: Annotated[bool, typer.Option("--all", help="Sync all systems")] = False,
+    ros: Annotated[bool, typer.Option("--ros", help="Use rest-of-season variants")] = False,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Sync FanGraphs projections from the API into the database."""
@@ -77,22 +79,30 @@ def projections_sync(
         print_error("Provide either a system name or --all, not both")
         raise typer.Exit(code=1)
 
+    systems_map = ROS_PROJECTION_SYSTEMS if ros else PROJECTION_SYSTEMS
+
     if all_systems:
-        systems_to_sync = list(PROJECTION_SYSTEMS.keys())
+        systems_to_sync = list(systems_map.keys())
     else:
         assert system is not None  # noqa: S101
-        if system not in PROJECTION_SYSTEMS:
-            print_error(f"Unknown system {system!r}; expected one of: {', '.join(sorted(PROJECTION_SYSTEMS))}")
+        if system not in systems_map:
+            print_error(f"Unknown system {system!r}; expected one of: {', '.join(sorted(systems_map))}")
             raise typer.Exit(code=1)
         systems_to_sync = [system]
 
-    resolved_version = version or datetime.date.today().isoformat()
+    date_version = datetime.date.today().isoformat()
+    if version:
+        resolved_version = version
+    elif ros:
+        resolved_version = f"{date_version}-ros"
+    else:
+        resolved_version = date_version
 
     with build_import_context(data_dir) as ctx:
         players = ctx.player_repo.all()
 
         for sys_name in systems_to_sync:
-            api_type = PROJECTION_SYSTEMS[sys_name]
+            api_type = systems_map[sys_name]
 
             for stat_type, player_type, make_mapper in [
                 ("bat", "batter", make_fg_projection_batting_mapper),
@@ -125,3 +135,13 @@ def projections_sync(
                         print_import_result(log)
                     case Err(e):
                         print_error(f"{sys_name} {player_type}: {e.message}")
+
+
+@projections_app.command("refresh")
+def projections_refresh(
+    season: Annotated[int, typer.Option("--season", help="Season year")] = ...,  # type: ignore[assignment]
+    version: Annotated[str | None, typer.Option("--version", help="Version override")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Refresh all FanGraphs projections with rest-of-season variants."""
+    projections_sync(system=None, season=season, version=version, all_systems=True, ros=True, data_dir=data_dir)
