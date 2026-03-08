@@ -6,7 +6,7 @@ Fix bugs, encapsulation violations, and design issues identified in the web modu
 
 | Phase | Status |
 |-------|--------|
-| 1 — Subscription leak and error handling | not started |
+| 1 — Subscription leak and error handling | in progress |
 | 2 — SessionManager encapsulation | not started |
 | 3 — Session system/version persistence | not started |
 
