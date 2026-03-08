@@ -12,7 +12,7 @@ The UI design specification is at [`docs/draft-ui-design.md`](../draft-ui-design
 |-------|--------|
 | 1 — GraphQL schema and read-only queries | done (2026-03-07) |
 | 2 — Session mutations and queries | done (2026-03-07) |
-| 3 — Subscriptions and Yahoo polling | not started |
+| 3 — Subscriptions and Yahoo polling | in progress |
 | 4 — React scaffold and draft board view | not started |
 | 5 — Live draft dashboard | not started |
 | 6 — Analysis views and navigation | not started |
