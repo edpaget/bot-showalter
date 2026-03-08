@@ -2,7 +2,7 @@
 
 Discount player projections and valuations by injury probability, using historical IL stint data already ingested into the system. A player projected for 600 PA but with a history of missing 30% of seasons to injury should be valued at closer to 420 PA. This adjustment is especially important for draft strategy — injury-prone stars are systematically overvalued by systems that assume a full healthy season.
 
-The IL stint data is already in the database (via `fbm ingest il`), and the playing-time model projects PA/IP. This roadmap builds an injury risk model on top of that data and integrates it into the valuation pipeline.
+The IL stint data is already in the database (via `fbm ingest il`) covering 5 seasons (2021-2025), and the playing-time model projects PA/IP. This roadmap builds an injury risk model on top of that data and integrates it into the valuation pipeline. Use `fbm ingest il-coverage` to verify data completeness.
 
 ## Status
 
