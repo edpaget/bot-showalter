@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import AsyncGenerator  # noqa: TC003 — Strawberry resolves annotations at runtime
 from typing import TYPE_CHECKING
 
 import strawberry
@@ -16,15 +18,20 @@ from fantasy_baseball_manager.web.types import (
     CategoryBalanceType,
     DraftBoardRowType,
     DraftBoardType,
+    DraftEventType,
     DraftPickType,
     DraftSessionSummaryType,
     DraftStateType,
     LeagueSettingsType,
+    PickEvent,
     PickResultType,
     PlayerTierType,
     PositionScarcityType,
     RecommendationType,
     RosterSlotType,
+    SessionEvent,
+    UndoEvent,
+    YahooPollStatusType,
 )
 
 if TYPE_CHECKING:
@@ -239,11 +246,25 @@ class Query:
         rows = engine.available(position)[:limit]
         return [DraftBoardRowType.from_domain(r) for r in rows]
 
+    @strawberry.field
+    def yahoo_poll_status(self, info: Info, session_id: int) -> YahooPollStatusType:
+        ctx = _get_context(info)
+        ypm = ctx.yahoo_poller_manager
+        if ypm is None:
+            msg = "Yahoo polling is not configured"
+            raise ValueError(msg)
+        status = ypm.get_status(session_id)
+        return YahooPollStatusType(
+            active=status.active,
+            last_poll_at=status.last_poll_at,
+            picks_ingested=status.picks_ingested,
+        )
+
 
 @strawberry.type
 class Mutation:
     @strawberry.mutation
-    def start_session(
+    async def start_session(
         self,
         info: Info,
         season: int,
@@ -266,10 +287,14 @@ class Mutation:
             fmt=format,
             budget=budget,
         )
+        await ctx.event_bus.publish(
+            session_id,
+            SessionEvent(session_id=session_id, event_type="started"),
+        )
         return DraftStateType.from_state(session_id, engine.state)
 
     @strawberry.mutation
-    def pick(
+    async def pick(
         self,
         info: Info,
         session_id: int,
@@ -290,20 +315,78 @@ class Mutation:
                 team = engine.state.config.user_team
 
         draft_pick = mgr.pick(session_id, player_id, team, position, price=price)
-        return _build_pick_result(info, session_id, DraftPickType.from_domain(draft_pick))
+        pick_type = DraftPickType.from_domain(draft_pick)
+        await ctx.event_bus.publish(
+            session_id,
+            PickEvent(pick=pick_type, session_id=session_id),
+        )
+        return _build_pick_result(info, session_id, pick_type)
 
     @strawberry.mutation
-    def undo(self, info: Info, session_id: int) -> PickResultType:
+    async def undo(self, info: Info, session_id: int) -> PickResultType:
         ctx = _get_context(info)
         mgr = ctx.session_manager
         assert mgr is not None  # noqa: S101
         undone = mgr.undo(session_id)
-        return _build_pick_result(info, session_id, DraftPickType.from_domain(undone))
+        pick_type = DraftPickType.from_domain(undone)
+        await ctx.event_bus.publish(
+            session_id,
+            UndoEvent(pick=pick_type, session_id=session_id),
+        )
+        return _build_pick_result(info, session_id, pick_type)
 
     @strawberry.mutation
-    def end_session(self, info: Info, session_id: int) -> bool:
+    async def end_session(self, info: Info, session_id: int) -> bool:
         ctx = _get_context(info)
         mgr = ctx.session_manager
         assert mgr is not None  # noqa: S101
+        # Stop Yahoo polling if active
+        if ctx.yahoo_poller_manager is not None:
+            await ctx.yahoo_poller_manager.stop_polling(session_id)
         mgr.end_session(session_id)
+        await ctx.event_bus.publish(
+            session_id,
+            SessionEvent(session_id=session_id, event_type="ended"),
+        )
         return True
+
+    @strawberry.mutation
+    async def start_yahoo_poll(
+        self,
+        info: Info,
+        session_id: int,
+        league_key: str,
+    ) -> bool:
+        ctx = _get_context(info)
+        ypm = ctx.yahoo_poller_manager
+        if ypm is None:
+            msg = "Yahoo polling is not configured"
+            raise ValueError(msg)
+        return await ypm.start_polling(session_id, league_key)
+
+    @strawberry.mutation
+    async def stop_yahoo_poll(self, info: Info, session_id: int) -> bool:
+        ctx = _get_context(info)
+        ypm = ctx.yahoo_poller_manager
+        if ypm is None:
+            msg = "Yahoo polling is not configured"
+            raise ValueError(msg)
+        return await ypm.stop_polling(session_id)
+
+
+@strawberry.type
+class Subscription:
+    @strawberry.subscription
+    async def draft_events(
+        self,
+        info: Info,
+        session_id: int,
+    ) -> AsyncGenerator[DraftEventType]:
+        ctx = _get_context(info)
+        q = ctx.event_bus.subscribe(session_id)
+        try:
+            while True:
+                event = await q.get()
+                yield event
+        except asyncio.CancelledError:
+            ctx.event_bus.unsubscribe(session_id, q)

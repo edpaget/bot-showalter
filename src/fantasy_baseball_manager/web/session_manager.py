@@ -138,6 +138,21 @@ class SessionManager:
         self._repo.update_timestamp(session_id, now)
         return undone
 
+    def persist_external_pick(self, session_id: int, draft_pick: DraftPick) -> None:
+        """Persist a pick that was already applied to the engine (e.g., from Yahoo poller)."""
+        now = datetime.now(tz=UTC).isoformat()
+        db_pick = DraftSessionPick(
+            session_id=session_id,
+            pick_number=draft_pick.pick_number,
+            team=draft_pick.team,
+            player_id=draft_pick.player_id,
+            player_name=draft_pick.player_name,
+            position=draft_pick.position,
+            price=draft_pick.price,
+        )
+        self._repo.save_pick(db_pick)
+        self._repo.update_timestamp(session_id, now)
+
     def end_session(self, session_id: int) -> None:
         self._repo.update_status(session_id, "complete")
         self._engines.pop(session_id, None)

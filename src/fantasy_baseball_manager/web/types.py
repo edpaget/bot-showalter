@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import strawberry
 
@@ -282,3 +282,34 @@ class PickResultType:
     recommendations: list[RecommendationType]
     roster: list[DraftPickType]
     needs: list[RosterSlotType]
+
+
+@strawberry.type
+class PickEvent:
+    pick: DraftPickType
+    session_id: int
+
+
+@strawberry.type
+class UndoEvent:
+    pick: DraftPickType
+    session_id: int
+
+
+@strawberry.type
+class SessionEvent:
+    session_id: int
+    event_type: str
+
+
+DraftEventType = Annotated[
+    PickEvent | UndoEvent | SessionEvent,
+    strawberry.union("DraftEventType"),
+]
+
+
+@strawberry.type
+class YahooPollStatusType:
+    active: bool
+    last_poll_at: str | None
+    picks_ingested: int
