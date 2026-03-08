@@ -1,4 +1,3 @@
-import dataclasses
 import logging
 import math
 from typing import TYPE_CHECKING, Any
@@ -13,6 +12,7 @@ from fantasy_baseball_manager.domain import (
 )
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import build_position_map, build_roster_spots
+from fantasy_baseball_manager.services.stats_conversion import stats_to_dict
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import ADP, LeagueSettings
@@ -27,23 +27,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _PITCHER_POSITIONS = {"SP", "RP"}
-_METADATA_FIELDS = frozenset({"id", "player_id", "season", "source", "team_id", "loaded_at"})
 _TOP_N_THRESHOLDS = (50, 100, 200)
 
 
 def _is_pitcher_adp(adp: ADP) -> bool:
     return all(p.strip() in _PITCHER_POSITIONS for p in adp.positions.split(",") if p.strip())
-
-
-def _stats_to_dict(obj: object) -> dict[str, float]:
-    result: dict[str, float] = {}
-    for field in dataclasses.fields(obj):  # type: ignore[arg-type]
-        if field.name in _METADATA_FIELDS:
-            continue
-        value = getattr(obj, field.name)
-        if isinstance(value, int | float):
-            result[field.name] = float(value)
-    return result
 
 
 class ADPAccuracyEvaluator:
@@ -116,11 +104,11 @@ class ADPAccuracyEvaluator:
 
         batter_stats: dict[int, dict[str, float]] = {}
         for bs in batting_actuals:
-            batter_stats[bs.player_id] = _stats_to_dict(bs)
+            batter_stats[bs.player_id] = stats_to_dict(bs)
 
         pitcher_stats: dict[int, dict[str, float]] = {}
         for ps in pitching_actuals:
-            pitcher_stats[ps.player_id] = _stats_to_dict(ps)
+            pitcher_stats[ps.player_id] = stats_to_dict(ps)
 
         appearances = self._position_repo.get_by_season(season)
         position_map = build_position_map(appearances, league)

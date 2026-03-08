@@ -8,7 +8,7 @@ This roadmap adds a variance correction layer to the ZAR engine that substitutes
 
 | Phase | Status |
 |-------|--------|
-| 1 — Historical stdev computation | in progress |
+| 1 — Historical stdev computation | done (2026-03-07) |
 | 2 — Engine integration and opt-in flag | not started |
 | 3 — Holdout validation and production rollout | not started |
 

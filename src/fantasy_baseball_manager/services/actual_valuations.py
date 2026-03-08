@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from fantasy_baseball_manager.domain import Position, Valuation
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import best_position, build_position_map, build_roster_spots
+from fantasy_baseball_manager.services.stats_conversion import stats_to_dict
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import EligibilityProvider, LeagueSettings
@@ -18,19 +19,6 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
-
-_METADATA_FIELDS = frozenset({"id", "player_id", "season", "source", "team_id", "loaded_at"})
-
-
-def _stats_to_dict(obj: object) -> dict[str, float]:
-    result: dict[str, float] = {}
-    for field in dataclasses.fields(obj):  # type: ignore[arg-type]
-        if field.name in _METADATA_FIELDS:
-            continue
-        value = getattr(obj, field.name)
-        if isinstance(value, int | float):
-            result[field.name] = float(value)
-    return result
 
 
 def compute_actual_valuations(
@@ -58,8 +46,8 @@ def compute_actual_valuations(
         logger.warning("No actual stats for season %d", season)
         return []
 
-    batter_stats = {bs.player_id: _stats_to_dict(bs) for bs in batting_actuals}
-    pitcher_stats = {ps.player_id: _stats_to_dict(ps) for ps in pitching_actuals}
+    batter_stats = {bs.player_id: stats_to_dict(bs) for bs in batting_actuals}
+    pitcher_stats = {ps.player_id: stats_to_dict(ps) for ps in pitching_actuals}
 
     appearances = position_repo.get_by_season(season)
     position_map = build_position_map(appearances, league)

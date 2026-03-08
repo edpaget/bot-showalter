@@ -1,4 +1,3 @@
-import dataclasses
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +9,7 @@ from fantasy_baseball_manager.models.zar.engine import (
     run_zar_pipeline,
 )
 from fantasy_baseball_manager.models.zar.positions import build_position_map, build_roster_spots
+from fantasy_baseball_manager.services.stats_conversion import stats_to_dict
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import LeagueSettings
@@ -21,20 +21,6 @@ if TYPE_CHECKING:
         ValuationRepo,
     )
 logger = logging.getLogger(__name__)
-
-_METADATA_FIELDS = frozenset({"id", "player_id", "season", "source", "team_id", "loaded_at"})
-
-
-def _stats_to_dict(obj: object) -> dict[str, float]:
-    """Extract all numeric fields from a BattingStats or PitchingStats instance."""
-    result: dict[str, float] = {}
-    for field in dataclasses.fields(obj):  # type: ignore[arg-type]
-        if field.name in _METADATA_FIELDS:
-            continue
-        value = getattr(obj, field.name)
-        if isinstance(value, int | float):
-            result[field.name] = float(value)
-    return result
 
 
 class ValuationEvaluator:
@@ -83,11 +69,11 @@ class ValuationEvaluator:
         # 3. Convert actual stats to float dicts
         batter_stats: dict[int, dict[str, float]] = {}
         for bs in batting_actuals:
-            batter_stats[bs.player_id] = _stats_to_dict(bs)
+            batter_stats[bs.player_id] = stats_to_dict(bs)
 
         pitcher_stats: dict[int, dict[str, float]] = {}
         for ps in pitching_actuals:
-            pitcher_stats[ps.player_id] = _stats_to_dict(ps)
+            pitcher_stats[ps.player_id] = stats_to_dict(ps)
 
         # 4. Fetch positions
         appearances = self._position_repo.get_by_season(season)

@@ -74,6 +74,7 @@ from fantasy_baseball_manager.services.feature_factory import (
     validate_expression,
 )
 from fantasy_baseball_manager.services.games_lost_estimator import estimate_games_lost
+from fantasy_baseball_manager.services.historical_stdev import compute_historical_stdevs
 from fantasy_baseball_manager.services.injury_discount import apply_injury_discount, discount_projections
 from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
 from fantasy_baseball_manager.services.injury_valuation import (
@@ -191,6 +192,7 @@ from fantasy_baseball_manager.services.roster_optimizer import (
     plan_snake_draft,
     simulate_drafts,
 )
+from fantasy_baseball_manager.services.stats_conversion import METADATA_FIELDS, stats_to_dict
 from fantasy_baseball_manager.services.tier_generator import (
     generate_tiers,
     tier_summary,
@@ -297,6 +299,9 @@ __all__ = [
     "discount_projections",
     "compute_injury_adjusted_deltas",
     "compute_injury_adjusted_valuations_list",
+    "compute_historical_stdevs",
+    "METADATA_FIELDS",
+    "stats_to_dict",
     "estimate_games_lost",
     "build_draft_board",
     "build_draft_roster_slots",
