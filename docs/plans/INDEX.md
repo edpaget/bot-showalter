@@ -19,6 +19,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
+| [Valuation Accuracy](valuation-accuracy.md) | 5 | not started | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
 
 ## Completed Roadmaps
 
