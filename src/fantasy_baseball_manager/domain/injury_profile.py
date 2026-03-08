@@ -18,3 +18,4 @@ class InjuryProfile:
     pct_seasons_with_il: float
     injury_locations: dict[str, int] = field(default_factory=dict)
     recent_stints: list[ILStint] = field(default_factory=list)
+    all_stints: list[ILStint] = field(default_factory=list)

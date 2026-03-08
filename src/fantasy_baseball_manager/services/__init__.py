@@ -75,6 +75,7 @@ from fantasy_baseball_manager.services.feature_factory import (
 )
 from fantasy_baseball_manager.services.games_lost_estimator import estimate_games_lost
 from fantasy_baseball_manager.services.historical_stdev import compute_historical_stdevs
+from fantasy_baseball_manager.services.il_stint_days import IL_TYPE_DEFAULTS, compute_stint_days
 from fantasy_baseball_manager.services.injury_discount import apply_injury_discount, discount_projections
 from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
 from fantasy_baseball_manager.services.injury_valuation import (
@@ -300,9 +301,11 @@ __all__ = [
     "compute_injury_adjusted_deltas",
     "compute_injury_adjusted_valuations_list",
     "compute_historical_stdevs",
+    "compute_stint_days",
     "METADATA_FIELDS",
     "stats_to_dict",
     "estimate_games_lost",
+    "IL_TYPE_DEFAULTS",
     "build_draft_board",
     "build_draft_roster_slots",
     "build_roster_state",

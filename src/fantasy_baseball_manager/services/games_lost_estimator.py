@@ -5,6 +5,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import ExpectedGamesLost
+from fantasy_baseball_manager.services.il_stint_days import compute_stint_days
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import InjuryProfile
@@ -14,6 +15,7 @@ _FULL_CREDIBILITY_SEASONS: int = 6
 _RECURRENCE_BOOST_PER_LOCATION: float = 0.15
 _MAX_RECURRENCE_MULTIPLIER: float = 1.5
 _P_FULL_DECAY: float = 40.0
+_CHRONIC_STINT_THRESHOLD: int = 4
 
 
 def _recency_weight(seasons_ago: int) -> int:
@@ -29,18 +31,18 @@ def estimate_games_lost(profile: InjuryProfile, projection_season: int) -> Expec
     """Estimate expected days lost next season from an injury profile.
 
     Algorithm:
-    1. Recency-weighted average of days per season from recent stints.
+    1. Recency-weighted average of days per season from all stints.
     2. Base-rate regression toward population baseline.
     3. Recurrence multiplier for repeated injury locations.
-    4. p_full_season = exp(-expected_days / 40).
-    5. Confidence from seasons tracked.
+    4. Chronic-injury floor for players with 4+ stints.
+    5. p_full_season = exp(-expected_days / 40).
+    6. Confidence from seasons tracked.
     """
-    # Step 1: Recency-weighted average
-    if profile.recent_stints:
+    # Step 1: Recency-weighted average using all stints
+    if profile.all_stints:
         days_by_season: dict[int, int] = defaultdict(int)
-        for stint in profile.recent_stints:
-            days_val = stint.days if stint.days is not None else 15
-            days_by_season[stint.season] += days_val
+        for stint in profile.all_stints:
+            days_by_season[stint.season] += compute_stint_days(stint)
 
         total_weighted = 0.0
         total_weight = 0
@@ -66,10 +68,14 @@ def estimate_games_lost(profile: InjuryProfile, projection_season: int) -> Expec
     )
     expected_days = regressed * recurrence_multiplier
 
-    # Step 4: p_full_season
+    # Step 4: Chronic-injury floor
+    if profile.total_stints >= _CHRONIC_STINT_THRESHOLD and expected_days < _BASE_RATE_DAYS:
+        expected_days = _BASE_RATE_DAYS
+
+    # Step 5: p_full_season
     p_full = math.exp(-expected_days / _P_FULL_DECAY)
 
-    # Step 5: Confidence
+    # Step 6: Confidence
     if profile.seasons_tracked < 3:
         confidence = "low"
     elif profile.seasons_tracked < 6:

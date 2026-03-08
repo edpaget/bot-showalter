@@ -17,7 +17,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
-| [Injury Model Fixes](injury-model-fixes.md) | 3 | phases 1-2 done | injury-risk-discount (done), player-bio-fuzzy-team (done) |
 | [Variance Correction](variance-correction.md) | 3 | phases 1-2 done | none |
 
 ## Completed Roadmaps
@@ -57,6 +56,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Validation Gate](validation-gate.md) | 2 |
 | [Yahoo Architecture Fixes](yahoo-architecture-fixes.md) | 3 |
 | [Yahoo Eligibility Rules](yahoo-eligibility-rules.md) | 2 |
+| [Injury Model Fixes](injury-model-fixes.md) | 3 |
 | [Injury Risk Discount](injury-risk-discount.md) | 3 |
 | [Injury Valuation Cleanup](injury-valuation-cleanup.md) | 3 |
 | [Keeper League Analysis](keeper-league-analysis.md) | 3 |

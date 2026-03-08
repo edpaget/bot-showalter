@@ -19,6 +19,7 @@ def _profile(
     pct_seasons_with_il: float = 0.0,
     injury_locations: dict[str, int] | None = None,
     recent_stints: list[ILStint] | None = None,
+    all_stints: list[ILStint] | None = None,
 ) -> InjuryProfile:
     return InjuryProfile(
         player_id=player_id,
@@ -30,6 +31,7 @@ def _profile(
         pct_seasons_with_il=pct_seasons_with_il,
         injury_locations=injury_locations or {},
         recent_stints=recent_stints or [],
+        all_stints=all_stints or [],
     )
 
 
@@ -75,7 +77,7 @@ class TestEstimateGamesLost:
             total_stints=3,
             total_days_lost=90,
             injury_locations={"hamstring": 2, "knee": 1},
-            recent_stints=stints,
+            all_stints=stints,
         )
         result = estimate_games_lost(profile, projection_season=2026)
 
@@ -90,7 +92,7 @@ class TestEstimateGamesLost:
             total_stints=1,
             total_days_lost=60,
             injury_locations={"elbow": 1},
-            recent_stints=stints,
+            all_stints=stints,
         )
         result = estimate_games_lost(profile, projection_season=2026)
 
@@ -102,22 +104,22 @@ class TestEstimateGamesLost:
         # Recent-heavy: 40 days in 2024 (weight 2), 10 in 2022 (weight 1)
         recent_stints = [
             _stint(season=2024, days=40),
-            _stint(season=2022, days=10),
+            _stint(season=2022, start_date="2022-05-01", days=10),
         ]
         recent_profile = _profile(
             seasons_tracked=5,
-            recent_stints=recent_stints,
+            all_stints=recent_stints,
             injury_locations={"knee": 2},
         )
 
         # Old-heavy: 10 days in 2024 (weight 2), 40 in 2022 (weight 1)
         old_stints = [
             _stint(season=2024, days=10),
-            _stint(season=2022, days=40),
+            _stint(season=2022, start_date="2022-05-01", days=40),
         ]
         old_profile = _profile(
             seasons_tracked=5,
-            recent_stints=old_stints,
+            all_stints=old_stints,
             injury_locations={"knee": 2},
         )
 
@@ -135,14 +137,14 @@ class TestEstimateGamesLost:
         # No recurring locations
         no_recurrence = _profile(
             seasons_tracked=5,
-            recent_stints=stints,
+            all_stints=stints,
             injury_locations={"hamstring": 1, "knee": 1},
         )
 
         # Recurring hamstring (2+ stints)
         with_recurrence = _profile(
             seasons_tracked=5,
-            recent_stints=stints,
+            all_stints=stints,
             injury_locations={"hamstring": 3, "knee": 1},
         )
 
@@ -158,7 +160,7 @@ class TestEstimateGamesLost:
         locations = {f"loc{i}": 3 for i in range(10)}
         profile = _profile(
             seasons_tracked=6,
-            recent_stints=stints,
+            all_stints=stints,
             injury_locations=locations,
         )
         result = estimate_games_lost(profile, projection_season=2026)
@@ -193,7 +195,7 @@ class TestEstimateGamesLost:
         stints = [_stint(season=2024, days=20)]
         profile = _profile(
             seasons_tracked=6,
-            recent_stints=stints,
+            all_stints=stints,
         )
         result = estimate_games_lost(profile, projection_season=2026)
         expected_p = math.exp(-result.expected_days_lost / 40)
@@ -204,14 +206,141 @@ class TestEstimateGamesLost:
         result = estimate_games_lost(profile, projection_season=2026)
         assert result.player_id == 42
 
-    def test_stint_with_no_days_uses_default_15(self) -> None:
-        """Stints with days=None should default to 15 in the estimator."""
-        stints = [_stint(season=2024, days=None)]
+    def test_il_type_used_when_days_none(self) -> None:
+        """Stints with days=None should use IL type default, not hardcoded 15."""
+        stints = [_stint(season=2024, days=None, il_type="60-day")]
         profile = _profile(
             seasons_tracked=6,
-            recent_stints=stints,
+            all_stints=stints,
         )
         result = estimate_games_lost(profile, projection_season=2026)
-        # Full credibility, weighted_avg = 15 (one stint, weight 3)
-        # regressed = 15, no recurrence → 15.0
-        assert result.expected_days_lost == 15.0
+        # Full credibility, weighted_avg = 60 (one 60-day stint, weight 3)
+        # regressed = 60, no recurrence → 60.0
+        assert result.expected_days_lost == 60.0
+
+    def test_10_day_il_default(self) -> None:
+        """10-day IL stint with days=None should default to 10."""
+        stints = [_stint(season=2024, days=None, il_type="10-day")]
+        profile = _profile(
+            seasons_tracked=6,
+            all_stints=stints,
+        )
+        result = estimate_games_lost(profile, projection_season=2026)
+        assert result.expected_days_lost == 10.0
+
+    def test_multi_season_history_all_contribute(self) -> None:
+        """Stints across 5 seasons should all contribute with recency weights."""
+        stints = [
+            _stint(season=2021, start_date="2021-05-01", days=30),
+            _stint(season=2022, start_date="2022-05-01", days=40),
+            _stint(season=2023, start_date="2023-05-01", days=20),
+            _stint(season=2024, start_date="2024-05-01", days=50),
+            _stint(season=2025, start_date="2025-05-01", days=10),
+        ]
+        profile = _profile(
+            seasons_tracked=5,
+            total_stints=5,
+            all_stints=stints,
+        )
+        result = estimate_games_lost(profile, projection_season=2026)
+
+        # All seasons contribute: 2025 (w=3), 2024 (w=2), 2021-2023 (w=1 each)
+        # weighted = 10*3 + 50*2 + 20*1 + 40*1 + 30*1 = 30+100+20+40+30 = 220
+        # total_weight = 3+2+1+1+1 = 8
+        # weighted_avg = 220/8 = 27.5
+        # credibility = 5/6, regressed = (5/6)*27.5 + (1/6)*12 = 22.917 + 2 = 24.917
+        assert result.expected_days_lost > 20
+
+    def test_chronic_floor_applied(self) -> None:
+        """Player with 4+ stints should get at least _BASE_RATE_DAYS."""
+        # Old stints that would otherwise average to very little
+        stints = [
+            _stint(season=2021, start_date="2021-05-01", days=5),
+            _stint(season=2021, start_date="2021-07-01", days=5),
+            _stint(season=2022, start_date="2022-05-01", days=5),
+            _stint(season=2022, start_date="2022-07-01", days=5),
+        ]
+        profile = _profile(
+            seasons_tracked=5,
+            total_stints=4,
+            all_stints=stints,
+        )
+        result = estimate_games_lost(profile, projection_season=2026)
+
+        # Without floor: weighted_avg = (10+10)/(1+1) = 10
+        # credibility = 5/6, regressed = (5/6)*10 + (1/6)*12 = 10.33
+        # But with 4 stints and total_stints >= 4, floor applies if < 12
+        assert result.expected_days_lost >= _BASE_RATE_DAYS
+
+    def test_chronic_floor_not_applied_below_threshold(self) -> None:
+        """Player with < 4 stints should not get the chronic floor."""
+        stints = [
+            _stint(season=2021, start_date="2021-05-01", days=5),
+            _stint(season=2022, start_date="2022-05-01", days=5),
+        ]
+        profile = _profile(
+            seasons_tracked=5,
+            total_stints=2,
+            all_stints=stints,
+        )
+        result = estimate_games_lost(profile, projection_season=2026)
+
+        # weighted_avg = (5+5)/(1+1) = 5
+        # credibility = 5/6, regressed = (5/6)*5 + (1/6)*12 = 4.17 + 2 = 6.17
+        assert result.expected_days_lost < _BASE_RATE_DAYS
+
+    def test_all_stints_old_still_meaningful(self) -> None:
+        """Player with stints only 3+ seasons ago should still get a meaningful estimate."""
+        stints = [
+            _stint(season=2021, start_date="2021-05-01", days=40),
+            _stint(season=2022, start_date="2022-05-01", days=50),
+        ]
+        profile = _profile(
+            seasons_tracked=5,
+            total_stints=2,
+            all_stints=stints,
+        )
+        result = estimate_games_lost(profile, projection_season=2026)
+
+        # Both get weight 1 (3+ seasons ago)
+        # weighted_avg = (40+50)/2 = 45
+        # credibility = 5/6, regressed = (5/6)*45 + (1/6)*12 = 37.5 + 2 = 39.5
+        assert result.expected_days_lost > 30
+
+    def test_scherzer_like_profile(self) -> None:
+        """Scherzer-like profile (17 stints, 255 days, 5 seasons) → expected days >> baseline."""
+        stints = [
+            # 2021: 2 stints, 30 days
+            _stint(season=2021, start_date="2021-05-01", days=15),
+            _stint(season=2021, start_date="2021-08-01", days=15),
+            # 2022: 3 stints, 45 days
+            _stint(season=2022, start_date="2022-04-01", days=20),
+            _stint(season=2022, start_date="2022-07-01", days=15),
+            _stint(season=2022, start_date="2022-09-01", days=10),
+            # 2023: 4 stints, 60 days
+            _stint(season=2023, start_date="2023-04-01", days=20),
+            _stint(season=2023, start_date="2023-06-01", days=15),
+            _stint(season=2023, start_date="2023-08-01", days=15),
+            _stint(season=2023, start_date="2023-09-01", days=10),
+            # 2024: 5 stints, 80 days
+            _stint(season=2024, start_date="2024-04-01", days=25),
+            _stint(season=2024, start_date="2024-05-15", days=20),
+            _stint(season=2024, start_date="2024-07-01", days=15),
+            _stint(season=2024, start_date="2024-08-01", days=10),
+            _stint(season=2024, start_date="2024-09-01", days=10),
+            # 2025: 3 stints, 40 days
+            _stint(season=2025, start_date="2025-04-01", days=20),
+            _stint(season=2025, start_date="2025-06-01", days=10),
+            _stint(season=2025, start_date="2025-08-01", days=10),
+        ]
+        profile = _profile(
+            seasons_tracked=5,
+            total_stints=17,
+            total_days_lost=255,
+            injury_locations={"shoulder": 8, "back": 5, "neck": 4},
+            all_stints=stints,
+        )
+        result = estimate_games_lost(profile, projection_season=2026)
+
+        # With 17 stints, multi-season history, and recurring locations → well above baseline
+        assert result.expected_days_lost > 25
