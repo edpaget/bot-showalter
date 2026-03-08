@@ -154,6 +154,8 @@ class ModelContext:
     model: Model
     run_manager: RunManager | None
     projection_repo: SqliteProjectionRepo | None = None
+    batting_stats_repo: SqliteBattingStatsRepo | None = None
+    pitching_stats_repo: SqlitePitchingStatsRepo | None = None
 
 
 @contextmanager
@@ -208,7 +210,14 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             run_manager = RunManager(model_run_repo=repo, artifacts_root=Path(config.artifacts_dir))
 
         projection_repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
-        yield ModelContext(conn=conn, model=model, run_manager=run_manager, projection_repo=projection_repo)
+        yield ModelContext(
+            conn=conn,
+            model=model,
+            run_manager=run_manager,
+            projection_repo=projection_repo,
+            batting_stats_repo=batting_stats_repo,
+            pitching_stats_repo=pitching_stats_repo,
+        )
     finally:
         conn.close()
 

@@ -40,7 +40,7 @@ from fantasy_baseball_manager.models import (
     TuneResult,
 )
 from fantasy_baseball_manager.models.ensemble.stat_groups import expand_route_groups, league_required_stats
-from fantasy_baseball_manager.services import GateConfig, RegressionGateRunner
+from fantasy_baseball_manager.services import GateConfig, RegressionGateRunner, compute_historical_stdevs
 
 _ModelArg = Annotated[str, typer.Argument(help="Name of the projection model")]
 _OutputDirOpt = Annotated[str | None, typer.Option("--output-dir", help="Output directory for artifacts")]
@@ -66,6 +66,13 @@ _PlayingTimeOpt = Annotated[
 _PTSystemsOpt = Annotated[
     list[str] | None,
     typer.Option("--pt-systems", help="PT model feature systems (repeatable)"),
+]
+_VarianceCorrectionOpt = Annotated[
+    str | None,
+    typer.Option(
+        "--variance-correction",
+        help="Comma-separated list of seasons for variance correction (e.g. 2021,2022,2023,2024)",
+    ),
 ]
 
 
@@ -169,6 +176,7 @@ def predict(  # pragma: no cover
     seasons_back: _SeasonsBackOpt = 5,
     playing_time: _PlayingTimeOpt = None,
     pt_systems: _PTSystemsOpt = None,
+    variance_correction: _VarianceCorrectionOpt = None,
 ) -> None:
     """Generate predictions from a projection model."""
     tags = parse_tags(tag)
@@ -177,6 +185,8 @@ def predict(  # pragma: no cover
         params["playing_time"] = playing_time
     if pt_systems is not None:
         params["pt_systems"] = pt_systems
+    if variance_correction is not None:
+        params["variance_correction_seasons"] = [int(s.strip()) for s in variance_correction.split(",")]
     if "league" in params and isinstance(params["league"], str):
         params["league"] = load_league(params["league"], Path.cwd())
     if dry_run:
@@ -195,6 +205,15 @@ def predict(  # pragma: no cover
     )
 
     with build_model_context(model, config) as ctx:
+        # Compute variance correction stdev overrides if requested
+        vc_seasons = config.model_params.get("variance_correction_seasons")
+        if vc_seasons and ctx.batting_stats_repo is not None and ctx.pitching_stats_repo is not None:
+            league = config.model_params.get("league")
+            if league is not None:
+                config.model_params["_stdev_overrides"] = compute_historical_stdevs(
+                    vc_seasons, league, ctx.batting_stats_repo, ctx.pitching_stats_repo
+                )
+
         # Apply injury discounts: read projections, discount, pass pre-discounted to model
         if "_injury_discounts" in config.model_params and ctx.projection_repo is not None:
             season_val = config.seasons[0] if config.seasons else 2026

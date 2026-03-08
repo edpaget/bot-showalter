@@ -73,6 +73,8 @@ def convert_rate_stats(
 def compute_z_scores(
     stats_list: list[dict[str, float]],
     category_keys: list[str],
+    *,
+    stdev_overrides: dict[str, float] | None = None,
 ) -> list[PlayerZScores]:
     """Compute per-category z-scores and composite z for each player."""
     if not stats_list:
@@ -86,7 +88,10 @@ def compute_z_scores(
     for key in category_keys:
         values = [s.get(key, 0.0) for s in stats_list]
         means[key] = statistics.mean(values)
-        stds[key] = statistics.pstdev(values) if n > 1 else 0.0
+        if stdev_overrides and key in stdev_overrides:
+            stds[key] = stdev_overrides[key]
+        else:
+            stds[key] = statistics.pstdev(values) if n > 1 else 0.0
 
     result: list[PlayerZScores] = []
     for i, stats in enumerate(stats_list):
@@ -218,13 +223,15 @@ def run_zar_pipeline(
     roster_spots: dict[str, int],
     num_teams: int,
     budget: float,
+    *,
+    stdev_overrides: dict[str, float] | None = None,
 ) -> ZarPipelineResult:
     """Run the full ZAR pipeline: convert → z-score → replacement → VAR → dollars."""
     if not stats_list:
         return ZarPipelineResult(z_scores=[], replacement={}, dollar_values=[])
     category_keys = [c.key for c in categories]
     converted = convert_rate_stats(stats_list, categories)
-    z_scores = compute_z_scores(converted, category_keys)
+    z_scores = compute_z_scores(converted, category_keys, stdev_overrides=stdev_overrides)
     replacement = compute_replacement_level(z_scores, player_positions, roster_spots, num_teams)
     var_values = compute_var(z_scores, replacement, player_positions)
     roster_spots_total = sum(spots * num_teams for spots in roster_spots.values())

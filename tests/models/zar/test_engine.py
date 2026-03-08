@@ -259,6 +259,31 @@ class TestComputeZScores:
         assert result[0].player_index == 0
         assert result[1].player_index == 1
 
+    def test_stdev_overrides_changes_z_scores(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        without = compute_z_scores(stats, ["hr"])
+        # Pool stdev = 5.0; override with 10.0 → z-scores halved
+        with_override = compute_z_scores(stats, ["hr"], stdev_overrides={"hr": 10.0})
+        assert with_override[0].category_z["hr"] == pytest.approx(0.5)
+        assert with_override[1].category_z["hr"] == pytest.approx(-0.5)
+        assert with_override[0].category_z["hr"] != without[0].category_z["hr"]
+
+    def test_partial_overrides_falls_back(self) -> None:
+        stats = [{"hr": 30.0, "rbi": 100.0}, {"hr": 20.0, "rbi": 80.0}]
+        # Override hr stdev only; rbi should use pool stdev
+        result = compute_z_scores(stats, ["hr", "rbi"], stdev_overrides={"hr": 10.0})
+        # hr: mean=25, stdev override=10 → z = (30-25)/10 = 0.5
+        assert result[0].category_z["hr"] == pytest.approx(0.5)
+        # rbi: mean=90, pool stdev=10 → z = (100-90)/10 = 1.0
+        assert result[0].category_z["rbi"] == pytest.approx(1.0)
+
+    def test_no_overrides_unchanged(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        without = compute_z_scores(stats, ["hr"])
+        with_none = compute_z_scores(stats, ["hr"], stdev_overrides=None)
+        assert without[0].category_z == with_none[0].category_z
+        assert without[1].category_z == with_none[1].category_z
+
 
 def _pz(index: int, composite: float) -> PlayerZScores:
     """Shorthand for creating a PlayerZScores with just composite_z."""
@@ -561,6 +586,20 @@ class TestRunZarPipeline:
         roster_spots = {"c": 1, "of": 1}
         result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
         assert set(result.replacement.keys()) == {"c", "of"}
+
+    def test_stdev_overrides_passed_through(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}, {"hr": 10.0}]
+        categories = [_counting("hr")]
+        positions = [["of"], ["of"], ["of"]]
+        roster_spots = {"of": 3}
+        without = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=90.0)
+        with_override = run_zar_pipeline(
+            stats, categories, positions, roster_spots, num_teams=1, budget=90.0, stdev_overrides={"hr": 100.0}
+        )
+        # Different stdev → different z-scores
+        without_z = [pz.composite_z for pz in without.z_scores]
+        override_z = [pz.composite_z for pz in with_override.z_scores]
+        assert without_z != override_z
 
     def test_known_value_regression(self) -> None:
         # 2 players, 1 counting category (hr)

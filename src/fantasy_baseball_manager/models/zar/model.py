@@ -96,6 +96,16 @@ class ZarModel:
         # 3. Budget split proportional to category count
         batter_budget, pitcher_budget = compute_budget_split(league)
 
+        # 3.5. Variance correction: split pre-computed stdev overrides by pool
+        batter_stdev_overrides: dict[str, float] | None = None
+        pitcher_stdev_overrides: dict[str, float] | None = None
+        all_stdevs: dict[str, float] | None = config.model_params.get("_stdev_overrides")
+        if all_stdevs:
+            batting_keys = {c.key for c in league.batting_categories}
+            pitching_keys = {c.key for c in league.pitching_categories}
+            batter_stdev_overrides = {k: v for k, v in all_stdevs.items() if k in batting_keys}
+            pitcher_stdev_overrides = {k: v for k, v in all_stdevs.items() if k in pitching_keys}
+
         # 4. Run ZAR for batters
         batter_valuations = self._value_pool(
             batter_projs,
@@ -107,6 +117,7 @@ class ZarModel:
             season,
             version,
             proj_system,
+            stdev_overrides=batter_stdev_overrides,
         )
 
         # 5. Run ZAR for pitchers
@@ -128,6 +139,7 @@ class ZarModel:
             version,
             proj_system,
             pitcher_roster_spots=pitcher_roster_spots,
+            stdev_overrides=pitcher_stdev_overrides,
         )
 
         # 6. Rank all valuations combined by value descending
@@ -174,6 +186,7 @@ class ZarModel:
         proj_system: str,
         *,
         pitcher_roster_spots: dict[str, int] | None = None,
+        stdev_overrides: dict[str, float] | None = None,
     ) -> list[Valuation]:
         """Run the full ZAR pipeline for one player pool (batters or pitchers)."""
         if not projections:
@@ -189,7 +202,15 @@ class ZarModel:
         player_positions = [position_map.get(p.player_id, no_pos) for p in projections]
         roster_spots = build_roster_spots(league, pitcher_roster_spots=pitcher_roster_spots)
 
-        result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
+        result = run_zar_pipeline(
+            stats_list,
+            categories,
+            player_positions,
+            roster_spots,
+            league.teams,
+            budget,
+            stdev_overrides=stdev_overrides,
+        )
 
         # Build Valuation objects (rank=0 placeholder, filled later)
         valuations: list[Valuation] = []

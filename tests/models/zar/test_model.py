@@ -864,3 +864,44 @@ class TestZarModelPlayingTimeCutoffs:
         player_ids = {v.player_id for v in val_repo.upserted}
         assert 1 in player_ids  # PA=1 included
         assert 2 not in player_ids  # PA=0 excluded
+
+
+# ---------------------------------------------------------------------------
+# Variance correction tests
+# ---------------------------------------------------------------------------
+
+
+class TestZarModelVarianceCorrection:
+    def test_predict_with_stdev_overrides(self) -> None:
+        """When _stdev_overrides is in model_params, dollar values differ from without."""
+        model_without, val_repo_without = _build_model()
+        model_without.predict(_standard_config())
+
+        model_with, val_repo_with = _build_model()
+        # Pre-computed stdev overrides (as the CLI would produce)
+        config_with = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "_stdev_overrides": {"hr": 50.0, "r": 50.0, "avg": 50.0, "w": 50.0, "sv": 50.0},
+            },
+            version="1.0",
+        )
+        model_with.predict(config_with)
+
+        values_without = {v.player_id: v.value for v in val_repo_without.upserted}
+        values_with = {v.player_id: v.value for v in val_repo_with.upserted}
+        assert values_without != values_with
+
+    def test_predict_without_stdev_overrides_unchanged(self) -> None:
+        """Without _stdev_overrides, behavior is identical to baseline."""
+        model_a, val_repo_a = _build_model()
+        model_a.predict(_standard_config())
+
+        model_b, val_repo_b = _build_model()
+        model_b.predict(_standard_config())
+
+        values_a = {v.player_id: v.value for v in val_repo_a.upserted}
+        values_b = {v.player_id: v.value for v in val_repo_b.upserted}
+        assert values_a == values_b
