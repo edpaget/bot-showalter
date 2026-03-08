@@ -2,7 +2,7 @@
 
 ZAR valuations systematically overvalue top pitchers (~2x actual) and miss breakout performers entirely. The variance-correction investigation (2026-03-07) established that the root cause is not z-score stdev compression but rather two structural gaps: (1) projections assume full health, inflating injury-prone pitchers, and (2) projections regress breakout candidates toward career norms, undervaluing high-upside players.
 
-This roadmap attacks valuation accuracy through a series of independent corrections, each validated on holdout seasons (2024, 2025) with an explicit go/no-go gate before proceeding. Phases are ordered by expected impact and implementation cost: fix a known bug first, then layer on injury and breakout adjustments, and finally consider a full SGP replacement if earlier phases fall short.
+This roadmap attacks valuation accuracy through a series of independent corrections, each validated on holdout seasons (2024, 2025) with an explicit go/no-go gate before proceeding. Phases are ordered by expected impact and implementation cost: fix a known bug first, then layer on injury and breakout adjustments. If these adjustments prove insufficient, a deeper structural change (SGP or distributional ZAR) should be roadmapped separately — see the existing [Valuation System Unification](valuation-system-unification.md), [ZAR Replacement-Padded](zar-replacement-padded.md), and [ZAR Distributional](zar-distributional.md) roadmaps.
 
 ## Status
 
@@ -12,7 +12,6 @@ This roadmap attacks valuation accuracy through a series of independent correcti
 | 2 — Injury discount holdout validation | not started |
 | 3 — Breakout/bust valuation integration | not started |
 | 4 — Combined adjustment validation | not started |
-| 5 — SGP valuation framework | not started |
 
 ## Phase 1: Fix injury discount PA/IP threshold floor
 
@@ -123,45 +122,12 @@ If phases 2 and 3 both pass their gates, the natural question is whether combini
 
 ### Gate: go/no-go
 
-**Go** if combined improves over the best individual adjustment on at least one metric (MAE or ρ) without degrading the other. **No-go** if combined is worse than the best individual; in that case, adopt the better individual adjustment and skip to phase 5 only if the individual result is still unsatisfying. If neither individual adjustment passed its gate (phases 2-3 both no-go), proceed to phase 5.
-
----
-
-## Phase 5: SGP valuation framework
-
-Replace z-score-based ZAR with standings-gain-points (SGP) valuation as an alternative framework that naturally handles pitcher inflation.
-
-### Context
-
-ZAR computes z-scores per category and converts to dollars. This assumes each category's value is proportional to standard deviations from the mean — which inflates categories with compressed variance (like pitcher rate stats from projections). SGP instead asks: "how many standings points does this player's production gain in each category?" This directly ties value to wins, naturally weighting categories by their marginal impact on league standings. SGP has a long track record in the fantasy baseball analytics community and may outperform ZAR on the specific pitcher-inflation problem, since it prices pitcher production by its actual impact on standings rather than by distributional distance.
-
-This phase is expensive (new valuation engine) and should only be pursued if earlier phases don't sufficiently improve accuracy.
-
-### Steps
-
-1. Research SGP methodology: historical standings data requirements, computation of SGP denominators (points gained per unit of stat), handling of rate stats vs counting stats.
-2. Build an `SGPEngine` alongside the existing ZAR engine — same input interface (player stats, categories, roster structure) but different valuation math.
-3. Implement SGP denominator computation from historical league standings data (or synthesized standings from actual stats if league standings aren't available).
-4. Wire `SGPEngine` into the model prediction pipeline as an alternative `--system sgp` alongside `--system zar`.
-5. Generate SGP valuations for 2024 and 2025 holdout seasons and evaluate against actuals.
-6. Compare SGP vs ZAR (and vs best adjustment from phases 2-4) on MAE, ρ, and top-pitcher accuracy.
-
-### Acceptance criteria
-
-- `SGPEngine` produces dollar valuations from the same inputs as ZAR.
-- SGP valuations are evaluable via the existing `valuations evaluate` command.
-- Holdout evaluation results documented with side-by-side comparison to ZAR.
-- Top-20 pitcher valuations are closer to actuals under SGP than under uncorrected ZAR.
-
-### Gate: go/no-go
-
-**Go** if SGP improves MAE and ρ over uncorrected ZAR on both holdout seasons and top-pitcher valuations are demonstrably less inflated. **No-go** if SGP underperforms ZAR; in that case, document findings and adopt the best result from earlier phases.
+**Go** if combined improves over the best individual adjustment on at least one metric (MAE or ρ) without degrading the other. **No-go** if combined is worse than the best individual; in that case, adopt the better individual adjustment. If neither individual adjustment passed its gate (phases 2-3 both no-go), document findings and consider a deeper structural change via the [Valuation System Unification](valuation-system-unification.md), [ZAR Replacement-Padded](zar-replacement-padded.md), or [ZAR Distributional](zar-distributional.md) roadmaps.
 
 ## Ordering
 
 - **Phase 1** has no dependencies — it is a standalone bug fix and should be done first.
 - **Phases 2 and 3** depend on phase 1 (for clean evaluation baselines) but are independent of each other. They can be implemented in either order or in parallel.
 - **Phase 4** depends on phases 2 and 3. If either phase's gate is no-go, phase 4 is skipped or simplified to adopt the passing phase's result.
-- **Phase 5** is independent of phases 2-4 and can be pursued at any time, but is recommended only if the cheaper adjustments (phases 2-4) don't sufficiently improve accuracy. It is the highest-cost, highest-risk phase.
 
-The go/no-go gates create natural off-ramps: if injury adjustment alone solves the problem (phase 2 go, phase 3 no-go), there's no need to build breakout integration or SGP. If nothing works, phase 5's findings will document whether the problem is solvable within the current projection-based framework or requires fundamentally different inputs.
+The go/no-go gates create natural off-ramps: if injury adjustment alone solves the problem (phase 2 go, phase 3 no-go), there's no need to build breakout integration. If all phases here fail to move the needle, the next step would be a separate roadmap for SGP or distributional valuation — not more tweaks to the current ZAR framework.
