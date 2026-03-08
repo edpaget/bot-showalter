@@ -9,7 +9,7 @@ This roadmap attacks valuation accuracy through a series of independent correcti
 | Phase | Status |
 |-------|--------|
 | 1 — Fix injury discount PA/IP threshold floor | done (2026-03-08) |
-| 2 — Injury discount holdout validation | not started |
+| 2 — Injury discount holdout validation | in progress |
 | 3 — Breakout/bust valuation integration | not started |
 | 4 — Combined adjustment validation | not started |
 
