@@ -18,6 +18,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
 | [Injury Model Fixes](injury-model-fixes.md) | 3 | phases 1-2 done | injury-risk-discount (done), player-bio-fuzzy-team (done) |
+| [Variance Correction](variance-correction.md) | 3 | phase 1 done | none |
 
 ## Completed Roadmaps
 
