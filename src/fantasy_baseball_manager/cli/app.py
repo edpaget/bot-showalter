@@ -47,6 +47,7 @@ from fantasy_baseball_manager.cli.commands.standalone import (
 )
 from fantasy_baseball_manager.cli.commands.validate import validate_app
 from fantasy_baseball_manager.cli.commands.valuations import valuations_app
+from fantasy_baseball_manager.cli.commands.web import web as web_cmd
 from fantasy_baseball_manager.cli.commands.yahoo import yahoo_app
 
 app = typer.Typer(name="fbm", help="Fantasy Baseball Manager — projection model CLI")
@@ -85,6 +86,7 @@ app.command("compare")(compare_cmd)
 app.command("bio")(bio_cmd)
 app.command("chat")(chat_cmd)
 app.command("discord")(discord_cmd)
+app.command("web")(web_cmd)
 
 # Sub-app groups
 app.add_typer(runs_app, name="runs")
