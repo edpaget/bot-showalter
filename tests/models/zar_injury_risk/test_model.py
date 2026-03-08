@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain.injury_discount import apply_injury_discoun
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
+    EligibilityRules,
     LeagueFormat,
     LeagueSettings,
     StatType,
@@ -179,6 +180,46 @@ def _build_plain_zar() -> tuple[ZarModel, FakeValuationRepo]:
     return model, val_repo
 
 
+def _league_with_thresholds(min_pa: int = 0, min_ip: int = 0) -> LeagueSettings:
+    base = _league()
+    return LeagueSettings(
+        name=base.name,
+        format=base.format,
+        teams=base.teams,
+        budget=base.budget,
+        roster_batters=base.roster_batters,
+        roster_pitchers=base.roster_pitchers,
+        batting_categories=base.batting_categories,
+        pitching_categories=base.pitching_categories,
+        roster_util=base.roster_util,
+        positions=base.positions,
+        eligibility=EligibilityRules(min_pa=min_pa, min_ip=min_ip),
+    )
+
+
+def _build_model_with_pos(
+    stints: list[ILStint] | None = None,
+    projections: list[Projection] | None = None,
+    appearances: list[PositionAppearance] | None = None,
+) -> tuple[ZarInjuryRiskModel, FakeValuationRepo]:
+    proj_repo = FakeProjectionRepo(_projections() if projections is None else projections)
+    pos_repo = FakePositionAppearanceRepo(appearances if appearances is not None else _appearances())
+    val_repo = FakeValuationRepo()
+    player_repo = FakePlayerRepo()
+    eligibility = PlayerEligibilityService(pos_repo)
+    il_repo = FakeILStintRepo(stints)
+    profiler = InjuryProfiler(player_repo=player_repo, il_stint_repo=il_repo)
+    model = ZarInjuryRiskModel(
+        projection_repo=proj_repo,
+        position_repo=pos_repo,
+        player_repo=player_repo,
+        valuation_repo=val_repo,
+        eligibility_service=eligibility,
+        injury_profiler=profiler,
+    )
+    return model, val_repo
+
+
 def _config() -> ModelConfig:
     return ModelConfig(
         seasons=[2025],
@@ -282,3 +323,82 @@ class TestZarInjuryRiskPredict:
         # because player 1's reduced stats change the z-score distribution.
         # The key test is that player 1's value decreases.
         assert injury_values[1] < plain_values[1]
+
+    def test_predict_borderline_player_not_dropped(self) -> None:
+        """A batter just above min_pa whose discounted PA falls below threshold should still be valued."""
+        league = _league_with_thresholds(min_pa=200, min_ip=30)
+        # Player 6: borderline batter with PA=210 — injury discount will push below 200
+        borderline_projections = _projections() + [
+            Projection(
+                player_id=6,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 210, "hr": 5.0, "r": 20.0, "h": 50.0, "ab": 190.0, "avg": 0.263},
+            ),
+        ]
+        # Heavy IL history for player 6 — enough to discount PA well below 200
+        stints = [
+            ILStint(player_id=6, season=2023, start_date="2023-05-01", il_type="10-day", days=30),
+            ILStint(player_id=6, season=2024, start_date="2024-06-01", il_type="10-day", days=45),
+        ]
+        model, _ = _build_model(stints=stints, projections=borderline_projections)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={"league": league, "projection_system": "steamer"},
+            version="1.0",
+        )
+        result = model.predict(config)
+        valued_ids = {p["player_id"] for p in result.predictions}
+        assert 6 in valued_ids, "Borderline player should not be dropped after injury discount"
+
+    def test_predict_same_player_count_as_zar(self) -> None:
+        """zar-injury-risk should produce the same player count as plain zar."""
+        league = _league_with_thresholds(min_pa=200, min_ip=30)
+        # Give player 1 heavy IL history (discounts PA=600 → ~487, still above 200)
+        # and add a borderline batter whose discounted PA would drop below 200
+        borderline_projections = _projections() + [
+            Projection(
+                player_id=6,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 210, "hr": 5.0, "r": 20.0, "h": 50.0, "ab": 190.0, "avg": 0.263},
+            ),
+        ]
+        stints = [
+            ILStint(player_id=6, season=2023, start_date="2023-05-01", il_type="10-day", days=30),
+            ILStint(player_id=6, season=2024, start_date="2024-06-01", il_type="10-day", days=45),
+        ]
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={"league": league, "projection_system": "steamer"},
+            version="1.0",
+        )
+
+        # Plain ZAR — no injury discount, all 6 players qualify
+        all_appearances = _appearances() + [
+            PositionAppearance(player_id=6, season=2025, position="OF", games=80),
+        ]
+        proj_repo = FakeProjectionRepo(borderline_projections)
+        pos_repo = FakePositionAppearanceRepo(all_appearances)
+        plain_zar = ZarModel(
+            projection_repo=proj_repo,
+            position_repo=pos_repo,
+            player_repo=FakePlayerRepo(),
+            valuation_repo=FakeValuationRepo(),
+            eligibility_service=PlayerEligibilityService(pos_repo),
+        )
+        plain_result = plain_zar.predict(config)
+
+        # Injury-risk ZAR — player 6 should still be included despite discounted PA
+        model, _ = _build_model_with_pos(
+            stints=stints,
+            projections=borderline_projections,
+            appearances=_appearances() + [PositionAppearance(player_id=6, season=2025, position="OF", games=80)],
+        )
+        injury_result = model.predict(config)
+
+        assert len(injury_result.predictions) == len(plain_result.predictions)

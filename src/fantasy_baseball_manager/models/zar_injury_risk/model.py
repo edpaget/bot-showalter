@@ -15,7 +15,26 @@ from fantasy_baseball_manager.repos import (  # noqa: TC001 — used in __init__
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import Projection
+    from fantasy_baseball_manager.domain import LeagueSettings, Projection
+
+
+def _floor_playing_time(projections: list[Projection], min_pa: int, min_ip: int) -> list[Projection]:
+    """Floor discounted PA/IP at eligibility thresholds.
+
+    Prevents borderline players from being excluded by ZarModel's min_pa/min_ip
+    filter after injury discounting reduces their playing time below the threshold.
+    """
+    result: list[Projection] = []
+    for proj in projections:
+        stats = proj.stat_json
+        if proj.player_type == "batter" and stats.get("pa", 0) < min_pa:
+            stats = {**stats, "pa": min_pa}
+            proj = dataclasses.replace(proj, stat_json=stats)
+        elif proj.player_type == "pitcher" and stats.get("ip", 0) < min_ip:
+            stats = {**stats, "ip": min_ip}
+            proj = dataclasses.replace(proj, stat_json=stats)
+        result.append(proj)
+    return result
 
 
 @register("zar-injury-risk")
@@ -79,6 +98,13 @@ class ZarInjuryRiskModel:
             else:
                 projections = self._projection_repo.get_by_season(season, system=proj_system)
         discounted = discount_projections(projections, injury_map)
+
+        # Floor discounted PA/IP at eligibility thresholds so borderline players
+        # aren't dropped from the pool by ZarModel's min_pa/min_ip filter.
+        league: LeagueSettings = config.model_params["league"]
+        min_pa = league.eligibility.min_pa or 1
+        min_ip = league.eligibility.min_ip or 1
+        discounted = _floor_playing_time(discounted, min_pa, min_ip)
 
         # 3. Build config for ZarModel with injury-risk system name and discounted projections
         zar_params = dict(config.model_params)
