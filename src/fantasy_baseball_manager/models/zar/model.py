@@ -74,6 +74,7 @@ class ZarModel:
         league: LeagueSettings = config.model_params["league"]
         proj_system: str = config.model_params["projection_system"]
         proj_version: str | None = config.model_params.get("projection_version")
+        valuation_system: str = config.model_params.get("valuation_system", "zar")
         season = config.seasons[0] if config.seasons else 2025
         version = config.version or "1.0"
 
@@ -118,6 +119,7 @@ class ZarModel:
             version,
             proj_system,
             stdev_overrides=batter_stdev_overrides,
+            system=valuation_system,
         )
 
         # 5. Run ZAR for pitchers
@@ -140,6 +142,7 @@ class ZarModel:
             proj_system,
             pitcher_roster_spots=pitcher_roster_spots,
             stdev_overrides=pitcher_stdev_overrides,
+            system=valuation_system,
         )
 
         # 6. Rank all valuations combined by value descending
@@ -187,6 +190,7 @@ class ZarModel:
         *,
         pitcher_roster_spots: dict[str, int] | None = None,
         stdev_overrides: dict[str, float] | None = None,
+        system: str = "zar",
     ) -> list[Valuation]:
         """Run the full ZAR pipeline for one player pool (batters or pitchers)."""
         if not projections:
@@ -220,7 +224,7 @@ class ZarModel:
                 Valuation(
                     player_id=proj.player_id,
                     season=season,
-                    system="zar",
+                    system=system,
                     version=version,
                     projection_system=proj_system,
                     projection_version=proj.version,

@@ -12,7 +12,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Valuation System Unification](valuation-system-unification.md) | 3 | not started | injury-risk-discount (done) |
+| [Valuation System Unification](valuation-system-unification.md) | 2 | phase 1 done | injury-risk-discount (done) |
 | [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 | not started | injury-risk-discount (done), valuation-system-unification phase 1 |
 | [ZAR Distributional](zar-distributional.md) | 3 | not started | playing-time v2 (done), injury-risk-discount (done), valuation-system-unification phase 1 |
 | [Web UI Foundation](web-ui-foundation.md) | 6 | phases 1-3 done | draft-session-persistence (phase 2 needs phases 1-2) |

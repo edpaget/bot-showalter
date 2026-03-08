@@ -5,6 +5,8 @@ if TYPE_CHECKING:
     import numpy as np
 
     from fantasy_baseball_manager.domain.evaluation import SystemMetrics
+    from fantasy_baseball_manager.domain.expected_games_lost import ExpectedGamesLost
+    from fantasy_baseball_manager.domain.injury_profile import InjuryProfile
     from fantasy_baseball_manager.domain.league_settings import LeagueSettings
 
 
@@ -208,3 +210,15 @@ class EligibilityProvider(Protocol):
         league: LeagueSettings,
         pitcher_ids: list[int],
     ) -> dict[int, list[str]]: ...
+
+
+@runtime_checkable
+class GamesLostEstimator(Protocol):
+    def list_games_lost_estimates(
+        self,
+        seasons: list[int],
+        projection_season: int,
+        *,
+        min_stints: int = ...,
+        top_n: int | None = ...,
+    ) -> list[tuple[ExpectedGamesLost, InjuryProfile, str]]: ...

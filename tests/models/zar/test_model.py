@@ -871,6 +871,31 @@ class TestZarModelPlayingTimeCutoffs:
 # ---------------------------------------------------------------------------
 
 
+class TestZarModelSystemName:
+    def test_predict_default_system_is_zar(self) -> None:
+        """Without valuation_system param, all valuations use system='zar'."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        for v in val_repo.upserted:
+            assert v.system == "zar"
+
+    def test_predict_custom_valuation_system(self) -> None:
+        """With valuation_system in model_params, valuations use that system."""
+        model, val_repo = _build_model()
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "valuation_system": "zar-injury-risk",
+            },
+            version="1.0",
+        )
+        model.predict(config)
+        for v in val_repo.upserted:
+            assert v.system == "zar-injury-risk"
+
+
 class TestZarModelVarianceCorrection:
     def test_predict_with_stdev_overrides(self) -> None:
         """When _stdev_overrides is in model_params, dollar values differ from without."""

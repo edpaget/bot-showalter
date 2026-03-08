@@ -184,6 +184,10 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             pitching_repo=pitching_stats_repo,
         )
         label_source = DbLabelSource(conn)
+        injury_profiler = InjuryProfiler(
+            player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
+            il_stint_repo=SqliteILStintRepo(SingleConnectionProvider(conn)),
+        )
         result = create_model(
             model_name,
             assembler=assembler,
@@ -199,6 +203,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             eligibility_service=eligibility_service,
             player_universe=player_universe,
             label_source=label_source,
+            injury_profiler=injury_profiler,
         )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)
