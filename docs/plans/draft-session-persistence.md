@@ -8,7 +8,7 @@ Draft sessions currently support manual JSON save/load via the `save` command an
 |-------|--------|
 | 1 — Schema and repo layer | done (2026-03-07) |
 | 2 — Auto-persist on every mutation | done (2026-03-07) |
-| 3 — Session discovery and resume UX | not started |
+| 3 — Session discovery and resume UX | in progress |
 
 ## Phase 1: Schema and repo layer
 
