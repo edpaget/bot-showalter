@@ -61,6 +61,7 @@ from fantasy_baseball_manager.services import (
     generate_tiers,
     identify_needs,
     load_draft,
+    load_draft_from_db,
     optimize_auction_budget,
     parse_league_keepers,
     plan_snake_draft,
@@ -316,6 +317,7 @@ def draft_start(  # pragma: no cover
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     budget: Annotated[int, typer.Option("--budget", help="Auction budget per team")] = 260,
     resume: Annotated[Path | None, typer.Option("--resume", help="Resume from saved draft file")] = None,
+    session_id: Annotated[int | None, typer.Option("--session-id", help="Resume a specific DB session by ID")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Start an interactive draft session (REPL)."""
@@ -348,8 +350,31 @@ def draft_start(  # pragma: no cover
         budget=budget if draft_format == DraftFormat.AUCTION else 0,
     )
 
+    db_conn = create_connection(Path(data_dir) / "fbm.db")
+    session_repo = SqliteDraftSessionRepo(SingleConnectionProvider(db_conn))
+
+    resume_session_id: int | None = session_id
+
+    # Auto-detect in-progress session when neither --resume nor --session-id given
+    if resume is None and session_id is None:
+        existing = session_repo.list_sessions(league=league_name, season=season)
+        in_progress = [s for s in existing if s.status == "in_progress"]
+        if in_progress:
+            sess = in_progress[0]
+            pick_count = session_repo.count_picks(sess.id)  # type: ignore[arg-type]
+            total = sum(sess.roster_slots.values()) * sess.teams
+            if typer.confirm(
+                f"Found in-progress draft (pick {pick_count} of {total}). Resume?",
+                default=True,
+            ):
+                resume_session_id = sess.id
+            else:
+                session_repo.update_status(sess.id, "abandoned")  # type: ignore[arg-type]
+
     if resume is not None:
         engine = load_draft(resume, draft_players)
+    elif resume_session_id is not None:
+        engine = load_draft_from_db(resume_session_id, draft_players, session_repo)
     else:
         engine = DraftEngine()
         engine.start(draft_players, config)
@@ -367,9 +392,6 @@ def draft_start(  # pragma: no cover
 
     recommend_fn = functools.partial(recommend, category_balance_fn=_cat_balance_fn)
 
-    db_conn = create_connection(Path(data_dir) / "fbm.db")
-    session_repo = SqliteDraftSessionRepo(SingleConnectionProvider(db_conn))
-
     session = DraftSession(
         engine=engine,
         players=draft_players,
@@ -380,9 +402,73 @@ def draft_start(  # pragma: no cover
         projections=projections,
         league=league,
         session_repo=session_repo,
+        session_id=resume_session_id,
         league_name=league_name,
     )
     session.run()
+
+
+@draft_app.command("sessions")
+def draft_sessions(  # pragma: no cover
+    league_name: Annotated[str | None, typer.Option("--league", help="Filter by league name")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Filter by season")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """List all draft sessions stored in the database."""
+    db_conn = create_connection(Path(data_dir) / "fbm.db")
+    repo = SqliteDraftSessionRepo(SingleConnectionProvider(db_conn))
+
+    sessions = repo.list_sessions(league=league_name, season=season)
+    if not sessions:
+        console.print("[dim]No draft sessions found.[/dim]")
+        return
+
+    table = Table(title="Draft Sessions")
+    table.add_column("ID", style="bold")
+    table.add_column("League")
+    table.add_column("Season")
+    table.add_column("Format")
+    table.add_column("Picks")
+    table.add_column("Status")
+    table.add_column("Created")
+    table.add_column("Updated")
+
+    for sess in sessions:
+        pick_count = repo.count_picks(sess.id)  # type: ignore[arg-type]
+        total = sum(sess.roster_slots.values()) * sess.teams
+        table.add_row(
+            str(sess.id),
+            sess.league,
+            str(sess.season),
+            sess.format,
+            f"{pick_count}/{total}",
+            sess.status,
+            sess.created_at,
+            sess.updated_at,
+        )
+
+    console.print(table)
+
+
+@draft_app.command("delete")
+def draft_delete(  # pragma: no cover
+    session_id: Annotated[int, typer.Option("--session-id", help="Session ID to delete")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Delete a draft session and all its picks."""
+    db_conn = create_connection(Path(data_dir) / "fbm.db")
+    repo = SqliteDraftSessionRepo(SingleConnectionProvider(db_conn))
+
+    sess = repo.load_session(session_id)
+    if sess is None:
+        console.print(f"[red]Session {session_id} not found.[/red]")
+        raise typer.Exit(code=1)
+
+    pick_count = repo.count_picks(session_id)
+    console.print(f"Session {session_id}: {sess.league} {sess.season} ({sess.format}), {pick_count} picks")
+    typer.confirm(f"Delete session {session_id} and all its picks?", abort=True)
+    repo.delete_session(session_id)
+    console.print(f"[green]Session {session_id} deleted.[/green]")
 
 
 @draft_app.command("report")

@@ -115,6 +115,19 @@ class SqliteDraftSessionRepo:
                 (updated_at, session_id),
             )
 
+    def delete_session(self, session_id: int) -> None:
+        with self._provider.connection() as conn:
+            conn.execute("DELETE FROM draft_session_pick WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM draft_session WHERE id = ?", (session_id,))
+
+    def count_picks(self, session_id: int) -> int:
+        with self._provider.connection() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM draft_session_pick WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            return row[0]
+
     @staticmethod
     def _row_to_session(row: sqlite3.Row) -> DraftSessionRecord:
         return DraftSessionRecord(

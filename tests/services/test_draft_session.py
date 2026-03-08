@@ -856,6 +856,12 @@ class FakeDraftSessionRepo:
     def update_timestamp(self, session_id: int, updated_at: str) -> None:
         self.timestamp_updates.append((session_id, updated_at))
 
+    def delete_session(self, session_id: int) -> None:
+        pass
+
+    def count_picks(self, session_id: int) -> int:
+        return 0
+
 
 # ---------------------------------------------------------------------------
 # DraftSession DB persistence (phase 2)

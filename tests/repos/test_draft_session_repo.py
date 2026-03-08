@@ -166,6 +166,45 @@ class TestUpdateTimestamp:
         assert loaded.updated_at == "2026-03-07T12:00:00"
 
 
+class TestDeleteSession:
+    def test_delete_session_removes_session_and_picks(self, repo: SqliteDraftSessionRepo) -> None:
+        session_id = repo.create_session(_make_record())
+        for i in range(1, 4):
+            repo.save_pick(
+                DraftSessionPick(
+                    session_id=session_id,
+                    pick_number=i,
+                    team=1,
+                    player_id=100 + i,
+                    player_name=f"Player {i}",
+                    position="OF",
+                )
+            )
+
+        repo.delete_session(session_id)
+        assert repo.load_session(session_id) is None
+        assert repo.load_picks(session_id) == []
+
+
+class TestCountPicks:
+    def test_count_picks(self, repo: SqliteDraftSessionRepo) -> None:
+        session_id = repo.create_session(_make_record())
+        assert repo.count_picks(session_id) == 0
+
+        for i in range(1, 4):
+            repo.save_pick(
+                DraftSessionPick(
+                    session_id=session_id,
+                    pick_number=i,
+                    team=1,
+                    player_id=100 + i,
+                    player_name=f"Player {i}",
+                    position="OF",
+                )
+            )
+        assert repo.count_picks(session_id) == 3
+
+
 class TestLoadSessionNotFound:
     def test_returns_none(self, repo: SqliteDraftSessionRepo) -> None:
         assert repo.load_session(9999) is None
