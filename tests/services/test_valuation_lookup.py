@@ -198,6 +198,26 @@ class TestRankings:
         assert len(results) == 1
         assert results[0].player_name == "Juan Soto"
 
+    def test_filter_by_version(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        _seed_valuation(conn, pid, version="production", value=42.5, rank=1)
+        _seed_valuation(conn, pid, version="experimental", value=50.0, rank=1)
+        svc = _make_service(conn)
+
+        results = svc.rankings(2025, version="production")
+        assert len(results) == 1
+        assert results[0].version == "production"
+        assert results[0].value == 42.5
+
+    def test_version_none_returns_all(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        _seed_valuation(conn, pid, version="production", value=42.5, rank=1)
+        _seed_valuation(conn, pid, version="experimental", value=50.0, rank=1)
+        svc = _make_service(conn)
+
+        results = svc.rankings(2025, version=None)
+        assert len(results) == 2
+
 
 class TestDeltas:
     def test_returns_deltas_for_matching_players(self, conn: sqlite3.Connection) -> None:

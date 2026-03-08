@@ -36,6 +36,7 @@ def valuations_lookup(
 def valuations_rankings(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     system: Annotated[str | None, typer.Option("--system", help="Filter by valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Filter by valuation version")] = None,
     player_type: Annotated[str | None, typer.Option("--player-type", help="Filter by player type")] = None,
     position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
@@ -44,7 +45,7 @@ def valuations_rankings(  # pragma: no cover
     """Show valuation rankings as a leaderboard."""
     with build_valuations_context(data_dir) as ctx:
         results = ctx.lookup_service.rankings(
-            season, system=system, player_type=player_type, position=position, top=top
+            season, system=system, player_type=player_type, position=position, top=top, version=version
         )
     print_valuation_rankings(results)
 

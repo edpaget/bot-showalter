@@ -45,10 +45,12 @@ def _build_cost_translator(
     league_name: str,
     system: str,
     provider: str,
+    version: str = "production",
 ) -> Callable[[int], float]:
     """Build a round→dollar cost translator using the pick value curve."""
     adp = ctx.adp_repo.get_by_season(season, provider=provider)
     valuations = ctx.valuation_repo.get_by_season(season, system)
+    valuations = [v for v in valuations if v.version == version]
     league_settings = load_league(league_name, Path.cwd())
     curve = compute_pick_value_curve(adp, valuations, league_settings)
     return lambda round_num: round_to_dollar_cost(round_num, league_settings, curve)
@@ -63,6 +65,7 @@ def import_cmd(
     fmt: Annotated[str, typer.Option("--format", help="Cost format: auction or draft-pick")] = "auction",
     system: Annotated[str | None, typer.Option(help="Valuation system (required for draft-pick)")] = None,
     provider: Annotated[str | None, typer.Option(help="ADP provider (required for draft-pick)")] = None,
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
 ) -> None:
     """Import keeper costs from a CSV file."""
@@ -87,7 +90,7 @@ def import_cmd(
         if fmt == "draft-pick":
             assert system is not None  # noqa: S101
             assert provider is not None  # noqa: S101
-            cost_translator = _build_cost_translator(ctx, season, league, system, provider)
+            cost_translator = _build_cost_translator(ctx, season, league, system, provider, version)
 
         players = ctx.player_repo.all()
         result = import_keeper_costs(
@@ -117,6 +120,7 @@ def set_cmd(
     source: Annotated[str, typer.Option(help="Cost source type")] = "auction",
     system: Annotated[str | None, typer.Option(help="Valuation system (required for --round)")] = None,
     provider: Annotated[str | None, typer.Option(help="ADP provider (required for --round)")] = None,
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
 ) -> None:
     """Set a keeper cost for a single player."""
@@ -139,7 +143,7 @@ def set_cmd(
         if round_num is not None:
             assert system is not None  # noqa: S101
             assert provider is not None  # noqa: S101
-            translator = _build_cost_translator(ctx, season, league, system, provider)
+            translator = _build_cost_translator(ctx, season, league, system, provider, version)
             effective_cost = translator(round_num)
             effective_source = "draft_round"
             original_round: int | None = round_num
@@ -179,6 +183,7 @@ def decisions_cmd(
     season: Annotated[int, typer.Option(help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
     system: Annotated[str, typer.Option(help="Valuation system name")],
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     threshold: Annotated[float, typer.Option(help="Minimum surplus for keep recommendation")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor for multi-year surplus")] = 0.85,
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
@@ -190,6 +195,7 @@ def decisions_cmd(
             typer.echo("No keeper costs found for the specified season and league.")
             return
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         players = ctx.player_repo.all()
         decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 
@@ -201,6 +207,7 @@ def adjusted_rankings_cmd(
     season: Annotated[int, typer.Option(help="Season year")],
     league: Annotated[str, typer.Option(help="League name (must match fbm.toml)")],
     system: Annotated[str, typer.Option(help="Valuation system name")],
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     threshold: Annotated[float, typer.Option(help="Minimum surplus for keep recommendation")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor for multi-year surplus")] = 0.85,
     top: Annotated[int | None, typer.Option(help="Show only top N players")] = None,
@@ -216,6 +223,7 @@ def adjusted_rankings_cmd(
             return
 
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         players = ctx.player_repo.all()
         decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
         kept_player_ids = {d.player_id for d in decisions if d.recommendation == "keep"}
@@ -255,6 +263,7 @@ def trade_eval_cmd(
     season: Annotated[int, typer.Option(help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
     system: Annotated[str, typer.Option(help="Valuation system name")],
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
 ) -> None:
@@ -288,6 +297,7 @@ def trade_eval_cmd(
 
         keeper_costs = ctx.keeper_repo.find_by_season_league(season, league)
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         players = ctx.player_repo.all()
 
     result = evaluate_trade(give_ids, receive_ids, keeper_costs, valuations, players, decay)
@@ -323,6 +333,7 @@ def optimize_cmd(
     league: Annotated[str, typer.Option(help="League name")],
     system: Annotated[str, typer.Option(help="Valuation system name")],
     max_keepers: Annotated[int, typer.Option(help="Maximum number of keepers")],
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     max_per_position: Annotated[list[str] | None, typer.Option(help="Position limits, e.g. 'c=1'")] = None,
     max_cost: Annotated[float | None, typer.Option(help="Maximum total keeper cost")] = None,
     required: Annotated[list[str] | None, typer.Option(help="Player names that must be kept")] = None,
@@ -345,6 +356,7 @@ def optimize_cmd(
             typer.echo("No keeper costs found for the specified season and league.")
             return
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         players = ctx.player_repo.all()
         candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 
@@ -384,6 +396,7 @@ def scenario_cmd(
     system: Annotated[str, typer.Option(help="Valuation system name")],
     max_keepers: Annotated[int, typer.Option(help="Maximum number of keepers")],
     scenario: Annotated[list[str], typer.Option(help="Scenario as 'Name:Player1,Player2'")],
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
@@ -395,6 +408,7 @@ def scenario_cmd(
             typer.echo("No keeper costs found for the specified season and league.")
             return
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         players = ctx.player_repo.all()
         candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 
@@ -422,6 +436,7 @@ def trade_impact_cmd(
     acquire: Annotated[list[str] | None, typer.Option(help="Player names to acquire")] = None,
     release: Annotated[list[str] | None, typer.Option(help="Player names to release")] = None,
     acquire_cost: Annotated[list[float] | None, typer.Option(help="Keeper cost for each acquired player")] = None,
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
@@ -433,6 +448,7 @@ def trade_impact_cmd(
             typer.echo("No keeper costs found for the specified season and league.")
             return
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         players = ctx.player_repo.all()
         candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 

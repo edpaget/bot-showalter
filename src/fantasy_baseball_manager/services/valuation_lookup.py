@@ -49,8 +49,12 @@ class ValuationLookupService:
         player_type: str | None = None,
         position: str | None = None,
         top: int | None = None,
+        version: str | None = None,
     ) -> list[PlayerValuation]:
         valuations = self._valuation_repo.get_by_season(season, system)
+
+        if version is not None:
+            valuations = [v for v in valuations if v.version == version]
 
         if player_type is not None:
             valuations = [v for v in valuations if v.player_type == player_type]

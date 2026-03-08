@@ -42,14 +42,16 @@ def create_get_rankings_tool(container: AnalysisContainer) -> BaseTool:
         player_type: str | None = None,
         position: str | None = None,
         top: int = 20,
+        version: str | None = None,
     ) -> str:
-        """Get player rankings by valuation system. Optionally filter by player type and position."""
+        """Get player rankings by valuation system. Optionally filter by player type, position, and version."""
         rankings = container.valuation_lookup_service.rankings(
             season=season,
             system=system,
             player_type=player_type,
             position=position,
             top=top,
+            version=version,
         )
         if not rankings:
             return format_no_results(

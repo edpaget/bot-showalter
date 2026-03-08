@@ -154,7 +154,7 @@ def _seed_adp_and_valuations(conn: sqlite3.Connection, player_ids: list[int]) ->
                 player_id=pid,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",
@@ -485,7 +485,7 @@ class TestKeeperDecisions:
                 player_id=pid1,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",
@@ -500,7 +500,7 @@ class TestKeeperDecisions:
                 player_id=pid2,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",
@@ -539,6 +539,83 @@ class TestKeeperDecisions:
         )
         assert result.exit_code == 0, result.output
         assert "No keeper costs found" in result.output
+
+    def test_decisions_version_filter(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When two versions exist, only the specified version's valuation is used."""
+        conn = create_connection(":memory:")
+        pid = seed_player(conn, name_first="Mike", name_last="Trout")
+
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
+        keeper_repo.upsert_batch(
+            [KeeperCost(player_id=pid, season=2026, league="dynasty", cost=10.0, source="auction")]
+        )
+
+        val_repo = SqliteValuationRepo(SingleConnectionProvider(conn))
+        # Production version: value=25
+        val_repo.upsert(
+            Valuation(
+                player_id=pid,
+                season=2026,
+                system="zar",
+                version="production",
+                projection_system="composite",
+                projection_version="v1",
+                player_type="batter",
+                position="CF",
+                value=25.0,
+                rank=1,
+                category_scores={},
+            )
+        )
+        # Experimental version: value=50
+        val_repo.upsert(
+            Valuation(
+                player_id=pid,
+                season=2026,
+                system="zar",
+                version="experimental",
+                projection_system="composite",
+                projection_version="v1",
+                player_type="batter",
+                position="CF",
+                value=50.0,
+                rank=1,
+                category_scores={},
+            )
+        )
+        conn.commit()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        # Default --version is "production" → surplus = 25-10 = $15
+        result = runner.invoke(
+            app, ["keeper", "decisions", "--season", "2026", "--league", "dynasty", "--system", "zar"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "$15.0" in result.output
+
+        # Explicit --version experimental → surplus = 50-10 = $40
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "decisions",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--system",
+                "zar",
+                "--version",
+                "experimental",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "$40.0" in result.output
+        conn.close()
 
 
 def _adjusted_league() -> LeagueSettings:
@@ -579,7 +656,7 @@ class TestKeeperAdjustedRankings:
                     player_id=pid,
                     season=2026,
                     system="zar",
-                    version="v1",
+                    version="production",
                     projection_system="composite",
                     projection_version="v1",
                     player_type="batter",
@@ -597,7 +674,7 @@ class TestKeeperAdjustedRankings:
                     player_id=pid,
                     season=2026,
                     system="composite",
-                    version="v1",
+                    version="production",
                     player_type="batter",
                     stat_json={"pa": 600, "hr": hr},
                 )
@@ -684,7 +761,7 @@ class TestKeeperTradeEval:
                 player_id=pid1,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",
@@ -699,7 +776,7 @@ class TestKeeperTradeEval:
                 player_id=pid2,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",
@@ -830,7 +907,7 @@ def _seed_optimize_data(conn: sqlite3.Connection) -> tuple[int, int, int, int]:
                 player_id=pid,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",
@@ -979,7 +1056,7 @@ class TestKeeperOptimize:
                 player_id=pid5,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",
@@ -1058,7 +1135,7 @@ def _seed_optimize_round_data(conn: sqlite3.Connection) -> tuple[int, int, int]:
                 player_id=pid,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",
@@ -1249,7 +1326,7 @@ class TestKeeperTradeImpact:
                 player_id=pid5,
                 season=2026,
                 system="zar",
-                version="v1",
+                version="production",
                 projection_system="composite",
                 projection_version="v1",
                 player_type="batter",

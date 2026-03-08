@@ -868,6 +868,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     threshold: Annotated[float, typer.Option("--threshold", help="Minimum surplus for keep recommendation")] = 0.0,
     decay: Annotated[float, typer.Option("--decay", help="Decay factor for multi-year surplus")] = 0.85,
     cost_floor: Annotated[float, typer.Option("--cost-floor", help="Minimum keeper cost for FA pickups")] = 1.0,
@@ -967,6 +968,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
         console.print(f"[dim]Showing keeper decisions for: {target_team.name}[/dim]\n")
 
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         players = ctx.player_repo.all()
 
         # Estimate other teams' keepers and adjust valuations
@@ -1027,6 +1029,7 @@ def yahoo_keeper_league(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     max_keepers_opt: Annotated[int | None, typer.Option("--max-keepers", help="Override max keepers")] = None,
     top_targets: Annotated[int, typer.Option("--top-targets", help="Number of trade targets to show")] = 15,
     data_dir: _DataDirOpt = "./data",
@@ -1085,6 +1088,7 @@ def yahoo_keeper_league(  # pragma: no cover
 
         # Get valuations and players
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         if not valuations:
             print_error(f"No valuations found for season {season}, system '{system}'")
             raise typer.Exit(code=1)
@@ -1106,6 +1110,7 @@ def yahoo_draft_needs(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     max_keepers_opt: Annotated[int | None, typer.Option("--max-keepers", help="Override max keepers")] = None,
     top: Annotated[int, typer.Option("--top", help="Number of recommendations per category")] = 5,
     data_dir: _DataDirOpt = "./data",
@@ -1164,6 +1169,7 @@ def yahoo_draft_needs(  # pragma: no cover
 
         # Get valuations, players, projections
         valuations = ctx.valuation_repo.get_by_season(season, system)
+        valuations = [v for v in valuations if v.version == version]
         if not valuations:
             print_error(f"No valuations found for season {season}, system '{system}'")
             raise typer.Exit(code=1)
