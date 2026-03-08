@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+import pytest
+
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -195,3 +197,63 @@ class TestRankings:
         results = svc.rankings(2025)
         assert len(results) == 1
         assert results[0].player_name == "Juan Soto"
+
+
+class TestDeltas:
+    def test_returns_deltas_for_matching_players(self, conn: sqlite3.Connection) -> None:
+        pid1 = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        pid2 = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+        _seed_valuation(conn, pid1, system="zar", value=42.5, rank=1)
+        _seed_valuation(conn, pid2, system="zar", value=38.0, rank=2)
+        _seed_valuation(conn, pid1, system="zar-injury-risk", value=40.0, rank=1)
+        _seed_valuation(conn, pid2, system="zar-injury-risk", value=37.5, rank=2)
+        svc = _make_service(conn)
+
+        deltas = svc.deltas(2025, "zar", "zar-injury-risk")
+        assert len(deltas) == 2
+        # Sorted by value_delta ascending
+        assert deltas[0].value_delta <= deltas[1].value_delta
+
+    def test_deltas_have_correct_fields(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        _seed_valuation(conn, pid, system="zar", value=42.5, rank=1)
+        _seed_valuation(conn, pid, system="zar-injury-risk", value=40.0, rank=2)
+        svc = _make_service(conn)
+
+        deltas = svc.deltas(2025, "zar", "zar-injury-risk")
+        assert len(deltas) == 1
+        d = deltas[0]
+        assert d.player_name == "Juan Soto"
+        assert d.original_value == 42.5
+        assert d.adjusted_value == 40.0
+        assert d.value_delta == pytest.approx(-2.5)
+        assert d.original_rank == 1
+        assert d.adjusted_rank == 2
+        assert d.rank_change == -1
+
+    def test_no_original_valuations_returns_empty(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        _seed_valuation(conn, pid, system="zar-injury-risk", value=40.0, rank=1)
+        svc = _make_service(conn)
+
+        assert svc.deltas(2025, "zar", "zar-injury-risk") == []
+
+    def test_no_adjusted_valuations_returns_empty(self, conn: sqlite3.Connection) -> None:
+        pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        _seed_valuation(conn, pid, system="zar", value=42.5, rank=1)
+        svc = _make_service(conn)
+
+        assert svc.deltas(2025, "zar", "zar-injury-risk") == []
+
+    def test_only_matching_players_included(self, conn: sqlite3.Connection) -> None:
+        pid1 = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
+        pid2 = seed_player(conn, name_first="Aaron", name_last="Judge", mlbam_id=592450)
+        _seed_valuation(conn, pid1, system="zar", value=42.5, rank=1)
+        _seed_valuation(conn, pid2, system="zar", value=38.0, rank=2)
+        # Only pid1 has adjusted valuations
+        _seed_valuation(conn, pid1, system="zar-injury-risk", value=40.0, rank=1)
+        svc = _make_service(conn)
+
+        deltas = svc.deltas(2025, "zar", "zar-injury-risk")
+        assert len(deltas) == 1
+        assert deltas[0].player_name == "Juan Soto"

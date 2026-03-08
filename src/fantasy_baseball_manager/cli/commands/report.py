@@ -31,20 +31,18 @@ from fantasy_baseball_manager.cli.factory import (
     build_adp_report_context,
     build_breakout_bust_report_context,
     build_confidence_report_context,
-    build_injury_adjusted_valuations_context,
     build_injury_profile_context,
     build_report_context,
-    create_model,
+    build_valuations_context,
 )
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.domain import (
     BreakoutPrediction,
     ConfidenceReport,
-    Err,
     VarianceClassification,
 )
 from fantasy_baseball_manager.models import ModelConfig
-from fantasy_baseball_manager.services import classify_variance, compute_confidence, compute_injury_adjusted_deltas
+from fantasy_baseball_manager.services import classify_variance, compute_confidence
 
 report_app = typer.Typer(name="report", help="Over/underperformance reports vs model predictions")
 
@@ -531,50 +529,20 @@ def report_games_lost(
 @report_app.command("injury-adjusted-values")
 def report_injury_adjusted_values(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Projection season year")],
-    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")],
-    projection_system: Annotated[str, typer.Option("--projection-system", help="Projection system")],
-    projection_version: Annotated[str | None, typer.Option("--projection-version", help="Projection version")] = None,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
+    system: Annotated[str, typer.Option("--system", help="Original valuation system")] = "zar",
+    adjusted_system: Annotated[
+        str, typer.Option("--adjusted-system", help="Injury-adjusted valuation system")
+    ] = "zar-injury-risk",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
-    model_name: Annotated[str, typer.Option("--model", help="Valuation model")] = "zar",
-    seasons_back: Annotated[int, typer.Option("--seasons-back", help="Lookback window")] = 5,
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show biggest value changes from injury adjustment."""
-    league = load_league(league_name, Path.cwd())
-    season_list = list(range(season - seasons_back + 1, season + 1))
-
-    with build_injury_adjusted_valuations_context(data_dir) as ctx:
-        result = create_model(
-            model_name,
-            projection_repo=ctx.projection_repo,
-            position_repo=ctx.projection_repo,
-            player_repo=ctx.player_repo,
-            eligibility_service=ctx.eligibility_service,
-        )
-        if isinstance(result, Err):
-            print_error(result.error.message)
-            raise typer.Exit(code=1)
-        model = result.value
-
-        deltas = compute_injury_adjusted_deltas(
-            season=season,
-            league=league,
-            projection_system=projection_system,
-            projection_version=projection_version,
-            season_list=season_list,
-            profiler=ctx.profiler,
-            model=model,  # type: ignore[arg-type]  # Model satisfies Predictable structurally
-            player_repo=ctx.player_repo,
-            valuation_repo=ctx.valuation_repo,
-            projection_repo=ctx.projection_repo,
-            system=system,
-            version=version,
-        )
+    with build_valuations_context(data_dir) as ctx:
+        deltas = ctx.lookup_service.deltas(season, system, adjusted_system, version=version)
 
     if not deltas:
-        print_error(f"No valuations found for {system}/{version} season {season}")
+        print_error(f"No valuations found for {system} and/or {adjusted_system} season {season}")
         raise typer.Exit(code=1)
 
     print_injury_value_deltas(deltas, top=top)

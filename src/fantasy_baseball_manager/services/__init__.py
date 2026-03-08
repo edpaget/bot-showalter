@@ -78,10 +78,6 @@ from fantasy_baseball_manager.services.historical_stdev import compute_historica
 from fantasy_baseball_manager.services.il_stint_days import IL_TYPE_DEFAULTS, compute_stint_days
 from fantasy_baseball_manager.services.injury_discount import apply_injury_discount, discount_projections
 from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
-from fantasy_baseball_manager.services.injury_valuation import (
-    compute_injury_adjusted_deltas,
-    compute_injury_adjusted_valuations_list,
-)
 from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
 from fantasy_baseball_manager.services.keeper_history import build_keeper_histories
 from fantasy_baseball_manager.services.keeper_optimizer import (
@@ -298,8 +294,6 @@ __all__ = [
     "apply_injury_discount",
     "build_profiles",
     "discount_projections",
-    "compute_injury_adjusted_deltas",
-    "compute_injury_adjusted_valuations_list",
     "compute_historical_stdevs",
     "compute_stint_days",
     "METADATA_FIELDS",

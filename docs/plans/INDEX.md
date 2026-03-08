@@ -12,7 +12,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Valuation System Unification](valuation-system-unification.md) | 2 | phase 1 done | injury-risk-discount (done) |
 | [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 | not started | injury-risk-discount (done), valuation-system-unification phase 1 |
 | [ZAR Distributional](zar-distributional.md) | 3 | not started | playing-time v2 (done), injury-risk-discount (done), valuation-system-unification phase 1 |
 | [Web API Hardening](web-api-hardening.md) | 3 | not started | web-ui-foundation (phases 1-3) |
@@ -78,6 +77,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Roster Stint Preload](roster-stint-preload.md) | 2 |
 | [Playing Time Flexibility](playing-time-flexibility.md) | 4 |
 | [Prior-Season Roster Lookup](prior-season-roster-lookup.md) | 3 |
+| [Valuation System Unification](valuation-system-unification.md) | 2 |
 | [Variance Correction](variance-correction.md) | 3 |
 | [Yahoo Integration Improvements](yahoo-integration-improvements.md) | 3 |
 

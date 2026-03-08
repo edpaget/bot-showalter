@@ -19,7 +19,6 @@ from fantasy_baseball_manager.cli._output import (
 )
 from fantasy_baseball_manager.cli.factory import (
     build_eval_context,
-    build_injury_profile_context,
     build_model_context,
 )
 from fantasy_baseball_manager.config import load_config
@@ -30,7 +29,6 @@ from fantasy_baseball_manager.domain import (
     Projection,
     StatDistribution,
     SystemMetrics,
-    discount_projections,
 )
 from fantasy_baseball_manager.models import (
     AblationResult,
@@ -54,8 +52,6 @@ _BaselineOpt = Annotated[str, typer.Option("--baseline", help="Baseline version 
 _KeepOpt = Annotated[bool, typer.Option("--keep", help="Retain candidate predictions in DB after gate finishes")]
 _DryRunOpt = Annotated[bool, typer.Option("--dry-run", help="Show routing table without fetching projections")]
 _CheckOpt = Annotated[bool, typer.Option("--check", help="Error on uncovered league-required stats")]
-_InjuryAdjustedOpt = Annotated[bool, typer.Option("--injury-adjusted", help="Apply injury risk discount")]
-_SeasonsBackOpt = Annotated[int, typer.Option("--seasons-back", help="Lookback window for injury data")]
 _PlayingTimeOpt = Annotated[
     str | None,
     typer.Option(
@@ -172,8 +168,6 @@ def predict(  # pragma: no cover
     param: _ParamOpt = None,
     dry_run: _DryRunOpt = False,
     check: _CheckOpt = False,
-    injury_adjusted: _InjuryAdjustedOpt = False,
-    seasons_back: _SeasonsBackOpt = 5,
     playing_time: _PlayingTimeOpt = None,
     pt_systems: _PTSystemsOpt = None,
     variance_correction: _VarianceCorrectionOpt = None,
@@ -193,13 +187,6 @@ def predict(  # pragma: no cover
         params["dry_run"] = True
     if check:
         params["check"] = True
-    if injury_adjusted:
-        data_dir = output_dir or "./data"
-        projection_season = season[0] if season else 2026
-        season_list = list(range(projection_season - seasons_back + 1, projection_season + 1))
-        with build_injury_profile_context(data_dir) as inj_ctx:
-            estimates = inj_ctx.profiler.list_games_lost_estimates(season_list, projection_season=projection_season)
-        params["_injury_discounts"] = {est.player_id: est.expected_days_lost for est, _, _ in estimates}
     config = load_config(
         model_name=model, output_dir=output_dir, seasons=season, version=version, tags=tags, model_params=params
     )
@@ -214,18 +201,6 @@ def predict(  # pragma: no cover
                     vc_seasons, league, ctx.batting_stats_repo, ctx.pitching_stats_repo
                 )
 
-        # Apply injury discounts: read projections, discount, pass pre-discounted to model
-        if "_injury_discounts" in config.model_params and ctx.projection_repo is not None:
-            season_val = config.seasons[0] if config.seasons else 2026
-            proj_system = config.model_params.get("projection_system", "")
-            proj_version = config.model_params.get("projection_version")
-            if proj_version:
-                projs = ctx.projection_repo.get_by_system_version(proj_system, proj_version)
-                projs = [p for p in projs if p.season == season_val]
-            else:
-                projs = ctx.projection_repo.get_by_season(season_val, system=proj_system)
-            projs = discount_projections(projs, config.model_params.pop("_injury_discounts"))
-            config.model_params["projections"] = projs
         match dispatch("predict", ctx.model, config, run_manager=ctx.run_manager):
             case Ok(PredictResult() as result):
                 if dry_run:

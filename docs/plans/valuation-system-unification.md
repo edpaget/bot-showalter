@@ -9,7 +9,7 @@ The new model composes `ZarModel` — it computes injury discounts, injects disc
 | Phase | Status |
 |-------|--------|
 | 1 — Create `zar-injury-risk` model | done (2026-03-08) |
-| 2 — Remove legacy injury-adjusted code paths | not started |
+| 2 — Remove legacy injury-adjusted code paths | done (2026-03-08) |
 
 ## Phase 1: Create `zar-injury-risk` model
 

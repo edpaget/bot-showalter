@@ -4,20 +4,15 @@ from typing import Annotated
 import typer
 
 from fantasy_baseball_manager.cli._output import (
-    print_error,
     print_player_valuations,
     print_valuation_eval_result,
     print_valuation_rankings,
 )
 from fantasy_baseball_manager.cli.factory import (
-    build_injury_adjusted_valuations_context,
     build_valuation_eval_context,
     build_valuations_context,
-    create_model,
 )
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import Err
-from fantasy_baseball_manager.services import compute_injury_adjusted_valuations_list
 
 valuations_app = typer.Typer(name="valuations", help="Look up and explore player valuations")
 
@@ -44,65 +39,14 @@ def valuations_rankings(  # pragma: no cover
     player_type: Annotated[str | None, typer.Option("--player-type", help="Filter by player type")] = None,
     position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
-    injury_adjusted: Annotated[bool, typer.Option("--injury-adjusted", help="Apply injury risk discount")] = False,
-    league_name: Annotated[
-        str | None, typer.Option("--league", help="League name (required w/ --injury-adjusted)")
-    ] = None,
-    projection_system: Annotated[str | None, typer.Option("--projection-system", help="Projection system")] = None,
-    projection_version: Annotated[str | None, typer.Option("--projection-version", help="Projection version")] = None,
-    model_name: Annotated[str, typer.Option("--model", help="Valuation model")] = "zar",
-    seasons_back: Annotated[int, typer.Option("--seasons-back", help="Lookback window for injury data")] = 5,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show valuation rankings as a leaderboard."""
-    if not injury_adjusted:
-        with build_valuations_context(data_dir) as ctx:
-            results = ctx.lookup_service.rankings(
-                season, system=system, player_type=player_type, position=position, top=top
-            )
-        print_valuation_rankings(results)
-        return
-
-    if league_name is None or projection_system is None:
-        print_error("--league and --projection-system are required with --injury-adjusted")
-        raise typer.Exit(code=1)
-
-    league = load_league(league_name, Path.cwd())
-    season_list = list(range(season - seasons_back + 1, season + 1))
-
-    with build_injury_adjusted_valuations_context(data_dir) as ctx:
-        result = create_model(
-            model_name,
-            projection_repo=ctx.projection_repo,
-            position_repo=ctx.projection_repo,
-            player_repo=ctx.player_repo,
-            eligibility_service=ctx.eligibility_service,
+    with build_valuations_context(data_dir) as ctx:
+        results = ctx.lookup_service.rankings(
+            season, system=system, player_type=player_type, position=position, top=top
         )
-        if isinstance(result, Err):
-            print_error(result.error.message)
-            raise typer.Exit(code=1)
-        model = result.value
-
-        valuations = compute_injury_adjusted_valuations_list(
-            season=season,
-            league=league,
-            projection_system=projection_system,
-            projection_version=projection_version,
-            season_list=season_list,
-            profiler=ctx.profiler,
-            model=model,  # type: ignore[arg-type]  # Model satisfies Predictable structurally
-            player_repo=ctx.player_repo,
-            projection_repo=ctx.projection_repo,
-        )
-
-    if player_type is not None:
-        valuations = [v for v in valuations if v.player_type == player_type]
-    if position is not None:
-        valuations = [v for v in valuations if v.position == position]
-    if top is not None:
-        valuations = valuations[:top]
-
-    print_valuation_rankings(valuations)
+    print_valuation_rankings(results)
 
 
 @valuations_app.command("evaluate")

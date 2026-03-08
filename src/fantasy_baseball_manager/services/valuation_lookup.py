@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import PlayerValuation
+from fantasy_baseball_manager.domain import InjuryValueDelta, PlayerValuation
 from fantasy_baseball_manager.name_utils import resolve_players
 
 if TYPE_CHECKING:
@@ -87,3 +87,46 @@ class ValuationLookupService:
             )
 
         return results
+
+    def deltas(
+        self,
+        season: int,
+        original_system: str,
+        adjusted_system: str,
+        version: str = "1.0",
+    ) -> list[InjuryValueDelta]:
+        """Compute value deltas between two persisted valuation systems."""
+        original_vals = self._valuation_repo.get_by_season(season, system=original_system)
+        original_vals = [v for v in original_vals if v.version == version]
+        adjusted_vals = self._valuation_repo.get_by_season(season, system=adjusted_system)
+        adjusted_vals = [v for v in adjusted_vals if v.version == version]
+
+        if not original_vals or not adjusted_vals:
+            return []
+
+        orig_by_player = {v.player_id: v for v in original_vals}
+        adj_by_player = {v.player_id: v for v in adjusted_vals}
+
+        player_ids = list(orig_by_player.keys() & adj_by_player.keys())
+        players = self._player_repo.get_by_ids(player_ids)
+        player_names: dict[int, str] = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        deltas: list[InjuryValueDelta] = []
+        for pid in player_ids:
+            orig = orig_by_player[pid]
+            adj = adj_by_player[pid]
+            deltas.append(
+                InjuryValueDelta(
+                    player_name=player_names.get(pid, f"Player {pid}"),
+                    original_value=orig.value,
+                    adjusted_value=adj.value,
+                    value_delta=adj.value - orig.value,
+                    original_rank=orig.rank,
+                    adjusted_rank=adj.rank,
+                    rank_change=orig.rank - adj.rank,
+                    expected_days_lost=0.0,
+                )
+            )
+
+        deltas.sort(key=lambda d: d.value_delta)
+        return deltas
