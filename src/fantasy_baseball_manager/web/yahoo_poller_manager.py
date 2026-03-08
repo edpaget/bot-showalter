@@ -16,7 +16,7 @@ from fantasy_baseball_manager.yahoo.draft_poller import YahooDraftPoller
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import YahooDraftPick
-    from fantasy_baseball_manager.repos import PlayerRepo, YahooDraftSourceProto, YahooTeamRepo
+    from fantasy_baseball_manager.repos import YahooDraftSourceProto, YahooTeamRepo
     from fantasy_baseball_manager.web.event_bus import EventBus
     from fantasy_baseball_manager.web.session_manager import SessionManager
 
@@ -36,7 +36,6 @@ class YahooPollerManager:
     _session_manager: SessionManager
     _event_bus: EventBus
     _team_repo: YahooTeamRepo
-    _player_repo: PlayerRepo
     _pollers: dict[int, YahooDraftPoller] = field(default_factory=dict)
     _bridge_tasks: dict[int, asyncio.Task[None]] = field(default_factory=dict)
     _thread_queues: dict[int, queue.Queue[YahooDraftPick]] = field(default_factory=dict)

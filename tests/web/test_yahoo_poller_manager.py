@@ -108,7 +108,6 @@ def test_start_and_stop_polling() -> None:
         _session_manager=session_manager,
         _event_bus=event_bus,
         _team_repo=fake_teams,
-        _player_repo=session_manager._player_repo,
     )
 
     result = asyncio.run(mgr.start_polling(session_id, "422.l.12345"))
@@ -136,7 +135,6 @@ def test_stop_nonexistent_session() -> None:
         _session_manager=session_manager,
         _event_bus=event_bus,
         _team_repo=FakeTeamRepo(),
-        _player_repo=session_manager._player_repo,
     )
 
     result = asyncio.run(mgr.stop_polling(999))
@@ -151,7 +149,6 @@ def test_poll_status_default() -> None:
         _session_manager=session_manager,
         _event_bus=event_bus,
         _team_repo=FakeTeamRepo(),
-        _player_repo=session_manager._player_repo,
     )
 
     status = mgr.get_status(999)
@@ -183,7 +180,6 @@ def test_shutdown_stops_all() -> None:
         _session_manager=session_manager,
         _event_bus=event_bus,
         _team_repo=fake_teams,
-        _player_repo=session_manager._player_repo,
     )
 
     asyncio.run(mgr.start_polling(sid1, "422.l.12345"))
@@ -229,7 +225,6 @@ def test_yahoo_picks_bridge_to_events() -> None:
         _session_manager=session_manager,
         _event_bus=event_bus,
         _team_repo=fake_teams,
-        _player_repo=session_manager._player_repo,
     )
 
     # Subscribe to events

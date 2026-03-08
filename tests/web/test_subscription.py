@@ -1,5 +1,8 @@
 """Tests for GraphQL subscription event publishing from mutations."""
 
+import asyncio
+import contextlib
+
 from fastapi.testclient import TestClient
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
@@ -8,6 +11,7 @@ from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo
 from fantasy_baseball_manager.web import SessionManager, create_app
 from fantasy_baseball_manager.web.event_bus import EventBus
+from fantasy_baseball_manager.web.schema import Subscription
 from fantasy_baseball_manager.web.types import PickEvent, SessionEvent, UndoEvent
 
 from .conftest import _LEAGUE, _seed_data
@@ -176,3 +180,45 @@ def test_events_published_to_correct_session() -> None:
 
     assert not q1.empty()
     assert q2.empty()
+
+
+def test_subscription_unsubscribes_on_exception() -> None:
+    """Subscription queue is cleaned up even when a non-CancelledError exception occurs."""
+    event_bus = EventBus()
+    session_id = 42
+
+    class _FakeAppContext:
+        def __init__(self, bus: EventBus) -> None:
+            self.event_bus = bus
+
+    fake_info = type("Info", (), {"context": {"app_context": _FakeAppContext(event_bus)}})()
+
+    sub = Subscription()
+
+    async def _run() -> None:
+        gen = sub.draft_events(info=fake_info, session_id=session_id)  # ty: ignore[missing-argument,unknown-argument]
+
+        async def _publish_soon() -> None:
+            """Publish after a brief yield so the generator has time to subscribe."""
+            await asyncio.sleep(0)
+            await event_bus.publish(session_id, SessionEvent(session_id=session_id, event_type="test"))
+
+        # Launch publisher and advance generator concurrently.
+        # The generator subscribes then awaits q.get(); the publisher puts an event on q.
+        task = asyncio.create_task(_publish_soon())
+        event = await gen.__anext__()  # ty: ignore[unresolved-attribute]
+        await task
+        assert isinstance(event, SessionEvent)
+
+        # Queue should be registered
+        assert len(event_bus._subscribers[session_id]) == 1
+
+        # Throw a non-CancelledError exception into the generator.
+        # The generator is suspended at the `yield`, so athrow raises there.
+        with contextlib.suppress(RuntimeError):
+            await gen.athrow(RuntimeError("unexpected"))  # ty: ignore[unresolved-attribute]
+
+        # Queue should be cleaned up despite non-CancelledError
+        assert len(event_bus._subscribers.get(session_id, [])) == 0
+
+    asyncio.run(_run())

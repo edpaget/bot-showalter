@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import AsyncGenerator  # noqa: TC003 — Strawberry resolves annotations at runtime
 from typing import TYPE_CHECKING
 
@@ -36,10 +35,20 @@ from fantasy_baseball_manager.web.types import (
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.web.app import AppContext
+    from fantasy_baseball_manager.web.session_manager import SessionManager
 
 
 def _get_context(info: Info) -> AppContext:
     return info.context["app_context"]
+
+
+def _get_session_manager(info: Info) -> SessionManager:
+    ctx = _get_context(info)
+    mgr = ctx.session_manager
+    if mgr is None:
+        msg = "Session management is not configured"
+        raise ValueError(msg)
+    return mgr
 
 
 def _build_pick_result(
@@ -47,9 +56,7 @@ def _build_pick_result(
     session_id: int,
     pick: DraftPickType,
 ) -> PickResultType:
-    ctx = _get_context(info)
-    mgr = ctx.session_manager
-    assert mgr is not None  # noqa: S101
+    mgr = _get_session_manager(info)
     engine = mgr.get_engine(session_id)
 
     recs = recommend(engine.state, limit=10)
@@ -154,9 +161,7 @@ class Query:
 
     @strawberry.field
     def session(self, info: Info, session_id: int) -> DraftStateType:
-        ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
         return DraftStateType.from_state(session_id, engine.state)
 
@@ -168,9 +173,7 @@ class Query:
         season: int | None = None,
         status: str | None = None,
     ) -> list[DraftSessionSummaryType]:
-        ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         records = mgr._repo.list_sessions(league=league, season=season)
         if status is not None:
             records = [r for r in records if r.status == status]
@@ -184,9 +187,7 @@ class Query:
         position: str | None = None,
         limit: int = 10,
     ) -> list[RecommendationType]:
-        ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
         recs = recommend(engine.state, limit=limit)
         if position is not None:
@@ -200,26 +201,21 @@ class Query:
         session_id: int,
         team: int | None = None,
     ) -> list[DraftPickType]:
-        ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
         t = team if team is not None else engine.state.config.user_team
         return [DraftPickType.from_domain(p) for p in engine.state.team_rosters[t]]
 
     @strawberry.field
     def needs(self, info: Info, session_id: int) -> list[RosterSlotType]:
-        ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
         return [RosterSlotType(position=pos, remaining=count) for pos, count in engine.my_needs().items()]
 
     @strawberry.field
     def balance(self, info: Info, session_id: int) -> list[CategoryBalanceType]:
         ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
 
         roster = engine.my_roster()
@@ -239,9 +235,7 @@ class Query:
         position: str | None = None,
         limit: int = 50,
     ) -> list[DraftBoardRowType]:
-        ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
         rows = engine.available(position)[:limit]
         return [DraftBoardRowType.from_domain(r) for r in rows]
@@ -276,8 +270,7 @@ class Mutation:
         budget: int | None = None,
     ) -> DraftStateType:
         ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         session_id, engine = mgr.start_session(
             season,
             system=system,
@@ -304,8 +297,7 @@ class Mutation:
         team: int | None = None,
     ) -> PickResultType:
         ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
 
         if team is None:
@@ -325,8 +317,7 @@ class Mutation:
     @strawberry.mutation
     async def undo(self, info: Info, session_id: int) -> PickResultType:
         ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         undone = mgr.undo(session_id)
         pick_type = DraftPickType.from_domain(undone)
         await ctx.event_bus.publish(
@@ -338,8 +329,7 @@ class Mutation:
     @strawberry.mutation
     async def end_session(self, info: Info, session_id: int) -> bool:
         ctx = _get_context(info)
-        mgr = ctx.session_manager
-        assert mgr is not None  # noqa: S101
+        mgr = _get_session_manager(info)
         # Stop Yahoo polling if active
         if ctx.yahoo_poller_manager is not None:
             await ctx.yahoo_poller_manager.stop_polling(session_id)
@@ -388,5 +378,5 @@ class Subscription:
             while True:
                 event = await q.get()
                 yield event
-        except asyncio.CancelledError:
+        finally:
             ctx.event_bus.unsubscribe(session_id, q)

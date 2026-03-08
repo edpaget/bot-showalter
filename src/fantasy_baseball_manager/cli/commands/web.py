@@ -61,7 +61,6 @@ def web(  # pragma: no cover
             _session_manager=session_manager,
             _event_bus=event_bus,
             _team_repo=team_repo,
-            _player_repo=container.player_repo,
         )
 
     app = create_app(
