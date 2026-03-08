@@ -21,18 +21,20 @@ Fix a bug where the injury discount drops borderline players from the valuation 
 
 The injury discount in `discount_projections` scales counting stats (including PA and IP) by `max(0, 1 - expected_days_lost / 183)`. The ZAR model then filters players below `min_pa=200` / `min_ip=30`. Players originally just above these thresholds get pushed below by the discount and are excluded entirely — they receive no valuation at all, not even $0. This drops ~45-53 players from the evaluation set, making apples-to-apples accuracy comparisons impossible.
 
+The fix targets `ZarInjuryRiskModel` (the first-class `zar-injury-risk` system created by the Valuation System Unification roadmap), which delegates to `ZarModel.predict` after discounting projections.
+
 ### Steps
 
-1. In `ZarModel.predict`, apply the PA/IP eligibility filter **before** injury discounting, so the player pool is determined by the original (undiscounted) projections.
+1. In `ZarInjuryRiskModel.predict`, apply the PA/IP eligibility filter **before** calling `discount_projections`, so the player pool is determined by the original (undiscounted) projections.
 2. Alternatively, floor discounted PA/IP at the eligibility threshold so players stay in the pool but with reduced counting stats. Either approach preserves the same player set as the uncorrected baseline.
-3. Add a test confirming that injury-adjusted predictions produce the same player count as uncorrected predictions for the same season/league.
-4. Regenerate `injury-adjusted` valuations for 2024 and 2025 holdout seasons and verify matched player counts now equal the uncorrected versions (883 and 769 respectively).
+3. Add a test confirming that `fbm predict zar-injury-risk` produces the same player count as `fbm predict zar` for the same season/league.
+4. Regenerate `zar-injury-risk` valuations for 2024 and 2025 holdout seasons and verify matched player counts now equal the `zar` versions (883 and 769 respectively).
 
 ### Acceptance criteria
 
-- Injury-adjusted ZAR predictions include the same players as uncorrected predictions (identical player count).
+- `fbm predict zar-injury-risk` produces the same player count as `fbm predict zar` for a given season/league.
 - Existing injury discount behavior is preserved for players well above the threshold — only the edge case changes.
-- All existing ZAR and injury discount tests pass.
+- All existing ZAR and `zar-injury-risk` tests pass.
 
 ### Gate
 
@@ -50,14 +52,26 @@ Our initial evaluation (2026-03-07) showed injury adjustment improving 2024 MAE 
 
 ### Steps
 
-1. Generate uncorrected and injury-adjusted ZAR valuations for 2024 and 2025 holdout seasons using Steamer projections.
-2. Run `valuations evaluate` on all four runs and record MAE and Spearman ρ.
-3. Inspect the top 20 mispricings in each: are the biggest pitcher overvaluations reduced? Are any batter valuations harmed?
+1. Generate baseline and injury-adjusted valuations for holdout seasons:
+   ```bash
+   fbm predict zar --season 2024 --param league=h2h --param projection_system=steamer --version holdout
+   fbm predict zar-injury-risk --season 2024 --param league=h2h --param projection_system=steamer --version holdout
+   fbm predict zar --season 2025 --param league=h2h --param projection_system=steamer --version holdout
+   fbm predict zar-injury-risk --season 2025 --param league=h2h --param projection_system=steamer --version holdout
+   ```
+2. Evaluate all runs against actuals and record MAE and Spearman ρ:
+   ```bash
+   fbm valuations evaluate --season 2024 --system zar --version holdout
+   fbm valuations evaluate --season 2024 --system zar-injury-risk --version holdout
+   fbm valuations evaluate --season 2025 --system zar --version holdout
+   fbm valuations evaluate --season 2025 --system zar-injury-risk --version holdout
+   ```
+3. Inspect the top 20 mispricings (`--top 20`): are the biggest pitcher overvaluations reduced? Are any batter valuations harmed?
 4. Test with different `--seasons-back` values (3 vs 5) to see if the injury lookback window matters.
 
 ### Acceptance criteria
 
-- Evaluation run on both holdout seasons with identical player counts.
+- Evaluation run on both holdout seasons with identical player counts (phase 1 fix verified).
 - Results table with MAE, ρ, and top mispricings documented.
 
 ### Gate: go/no-go
@@ -78,23 +92,27 @@ Integrating P(bust) as a value discount and P(breakout) as a value boost could r
 
 ### Steps
 
-1. Add an optional `breakout_bust_adjustment` parameter to the ZAR prediction pipeline. When enabled, load breakout/bust predictions for the target season's player pool.
+1. Create a `ZarBreakoutBustModel` following the same pattern as `ZarInjuryRiskModel` — a first-class model registered as `zar-breakout-bust` that loads breakout/bust predictions, applies an adjustment formula, and delegates to `ZarModel.predict` with `valuation_system="zar-breakout-bust"`.
 2. Design the adjustment formula. Starting point: `adjusted_value = value * (1 - bust_discount * p_bust) + breakout_bonus * p_breakout`, where `bust_discount` and `breakout_bonus` are tunable parameters.
 3. Run a parameter sweep on a development season (e.g., 2023) to find reasonable values for `bust_discount` and `breakout_bonus`. Avoid overfitting — use coarse grid (e.g., 0.25, 0.5, 0.75, 1.0).
-4. Add a `--breakout-bust` CLI flag to `fbm predict zar` that enables the adjustment.
-5. Generate breakout/bust-adjusted valuations for holdout seasons (2024, 2025) and evaluate against actuals.
-6. Inspect specifically: are previously-missed breakouts now valued higher? Are bust-risk pitchers reduced? Are false-positive breakout boosts introducing new errors?
+4. Generate and evaluate on holdout seasons:
+   ```bash
+   fbm predict zar-breakout-bust --season 2024 --param league=h2h --param projection_system=steamer --version holdout
+   fbm predict zar-breakout-bust --season 2025 --param league=h2h --param projection_system=steamer --version holdout
+   fbm valuations evaluate --season 2024 --system zar-breakout-bust --version holdout
+   fbm valuations evaluate --season 2025 --system zar-breakout-bust --version holdout
+   ```
+5. Inspect specifically: are previously-missed breakouts now valued higher? Are bust-risk pitchers reduced? Are false-positive breakout boosts introducing new errors?
 
 ### Acceptance criteria
 
-- `ZarModel.predict` accepts an optional breakout/bust adjustment parameter.
-- CLI flag `--breakout-bust` triggers the adjustment.
+- `fbm predict zar-breakout-bust` produces and persists valuations with `system="zar-breakout-bust"`.
 - Adjustment formula is tested with synthetic data (known P(breakout)/P(bust) values produce expected value shifts).
 - Holdout evaluation results documented with MAE, ρ, and top mispricings.
 
 ### Gate: go/no-go
 
-**Go** if breakout/bust adjustment improves MAE on at least one holdout season without degrading ρ by more than 0.01. **No-go** if it worsens both MAE and ρ, or if the parameter sweep shows high sensitivity (small changes in discount/bonus cause large accuracy swings, indicating overfitting). If no-go, document findings and proceed to phase 5.
+**Go** if breakout/bust adjustment improves MAE on at least one holdout season without degrading ρ by more than 0.01. **No-go** if it worsens both MAE and ρ, or if the parameter sweep shows high sensitivity (small changes in discount/bonus cause large accuracy swings, indicating overfitting). If no-go, document findings.
 
 ---
 
@@ -108,17 +126,24 @@ If phases 2 and 3 both pass their gates, the natural question is whether combini
 
 ### Steps
 
-1. Generate combined (injury + breakout/bust) valuations for 2024 and 2025 holdout seasons.
-2. Compare four versions head-to-head on the same player set: uncorrected, injury-only, breakout/bust-only, combined.
-3. Check for double-penalty effects: identify players where both adjustments fire and verify the combined discount is reasonable.
-4. If combined outperforms, adopt as the new production default. Regenerate 2026 valuations.
-5. If individual adjustments outperform combined, adopt whichever single adjustment performed best.
+1. Create a `ZarFullAdjustedModel` (or similar) registered as `zar-full-adjusted` that applies both injury discount and breakout/bust adjustment, delegating to `ZarModel.predict` with `valuation_system="zar-full-adjusted"`.
+2. Generate and evaluate on holdout seasons:
+   ```bash
+   fbm predict zar-full-adjusted --season 2024 --param league=h2h --param projection_system=steamer --version holdout
+   fbm predict zar-full-adjusted --season 2025 --param league=h2h --param projection_system=steamer --version holdout
+   fbm valuations evaluate --season 2024 --system zar-full-adjusted --version holdout
+   fbm valuations evaluate --season 2025 --system zar-full-adjusted --version holdout
+   ```
+3. Compare four systems head-to-head on the same player set: `zar`, `zar-injury-risk`, `zar-breakout-bust`, `zar-full-adjusted`.
+4. Check for double-penalty effects: identify players where both adjustments fire and verify the combined discount is reasonable.
+5. If combined outperforms, adopt as the new production default. Regenerate 2026 valuations.
+6. If individual adjustments outperform combined, adopt whichever single adjustment performed best.
 
 ### Acceptance criteria
 
-- Four-way comparison table (uncorrected, injury, breakout/bust, combined) on both holdout seasons.
+- Four-way comparison table (`zar`, `zar-injury-risk`, `zar-breakout-bust`, `zar-full-adjusted`) on both holdout seasons.
 - Production 2026 valuations regenerated with the winning configuration.
-- Top pitcher overvaluations demonstrably reduced compared to uncorrected baseline.
+- Top pitcher overvaluations demonstrably reduced compared to baseline `zar`.
 
 ### Gate: go/no-go
 
