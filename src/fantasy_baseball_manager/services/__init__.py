@@ -177,6 +177,10 @@ from fantasy_baseball_manager.services.regression_gate import (
     GateSegmentResult,
     RegressionGateRunner,
 )
+from fantasy_baseball_manager.services.replacement_padding import (
+    blend_projections,
+    blend_stat_line,
+)
 from fantasy_baseball_manager.services.replacement_profiler import (
     compute_replacement_profiles,
 )
@@ -326,6 +330,8 @@ __all__ = [
     "compute_opportunity_costs",
     "compute_position_upgrades",
     "compute_pick_value_curve",
+    "blend_projections",
+    "blend_stat_line",
     "compute_replacement_profiles",
     "compute_scarcity",
     "compute_scarcity_rankings",
