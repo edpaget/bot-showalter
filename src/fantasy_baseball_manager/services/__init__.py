@@ -192,6 +192,12 @@ from fantasy_baseball_manager.services.roster_optimizer import (
     plan_snake_draft,
     simulate_drafts,
 )
+from fantasy_baseball_manager.services.scenario_generator import (
+    DEFAULT_SCENARIO_WEIGHTS,
+    generate_pool_scenarios,
+    generate_scenarios,
+    scale_projection_to_pt,
+)
 from fantasy_baseball_manager.services.stats_conversion import METADATA_FIELDS, stats_to_dict
 from fantasy_baseball_manager.services.tier_generator import (
     generate_tiers,
@@ -358,6 +364,10 @@ __all__ = [
     "validate_expression",
     "recommend",
     "resolve_player",
+    "DEFAULT_SCENARIO_WEIGHTS",
+    "generate_pool_scenarios",
+    "generate_scenarios",
+    "scale_projection_to_pt",
     "run_batch_simulation",
     "run_mock_draft",
     "set_keeper_cost",

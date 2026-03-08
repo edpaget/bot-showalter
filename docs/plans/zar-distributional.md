@@ -8,7 +8,7 @@ This roadmap creates a `zar-distributional` model that runs ZAR at multiple play
 
 | Phase | Status |
 |-------|--------|
-| 1 — Scenario projection generator | not started |
+| 1 — Scenario projection generator | done (2026-03-08) |
 | 2 — Expected-value ZAR engine | not started |
 | 3 — `zar-distributional` model | not started |
 

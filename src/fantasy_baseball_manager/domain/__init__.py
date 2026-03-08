@@ -246,6 +246,7 @@ from fantasy_baseball_manager.domain.pt_normalization import (
     normalize_projection_pt,
 )
 from fantasy_baseball_manager.domain.pt_resolution import resolve_playing_time
+from fantasy_baseball_manager.domain.pt_scenario import PlayingTimeScenario
 from fantasy_baseball_manager.domain.replacement_profile import ReplacementProfile
 from fantasy_baseball_manager.domain.residual_analysis import (
     CalibrationBin,
@@ -435,6 +436,7 @@ __all__ = [
     "PlayerTier",
     "PlayerUniverseProvider",
     "PlayerValuation",
+    "PlayingTimeScenario",
     "OF_POSITIONS",
     "Position",
     "PositionAppearance",
