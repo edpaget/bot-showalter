@@ -15,7 +15,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Valuation System Unification](valuation-system-unification.md) | 3 | not started | injury-risk-discount (done) |
 | [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 | not started | injury-risk-discount (done), valuation-system-unification phase 1 |
 | [ZAR Distributional](zar-distributional.md) | 3 | not started | playing-time v2 (done), injury-risk-discount (done), valuation-system-unification phase 1 |
-| [Web UI Foundation](web-ui-foundation.md) | 6 | phase 3 in progress | draft-session-persistence (phase 2 needs phases 1-2) |
+| [Web UI Foundation](web-ui-foundation.md) | 6 | phases 1-3 done | draft-session-persistence (phase 2 needs phases 1-2) |
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
