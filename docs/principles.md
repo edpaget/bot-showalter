@@ -61,10 +61,11 @@ No projection model receives special treatment. Any capability implemented for o
 - **The registry is the only discovery mechanism.** CLI commands and services interact with models through the registry (`models/registry.py`), never by importing a specific model class directly (except in the model's own package).
 - **Shared utilities live in shared modules.** If a training helper, feature transform, or evaluation metric is useful to more than one model, it belongs in a shared module (e.g., `models/gbm_training.py`, `features/`), not buried inside a single model's package.
 - **No model-specific CLI commands.** CLI commands operate on model *names* passed as arguments, dispatching through the registry. There must be no command that hard-codes a specific model.
+- **New valuation approaches are new models, not flags.** A variant valuation methodology (e.g., injury-risk-adjusted) should be a separate registered model that composes the base model, not a `--flag` that adds a special code path to the CLI or an on-the-fly computation bypass. This keeps each approach independently runnable, persistable, and comparable via the standard `fbm predict` / `fbm valuations` workflow.
 
 ### Why
 
-The system's value comes from comparing and composing multiple projection approaches. If a model gets special-case code, that code becomes a maintenance burden and a barrier to adding new models. Generality keeps the model ecosystem open for extension.
+The system's value comes from comparing and composing multiple projection approaches. If a model gets special-case code, that code becomes a maintenance burden and a barrier to adding new models. Generality keeps the model ecosystem open for extension. Registering variants as their own models means they automatically get persistence, evaluation, rankings, and lookup for free — no bespoke wiring required.
 
 ---
 
