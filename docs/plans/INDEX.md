@@ -16,7 +16,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
-| [Variance Correction](variance-correction.md) | 3 | phases 1-2 done | none |
 
 ## Completed Roadmaps
 
@@ -73,6 +72,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Roster Stint Preload](roster-stint-preload.md) | 2 |
 | [Playing Time Flexibility](playing-time-flexibility.md) | 4 |
 | [Prior-Season Roster Lookup](prior-season-roster-lookup.md) | 3 |
+| [Variance Correction](variance-correction.md) | 3 |
 | [Yahoo Integration Improvements](yahoo-integration-improvements.md) | 3 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.

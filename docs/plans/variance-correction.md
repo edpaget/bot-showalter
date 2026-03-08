@@ -10,7 +10,7 @@ This roadmap adds a variance correction layer to the ZAR engine that substitutes
 |-------|--------|
 | 1 — Historical stdev computation | done (2026-03-07) |
 | 2 — Engine integration and opt-in flag | done (2026-03-07) |
-| 3 — Holdout validation and production rollout | in progress |
+| 3 — Holdout validation and production rollout | done (2026-03-07) |
 
 ## Phase 1: Historical stdev computation
 
@@ -100,6 +100,25 @@ The correction is only valuable if it improves valuation accuracy against actual
 - If adopted: `--check` passes on all tested seasons for both top-300 and full population.
 - If adopted: 2026 production valuations regenerated with correction; top pitcher values no longer 2x actual.
 - If rejected: findings documented with data showing why the correction didn't help, and next steps identified.
+
+### Phase 3 findings (rejected — 2026-03-07)
+
+Variance correction was validated on holdout seasons 2024 and 2025 using Steamer projections with multiple lookback windows. The correction does not consistently improve valuation accuracy.
+
+**Results (MAE / Spearman ρ):**
+
+| Season | Uncorrected | Corrected (3yr) | Corrected (2yr) | Corrected (4yr) | Corrected (5yr) |
+|--------|-------------|-----------------|-----------------|-----------------|-----------------|
+| 2024   | 3.92 / 0.714 | 3.96 / 0.710   | 3.93 / 0.710   | —               | —               |
+| 2025   | 4.31 / 0.694 | —               | 4.31 / 0.692   | 4.31 / 0.697   | 4.32 / 0.695   |
+
+**Key observations:**
+- No lookback window consistently improves both MAE and ρ across both holdout seasons.
+- Top pitcher values are reduced modestly (e.g., Skubal $105.7→$99.7 for 2025), but remain ~1.6x actual — the correction addresses maybe 10-15% of the inflation.
+- The dominant source of top-pitcher overvaluation is not stdev compression, but injury/underperformance risk: projections assume full health and peak output, so top pitchers are systematically overvalued regardless of z-score scaling.
+- Batter valuations shift slightly (e.g., Acuña $66.7→$77.8 in corrected 2025), which can worsen rankings.
+
+**Conclusion:** The variance correction infrastructure (phases 1-2) is retained as opt-in tooling, but is **not adopted** as a production default. The pitcher inflation problem is better addressed by injury risk discounts or SGP-based valuation (both out of scope for this roadmap).
 
 ## Ordering
 
