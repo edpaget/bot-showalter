@@ -10,7 +10,7 @@ Key insight from the Hardball Times research: replacement padding must be applie
 
 | Phase | Status |
 |-------|--------|
-| 1 — Replacement-level stat profiles | not started |
+| 1 — Replacement-level stat profiles | in progress |
 | 2 — Projection blending logic | not started |
 | 3 — `zar-replacement-padded` model | not started |
 
