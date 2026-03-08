@@ -118,36 +118,49 @@ Integrating P(bust) as a value discount and P(breakout) as a value boost could r
 
 ## Phase 4: Combined adjustment validation
 
-Test whether injury + breakout/bust adjustments together outperform either individually.
+Compare all available ZAR variants head-to-head on holdout seasons to pick the production default.
 
 ### Context
 
-If phases 2 and 3 both pass their gates, the natural question is whether combining them yields additive gains. Injury discounts attack overvaluation of fragile pitchers; breakout/bust adjustments attack undervaluation of emerging players and overvaluation of decline candidates. These target different error buckets, so they may complement each other. But they could also interfere — e.g., an injury-discounted pitcher who is also flagged as a bust candidate gets double-penalized.
+By this point, several ZAR variants may exist — each attacking pitcher overvaluation from a different angle:
+
+- **`zar`** — baseline, no adjustments.
+- **`zar-injury-risk`** — simple injury discount (scale counting stats by health fraction).
+- **`zar-breakout-bust`** — breakout/bust probability adjustment (from phase 3).
+- **`zar-replacement-padded`** — fills missed-time PA/IP with replacement-level production instead of zeroing them ([roadmap](zar-replacement-padded.md)).
+- **`zar-distributional`** — runs ZAR across multiple playing-time scenarios weighted by probability ([roadmap](zar-distributional.md)).
+
+Not all of these will be ready at the time phase 4 runs — include whichever systems are available. The goal is a single head-to-head comparison on the same player set to pick the winner.
 
 ### Steps
 
-1. Create a `ZarFullAdjustedModel` (or similar) registered as `zar-full-adjusted` that applies both injury discount and breakout/bust adjustment, delegating to `ZarModel.predict` with `valuation_system="zar-full-adjusted"`.
-2. Generate and evaluate on holdout seasons:
+1. Generate holdout valuations for every available system:
    ```bash
-   fbm predict zar-full-adjusted --season 2024 --param league=h2h --param projection_system=steamer --version holdout
-   fbm predict zar-full-adjusted --season 2025 --param league=h2h --param projection_system=steamer --version holdout
-   fbm valuations evaluate --season 2024 --system zar-full-adjusted --version holdout
-   fbm valuations evaluate --season 2025 --system zar-full-adjusted --version holdout
+   for sys in zar zar-injury-risk zar-breakout-bust zar-replacement-padded zar-distributional; do
+     fbm predict $sys --season 2024 --param league=h2h --param projection_system=steamer --version holdout
+     fbm predict $sys --season 2025 --param league=h2h --param projection_system=steamer --version holdout
+   done
    ```
-3. Compare four systems head-to-head on the same player set: `zar`, `zar-injury-risk`, `zar-breakout-bust`, `zar-full-adjusted`.
-4. Check for double-penalty effects: identify players where both adjustments fire and verify the combined discount is reasonable.
-5. If combined outperforms, adopt as the new production default. Regenerate 2026 valuations.
-6. If individual adjustments outperform combined, adopt whichever single adjustment performed best.
+2. Evaluate all systems against actuals:
+   ```bash
+   for sys in zar zar-injury-risk zar-breakout-bust zar-replacement-padded zar-distributional; do
+     fbm valuations evaluate --season 2024 --system $sys --version holdout --top 20
+     fbm valuations evaluate --season 2025 --system $sys --version holdout --top 20
+   done
+   ```
+3. Build a comparison matrix: MAE, ρ, and top-pitcher error for each system × season.
+4. Inspect for double-penalty effects in models that stack adjustments (e.g., `zar-replacement-padded` with breakout/bust). If promising, test a combined model.
+5. Adopt the best-performing system as the production default. Regenerate 2026 valuations.
 
 ### Acceptance criteria
 
-- Four-way comparison table (`zar`, `zar-injury-risk`, `zar-breakout-bust`, `zar-full-adjusted`) on both holdout seasons.
-- Production 2026 valuations regenerated with the winning configuration.
+- Comparison matrix covering all available ZAR variants on both holdout seasons.
+- Production 2026 valuations regenerated with the winning system.
 - Top pitcher overvaluations demonstrably reduced compared to baseline `zar`.
 
 ### Gate: go/no-go
 
-**Go** if combined improves over the best individual adjustment on at least one metric (MAE or ρ) without degrading the other. **No-go** if combined is worse than the best individual; in that case, adopt the better individual adjustment. If neither individual adjustment passed its gate (phases 2-3 both no-go), document findings and consider a deeper structural change via the [Valuation System Unification](valuation-system-unification.md), [ZAR Replacement-Padded](zar-replacement-padded.md), or [ZAR Distributional](zar-distributional.md) roadmaps.
+**Go** if any variant improves over baseline `zar` on MAE without degrading ρ by more than 0.01 on either holdout season. Adopt the best variant. **No-go** if no variant clears that bar; in that case, document findings — the pitcher inflation problem may require fundamentally different inputs (in-season data, more granular injury models) rather than valuation-engine changes.
 
 ## Ordering
 
