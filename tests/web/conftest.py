@@ -13,8 +13,8 @@ from fantasy_baseball_manager.domain import (
     StatType,
     Valuation,
 )
-from fantasy_baseball_manager.repos import SqlitePlayerRepo, SqliteValuationRepo
-from fantasy_baseball_manager.web import create_app
+from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqlitePlayerRepo, SqliteValuationRepo
+from fantasy_baseball_manager.web import SessionManager, create_app
 
 _LEAGUE = LeagueSettings(
     name="Test League",
@@ -96,15 +96,45 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
     provider._conn.commit()
 
 
-@pytest.fixture
-def client() -> TestClient:
-    """Create a test client with an in-memory SQLite database seeded with test data."""
+def _make_provider() -> SingleConnectionProvider:
     conn = create_connection(":memory:", check_same_thread=False)
     provider = SingleConnectionProvider(conn)
     _seed_data(provider)
+    return provider
+
+
+@pytest.fixture
+def client() -> TestClient:
+    """Create a test client with an in-memory SQLite database seeded with test data."""
+    provider = _make_provider()
     container = AnalysisContainer(provider)
     app = create_app(container, _LEAGUE)
     return TestClient(app)
+
+
+@pytest.fixture
+def session_client() -> TestClient:
+    """Create a test client with SessionManager enabled."""
+    provider = _make_provider()
+    container = AnalysisContainer(provider)
+    session_repo = SqliteDraftSessionRepo(provider)
+    session_manager = SessionManager(
+        session_repo=session_repo,
+        valuation_repo=container.valuation_repo,
+        player_repo=container.player_repo,
+        adp_repo=container.adp_repo,
+        player_profile_service=container.player_profile_service,
+        league=_LEAGUE,
+        adp_provider="fantasypros",
+    )
+    app = create_app(container, _LEAGUE, session_manager=session_manager)
+    return TestClient(app)
+
+
+@pytest.fixture
+def session_provider() -> SingleConnectionProvider:
+    """Return a seeded provider for tests needing direct DB access."""
+    return _make_provider()
 
 
 @pytest.fixture

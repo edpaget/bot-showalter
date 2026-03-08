@@ -7,11 +7,12 @@ import strawberry
 from fastapi import FastAPI
 from strawberry.fastapi import GraphQLRouter
 
-from fantasy_baseball_manager.web.schema import Query
+from fantasy_baseball_manager.web.schema import Mutation, Query
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.analysis_container import AnalysisContainer
     from fantasy_baseball_manager.domain import LeagueSettings
+    from fantasy_baseball_manager.web.session_manager import SessionManager
 
 
 @dataclass(frozen=True)
@@ -19,17 +20,24 @@ class AppContext:
     container: AnalysisContainer
     league: LeagueSettings
     adp_provider: str
+    session_manager: SessionManager | None = None
 
 
 def create_app(
     container: AnalysisContainer,
     league: LeagueSettings,
     adp_provider: str = "fantasypros",
+    session_manager: SessionManager | None = None,
 ) -> FastAPI:
     """Create a FastAPI application with a GraphQL endpoint at /graphql."""
-    app_context = AppContext(container=container, league=league, adp_provider=adp_provider)
+    app_context = AppContext(
+        container=container,
+        league=league,
+        adp_provider=adp_provider,
+        session_manager=session_manager,
+    )
 
-    schema = strawberry.Schema(query=Query)
+    schema = strawberry.Schema(query=Query, mutation=Mutation)
 
     async def get_context() -> dict[str, AppContext]:
         return {"app_context": app_context}

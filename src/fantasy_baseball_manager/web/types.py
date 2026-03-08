@@ -7,10 +7,14 @@ if TYPE_CHECKING:
         CategoryConfig,
         DraftBoard,
         DraftBoardRow,
+        DraftSessionRecord,
         LeagueSettings,
         PlayerTier,
         PositionScarcity,
+        Recommendation,
+        TeamCategoryProjection,
     )
+    from fantasy_baseball_manager.services import DraftPick, DraftState
 
 
 @strawberry.type
@@ -151,3 +155,130 @@ class PositionScarcityType:
             dropoff_slope=ps.dropoff_slope,
             steep_rank=ps.steep_rank,
         )
+
+
+@strawberry.type
+class DraftPickType:
+    pick_number: int
+    team: int
+    player_id: int
+    player_name: str
+    position: str
+    price: int | None
+
+    @staticmethod
+    def from_domain(pick: DraftPick) -> DraftPickType:
+        return DraftPickType(
+            pick_number=pick.pick_number,
+            team=pick.team,
+            player_id=pick.player_id,
+            player_name=pick.player_name,
+            position=pick.position,
+            price=pick.price,
+        )
+
+
+@strawberry.type
+class DraftSessionSummaryType:
+    id: int
+    league: str
+    season: int
+    teams: int
+    format: str
+    user_team: int
+    status: str
+    pick_count: int
+    created_at: str
+    updated_at: str
+
+    @staticmethod
+    def from_domain(record: DraftSessionRecord, pick_count: int) -> DraftSessionSummaryType:
+        return DraftSessionSummaryType(
+            id=record.id or 0,
+            league=record.league,
+            season=record.season,
+            teams=record.teams,
+            format=record.format,
+            user_team=record.user_team,
+            status=record.status,
+            pick_count=pick_count,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+
+@strawberry.type
+class DraftStateType:
+    session_id: int
+    current_pick: int
+    picks: list[DraftPickType]
+    format: str
+    teams: int
+    user_team: int
+    budget_remaining: int | None
+
+    @staticmethod
+    def from_state(session_id: int, state: DraftState) -> DraftStateType:
+        is_auction = state.config.format.value == "auction"
+        return DraftStateType(
+            session_id=session_id,
+            current_pick=state.current_pick,
+            picks=[DraftPickType.from_domain(p) for p in state.picks],
+            format=state.config.format.value,
+            teams=state.config.teams,
+            user_team=state.config.user_team,
+            budget_remaining=state.team_budgets[state.config.user_team] if is_auction else None,
+        )
+
+
+@strawberry.type
+class RecommendationType:
+    player_id: int
+    player_name: str
+    position: str
+    value: float
+    score: float
+    reason: str
+
+    @staticmethod
+    def from_domain(rec: Recommendation) -> RecommendationType:
+        return RecommendationType(
+            player_id=rec.player_id,
+            player_name=rec.player_name,
+            position=rec.position,
+            value=rec.value,
+            score=rec.score,
+            reason=rec.reason,
+        )
+
+
+@strawberry.type
+class RosterSlotType:
+    position: str
+    remaining: int
+
+
+@strawberry.type
+class CategoryBalanceType:
+    category: str
+    projected_value: float
+    league_rank_estimate: int
+    strength: str
+
+    @staticmethod
+    def from_domain(proj: TeamCategoryProjection) -> CategoryBalanceType:
+        return CategoryBalanceType(
+            category=proj.category,
+            projected_value=proj.projected_value,
+            league_rank_estimate=proj.league_rank_estimate,
+            strength=proj.strength,
+        )
+
+
+@strawberry.type
+class PickResultType:
+    pick: DraftPickType
+    state: DraftStateType
+    recommendations: list[RecommendationType]
+    roster: list[DraftPickType]
+    needs: list[RosterSlotType]
