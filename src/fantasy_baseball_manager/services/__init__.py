@@ -177,6 +177,9 @@ from fantasy_baseball_manager.services.regression_gate import (
     GateSegmentResult,
     RegressionGateRunner,
 )
+from fantasy_baseball_manager.services.replacement_profiler import (
+    compute_replacement_profiles,
+)
 from fantasy_baseball_manager.services.residual_analysis_diagnostic import (
     ResidualAnalysisDiagnostic,
 )
@@ -317,6 +320,7 @@ __all__ = [
     "compute_opportunity_costs",
     "compute_position_upgrades",
     "compute_pick_value_curve",
+    "compute_replacement_profiles",
     "compute_scarcity",
     "compute_scarcity_rankings",
     "compute_value_curves",

@@ -246,6 +246,7 @@ from fantasy_baseball_manager.domain.pt_normalization import (
     normalize_projection_pt,
 )
 from fantasy_baseball_manager.domain.pt_resolution import resolve_playing_time
+from fantasy_baseball_manager.domain.replacement_profile import ReplacementProfile
 from fantasy_baseball_manager.domain.residual_analysis import (
     CalibrationBin,
     ResidualAnalysisReport,
@@ -350,6 +351,7 @@ __all__ = [
     "FeatureCandidate",
     "FeatureCheckpoint",
     "ConfidenceReport",
+    "ReplacementProfile",
     "RegressionCheckResult",
     "ConfigError",
     "ConsensusLookup",
