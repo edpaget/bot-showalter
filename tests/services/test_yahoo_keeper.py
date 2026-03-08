@@ -267,8 +267,80 @@ class TestDeriveAndStoreKeeperCosts:
         assert len(player_costs) == 1
         assert player_costs[0].source == "manual"
 
-    def test_raises_value_error_when_no_user_team(self, conn: sqlite3.Connection) -> None:
-        # Don't seed any team
+    def test_derives_costs_for_all_teams(self, conn: sqlite3.Connection) -> None:
+        """Costs are derived for players on all teams, not just the user's team."""
+        _seed_prior_league(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        team_repo.upsert(_PRIOR_USER_TEAM)
+        team_repo.upsert(_PRIOR_OTHER_TEAM)
+        conn.commit()
+
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        pid2 = player_repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))
+        conn.commit()
+
+        picks = [
+            YahooDraftPick(
+                league_key=_PRIOR_LEAGUE_KEY,
+                season=2025,
+                round=1,
+                pick=1,
+                team_key=_PRIOR_USER_TEAM.team_key,
+                yahoo_player_key="449.p.1000",
+                player_id=pid1,
+                player_name="Mike Trout",
+                position="OF",
+                cost=30,
+            ),
+            YahooDraftPick(
+                league_key=_PRIOR_LEAGUE_KEY,
+                season=2025,
+                round=2,
+                pick=2,
+                team_key=_PRIOR_OTHER_TEAM.team_key,
+                yahoo_player_key="449.p.2000",
+                player_id=pid2,
+                player_name="Aaron Judge",
+                position="OF",
+                cost=25,
+            ),
+        ]
+
+        user_roster = _make_roster(_PRIOR_USER_TEAM.team_key, [pid1])
+        other_roster = _make_roster(_PRIOR_OTHER_TEAM.team_key, [pid2])
+
+        draft_source = FakeDraftSource(picks)
+        roster_source = FakeRosterSource(
+            rosters={
+                _PRIOR_USER_TEAM.team_key: user_roster,
+                _PRIOR_OTHER_TEAM.team_key: other_roster,
+            }
+        )
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
+
+        derive_and_store_keeper_costs(
+            draft_source=draft_source,
+            roster_source=roster_source,
+            team_repo=team_repo,
+            keeper_repo=keeper_repo,
+            league_key=_LEAGUE_KEY,
+            prior_league_key=_PRIOR_LEAGUE_KEY,
+            prior_season=2025,
+            season=2026,
+            league_name="test_league",
+            cost_floor=1.0,
+        )
+
+        costs = keeper_repo.find_by_season_league(2026, "test_league")
+        assert len(costs) == 2
+        cost_by_pid = {c.player_id: c for c in costs}
+        assert cost_by_pid[pid1].cost == 30.0
+        assert cost_by_pid[pid2].cost == 25.0
+
+    def test_raises_value_error_when_no_teams(self, conn: sqlite3.Connection) -> None:
+        # Don't seed any team — but seed the league so the query works
+        _seed_prior_league(conn)
         draft_source = FakeDraftSource([])
         roster_source = FakeRosterSource(
             Roster(
@@ -283,7 +355,7 @@ class TestDeriveAndStoreKeeperCosts:
         team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
         keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
-        with pytest.raises(ValueError, match="No user team found for"):
+        with pytest.raises(ValueError, match="No teams found for"):
             derive_and_store_keeper_costs(
                 draft_source=draft_source,
                 roster_source=roster_source,
@@ -334,6 +406,45 @@ class TestDeriveBestNKeeperCosts:
 
         roster_source = FakeRosterSource(roster)
         team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
+
+        derive_best_n_keeper_costs(
+            roster_source=roster_source,
+            team_repo=team_repo,
+            keeper_repo=keeper_repo,
+            prior_league_key=_PRIOR_LEAGUE_KEY,
+            prior_season=2025,
+            season=2026,
+            league_name="test_league",
+        )
+
+        costs = keeper_repo.find_by_season_league(2026, "test_league")
+        assert len(costs) == 2
+        for c in costs:
+            assert c.cost == 0.0
+            assert c.source == "best_n"
+
+    def test_assigns_zero_cost_for_all_teams(self, conn: sqlite3.Connection) -> None:
+        """Costs are derived for players on all teams, not just the user's team."""
+        _seed_prior_league(conn)
+        team_repo = SqliteYahooTeamRepo(SingleConnectionProvider(conn))
+        team_repo.upsert(_PRIOR_USER_TEAM)
+        team_repo.upsert(_PRIOR_OTHER_TEAM)
+        conn.commit()
+
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        pid1 = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        pid2 = player_repo.upsert(Player(name_first="Aaron", name_last="Judge", mlbam_id=592450))
+        conn.commit()
+
+        user_roster = _make_roster(_PRIOR_USER_TEAM.team_key, [pid1])
+        other_roster = _make_roster(_PRIOR_OTHER_TEAM.team_key, [pid2])
+        roster_source = FakeRosterSource(
+            rosters={
+                _PRIOR_USER_TEAM.team_key: user_roster,
+                _PRIOR_OTHER_TEAM.team_key: other_roster,
+            }
+        )
         keeper_repo = SqliteKeeperCostRepo(SingleConnectionProvider(conn))
 
         derive_best_n_keeper_costs(

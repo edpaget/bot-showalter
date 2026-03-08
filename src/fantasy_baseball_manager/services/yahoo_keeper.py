@@ -59,27 +59,29 @@ def derive_and_store_keeper_costs(
     league_name: str,
     cost_floor: float,
 ) -> None:
-    """Derive keeper costs from Yahoo draft/roster and upsert, respecting manual overrides.
+    """Derive keeper costs from Yahoo draft/roster for all teams and upsert.
 
-    Raises ValueError if no user team is found.
+    Respects manual overrides (non-yahoo_* source entries).
+    Raises ValueError if no teams are found.
     Does NOT commit — caller is responsible for committing.
     """
-    draft_picks = draft_source.fetch_draft_results(prior_league_key, prior_season)
-
-    user_team = team_repo.get_user_team(prior_league_key)
-    if user_team is None:
-        msg = f"No user team found for {prior_league_key}. The prior season may not have this user as a league member."
+    teams = team_repo.get_by_league_key(prior_league_key)
+    if not teams:
+        msg = f"No teams found for {prior_league_key}."
         raise ValueError(msg)
 
-    today = datetime.date.today()
-    roster = roster_source.fetch_team_roster(
-        team_key=user_team.team_key,
-        league_key=prior_league_key,
-        season=prior_season,
-        as_of=today,
-    )
+    draft_picks = draft_source.fetch_draft_results(prior_league_key, prior_season)
 
-    derived = derive_keeper_costs(draft_picks, list(roster.entries), league_name, season, cost_floor)
+    today = datetime.date.today()
+    derived: list[KeeperCost] = []
+    for team in teams:
+        roster = roster_source.fetch_team_roster(
+            team_key=team.team_key,
+            league_key=prior_league_key,
+            season=prior_season,
+            as_of=today,
+        )
+        derived.extend(derive_keeper_costs(draft_picks, list(roster.entries), league_name, season, cost_floor))
 
     # Respect manual overrides: skip upserting players with non-yahoo_* source
     existing = keeper_repo.find_by_season_league(season, league_name)
@@ -99,39 +101,39 @@ def derive_best_n_keeper_costs(
     season: int,
     league_name: str,
 ) -> None:
-    """Derive $0 keeper costs for all roster players (best-N format).
+    """Derive $0 keeper costs for all roster players on all teams (best-N format).
 
     In best-N leagues, all players cost $0 and the optimizer picks the top N.
     Respects manual overrides (non-best_n source entries).
     Does NOT commit — caller is responsible for committing.
     """
-    user_team = team_repo.get_user_team(prior_league_key)
-    if user_team is None:
-        msg = f"No user team found for {prior_league_key}. The prior season may not have this user as a league member."
+    teams = team_repo.get_by_league_key(prior_league_key)
+    if not teams:
+        msg = f"No teams found for {prior_league_key}."
         raise ValueError(msg)
 
     today = datetime.date.today()
-    roster = roster_source.fetch_team_roster(
-        team_key=user_team.team_key,
-        league_key=prior_league_key,
-        season=prior_season,
-        as_of=today,
-    )
-
     derived: list[KeeperCost] = []
-    for entry in roster.entries:
-        if entry.player_id is None:
-            continue
-        derived.append(
-            KeeperCost(
-                player_id=entry.player_id,
-                season=season,
-                league=league_name,
-                cost=0.0,
-                source="best_n",
-                years_remaining=1,
-            )
+    for team in teams:
+        roster = roster_source.fetch_team_roster(
+            team_key=team.team_key,
+            league_key=prior_league_key,
+            season=prior_season,
+            as_of=today,
         )
+        for entry in roster.entries:
+            if entry.player_id is None:
+                continue
+            derived.append(
+                KeeperCost(
+                    player_id=entry.player_id,
+                    season=season,
+                    league=league_name,
+                    cost=0.0,
+                    source="best_n",
+                    years_remaining=1,
+                )
+            )
 
     # Respect manual overrides
     existing = keeper_repo.find_by_season_league(season, league_name)

@@ -824,6 +824,24 @@ def yahoo_keeper_costs(  # pragma: no cover
         player_ids = [kc.player_id for kc in all_costs]
         players_list = ctx.player_repo.get_by_ids(player_ids)
 
+        # Build player-to-team mapping from rosters
+        teams = ctx.yahoo_team_repo.get_by_league_key(prior_league_key)
+        team_name_by_key = {t.team_key: t.name for t in teams}
+        player_team: dict[int, str] = {}
+        for team in teams:
+            try:
+                roster = roster_source.fetch_team_roster(
+                    team_key=team.team_key,
+                    league_key=prior_league_key,
+                    season=prior_season,
+                    as_of=datetime.date.today(),
+                )
+                for entry in roster.entries:
+                    if entry.player_id is not None:
+                        player_team[entry.player_id] = team_name_by_key.get(team.team_key, "?")
+            except Exception:
+                logger.debug("Failed to fetch roster for team %s", team.team_key)
+
     if not all_costs:
         console.print("[yellow]No keeper costs derived.[/yellow]")
         return
@@ -831,13 +849,15 @@ def yahoo_keeper_costs(  # pragma: no cover
     player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players_list if p.id is not None}
 
     table = Table(title=f"Keeper Costs — {league_name} ({season})", show_header=True)
+    table.add_column("Team", justify="left")
     table.add_column("Player", justify="left")
     table.add_column("Cost", justify="right")
     table.add_column("Source", justify="left")
 
-    for kc in sorted(all_costs, key=lambda c: c.cost, reverse=True):
+    for kc in sorted(all_costs, key=lambda c: (player_team.get(c.player_id, ""), -c.cost)):
         name = player_names.get(kc.player_id, f"ID:{kc.player_id}")
-        table.add_row(name, f"${kc.cost:.0f}", kc.source)
+        team_name = player_team.get(kc.player_id, "?")
+        table.add_row(team_name, name, f"${kc.cost:.0f}", kc.source)
 
     console.print(table)
     console.print(f"\n[bold green]Derived {len(all_costs)} keeper costs.[/bold green]")
@@ -851,6 +871,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
     threshold: Annotated[float, typer.Option("--threshold", help="Minimum surplus for keep recommendation")] = 0.0,
     decay: Annotated[float, typer.Option("--decay", help="Decay factor for multi-year surplus")] = 0.85,
     cost_floor: Annotated[float, typer.Option("--cost-floor", help="Minimum keeper cost for FA pickups")] = 1.0,
+    manager: Annotated[str | None, typer.Option("--manager", help="Team or manager name (default: your team)")] = None,
     estimate_league_keepers: Annotated[
         bool, typer.Option("--estimate-league-keepers", help="Estimate other teams' keepers to adjust surplus")
     ] = False,
@@ -912,6 +933,38 @@ def yahoo_keeper_decisions(  # pragma: no cover
         if not keeper_costs:
             console.print("[yellow]No keeper costs found.[/yellow]")
             return
+
+        # Filter to target team's roster
+        teams = ctx.yahoo_team_repo.get_by_league_key(prior_league_key)
+        if manager is not None:
+            manager_lower = manager.lower()
+            target_team = next(
+                (t for t in teams if manager_lower in t.name.lower() or manager_lower in t.manager_name.lower()),
+                None,
+            )
+            if target_team is None:
+                print_error(f"No team matching '{manager}' found.")
+                raise typer.Exit(code=1) from None
+        else:
+            target_team = next((t for t in teams if t.is_owned_by_user), None)
+            if target_team is None:
+                print_error("No user team found. Use --manager to specify a team.")
+                raise typer.Exit(code=1) from None
+
+        target_roster = roster_source.fetch_team_roster(
+            team_key=target_team.team_key,
+            league_key=prior_league_key,
+            season=prior_season,
+            as_of=datetime.date.today(),
+        )
+        roster_player_ids = {e.player_id for e in target_roster.entries if e.player_id is not None}
+        keeper_costs = [kc for kc in keeper_costs if kc.player_id in roster_player_ids]
+
+        if not keeper_costs:
+            console.print(f"[yellow]No keeper costs for {target_team.name}.[/yellow]")
+            return
+
+        console.print(f"[dim]Showing keeper decisions for: {target_team.name}[/dim]\n")
 
         valuations = ctx.valuation_repo.get_by_season(season, system)
         players = ctx.player_repo.all()

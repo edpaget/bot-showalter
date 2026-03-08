@@ -288,7 +288,7 @@ uv run fbm yahoo keeper-costs --league <name> [--season <year>] [--cost-floor <n
 
 Show keeper decisions using Yahoo-derived costs:
 ```
-uv run fbm yahoo keeper-decisions --league <name> [--season <year>] [--system <system>] [--threshold <n>] [--decay <n>] [--cost-floor <n>]
+uv run fbm yahoo keeper-decisions --league <name> [--season <year>] [--system <system>] [--manager "<team or manager name>"] [--threshold <n>] [--decay <n>] [--cost-floor <n>]
 ```
 
 Show a player's keeper cost history across seasons:
