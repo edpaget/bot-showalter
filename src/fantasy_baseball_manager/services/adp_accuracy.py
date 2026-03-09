@@ -271,8 +271,7 @@ class ADPAccuracyEvaluator:
         version: str,
         actual_values: dict[tuple[int, str], float],
     ) -> SystemAccuracyResult:
-        valuations = self._valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = self._valuation_repo.get_by_season(season, system=system, version=version)
 
         # Build predicted map
         predicted_map: dict[tuple[int, str], tuple[float, int]] = {

@@ -967,8 +967,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
 
         console.print(f"[dim]Showing keeper decisions for: {target_team.name}[/dim]\n")
 
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         players = ctx.player_repo.all()
 
         # Estimate other teams' keepers and adjust valuations
@@ -1087,8 +1086,7 @@ def yahoo_keeper_league(  # pragma: no cover
         user_team_key = user_team.team_key
 
         # Get valuations and players
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         if not valuations:
             print_error(f"No valuations found for season {season}, system '{system}'")
             raise typer.Exit(code=1)
@@ -1168,8 +1166,7 @@ def yahoo_draft_needs(  # pragma: no cover
         user_team_key = user_team.team_key
 
         # Get valuations, players, projections
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         if not valuations:
             print_error(f"No valuations found for season {season}, system '{system}'")
             raise typer.Exit(code=1)

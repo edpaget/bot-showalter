@@ -48,8 +48,7 @@ class ValuationEvaluator:
     ) -> ValuationEvalResult:
         logger.info("Evaluating valuations: %s/%s season=%d", system, version, season)
         # 1. Fetch predicted valuations, filter by version
-        all_valuations = self._valuation_repo.get_by_season(season, system=system)
-        predicted = [v for v in all_valuations if v.version == version]
+        predicted = self._valuation_repo.get_by_season(season, system=system, version=version)
 
         if not predicted:
             return ValuationEvalResult(

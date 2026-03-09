@@ -51,10 +51,7 @@ class ValuationLookupService:
         top: int | None = None,
         version: str | None = None,
     ) -> list[PlayerValuation]:
-        valuations = self._valuation_repo.get_by_season(season, system)
-
-        if version is not None:
-            valuations = [v for v in valuations if v.version == version]
+        valuations = self._valuation_repo.get_by_season(season, system, version=version)
 
         if player_type is not None:
             valuations = [v for v in valuations if v.player_type == player_type]
@@ -100,10 +97,8 @@ class ValuationLookupService:
         version: str = "1.0",
     ) -> list[InjuryValueDelta]:
         """Compute value deltas between two persisted valuation systems."""
-        original_vals = self._valuation_repo.get_by_season(season, system=original_system)
-        original_vals = [v for v in original_vals if v.version == version]
-        adjusted_vals = self._valuation_repo.get_by_season(season, system=adjusted_system)
-        adjusted_vals = [v for v in adjusted_vals if v.version == version]
+        original_vals = self._valuation_repo.get_by_season(season, system=original_system, version=version)
+        adjusted_vals = self._valuation_repo.get_by_season(season, system=adjusted_system, version=version)
 
         if not original_vals or not adjusted_vals:
             return []

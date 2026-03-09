@@ -71,8 +71,7 @@ def build_yahoo_draft_setup(
         msg = "No user team found. Run 'fbm yahoo sync' first."
         raise ValueError(msg)
 
-    valuations = valuation_repo.get_by_season(season, system=system)
-    valuations = [v for v in valuations if v.version == version]
+    valuations = valuation_repo.get_by_season(season, system=system, version=version)
 
     player_ids = [v.player_id for v in valuations]
     players_list = player_repo.get_by_ids(player_ids)

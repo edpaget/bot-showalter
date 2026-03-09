@@ -60,18 +60,21 @@ class SqliteValuationRepo:
                 ).fetchall()
             return [self._row_to_valuation(row) for row in rows]
 
-    def get_by_season(self, season: int, system: str | None = None) -> list[Valuation]:
+    def get_by_season(self, season: int, system: str | None = None, version: str | None = None) -> list[Valuation]:
         with self._provider.connection() as conn:
+            clauses = ["season = ?"]
+            params: list[object] = [season]
             if system is not None:
-                rows = conn.execute(
-                    self._select_sql() + " WHERE season = ? AND system = ?",
-                    (season, system),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    self._select_sql() + " WHERE season = ?",
-                    (season,),
-                ).fetchall()
+                clauses.append("system = ?")
+                params.append(system)
+            if version is not None:
+                clauses.append("version = ?")
+                params.append(version)
+            where = " AND ".join(clauses)
+            rows = conn.execute(
+                self._select_sql() + " WHERE " + where,
+                params,
+            ).fetchall()
             return [self._row_to_valuation(row) for row in rows]
 
     @staticmethod

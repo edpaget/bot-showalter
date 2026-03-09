@@ -80,10 +80,12 @@ class FakeValuationRepo:
             result = [v for v in result if v.system == system]
         return result
 
-    def get_by_season(self, season: int, system: str | None = None) -> list[Valuation]:
+    def get_by_season(self, season: int, system: str | None = None, version: str | None = None) -> list[Valuation]:
         result = [v for v in self._valuations if v.season == season]
         if system is not None:
             result = [v for v in result if v.system == system]
+        if version is not None:
+            result = [v for v in result if v.version == version]
         return result
 
 

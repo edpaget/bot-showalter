@@ -36,8 +36,7 @@ class ADPReportService:
         top: int | None = None,
     ) -> ValueOverADPReport:
         # 1. Fetch valuations, filter by version
-        valuations = self._valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = self._valuation_repo.get_by_season(season, system=system, version=version)
 
         # 2. Apply player_type and position filters
         if player_type is not None:

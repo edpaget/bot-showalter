@@ -367,8 +367,7 @@ def report_variance_targets(  # pragma: no cover
             min_systems=min_systems,
         )
 
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
 

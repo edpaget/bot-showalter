@@ -49,8 +49,7 @@ def _build_cost_translator(
 ) -> Callable[[int], float]:
     """Build a round→dollar cost translator using the pick value curve."""
     adp = ctx.adp_repo.get_by_season(season, provider=provider)
-    valuations = ctx.valuation_repo.get_by_season(season, system)
-    valuations = [v for v in valuations if v.version == version]
+    valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
     league_settings = load_league(league_name, Path.cwd())
     curve = compute_pick_value_curve(adp, valuations, league_settings)
     return lambda round_num: round_to_dollar_cost(round_num, league_settings, curve)
@@ -194,8 +193,7 @@ def decisions_cmd(
         if not keeper_costs:
             typer.echo("No keeper costs found for the specified season and league.")
             return
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         players = ctx.player_repo.all()
         decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 
@@ -222,8 +220,7 @@ def adjusted_rankings_cmd(
             typer.echo("No keeper costs found for the specified season and league.")
             return
 
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         players = ctx.player_repo.all()
         decisions = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
         kept_player_ids = {d.player_id for d in decisions if d.recommendation == "keep"}
@@ -296,8 +293,7 @@ def trade_eval_cmd(
             receive_ids.append(matches[0].id)
 
         keeper_costs = ctx.keeper_repo.find_by_season_league(season, league)
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         players = ctx.player_repo.all()
 
     result = evaluate_trade(give_ids, receive_ids, keeper_costs, valuations, players, decay)
@@ -355,8 +351,7 @@ def optimize_cmd(
         if not keeper_costs:
             typer.echo("No keeper costs found for the specified season and league.")
             return
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         players = ctx.player_repo.all()
         candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 
@@ -407,8 +402,7 @@ def scenario_cmd(
         if not keeper_costs:
             typer.echo("No keeper costs found for the specified season and league.")
             return
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         players = ctx.player_repo.all()
         candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 
@@ -447,8 +441,7 @@ def trade_impact_cmd(
         if not keeper_costs:
             typer.echo("No keeper costs found for the specified season and league.")
             return
-        valuations = ctx.valuation_repo.get_by_season(season, system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system, version=version)
         players = ctx.player_repo.all()
         candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 

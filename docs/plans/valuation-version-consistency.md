@@ -7,7 +7,7 @@ The `--system` and `--version` options should be configurable everywhere valuati
 | Phase | Status |
 |-------|--------|
 | 1 — Add `--version` to keeper and yahoo CLI commands | done (2026-03-08) |
-| 2 — Push version filtering into the repo layer | not started |
+| 2 — Push version filtering into the repo layer | done (2026-03-08) |
 
 ## Phase 1: Add `--version` to keeper and yahoo CLI commands
 

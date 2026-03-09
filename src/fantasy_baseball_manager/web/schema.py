@@ -86,8 +86,7 @@ class Query:
         top: int | None = None,
     ) -> DraftBoardType:
         ctx = _get_context(info)
-        valuations = ctx.container.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.container.valuation_repo.get_by_season(season, system=system, version=version)
 
         if player_type is not None:
             valuations = [v for v in valuations if v.player_type == player_type]
@@ -130,8 +129,7 @@ class Query:
         max_tiers: int = 5,
     ) -> list[PlayerTierType]:
         ctx = _get_context(info)
-        valuations = ctx.container.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.container.valuation_repo.get_by_season(season, system=system, version=version)
 
         if player_type is not None:
             valuations = [v for v in valuations if v.player_type == player_type]
@@ -148,8 +146,7 @@ class Query:
         version: str = "1.0",
     ) -> list[PositionScarcityType]:
         ctx = _get_context(info)
-        valuations = ctx.container.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.container.valuation_repo.get_by_season(season, system=system, version=version)
 
         result = compute_scarcity(valuations, ctx.league)
         return [PositionScarcityType.from_domain(s) for s in result]

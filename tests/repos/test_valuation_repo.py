@@ -93,6 +93,30 @@ class TestSqliteValuationRepo:
         assert repo.get_by_player_season(999, 2025) == []
         assert repo.get_by_season(2099) == []
 
+    def test_get_by_season_with_version(self, conn: sqlite3.Connection) -> None:
+        player_id = seed_player(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
+        repo.upsert(_make_valuation(player_id, version="production"))
+        repo.upsert(_make_valuation(player_id, version="experimental", player_type="pitcher"))
+        # Filter by version
+        results = repo.get_by_season(2025, version="production")
+        assert len(results) == 1
+        assert results[0].version == "production"
+        # No version filter returns both
+        all_results = repo.get_by_season(2025)
+        assert len(all_results) == 2
+
+    def test_get_by_season_with_system_and_version(self, conn: sqlite3.Connection) -> None:
+        player_id = seed_player(conn)
+        repo = SqliteValuationRepo(SingleConnectionProvider(conn))
+        repo.upsert(_make_valuation(player_id, system="zar", version="v1"))
+        repo.upsert(_make_valuation(player_id, system="zar", version="v2", player_type="pitcher"))
+        repo.upsert(_make_valuation(player_id, system="other", version="v1", player_type="pitcher"))
+        results = repo.get_by_season(2025, system="zar", version="v1")
+        assert len(results) == 1
+        assert results[0].system == "zar"
+        assert results[0].version == "v1"
+
     def test_multiple_player_types(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
         repo = SqliteValuationRepo(SingleConnectionProvider(conn))

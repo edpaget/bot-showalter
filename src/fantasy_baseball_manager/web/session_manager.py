@@ -177,8 +177,7 @@ class SessionManager:
         return [DraftSessionSummary(record=r, pick_count=self._repo.count_picks(r.id or 0)) for r in records]
 
     def _build_player_pool(self, season: int, system: str, version: str) -> list[DraftBoardRow]:
-        valuations = self._valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = self._valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players = self._player_repo.get_by_ids(player_ids)

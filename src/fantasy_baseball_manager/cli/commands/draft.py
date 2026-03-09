@@ -181,8 +181,7 @@ def _fetch_draft_board_data(
 ) -> tuple[DraftBoard, LeagueSettings]:
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         if exclude_keepers is not None:
             valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
@@ -281,8 +280,7 @@ def draft_live(  # pragma: no cover
     """Start a live draft server with auto-refreshing HTML board."""
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
         if player_type is not None:
             valuations = [v for v in valuations if v.player_type == player_type]
         if position is not None:
@@ -324,8 +322,7 @@ def draft_start(  # pragma: no cover
     league = load_league(league_name, Path.cwd())
 
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players_list = ctx.player_repo.get_by_ids(player_ids)
@@ -485,8 +482,7 @@ def draft_report_cmd(
     league = load_league(league_name, Path.cwd())
 
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players_list = ctx.player_repo.get_by_ids(player_ids)
@@ -524,8 +520,7 @@ def draft_tiers(
 ) -> None:
     """Display position-grouped tier assignments."""
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         if exclude_keepers is not None:
             valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
@@ -556,8 +551,7 @@ def draft_tier_summary(
 ) -> None:
     """Display a cross-position tier summary matrix."""
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         tiers = generate_tiers(valuations, ctx.player_repo, method=method, max_tiers=max_tiers)
         report = tier_summary(tiers)
@@ -578,8 +572,7 @@ def budget_command(
     """Compute optimal auction budget allocation across roster positions."""
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.player_repo.get_by_ids(player_ids)
@@ -623,8 +616,7 @@ def plan_command(
     """Compute a round-by-round snake draft plan for a given draft slot."""
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.player_repo.get_by_ids(player_ids)
@@ -703,8 +695,7 @@ def simulate_command(
     """Run Monte Carlo draft simulations to estimate expected roster value."""
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.player_repo.get_by_ids(player_ids)
@@ -783,8 +774,7 @@ def draft_pick_values(
     """Display pick value curve mapping draft picks to expected player value."""
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.player_repo.get_by_ids(player_ids)
@@ -817,8 +807,7 @@ def draft_trade_picks(
 
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.player_repo.get_by_ids(player_ids)
@@ -855,8 +844,7 @@ def draft_scarcity(
     """Display positional scarcity analysis ranked by dropoff severity."""
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         if exclude_keepers is not None:
             valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
@@ -892,8 +880,7 @@ def draft_scarcity_rankings(
     """Display scarcity-adjusted player rankings."""
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         if exclude_keepers is not None:
             valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
@@ -964,8 +951,7 @@ def draft_upgrades(
     with build_draft_board_context(data_dir) as ctx:
         roster_ids = _resolve_roster_names(roster_names, ctx.player_repo)
 
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         if exclude_keepers is not None:
             valuations = _apply_keeper_exclusion(ctx, valuations, exclude_keepers, season)
@@ -1011,8 +997,7 @@ def draft_position_check(
     with build_draft_board_context(data_dir) as ctx:
         roster_ids = _resolve_roster_names(roster_names, ctx.player_repo)
 
-        valuations = ctx.valuation_repo.get_by_season(season, system=system)
-        valuations = [v for v in valuations if v.version == version]
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.player_repo.get_by_ids(player_ids)
