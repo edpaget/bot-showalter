@@ -1,5 +1,10 @@
 from fantasy_baseball_manager.services.actual_valuations import compute_actual_valuations
 from fantasy_baseball_manager.services.adp_accuracy import ADPAccuracyEvaluator
+from fantasy_baseball_manager.services.adp_arbitrage import (
+    build_arbitrage_report,
+    detect_falling_players,
+    detect_reaches,
+)
 from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
 from fantasy_baseball_manager.services.breakout_bust import (
@@ -249,6 +254,9 @@ __all__ = [
     "generate_labels",
     "historical_backtest",
     "label_distribution",
+    "build_arbitrage_report",
+    "detect_falling_players",
+    "detect_reaches",
     "ADPMoversService",
     "ADPReportService",
     "BestValueBot",

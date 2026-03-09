@@ -5,6 +5,11 @@ from fantasy_baseball_manager.domain.adp_accuracy import (
     ADPAccuracyResult,
     SystemAccuracyResult,
 )
+from fantasy_baseball_manager.domain.adp_arbitrage import (
+    ArbitrageReport,
+    FallingPlayer,
+    ReachPick,
+)
 from fantasy_baseball_manager.domain.adp_movers import ADPMover, ADPMoversReport
 from fantasy_baseball_manager.domain.adp_report import ValueOverADP, ValueOverADPReport
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
@@ -314,6 +319,7 @@ __all__ = [
     "AblationResult",
     "ADP",
     "AdjustedValuation",
+    "ArbitrageReport",
     "BreakoutPrediction",
     "LabelConfig",
     "LabeledSeason",
@@ -352,6 +358,7 @@ __all__ = [
     "FeatureGapReport",
     "ComparisonSummary",
     "CorrelationScanResult",
+    "FallingPlayer",
     "FeatureCandidate",
     "FeatureCheckpoint",
     "ConfidenceReport",
@@ -458,6 +465,7 @@ __all__ = [
     "ScarcityAdjustedPlayer",
     "Projection",
     "ProjectionComparison",
+    "ReachPick",
     "Recommendation",
     "RecommendationWeights",
     "ResidualAnalysisReport",
