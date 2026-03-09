@@ -196,7 +196,7 @@ from fantasy_baseball_manager.domain.model_protocol import (
     ValidationResult,
 )
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
-from fantasy_baseball_manager.domain.opponent_model import LeagueNeeds, PositionRun, TeamNeeds
+from fantasy_baseball_manager.domain.opponent_model import LeagueNeeds, PositionRun, TeamNeeds, ThreatAssessment
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.pick_value import (
     CascadeResult,
@@ -527,6 +527,7 @@ __all__ = [
     "TargetResult",
     "TargetStability",
     "TeamNeeds",
+    "ThreatAssessment",
     "Team",
     "TierAssignment",
     "Trainable",

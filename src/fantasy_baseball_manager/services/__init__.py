@@ -60,6 +60,7 @@ from fantasy_baseball_manager.services.draft_session import (
     DraftSession,
     FallsCommand,
     ReachesCommand,
+    ThreatsCommand,
     load_draft,
     load_draft_from_db,
 )
@@ -139,7 +140,7 @@ from fantasy_baseball_manager.services.mock_draft_bots import (
     TierValueRule,
     WeightedRule,
 )
-from fantasy_baseball_manager.services.opponent_model import compute_league_needs, detect_position_runs
+from fantasy_baseball_manager.services.opponent_model import assess_threats, compute_league_needs, detect_position_runs
 from fantasy_baseball_manager.services.performance_report import (
     PerformanceReportService,
 )
@@ -283,6 +284,7 @@ __all__ = [
     "DraftFormat",
     "DraftPick",
     "DraftSession",
+    "ThreatsCommand",
     "DraftState",
     "FallsCommand",
     "FallbackBestValueRule",
@@ -357,6 +359,7 @@ __all__ = [
     "compute_marginal_values",
     "compute_opportunity_costs",
     "compute_position_upgrades",
+    "assess_threats",
     "compute_league_needs",
     "detect_position_runs",
     "compute_pick_value_curve",

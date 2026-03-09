@@ -37,6 +37,7 @@ from fantasy_baseball_manager.services.draft_session import (
     RosterCommand,
     SaveCommand,
     StatusCommand,
+    ThreatsCommand,
     UndoCommand,
     auto_detect_position,
     load_draft,
@@ -668,6 +669,16 @@ class TestParseCommandReaches:
     def test_reaches_case_insensitive(self) -> None:
         cmd = parse_command("REACHES", DraftFormat.SNAKE, VALID_POSITIONS)
         assert isinstance(cmd, ReachesCommand)
+
+
+class TestParseCommandThreats:
+    def test_threats_command(self) -> None:
+        cmd = parse_command("threats", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, ThreatsCommand)
+
+    def test_threats_case_insensitive(self) -> None:
+        cmd = parse_command("THREATS", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, ThreatsCommand)
 
 
 class TestCategoryBalanceREPL:

@@ -14,6 +14,7 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftState,
 )
 from fantasy_baseball_manager.services.opponent_model import (
+    assess_threats,
     compute_league_needs,
     detect_position_runs,
 )
@@ -652,3 +653,359 @@ class TestAuctionFormat:
         ss_runs = [r for r in runs if r.position == "SS"]
         assert len(ss_runs) == 1
         assert ss_runs[0].run_length == 3
+
+
+# ---------- assess_threats tests ----------
+
+
+def _row_adp(
+    player_id: int,
+    name: str,
+    position: str,
+    player_type: str,
+    value: float,
+    adp: float | None = None,
+) -> DraftBoardRow:
+    return DraftBoardRow(
+        player_id=player_id,
+        player_name=name,
+        rank=player_id,
+        player_type=player_type,
+        position=position,
+        value=value,
+        category_z_scores={},
+        adp_overall=adp,
+    )
+
+
+class TestThreatLikelyGone:
+    def test_adp_in_danger_zone_and_two_teams_need(self) -> None:
+        """Player with ADP in the danger zone AND 2+ teams needing position → likely-gone."""
+        # 4-team snake, user is team 1, current pick is 2 (team 2's turn)
+        # User's next pick is pick 4 → picks_until = 2
+        # Teams 2 and 3 pick before user; both need SS
+        pool = _make_pool(
+            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
+            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=10.0),
+            _row_adp(12, "SP Ace", "SP", "pitcher", 12.0, adp=8.0),
+        )
+        state = DraftState(
+            config=DraftConfig(
+                teams=4,
+                roster_slots={"C": 1, "SS": 1, "SP": 1, "UTIL": 1, "BN": 1},
+                format=DraftFormat.SNAKE,
+                user_team=1,
+                season=2026,
+            ),
+            picks=[_pick(1, 1, "C", player_id=1)],
+            available_pool=pool,
+            team_rosters={
+                1: [_pick(1, 1, "C", player_id=1)],
+                2: [],
+                3: [],
+                4: [],
+            },
+            team_budgets={},
+            current_pick=2,
+        )
+
+        threats = assess_threats(state, _league())
+
+        ss_threats = [t for t in threats if t.position == "SS"]
+        assert len(ss_threats) == 1
+        assert ss_threats[0].threat_level == "likely-gone"
+        assert ss_threats[0].teams_needing_position >= 2
+
+
+class TestThreatAtRisk:
+    def test_adp_in_danger_one_team_needs(self) -> None:
+        """Player with ADP in danger zone but only 1 team needs position → at-risk."""
+        # 4-team snake, user team 1, current pick 2
+        # picks_until = 6 (picks 2-7 before user's pick 8)
+        # Intervening teams: 2, 3, 4. Make teams 3 and 4 already have SS → only team 2 needs it
+        pool = _make_pool(
+            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
+            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=10.0),
+        )
+        state = DraftState(
+            config=DraftConfig(
+                teams=4,
+                roster_slots={"C": 1, "SS": 1, "SP": 1, "UTIL": 1, "BN": 1},
+                format=DraftFormat.SNAKE,
+                user_team=1,
+                season=2026,
+            ),
+            picks=[
+                _pick(1, 1, "C", player_id=1),
+            ],
+            available_pool=pool,
+            team_rosters={
+                1: [_pick(1, 1, "C", player_id=1)],
+                2: [],
+                3: [_pick(0, 3, "SS", player_id=98)],
+                4: [_pick(0, 4, "SS", player_id=99)],
+            },
+            team_budgets={},
+            current_pick=2,
+        )
+
+        threats = assess_threats(state, _league())
+
+        ss_threats = [t for t in threats if t.position == "SS"]
+        assert len(ss_threats) == 1
+        assert ss_threats[0].threat_level == "at-risk"
+        assert ss_threats[0].teams_needing_position == 1
+
+    def test_many_teams_need_no_adp(self) -> None:
+        """3+ teams needing position → at-risk even without ADP data."""
+        pool = _make_pool(
+            _row_adp(10, "SS NoADP", "SS", "batter", 20.0, adp=None),
+            _row_adp(11, "C Guy", "C", "batter", 15.0),
+        )
+        state = DraftState(
+            config=_12team_config(),
+            picks=[],
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+            current_pick=2,
+        )
+
+        threats = assess_threats(state, _12team_league())
+
+        ss_threats = [t for t in threats if t.position == "SS"]
+        assert len(ss_threats) == 1
+        assert ss_threats[0].threat_level == "at-risk"
+
+
+class TestThreatSafe:
+    def test_adp_well_beyond_next_pick(self) -> None:
+        """Player with ADP well beyond user's next pick → safe."""
+        # ADP 50 is way beyond danger zone (~8), and ≤2 teams need each position → safe
+        pool = _make_pool(
+            _row_adp(10, "SS Late", "SS", "batter", 10.0, adp=50.0),
+            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=50.0),
+        )
+        state = DraftState(
+            config=DraftConfig(
+                teams=4,
+                roster_slots={"C": 1, "SS": 1, "SP": 1, "UTIL": 1, "BN": 1},
+                format=DraftFormat.SNAKE,
+                user_team=1,
+                season=2026,
+            ),
+            picks=[_pick(1, 1, "C", player_id=1)],
+            available_pool=pool,
+            team_rosters={
+                1: [_pick(1, 1, "C", player_id=1)],
+                2: [_pick(0, 2, "SS", player_id=97), _pick(0, 2, "C", player_id=94)],
+                3: [_pick(0, 3, "SS", player_id=98), _pick(0, 3, "C", player_id=95)],
+                4: [_pick(0, 4, "SS", player_id=99)],
+            },
+            team_budgets={},
+            current_pick=2,
+        )
+
+        threats = assess_threats(state, _league())
+
+        for t in threats:
+            assert t.threat_level == "safe"
+
+
+class TestThreatAuctionEmpty:
+    def test_auction_returns_empty(self) -> None:
+        """Auction format → picks_until = 0 → empty list."""
+        pool = _make_pool(
+            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
+        )
+        state = DraftState(
+            config=DraftConfig(
+                teams=4,
+                roster_slots={"C": 1, "SS": 1, "SP": 1, "UTIL": 1, "BN": 1},
+                format=DraftFormat.AUCTION,
+                user_team=1,
+                season=2026,
+                budget=260,
+            ),
+            picks=[],
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 5)},
+            team_budgets={i: 260 for i in range(1, 5)},
+        )
+
+        threats = assess_threats(state, _league())
+
+        assert threats == []
+
+
+class TestThreatNoAdp:
+    def test_no_adp_still_at_risk_when_many_teams_need(self) -> None:
+        """Players without ADP can be at-risk if 3+ teams need the position."""
+        pool = _make_pool(
+            _row_adp(10, "SS NoADP", "SS", "batter", 20.0, adp=None),
+        )
+        state = DraftState(
+            config=_12team_config(),
+            picks=[],
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+            current_pick=2,
+        )
+
+        threats = assess_threats(state, _12team_league())
+
+        ss_threats = [t for t in threats if t.position == "SS"]
+        assert len(ss_threats) == 1
+        assert ss_threats[0].threat_level == "at-risk"
+
+
+class TestThreatUserDoesNotNeed:
+    def test_user_filled_position_excluded(self) -> None:
+        """Player is filtered out if user doesn't need the position."""
+        pool = _make_pool(
+            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
+            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=3.0),
+        )
+        # User already has SS filled
+        user_pick = _pick(1, 1, "SS", player_id=1)
+        state = DraftState(
+            config=DraftConfig(
+                teams=4,
+                roster_slots={"C": 1, "SS": 1, "SP": 1, "UTIL": 1, "BN": 1},
+                format=DraftFormat.SNAKE,
+                user_team=1,
+                season=2026,
+            ),
+            picks=[user_pick],
+            available_pool=pool,
+            team_rosters={
+                1: [user_pick],
+                2: [],
+                3: [],
+                4: [],
+            },
+            team_budgets={},
+            current_pick=2,
+        )
+
+        threats = assess_threats(state, _league())
+
+        # C Guy should be in threats since user needs C
+        c_threats = [t for t in threats if t.position == "C"]
+        assert len(c_threats) == 1
+
+
+class TestThreatSortOrder:
+    def test_likely_gone_before_at_risk_before_safe(self) -> None:
+        """Sorted: likely-gone first, at-risk, then safe."""
+        # 4-team snake, user team 1, current pick 2
+        pool = _make_pool(
+            _row_adp(10, "SS Danger", "SS", "batter", 20.0, adp=3.0),  # likely-gone
+            _row_adp(11, "C Safe", "C", "batter", 25.0, adp=50.0),  # safe (ADP way beyond)
+            _row_adp(12, "SP Mid", "SP", "pitcher", 18.0, adp=3.0),  # depends on teams needing SP
+        )
+        state = DraftState(
+            config=DraftConfig(
+                teams=4,
+                roster_slots={"C": 1, "SS": 1, "SP": 1, "UTIL": 1, "BN": 1},
+                format=DraftFormat.SNAKE,
+                user_team=1,
+                season=2026,
+            ),
+            picks=[],
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 5)},
+            team_budgets={},
+            current_pick=2,
+        )
+
+        threats = assess_threats(state, _league())
+
+        levels = [t.threat_level for t in threats]
+        # Verify ordering: all likely-gone before at-risk, all at-risk before safe
+        order = {"likely-gone": 0, "at-risk": 1, "safe": 2}
+        for i in range(len(levels) - 1):
+            assert order[levels[i]] <= order[levels[i + 1]]
+
+
+class TestThreatUpdatesAfterPick:
+    def test_threat_changes_after_pick(self) -> None:
+        """After a pick changes team rosters, threat counts update."""
+        pool_before = _make_pool(
+            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
+            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=10.0),
+        )
+        config = DraftConfig(
+            teams=4,
+            roster_slots={"C": 1, "SS": 1, "SP": 1, "UTIL": 1, "BN": 1},
+            format=DraftFormat.SNAKE,
+            user_team=1,
+            season=2026,
+        )
+
+        # State before: teams 2,3 need SS
+        state_before = DraftState(
+            config=config,
+            picks=[_pick(1, 1, "C", player_id=1)],
+            available_pool=pool_before,
+            team_rosters={
+                1: [_pick(1, 1, "C", player_id=1)],
+                2: [],
+                3: [],
+                4: [],
+            },
+            team_budgets={},
+            current_pick=2,
+        )
+        threats_before = assess_threats(state_before, _league())
+        ss_before = [t for t in threats_before if t.position == "SS"]
+
+        # State after: team 2 drafted SS, now only team 3 needs SS
+        pool_after = _make_pool(
+            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=4.0),
+            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=10.0),
+        )
+        state_after = DraftState(
+            config=config,
+            picks=[
+                _pick(1, 1, "C", player_id=1),
+                _pick(2, 2, "SS", player_id=99),
+            ],
+            available_pool=pool_after,
+            team_rosters={
+                1: [_pick(1, 1, "C", player_id=1)],
+                2: [_pick(2, 2, "SS", player_id=99)],
+                3: [],
+                4: [],
+            },
+            team_budgets={},
+            current_pick=3,
+        )
+        threats_after = assess_threats(state_after, _league())
+        ss_after = [t for t in threats_after if t.position == "SS"]
+
+        # Before: 2+ teams needing SS → likely-gone; after: fewer teams → different level
+        assert len(ss_before) == 1
+        assert ss_before[0].teams_needing_position >= 2
+        if ss_after:
+            assert ss_after[0].teams_needing_position < ss_before[0].teams_needing_position
+
+
+class TestThreatLimit:
+    def test_limit_parameter(self) -> None:
+        """Only returns top N threats."""
+        players = [_row_adp(i, f"Player {i}", "SS", "batter", 100.0 - i, adp=3.0) for i in range(1, 21)]
+        pool = _make_pool(*players)
+        state = DraftState(
+            config=_12team_config(),
+            picks=[],
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+            current_pick=2,
+        )
+
+        threats = assess_threats(state, _12team_league(), limit=5)
+
+        assert len(threats) <= 5

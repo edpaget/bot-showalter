@@ -16,6 +16,7 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftState,
 )
 from fantasy_baseball_manager.services.draft_translation import ingest_yahoo_pick
+from fantasy_baseball_manager.services.opponent_model import assess_threats
 from fantasy_baseball_manager.services.player_resolver import resolve_player
 
 if TYPE_CHECKING:
@@ -102,6 +103,10 @@ class ReachesCommand: ...
 
 
 @dataclass(frozen=True)
+class ThreatsCommand: ...
+
+
+@dataclass(frozen=True)
 class QuitCommand: ...
 
 
@@ -119,6 +124,7 @@ Command = (
     | NeedsCommand
     | FallsCommand
     | ReachesCommand
+    | ThreatsCommand
     | HelpCommand
     | QuitCommand
 )
@@ -171,6 +177,8 @@ def parse_command(
         return _parse_falls(args, valid_positions)
     if verb == "reaches":
         return ReachesCommand()
+    if verb == "threats":
+        return ThreatsCommand()
     if verb == "help":
         return HelpCommand()
     if verb in ("quit", "exit"):
@@ -411,6 +419,7 @@ Commands:
   needs                             — Show category needs and recommendations
   falls [position] [--threshold N]  — Show falling players (ADP arbitrage)
   reaches                           — Show reach picks from the draft log
+  threats                           — Show players at risk of being taken
   roster                            — Show your roster
   pool [position]                   — Show available players
   status                            — Show current draft status
@@ -606,6 +615,8 @@ class DraftSession:
             self._handle_falls(cmd)
         elif isinstance(cmd, ReachesCommand):
             self._handle_reaches()
+        elif isinstance(cmd, ThreatsCommand):
+            self._handle_threats()
         return True
 
     # --- Command handlers ---
@@ -855,6 +866,26 @@ class DraftSession:
             self.console.print(
                 f"[bold yellow]⚡ Falling: {f.player_name} ({f.position}) "
                 f"— ADP {f.adp:.0f}, now pick {f.current_pick} (+{f.picks_past_adp:.0f})[/bold yellow]"
+            )
+
+    def _handle_threats(self) -> None:  # pragma: no cover
+        if self._league is None:
+            self.console.print("[yellow]Threat assessment not available (no league settings loaded).[/yellow]")
+            return
+
+        threats = assess_threats(self.engine.state, self._league)
+        if not threats:
+            self.console.print("No threats detected — all targets look safe.")
+            return
+
+        self.console.print("[bold]Threat Assessment:[/bold]")
+        for t in threats:
+            color = "red" if t.threat_level == "likely-gone" else "yellow" if t.threat_level == "at-risk" else "green"
+            adp_str = f"ADP {t.adp:.0f}" if t.adp is not None else "no ADP"
+            self.console.print(
+                f"  [{color}]{t.threat_level:>11}[/{color}]  "
+                f"{t.player_name} ({t.position}) — ${t.value:.1f} | "
+                f"{adp_str} | {t.teams_needing_position} teams need {t.position}"
             )
 
     def _show_category_summary(self) -> None:  # pragma: no cover

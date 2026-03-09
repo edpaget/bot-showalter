@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import LeagueNeeds, PositionRun, TeamNeeds
-from fantasy_baseball_manager.services.draft_state import build_draft_roster_slots
+from fantasy_baseball_manager.domain import LeagueNeeds, PositionRun, TeamNeeds, ThreatAssessment
+from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftFormat, build_draft_roster_slots
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import DraftBoardRow, LeagueSettings
@@ -179,3 +179,140 @@ def detect_position_runs(
     runs.sort(key=lambda r: (urgency_order[r.urgency], r.remaining_supply))
 
     return runs
+
+
+def _picks_until_user_next(state: DraftState) -> int:
+    """How many picks until the user selects again in a snake draft.
+
+    Returns 0 for auction format (anyone can bid anytime).
+    """
+    if state.config.format in (DraftFormat.AUCTION, DraftFormat.LIVE):
+        return 0
+
+    teams = state.config.teams
+    user = state.config.user_team
+    current = state.current_pick
+
+    if DraftEngine._snake_team(current, teams) == user:
+        return 0
+
+    for offset in range(1, 2 * teams):
+        future = current + offset
+        if DraftEngine._snake_team(future, teams) == user:
+            return offset
+
+    return 2 * teams
+
+
+def _is_user_need(player: DraftBoardRow, needs: dict[str, int]) -> bool:
+    """Check if a player can fill any open roster slot for the user."""
+    if player.position in needs:
+        return True
+    if player.player_type == "batter" and "UTIL" in needs:
+        return True
+    return player.player_type == "pitcher" and "P" in needs
+
+
+def _classify_threat(
+    adp: float | None,
+    current_pick: int,
+    picks_until: int,
+    teams_needing: int,
+) -> str:
+    """Classify threat level based on ADP and opponent needs."""
+    danger_zone = current_pick + picks_until
+    adp_in_danger = adp is not None and adp < danger_zone
+
+    if adp_in_danger and teams_needing >= 2:
+        return "likely-gone"
+    if (adp_in_danger and teams_needing >= 1) or teams_needing >= 3:
+        return "at-risk"
+    return "safe"
+
+
+def assess_threats(
+    state: DraftState,
+    league: LeagueSettings,
+    *,
+    limit: int = 10,
+) -> list[ThreatAssessment]:
+    """Assess which available players are at risk of being taken before the user's next pick."""
+    picks_until = _picks_until_user_next(state)
+
+    # Auction: everyone can bid on anyone, no meaningful threat ordering
+    if picks_until == 0:
+        return []
+
+    # Identify teams picking between current_pick (exclusive) and user's next pick (exclusive)
+    teams = state.config.teams
+    intervening_teams: list[int] = []
+    for offset in range(1, picks_until):
+        pick_num = state.current_pick + offset
+        team = DraftEngine._snake_team(pick_num, teams)
+        if team not in intervening_teams:
+            intervening_teams.append(team)
+
+    # Also include the team currently on the clock if it's not the user
+    current_team = DraftEngine._snake_team(state.current_pick, teams)
+    if current_team != state.config.user_team and current_team not in intervening_teams:
+        intervening_teams.insert(0, current_team)
+
+    # Compute unfilled positions for each intervening team
+    slots = build_draft_roster_slots(league)
+    teams_needing_position: dict[str, int] = {}
+    for team_idx in intervening_teams:
+        roster = state.team_rosters.get(team_idx, [])
+        filled: dict[str, int] = {}
+        for pick in roster:
+            filled[pick.position] = filled.get(pick.position, 0) + 1
+        for slot, total in slots.items():
+            if total - filled.get(slot, 0) > 0:
+                teams_needing_position[slot] = teams_needing_position.get(slot, 0) + 1
+
+    # User needs for filtering
+    user_roster = state.team_rosters.get(state.config.user_team, [])
+    user_filled: dict[str, int] = {}
+    for pick in user_roster:
+        user_filled[pick.position] = user_filled.get(pick.position, 0) + 1
+    user_needs: dict[str, int] = {}
+    for slot, total in state.config.roster_slots.items():
+        remaining = total - user_filled.get(slot, 0)
+        if remaining > 0:
+            user_needs[slot] = remaining
+
+    # Get top candidates by value
+    pool_sorted = sorted(state.available_pool.values(), key=lambda p: p.value, reverse=True)
+    candidates = pool_sorted[: limit * 3]
+
+    _THREAT_ORDER = {"likely-gone": 0, "at-risk": 1, "safe": 2}
+
+    assessments: list[ThreatAssessment] = []
+    for player in candidates:
+        if not _is_user_need(player, user_needs):
+            continue
+
+        teams_needing = teams_needing_position.get(player.position, 0)
+        threat_level = _classify_threat(
+            player.adp_overall,
+            state.current_pick,
+            picks_until,
+            teams_needing,
+        )
+
+        assessments.append(
+            ThreatAssessment(
+                player_id=player.player_id,
+                player_name=player.player_name,
+                position=player.position,
+                value=player.value,
+                adp=player.adp_overall,
+                picks_until_user_next=picks_until,
+                teams_needing_position=teams_needing,
+                threat_level=threat_level,
+            )
+        )
+
+    # Sort: likely-gone first, then at-risk, then safe; within each level by value desc
+    assessments.sort(key=lambda a: (_THREAT_ORDER[a.threat_level], -a.value))
+
+    return assessments[:limit]
