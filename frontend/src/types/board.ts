@@ -1,9 +1,11 @@
+import type { Position } from "./position";
+
 export interface DraftBoardRow {
   playerId: number;
   playerName: string;
   rank: number;
   playerType: string;
-  position: string;
+  position: Position;
   value: number;
   categoryZScores: Record<string, number>;
   age: number | null;

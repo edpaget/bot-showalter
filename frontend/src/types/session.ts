@@ -1,9 +1,11 @@
+import type { Position } from "./position";
+
 export interface DraftPick {
   pickNumber: number;
   team: number;
   playerId: number;
   playerName: string;
-  position: string;
+  position: Position;
   price: number | null;
 }
 
@@ -35,14 +37,14 @@ export interface DraftSessionSummary {
 export interface Recommendation {
   playerId: number;
   playerName: string;
-  position: string;
+  position: Position;
   value: number;
   score: number;
   reason: string;
 }
 
 export interface RosterSlot {
-  position: string;
+  position: Position;
   remaining: number;
 }
 
