@@ -93,7 +93,7 @@ export const SESSIONS_QUERY = gql`
 `;
 
 export const RECOMMENDATIONS_QUERY = gql`
-  query Recommendations($sessionId: Int!, $position: String, $limit: Int) {
+  query Recommendations($sessionId: Int!, $position: Position, $limit: Int) {
     recommendations(sessionId: $sessionId, position: $position, limit: $limit) {
       playerId
       playerName
@@ -139,7 +139,7 @@ export const BALANCE_QUERY = gql`
 `;
 
 export const AVAILABLE_QUERY = gql`
-  query Available($sessionId: Int!, $position: String, $limit: Int) {
+  query Available($sessionId: Int!, $position: Position, $limit: Int) {
     available(sessionId: $sessionId, position: $position, limit: $limit) {
       playerId
       playerName

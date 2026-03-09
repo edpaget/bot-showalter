@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@apollo/client";
 import { BOARD_QUERY } from "../graphql/queries";
 import type { DraftBoardRow } from "../types/board";
+import { displayPosition } from "../types/position";
 import { TIER_COLORS, ADP_DELTA_THRESHOLD } from "../constants/tiers";
 import { FilterBar, type PlayerTypeFilter } from "./FilterBar";
 import { SearchInput } from "./SearchInput";
@@ -213,7 +214,7 @@ export function DraftBoardTable({
                   <td className="border border-gray-200 px-2 py-1 whitespace-nowrap">
                     {row.playerName}
                   </td>
-                  <td className="border border-gray-200 px-2 py-1">{row.position.toUpperCase()}</td>
+                  <td className="border border-gray-200 px-2 py-1">{displayPosition(row.position)}</td>
                   <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
                   <td className="border border-gray-200 px-2 py-1 font-mono">
                     ${row.value.toFixed(1)}
@@ -228,7 +229,7 @@ export function DraftBoardTable({
                     <td className="border border-gray-200 px-2 py-1">
                       {!isDrafted && onDraft && (
                         <button
-                          onClick={() => onDraft(row.playerId, row.position.toUpperCase())}
+                          onClick={() => onDraft(row.playerId, row.position)}
                           className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                         >
                           Draft

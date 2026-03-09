@@ -88,7 +88,7 @@ export const PICK = gql`
   mutation Pick(
     $sessionId: Int!
     $playerId: Int!
-    $position: String!
+    $position: Position!
     $price: Int
     $team: Int
   ) {

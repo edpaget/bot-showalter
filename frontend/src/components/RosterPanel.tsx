@@ -1,4 +1,5 @@
 import type { DraftPick, RosterSlot } from "../types/session";
+import { displayPosition } from "../types/position";
 
 interface RosterPanelProps {
   roster: DraftPick[];
@@ -25,7 +26,7 @@ export function RosterPanel({ roster, needs, budgetRemaining, format }: RosterPa
           const remaining = need?.remaining ?? 0;
           return (
             <div key={pos} className="flex items-center gap-2">
-              <span className="font-medium w-8">{pos}</span>
+              <span className="font-medium w-8">{displayPosition(pos)}</span>
               <div className="flex gap-1 flex-1 flex-wrap">
                 {filled.map((p) => (
                   <span

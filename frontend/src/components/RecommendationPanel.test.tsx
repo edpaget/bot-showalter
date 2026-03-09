@@ -7,7 +7,7 @@ import type { Recommendation } from "../types/session";
 const RECS: Recommendation[] = [
   { playerId: 1, playerName: "Mike Trout", position: "OF", value: 35, score: 0.95, reason: "Best value" },
   { playerId: 2, playerName: "Gerrit Cole", position: "SP", value: 25, score: 0.85, reason: "Need SP" },
-  { playerId: 3, playerName: "Pete Alonso", position: "1B", value: 20, score: 0.75, reason: "Need 1B" },
+  { playerId: 3, playerName: "Pete Alonso", position: "FIRST_BASE", value: 20, score: 0.75, reason: "Need 1B" },
 ];
 
 describe("RecommendationPanel", () => {

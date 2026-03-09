@@ -77,7 +77,7 @@ def test_mutation_pick_publishes_event() -> None:
         json={
             "query": """
                 mutation($sid: Int!) {
-                    pick(sessionId: $sid, playerId: 1, position: "OF") {
+                    pick(sessionId: $sid, playerId: 1, position: OF) {
                         pick { playerId }
                     }
                 }
@@ -102,7 +102,7 @@ def test_mutation_undo_publishes_event() -> None:
         json={
             "query": """
                 mutation($sid: Int!) {
-                    pick(sessionId: $sid, playerId: 1, position: "OF") {
+                    pick(sessionId: $sid, playerId: 1, position: OF) {
                         pick { playerId }
                     }
                 }
@@ -176,7 +176,7 @@ def test_events_published_to_correct_session() -> None:
         json={
             "query": """
                 mutation($sid: Int!) {
-                    pick(sessionId: $sid, playerId: 1, position: "OF") {
+                    pick(sessionId: $sid, playerId: 1, position: OF) {
                         pick { playerId }
                     }
                 }

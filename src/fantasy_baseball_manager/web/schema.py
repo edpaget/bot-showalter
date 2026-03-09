@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import strawberry
 from strawberry.types import Info  # noqa: TC002 — Strawberry needs this at runtime
 
-from fantasy_baseball_manager.domain import DraftBoard
+from fantasy_baseball_manager.domain import DraftBoard, Position, position_from_raw
 from fantasy_baseball_manager.services import (
     DraftFormat,
     analyze_roster,
@@ -69,7 +69,7 @@ def _build_pick_result(
         state=DraftStateType.from_state(session_id, engine.state),
         recommendations=[RecommendationType.from_domain(r) for r in recs],
         roster=[DraftPickType.from_domain(p) for p in roster],
-        needs=[RosterSlotType(position=pos, remaining=count) for pos, count in needs.items()],
+        needs=[RosterSlotType(position=position_from_raw(pos), remaining=count) for pos, count in needs.items()],
     )
 
 
@@ -83,7 +83,7 @@ class Query:
         system: str | None = None,
         version: str | None = None,
         player_type: str | None = None,
-        position: str | None = None,
+        position: Position | None = None,
         top: int | None = None,
     ) -> DraftBoardType:
         ctx = _get_context(info)
@@ -94,7 +94,7 @@ class Query:
         if player_type is not None:
             valuations = [v for v in valuations if v.player_type == player_type]
         if position is not None:
-            valuations = [v for v in valuations if v.position == position]
+            valuations = [v for v in valuations if v.position == position.value]
 
         player_ids = [v.player_id for v in valuations]
         players = ctx.container.player_repo.get_by_ids(player_ids)
@@ -187,14 +187,14 @@ class Query:
         self,
         info: Info,
         session_id: int,
-        position: str | None = None,
+        position: Position | None = None,
         limit: int = 10,
     ) -> list[RecommendationType]:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
         recs = recommend(engine.state, limit=limit)
         if position is not None:
-            recs = [r for r in recs if r.position == position]
+            recs = [r for r in recs if r.position == position.value]
         return [RecommendationType.from_domain(r) for r in recs]
 
     @strawberry.field
@@ -213,7 +213,9 @@ class Query:
     def needs(self, info: Info, session_id: int) -> list[RosterSlotType]:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
-        return [RosterSlotType(position=pos, remaining=count) for pos, count in engine.my_needs().items()]
+        return [
+            RosterSlotType(position=position_from_raw(pos), remaining=count) for pos, count in engine.my_needs().items()
+        ]
 
     @strawberry.field
     def balance(self, info: Info, session_id: int) -> list[CategoryBalanceType]:
@@ -235,12 +237,12 @@ class Query:
         self,
         info: Info,
         session_id: int,
-        position: str | None = None,
+        position: Position | None = None,
         limit: int = 50,
     ) -> list[DraftBoardRowType]:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
-        rows = engine.available(position)[:limit]
+        rows = engine.available(position.value if position is not None else None)[:limit]
         return [DraftBoardRowType.from_domain(r) for r in rows]
 
     @strawberry.field
@@ -297,7 +299,7 @@ class Mutation:
         info: Info,
         session_id: int,
         player_id: int,
-        position: str,
+        position: Position,
         price: int | None = None,
         team: int | None = None,
     ) -> PickResultType:
@@ -305,16 +307,15 @@ class Mutation:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
 
-        # Normalize position to uppercase roster-slot key
-        position = position.upper()
+        pos_str = position.value
 
-        if position not in engine.state.config.roster_slots:
+        if pos_str not in engine.state.config.roster_slots:
             # Try auto-detecting from the player's data (e.g., "P" → "SP"/"RP")
             player = engine.state.available_pool.get(player_id)
             if player is not None:
                 detected = auto_detect_position(player, engine.my_needs(), engine.state.config.roster_slots)
                 if detected is not None:
-                    position = detected
+                    pos_str = detected
 
         if team is None:
             if engine.state.config.format == DraftFormat.SNAKE:
@@ -322,7 +323,7 @@ class Mutation:
             else:
                 team = engine.state.config.user_team
 
-        draft_pick = mgr.pick(session_id, player_id, team, position, price=price)
+        draft_pick = mgr.pick(session_id, player_id, team, pos_str, price=price)
         pick_type = DraftPickType.from_domain(draft_pick)
         await ctx.event_bus.publish(
             session_id,

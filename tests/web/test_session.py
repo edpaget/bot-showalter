@@ -33,7 +33,7 @@ mutation StartSession($season: Int!) {
 """
 
 _PICK_MUTATION = """
-mutation Pick($sessionId: Int!, $playerId: Int!, $position: String!) {
+mutation Pick($sessionId: Int!, $playerId: Int!, $position: Position!) {
     pick(sessionId: $sessionId, playerId: $playerId, position: $position) {
         pick { pickNumber playerName position team }
         state { sessionId currentPick }
@@ -348,7 +348,7 @@ def test_available_query(session_client: TestClient) -> None:
     result = _gql(
         session_client,
         """
-        query Available($sid: Int!, $pos: String, $limit: Int!) {
+        query Available($sid: Int!, $pos: Position, $limit: Int!) {
             available(sessionId: $sid, position: $pos, limit: $limit) {
                 playerId playerName position
             }

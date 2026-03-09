@@ -1,4 +1,15 @@
-const POSITIONS = ["C", "1B", "2B", "SS", "3B", "OF", "SP", "RP"] as const;
+import { Position, displayPosition } from "../types/position";
+
+const POSITIONS = [
+  Position.C,
+  Position.FIRST_BASE,
+  Position.SECOND_BASE,
+  Position.SS,
+  Position.THIRD_BASE,
+  Position.OF,
+  Position.SP,
+  Position.RP,
+] as const;
 const PLAYER_TYPES = ["all", "batter", "pitcher"] as const;
 
 export type PlayerTypeFilter = (typeof PLAYER_TYPES)[number];
@@ -57,7 +68,7 @@ export function FilterBar({
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            {pos}
+            {displayPosition(pos)}
           </button>
         ))}
       </div>

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { Recommendation } from "../types/session";
+import { Position, displayPosition } from "../types/position";
 
-const POSITION_FILTERS = ["All", "C", "1B", "2B", "SS", "3B", "OF", "SP", "RP"] as const;
+const POSITION_FILTERS = ["All", ...Object.values(Position)] as const;
 
 interface RecommendationPanelProps {
   recommendations: Recommendation[];
@@ -35,7 +36,7 @@ export function RecommendationPanel({
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            {pos}
+            {pos === "All" ? "All" : displayPosition(pos)}
           </button>
         ))}
       </div>
@@ -58,13 +59,13 @@ export function RecommendationPanel({
                 <td className="py-1" title={rec.reason}>
                   {rec.playerName}
                 </td>
-                <td className="py-1">{rec.position}</td>
+                <td className="py-1">{displayPosition(rec.position)}</td>
                 <td className="py-1 font-mono">${rec.value.toFixed(1)}</td>
                 <td className="py-1 font-mono">{rec.score.toFixed(2)}</td>
                 <td className="py-1">
                   {sessionActive && (
                     <button
-                      onClick={() => onDraft(rec.playerId, rec.position.toUpperCase())}
+                      onClick={() => onDraft(rec.playerId, rec.position)}
                       className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                     >
                       Draft

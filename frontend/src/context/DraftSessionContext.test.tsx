@@ -50,7 +50,7 @@ function TestConsumer() {
               budgetRemaining: null,
             },
             recommendations: [
-              { playerId: 300, playerName: "Rec Player", position: "1B", value: 20, score: 0.8, reason: "Need 1B" },
+              { playerId: 300, playerName: "Rec Player", position: "FIRST_BASE", value: 20, score: 0.8, reason: "Need 1B" },
             ],
             roster: [
               { pickNumber: 1, team: 1, playerId: 100, playerName: "Test Player", position: "OF", price: null },

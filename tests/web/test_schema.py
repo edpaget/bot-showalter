@@ -68,7 +68,7 @@ class TestBoardQuery:
             json={
                 "query": """
                     query {
-                        board(season: 2026, position: "OF") {
+                        board(season: 2026, position: OF) {
                             rows { playerName position }
                         }
                     }

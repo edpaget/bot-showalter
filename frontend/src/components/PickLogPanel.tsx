@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { DraftPick } from "../types/session";
+import { displayPosition } from "../types/position";
 
 interface PickLogPanelProps {
   picks: DraftPick[];
@@ -44,7 +45,7 @@ export function PickLogPanel({ picks }: PickLogPanelProps) {
                     <td className="px-3 py-1">{pick.pickNumber}</td>
                     <td className="py-1">Team {pick.team}</td>
                     <td className="py-1">{pick.playerName}</td>
-                    <td className="py-1">{pick.position}</td>
+                    <td className="py-1">{displayPosition(pick.position)}</td>
                     <td className="py-1">{pick.price != null ? `$${pick.price}` : "—"}</td>
                   </tr>
                 ))}

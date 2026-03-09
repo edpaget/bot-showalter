@@ -2,6 +2,8 @@ from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import strawberry
 
+from fantasy_baseball_manager.domain import Position, position_from_raw
+
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         CategoryConfig,
@@ -16,6 +18,8 @@ if TYPE_CHECKING:
     )
     from fantasy_baseball_manager.services import DraftPick, DraftState
 
+PositionGQL = strawberry.enum(Position, name="Position")
+
 
 @strawberry.type
 class DraftBoardRowType:
@@ -23,7 +27,7 @@ class DraftBoardRowType:
     player_name: str
     rank: int
     player_type: str
-    position: str
+    position: Position
     value: float
     category_z_scores: strawberry.scalars.JSON
     age: int | None
@@ -42,7 +46,7 @@ class DraftBoardRowType:
             player_name=row.player_name,
             rank=row.rank,
             player_type=row.player_type,
-            position=row.position,
+            position=position_from_raw(row.position),
             value=row.value,
             category_z_scores=cast("Any", dict(row.category_z_scores)),
             age=row.age,
@@ -123,7 +127,7 @@ class LeagueSettingsType:
 class PlayerTierType:
     player_id: int
     player_name: str
-    position: str
+    position: Position
     tier: int
     value: float
     rank: int
@@ -133,7 +137,7 @@ class PlayerTierType:
         return PlayerTierType(
             player_id=pt.player_id,
             player_name=pt.player_name,
-            position=pt.position,
+            position=position_from_raw(pt.position),
             tier=pt.tier,
             value=pt.value,
             rank=pt.rank,
@@ -142,7 +146,7 @@ class PlayerTierType:
 
 @strawberry.type
 class PositionScarcityType:
-    position: str
+    position: Position
     tier_1_value: float
     replacement_value: float
     total_surplus: float
@@ -152,7 +156,7 @@ class PositionScarcityType:
     @staticmethod
     def from_domain(ps: PositionScarcity) -> PositionScarcityType:
         return PositionScarcityType(
-            position=ps.position,
+            position=position_from_raw(ps.position),
             tier_1_value=ps.tier_1_value,
             replacement_value=ps.replacement_value,
             total_surplus=ps.total_surplus,
@@ -167,7 +171,7 @@ class DraftPickType:
     team: int
     player_id: int
     player_name: str
-    position: str
+    position: Position
     price: int | None
 
     @staticmethod
@@ -177,7 +181,7 @@ class DraftPickType:
             team=pick.team,
             player_id=pick.player_id,
             player_name=pick.player_name,
-            position=pick.position,
+            position=position_from_raw(pick.position),
             price=pick.price,
         )
 
@@ -243,7 +247,7 @@ class DraftStateType:
 class RecommendationType:
     player_id: int
     player_name: str
-    position: str
+    position: Position
     value: float
     score: float
     reason: str
@@ -253,7 +257,7 @@ class RecommendationType:
         return RecommendationType(
             player_id=rec.player_id,
             player_name=rec.player_name,
-            position=rec.position,
+            position=position_from_raw(rec.position),
             value=rec.value,
             score=rec.score,
             reason=rec.reason,
@@ -262,7 +266,7 @@ class RecommendationType:
 
 @strawberry.type
 class RosterSlotType:
-    position: str
+    position: Position
     remaining: int
 
 

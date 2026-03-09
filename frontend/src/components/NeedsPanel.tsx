@@ -1,4 +1,5 @@
 import type { RosterSlot } from "../types/session";
+import { displayPosition } from "../types/position";
 
 interface NeedsPanelProps {
   needs: RosterSlot[];
@@ -20,7 +21,7 @@ export function NeedsPanel({ needs }: NeedsPanelProps) {
                 key={need.position}
                 className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs"
               >
-                <span className="font-medium">{need.position}</span>
+                <span className="font-medium">{displayPosition(need.position)}</span>
                 <span className="text-gray-500">×{need.remaining}</span>
               </div>
             ))}
