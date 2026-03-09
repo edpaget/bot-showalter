@@ -82,7 +82,9 @@ Our initial evaluation (2026-03-07) showed injury adjustment improving 2024 MAE 
 
 **Note:** Phase 1's `_floor_playing_time` had a secondary bug — it floored PA/IP for *all* players below threshold, not just those pushed below by the injury discount. This inflated the injury-risk pool to ~3× the baseline. Fixed in this phase by checking original (pre-discount) PA/IP before flooring.
 
-#### Summary table
+Full analysis notebook: [`notebooks/injury_discount_holdout_validation.ipynb`](../notebooks/injury_discount_holdout_validation.ipynb)
+
+#### Full population (all matched players)
 
 | System | Season | n | MAE | ρ | ΔMAE | Δρ |
 |--------|--------|---|-----|---|------|-----|
@@ -93,6 +95,30 @@ Our initial evaluation (2026-03-07) showed injury adjustment improving 2024 MAE 
 | zar-injury-risk (5yr) | 2025 | 769 | 4.53 | 0.6828 | +0.22 | −0.0113 |
 | zar-injury-risk (3yr) | 2025 | 769 | 4.45 | 0.6873 | +0.14 | −0.0068 |
 
+#### Fantasy-relevant players (predicted OR actual > $0)
+
+The full-population results are dominated by ~650–700 players with $0 predicted and $0 actual, inflating ρ and diluting MAE. The fantasy-relevant subset (~230 players) is a more meaningful signal.
+
+| System | Season | n | MAE | ρ | ΔMAE | Δρ |
+|--------|--------|---|-----|---|------|-----|
+| zar (baseline) | 2024 | 231 | 14.98 | 0.0327 | — | — |
+| zar-injury-risk (5yr) | 2024 | 232 | 14.75 | 0.0228 | −0.23 | −0.0099 |
+| zar-injury-risk (3yr) | 2024 | 235 | 14.53 | 0.0418 | −0.45 | +0.0091 |
+| zar (baseline) | 2025 | 230 | 14.41 | 0.0287 | — | — |
+| zar-injury-risk (5yr) | 2025 | 233 | 14.96 | 0.0064 | +0.55 | −0.0223 |
+| zar-injury-risk (3yr) | 2025 | 231 | 14.80 | 0.0121 | +0.39 | −0.0166 |
+
+#### Top 300 by predicted rank
+
+| System | Season | n | MAE | ρ | ΔMAE | Δρ |
+|--------|--------|---|-----|---|------|-----|
+| zar (baseline) | 2024 | 298 | 8.74 | 0.4232 | — | — |
+| zar-injury-risk (5yr) | 2024 | 297 | 8.52 | 0.4033 | −0.22 | −0.0199 |
+| zar-injury-risk (3yr) | 2024 | 298 | 8.48 | 0.4354 | −0.26 | +0.0122 |
+| zar (baseline) | 2025 | 284 | 8.91 | 0.4188 | — | — |
+| zar-injury-risk (5yr) | 2025 | 284 | 9.36 | 0.3983 | +0.45 | −0.0205 |
+| zar-injury-risk (3yr) | 2025 | 284 | 9.34 | 0.3961 | +0.43 | −0.0227 |
+
 #### Top mispricings analysis
 
 **2024:** The injury discount slightly reduced some pitcher overvaluations (Kevin Gausman $74→$49, Pablo López $62→$51) but introduced new distortions — it pushed Shohei Ohtani from $16→$3 (actual $73) and Aaron Judge from $55→$33 (actual $99), worsening undervaluation of elite batters who happen to have injury history. The biggest mispricings (Spencer Strider $102→$0, Ronald Acuña $95→$0) were unchanged since those are healthy-season projection errors, not injury-related.
@@ -101,15 +127,16 @@ Our initial evaluation (2026-03-07) showed injury adjustment improving 2024 MAE 
 
 #### seasons_back comparison
 
-The 3-year lookback consistently outperforms the 5-year lookback: lower MAE on both seasons and smaller ρ degradation. If the injury discount were adopted, 3 years would be the preferred window — more recent injury history is more predictive.
+The 3-year lookback consistently outperforms the 5-year lookback: lower MAE on both seasons and smaller ρ degradation. On the fantasy-relevant subset for 2024, injury 3yr is the only variant that passes the gate (MAE −0.45, ρ +0.009). However, it fails on 2025 across all filters.
 
 #### Decision: **No-go**
 
-The injury discount fails the gate criteria:
+The injury discount fails the gate criteria. The gate requires MAE improvement on at least one season without degrading ρ by more than 0.01 on **either** season:
 
-1. **MAE worsens on 2025** (+0.14 to +0.22), indicating the discount is not a reliable improvement.
-2. **ρ drops beyond the 0.01 threshold** on 2024 with 5yr lookback (−0.0128) and on 2025 with both lookbacks (−0.0113 / −0.0068 barely under threshold).
+1. **2025 fails across all variants and filters.** MAE worsens (+0.39 to +0.55 on fantasy-relevant, +0.43 to +0.45 on top 300) and ρ drops substantially (−0.017 to −0.023 on fantasy-relevant).
+2. **2024 passes only for injury 3yr** on fantasy-relevant and top-300 filters, but the 2025 ρ degradation (−0.017) exceeds the 0.01 threshold, disqualifying it.
 3. **Root cause:** The simple multiplicative discount (scale counting stats by health fraction) is too blunt — it penalizes batters with minor injury history (Ohtani, Judge) as much as injury-prone pitchers, distorting relative rankings without systematically improving accuracy.
+4. **Observation:** Baseline ρ on fantasy-relevant players is extremely low (~0.03), indicating ZAR's ranking ability among rostered players is near random regardless of injury adjustment. The core problem is projection accuracy, not the valuation formula.
 
 The injury discount should not be adopted as-is. Alternative approaches (replacement-level padding via `zar-replacement-padded`, or position-specific injury adjustments) may fare better. Phase 4 (combined validation) should proceed without `zar-injury-risk` unless a redesigned discount is developed.
 
