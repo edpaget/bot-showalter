@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import LeagueNeeds, TeamNeeds
+from fantasy_baseball_manager.domain import LeagueNeeds, PositionRun, TeamNeeds
 from fantasy_baseball_manager.services.draft_state import build_draft_roster_slots
 
 if TYPE_CHECKING:
@@ -102,3 +102,80 @@ def compute_league_needs(
         supply_by_position=supply_by_position,
         scarcity_ratio=scarcity_ratio,
     )
+
+
+def _is_clustered(pick_numbers: list[int], half_round: int) -> bool:
+    """Check if any contiguous window of size half_round contains 2+ picks."""
+    if len(pick_numbers) < 2:
+        return False
+    sorted_picks = sorted(pick_numbers)
+    for i in range(len(sorted_picks)):
+        for j in range(i + 1, len(sorted_picks)):
+            if sorted_picks[j] - sorted_picks[i] < half_round:
+                return True
+    return False
+
+
+def detect_position_runs(
+    state: DraftState,
+    league: LeagueSettings,
+    *,
+    window: int | None = None,
+) -> list[PositionRun]:
+    """Detect position runs in recent draft picks.
+
+    A "run" is when multiple teams draft the same position in a short span,
+    signalling rapidly shrinking supply.
+    """
+    if window is None:
+        window = 2 * state.config.teams
+
+    half_round = state.config.teams // 2
+    recent_picks = state.picks[-window:] if state.picks else []
+
+    # Group recent picks by position
+    by_position: dict[str, list[int]] = {}
+    for pick in recent_picks:
+        by_position.setdefault(pick.position, []).append(pick.pick_number)
+
+    # Compute user's remaining needs
+    slots = build_draft_roster_slots(league)
+    user_roster = state.team_rosters.get(state.config.user_team, [])
+    user_filled: dict[str, int] = {}
+    for pick in user_roster:
+        user_filled[pick.position] = user_filled.get(pick.position, 0) + 1
+
+    runs: list[PositionRun] = []
+    for position, pick_numbers in by_position.items():
+        if len(pick_numbers) < 2:
+            continue
+
+        if not _is_clustered(pick_numbers, half_round):
+            continue
+
+        remaining_supply = _count_supply(state.available_pool, position)
+        user_need = slots.get(position, 0) - user_filled.get(position, 0)
+        user_need = max(0, user_need)
+
+        run_length = len(pick_numbers)
+
+        if run_length >= 3 and user_need > 0 and remaining_supply < 1.5 * user_need:
+            urgency = "critical"
+        else:
+            urgency = "developing"
+
+        runs.append(
+            PositionRun(
+                position=position,
+                pick_numbers=tuple(sorted(pick_numbers)),
+                run_length=run_length,
+                remaining_supply=remaining_supply,
+                urgency=urgency,
+            )
+        )
+
+    # Sort: critical first, then by remaining_supply ascending
+    urgency_order = {"critical": 0, "developing": 1}
+    runs.sort(key=lambda r: (urgency_order[r.urgency], r.remaining_supply))
+
+    return runs

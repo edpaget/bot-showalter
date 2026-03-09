@@ -13,7 +13,10 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftPick,
     DraftState,
 )
-from fantasy_baseball_manager.services.opponent_model import compute_league_needs
+from fantasy_baseball_manager.services.opponent_model import (
+    compute_league_needs,
+    detect_position_runs,
+)
 
 
 def _row(
@@ -352,3 +355,300 @@ class TestTotalValue:
 
         for team in result.teams:
             assert team.total_value == 0.0
+
+
+# ---------- detect_position_runs tests ----------
+
+
+def _12team_league() -> LeagueSettings:
+    """12-team league with C, SS, SP, UTIL, BN slots."""
+    return LeagueSettings(
+        name="test",
+        teams=12,
+        format=LeagueFormat.ROTO,
+        budget=260,
+        positions={"C": 1, "SS": 1},
+        roster_batters=2,
+        roster_pitchers=1,
+        roster_util=1,
+        roster_bench=1,
+        pitcher_positions={"SP": 1},
+        batting_categories=(),
+        pitching_categories=(),
+    )
+
+
+def _12team_config(fmt: DraftFormat = DraftFormat.SNAKE) -> DraftConfig:
+    return DraftConfig(
+        teams=12,
+        roster_slots={"C": 1, "SS": 1, "SP": 1, "UTIL": 1, "BN": 1},
+        format=fmt,
+        user_team=1,
+        season=2026,
+    )
+
+
+def _pick(num: int, team: int, position: str, player_id: int | None = None) -> DraftPick:
+    pid = player_id if player_id is not None else num + 100
+    return DraftPick(
+        pick_number=num,
+        team=team,
+        player_id=pid,
+        player_name=f"Player {pid}",
+        position=position,
+    )
+
+
+class TestRunDetected:
+    def test_three_ss_in_six_picks(self) -> None:
+        """3 SS picks in a 6-pick window (12-team league) → detected as run."""
+        picks = [
+            _pick(1, 2, "SS"),
+            _pick(2, 3, "C"),
+            _pick(3, 4, "SS"),
+            _pick(4, 5, "SP"),
+            _pick(5, 6, "SS"),
+            _pick(6, 7, "C"),
+        ]
+        pool = _make_pool(
+            _row(200, "SS X", "SS", "batter", 5.0),
+            _row(201, "SS Y", "SS", "batter", 4.0),
+            _row(202, "C Z", "C", "batter", 3.0),
+            _row(203, "SP Z", "SP", "pitcher", 6.0),
+        )
+        state = DraftState(
+            config=_12team_config(),
+            picks=picks,
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+        )
+
+        runs = detect_position_runs(state, _12team_league())
+
+        ss_runs = [r for r in runs if r.position == "SS"]
+        assert len(ss_runs) == 1
+        assert ss_runs[0].run_length == 3
+        assert ss_runs[0].remaining_supply == 2
+
+
+class TestNoFalsePositive:
+    def test_spread_out_picks_no_run(self) -> None:
+        """3 SS picks spread across 24 picks → no clustering → no run."""
+        picks = [_pick(i, (i % 12) + 1, "C") for i in range(1, 25)]
+        # Place SS picks far apart: pick 1, pick 12, pick 24
+        picks[0] = _pick(1, 2, "SS")
+        picks[11] = _pick(12, 3, "SS")
+        picks[23] = _pick(24, 4, "SS")
+
+        pool = _make_pool(
+            _row(200, "SS X", "SS", "batter", 5.0),
+            _row(201, "C Z", "C", "batter", 3.0),
+        )
+        state = DraftState(
+            config=_12team_config(),
+            picks=picks,
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+        )
+
+        runs = detect_position_runs(state, _12team_league())
+
+        ss_runs = [r for r in runs if r.position == "SS"]
+        assert len(ss_runs) == 0
+
+
+class TestDevelopingUrgency:
+    def test_two_clustered_healthy_supply(self) -> None:
+        """2 picks clustered but supply healthy → developing."""
+        picks = [
+            _pick(1, 2, "SS"),
+            _pick(2, 3, "SS"),
+            _pick(3, 4, "C"),
+        ]
+        pool = _make_pool(
+            *[_row(200 + i, f"SS {i}", "SS", "batter", 5.0) for i in range(10)],
+            _row(300, "C Z", "C", "batter", 3.0),
+        )
+        state = DraftState(
+            config=_12team_config(),
+            picks=picks,
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+        )
+
+        runs = detect_position_runs(state, _12team_league())
+
+        ss_runs = [r for r in runs if r.position == "SS"]
+        assert len(ss_runs) == 1
+        assert ss_runs[0].urgency == "developing"
+
+
+class TestCriticalUrgency:
+    def test_three_picks_thin_supply(self) -> None:
+        """3+ picks AND supply < 1.5 * user need → critical."""
+        picks = [
+            _pick(1, 2, "SS"),
+            _pick(2, 3, "SS"),
+            _pick(3, 4, "SS"),
+        ]
+        # Only 1 SS left, user needs 1 → 1 < 1.5 * 1 → critical
+        pool = _make_pool(
+            _row(200, "SS X", "SS", "batter", 5.0),
+            _row(201, "C Z", "C", "batter", 3.0),
+        )
+        state = DraftState(
+            config=_12team_config(),
+            picks=picks,
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+        )
+
+        runs = detect_position_runs(state, _12team_league())
+
+        ss_runs = [r for r in runs if r.position == "SS"]
+        assert len(ss_runs) == 1
+        assert ss_runs[0].urgency == "critical"
+
+
+class TestSinglePickNoRun:
+    def test_one_pick_no_run(self) -> None:
+        """Single pick at a position → no run."""
+        picks = [_pick(1, 2, "SS")]
+        pool = _make_pool(_row(200, "SS X", "SS", "batter", 5.0))
+        state = DraftState(
+            config=_12team_config(),
+            picks=picks,
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+        )
+
+        runs = detect_position_runs(state, _12team_league())
+
+        assert len(runs) == 0
+
+
+class TestUserDoesNotNeedPosition:
+    def test_user_filled_never_critical(self) -> None:
+        """Run detected as developing even when user doesn't need the position."""
+        picks = [
+            _pick(1, 2, "SS"),
+            _pick(2, 3, "SS"),
+            _pick(3, 4, "SS"),
+        ]
+        # User (team 1) already has SS filled
+        user_pick = _pick(0, 1, "SS", player_id=99)
+        pool = _make_pool(_row(200, "SS X", "SS", "batter", 5.0))
+        state = DraftState(
+            config=_12team_config(),
+            picks=[user_pick, *picks],
+            available_pool=pool,
+            team_rosters={1: [user_pick], **{i: [] for i in range(2, 13)}},
+            team_budgets={},
+        )
+
+        runs = detect_position_runs(state, _12team_league())
+
+        ss_runs = [r for r in runs if r.position == "SS"]
+        assert len(ss_runs) == 1
+        # user_need = 0 → never critical
+        assert ss_runs[0].urgency == "developing"
+
+
+class TestSortedOutput:
+    def test_critical_before_developing(self) -> None:
+        """Critical runs sort before developing runs."""
+        picks = [
+            _pick(1, 2, "SS"),
+            _pick(2, 3, "SS"),
+            _pick(3, 4, "SS"),
+            _pick(4, 5, "C"),
+            _pick(5, 6, "C"),
+        ]
+        # SS: 1 left, user needs 1 → critical
+        # C: 10 left, user needs 1 → developing
+        pool = _make_pool(
+            _row(200, "SS X", "SS", "batter", 5.0),
+            *[_row(300 + i, f"C {i}", "C", "batter", 3.0) for i in range(10)],
+            _row(400, "SP Z", "SP", "pitcher", 6.0),
+        )
+        state = DraftState(
+            config=_12team_config(),
+            picks=picks,
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+        )
+
+        runs = detect_position_runs(state, _12team_league())
+
+        assert len(runs) == 2
+        assert runs[0].urgency == "critical"
+        assert runs[0].position == "SS"
+        assert runs[1].urgency == "developing"
+        assert runs[1].position == "C"
+
+
+class TestCustomWindow:
+    def test_window_limits_scan(self) -> None:
+        """Custom window controls how many recent picks are scanned."""
+        picks = [
+            _pick(1, 2, "SS"),
+            _pick(2, 3, "SS"),
+            # Later picks — these are the only ones in window=3
+            _pick(3, 4, "C"),
+            _pick(4, 5, "C"),
+            _pick(5, 6, "SP"),
+        ]
+        pool = _make_pool(
+            _row(200, "SS X", "SS", "batter", 5.0),
+            _row(201, "C Z", "C", "batter", 3.0),
+        )
+        state = DraftState(
+            config=_12team_config(),
+            picks=picks,
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+        )
+
+        # With window=3, only last 3 picks are scanned (picks 3,4,5)
+        # SS picks are outside the window
+        runs = detect_position_runs(state, _12team_league(), window=3)
+
+        ss_runs = [r for r in runs if r.position == "SS"]
+        assert len(ss_runs) == 0
+        # C picks are in the window
+        c_runs = [r for r in runs if r.position == "C"]
+        assert len(c_runs) == 1
+
+
+class TestAuctionFormat:
+    def test_same_detection_logic(self) -> None:
+        """Auction format uses same detection — picks are still sequential."""
+        picks = [
+            _pick(1, 2, "SS"),
+            _pick(2, 3, "SS"),
+            _pick(3, 4, "SS"),
+        ]
+        pool = _make_pool(
+            _row(200, "SS X", "SS", "batter", 5.0),
+            _row(201, "C Z", "C", "batter", 3.0),
+        )
+        state = DraftState(
+            config=_12team_config(fmt=DraftFormat.AUCTION),
+            picks=picks,
+            available_pool=pool,
+            team_rosters={i: [] for i in range(1, 13)},
+            team_budgets={},
+        )
+
+        runs = detect_position_runs(state, _12team_league())
+
+        ss_runs = [r for r in runs if r.position == "SS"]
+        assert len(ss_runs) == 1
+        assert ss_runs[0].run_length == 3
