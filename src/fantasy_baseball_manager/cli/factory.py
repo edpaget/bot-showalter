@@ -79,6 +79,7 @@ from fantasy_baseball_manager.services import (
     LeagueEnvironmentService,
     PlayerEligibilityService,
     ProjectionEvaluator,
+    ReplacementPaddingService,
     StatcastColumnProfiler,
     StatsBasedPlayerUniverse,
     TemporalStabilityChecker,
@@ -204,6 +205,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             player_universe=player_universe,
             label_source=label_source,
             injury_profiler=injury_profiler,
+            replacement_padder=ReplacementPaddingService(),
         )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)

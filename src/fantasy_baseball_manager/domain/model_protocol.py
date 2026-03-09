@@ -7,7 +7,9 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain.evaluation import SystemMetrics
     from fantasy_baseball_manager.domain.expected_games_lost import ExpectedGamesLost
     from fantasy_baseball_manager.domain.injury_profile import InjuryProfile
-    from fantasy_baseball_manager.domain.league_settings import LeagueSettings
+    from fantasy_baseball_manager.domain.league_settings import CategoryConfig, LeagueSettings
+    from fantasy_baseball_manager.domain.projection import Projection
+    from fantasy_baseball_manager.domain.replacement_profile import ReplacementProfile
 
 
 @dataclass(frozen=True)
@@ -222,3 +224,24 @@ class GamesLostEstimator(Protocol):
         min_stints: int = ...,
         top_n: int | None = ...,
     ) -> list[tuple[ExpectedGamesLost, InjuryProfile, str]]: ...
+
+
+@runtime_checkable
+class ReplacementPadder(Protocol):
+    def compute_replacement_profiles(
+        self,
+        stats_list: list[dict[str, float]],
+        position_map: list[list[str]],
+        roster_spots: dict[str, int],
+        num_teams: int,
+        categories: list[CategoryConfig],
+        player_type: str,
+    ) -> dict[str, ReplacementProfile]: ...
+
+    def blend_projections(
+        self,
+        projections: list[Projection],
+        replacement_profiles: dict[str, ReplacementProfile],
+        injury_map: dict[int, float],
+        position_map: dict[int, list[str]],
+    ) -> list[Projection]: ...

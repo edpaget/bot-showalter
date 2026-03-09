@@ -30,6 +30,7 @@ from fantasy_baseball_manager.models import (
     statcast_gbm,  # noqa: F401
     zar,  # noqa: F401
     zar_injury_risk,  # noqa: F401
+    zar_replacement_padded,  # noqa: F401
 )
 from fantasy_baseball_manager.models.breakout_bust.classification_backend import (
     ClassificationFittedModels,
