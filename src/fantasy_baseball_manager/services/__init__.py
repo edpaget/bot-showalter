@@ -133,6 +133,7 @@ from fantasy_baseball_manager.services.mock_draft_bots import (
     TierValueRule,
     WeightedRule,
 )
+from fantasy_baseball_manager.services.opponent_model import compute_league_needs
 from fantasy_baseball_manager.services.performance_report import (
     PerformanceReportService,
 )
@@ -348,6 +349,7 @@ __all__ = [
     "compute_marginal_values",
     "compute_opportunity_costs",
     "compute_position_upgrades",
+    "compute_league_needs",
     "compute_pick_value_curve",
     "blend_projections",
     "blend_stat_line",

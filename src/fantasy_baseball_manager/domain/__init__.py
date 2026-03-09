@@ -196,6 +196,7 @@ from fantasy_baseball_manager.domain.model_protocol import (
     ValidationResult,
 )
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
+from fantasy_baseball_manager.domain.opponent_model import LeagueNeeds, TeamNeeds
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.pick_value import (
     CascadeResult,
@@ -411,6 +412,7 @@ __all__ = [
     "InjuryValueDelta",
     "IngestError",
     "KeeperConstraints",
+    "LeagueNeeds",
     "KeeperCost",
     "KeeperDecision",
     "KeeperHistory",
@@ -523,6 +525,7 @@ __all__ = [
     "TargetExplorationResult",
     "TargetResult",
     "TargetStability",
+    "TeamNeeds",
     "Team",
     "TierAssignment",
     "Trainable",

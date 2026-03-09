@@ -8,7 +8,7 @@ This roadmap depends on: draft state engine (done), draft board service (done), 
 
 | Phase | Status |
 |-------|--------|
-| 1 — Opponent need tracking | in progress |
+| 1 — Opponent need tracking | done (2026-03-09) |
 | 2 — Position run detection | not started |
 | 3 — Threat prediction | not started |
 
