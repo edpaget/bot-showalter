@@ -35,6 +35,10 @@ from fantasy_baseball_manager.services.dataset_catalog import (
     DatasetCatalogService,
     DatasetInfo,
 )
+from fantasy_baseball_manager.services.distributional_valuation import (
+    compute_expected_value,
+    run_distributional_zar,
+)
 from fantasy_baseball_manager.services.draft_board import (
     build_draft_board,
     export_csv,
@@ -324,6 +328,7 @@ __all__ = [
     "build_keeper_draft_needs",
     "build_league_keeper_overview",
     "compute_adjusted_valuations",
+    "compute_expected_value",
     "compute_category_balance_scores",
     "compute_confidence",
     "compute_marginal_values",
@@ -374,6 +379,7 @@ __all__ = [
     "generate_pool_scenarios",
     "generate_scenarios",
     "scale_projection_to_pt",
+    "run_distributional_zar",
     "run_batch_simulation",
     "run_mock_draft",
     "set_keeper_cost",
