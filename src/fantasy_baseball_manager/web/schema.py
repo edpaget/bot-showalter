@@ -174,10 +174,8 @@ class Query:
         status: str | None = None,
     ) -> list[DraftSessionSummaryType]:
         mgr = _get_session_manager(info)
-        records = mgr._repo.list_sessions(league=league, season=season)
-        if status is not None:
-            records = [r for r in records if r.status == status]
-        return [DraftSessionSummaryType.from_domain(r, mgr._repo.count_picks(r.id or 0)) for r in records]
+        summaries = mgr.list_sessions(league=league, season=season, status=status)
+        return [DraftSessionSummaryType.from_domain(s.record, s.pick_count) for s in summaries]
 
     @strawberry.field
     def recommendations(

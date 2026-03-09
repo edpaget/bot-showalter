@@ -1,7 +1,3 @@
-import pytest
-from fastapi.testclient import TestClient
-
-from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
@@ -13,8 +9,15 @@ from fantasy_baseball_manager.domain import (
     StatType,
     Valuation,
 )
-from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqlitePlayerRepo, SqliteValuationRepo
-from fantasy_baseball_manager.web import SessionManager, create_app
+from fantasy_baseball_manager.repos import (
+    SqliteADPRepo,
+    SqliteDraftSessionRepo,
+    SqlitePlayerRepo,
+    SqliteValuationRepo,
+)
+from fantasy_baseball_manager.services import PlayerProfileService
+from fantasy_baseball_manager.web import SessionManager
+from fantasy_baseball_manager.web.session_manager import DraftSessionSummary
 
 _LEAGUE = LeagueSettings(
     name="Test League",
@@ -36,8 +39,10 @@ _LEAGUE = LeagueSettings(
 )
 
 
-def _seed_data(provider: SingleConnectionProvider) -> None:
-    """Seed the in-memory database with test players and valuations."""
+def _make_manager() -> SessionManager:
+    conn = create_connection(":memory:", check_same_thread=False)
+    provider = SingleConnectionProvider(conn)
+
     player_repo = SqlitePlayerRepo(provider)
     valuation_repo = SqliteValuationRepo(provider)
 
@@ -93,51 +98,54 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
     for v in valuations:
         valuation_repo.upsert(v)
 
-    with provider.connection() as conn:
-        conn.commit()
+    with provider.connection() as c:
+        c.commit()
 
-
-def _make_provider() -> SingleConnectionProvider:
-    conn = create_connection(":memory:", check_same_thread=False)
-    provider = SingleConnectionProvider(conn)
-    _seed_data(provider)
-    return provider
-
-
-@pytest.fixture
-def client() -> TestClient:
-    """Create a test client with an in-memory SQLite database seeded with test data."""
-    provider = _make_provider()
-    container = AnalysisContainer(provider)
-    app = create_app(container, _LEAGUE)
-    return TestClient(app)
-
-
-@pytest.fixture
-def session_client() -> TestClient:
-    """Create a test client with SessionManager enabled."""
-    provider = _make_provider()
-    container = AnalysisContainer(provider)
     session_repo = SqliteDraftSessionRepo(provider)
-    session_manager = SessionManager(
+    adp_repo = SqliteADPRepo(provider)
+    profile_service = PlayerProfileService(player_repo)
+
+    return SessionManager(
         session_repo=session_repo,
-        valuation_repo=container.valuation_repo,
-        player_repo=container.player_repo,
-        adp_repo=container.adp_repo,
-        player_profile_service=container.player_profile_service,
+        valuation_repo=valuation_repo,
+        player_repo=player_repo,
+        adp_repo=adp_repo,
+        player_profile_service=profile_service,
         league=_LEAGUE,
         adp_provider="fantasypros",
     )
-    app = create_app(container, _LEAGUE, session_manager=session_manager)
-    return TestClient(app)
 
 
-@pytest.fixture
-def session_provider() -> SingleConnectionProvider:
-    """Return a seeded provider for tests needing direct DB access."""
-    return _make_provider()
+class TestListSessions:
+    def test_list_sessions_returns_summaries(self) -> None:
+        mgr = _make_manager()
 
+        sid1, _ = mgr.start_session(2026)
+        sid2, _ = mgr.start_session(2026)
 
-@pytest.fixture
-def league() -> LeagueSettings:
-    return _LEAGUE
+        # Pick in session 1 only
+        mgr.pick(sid1, 1, 1, "OF")
+
+        summaries = mgr.list_sessions()
+        assert len(summaries) == 2
+        assert all(isinstance(s, DraftSessionSummary) for s in summaries)
+
+        by_id = {s.record.id: s for s in summaries}
+        assert by_id[sid1].pick_count == 1
+        assert by_id[sid2].pick_count == 0
+
+    def test_list_sessions_filters_by_status(self) -> None:
+        mgr = _make_manager()
+
+        sid1, _ = mgr.start_session(2026)
+        sid2, _ = mgr.start_session(2026)
+
+        mgr.end_session(sid1)
+
+        complete = mgr.list_sessions(status="complete")
+        assert len(complete) == 1
+        assert complete[0].record.id == sid1
+
+        in_progress = mgr.list_sessions(status="in_progress")
+        assert len(in_progress) == 1
+        assert in_progress[0].record.id == sid2

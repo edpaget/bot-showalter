@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,12 @@ if TYPE_CHECKING:
         PlayerRepo,
         ValuationRepo,
     )
+
+
+@dataclass(frozen=True)
+class DraftSessionSummary:
+    record: DraftSessionRecord
+    pick_count: int
 
 
 class SessionManager:
@@ -156,6 +163,18 @@ class SessionManager:
     def end_session(self, session_id: int) -> None:
         self._repo.update_status(session_id, "complete")
         self._engines.pop(session_id, None)
+
+    def list_sessions(
+        self,
+        *,
+        league: str | None = None,
+        season: int | None = None,
+        status: str | None = None,
+    ) -> list[DraftSessionSummary]:
+        records = self._repo.list_sessions(league=league, season=season)
+        if status is not None:
+            records = [r for r in records if r.status == status]
+        return [DraftSessionSummary(record=r, pick_count=self._repo.count_picks(r.id or 0)) for r in records]
 
     def _build_player_pool(self, season: int, system: str, version: str) -> list[DraftBoardRow]:
         valuations = self._valuation_repo.get_by_season(season, system=system)
