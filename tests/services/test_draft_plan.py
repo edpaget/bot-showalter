@@ -318,3 +318,56 @@ class TestBatchSimulationUserRosters:
             assert len(roster) > 0
         for val in result.user_roster_values:
             assert val > 0.0
+
+    def test_all_player_picks_populated(self) -> None:
+        cat = CategoryConfig(key="HR", name="Home Runs", stat_type=StatType.COUNTING, direction=Direction.HIGHER)
+        pcat = CategoryConfig(key="K", name="Strikeouts", stat_type=StatType.COUNTING, direction=Direction.HIGHER)
+
+        league = LeagueSettings(
+            name="Test",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=4,
+            budget=260,
+            roster_batters=3,
+            roster_pitchers=1,
+            batting_categories=(cat,),
+            pitching_categories=(pcat,),
+            positions={"C": 1, "1B": 1, "OF": 1},
+            roster_util=1,
+        )
+
+        positions = ["C", "1B", "OF", "SP"]
+        rows = [
+            DraftBoardRow(
+                player_id=i + 1,
+                player_name=f"P{i + 1}",
+                rank=i + 1,
+                player_type="B" if positions[i % 4] != "SP" else "P",
+                position=positions[i % 4],
+                value=40.0 - i,
+                category_z_scores={},
+                adp_overall=float(i + 1),
+            )
+            for i in range(40)
+        ]
+        board = DraftBoard(rows=rows, batting_categories=("HR",), pitching_categories=("K",))
+
+        n_sims = 5
+        result = run_batch_simulation(
+            n_simulations=n_sims,
+            board=board,
+            league=league,
+            user_strategy_factory=lambda rng: BestValueBot(rng=rng),
+            opponent_strategy_factories=[lambda rng: ADPBot(rng=rng) for _ in range(3)],
+            seed=42,
+        )
+
+        # all_player_picks should contain entries for drafted players
+        assert len(result.all_player_picks) > 0
+        for _player_id, pick_numbers in result.all_player_picks.items():
+            assert len(pick_numbers) > 0
+            # Each pick number should be a positive integer
+            for pick in pick_numbers:
+                assert pick > 0
+            # Should have at most n_sims entries per player
+            assert len(pick_numbers) <= n_sims

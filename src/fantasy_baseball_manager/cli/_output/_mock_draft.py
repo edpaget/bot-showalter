@@ -6,8 +6,10 @@ from fantasy_baseball_manager.cli._output._common import console
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
+        AvailabilityWindow,
         BatchSimulationResult,
         DraftResult,
+        PlayerAvailabilityCurve,
         StrategyComparison,
     )
 
@@ -124,6 +126,51 @@ def print_strategy_comparison_table(comparisons: list[StrategyComparison]) -> No
             comp.strategy_name,
             f"${comp.avg_value:.1f}",
             f"{comp.win_rate:.1%}",
+            style=style,
+        )
+
+    console.print(table)
+
+
+def print_availability_windows(windows: list[AvailabilityWindow]) -> None:
+    """Print player availability windows as a Rich table."""
+    table = Table(title="Player Availability Windows", show_edge=False, pad_edge=False)
+    table.add_column("Player")
+    table.add_column("Pos")
+    table.add_column("Earliest", justify="right")
+    table.add_column("Median", justify="right")
+    table.add_column("Latest", justify="right")
+    table.add_column("Avail%", justify="right")
+
+    for w in windows:
+        avail_style = "green" if w.available_at_user_pick >= 0.8 else ("red" if w.available_at_user_pick < 0.3 else "")
+        table.add_row(
+            w.player_name,
+            w.position,
+            f"{w.earliest_pick:.0f}",
+            f"{w.median_pick:.0f}",
+            f"{w.latest_pick:.0f}",
+            f"{w.available_at_user_pick:.0%}",
+            style=avail_style,
+        )
+
+    console.print(table)
+
+
+def print_player_availability_curve(curve: PlayerAvailabilityCurve) -> None:
+    """Print round-by-round availability curve for a single player."""
+    console.print(f"\n[bold]{curve.player_name}[/bold] ({curve.position})")
+    table = Table(title="Availability Curve", show_edge=False, pad_edge=False)
+    table.add_column("Round", justify="right")
+    table.add_column("Pick#", justify="right")
+    table.add_column("Available%", justify="right")
+
+    for pa in curve.pick_availabilities:
+        style = "green" if pa.probability >= 0.8 else ("red" if pa.probability < 0.3 else "")
+        table.add_row(
+            str(pa.round),
+            str(pa.pick),
+            f"{pa.probability:.0%}",
             style=style,
         )
 

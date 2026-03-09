@@ -43,7 +43,13 @@ from fantasy_baseball_manager.domain.draft_board import (
     DraftBoardRow,
     TierAssignment,
 )
-from fantasy_baseball_manager.domain.draft_plan import DraftPlan, DraftPlanTarget
+from fantasy_baseball_manager.domain.draft_plan import (
+    AvailabilityWindow,
+    DraftPlan,
+    DraftPlanTarget,
+    PickAvailability,
+    PlayerAvailabilityCurve,
+)
 from fantasy_baseball_manager.domain.draft_recommendation import (
     Recommendation,
     RecommendationWeights,
@@ -320,6 +326,7 @@ __all__ = [
     "ADP",
     "AdjustedValuation",
     "ArbitrageReport",
+    "AvailabilityWindow",
     "BreakoutPrediction",
     "LabelConfig",
     "LabeledSeason",
@@ -373,6 +380,8 @@ __all__ = [
     "DraftPlan",
     "DraftPlanTarget",
     "DraftBoard",
+    "PickAvailability",
+    "PlayerAvailabilityCurve",
     "DraftBoardRow",
     "DraftPick",
     "PlayerDraftFrequency",

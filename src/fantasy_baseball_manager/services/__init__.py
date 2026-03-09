@@ -49,7 +49,11 @@ from fantasy_baseball_manager.services.draft_board import (
     export_csv,
     export_html,
 )
-from fantasy_baseball_manager.services.draft_plan import generate_draft_plan
+from fantasy_baseball_manager.services.draft_plan import (
+    compute_availability_windows,
+    compute_player_availability_curve,
+    generate_draft_plan,
+)
 from fantasy_baseball_manager.services.draft_recommender import recommend
 from fantasy_baseball_manager.services.draft_report import draft_report
 from fantasy_baseball_manager.services.draft_session import DraftSession, load_draft, load_draft_from_db
@@ -365,6 +369,8 @@ __all__ = [
     "evaluate_trade",
     "export_csv",
     "export_html",
+    "compute_availability_windows",
+    "compute_player_availability_curve",
     "generate_draft_plan",
     "generate_tiers",
     "grouped_projections",

@@ -173,6 +173,7 @@ class TestBatchSimulationResult:
             strategy_comparisons=[],
             user_rosters=[],
             user_roster_values=[],
+            all_player_picks={},
         )
         with pytest.raises(FrozenInstanceError):
             result.summary = summary  # type: ignore[misc]
@@ -198,6 +199,7 @@ class TestBatchSimulationResult:
             strategy_comparisons=[comp],
             user_rosters=[],
             user_roster_values=[],
+            all_player_picks={},
         )
         assert result.summary is summary
         assert len(result.player_frequencies) == 1

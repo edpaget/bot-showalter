@@ -62,8 +62,10 @@ from fantasy_baseball_manager.cli._output._keeper import (
 )
 from fantasy_baseball_manager.cli._output._marginal_value import print_marginal_value_results
 from fantasy_baseball_manager.cli._output._mock_draft import (
+    print_availability_windows,
     print_batch_simulation_result,
     print_mock_draft_result,
+    print_player_availability_curve,
     print_strategy_comparison_table,
 )
 from fantasy_baseball_manager.cli._output._model import (
@@ -218,8 +220,10 @@ __all__ = [
     "print_keeper_scenarios",
     "print_keeper_solution",
     "print_keeper_trade_impact",
+    "print_availability_windows",
     "print_batch_simulation_result",
     "print_marginal_value_results",
+    "print_player_availability_curve",
     "print_mock_draft_result",
     "print_opportunity_costs",
     "print_player_summaries",

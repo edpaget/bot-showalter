@@ -3292,6 +3292,7 @@ class TestPrintBatchSimulationTeamIdx:
             strategy_comparisons=[],
             user_rosters=[],
             user_roster_values=[],
+            all_player_picks={},
         )
         print_batch_simulation_result(result)
         captured = capsys.readouterr()

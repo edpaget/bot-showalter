@@ -8,8 +8,10 @@ import typer
 
 from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
+    print_availability_windows,
     print_batch_simulation_result,
     print_mock_draft_result,
+    print_player_availability_curve,
     print_strategy_comparison_table,
 )
 from fantasy_baseball_manager.cli.commands.draft import _fetch_draft_board_data
@@ -20,9 +22,13 @@ from fantasy_baseball_manager.services import (
     DraftBot,
     PositionalNeedBot,
     RandomBot,
+    build_draft_roster_slots,
+    compute_availability_windows,
+    compute_player_availability_curve,
     run_batch_simulation,
     run_mock_draft,
 )
+from fantasy_baseball_manager.services.draft_plan import _user_pick_numbers
 
 mock_app = typer.Typer(name="mock", help="Mock draft simulation")
 
@@ -203,3 +209,97 @@ def mock_compare(
                 break
 
     print_strategy_comparison_table(comparisons)
+
+
+@mock_app.command("availability")
+def mock_availability(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    position: Annotated[int, typer.Option("--position", help="Draft position (1-based)")] = 1,
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
+    league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    teams: Annotated[int, typer.Option("--teams", help="Number of teams (0=use league)")] = 0,
+    simulations: Annotated[int, typer.Option("--simulations", help="Number of simulations")] = 100,
+    player: Annotated[str | None, typer.Option("--player", help="Player name filter (substring)")] = None,
+    seed: Annotated[int | None, typer.Option("--seed", help="Random seed")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show player availability windows from mock draft simulations."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
+    board, league = _fetch_draft_board_data(season, system, version, league_name, provider, data_dir, None, None, None)
+
+    if teams > 0:
+        league = dataclasses.replace(league, teams=teams)
+
+    draft_position = position - 1
+
+    def user_factory(rng: random.Random) -> DraftBot:
+        return _make_bot("best-value", rng)
+
+    opponent_factories = [_make_opponent for _ in range(league.teams - 1)]
+
+    result = run_batch_simulation(
+        simulations,
+        board,
+        league,
+        user_factory,
+        opponent_factories,
+        draft_position=draft_position,
+        seed=seed,
+    )
+
+    player_names = {r.player_id: r.player_name for r in board.rows}
+    player_positions = {r.player_id: r.position for r in board.rows}
+
+    if player:
+        # Find matching player via case-insensitive substring
+        query = player.lower()
+        matches = [
+            (pid, name)
+            for pid, name in player_names.items()
+            if query in name.lower() and pid in result.all_player_picks
+        ]
+        if not matches:
+            typer.echo(f"No player matching '{player}' found in simulation data.")
+            raise typer.Exit(1)
+        if len(matches) > 1:
+            typer.echo(f"Multiple matches for '{player}':")
+            for _, name in matches[:10]:
+                typer.echo(f"  {name}")
+            typer.echo("Please be more specific.")
+            raise typer.Exit(1)
+
+        pid, _ = matches[0]
+        slots = build_draft_roster_slots(league)
+        total_rounds = sum(slots.values())
+        curve = compute_player_availability_curve(
+            player_id=pid,
+            all_player_picks=result.all_player_picks,
+            player_names=player_names,
+            player_positions=player_positions,
+            n_simulations=simulations,
+            slot=draft_position,
+            teams=league.teams,
+            total_rounds=total_rounds,
+        )
+        print_player_availability_curve(curve)
+    else:
+        # Compute user's first pick number for availability calculation
+        slots = build_draft_roster_slots(league)
+        total_rounds = sum(slots.values())
+        user_picks = _user_pick_numbers(draft_position, league.teams, total_rounds)
+        user_first_pick = user_picks[0]
+
+        windows = compute_availability_windows(
+            result.all_player_picks,
+            player_names,
+            player_positions,
+            n_simulations=simulations,
+            user_next_pick=user_first_pick,
+        )
+        print_availability_windows(windows)

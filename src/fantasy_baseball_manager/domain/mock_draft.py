@@ -64,3 +64,4 @@ class BatchSimulationResult:
     strategy_comparisons: list[StrategyComparison]
     user_rosters: list[list[DraftPick]]
     user_roster_values: list[float]
+    all_player_picks: dict[int, list[int]]  # player_id → pick numbers across all sims

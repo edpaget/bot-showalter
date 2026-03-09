@@ -6,7 +6,13 @@ import statistics
 from collections import Counter
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import DraftPlan, DraftPlanTarget
+from fantasy_baseball_manager.domain import (
+    AvailabilityWindow,
+    DraftPlan,
+    DraftPlanTarget,
+    PickAvailability,
+    PlayerAvailabilityCurve,
+)
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import DraftPick
@@ -110,4 +116,93 @@ def generate_draft_plan(
         targets=targets,
         n_simulations=n_sims,
         avg_roster_value=avg_value,
+    )
+
+
+def _user_pick_numbers(slot: int, teams: int, total_rounds: int) -> list[int]:
+    """Compute pick numbers for a user at *slot* (0-indexed) in a snake draft."""
+    picks: list[int] = []
+    for rnd in range(1, total_rounds + 1):
+        pick = (rnd - 1) * teams + slot + 1 if rnd % 2 == 1 else rnd * teams - slot
+        picks.append(pick)
+    return picks
+
+
+def compute_availability_windows(
+    all_player_picks: dict[int, list[int]],
+    player_names: dict[int, str],
+    player_positions: dict[int, str],
+    *,
+    n_simulations: int,
+    user_next_pick: int,
+) -> list[AvailabilityWindow]:
+    """Compute availability windows for all players in *all_player_picks*.
+
+    For each player, computes percentile distribution and probability
+    of being available at *user_next_pick*.
+    """
+    windows: list[AvailabilityWindow] = []
+    for player_id, pick_numbers in all_player_picks.items():
+        sorted_picks = sorted(pick_numbers)
+        n_drafted = len(sorted_picks)
+
+        # Percentiles (statistics.quantiles needs ≥ 2 data points)
+        if n_drafted >= 2:
+            quantile_values = statistics.quantiles(sorted_picks, n=20)
+            earliest = quantile_values[0]  # 5th percentile
+            latest = quantile_values[18]  # 95th percentile
+        else:
+            earliest = float(sorted_picks[0])
+            latest = float(sorted_picks[0])
+
+        median = float(statistics.median(sorted_picks))
+
+        # Count of sims where this player was drafted before user_next_pick.
+        # Undrafted sims (n_simulations - n_drafted) are implicitly counted as
+        # available since they don't appear in drafted_before.
+        drafted_before = sum(1 for p in sorted_picks if p < user_next_pick)
+        available = (n_simulations - drafted_before) / n_simulations if n_simulations > 0 else 0.0
+
+        windows.append(
+            AvailabilityWindow(
+                player_id=player_id,
+                player_name=player_names.get(player_id, f"Unknown ({player_id})"),
+                position=player_positions.get(player_id, "?"),
+                earliest_pick=earliest,
+                median_pick=median,
+                latest_pick=latest,
+                available_at_user_pick=available,
+            )
+        )
+
+    return sorted(windows, key=lambda w: w.median_pick)
+
+
+def compute_player_availability_curve(
+    player_id: int,
+    all_player_picks: dict[int, list[int]],
+    player_names: dict[int, str],
+    player_positions: dict[int, str],
+    *,
+    n_simulations: int,
+    slot: int,
+    teams: int,
+    total_rounds: int,
+) -> PlayerAvailabilityCurve:
+    """Compute round-by-round availability curve for a single player."""
+    user_picks = _user_pick_numbers(slot, teams, total_rounds)
+    pick_numbers = all_player_picks.get(player_id, [])
+    sorted_picks = sorted(pick_numbers)
+
+    availabilities: list[PickAvailability] = []
+    for rnd, pick in enumerate(user_picks, start=1):
+        drafted_before = sum(1 for p in sorted_picks if p < pick)
+        probability = (n_simulations - drafted_before) / n_simulations if n_simulations > 0 else 0.0
+        availabilities.append(PickAvailability(round=rnd, pick=pick, probability=probability))
+
+    return PlayerAvailabilityCurve(
+        player_id=player_id,
+        player_name=player_names.get(player_id, f"Unknown ({player_id})"),
+        position=player_positions.get(player_id, "?"),
+        pick_availabilities=availabilities,
     )

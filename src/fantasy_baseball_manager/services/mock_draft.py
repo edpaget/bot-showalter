@@ -223,6 +223,8 @@ def run_batch_simulation(
     player_drafts: dict[int, list[tuple[int, int]]] = {}
     # player_id -> player_name
     player_names: dict[int, str] = {r.player_id: r.player_name for r in board.rows}
+    # player_id -> list of pick numbers across all sims (all teams)
+    all_player_picks: dict[int, list[int]] = {}
 
     for i in range(n_simulations):
         sim_rng = random.Random(seed + i) if seed is not None else random.Random()  # noqa: S311
@@ -254,6 +256,12 @@ def run_batch_simulation(
         # Collect per-team total values
         team_totals = [sum(p.value for p in result.rosters[t]) for t in range(num_teams)]
         team_values_per_sim.append(team_totals)
+
+        # Track all player pick numbers across all teams
+        for pick in result.picks:
+            if pick.player_id not in all_player_picks:
+                all_player_picks[pick.player_id] = []
+            all_player_picks[pick.player_id].append(pick.pick)
 
         # Track player draft info for user
         for pick in user_roster:
@@ -346,4 +354,5 @@ def run_batch_simulation(
         strategy_comparisons=comparisons,
         user_rosters=user_rosters_all,
         user_roster_values=user_values,
+        all_player_picks=all_player_picks,
     )
