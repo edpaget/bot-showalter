@@ -20,7 +20,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phase 1 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
-| [Valuation Version Consistency](valuation-version-consistency.md) | 2 | not started | none |
+| [Valuation Version Consistency](valuation-version-consistency.md) | 2 | phase 1 done | none |
 
 ## Completed Roadmaps
 
