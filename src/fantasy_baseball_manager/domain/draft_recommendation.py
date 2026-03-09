@@ -9,6 +9,8 @@ class RecommendationWeights:
     tier: float = 0.2
     adp: float = 0.15
     category_balance: float = 0.25
+    mock_position: float = 0.3
+    mock_availability: float = 0.2
 
 
 @dataclass(frozen=True)

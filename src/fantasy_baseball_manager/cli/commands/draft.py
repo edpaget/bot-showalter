@@ -1,5 +1,6 @@
 import csv
 import functools
+import random  # noqa: TC003 — used at runtime in draft_start (pragma: no cover)
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -38,6 +39,9 @@ from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade
 from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo
 from fantasy_baseball_manager.services import (
+    ADPBot,
+    BestValueBot,
+    DraftBot,
     DraftConfig,
     DraftEngine,
     DraftFormat,
@@ -48,6 +52,7 @@ from fantasy_baseball_manager.services import (
     build_draft_roster_slots,
     build_roster_state,
     cascade_analysis,
+    compute_availability_windows,
     compute_category_balance_scores,
     compute_marginal_values,
     compute_opportunity_costs,
@@ -59,6 +64,7 @@ from fantasy_baseball_manager.services import (
     evaluate_pick_trade,
     export_csv,
     export_html,
+    generate_draft_plan,
     generate_tiers,
     identify_needs,
     load_draft,
@@ -67,12 +73,14 @@ from fantasy_baseball_manager.services import (
     parse_league_keepers,
     plan_snake_draft,
     recommend,
+    run_batch_simulation,
     simulate_drafts,
     tier_summary,
 )
 from fantasy_baseball_manager.services import (
     draft_report as compute_draft_report,
 )
+from fantasy_baseball_manager.services.draft_plan import _user_pick_numbers
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import ADP, LeagueSettings
@@ -330,6 +338,9 @@ def draft_start(  # pragma: no cover
     budget: Annotated[int, typer.Option("--budget", help="Auction budget per team")] = 260,
     resume: Annotated[Path | None, typer.Option("--resume", help="Resume from saved draft file")] = None,
     session_id: Annotated[int | None, typer.Option("--session-id", help="Resume a specific DB session by ID")] = None,
+    mock_plan: Annotated[
+        bool, typer.Option("--mock-plan", help="Pre-run mock sims for plan-informed recommendations")
+    ] = False,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Start an interactive draft session (REPL)."""
@@ -406,7 +417,46 @@ def draft_start(  # pragma: no cover
     def _cat_balance_fn(roster_ids: list[int], available_ids: list[int]) -> dict[int, float]:
         return compute_category_balance_scores(roster_ids, available_ids, projections, league)
 
-    recommend_fn = functools.partial(recommend, category_balance_fn=_cat_balance_fn)
+    mock_plan_kwargs: dict[str, object] = {}
+    if mock_plan:
+        console.print("[dim]Running 50 mock draft simulations for plan-informed recommendations…[/dim]")
+
+        def _user_factory(rng: random.Random) -> DraftBot:
+            return BestValueBot(rng=rng)
+
+        opponent_factories = [lambda rng: ADPBot(rng=rng, noise=0.15) for _ in range(teams - 1)]
+        sim_result = run_batch_simulation(
+            50,
+            board,
+            league,
+            _user_factory,
+            opponent_factories,
+            draft_position=slot - 1,
+        )
+        plan_data = generate_draft_plan(
+            sim_result.user_rosters,
+            slot=slot,
+            teams=teams,
+            strategy_name="best-value",
+        )
+        player_name_map = {r.player_id: r.player_name for r in board.rows}
+        player_pos_map = {r.player_id: r.position for r in board.rows}
+        total_rounds = sum(roster_slots.values())
+        user_picks = _user_pick_numbers(slot - 1, teams, total_rounds)
+        user_first_pick = user_picks[0]
+        avail_windows = compute_availability_windows(
+            sim_result.all_player_picks,
+            player_name_map,
+            player_pos_map,
+            n_simulations=50,
+            user_next_pick=user_first_pick,
+        )
+        mock_plan_kwargs = {"draft_plan": plan_data, "availability": avail_windows}
+        console.print(
+            f"[dim]Mock plan ready: {len(plan_data.targets)} targets, {len(avail_windows)} availability windows[/dim]"
+        )
+
+    recommend_fn = functools.partial(recommend, category_balance_fn=_cat_balance_fn, **mock_plan_kwargs)
 
     session = DraftSession(
         engine=engine,

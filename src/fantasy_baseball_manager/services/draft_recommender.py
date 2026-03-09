@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Protocol
 
-from fantasy_baseball_manager.domain import Recommendation, RecommendationWeights
+from fantasy_baseball_manager.domain import AvailabilityWindow, DraftPlan, Recommendation, RecommendationWeights
 from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftFormat, DraftState
 
 if TYPE_CHECKING:
@@ -19,6 +21,8 @@ def recommend(
     weights: RecommendationWeights | None = None,
     limit: int = 10,
     category_balance_fn: CategoryBalanceFn | None = None,
+    draft_plan: DraftPlan | None = None,
+    availability: list[AvailabilityWindow] | None = None,
 ) -> list[Recommendation]:
     """Return ranked draft recommendations from the current draft state.
 
@@ -39,6 +43,12 @@ def recommend(
 
     scarcity = _compute_scarcity(state.available_pool, needs)
     picks_until = _picks_until_next(state)
+    current_round = (state.current_pick - 1) // state.config.teams + 1
+
+    # Build availability lookup once
+    avail_map: dict[int, AvailabilityWindow] = {}
+    if availability is not None:
+        avail_map = {aw.player_id: aw for aw in availability}
 
     # Compute category balance scores once for all available players
     cat_scores: dict[int, float] = {}
@@ -51,7 +61,20 @@ def recommend(
     for player in pool:
         if not _is_recommendable(player, needs):
             continue
-        score = _score_player(player, w, max_value, needs, scarcity, pool, state, picks_until, cat_scores)
+        score = _score_player(
+            player,
+            w,
+            max_value,
+            needs,
+            scarcity,
+            pool,
+            state,
+            picks_until,
+            cat_scores,
+            draft_plan=draft_plan,
+            current_round=current_round,
+            avail_map=avail_map,
+        )
         scored.append((score, player))
 
     scored.sort(key=lambda t: t[0], reverse=True)
@@ -65,7 +88,20 @@ def recommend(
                 position=player.position,
                 value=player.value,
                 score=round(score, 4),
-                reason=_build_reason(player, w, max_value, needs, scarcity, pool, state, picks_until, cat_scores),
+                reason=_build_reason(
+                    player,
+                    w,
+                    max_value,
+                    needs,
+                    scarcity,
+                    pool,
+                    state,
+                    picks_until,
+                    cat_scores,
+                    draft_plan=draft_plan,
+                    current_round=current_round,
+                    avail_map=avail_map,
+                ),
             )
         )
     return results
@@ -232,6 +268,41 @@ def _adp_availability(player: DraftBoardRow, picks_until: int, current_pick: int
     return 0.0
 
 
+def _mock_position_bonus(
+    player: DraftBoardRow,
+    draft_plan: DraftPlan | None,
+    current_round: int,
+) -> float:
+    """Return confidence bonus if player's position matches the plan target for this round."""
+    if draft_plan is None:
+        return 0.0
+    for target in draft_plan.targets:
+        start, end = target.round_range
+        if start <= current_round <= end and player.position == target.position:
+            return target.confidence
+    return 0.0
+
+
+def _mock_availability_score(
+    player: DraftBoardRow,
+    avail_map: dict[int, AvailabilityWindow],
+    picks_until: int,
+) -> float:
+    """Return urgency/wait signal from mock simulation availability data."""
+    if not avail_map or picks_until == 0:
+        return 0.0
+    window = avail_map.get(player.player_id)
+    if window is None:
+        return 0.0
+    prob = window.available_at_user_pick
+    if prob >= 0.8:
+        return -0.5
+    if prob < 0.3:
+        return 1.0
+    # Linear interpolation: prob in [0.3, 0.8] → score in [1.0, -0.5]
+    return 1.0 + (prob - 0.3) * (-0.5 - 1.0) / (0.8 - 0.3)
+
+
 def _score_player(
     player: DraftBoardRow,
     w: RecommendationWeights,
@@ -242,6 +313,10 @@ def _score_player(
     state: DraftState,
     picks_until: int,
     cat_scores: dict[int, float] | None = None,
+    *,
+    draft_plan: DraftPlan | None = None,
+    current_round: int = 1,
+    avail_map: dict[int, AvailabilityWindow] | None = None,
 ) -> float:
     """Compute composite recommendation score for a player."""
     value_norm = player.value / max_value
@@ -250,6 +325,8 @@ def _score_player(
     tier = _tier_urgency(player, pool)
     adp = _adp_availability(player, picks_until, state.current_pick)
     cat_bal = cat_scores.get(player.player_id, 0.0) if cat_scores else 0.0
+    mock_pos = _mock_position_bonus(player, draft_plan, current_round)
+    mock_avail = _mock_availability_score(player, avail_map or {}, picks_until)
 
     score = (
         w.value * value_norm
@@ -258,6 +335,8 @@ def _score_player(
         + w.tier * tier
         + w.adp * adp
         + w.category_balance * cat_bal
+        + w.mock_position * mock_pos
+        + w.mock_availability * mock_avail
     )
     return score
 
@@ -265,13 +344,17 @@ def _score_player(
 def _build_reason(
     player: DraftBoardRow,
     w: RecommendationWeights,
-    max_value: float,
+    max_value: float,  # noqa: ARG001
     needs: dict[str, int],
     scarcity: dict[str, float],
     pool: list[DraftBoardRow],
     state: DraftState,
     picks_until: int,
     cat_scores: dict[int, float] | None = None,
+    *,
+    draft_plan: DraftPlan | None = None,
+    current_round: int = 1,
+    avail_map: dict[int, AvailabilityWindow] | None = None,
 ) -> str:
     """Generate human-readable reason from the dominant secondary scoring factors."""
     pos = player.position
@@ -301,6 +384,14 @@ def _build_reason(
     cat_bal = cat_scores.get(player.player_id, 0.0) if cat_scores else 0.0
     if w.category_balance > 0 and cat_bal > 0.3:
         contributions.append((w.category_balance * cat_bal, "addresses weak categories"))
+
+    mock_pos = _mock_position_bonus(player, draft_plan, current_round)
+    if w.mock_position > 0 and mock_pos > 0:
+        contributions.append((w.mock_position * mock_pos, f"mock plan targets {pos} this round"))
+
+    mock_avail = _mock_availability_score(player, avail_map or {}, picks_until)
+    if w.mock_availability > 0 and mock_avail > 0.5:
+        contributions.append((w.mock_availability * mock_avail, "mock sims: likely gone before next pick"))
 
     if not contributions:
         return "best value available"

@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from fantasy_baseball_manager.domain.draft_plan import AvailabilityWindow, DraftPlan, DraftPlanTarget
 from fantasy_baseball_manager.domain.draft_recommendation import (
     Recommendation,
     RecommendationWeights,
@@ -99,6 +100,8 @@ class TestDomainModels:
         assert w.tier == 0.2
         assert w.adp == 0.15
         assert w.category_balance == 0.25
+        assert w.mock_position == 0.3
+        assert w.mock_availability == 0.2
 
     def test_recommendation_weights_custom(self) -> None:
         w = RecommendationWeights(value=2.0, need=0.5, scarcity=0.0, tier=0.1, adp=0.0)
@@ -821,3 +824,276 @@ class TestCategoryBalance:
         w = RecommendationWeights(value=0.5, need=0.0, scarcity=0.0, tier=0.0, adp=0.0, category_balance=1.0)
         recs = recommend(state, weights=w, category_balance_fn=cat_balance_fn)
         assert "addresses weak categories" in recs[0].reason
+
+
+# ---------------------------------------------------------------------------
+# Step 10: Mock position bonus
+# ---------------------------------------------------------------------------
+
+
+def _make_plan(targets: list[DraftPlanTarget]) -> DraftPlan:
+    return DraftPlan(
+        slot=1,
+        teams=4,
+        strategy_name="best-value",
+        targets=targets,
+        n_simulations=100,
+        avg_roster_value=50.0,
+    )
+
+
+def _make_availability(
+    player_id: int, available_at: float, *, name: str = "Player", position: str = "OF"
+) -> AvailabilityWindow:
+    return AvailabilityWindow(
+        player_id=player_id,
+        player_name=name,
+        position=position,
+        earliest_pick=1.0,
+        median_pick=10.0,
+        latest_pick=20.0,
+        available_at_user_pick=available_at,
+    )
+
+
+class TestMockPositionBonus:
+    def test_position_matches_plan_target(self) -> None:
+        """Player at position matching round target gets boosted vs non-target."""
+        plan = _make_plan([DraftPlanTarget(round_range=(1, 2), position="C", confidence=0.8, example_players=[])])
+        players = [
+            _make_player(1, "Catcher", "C", 20.0),
+            _make_player(2, "First Base", "1B", 20.0),
+        ]
+        state = _make_state(players, roster_slots={"C": 1, "1B": 1})
+        w = RecommendationWeights(
+            value=1.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=1.0,
+            mock_availability=0.0,
+        )
+        recs = recommend(state, weights=w, draft_plan=plan)
+        catcher = next(r for r in recs if r.player_id == 1)
+        first_base = next(r for r in recs if r.player_id == 2)
+        assert catcher.score > first_base.score
+
+    def test_confidence_scales_bonus(self) -> None:
+        """High confidence target produces higher bonus than low confidence."""
+        plan_high = _make_plan([DraftPlanTarget(round_range=(1, 2), position="C", confidence=0.9, example_players=[])])
+        plan_low = _make_plan([DraftPlanTarget(round_range=(1, 2), position="C", confidence=0.3, example_players=[])])
+        players = [_make_player(1, "Catcher", "C", 20.0)]
+        w = RecommendationWeights(
+            value=0.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=1.0,
+            mock_availability=0.0,
+        )
+
+        state_high = _make_state(players, roster_slots={"C": 1})
+        recs_high = recommend(state_high, weights=w, draft_plan=plan_high)
+
+        state_low = _make_state(players, roster_slots={"C": 1})
+        recs_low = recommend(state_low, weights=w, draft_plan=plan_low)
+
+        assert recs_high[0].score > recs_low[0].score
+
+    def test_no_plan_no_effect(self) -> None:
+        """draft_plan=None produces identical scores to baseline."""
+        players = [_make_player(1, "Catcher", "C", 20.0)]
+        state = _make_state(players, roster_slots={"C": 1})
+        w = RecommendationWeights(
+            value=1.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=1.0,
+            mock_availability=0.0,
+        )
+        recs_with = recommend(state, weights=w, draft_plan=None)
+        recs_without = recommend(state, weights=w)
+        assert recs_with[0].score == recs_without[0].score
+
+    def test_round_outside_target_range(self) -> None:
+        """Round outside any target range returns 0.0 bonus."""
+        # Target is rounds 5-6, but we're in round 1
+        plan = _make_plan([DraftPlanTarget(round_range=(5, 6), position="C", confidence=0.8, example_players=[])])
+        players = [
+            _make_player(1, "Catcher", "C", 20.0),
+            _make_player(2, "First Base", "1B", 20.0),
+        ]
+        state = _make_state(players, roster_slots={"C": 1, "1B": 1})
+        w = RecommendationWeights(
+            value=0.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=1.0,
+            mock_availability=0.0,
+        )
+        recs = recommend(state, weights=w, draft_plan=plan)
+        # Both should score 0 — no bonus for either
+        assert recs[0].score == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Step 11: Mock availability
+# ---------------------------------------------------------------------------
+
+
+class TestMockAvailability:
+    def test_high_availability_wait_penalty(self) -> None:
+        """Player with ≥0.8 availability scores lower than one with 0.2 availability."""
+        avail = [
+            _make_availability(1, 0.9, name="Safe Player", position="C"),
+            _make_availability(2, 0.2, name="Scarce Player", position="1B"),
+        ]
+        players = [
+            _make_player(1, "Safe Player", "C", 20.0),
+            _make_player(2, "Scarce Player", "1B", 20.0),
+        ]
+        # User is team 1, pick 2 (not on clock), so picks_until > 0
+        state = _make_state(players, roster_slots={"C": 1, "1B": 1}, teams=4, user_team=1)
+        state.current_pick = 2  # not user's pick
+        w = RecommendationWeights(
+            value=1.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=0.0,
+            mock_availability=1.0,
+        )
+        recs = recommend(state, weights=w, availability=avail)
+        safe = next(r for r in recs if r.player_id == 1)
+        scarce = next(r for r in recs if r.player_id == 2)
+        assert scarce.score > safe.score
+
+    def test_low_availability_urgency_bonus(self) -> None:
+        """Player about to be taken (<0.3 availability) gets urgency bonus."""
+        avail = [_make_availability(1, 0.1, name="Hot Player", position="C")]
+        players = [_make_player(1, "Hot Player", "C", 20.0)]
+        state = _make_state(players, roster_slots={"C": 1}, teams=4, user_team=1)
+        state.current_pick = 2
+        w = RecommendationWeights(
+            value=0.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=0.0,
+            mock_availability=1.0,
+        )
+        recs = recommend(state, weights=w, availability=avail)
+        assert recs[0].score > 0
+
+    def test_no_availability_no_effect(self) -> None:
+        """availability=None identical to baseline."""
+        players = [_make_player(1, "Player", "C", 20.0)]
+        state = _make_state(players, roster_slots={"C": 1})
+        w = RecommendationWeights(
+            value=1.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=0.0,
+            mock_availability=1.0,
+        )
+        recs_with = recommend(state, weights=w, availability=None)
+        recs_without = recommend(state, weights=w)
+        assert recs_with[0].score == recs_without[0].score
+
+    def test_user_on_clock_no_availability_signal(self) -> None:
+        """When picks_until=0 (user on clock), availability doesn't matter."""
+        avail = [
+            _make_availability(1, 0.9, name="Safe", position="C"),
+            _make_availability(2, 0.1, name="Hot", position="1B"),
+        ]
+        players = [
+            _make_player(1, "Safe", "C", 20.0),
+            _make_player(2, "Hot", "1B", 20.0),
+        ]
+        # User is on the clock (current_pick=1, team 1)
+        state = _make_state(players, roster_slots={"C": 1, "1B": 1}, teams=4, user_team=1)
+        w = RecommendationWeights(
+            value=0.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=0.0,
+            mock_availability=1.0,
+        )
+        recs = recommend(state, weights=w, availability=avail)
+        # Both should score 0 — no availability signal when on the clock
+        for r in recs:
+            assert r.score == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Step 12: Mock plan integration
+# ---------------------------------------------------------------------------
+
+
+class TestMockPlanIntegration:
+    def test_combined_plan_and_availability(self) -> None:
+        """Plan-targeted position with low availability outranks non-targeted with high availability."""
+        plan = _make_plan([DraftPlanTarget(round_range=(1, 2), position="C", confidence=0.8, example_players=[])])
+        avail = [
+            _make_availability(1, 0.15, name="Catcher", position="C"),
+            _make_availability(2, 0.9, name="First Base", position="1B"),
+        ]
+        players = [
+            _make_player(1, "Catcher", "C", 18.0),
+            _make_player(2, "First Base", "1B", 20.0),
+        ]
+        state = _make_state(players, roster_slots={"C": 1, "1B": 1}, teams=4, user_team=1)
+        state.current_pick = 2  # not on clock
+        w = RecommendationWeights(
+            value=1.0,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=1.0,
+            mock_availability=1.0,
+        )
+        recs = recommend(state, weights=w, draft_plan=plan, availability=avail)
+        assert recs[0].player_id == 1
+
+    def test_reason_includes_mock_signals(self) -> None:
+        """Reason strings include mock plan and availability signals."""
+        plan = _make_plan([DraftPlanTarget(round_range=(1, 2), position="C", confidence=0.8, example_players=[])])
+        avail = [_make_availability(1, 0.1, name="Catcher", position="C")]
+        players = [_make_player(1, "Catcher", "C", 20.0)]
+        state = _make_state(players, roster_slots={"C": 1}, teams=4, user_team=1)
+        state.current_pick = 2
+        w = RecommendationWeights(
+            value=0.5,
+            need=0.0,
+            scarcity=0.0,
+            tier=0.0,
+            adp=0.0,
+            category_balance=0.0,
+            mock_position=1.0,
+            mock_availability=1.0,
+        )
+        recs = recommend(state, weights=w, draft_plan=plan, availability=avail)
+        assert "mock plan targets C" in recs[0].reason
+        assert "mock sims: likely gone" in recs[0].reason
