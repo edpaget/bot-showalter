@@ -34,7 +34,14 @@ def _make_client_with_bus() -> tuple:
         league=_LEAGUE,
         adp_provider="fantasypros",
     )
-    app = create_app(container, _LEAGUE, session_manager=session_manager, event_bus=event_bus)
+    app = create_app(
+        container,
+        _LEAGUE,
+        session_manager=session_manager,
+        event_bus=event_bus,
+        default_system="zar",
+        default_version="1.0",
+    )
     client = TestClient(app)
     return client, event_bus
 

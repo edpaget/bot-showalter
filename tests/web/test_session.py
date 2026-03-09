@@ -189,7 +189,7 @@ def test_session_hydration(session_provider: SingleConnectionProvider) -> None:
         league=_LEAGUE,
         adp_provider="fantasypros",
     )
-    app1 = create_app(container, _LEAGUE, session_manager=mgr)
+    app1 = create_app(container, _LEAGUE, session_manager=mgr, default_system="zar", default_version="1.0")
     client1 = TestClient(app1)
 
     # Start and pick
@@ -206,7 +206,7 @@ def test_session_hydration(session_provider: SingleConnectionProvider) -> None:
         league=_LEAGUE,
         adp_provider="fantasypros",
     )
-    app2 = create_app(container, _LEAGUE, session_manager=mgr2)
+    app2 = create_app(container, _LEAGUE, session_manager=mgr2, default_system="zar", default_version="1.0")
     client2 = TestClient(app2)
 
     # Query session — should hydrate from DB

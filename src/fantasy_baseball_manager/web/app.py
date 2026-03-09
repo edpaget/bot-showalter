@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from strawberry.fastapi import GraphQLRouter
 
+from fantasy_baseball_manager.config_toml import load_toml
 from fantasy_baseball_manager.web.event_bus import EventBus
 from fantasy_baseball_manager.web.schema import Mutation, Query, Subscription
 
@@ -21,13 +22,20 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.web.yahoo_poller_manager import YahooPollerManager
 
 
+def _load_valuation_defaults() -> tuple[str, str]:
+    """Load default system/version from fbm.toml [common] section."""
+    toml_data = load_toml()
+    common = toml_data.get("common", {})
+    return common.get("system", "zar"), common.get("version", "production")
+
+
 @dataclass(frozen=True)
 class AppContext:
     container: AnalysisContainer
     league: LeagueSettings
     adp_provider: str
-    default_system: str = "zar"
-    default_version: str = "1.0"
+    default_system: str
+    default_version: str
     event_bus: EventBus = field(default_factory=EventBus)
     session_manager: SessionManager | None = None
     yahoo_poller_manager: YahooPollerManager | None = None
@@ -43,10 +51,17 @@ def create_app(
     yahoo_poller_manager: YahooPollerManager | None = None,
     breakout_predictions: list[BreakoutPrediction] | None = None,
     frontend_dir: str | None = None,
-    default_system: str = "zar",
-    default_version: str = "1.0",
+    default_system: str | None = None,
+    default_version: str | None = None,
 ) -> FastAPI:
     """Create a FastAPI application with a GraphQL endpoint at /graphql."""
+    if default_system is None or default_version is None:
+        sys_default, ver_default = _load_valuation_defaults()
+        if default_system is None:
+            default_system = sys_default
+        if default_version is None:
+            default_version = ver_default
+
     app_context = AppContext(
         container=container,
         league=league,

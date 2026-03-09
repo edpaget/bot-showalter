@@ -109,7 +109,7 @@ def client() -> TestClient:
     """Create a test client with an in-memory SQLite database seeded with test data."""
     provider = _make_provider()
     container = AnalysisContainer(provider)
-    app = create_app(container, _LEAGUE)
+    app = create_app(container, _LEAGUE, default_system="zar", default_version="1.0")
     return TestClient(app)
 
 
@@ -128,7 +128,7 @@ def session_client() -> TestClient:
         league=_LEAGUE,
         adp_provider="fantasypros",
     )
-    app = create_app(container, _LEAGUE, session_manager=session_manager)
+    app = create_app(container, _LEAGUE, session_manager=session_manager, default_system="zar", default_version="1.0")
     return TestClient(app)
 
 
