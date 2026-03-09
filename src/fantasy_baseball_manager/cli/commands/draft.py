@@ -61,6 +61,7 @@ from fantasy_baseball_manager.services import (
     compute_scarcity,
     compute_scarcity_rankings,
     compute_value_curves,
+    detect_falling_players,
     evaluate_pick_trade,
     export_csv,
     export_html,
@@ -1144,3 +1145,63 @@ def draft_position_check(
     available = [r for r in board.rows if r.player_id not in roster_id_set]
     upgrades = compute_position_upgrades(state, available, league)
     print_position_check(upgrades)
+
+
+@draft_app.command("arbitrage")
+def draft_arbitrage(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    pick: Annotated[int, typer.Option("--pick", help="Current pick number")],
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
+    threshold: Annotated[int, typer.Option("--threshold", help="Picks past ADP to qualify as falling")] = 10,
+    limit: Annotated[int, typer.Option("--limit", help="Maximum players to show")] = 20,
+    provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Pre-draft ADP arbitrage analysis — show players falling past their ADP at a given pick."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
+    league = load_league(league_name, Path.cwd())
+
+    with build_draft_board_context(data_dir) as ctx:
+        valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
+        player_ids = [v.player_id for v in valuations]
+        players = ctx.player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+        adp_list = ctx.adp_repo.get_by_season(season, provider=provider)
+        profiles = ctx.profile_service.enrich_valuations(valuations, season)
+
+    board = build_draft_board(valuations, league, player_names, adp=adp_list if adp_list else None, profiles=profiles)
+    available = board.rows
+    if position:
+        available = [r for r in available if r.position == position]
+
+    falling = detect_falling_players(pick, available, threshold=threshold, limit=limit)
+    if not falling:
+        console.print("No falling players detected at this pick number.")
+        return
+
+    table = Table(title=f"ADP Arbitrage — Pick #{pick}")
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Player", min_width=20)
+    table.add_column("Pos", width=4)
+    table.add_column("ADP", justify="right", width=6)
+    table.add_column("Slip", justify="right", width=5)
+    table.add_column("Value", justify="right", width=7)
+    table.add_column("Score", justify="right", width=7)
+    for i, f in enumerate(falling, 1):
+        table.add_row(
+            str(i),
+            f.player_name,
+            f.position,
+            f"{f.adp:.1f}",
+            f"+{f.picks_past_adp:.0f}",
+            f"${f.value:.1f}",
+            f"{f.arbitrage_score:.1f}",
+        )
+    console.print(table)

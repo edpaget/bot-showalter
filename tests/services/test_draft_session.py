@@ -24,12 +24,14 @@ from fantasy_baseball_manager.services.draft_session import (
     BalanceCommand,
     BestCommand,
     DraftSession,
+    FallsCommand,
     HelpCommand,
     NeedCommand,
     NeedsCommand,
     PickCommand,
     PoolCommand,
     QuitCommand,
+    ReachesCommand,
     ReportCommand,
     ReportFn,
     RosterCommand,
@@ -84,7 +86,14 @@ LIVE_CONFIG = DraftConfig(
 )
 
 
-def _make_player(player_id: int, name: str, position: str, value: float, player_type: str = "batter") -> DraftBoardRow:
+def _make_player(
+    player_id: int,
+    name: str,
+    position: str,
+    value: float,
+    player_type: str = "batter",
+    adp_overall: float | None = None,
+) -> DraftBoardRow:
     return DraftBoardRow(
         player_id=player_id,
         player_name=name,
@@ -93,6 +102,7 @@ def _make_player(player_id: int, name: str, position: str, value: float, player_
         position=position,
         value=value,
         category_z_scores={},
+        adp_overall=adp_overall,
     )
 
 
@@ -620,6 +630,46 @@ class TestParseCommandNeeds:
         assert isinstance(cmd, NeedCommand)
 
 
+class TestParseCommandFalls:
+    def test_falls_no_args(self) -> None:
+        cmd = parse_command("falls", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, FallsCommand)
+        assert cmd.position is None
+        assert cmd.threshold is None
+
+    def test_falls_with_position(self) -> None:
+        cmd = parse_command("falls OF", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, FallsCommand)
+        assert cmd.position == "OF"
+        assert cmd.threshold is None
+
+    def test_falls_with_threshold(self) -> None:
+        cmd = parse_command("falls --threshold 20", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, FallsCommand)
+        assert cmd.position is None
+        assert cmd.threshold == 20
+
+    def test_falls_with_position_and_threshold(self) -> None:
+        cmd = parse_command("falls OF --threshold 20", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, FallsCommand)
+        assert cmd.position == "OF"
+        assert cmd.threshold == 20
+
+    def test_falls_case_insensitive(self) -> None:
+        cmd = parse_command("FALLS", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, FallsCommand)
+
+
+class TestParseCommandReaches:
+    def test_reaches_command(self) -> None:
+        cmd = parse_command("reaches", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, ReachesCommand)
+
+    def test_reaches_case_insensitive(self) -> None:
+        cmd = parse_command("REACHES", DraftFormat.SNAKE, VALID_POSITIONS)
+        assert isinstance(cmd, ReachesCommand)
+
+
 class TestCategoryBalanceREPL:
     """Test balance and needs commands in the REPL."""
 
@@ -969,3 +1019,275 @@ class TestDraftSessionPersistence:
             input_fn=fake_input,
         )
         session.run()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Falls, reaches, and alert tests
+# ---------------------------------------------------------------------------
+
+# Players with ADP data for arbitrage testing
+ADP_PLAYERS = [
+    _make_player(1, "Mike Trout", "OF", 30.0, adp_overall=5.0),
+    _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type="pitcher", adp_overall=3.0),
+    _make_player(3, "Mookie Betts", "SS", 25.0, adp_overall=8.0),
+    _make_player(4, "Ronald Acuna Jr.", "OF", 22.0, adp_overall=2.0),
+    _make_player(5, "Freddie Freeman", "1B", 20.0, adp_overall=12.0),
+    _make_player(6, "Salvador Perez", "C", 15.0, adp_overall=40.0),
+    _make_player(7, "Adley Rutschman", "C", 14.0, adp_overall=45.0),
+    _make_player(8, "Aaron Judge", "OF", 27.0, adp_overall=4.0),
+]
+
+# Config that starts at a high pick so players are past their ADP
+HIGH_PICK_CONFIG = DraftConfig(
+    teams=12,
+    roster_slots={"C": 1, "1B": 1, "SS": 1, "OF": 3, "UTIL": 1, "SP": 1, "P": 1},
+    format=DraftFormat.SNAKE,
+    user_team=1,
+    season=2026,
+)
+
+
+def _snake_team(pick_number: int, teams: int) -> int:
+    """Compute which team picks at a given pick number in a snake draft."""
+    zero_based = pick_number - 1
+    round_number = zero_based // teams
+    position_in_round = zero_based % teams
+    if round_number % 2 == 0:
+        return position_in_round + 1
+    return teams - position_in_round
+
+
+def _make_adp_engine(
+    players: list[DraftBoardRow],
+    config: DraftConfig,
+    filler_count: int,
+) -> DraftEngine:
+    """Create a DraftEngine with filler picks already made to advance the pick counter."""
+    engine = DraftEngine()
+    engine.start(players, config)
+    for i in range(filler_count):
+        pick_num = i + 1
+        team = _snake_team(pick_num, config.teams)
+        # Find a filler player (id >= 100)
+        filler_id = 100 + i
+        engine.pick(filler_id, team, "OF")
+    return engine
+
+
+class TestFallsREPL:
+    """Test the falls command in the REPL."""
+
+    def _make_session(
+        self,
+        commands: list[str],
+        players: list[DraftBoardRow] | None = None,
+        config: DraftConfig | None = None,
+    ) -> tuple[StringIO, DraftSession]:
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        use_players = players or ADP_PLAYERS
+        use_config = config or HIGH_PICK_CONFIG
+        engine = DraftEngine()
+        engine.start(use_players, use_config)
+
+        cmd_iter = iter(commands)
+
+        def fake_input(_prompt: str = "") -> str:
+            return next(cmd_iter)
+
+        def fake_recommend(state: object, *, limit: int = 5) -> list[Recommendation]:
+            return []
+
+        session = DraftSession(
+            engine=engine,
+            players=use_players,
+            console=test_console,
+            recommend_fn=fake_recommend,
+            input_fn=fake_input,
+        )
+        return buf, session
+
+    def test_falls_no_fallers_at_pick_1(self) -> None:
+        """At pick 1, no player has slipped past their ADP yet."""
+        buf, session = self._make_session(["falls", "quit"])
+        session.run()
+        output = buf.getvalue()
+        assert "No falling players" in output
+
+    def test_falls_shows_fallers(self) -> None:
+        """Players with low ADP should show as falling when current pick is high."""
+        filler_players = [_make_player(100 + i, f"Filler {i}", "OF", 1.0, adp_overall=50.0 + i) for i in range(15)]
+        players = [
+            _make_player(10, "Faller A", "OF", 25.0, adp_overall=1.0),
+            _make_player(11, "Faller B", "1B", 20.0, adp_overall=2.0),
+            _make_player(12, "Normal C", "SS", 15.0, adp_overall=100.0),
+            *filler_players,
+        ]
+        config = DraftConfig(
+            teams=2,
+            roster_slots={"OF": 10, "1B": 5, "SS": 5, "UTIL": 5},
+            format=DraftFormat.SNAKE,
+            user_team=1,
+            season=2026,
+        )
+        engine = _make_adp_engine(players, config, filler_count=12)
+
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        cmd_iter = iter(["falls", "quit"])
+        session = DraftSession(
+            engine=engine,
+            players=players,
+            console=test_console,
+            recommend_fn=lambda state, *, limit=5: [],
+            input_fn=lambda _prompt="": next(cmd_iter),
+        )
+        session.run()
+        output = buf.getvalue()
+        assert "Faller A" in output
+        assert "Falling Players" in output
+
+    def test_falls_position_filter(self) -> None:
+        """Position filter should limit results."""
+        filler_players = [_make_player(100 + i, f"Filler {i}", "OF", 1.0, adp_overall=50.0 + i) for i in range(15)]
+        players = [
+            _make_player(10, "OF Faller", "OF", 25.0, adp_overall=1.0),
+            _make_player(11, "1B Faller", "1B", 20.0, adp_overall=2.0),
+            *filler_players,
+        ]
+        config = DraftConfig(
+            teams=2,
+            roster_slots={"OF": 10, "1B": 5, "UTIL": 5},
+            format=DraftFormat.SNAKE,
+            user_team=1,
+            season=2026,
+        )
+        engine = _make_adp_engine(players, config, filler_count=12)
+
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        cmd_iter = iter(["falls 1B", "quit"])
+        session = DraftSession(
+            engine=engine,
+            players=players,
+            console=test_console,
+            recommend_fn=lambda state, *, limit=5: [],
+            input_fn=lambda _prompt="": next(cmd_iter),
+        )
+        session.run()
+        output = buf.getvalue()
+        assert "1B Faller" in output
+        assert "OF Faller" not in output
+
+    def test_help_includes_falls_and_reaches(self) -> None:
+        buf, session = self._make_session(["help", "quit"])
+        session.run()
+        output = buf.getvalue()
+        assert "falls" in output.lower()
+        assert "reaches" in output.lower()
+
+
+class TestReachesREPL:
+    """Test the reaches command in the REPL."""
+
+    def test_reaches_no_reaches(self) -> None:
+        """No reaches when no picks have been made."""
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        engine = DraftEngine()
+        engine.start(ADP_PLAYERS, HIGH_PICK_CONFIG)
+
+        cmd_iter = iter(["reaches", "quit"])
+        session = DraftSession(
+            engine=engine,
+            players=ADP_PLAYERS,
+            console=test_console,
+            recommend_fn=lambda state, *, limit=5: [],
+            input_fn=lambda _prompt="": next(cmd_iter),
+        )
+        session.run()
+        output = buf.getvalue()
+        assert "No reach picks" in output
+
+    def test_reaches_shows_reach_picks(self) -> None:
+        """A pick well ahead of ADP should show as a reach."""
+        # Salvador Perez has ADP 40, picking him at pick 1 = 39 picks ahead
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        engine = DraftEngine()
+        engine.start(ADP_PLAYERS, HIGH_PICK_CONFIG)
+
+        # Pick Salvador Perez (ADP 40) at pick 1 — huge reach
+        engine.pick(6, 1, "C")
+
+        cmd_iter = iter(["reaches", "quit"])
+        session = DraftSession(
+            engine=engine,
+            players=ADP_PLAYERS,
+            console=test_console,
+            recommend_fn=lambda state, *, limit=5: [],
+            input_fn=lambda _prompt="": next(cmd_iter),
+        )
+        session.run()
+        output = buf.getvalue()
+        assert "Salvador Perez" in output
+        assert "Reach Picks" in output
+
+
+class TestFallingAlerts:
+    """Test automatic falling player alerts after picks."""
+
+    def test_alert_fires_after_pick(self) -> None:
+        """Alerts should appear after a pick when significant fallers exist."""
+        filler_players = [_make_player(100 + i, f"Filler {i}", "OF", 1.0, adp_overall=50.0 + i) for i in range(25)]
+        players = [
+            _make_player(10, "Alert Faller", "OF", 30.0, adp_overall=1.0),
+            *filler_players,
+            _make_player(50, "Pickable", "1B", 5.0, adp_overall=90.0),
+        ]
+        config = DraftConfig(
+            teams=2,
+            roster_slots={"OF": 15, "1B": 5, "UTIL": 5},
+            format=DraftFormat.SNAKE,
+            user_team=1,
+            season=2026,
+        )
+        engine = _make_adp_engine(players, config, filler_count=22)
+
+        # Now pick 23 — Alert Faller (adp=1, value=30, rank=1) should trigger alert
+        # pick 23 with 2 teams: round=11 (odd), pos=0 → team=2-0=2... let's check
+        # Actually the REPL pick uses team_on_clock for snake
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        cmd_iter = iter(["pick Pickable 1B", "quit"])
+        session = DraftSession(
+            engine=engine,
+            players=players,
+            console=test_console,
+            recommend_fn=lambda state, *, limit=5: [],
+            input_fn=lambda _prompt="": next(cmd_iter),
+        )
+        session.run()
+        output = buf.getvalue()
+        assert "Falling" in output
+        assert "Alert Faller" in output
+
+    def test_no_alert_when_no_significant_fallers(self) -> None:
+        """No alerts when no players have fallen significantly."""
+        buf = StringIO()
+        test_console = Console(file=buf, force_terminal=True, width=120)
+        engine = DraftEngine()
+        engine.start(ADP_PLAYERS, HIGH_PICK_CONFIG)
+
+        cmd_iter = iter(["pick Mike Trout OF", "quit"])
+        session = DraftSession(
+            engine=engine,
+            players=ADP_PLAYERS,
+            console=test_console,
+            recommend_fn=lambda state, *, limit=5: [],
+            input_fn=lambda _prompt="": next(cmd_iter),
+        )
+        session.run()
+        output = buf.getvalue()
+        # At pick 1, no one has fallen past threshold of 20
+        assert "⚡" not in output

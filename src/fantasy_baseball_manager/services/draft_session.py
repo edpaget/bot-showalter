@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
 from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord
+from fantasy_baseball_manager.services.adp_arbitrage import detect_falling_players, detect_reaches
 from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
 from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
@@ -91,6 +92,16 @@ class NeedsCommand: ...
 
 
 @dataclass(frozen=True)
+class FallsCommand:
+    position: str | None = None
+    threshold: int | None = None
+
+
+@dataclass(frozen=True)
+class ReachesCommand: ...
+
+
+@dataclass(frozen=True)
 class QuitCommand: ...
 
 
@@ -106,6 +117,8 @@ Command = (
     | ReportCommand
     | BalanceCommand
     | NeedsCommand
+    | FallsCommand
+    | ReachesCommand
     | HelpCommand
     | QuitCommand
 )
@@ -154,6 +167,10 @@ def parse_command(
         return SaveCommand()
     if verb == "report":
         return ReportCommand()
+    if verb == "falls":
+        return _parse_falls(args, valid_positions)
+    if verb == "reaches":
+        return ReachesCommand()
     if verb == "help":
         return HelpCommand()
     if verb in ("quit", "exit"):
@@ -205,6 +222,28 @@ def _parse_pick(
 
     query = " ".join(remaining)
     return PickCommand(query=query, position=position, price=price)
+
+
+def _parse_falls(
+    args: list[str],
+    valid_positions: set[str],
+) -> FallsCommand:
+    """Parse the arguments after 'falls', extracting optional position and threshold."""
+    position: str | None = None
+    threshold: int | None = None
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--threshold" and i + 1 < len(args) and args[i + 1].isdigit():
+            threshold = int(args[i + 1])
+            i += 2
+        else:
+            pos = _match_position(args[i], valid_positions)
+            if pos is not None:
+                position = pos
+            i += 1
+
+    return FallsCommand(position=position, threshold=threshold)
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +409,8 @@ Commands:
   need                              — Show unfilled roster slots
   balance                           — Show category projections and strengths
   needs                             — Show category needs and recommendations
+  falls [position] [--threshold N]  — Show falling players (ADP arbitrage)
+  reaches                           — Show reach picks from the draft log
   roster                            — Show your roster
   pool [position]                   — Show available players
   status                            — Show current draft status
@@ -531,6 +572,7 @@ class DraftSession:
 
         if ingested:
             self._show_recommendations()
+            self._show_falling_alerts()
 
     def _handle_command(self, cmd: Command) -> bool:
         """Dispatch a command. Returns False to quit."""
@@ -560,6 +602,10 @@ class DraftSession:
             self._handle_balance()
         elif isinstance(cmd, NeedsCommand):
             self._handle_needs()
+        elif isinstance(cmd, FallsCommand):
+            self._handle_falls(cmd)
+        elif isinstance(cmd, ReachesCommand):
+            self._handle_reaches()
         return True
 
     # --- Command handlers ---
@@ -616,6 +662,8 @@ class DraftSession:
         self._show_category_summary()
         # Auto-show recommendations after pick
         self._show_recommendations()
+        # Show falling player alerts
+        self._show_falling_alerts()
 
     def _handle_undo(self) -> None:
         try:
@@ -758,6 +806,56 @@ class DraftSession:
                     f" [yellow](hurts {', '.join(rec.tradeoff_categories)})[/yellow]" if rec.tradeoff_categories else ""
                 )
                 self.console.print(f"    {rec.player_name} (+{rec.category_impact:.1f}){tradeoff}")
+
+    def _handle_falls(self, cmd: FallsCommand) -> None:
+        state = self.engine.state
+        available = list(state.available_pool.values())
+        threshold = cmd.threshold if cmd.threshold is not None else 10
+        falling = detect_falling_players(state.current_pick, available, threshold=threshold, limit=20)
+        if cmd.position:
+            falling = [f for f in falling if f.position == cmd.position]
+        if not falling:
+            pos_msg = f" at {cmd.position}" if cmd.position else ""
+            self.console.print(f"No falling players detected{pos_msg}.")
+            return
+        self.console.print("[bold]Falling Players (ADP Arbitrage):[/bold]")
+        for i, f in enumerate(falling, 1):
+            self.console.print(
+                f"  {i:>2}. {f.player_name:<22} {f.position:<4} "
+                f"ADP {f.adp:>5.1f}  slip +{f.picks_past_adp:.0f}  "
+                f"val ${f.value:.1f}  score {f.arbitrage_score:.1f}"
+            )
+
+    def _handle_reaches(self) -> None:
+        state = self.engine.state
+        adp_lookup: dict[int, float] = {}
+        for p in self.players:
+            if p.adp_overall is not None:
+                adp_lookup[p.player_id] = p.adp_overall
+        reaches = detect_reaches(state.picks, adp_lookup, threshold=10)
+        if not reaches:
+            self.console.print("No reach picks detected.")
+            return
+        self.console.print("[bold]Reach Picks:[/bold]")
+        for r in reaches:
+            self.console.print(
+                f"  {r.player_name:<22} {r.position:<4} "
+                f"ADP {r.adp:>5.1f}  picked #{r.pick_number}  "
+                f"+{r.picks_ahead_of_adp:.0f} ahead  team {r.drafter_team}"
+            )
+
+    def _show_falling_alerts(self) -> None:
+        """Show brief alerts for significant fallers after a pick."""
+        state = self.engine.state
+        available = list(state.available_pool.values())
+        falling = detect_falling_players(state.current_pick, available, threshold=20, limit=20)
+        # Filter to high-value players only (top 50 by value rank)
+        alerts = [f for f in falling if f.value_rank <= 50][:3]
+        for f in alerts:
+            self.console.print(
+                f"[bold yellow]⚡ Falling: {f.player_name} ({f.position}) "
+                f"— ADP {f.adp:.0f}, now pick {f.current_pick} (+{f.picks_past_adp:.0f})[/bold yellow]"
+            )
 
     def _show_category_summary(self) -> None:  # pragma: no cover
         """Show a one-line compact category summary after a pick."""

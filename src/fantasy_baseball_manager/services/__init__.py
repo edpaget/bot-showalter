@@ -56,7 +56,13 @@ from fantasy_baseball_manager.services.draft_plan import (
 )
 from fantasy_baseball_manager.services.draft_recommender import recommend
 from fantasy_baseball_manager.services.draft_report import draft_report
-from fantasy_baseball_manager.services.draft_session import DraftSession, load_draft, load_draft_from_db
+from fantasy_baseball_manager.services.draft_session import (
+    DraftSession,
+    FallsCommand,
+    ReachesCommand,
+    load_draft,
+    load_draft_from_db,
+)
 from fantasy_baseball_manager.services.draft_state import (
     DraftConfig,
     DraftEngine,
@@ -278,6 +284,7 @@ __all__ = [
     "DraftPick",
     "DraftSession",
     "DraftState",
+    "FallsCommand",
     "FallbackBestValueRule",
     "LeagueEnvironmentService",
     "PerformanceReportService",
@@ -294,6 +301,7 @@ __all__ = [
     "MarginalValueResult",
     "QuickEvalResult",
     "RandomBot",
+    "ReachesCommand",
     "TargetDelta",
     "compare_feature_sets",
     "marginal_value",

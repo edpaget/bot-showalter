@@ -9,7 +9,7 @@ This roadmap depends on: draft state engine (done), ADP integration (done), draf
 | Phase | Status |
 |-------|--------|
 | 1 — Falling player detection | done (2026-03-09) |
-| 2 — Draft REPL integration | not started |
+| 2 — Draft REPL integration | done (2026-03-09) |
 | 3 — Web UI integration | not started |
 
 ## Phase 1: Falling player detection
