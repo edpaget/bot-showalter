@@ -9,7 +9,7 @@ This roadmap attacks valuation accuracy through a series of independent correcti
 | Phase | Status |
 |-------|--------|
 | 1 — Fix injury discount PA/IP threshold floor | done (2026-03-08) |
-| 2 — Injury discount holdout validation | in progress |
+| 2 — Injury discount holdout validation | done (2026-03-08), no-go |
 | 3 — Breakout/bust valuation integration | not started |
 | 4 — Combined adjustment validation | not started |
 
@@ -77,6 +77,41 @@ Our initial evaluation (2026-03-07) showed injury adjustment improving 2024 MAE 
 ### Gate: go/no-go
 
 **Go** if injury adjustment improves MAE on at least one holdout season without degrading ρ by more than 0.01 on either season. **No-go** if MAE worsens on both seasons or ρ drops significantly. If no-go, skip phase 4 (combined) and proceed directly to phase 5 (SGP).
+
+### Results (2026-03-08)
+
+**Note:** Phase 1's `_floor_playing_time` had a secondary bug — it floored PA/IP for *all* players below threshold, not just those pushed below by the injury discount. This inflated the injury-risk pool to ~3× the baseline. Fixed in this phase by checking original (pre-discount) PA/IP before flooring.
+
+#### Summary table
+
+| System | Season | n | MAE | ρ | ΔMAE | Δρ |
+|--------|--------|---|-----|---|------|-----|
+| zar (baseline) | 2024 | 883 | 3.92 | 0.7139 | — | — |
+| zar-injury-risk (5yr) | 2024 | 883 | 3.88 | 0.7011 | −0.04 | −0.0128 |
+| zar-injury-risk (3yr) | 2024 | 883 | 3.87 | 0.7054 | −0.05 | −0.0085 |
+| zar (baseline) | 2025 | 769 | 4.31 | 0.6941 | — | — |
+| zar-injury-risk (5yr) | 2025 | 769 | 4.53 | 0.6828 | +0.22 | −0.0113 |
+| zar-injury-risk (3yr) | 2025 | 769 | 4.45 | 0.6873 | +0.14 | −0.0068 |
+
+#### Top mispricings analysis
+
+**2024:** The injury discount slightly reduced some pitcher overvaluations (Kevin Gausman $74→$49, Pablo López $62→$51) but introduced new distortions — it pushed Shohei Ohtani from $16→$3 (actual $73) and Aaron Judge from $55→$33 (actual $99), worsening undervaluation of elite batters who happen to have injury history. The biggest mispricings (Spencer Strider $102→$0, Ronald Acuña $95→$0) were unchanged since those are healthy-season projection errors, not injury-related.
+
+**2025:** The discount amplified pitcher overvaluation rather than reducing it — Logan Gilbert rose from $60→$85 (actual $12), and new entries like Ryan Walker ($44→$0) and Emmanuel Clase ($40→$0) appeared in the top mispricings. The discount appears to redistribute value among pitchers rather than systematically reducing overvaluation.
+
+#### seasons_back comparison
+
+The 3-year lookback consistently outperforms the 5-year lookback: lower MAE on both seasons and smaller ρ degradation. If the injury discount were adopted, 3 years would be the preferred window — more recent injury history is more predictive.
+
+#### Decision: **No-go**
+
+The injury discount fails the gate criteria:
+
+1. **MAE worsens on 2025** (+0.14 to +0.22), indicating the discount is not a reliable improvement.
+2. **ρ drops beyond the 0.01 threshold** on 2024 with 5yr lookback (−0.0128) and on 2025 with both lookbacks (−0.0113 / −0.0068 barely under threshold).
+3. **Root cause:** The simple multiplicative discount (scale counting stats by health fraction) is too blunt — it penalizes batters with minor injury history (Ohtani, Judge) as much as injury-prone pitchers, distorting relative rankings without systematically improving accuracy.
+
+The injury discount should not be adopted as-is. Alternative approaches (replacement-level padding via `zar-replacement-padded`, or position-specific injury adjustments) may fare better. Phase 4 (combined validation) should proceed without `zar-injury-risk` unless a redesigned discount is developed.
 
 ---
 

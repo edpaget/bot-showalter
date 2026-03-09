@@ -18,19 +18,40 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import LeagueSettings, Projection
 
 
-def _floor_playing_time(projections: list[Projection], min_pa: int, min_ip: int) -> list[Projection]:
-    """Floor discounted PA/IP at eligibility thresholds.
+def _floor_playing_time(
+    discounted: list[Projection],
+    originals: list[Projection],
+    min_pa: int,
+    min_ip: int,
+) -> list[Projection]:
+    """Floor discounted PA/IP at eligibility thresholds for originally-eligible players.
 
-    Prevents borderline players from being excluded by ZarModel's min_pa/min_ip
-    filter after injury discounting reduces their playing time below the threshold.
+    Only applies to players whose original (pre-discount) PA/IP met the threshold.
+    Players who were already below the threshold before discounting are left unchanged
+    so ZarModel's filter correctly excludes them.
     """
+    original_pa: dict[int, float] = {}
+    original_ip: dict[int, float] = {}
+    for p in originals:
+        if p.player_type == "batter":
+            original_pa[p.player_id] = float(p.stat_json.get("pa", 0))
+        elif p.player_type == "pitcher":
+            original_ip[p.player_id] = float(p.stat_json.get("ip", 0))
     result: list[Projection] = []
-    for proj in projections:
+    for proj in discounted:
         stats = proj.stat_json
-        if proj.player_type == "batter" and stats.get("pa", 0) < min_pa:
+        if (
+            proj.player_type == "batter"
+            and original_pa.get(proj.player_id, 0) >= min_pa
+            and stats.get("pa", 0) < min_pa
+        ):
             stats = {**stats, "pa": min_pa}
             proj = dataclasses.replace(proj, stat_json=stats)
-        elif proj.player_type == "pitcher" and stats.get("ip", 0) < min_ip:
+        elif (
+            proj.player_type == "pitcher"
+            and original_ip.get(proj.player_id, 0) >= min_ip
+            and stats.get("ip", 0) < min_ip
+        ):
             stats = {**stats, "ip": min_ip}
             proj = dataclasses.replace(proj, stat_json=stats)
         result.append(proj)
@@ -104,7 +125,7 @@ class ZarInjuryRiskModel:
         league: LeagueSettings = config.model_params["league"]
         min_pa = league.eligibility.min_pa or 1
         min_ip = league.eligibility.min_ip or 1
-        discounted = _floor_playing_time(discounted, min_pa, min_ip)
+        discounted = _floor_playing_time(discounted, projections, min_pa, min_ip)
 
         # 3. Build config for ZarModel with injury-risk system name and discounted projections
         zar_params = dict(config.model_params)
