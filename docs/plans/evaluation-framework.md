@@ -15,7 +15,7 @@ This roadmap addresses both problems: making the evaluator filter to meaningful 
 | 1 — Fantasy-relevant filtering | done (2025-03-09) |
 | 2 — Independent evaluation targets | done (2025-03-09) |
 | 3 — Batter/pitcher stratification and tail accuracy | done (2025-03-09) |
-| 4 — Compare command and default-to-relevant | in progress |
+| 4 — Compare command and default-to-relevant | done (2025-03-09) |
 
 ## Phase 1: Fantasy-relevant filtering for valuation evaluation
 
