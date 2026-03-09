@@ -56,6 +56,7 @@ from fantasy_baseball_manager.services import (
     set_keeper_cost,
     sync_league_metadata,
     sync_transactions,
+    walk_renewal_chain,
 )
 from fantasy_baseball_manager.services import (
     draft_report as compute_draft_report,
@@ -154,10 +155,18 @@ def yahoo_sync(  # pragma: no cover
 def yahoo_standings(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
+    all_seasons: Annotated[bool, typer.Option("--all-seasons", help="Import all historical seasons")] = False,
+    since: Annotated[
+        int | None, typer.Option("--since", help="Earliest season to import (use with --all-seasons)")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Fetch and display league standings (team category totals)."""
+    if since is not None and not all_seasons:
+        print_error("--since requires --all-seasons")
+        raise typer.Exit(code=1)
+
     if season is None:
         season = current_season()
     try:
@@ -179,6 +188,20 @@ def yahoo_standings(  # pragma: no cover
 
     league_config = config.leagues[league]
 
+    if all_seasons:
+        _standings_all_seasons(league, league_config, data_dir, config_dir, season, since)
+    else:
+        _standings_single_season(league, league_config, data_dir, config_dir, season)
+
+
+def _standings_single_season(  # pragma: no cover
+    league_name: str,
+    league_config: Any,
+    data_dir: str,
+    config_dir: str,
+    season: int,
+) -> None:
+    """Fetch and display standings for a single season."""
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
         source = YahooStandingsSource(ctx.client)
@@ -196,7 +219,7 @@ def yahoo_standings(  # pragma: no cover
     # Build category columns from the first team's stat keys
     categories = sorted(team_stats[0].stat_values.keys())
 
-    table = Table(title=f"Standings — {league} {season}")
+    table = Table(title=f"Standings — {league_name} {season}")
     table.add_column("Rank", justify="right")
     table.add_column("Team")
     for cat in categories:
@@ -210,6 +233,58 @@ def yahoo_standings(  # pragma: no cover
         table.add_row(*row)
 
     console.print(table)
+
+
+def _standings_all_seasons(  # pragma: no cover
+    league_name: str,
+    league_config: Any,
+    data_dir: str,
+    config_dir: str,
+    season: int,
+    since: int | None,
+) -> None:
+    """Discover all historical seasons via renewal chain and import standings."""
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        # Resolve current-season league key
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
+        league_source = YahooLeagueSource(ctx.client)
+
+        # Walk the renewal chain
+        chain = walk_renewal_chain(
+            league_source=league_source,
+            league_repo=ctx.yahoo_league_repo,
+            team_repo=ctx.yahoo_team_repo,
+            league_key=league_key,
+            since=since,
+        )
+        ctx.conn.commit()
+
+        if not chain:
+            console.print("[yellow]No seasons discovered.[/yellow]")
+            return
+
+        # Fetch standings for each discovered season
+        standings_source = YahooStandingsSource(ctx.client)
+        summary_rows: list[tuple[int, str, int]] = []
+
+        for lk, yr in chain:
+            team_stats = standings_source.fetch(lk, yr)
+            for ts in team_stats:
+                ctx.yahoo_team_stats_repo.upsert(ts)
+            summary_rows.append((yr, lk, len(team_stats)))
+
+        ctx.conn.commit()
+
+    # Display summary
+    summary = Table(title=f"Standings Import — {league_name}")
+    summary.add_column("Season", justify="right")
+    summary.add_column("League Key")
+    summary.add_column("Teams", justify="right")
+
+    for yr, lk, count in sorted(summary_rows):
+        summary.add_row(str(yr), lk, str(count))
+
+    console.print(summary)
 
 
 @yahoo_app.command("map-player")

@@ -199,6 +199,7 @@ from fantasy_baseball_manager.services.regression_gate import (
     GateSegmentResult,
     RegressionGateRunner,
 )
+from fantasy_baseball_manager.services.renewal_chain import walk_renewal_chain
 from fantasy_baseball_manager.services.replacement_padding import (
     blend_projections,
     blend_stat_line,
@@ -434,6 +435,7 @@ __all__ = [
     "build_yahoo_draft_setup",
     "sync_league_metadata",
     "sync_transactions",
+    "walk_renewal_chain",
     "FullValidationConfig",
     "FullValidationRunner",
     "PreflightResult",
