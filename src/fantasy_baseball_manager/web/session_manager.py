@@ -91,6 +91,8 @@ class SessionManager:
             status="in_progress",
             created_at=now,
             updated_at=now,
+            system=system,
+            version=version,
         )
         session_id = self._repo.create_session(record)
         self._engines[session_id] = engine
@@ -105,7 +107,7 @@ class SessionManager:
             msg = f"Draft session {session_id} not found"
             raise ValueError(msg)
 
-        players = self._build_player_pool(record.season, "zar", "1.0")
+        players = self._build_player_pool(record.season, record.system, record.version)
         engine = load_draft_from_db(session_id, players, self._repo)
         self._engines[session_id] = engine
         return engine

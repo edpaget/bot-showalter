@@ -205,6 +205,34 @@ class TestCountPicks:
         assert repo.count_picks(session_id) == 3
 
 
+class TestCreateAndLoadSessionWithSystemVersion:
+    def test_roundtrip_with_custom_system_version(self, repo: SqliteDraftSessionRepo) -> None:
+        record = _make_record(system="custom", version="2.0")
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.system == "custom"
+        assert loaded.version == "2.0"
+
+    def test_defaults_to_zar_1_0(self, repo: SqliteDraftSessionRepo) -> None:
+        record = _make_record()
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.system == "zar"
+        assert loaded.version == "1.0"
+
+    def test_list_sessions_includes_system_version(self, repo: SqliteDraftSessionRepo) -> None:
+        repo.create_session(_make_record(system="custom", version="2.0"))
+
+        sessions = repo.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].system == "custom"
+        assert sessions[0].version == "2.0"
+
+
 class TestLoadSessionNotFound:
     def test_returns_none(self, repo: SqliteDraftSessionRepo) -> None:
         assert repo.load_session(9999) is None

@@ -13,6 +13,8 @@ class DraftSessionRecord:
     status: str  # "in_progress" | "complete" | "abandoned"
     created_at: str
     updated_at: str
+    system: str = "zar"
+    version: str = "1.0"
     id: int | None = None
 
 

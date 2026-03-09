@@ -190,6 +190,8 @@ class DraftSessionSummaryType:
     pick_count: int
     created_at: str
     updated_at: str
+    system: str
+    version: str
 
     @staticmethod
     def from_domain(record: DraftSessionRecord, pick_count: int) -> DraftSessionSummaryType:
@@ -204,6 +206,8 @@ class DraftSessionSummaryType:
             pick_count=pick_count,
             created_at=record.created_at,
             updated_at=record.updated_at,
+            system=record.system,
+            version=record.version,
         )
 
 

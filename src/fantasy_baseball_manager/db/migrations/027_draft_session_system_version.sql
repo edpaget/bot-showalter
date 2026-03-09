@@ -1,0 +1,2 @@
+ALTER TABLE draft_session ADD COLUMN system TEXT NOT NULL DEFAULT 'zar';
+ALTER TABLE draft_session ADD COLUMN version TEXT NOT NULL DEFAULT '1.0';
