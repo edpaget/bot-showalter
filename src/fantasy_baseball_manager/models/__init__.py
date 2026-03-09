@@ -29,6 +29,7 @@ from fantasy_baseball_manager.models import (
     playing_time,  # noqa: F401
     statcast_gbm,  # noqa: F401
     zar,  # noqa: F401
+    zar_distributional,  # noqa: F401
     zar_injury_risk,  # noqa: F401
     zar_replacement_padded,  # noqa: F401
 )
