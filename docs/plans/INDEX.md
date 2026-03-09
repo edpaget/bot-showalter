@@ -17,8 +17,10 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | phase 1 done | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | phases 1-2 done | mock-draft-simulator (done), live-draft-tracker (done) |
-| [Evaluation Framework](evaluation-framework.md) | 3 | not started | none |
+| [Evaluation Framework](evaluation-framework.md) | 4 | not started | none |
+| [League Standings Import](league-standings-import.md) | 2 | not started | none |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
+| [Valuation Reform](valuation-reform.md) | 4 | not started | league-standings-import, evaluation-framework phase 2 |
 
 ## Completed Roadmaps
 
