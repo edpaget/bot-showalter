@@ -21,6 +21,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phase 1 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
 | [Valuation Version Consistency](valuation-version-consistency.md) | 2 | phase 1 done | none |
+| [CLI Consistency](cli-consistency.md) | 4 | not started | none |
 
 ## Completed Roadmaps
 
