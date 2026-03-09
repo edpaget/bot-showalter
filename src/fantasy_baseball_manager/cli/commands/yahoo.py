@@ -8,6 +8,7 @@ from typing import Annotated, Any
 import typer
 from rich.table import Table
 
+from fantasy_baseball_manager.cli._defaults import load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
     console,
     print_error,
@@ -466,16 +467,21 @@ def yahoo_draft_live(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     league_name: Annotated[str, typer.Option("--league-config", help="League name from fbm.toml")] = "default",
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     poll_interval: Annotated[float, typer.Option("--poll-interval", help="Poll interval in seconds")] = 5.0,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Start a live Yahoo draft session with auto-pick ingestion."""
+    defaults = load_cli_defaults()
     if season is None:
-        season = current_season()
+        season = defaults.season
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     try:
         config = load_yahoo_config(Path(config_dir))
     except YahooConfigError as exc:
@@ -884,8 +890,8 @@ def yahoo_keeper_costs(  # pragma: no cover
 def yahoo_keeper_decisions(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     threshold: Annotated[float, typer.Option("--threshold", help="Minimum surplus for keep recommendation")] = 0.0,
     decay: Annotated[float, typer.Option("--decay", help="Decay factor for multi-year surplus")] = 0.85,
     cost_floor: Annotated[float, typer.Option("--cost-floor", help="Minimum keeper cost for FA pickups")] = 1.0,
@@ -897,8 +903,13 @@ def yahoo_keeper_decisions(  # pragma: no cover
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Show keeper decisions ranked by surplus value using Yahoo-derived costs."""
+    defaults = load_cli_defaults()
     if season is None:
-        season = current_season()
+        season = defaults.season
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 
@@ -1046,16 +1057,21 @@ def yahoo_keeper_decisions(  # pragma: no cover
 def yahoo_keeper_league(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     max_keepers_opt: Annotated[int | None, typer.Option("--max-keepers", help="Override max keepers")] = None,
     top_targets: Annotated[int, typer.Option("--top-targets", help="Number of trade targets to show")] = 15,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Show league-wide keeper projections, category comparison, and trade targets."""
+    defaults = load_cli_defaults()
     if season is None:
-        season = current_season()
+        season = defaults.season
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 
@@ -1128,16 +1144,21 @@ def yahoo_keeper_league(  # pragma: no cover
 def yahoo_draft_needs(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     max_keepers_opt: Annotated[int | None, typer.Option("--max-keepers", help="Override max keepers")] = None,
     top: Annotated[int, typer.Option("--top", help="Number of recommendations per category")] = 5,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Show category gaps and draft recommendations based on projected keepers."""
+    defaults = load_cli_defaults()
     if season is None:
-        season = current_season()
+        season = defaults.season
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 

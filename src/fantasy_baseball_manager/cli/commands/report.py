@@ -3,6 +3,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import load_cli_defaults
 from fantasy_baseball_manager.cli._helpers import parse_system_version
 from fantasy_baseball_manager.cli._output import (
     console,
@@ -225,8 +226,8 @@ def report_residual_analysis(  # pragma: no cover
 @report_app.command("value-over-adp")
 def report_value_over_adp(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     player_type: Annotated[str | None, typer.Option("--player-type")] = None,
     position: Annotated[str | None, typer.Option("--position")] = None,
@@ -234,6 +235,11 @@ def report_value_over_adp(  # pragma: no cover
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show value-over-ADP report: buy targets, avoids, and sleepers."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     with build_adp_report_context(data_dir) as ctx:
         report = ctx.service.compute_value_over_adp(
             season,
@@ -340,8 +346,8 @@ def report_projection_confidence(  # pragma: no cover
 def report_variance_targets(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     min_systems: Annotated[int, typer.Option("--min-systems")] = 3,
     player_type: Annotated[str | None, typer.Option("--player-type")] = None,
@@ -350,6 +356,11 @@ def report_variance_targets(  # pragma: no cover
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show variance targets: players grouped into draft-actionable classification buckets."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
 
     with build_confidence_report_context(data_dir) as ctx:
@@ -529,15 +540,20 @@ def report_games_lost(
 @report_app.command("injury-adjusted-values")
 def report_injury_adjusted_values(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Projection season year")],
-    system: Annotated[str, typer.Option("--system", help="Original valuation system")] = "zar",
+    system: Annotated[str | None, typer.Option("--system", help="Original valuation system")] = None,
     adjusted_system: Annotated[
         str, typer.Option("--adjusted-system", help="Injury-adjusted valuation system")
     ] = "zar-injury-risk",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show biggest value changes from injury adjustment."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     with build_valuations_context(data_dir) as ctx:
         deltas = ctx.lookup_service.deltas(season, system, adjusted_system, version=version)
 

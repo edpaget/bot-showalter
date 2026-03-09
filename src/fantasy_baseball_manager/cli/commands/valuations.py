@@ -3,6 +3,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
     print_player_valuations,
     print_valuation_eval_result,
@@ -54,13 +55,18 @@ def valuations_rankings(  # pragma: no cover
 def valuations_evaluate(
     season: Annotated[int, typer.Option("--season", help="Season year")],
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
-    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     top: Annotated[int | None, typer.Option("--top", help="Show top N mispricings")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Evaluate valuation accuracy against end-of-season actuals."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_valuation_eval_context(data_dir) as ctx:
-        result = ctx.evaluator.evaluate(system or "zar", version or "1.0", season, league)
+        result = ctx.evaluator.evaluate(system, version, season, league)
     print_valuation_eval_result(result, top=top)

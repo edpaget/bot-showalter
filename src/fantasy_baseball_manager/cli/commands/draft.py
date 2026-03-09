@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 from rich.table import Table
 
+from fantasy_baseball_manager.cli._defaults import load_cli_defaults
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.cli._output import (
     console,
@@ -33,7 +34,7 @@ from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
-from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade, Valuation, current_season
+from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade, Valuation
 from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo
 from fantasy_baseball_manager.services import (
@@ -215,8 +216,8 @@ def _fetch_draft_board_data(
 @draft_app.command("board")
 def draft_board(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     player_type: Annotated[str | None, typer.Option("--player-type", help="Filter by player type")] = None,
     position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
@@ -228,6 +229,11 @@ def draft_board(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display the draft board in the terminal."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     board, _league = _fetch_draft_board_data(
         season, system, version, league_name, provider, data_dir, player_type, position, top, exclude_keepers
     )
@@ -239,8 +245,8 @@ def draft_export(
     season: Annotated[int, typer.Option("--season", help="Season year")],
     output: Annotated[Path, typer.Option("--output", help="Output file path")],
     fmt: Annotated[str, typer.Option("--format", help="Output format: csv or html")] = "csv",
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     player_type: Annotated[str | None, typer.Option("--player-type", help="Filter by player type")] = None,
     position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
@@ -252,6 +258,11 @@ def draft_export(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Export the draft board to a file (CSV or HTML)."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     board, league = _fetch_draft_board_data(
         season, system, version, league_name, provider, data_dir, player_type, position, top, exclude_keepers
     )
@@ -266,8 +277,8 @@ def draft_export(
 @draft_app.command("live")
 def draft_live(  # pragma: no cover
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     player_type: Annotated[str | None, typer.Option("--player-type", help="Filter by player type")] = None,
     position: Annotated[str | None, typer.Option("--position", help="Filter by position")] = None,
@@ -278,6 +289,11 @@ def draft_live(  # pragma: no cover
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Start a live draft server with auto-refreshing HTML board."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
@@ -309,8 +325,8 @@ def draft_start(  # pragma: no cover
     teams: Annotated[int, typer.Option("--teams", help="Number of teams in league")],
     slot: Annotated[int, typer.Option("--slot", help="Your draft slot (1-based)")],
     fmt: Annotated[str, typer.Option("--format", help="Draft format: snake or auction")] = "snake",
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     budget: Annotated[int, typer.Option("--budget", help="Auction budget per team")] = 260,
@@ -319,6 +335,11 @@ def draft_start(  # pragma: no cover
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Start an interactive draft session (REPL)."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
 
     with build_draft_board_context(data_dir) as ctx:
@@ -472,15 +493,20 @@ def draft_delete(  # pragma: no cover
 def draft_report_cmd(
     draft_file: Annotated[Path, typer.Argument(help="Path to saved draft JSON file")],
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Generate a post-draft analysis report from a saved draft file."""
+    defaults = load_cli_defaults()
     if season is None:
-        season = current_season()
+        season = defaults.season
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
 
     with build_draft_board_context(data_dir) as ctx:
@@ -509,8 +535,8 @@ def draft_report_cmd(
 @draft_app.command("tiers")
 def draft_tiers(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     method: Annotated[str, typer.Option("--method", help="Tiering method: gap or jenks")] = "gap",
     max_tiers: Annotated[int, typer.Option("--max-tiers", help="Max tiers per position")] = 5,
     position: Annotated[str | None, typer.Option("--position", help="Filter to a single position")] = None,
@@ -521,6 +547,11 @@ def draft_tiers(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display position-grouped tier assignments."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
@@ -545,13 +576,18 @@ def draft_tiers(
 @draft_app.command("tier-summary")
 def draft_tier_summary(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     method: Annotated[str, typer.Option("--method", help="Tiering method: gap or jenks")] = "gap",
     max_tiers: Annotated[int, typer.Option("--max-tiers", help="Max tiers per position")] = 5,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display a cross-position tier summary matrix."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
 
@@ -563,8 +599,8 @@ def draft_tier_summary(
 @draft_app.command("budget")
 def budget_command(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     strategy: Annotated[str, typer.Option("--strategy", help="balanced or stars_and_scrubs")] = "balanced",
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     method: Annotated[str, typer.Option("--method", help="Tiering method: gap or jenks")] = "gap",
@@ -572,6 +608,11 @@ def budget_command(
     data_dir: _DataDirOpt = "./data",
 ) -> None:  # pragma: no cover
     """Compute optimal auction budget allocation across roster positions."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
@@ -605,8 +646,8 @@ def plan_command(
     season: Annotated[int, typer.Option("--season", help="Season year")],
     slot: Annotated[int, typer.Option("--slot", help="Your draft slot (1-indexed)")],
     teams: Annotated[int, typer.Option("--teams", help="Number of teams")] = 12,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     method: Annotated[str, typer.Option("--method", help="Tiering method: gap or jenks")] = "gap",
     max_tiers: Annotated[int, typer.Option("--max-tiers", help="Max tiers per position")] = 5,
@@ -616,6 +657,11 @@ def plan_command(
     data_dir: _DataDirOpt = "./data",
 ) -> None:  # pragma: no cover
     """Compute a round-by-round snake draft plan for a given draft slot."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
@@ -685,8 +731,8 @@ def simulate_command(
     season: Annotated[int, typer.Option("--season", help="Season year")],
     slot: Annotated[int, typer.Option("--slot", help="Your draft slot (1-indexed)")],
     simulations: Annotated[int, typer.Option("--simulations", help="Number of simulations")] = 1000,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     keepers: Annotated[str | None, typer.Option("--keepers", help="Your keepers: 'Name:pos,Name:pos'")] = None,
     league_keepers: Annotated[Path | None, typer.Option("--league-keepers", help="CSV of all league keepers")] = None,
@@ -695,6 +741,11 @@ def simulate_command(
     data_dir: _DataDirOpt = "./data",
 ) -> None:  # pragma: no cover
     """Run Monte Carlo draft simulations to estimate expected roster value."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
@@ -767,13 +818,18 @@ def draft_needs(
 @draft_app.command("pick-values")
 def draft_pick_values(
     season: Annotated[int, typer.Option("--season")],
-    system: Annotated[str, typer.Option("--system")] = "zar",
-    version: Annotated[str, typer.Option("--version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system")] = None,
+    version: Annotated[str | None, typer.Option("--version")] = None,
     provider: Annotated[str, typer.Option("--provider")] = "fantasypros",
     league_name: Annotated[str, typer.Option("--league")] = "default",
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display pick value curve mapping draft picks to expected player value."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
@@ -793,8 +849,8 @@ def draft_trade_picks(
     gives: Annotated[str, typer.Option("--gives", help="Comma-separated pick numbers")],
     receives: Annotated[str, typer.Option("--receives", help="Comma-separated pick numbers")],
     season: Annotated[int, typer.Option("--season")],
-    system: Annotated[str, typer.Option("--system")] = "zar",
-    version: Annotated[str, typer.Option("--version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system")] = None,
+    version: Annotated[str | None, typer.Option("--version")] = None,
     provider: Annotated[str, typer.Option("--provider")] = "fantasypros",
     league_name: Annotated[str, typer.Option("--league")] = "default",
     cascade: Annotated[bool, typer.Option("--cascade")] = False,
@@ -803,6 +859,11 @@ def draft_trade_picks(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Evaluate a draft pick trade by comparing expected value on each side."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     give_picks = [int(p.strip()) for p in gives.split(",")]
     receive_picks = [int(p.strip()) for p in receives.split(",")]
     trade = PickTrade(gives=give_picks, receives=receive_picks)
@@ -833,8 +894,8 @@ def draft_trade_picks(
 @draft_app.command("scarcity")
 def draft_scarcity(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     position: Annotated[str | None, typer.Option("--position", help="Filter to a single position")] = None,
     detail: Annotated[bool, typer.Option("--detail", help="Show full value curve instead of summary")] = False,
@@ -844,6 +905,11 @@ def draft_scarcity(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display positional scarcity analysis ranked by dropoff severity."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
@@ -870,8 +936,8 @@ def draft_scarcity(
 @draft_app.command("scarcity-rankings")
 def draft_scarcity_rankings(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     top: Annotated[int | None, typer.Option("--top", help="Show top N players")] = None,
     exclude_keepers: Annotated[
@@ -880,6 +946,11 @@ def draft_scarcity_rankings(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Display scarcity-adjusted player rankings."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_draft_board_context(data_dir) as ctx:
         valuations = ctx.valuation_repo.get_by_season(season, system=system, version=version)
@@ -932,8 +1003,8 @@ def draft_upgrades(
     roster_file: Annotated[
         Path | None, typer.Option("--roster-file", help="File with one player name per line")
     ] = None,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
     top: Annotated[int, typer.Option("--top", help="Show top N players")] = 10,
     opportunity_cost: Annotated[
@@ -947,6 +1018,11 @@ def draft_upgrades(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Re-rank available players by marginal value given your current roster."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     roster_names = _parse_roster_option(roster, roster_file)
     league = load_league(league_name, Path.cwd())
 
@@ -986,13 +1062,18 @@ def draft_position_check(
     roster_file: Annotated[
         Path | None, typer.Option("--roster-file", help="File with one player name per line")
     ] = None,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show per-position upgrade comparison for your current roster."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     roster_names = _parse_roster_option(roster, roster_file)
     league = load_league(league_name, Path.cwd())
 

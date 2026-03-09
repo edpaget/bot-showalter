@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
     print_batch_simulation_result,
     print_mock_draft_result,
@@ -53,8 +54,8 @@ def _make_opponent(rng: random.Random) -> DraftBot:
 @mock_app.command("single")
 def mock_single(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     teams: Annotated[int, typer.Option("--teams", help="Number of teams (0=use league)")] = 0,
@@ -64,6 +65,11 @@ def mock_single(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Run a single mock draft and print the draft log."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     board, league = _fetch_draft_board_data(season, system, version, league_name, provider, data_dir, None, None, None)
 
     if teams > 0:
@@ -89,8 +95,8 @@ def mock_single(
 @mock_app.command("batch")
 def mock_batch(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     teams: Annotated[int, typer.Option("--teams", help="Number of teams (0=use league)")] = 0,
@@ -101,6 +107,11 @@ def mock_batch(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Run batch mock draft simulations and print aggregate statistics."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     board, league = _fetch_draft_board_data(season, system, version, league_name, provider, data_dir, None, None, None)
 
     if teams > 0:
@@ -132,8 +143,8 @@ def mock_batch(
 @mock_app.command("compare")
 def mock_compare(
     season: Annotated[int, typer.Option("--season", help="Season year")],
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name")] = "default",
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
     teams: Annotated[int, typer.Option("--teams", help="Number of teams (0=use league)")] = 0,
@@ -146,6 +157,11 @@ def mock_compare(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Compare multiple strategies by running batch simulations for each."""
+    defaults = load_cli_defaults()
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     board, league = _fetch_draft_board_data(season, system, version, league_name, provider, data_dir, None, None, None)
 
     if teams > 0:

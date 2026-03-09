@@ -5,11 +5,11 @@ import typer
 import uvicorn
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.cli._defaults import load_cli_defaults
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
-from fantasy_baseball_manager.domain import current_season
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqliteYahooPlayerMapRepo, SqliteYahooTeamRepo
 from fantasy_baseball_manager.web import EventBus, SessionManager, YahooPollerManager, create_app
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
@@ -20,8 +20,8 @@ from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 
 def web(  # pragma: no cover
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
-    system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
-    version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
+    version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     host: Annotated[str, typer.Option("--host", help="Server host")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", help="Server port")] = 8000,
@@ -29,8 +29,13 @@ def web(  # pragma: no cover
     yahoo_config_dir: Annotated[str | None, typer.Option("--yahoo-config-dir", help="Yahoo config directory")] = None,
 ) -> None:
     """Start the GraphQL API server."""
+    defaults = load_cli_defaults()
     if season is None:
-        season = current_season()
+        season = defaults.season
+    if system is None:
+        system = defaults.system
+    if version is None:
+        version = defaults.version
     league = load_league(league_name, Path.cwd())
     conn = create_connection(Path(data_dir) / "fbm.db")
     provider = SingleConnectionProvider(conn)
