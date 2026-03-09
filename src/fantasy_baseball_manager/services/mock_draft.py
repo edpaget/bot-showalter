@@ -216,6 +216,7 @@ def run_batch_simulation(
         raise ValueError(msg)
 
     user_values: list[float] = []
+    user_rosters_all: list[list[DraftPick]] = []
     user_idx_per_sim: list[int] = []
     team_values_per_sim: list[list[float]] = []
     # player_id -> list of (round, pick) tuples when user drafted them
@@ -248,6 +249,7 @@ def run_batch_simulation(
         user_roster = result.rosters[user_idx]
         user_total = sum(p.value for p in user_roster)
         user_values.append(user_total)
+        user_rosters_all.append(list(user_roster))
 
         # Collect per-team total values
         team_totals = [sum(p.value for p in result.rosters[t]) for t in range(num_teams)]
@@ -342,4 +344,6 @@ def run_batch_simulation(
         summary=summary,
         player_frequencies=frequencies,
         strategy_comparisons=comparisons,
+        user_rosters=user_rosters_all,
+        user_roster_values=user_values,
     )

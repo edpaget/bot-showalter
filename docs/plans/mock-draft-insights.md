@@ -8,7 +8,7 @@ This roadmap depends on: mock draft simulator (done), draft state engine (done),
 
 | Phase | Status |
 |-------|--------|
-| 1 — Draft plan generation | not started |
+| 1 — Draft plan generation | done (2025-03-09) |
 | 2 — Availability windows | not started |
 | 3 — Recommender integration | not started |
 

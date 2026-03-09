@@ -38,6 +38,7 @@ from fantasy_baseball_manager.domain.draft_board import (
     DraftBoardRow,
     TierAssignment,
 )
+from fantasy_baseball_manager.domain.draft_plan import DraftPlan, DraftPlanTarget
 from fantasy_baseball_manager.domain.draft_recommendation import (
     Recommendation,
     RecommendationWeights,
@@ -362,6 +363,8 @@ __all__ = [
     "DispatchError",
     "apply_injury_discount",
     "discount_projections",
+    "DraftPlan",
+    "DraftPlanTarget",
     "DraftBoard",
     "DraftBoardRow",
     "DraftPick",

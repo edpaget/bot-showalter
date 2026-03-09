@@ -62,3 +62,5 @@ class BatchSimulationResult:
     summary: SimulationSummary
     player_frequencies: list[PlayerDraftFrequency]
     strategy_comparisons: list[StrategyComparison]
+    user_rosters: list[list[DraftPick]]
+    user_roster_values: list[float]
