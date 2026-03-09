@@ -42,6 +42,34 @@ When implementing from a roadmap, use the `/implement` skill (e.g., `/implement 
 4. Do not expand scope beyond the roadmap phase unless asked.
 5. After the phase lands, update plan tracking and merge back to main (see Worktree Workflow).
 
+## Layer Dependencies — Models Must Not Import Services
+
+The architecture enforces strict layer boundaries (see `docs/principles.md` §8). The most common mistake is a **model** importing a **service**. This is forbidden and caught by `tests/architecture/test_layer_dependencies.py`.
+
+**When a model needs functionality that lives in a service, follow this recipe:**
+
+1. **Define a Protocol** (or `Callable` type alias) describing the capability the model needs. Put it in the model's own package or in `domain/model_protocol.py` if it's shared. Keep it minimal — one method or `__call__`.
+2. **Accept the Protocol as a constructor parameter** on the model class.
+3. **Wire it in the composition root** (`cli/factory.py` or `analysis_container.py`). The composition root is the only place that imports both the concrete service and the model, and passes the service as the protocol-typed dependency.
+
+```python
+# In models/my_model/model.py — define what you need as a protocol
+class ScoreCalculator(Protocol):
+    def __call__(self, player_id: int, season: int) -> float: ...
+
+class MyModel:
+    def __init__(self, score_calculator: ScoreCalculator) -> None:
+        self._score_calculator = score_calculator
+
+# In cli/factory.py — wire the concrete service to the model
+from fantasy_baseball_manager.services.scoring import ScoringService
+model = MyModel(score_calculator=ScoringService(...))
+```
+
+**Never** add exclusions to `KNOWN_EXCEPTIONS` in the arch tests to work around this — the fix is always to introduce a Protocol and inject via the constructor.
+
+The same pattern applies to any layer boundary: services must not import CLI code, repos must not import services, etc. When in doubt, check the `FORBIDDEN_IMPORTS` dict in `tests/architecture/test_layer_dependencies.py`.
+
 ## Implementation Discipline
 
 When executing a plan (after plan-mode approval):
