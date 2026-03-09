@@ -78,12 +78,20 @@ export interface DraftBoardTableProps {
   season: number;
   system?: string;
   version?: string;
+  draftedPlayerIds?: Set<number>;
+  onDraft?: (playerId: number, position: string) => void;
+  sessionActive?: boolean;
 }
+
+type StatusFilter = "all" | "available" | "drafted";
 
 export function DraftBoardTable({
   season,
   system,
   version,
+  draftedPlayerIds,
+  onDraft,
+  sessionActive = false,
 }: DraftBoardTableProps) {
   const variables: BoardVars = { season };
   if (system != null) variables.system = system;
@@ -98,6 +106,7 @@ export function DraftBoardTable({
   const [positionFilter, setPositionFilter] = useState<string | null>(null);
   const [playerTypeFilter, setPlayerTypeFilter] = useState<PlayerTypeFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -122,9 +131,16 @@ export function DraftBoardTable({
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((r) => r.playerName.toLowerCase().includes(q));
     }
+    if (draftedPlayerIds && statusFilter !== "all") {
+      if (statusFilter === "available") {
+        filtered = filtered.filter((r) => !draftedPlayerIds.has(r.playerId));
+      } else {
+        filtered = filtered.filter((r) => draftedPlayerIds.has(r.playerId));
+      }
+    }
 
     return [...filtered].sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDir));
-  }, [data, sortKey, sortDir, positionFilter, playerTypeFilter, searchQuery]);
+  }, [data, sortKey, sortDir, positionFilter, playerTypeFilter, searchQuery, draftedPlayerIds, statusFilter]);
 
   if (loading) return <div className="p-4 text-gray-500">Loading board…</div>;
   if (error) return <div className="p-4 text-red-600">Error: {error.message}</div>;
@@ -139,7 +155,26 @@ export function DraftBoardTable({
           positionFilter={positionFilter}
           onPositionChange={setPositionFilter}
         />
-        <SearchInput value={searchQuery} onChange={setSearchQuery} />
+        <div className="flex gap-2 items-center">
+          {draftedPlayerIds && (
+            <div className="flex gap-1">
+              {(["all", "available", "drafted"] as StatusFilter[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={`px-2 py-1 text-xs rounded ${
+                    statusFilter === s
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {s === "all" ? "All" : s === "available" ? "Available" : "Drafted"}
+                </button>
+              ))}
+            </div>
+          )}
+          <SearchInput value={searchQuery} onChange={setSearchQuery} />
+        </div>
       </div>
 
       <div className="overflow-auto max-h-[calc(100vh-8rem)]">
@@ -158,32 +193,52 @@ export function DraftBoardTable({
                   )}
                 </th>
               ))}
+              {sessionActive && (
+                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left whitespace-nowrap">
+                  Action
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr
-                key={`${row.playerId}-${row.playerType}`}
-                style={{ backgroundColor: rowBackground(row) }}
-                className="hover:brightness-95"
-              >
-                <td className="border border-gray-200 px-2 py-1">{row.rank}</td>
-                <td className="border border-gray-200 px-2 py-1 whitespace-nowrap">
-                  {row.playerName}
-                </td>
-                <td className="border border-gray-200 px-2 py-1">{row.position.toUpperCase()}</td>
-                <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
-                <td className="border border-gray-200 px-2 py-1 font-mono">
-                  ${row.value.toFixed(1)}
-                </td>
-                <td className="border border-gray-200 px-2 py-1">
-                  {row.adpOverall != null ? row.adpOverall.toFixed(1) : ""}
-                </td>
-                <AdpDeltaCell delta={row.adpDelta} />
-                <BreakoutCell rank={row.breakoutRank} type="breakout" />
-                <BreakoutCell rank={row.bustRank} type="bust" />
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const isDrafted = draftedPlayerIds?.has(row.playerId) ?? false;
+              return (
+                <tr
+                  key={`${row.playerId}-${row.playerType}`}
+                  style={{ backgroundColor: rowBackground(row) }}
+                  className={`hover:brightness-95 ${isDrafted ? "opacity-40" : ""}`}
+                >
+                  <td className="border border-gray-200 px-2 py-1">{row.rank}</td>
+                  <td className="border border-gray-200 px-2 py-1 whitespace-nowrap">
+                    {row.playerName}
+                  </td>
+                  <td className="border border-gray-200 px-2 py-1">{row.position.toUpperCase()}</td>
+                  <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
+                  <td className="border border-gray-200 px-2 py-1 font-mono">
+                    ${row.value.toFixed(1)}
+                  </td>
+                  <td className="border border-gray-200 px-2 py-1">
+                    {row.adpOverall != null ? row.adpOverall.toFixed(1) : ""}
+                  </td>
+                  <AdpDeltaCell delta={row.adpDelta} />
+                  <BreakoutCell rank={row.breakoutRank} type="breakout" />
+                  <BreakoutCell rank={row.bustRank} type="bust" />
+                  {sessionActive && (
+                    <td className="border border-gray-200 px-2 py-1">
+                      {!isDrafted && onDraft && (
+                        <button
+                          onClick={() => onDraft(row.playerId, row.position)}
+                          className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                          Draft
+                        </button>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

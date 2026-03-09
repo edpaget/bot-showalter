@@ -1,10 +1,10 @@
-import { DraftBoardTable } from "./components/DraftBoardTable";
+import { DraftDashboard } from "./components/DraftDashboard";
+import { DraftSessionProvider } from "./context/DraftSessionContext";
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-white p-4">
-      <h1 className="text-xl font-bold mb-4">Draft Board</h1>
-      <DraftBoardTable season={2026} />
-    </div>
+    <DraftSessionProvider>
+      <DraftDashboard season={2026} />
+    </DraftSessionProvider>
   );
 }

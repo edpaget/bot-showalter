@@ -1,7 +1,7 @@
 import { render, screen, within, act, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { DraftBoardTable } from "./DraftBoardTable";
 import { BOARD_QUERY } from "../graphql/queries";
 import type { DraftBoardRow } from "../types/board";
@@ -51,10 +51,10 @@ function boardMock(): MockedResponse {
   };
 }
 
-async function renderAndWait() {
+async function renderAndWait(props?: Partial<React.ComponentProps<typeof DraftBoardTable>>) {
   render(
     <MockedProvider mocks={[boardMock()]}>
-      <DraftBoardTable season={2026} />
+      <DraftBoardTable season={2026} {...props} />
     </MockedProvider>,
   );
   // Wait for Apollo mock to resolve (0ms delay by default, but need a tick)
@@ -171,5 +171,59 @@ describe("DraftBoardTable", () => {
     const deltaCell = screen.getByText("-12");
     expect(deltaCell).toHaveClass("text-red-700");
     expect(deltaCell).toHaveClass("font-bold");
+  });
+
+  it("shows Action column when session is active", async () => {
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set() });
+    expect(screen.getByText("Action")).toBeInTheDocument();
+  });
+
+  it("hides Action column when session is not active", async () => {
+    await renderAndWait();
+    expect(screen.queryByText("Action")).not.toBeInTheDocument();
+  });
+
+  it("shows Draft buttons for undrafted players", async () => {
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set() });
+    const draftButtons = screen.getAllByRole("button", { name: "Draft" });
+    expect(draftButtons.length).toBe(4);
+  });
+
+  it("hides Draft button for drafted players", async () => {
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set([1]) });
+    // Trout (id=1) is drafted, so only 3 Draft buttons
+    const draftButtons = screen.getAllByRole("button", { name: "Draft" });
+    expect(draftButtons.length).toBe(3);
+  });
+
+  it("calls onDraft when Draft button clicked", async () => {
+    const onDraft = vi.fn();
+    await renderAndWait({ sessionActive: true, onDraft, draftedPlayerIds: new Set() });
+    const user = userEvent.setup();
+    const draftButtons = screen.getAllByRole("button", { name: "Draft" });
+    await user.click(draftButtons[0]!);
+    expect(onDraft).toHaveBeenCalledWith(1, "OF");
+  });
+
+  it("grays out drafted players", async () => {
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set([1]) });
+    const troutRow = screen.getByText("Mike Trout").closest("tr")!;
+    expect(troutRow.className).toContain("opacity-40");
+  });
+
+  it("filters by status (Available)", async () => {
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set([1]) });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Available" }));
+    expect(screen.queryByText("Mike Trout")).not.toBeInTheDocument();
+    expect(screen.getByText("Shohei Ohtani")).toBeInTheDocument();
+  });
+
+  it("filters by status (Drafted)", async () => {
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set([1]) });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Drafted" }));
+    expect(screen.getByText("Mike Trout")).toBeInTheDocument();
+    expect(screen.queryByText("Shohei Ohtani")).not.toBeInTheDocument();
   });
 });

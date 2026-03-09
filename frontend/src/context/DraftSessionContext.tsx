@@ -1,0 +1,91 @@
+import { createContext, useContext, useState, useMemo, useCallback } from "react";
+import type { ReactNode } from "react";
+import type {
+  DraftState,
+  Recommendation,
+  DraftPick,
+  RosterSlot,
+  CategoryBalance,
+  PickResult,
+} from "../types/session";
+
+interface DraftSessionContextValue {
+  sessionId: number | null;
+  state: DraftState | null;
+  recommendations: Recommendation[];
+  roster: DraftPick[];
+  needs: RosterSlot[];
+  balance: CategoryBalance[];
+  draftedPlayerIds: Set<number>;
+  setSessionId: (id: number | null) => void;
+  setState: (state: DraftState | null) => void;
+  setRecommendations: (recs: Recommendation[]) => void;
+  setRoster: (roster: DraftPick[]) => void;
+  setNeeds: (needs: RosterSlot[]) => void;
+  setBalance: (balance: CategoryBalance[]) => void;
+  applyPickResult: (result: PickResult) => void;
+  clearSession: () => void;
+}
+
+const DraftSessionContext = createContext<DraftSessionContextValue | null>(null);
+
+export function DraftSessionProvider({ children }: { children: ReactNode }) {
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [state, setState] = useState<DraftState | null>(null);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [roster, setRoster] = useState<DraftPick[]>([]);
+  const [needs, setNeeds] = useState<RosterSlot[]>([]);
+  const [balance, setBalance] = useState<CategoryBalance[]>([]);
+
+  const draftedPlayerIds = useMemo(() => {
+    if (!state) return new Set<number>();
+    return new Set(state.picks.map((p) => p.playerId));
+  }, [state]);
+
+  const applyPickResult = useCallback((result: PickResult) => {
+    setState(result.state);
+    setRecommendations(result.recommendations);
+    setRoster(result.roster);
+    setNeeds(result.needs);
+  }, []);
+
+  const clearSession = useCallback(() => {
+    setSessionId(null);
+    setState(null);
+    setRecommendations([]);
+    setRoster([]);
+    setNeeds([]);
+    setBalance([]);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      sessionId,
+      state,
+      recommendations,
+      roster,
+      needs,
+      balance,
+      draftedPlayerIds,
+      setSessionId,
+      setState,
+      setRecommendations,
+      setRoster,
+      setNeeds,
+      setBalance,
+      applyPickResult,
+      clearSession,
+    }),
+    [sessionId, state, recommendations, roster, needs, balance, draftedPlayerIds, applyPickResult, clearSession],
+  );
+
+  return <DraftSessionContext.Provider value={value}>{children}</DraftSessionContext.Provider>;
+}
+
+export function useDraftSession(): DraftSessionContextValue {
+  const ctx = useContext(DraftSessionContext);
+  if (!ctx) {
+    throw new Error("useDraftSession must be used within a DraftSessionProvider");
+  }
+  return ctx;
+}

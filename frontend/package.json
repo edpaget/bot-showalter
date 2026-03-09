@@ -13,8 +13,10 @@
   "dependencies": {
     "@apollo/client": "^3.12.0",
     "graphql": "^16.10.0",
+    "graphql-ws": "^6.0.7",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "recharts": "^3.8.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",
