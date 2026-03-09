@@ -56,7 +56,8 @@ class YahooStandingsSource:
                     elif "name" in item:
                         team_name = item["name"]
 
-            final_rank = int(team_standings["rank"])
+            raw_rank = team_standings["rank"]
+            final_rank = int(raw_rank) if raw_rank else 0
 
             # Parse stat values
             stat_values: dict[str, float] = {}
