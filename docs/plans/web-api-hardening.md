@@ -8,7 +8,7 @@ Fix bugs, encapsulation violations, and design issues identified in the web modu
 |-------|--------|
 | 1 — Subscription leak and error handling | done (2026-03-08) |
 | 2 — SessionManager encapsulation | done (2026-03-08) |
-| 3 — Session system/version persistence | not started |
+| 3 — Session system/version persistence | in progress |
 
 ## Phase 1: Subscription leak and error handling
 
