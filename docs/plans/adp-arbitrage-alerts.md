@@ -2,7 +2,7 @@
 
 Surface real-time "falling player" alerts during a live draft: players whose ADP says they should have been picked already but are still available, representing buy-low opportunities. Conversely, flag players being drafted well above their ADP as market inefficiencies to avoid. This is a lightweight overlay on the existing draft state and ADP data that adds a value-hunting lens to draft decisions.
 
-This roadmap depends on: draft state engine (done), ADP integration (done), draft board service (done).
+This roadmap depends on: draft state engine (done), ADP integration (done), draft board service (done). Phase 3 additionally depends on web-ui-foundation phases 2-3 (session mutations and subscriptions).
 
 ## Status
 
@@ -10,6 +10,7 @@ This roadmap depends on: draft state engine (done), ADP integration (done), draf
 |-------|--------|
 | 1 — Falling player detection | not started |
 | 2 — Draft REPL integration | not started |
+| 3 — Web UI integration | not started |
 
 ## Phase 1: Falling player detection
 
@@ -71,6 +72,38 @@ Wire falling player detection into the draft session so alerts appear automatica
 - Alerts respect the `--threshold` setting.
 - The standalone `arbitrage` command works for pre-draft scenario analysis.
 
+## Phase 3: Web UI integration
+
+Expose arbitrage detection through GraphQL and add a dashboard panel so falling player alerts appear in real time during a web-based draft.
+
+### Context
+
+The detection engine (phase 1) is a pure service function that takes draft state and returns scored results. Wiring it into the web UI means adding a resolver, a subscription event type, and a React panel. This phase depends on web-ui-foundation phases 2-3 (session mutations and subscriptions) for the session context and real-time event delivery.
+
+### Steps
+
+1. Define Strawberry types: `FallingPlayerType`, `ReachPickType`, `ArbitrageReportType` mirroring the domain dataclasses from phase 1.
+2. Add a `arbitrage(sessionId, threshold, position, limit) -> ArbitrageReportType` query that retrieves the active `DraftEngine` from the session manager, extracts the current pick and available pool, and delegates to `detect_falling_players()` and `detect_reaches()`.
+3. Add an `ArbitrageAlertEvent` variant to the `DraftEventType` subscription union. After each `pick` mutation, run `detect_falling_players()` and publish alerts for any player crossing the significant-faller threshold (e.g., 20+ picks past ADP and top-50 in value). Limit to 3 alerts per pick to avoid noise.
+4. Include the `ArbitrageReportType` in `PickResultType` so the frontend can refresh the arbitrage panel from the same mutation response used for recommendations and roster — no extra round trip.
+5. Build an `ArbitragePanel` React component for the draft dashboard sidebar:
+   - Shows top falling players sorted by arbitrage score with ADP, current pick, slip, value, and score columns.
+   - Position filter dropdown.
+   - Threshold slider or input (defaults to config value).
+   - Toast-style alerts when significant fallers appear via subscription.
+   - Reaches tab showing opponent reach picks from the draft log.
+6. Wire the panel into the phase 5 dashboard layout alongside recommendations, roster, needs, and balance.
+7. Write tests: resolver returns correct arbitrage data for a given session state, subscription emits alert events after picks, panel renders and filters correctly with mocked Apollo responses.
+
+### Acceptance criteria
+
+- `arbitrage` query returns falling players and reaches scoped to the active session's draft state.
+- `PickResultType` includes arbitrage data so all panels update in one mutation response.
+- Subscription delivers `ArbitrageAlertEvent` for significant fallers after each pick.
+- Dashboard panel displays falling players with sorting, position filtering, and threshold control.
+- Reaches tab shows actual reach picks from the session's draft log.
+- Alerts are concise — no more than 3 per pick event.
+
 ## Ordering
 
-Phase 1 is independent and can start immediately. Phase 2 depends on phase 1 for the detection engine. Both phases are lightweight — the total scope is smaller than most draft roadmaps since it builds heavily on existing ADP and draft state infrastructure.
+Phase 1 is independent and can start immediately. Phase 2 depends on phase 1 for the detection engine. Phase 3 depends on phase 1 for the detection engine and on web-ui-foundation phases 2-3 (session mutations and subscriptions) for the GraphQL session infrastructure; it also slots into the web-ui-foundation phase 5 dashboard layout. Phases 1-2 are lightweight CLI work; phase 3 is the web integration layer.
