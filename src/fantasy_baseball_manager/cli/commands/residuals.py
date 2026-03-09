@@ -3,6 +3,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._helpers import parse_system_version
 from fantasy_baseball_manager.cli._output import (
     print_cohort_bias_report,
@@ -16,8 +17,6 @@ from fantasy_baseball_manager.db.statcast_connection import create_statcast_conn
 from fantasy_baseball_manager.models.statcast_gbm.features import batter_feature_columns, pitcher_feature_columns
 
 residuals_app = typer.Typer(name="residuals", help="Residual analysis tools")
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 @residuals_app.command("worst-misses")

@@ -8,6 +8,7 @@ from typing import Annotated, Any
 import typer
 from rich.table import Table
 
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._output import console, print_error, print_ingest_result
 from fantasy_baseball_manager.cli.factory import IngestContainer, build_ingest_container
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
@@ -40,8 +41,6 @@ from fantasy_baseball_manager.services import MlbApiPlayerTeamProvider
 logger = logging.getLogger(__name__)
 
 ingest_app = typer.Typer(name="ingest", help="Ingest historical player data and stats")
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 @ingest_app.command("players")

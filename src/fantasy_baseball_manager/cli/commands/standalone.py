@@ -7,6 +7,7 @@ import typer
 from fantasy_baseball_manager.agent.chat import run_chat
 from fantasy_baseball_manager.agent.graph import build_agent
 from fantasy_baseball_manager.agent.prompt import current_season
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._output import (
     console,
     print_comparison_result,
@@ -48,7 +49,6 @@ from fantasy_baseball_manager.services import (
     assign_top300_cohorts,
 )
 
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 _TopOpt = Annotated[int | None, typer.Option("--top", help="Top N players by WAR to include")]
 _ModelArg = Annotated[str, typer.Argument(help="Name of the projection model")]
 

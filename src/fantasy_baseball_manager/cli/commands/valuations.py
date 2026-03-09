@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from fantasy_baseball_manager.cli._defaults import load_cli_defaults
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
     print_player_valuations,
     print_valuation_eval_result,
@@ -16,8 +16,6 @@ from fantasy_baseball_manager.cli.factory import (
 from fantasy_baseball_manager.config_league import load_league
 
 valuations_app = typer.Typer(name="valuations", help="Look up and explore player valuations")
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 @valuations_app.command("lookup")

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 from rich.table import Table
 
-from fantasy_baseball_manager.cli._defaults import load_cli_defaults
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.cli._output import (
     console,
@@ -79,8 +79,6 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import SqlitePlayerRepo
 
 draft_app = typer.Typer(name="draft", help="Draft board display and export")
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 def _apply_keeper_exclusion(  # pragma: no cover

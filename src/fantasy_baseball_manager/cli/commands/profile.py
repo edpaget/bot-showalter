@@ -2,6 +2,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._output import (
     print_column_profiles,
     print_column_ranking,
@@ -21,7 +22,7 @@ def profile_columns_cmd(  # pragma: no cover
     season: Annotated[list[int], typer.Option("--season", help="Season year(s)")] = ...,  # type: ignore[assignment]
     player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")] = ...,  # type: ignore[assignment]
     all_columns: Annotated[bool, typer.Option("--all", help="Profile all numeric columns")] = False,
-    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Profile distribution statistics for statcast columns at the player-season level."""
     if all_columns:
@@ -47,7 +48,7 @@ def correlate_cmd(  # pragma: no cover
     columns: Annotated[list[str], typer.Argument(help="Column spec(s) to correlate")],
     season: Annotated[list[int], typer.Option("--season", help="Season year(s)")] = ...,  # type: ignore[assignment]
     player_type: Annotated[str, typer.Option("--player-type", help="batter or pitcher")] = ...,  # type: ignore[assignment]
-    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Correlate statcast columns against model targets."""
     with build_profile_context(data_dir) as ctx:
@@ -73,7 +74,7 @@ def stability_cmd(
     target: Annotated[str | None, typer.Option("--target", help="Single target to check")] = None,
     all_targets: Annotated[bool, typer.Option("--all-targets", help="Check all targets")] = False,
     exclude_season: Annotated[list[int] | None, typer.Option("--exclude-season", help="Season(s) to exclude")] = None,
-    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Check temporal stability of feature-target correlations across seasons."""
     if target is None and not all_targets:

@@ -2,10 +2,9 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._output import print_player_summaries
 from fantasy_baseball_manager.cli.factory import build_bio_context
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 def bio(

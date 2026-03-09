@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from fantasy_baseball_manager.cli._defaults import load_cli_defaults
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli._helpers import parse_system_version
 from fantasy_baseball_manager.cli._output import (
     console,
@@ -47,8 +47,6 @@ from fantasy_baseball_manager.models import ModelConfig
 from fantasy_baseball_manager.services import classify_variance, compute_confidence
 
 report_app = typer.Typer(name="report", help="Over/underperformance reports vs model predictions")
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 @report_app.command("overperformers")

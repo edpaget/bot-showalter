@@ -6,7 +6,7 @@ import typer
 import uvicorn
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
-from fantasy_baseball_manager.cli._defaults import load_cli_defaults
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli.factory import build_breakout_bust_report_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
@@ -31,7 +31,7 @@ def web(  # pragma: no cover
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     host: Annotated[str, typer.Option("--host", help="Server host")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", help="Server port")] = 8000,
-    data_dir: Annotated[str, typer.Option("--data-dir", help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
     yahoo_config_dir: Annotated[str | None, typer.Option("--yahoo-config-dir", help="Yahoo config directory")] = None,
 ) -> None:
     """Start the GraphQL API server."""

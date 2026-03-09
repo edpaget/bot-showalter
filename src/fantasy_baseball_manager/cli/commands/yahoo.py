@@ -8,7 +8,7 @@ from typing import Annotated, Any
 import typer
 from rich.table import Table
 
-from fantasy_baseball_manager.cli._defaults import load_cli_defaults
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
     console,
     print_error,
@@ -71,8 +71,6 @@ from fantasy_baseball_manager.yahoo.transaction_source import YahooTransactionSo
 logger = logging.getLogger(__name__)
 
 yahoo_app = typer.Typer(name="yahoo", help="Yahoo Fantasy integration")
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 @yahoo_app.command("auth")

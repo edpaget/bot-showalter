@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
+
+import typer
 
 from fantasy_baseball_manager.config_toml import load_toml
 from fantasy_baseball_manager.domain import current_season
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 @dataclass(frozen=True)

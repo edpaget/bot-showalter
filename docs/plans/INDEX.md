@@ -17,7 +17,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | phase 1 done | mock-draft-simulator (done), live-draft-tracker (done) |
-| [CLI Consistency](cli-consistency.md) | 4 | phases 1-3 done | none |
 | [Evaluation Framework](evaluation-framework.md) | 3 | not started | none |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
 
@@ -25,6 +24,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 
 | Roadmap | Phases |
 |---------|--------|
+| [CLI Consistency](cli-consistency.md) | 4 |
 | [Valuation Version Consistency](valuation-version-consistency.md) | 2 |
 | [Actual Valuation SP/RP Split](actual-valuation-sp-rp.md) | 1 |
 | [Draft Session Persistence](draft-session-persistence.md) | 3 |

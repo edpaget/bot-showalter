@@ -5,6 +5,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._output import (
     console,
     print_checkpoint_detail,
@@ -20,8 +21,6 @@ from fantasy_baseball_manager.repos import DuplicateCheckpointError
 from fantasy_baseball_manager.services import summarize_exploration
 
 experiment_app = typer.Typer(name="experiment", help="Experiment journal — log and query trials")
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 def _parse_feature_diff(raw: str) -> dict[str, list[str]]:

@@ -3,6 +3,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._output import (
     print_error,
     print_import_result,
@@ -23,8 +24,6 @@ from fantasy_baseball_manager.ingest import (
 )
 
 projections_app = typer.Typer(name="projections", help="Look up and explore projection systems")
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 @projections_app.command("lookup")

@@ -6,7 +6,7 @@ from typing import Annotated
 
 import typer
 
-from fantasy_baseball_manager.cli._defaults import load_cli_defaults
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
     print_batch_simulation_result,
     print_mock_draft_result,
@@ -32,8 +32,6 @@ _STRATEGY_MAP: dict[str, type] = {
     "positional-need": PositionalNeedBot,
     "random": RandomBot,
 }
-
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 
 def _make_bot(name: str, rng: random.Random) -> DraftBot:

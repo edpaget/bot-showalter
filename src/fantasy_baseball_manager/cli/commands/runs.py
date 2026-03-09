@@ -3,6 +3,7 @@ from typing import Annotated
 
 import typer
 
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._output import (
     console,
     print_error,
@@ -16,7 +17,6 @@ from fantasy_baseball_manager.models import RunManager
 
 runs_app = typer.Typer(name="runs", help="Manage first-party model runs")
 
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 _OperationOpt = Annotated[str, typer.Option("--operation", help="Operation type (train, predict)")]
 
 

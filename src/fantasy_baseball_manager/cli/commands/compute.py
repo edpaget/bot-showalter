@@ -4,6 +4,7 @@ from typing import Annotated
 import typer
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt  # noqa: TC001 — used at runtime by typer
 from fantasy_baseball_manager.cli._output import console
 from fantasy_baseball_manager.cli.factory import build_compute_container
 from fantasy_baseball_manager.config_league import load_league
@@ -13,7 +14,6 @@ from fantasy_baseball_manager.services import PlayerEligibilityService, compute_
 
 compute_app = typer.Typer(name="compute", help="Compute derived data from ingested stats")
 
-_DataDirOpt = Annotated[str, typer.Option("--data-dir", help="Data directory")]
 
 _MILB_COMPUTE_LEVELS = ["AAA", "AA", "A+", "A", "ROK"]
 

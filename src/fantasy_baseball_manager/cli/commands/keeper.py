@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
-from fantasy_baseball_manager.cli._defaults import load_cli_defaults
+from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
     print_adjusted_rankings,
     print_keeper_decisions,
@@ -59,14 +59,14 @@ def _build_cost_translator(
 @keeper_app.command("import")
 def import_cmd(
     csv_path: Annotated[Path, typer.Argument(help="Path to keeper costs CSV file")],
-    season: Annotated[int, typer.Option(help="Season year")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
     source: Annotated[str, typer.Option(help="Cost source type")] = "auction",
     fmt: Annotated[str, typer.Option("--format", help="Cost format: auction or draft-pick")] = "auction",
-    system: Annotated[str | None, typer.Option(help="Valuation system (required for draft-pick)")] = None,
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system (required for draft-pick)")] = None,
     provider: Annotated[str | None, typer.Option(help="ADP provider (required for draft-pick)")] = None,
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
-    data_dir: Annotated[str, typer.Option(help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Import keeper costs from a CSV file."""
     defaults = load_cli_defaults()
@@ -117,14 +117,14 @@ def set_cmd(
     player_name: Annotated[str, typer.Argument(help="Player name to search for")],
     cost: Annotated[float | None, typer.Option(help="Keeper cost")] = None,
     round_num: Annotated[int | None, typer.Option("--round", help="Draft round (converted to dollars)")] = None,
-    season: Annotated[int | None, typer.Option(help="Season year")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     league: Annotated[str, typer.Option(help="League name")] = "dynasty",
     years: Annotated[int, typer.Option(help="Years remaining on contract")] = 1,
     source: Annotated[str, typer.Option(help="Cost source type")] = "auction",
-    system: Annotated[str | None, typer.Option(help="Valuation system (required for --round)")] = None,
+    system: Annotated[str | None, typer.Option("--system", help="Valuation system (required for --round)")] = None,
     provider: Annotated[str | None, typer.Option(help="ADP provider (required for --round)")] = None,
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
-    data_dir: Annotated[str, typer.Option(help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Set a keeper cost for a single player."""
     defaults = load_cli_defaults()
@@ -188,13 +188,13 @@ def set_cmd(
 
 @keeper_app.command("decisions")
 def decisions_cmd(
-    season: Annotated[int, typer.Option(help="Season year")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
-    system: Annotated[str, typer.Option(help="Valuation system name")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")],
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     threshold: Annotated[float, typer.Option(help="Minimum surplus for keep recommendation")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor for multi-year surplus")] = 0.85,
-    data_dir: Annotated[str, typer.Option(help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show keeper decisions ranked by surplus value."""
     defaults = load_cli_defaults()
@@ -214,14 +214,14 @@ def decisions_cmd(
 
 @keeper_app.command("adjusted-rankings")
 def adjusted_rankings_cmd(
-    season: Annotated[int, typer.Option(help="Season year")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
     league: Annotated[str, typer.Option(help="League name (must match fbm.toml)")],
-    system: Annotated[str, typer.Option(help="Valuation system name")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")],
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     threshold: Annotated[float, typer.Option(help="Minimum surplus for keep recommendation")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor for multi-year surplus")] = 0.85,
     top: Annotated[int | None, typer.Option(help="Show only top N players")] = None,
-    data_dir: Annotated[str, typer.Option(help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show post-keeper adjusted rankings with recalculated replacement levels."""
     defaults = load_cli_defaults()
@@ -272,12 +272,12 @@ def adjusted_rankings_cmd(
 def trade_eval_cmd(
     gives: Annotated[list[str], typer.Option("--gives", help="Player(s) you give away")],
     receives: Annotated[list[str], typer.Option("--receives", help="Player(s) you receive")],
-    season: Annotated[int, typer.Option(help="Season year")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
-    system: Annotated[str, typer.Option(help="Valuation system name")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")],
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
-    data_dir: Annotated[str, typer.Option(help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Evaluate a trade using keeper surplus value."""
     defaults = load_cli_defaults()
@@ -343,9 +343,9 @@ def _parse_position_limits(raw: list[str]) -> dict[str, int]:
 
 @keeper_app.command("optimize")
 def optimize_cmd(
-    season: Annotated[int, typer.Option(help="Season year")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
-    system: Annotated[str, typer.Option(help="Valuation system name")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")],
     max_keepers: Annotated[int, typer.Option(help="Maximum number of keepers")],
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     max_per_position: Annotated[list[str] | None, typer.Option(help="Position limits, e.g. 'c=1'")] = None,
@@ -361,7 +361,7 @@ def optimize_cmd(
     ] = None,
     threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
-    data_dir: Annotated[str, typer.Option(help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Find the optimal keeper set maximizing total surplus."""
     defaults = load_cli_defaults()
@@ -407,15 +407,15 @@ def optimize_cmd(
 
 @keeper_app.command("scenario")
 def scenario_cmd(
-    season: Annotated[int, typer.Option(help="Season year")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
-    system: Annotated[str, typer.Option(help="Valuation system name")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")],
     max_keepers: Annotated[int, typer.Option(help="Maximum number of keepers")],
     scenario: Annotated[list[str], typer.Option(help="Scenario as 'Name:Player1,Player2'")],
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
-    data_dir: Annotated[str, typer.Option(help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Compare named keeper scenarios side-by-side."""
     defaults = load_cli_defaults()
@@ -447,9 +447,9 @@ def scenario_cmd(
 
 @keeper_app.command("trade-impact")
 def trade_impact_cmd(
-    season: Annotated[int, typer.Option(help="Season year")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
     league: Annotated[str, typer.Option(help="League name")],
-    system: Annotated[str, typer.Option(help="Valuation system name")],
+    system: Annotated[str, typer.Option("--system", help="Valuation system")],
     max_keepers: Annotated[int, typer.Option(help="Maximum number of keepers")],
     acquire: Annotated[list[str] | None, typer.Option(help="Player names to acquire")] = None,
     release: Annotated[list[str] | None, typer.Option(help="Player names to release")] = None,
@@ -457,7 +457,7 @@ def trade_impact_cmd(
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     threshold: Annotated[float, typer.Option(help="Minimum surplus for candidates")] = 0.0,
     decay: Annotated[float, typer.Option(help="Decay factor")] = 0.85,
-    data_dir: Annotated[str, typer.Option(help="Data directory")] = "./data",
+    data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show how acquiring/releasing players changes the optimal keeper set."""
     defaults = load_cli_defaults()
