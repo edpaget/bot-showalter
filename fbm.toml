@@ -1,6 +1,8 @@
 [common]
 data_dir = "./data"
 artifacts_dir = "./artifacts"
+system = "zar"
+version = "production"
 
 [models.ensemble.params]
 season = 2026

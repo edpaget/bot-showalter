@@ -275,6 +275,7 @@ from fantasy_baseball_manager.domain.roster_optimizer import (
     SnakeDraftPlan,
 )
 from fantasy_baseball_manager.domain.roster_stint import RosterStint
+from fantasy_baseball_manager.domain.season import current_season
 from fantasy_baseball_manager.domain.season_data import SeasonData
 from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
@@ -536,6 +537,7 @@ __all__ = [
     "check_regression",
     "compare_to_batting_actuals",
     "compare_to_pitching_actuals",
+    "current_season",
     "compute_age",
     "compute_calibration_bins",
     "compute_cohort_metrics",

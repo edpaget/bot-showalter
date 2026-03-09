@@ -8,7 +8,7 @@ This roadmap centralizes defaults into `fbm.toml` (overrideable via `fbm.local.t
 
 | Phase | Status |
 |-------|--------|
-| 1 — Config-driven defaults infrastructure | not started |
+| 1 — Config-driven defaults infrastructure | in progress |
 | 2 — Dynamic season computation | not started |
 | 3 — Migrate all commands to config-driven defaults | not started |
 | 4 — Standardize parameter naming and help text | not started |
