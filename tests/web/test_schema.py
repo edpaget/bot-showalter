@@ -95,6 +95,26 @@ class TestBoardQuery:
         data = response.json()["data"]["board"]
         assert len(data["rows"]) == 2
 
+    def test_breakout_bust_ranks_included(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        board(season: 2026) {
+                            rows { breakoutRank bustRank }
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["board"]
+        # Without breakout predictions, ranks should be null
+        for row in data["rows"]:
+            assert row["breakoutRank"] is None
+            assert row["bustRank"] is None
+
     def test_category_z_scores_included(self, client: TestClient) -> None:
         response = client.post(
             "/graphql",

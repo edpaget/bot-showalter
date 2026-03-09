@@ -32,6 +32,8 @@ class DraftBoardRowType:
     adp_overall: float | None
     adp_rank: int | None
     adp_delta: int | None
+    breakout_rank: int | None
+    bust_rank: int | None
 
     @staticmethod
     def from_domain(row: DraftBoardRow) -> DraftBoardRowType:
@@ -49,6 +51,8 @@ class DraftBoardRowType:
             adp_overall=row.adp_overall,
             adp_rank=row.adp_rank,
             adp_delta=row.adp_delta,
+            breakout_rank=row.breakout_rank,
+            bust_rank=row.bust_rank,
         )
 
 

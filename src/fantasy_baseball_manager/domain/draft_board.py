@@ -22,6 +22,8 @@ class DraftBoardRow:
     adp_overall: float | None = None
     adp_rank: int | None = None
     adp_delta: int | None = None
+    breakout_rank: int | None = None
+    bust_rank: int | None = None
 
 
 @dataclass(frozen=True)

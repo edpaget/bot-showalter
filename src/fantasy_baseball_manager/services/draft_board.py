@@ -13,6 +13,7 @@ from fantasy_baseball_manager.domain import (
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         ADP,
+        BreakoutPrediction,
         LeagueSettings,
         PlayerProfile,
         Valuation,
@@ -43,6 +44,31 @@ def _resolve_adp(entries: list[ADP], is_pitcher: bool) -> ADP:
     return min(matching or entries, key=lambda a: a.overall_pick)
 
 
+def _compute_breakout_bust_ranks(
+    predictions: list[BreakoutPrediction],
+) -> dict[int, tuple[int | None, int | None]]:
+    """Compute per-player-type breakout and bust ranks.
+
+    Returns a dict mapping player_id -> (breakout_rank, bust_rank).
+    """
+    by_type: dict[str, list[BreakoutPrediction]] = {}
+    for p in predictions:
+        by_type.setdefault(p.player_type, []).append(p)
+
+    result: dict[int, tuple[int | None, int | None]] = {}
+    for _player_type, preds in by_type.items():
+        breakout_sorted = sorted(preds, key=lambda p: p.p_breakout, reverse=True)
+        bust_sorted = sorted(preds, key=lambda p: p.p_bust, reverse=True)
+
+        breakout_ranks = {p.player_id: rank for rank, p in enumerate(breakout_sorted, start=1)}
+        bust_ranks = {p.player_id: rank for rank, p in enumerate(bust_sorted, start=1)}
+
+        for p in preds:
+            result[p.player_id] = (breakout_ranks[p.player_id], bust_ranks[p.player_id])
+
+    return result
+
+
 def build_draft_board(
     valuations: list[Valuation],
     league: LeagueSettings,
@@ -51,6 +77,7 @@ def build_draft_board(
     tiers: list[TierAssignment] | None = None,
     adp: list[ADP] | None = None,
     profiles: dict[int, PlayerProfile] | None = None,
+    breakout_predictions: list[BreakoutPrediction] | None = None,
 ) -> DraftBoard:
     batting_categories = tuple(c.key for c in league.batting_categories)
     pitching_categories = tuple(c.key for c in league.pitching_categories)
@@ -63,6 +90,10 @@ def build_draft_board(
     if adp is not None:
         for entry in adp:
             adp_by_player.setdefault(entry.player_id, []).append(entry)
+
+    breakout_bust_ranks: dict[int, tuple[int | None, int | None]] = {}
+    if breakout_predictions is not None:
+        breakout_bust_ranks = _compute_breakout_bust_ranks(breakout_predictions)
 
     sorted_valuations = sorted(valuations, key=lambda v: v.value, reverse=True)
 
@@ -94,6 +125,11 @@ def build_draft_board(
                 if profile.bats is not None and profile.throws is not None:
                     bats_throws = f"{profile.bats}/{profile.throws}"
 
+        breakout_rank: int | None = None
+        bust_rank: int | None = None
+        if val.player_id in breakout_bust_ranks:
+            breakout_rank, bust_rank = breakout_bust_ranks[val.player_id]
+
         rows.append(
             DraftBoardRow(
                 player_id=val.player_id,
@@ -109,6 +145,8 @@ def build_draft_board(
                 adp_overall=adp_overall,
                 adp_rank=adp_rank,
                 adp_delta=adp_delta,
+                breakout_rank=breakout_rank,
+                bust_rank=bust_rank,
             )
         )
 

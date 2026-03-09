@@ -106,6 +106,7 @@ class Query:
             player_names,
             adp=adp_list if adp_list else None,
             profiles=profiles,
+            breakout_predictions=ctx.breakout_predictions,
         )
 
         if top is not None:

@@ -39,6 +39,11 @@ fbm.local.toml
 # direnv
 .envrc
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+
 # OS
 .DS_Store
 Thumbs.db

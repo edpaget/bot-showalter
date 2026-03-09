@@ -2,6 +2,7 @@ import csv
 import io
 
 from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain.breakout_bust import BreakoutPrediction
 from fantasy_baseball_manager.domain.draft_board import (
     DraftBoard,
     DraftBoardRow,
@@ -1509,3 +1510,59 @@ class TestPositionGrouping:
         _, pos_groups = groups[0]
         of_rows = pos_groups[0][1]
         assert [r.player_id for r in of_rows] == [2, 3, 1]
+
+
+def _prediction(
+    player_id: int,
+    player_type: str = "batter",
+    p_breakout: float = 0.1,
+    p_bust: float = 0.1,
+) -> BreakoutPrediction:
+    return BreakoutPrediction(
+        player_id=player_id,
+        player_name=f"Player {player_id}",
+        player_type=player_type,
+        position="OF" if player_type == "batter" else "SP",
+        p_breakout=p_breakout,
+        p_bust=p_bust,
+        p_neutral=1.0 - p_breakout - p_bust,
+    )
+
+
+class TestBreakoutBustRanks:
+    def test_ranks_assigned_within_player_type(self) -> None:
+        valuations = [
+            _valuation(1, value=30.0, player_type="batter"),
+            _valuation(2, value=20.0, player_type="batter"),
+            _valuation(3, value=10.0, player_type="pitcher", position="SP"),
+        ]
+        predictions = [
+            _prediction(1, "batter", p_breakout=0.3, p_bust=0.1),
+            _prediction(2, "batter", p_breakout=0.5, p_bust=0.2),
+            _prediction(3, "pitcher", p_breakout=0.4, p_bust=0.3),
+        ]
+        board = build_draft_board(valuations, _league(), _names(1, 2, 3), breakout_predictions=predictions)
+        by_id = {r.player_id: r for r in board.rows}
+
+        # Player 2 has higher p_breakout among batters → breakout_rank=1
+        assert by_id[2].breakout_rank == 1
+        assert by_id[1].breakout_rank == 2
+        # Player 2 also has higher p_bust among batters → bust_rank=1
+        assert by_id[2].bust_rank == 1
+        assert by_id[1].bust_rank == 2
+        # Pitcher ranks are separate
+        assert by_id[3].breakout_rank == 1
+        assert by_id[3].bust_rank == 1
+
+    def test_no_predictions_leaves_ranks_none(self) -> None:
+        valuations = [_valuation(1, value=10.0)]
+        board = build_draft_board(valuations, _league(), _names(1))
+        assert board.rows[0].breakout_rank is None
+        assert board.rows[0].bust_rank is None
+
+    def test_predictions_for_missing_player_ignored(self) -> None:
+        valuations = [_valuation(1, value=10.0)]
+        predictions = [_prediction(999, "batter", p_breakout=0.9, p_bust=0.9)]
+        board = build_draft_board(valuations, _league(), _names(1), breakout_predictions=predictions)
+        assert board.rows[0].breakout_rank is None
+        assert board.rows[0].bust_rank is None

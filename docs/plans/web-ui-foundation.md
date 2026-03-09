@@ -128,7 +128,7 @@ The draft board is the project's most-used view. It currently lacks client-side 
 
 ### Steps
 
-1. Create a `frontend/` directory at the project root. Initialize a React + TypeScript project using Vite. Add Apollo Client for GraphQL and a CSS solution (Tailwind or CSS Modules).
+1. Create a `frontend/` directory at the project root. Initialize a React + TypeScript project using Vite with bun as the package manager. Add Apollo Client for GraphQL and Tailwind CSS.
 2. Configure Vite's dev server to proxy `/graphql` requests to the FastAPI backend.
 3. Define GraphQL queries in `.graphql` files or `gql` tagged templates for the board, tiers, and league.
 4. Build a `DraftBoardTable` component (see [`docs/draft-ui-design.md`](../draft-ui-design.md) for column spec and styling):
@@ -156,8 +156,8 @@ The draft board is the project's most-used view. It currently lacks client-side 
 - Tier colors and ADP delta highlighting match the existing HTML export.
 - Breakout/bust ranks display as labels (e.g., "B3") with top-20 row tinting and tooltips.
 - Player name search filters the table client-side.
-- `npm run dev` (frontend) + `fbm web` (backend) work together in development via proxy.
-- `npm run build` produces static assets that FastAPI serves in production mode.
+- `bun dev` (frontend) + `fbm web` (backend) work together in development via proxy.
+- `bun run build` produces static assets that FastAPI serves in production mode.
 
 ## Phase 5: Live draft dashboard
 

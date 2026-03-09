@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Annotated
 
@@ -6,16 +7,21 @@ import uvicorn
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.cli._defaults import load_cli_defaults
+from fantasy_baseball_manager.cli.factory import build_breakout_bust_report_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain import BreakoutPrediction
+from fantasy_baseball_manager.models import ModelConfig
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqliteYahooPlayerMapRepo, SqliteYahooTeamRepo
 from fantasy_baseball_manager.web import EventBus, SessionManager, YahooPollerManager, create_app
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
 from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
+
+logger = logging.getLogger(__name__)
 
 
 def web(  # pragma: no cover
@@ -54,6 +60,36 @@ def web(  # pragma: no cover
         adp_provider="fantasypros",
     )
 
+    # Load breakout/bust predictions if model is trained
+    breakout_predictions: list[BreakoutPrediction] | None = None
+    try:
+        with build_breakout_bust_report_context(data_dir) as ctx:
+            config = ModelConfig(seasons=[season], data_dir=data_dir)
+            result = ctx.model.predict(config)  # type: ignore[union-attr]
+            breakout_predictions = [
+                BreakoutPrediction(
+                    player_id=p["player_id"],
+                    player_name=p["player_name"],
+                    player_type=p["player_type"],
+                    position=p["position"],
+                    p_breakout=p["p_breakout"],
+                    p_bust=p["p_bust"],
+                    p_neutral=p["p_neutral"],
+                    top_features=p.get("top_features", []),
+                )
+                for p in result.predictions
+            ]
+            logger.info("Loaded %d breakout/bust predictions", len(breakout_predictions))
+    except Exception:
+        logger.info("Breakout/bust model not available, skipping predictions")
+
+    # Resolve frontend assets directory
+    frontend_dir: str | None = None
+    dist_path = Path(__file__).resolve().parents[4] / "frontend" / "dist"
+    if dist_path.is_dir():
+        frontend_dir = str(dist_path)
+        logger.info("Serving frontend from %s", frontend_dir)
+
     yahoo_poller_manager = None
     if yahoo_config_dir is not None:
         config = load_yahoo_config(Path(yahoo_config_dir))
@@ -77,5 +113,7 @@ def web(  # pragma: no cover
         session_manager=session_manager,
         event_bus=event_bus,
         yahoo_poller_manager=yahoo_poller_manager,
+        breakout_predictions=breakout_predictions,
+        frontend_dir=frontend_dir,
     )
     uvicorn.run(app, host=host, port=port)
