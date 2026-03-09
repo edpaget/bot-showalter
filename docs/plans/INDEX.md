@@ -14,7 +14,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 | phases 1-2 done | injury-risk-discount (done), valuation-system-unification phase 1 |
 | [Web UI Foundation](web-ui-foundation.md) | 6 | phases 1-4 done | draft-session-persistence (phase 2 needs phases 1-2) |
-| [Opponent Draft Model](opponent-draft-model.md) | 3 | phase 1 done | live-draft-tracker (done), adp-integration (done) |
+| [Opponent Draft Model](opponent-draft-model.md) | 3 | phases 1-2 done | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | phase 1 done | live-draft-tracker (done), adp-integration (done) |
 | [Evaluation Framework](evaluation-framework.md) | 4 | not started | none |
 | [League Standings Import](league-standings-import.md) | 2 | not started | none |
