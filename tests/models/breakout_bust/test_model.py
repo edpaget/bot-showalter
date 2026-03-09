@@ -16,7 +16,7 @@ from fantasy_baseball_manager.models.breakout_bust.model import (
     _renormalize_probabilities,
 )
 from fantasy_baseball_manager.models.protocols import Evaluable, Model, ModelConfig
-from fantasy_baseball_manager.models.registry import _clear, get, register
+from fantasy_baseball_manager.models.registry import get, register
 
 # ---------------------------------------------------------------------------
 # Synthetic data helpers
@@ -190,8 +190,7 @@ class TestBreakoutBustModelProtocol:
 
 
 class TestBreakoutBustModelRegistered:
-    def test_registered_in_registry(self) -> None:
-        _clear()
+    def test_registered_in_registry(self, isolated_model_registry: None) -> None:
         register("breakout-bust")(BreakoutBustModel)
         cls = get("breakout-bust")
         assert cls is BreakoutBustModel

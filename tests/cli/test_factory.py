@@ -29,7 +29,7 @@ from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.models.breakout_bust.model import BreakoutBustModel
 from fantasy_baseball_manager.models.composite.engine import GBMEngine, MarcelEngine
 from fantasy_baseball_manager.models.protocols import ModelConfig, PrepareResult
-from fantasy_baseball_manager.models.registry import _clear, register
+from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
@@ -124,8 +124,8 @@ class _WithEngineModel:
 
 
 @pytest.fixture(autouse=True)
-def _clean_registry() -> None:
-    _clear()
+def _clean_registry(isolated_model_registry: None) -> None:
+    pass
 
 
 class TestCreateModel:

@@ -40,7 +40,7 @@ from fantasy_baseball_manager.models.protocols import (
     Tunable,
     TuneResult,
 )
-from fantasy_baseball_manager.models.registry import _clear, get, register, register_alias
+from fantasy_baseball_manager.models.registry import get, register, register_alias
 
 # Snapshot groups at import time — before any test can clear the global registry.
 _GROUPS: dict[str, FeatureGroup] = {name: get_group(name) for name in list_groups()}
@@ -342,8 +342,7 @@ class TestDefaultGroupsRegression:
 
 
 class TestCompositeAliases:
-    def test_aliases_registered(self) -> None:
-        _clear()
+    def test_aliases_registered(self, isolated_model_registry: None) -> None:
         register("composite")(CompositeModel)
         for alias in ("composite-mle", "composite-statcast", "composite-full"):
             register_alias(alias, "composite")

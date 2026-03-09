@@ -22,7 +22,7 @@ from fantasy_baseball_manager.models.protocols import (
     Preparable,
     Trainable,
 )
-from fantasy_baseball_manager.models.registry import _clear, get, register
+from fantasy_baseball_manager.models.registry import get, register
 from tests.fakes.repos import FakeProjectionRepo
 
 _NULL_PROJECTION_REPO = FakeProjectionRepo([])
@@ -58,8 +58,7 @@ class TestEnsembleModelProtocol:
 
 
 class TestEnsembleRegistration:
-    def test_registered(self) -> None:
-        _clear()
+    def test_registered(self, isolated_model_registry: None) -> None:
         register("ensemble")(EnsembleModel)
         assert get("ensemble") is EnsembleModel
 

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
@@ -8,7 +9,7 @@ from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel import MarcelModel
-from fantasy_baseball_manager.models.registry import _clear, register
+from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from tests.helpers import seed_player
@@ -17,14 +18,13 @@ if TYPE_CHECKING:
     import sqlite3
     from pathlib import Path
 
-    import pytest
-
 runner = CliRunner()
+
+pytestmark = pytest.mark.usefixtures("isolated_model_registry")
 
 
 def _ensure_marcel_registered() -> None:
-    """Clear and re-register marcel so each test starts with a known state."""
-    _clear()
+    """Re-register marcel so each test starts with a known state."""
     register("marcel")(MarcelModel)
 
 
@@ -36,7 +36,6 @@ class TestListCommand:
         assert "marcel" in result.output
 
     def test_list_empty_registry(self) -> None:
-        _clear()
         result = runner.invoke(app, ["list"])
         assert result.exit_code == 0
         assert "No models registered" in result.output

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+import pytest
 from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
@@ -15,7 +16,7 @@ from fantasy_baseball_manager.domain.league_settings import (
 from fantasy_baseball_manager.domain.model_run import ArtifactType
 from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, TrainResult
-from fantasy_baseball_manager.models.registry import _clear, register
+from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.zar.model import ZarModel
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
@@ -24,14 +25,13 @@ from tests.helpers import seed_player
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
-
 runner = CliRunner()
+
+pytestmark = pytest.mark.usefixtures("isolated_model_registry")
 
 
 def _ensure_marcel_registered() -> None:
-    """Clear and re-register marcel so each test starts with a known state."""
-    _clear()
+    """Re-register marcel so each test starts with a known state."""
     register("marcel")(MarcelModel)
 
 
@@ -184,7 +184,6 @@ class TestActionCommands:
 
 def _register_trainable_stub() -> None:
     """Register a minimal trainable stub model for run tracking tests."""
-    _clear()
 
     class _TrainableStub:
         @property
@@ -268,7 +267,6 @@ class TestTrainRunTracking:
 
 def _register_predictable_stub() -> None:
     """Register a minimal predictable stub model for predict run tracking tests."""
-    _clear()
 
     class _PredictableStub:
         @property
@@ -333,7 +331,6 @@ class TestPredictRunTracking:
 
 def _register_predictable_stub_with_projections() -> None:
     """Register a stub that returns predictions with player_id/season for persistence tests."""
-    _clear()
 
     class _PredictableStubWithProjections:
         @property
@@ -426,7 +423,6 @@ class TestPredictLeagueResolution:
             captured_config.append(config)
             return PredictResult(model_name="zar", predictions=[], output_path="")
 
-        _clear()
         register("zar")(ZarModel)
 
         monkeypatch.setattr(

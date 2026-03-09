@@ -1,6 +1,6 @@
 import pytest
 
-from fantasy_baseball_manager.models.registry import _clear, get, list_models, register, register_alias
+from fantasy_baseball_manager.models.registry import get, list_models, register, register_alias
 
 
 class _DummyModel:
@@ -21,9 +21,7 @@ class _DummyModel:
         return frozenset({"prepare"})
 
 
-@pytest.fixture(autouse=True)
-def _clean_registry() -> None:
-    _clear()
+pytestmark = pytest.mark.usefixtures("isolated_model_registry")
 
 
 class TestRegister:
