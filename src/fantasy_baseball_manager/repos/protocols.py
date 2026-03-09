@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         StatcastPitch,
         StatDistribution,
         Team,
+        TeamSeasonStats,
         Transaction,
         TransactionPlayer,
         Valuation,
@@ -337,3 +338,10 @@ class YahooRosterSourceProto(Protocol):
         week: int | None = None,
         as_of: datetime.date,
     ) -> Roster: ...
+
+
+@runtime_checkable
+class YahooTeamStatsRepo(Protocol):
+    def upsert(self, stats: TeamSeasonStats) -> int: ...
+    def get_by_league_season(self, league_key: str, season: int) -> builtins.list[TeamSeasonStats]: ...
+    def get_all_seasons(self, league_key: str) -> builtins.list[TeamSeasonStats]: ...

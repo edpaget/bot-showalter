@@ -320,6 +320,7 @@ from fantasy_baseball_manager.domain.valuation import (
 from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
+from fantasy_baseball_manager.domain.yahoo_team_stats import TeamSeasonStats
 
 __all__ = [
     "Ablatable",
@@ -553,6 +554,7 @@ __all__ = [
     "YahooDraftPick",
     "YahooLeague",
     "YahooPlayerMap",
+    "TeamSeasonStats",
     "YahooTeam",
     "bucket_by_age",
     "bucket_by_experience",

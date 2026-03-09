@@ -63,6 +63,7 @@ from fantasy_baseball_manager.repos import (
     SqliteYahooPlayerMapRepo,
     SqliteYahooRosterRepo,
     SqliteYahooTeamRepo,
+    SqliteYahooTeamStatsRepo,
     SqliteYahooTransactionRepo,
     ValuationRepo,
     YahooDraftRepo,
@@ -70,6 +71,7 @@ from fantasy_baseball_manager.repos import (
     YahooPlayerMapRepo,
     YahooRosterRepo,
     YahooTeamRepo,
+    YahooTeamStatsRepo,
     YahooTransactionRepo,
 )
 from fantasy_baseball_manager.services import (
@@ -754,6 +756,7 @@ class YahooContext:
     yahoo_roster_repo: YahooRosterRepo
     yahoo_draft_repo: YahooDraftRepo
     yahoo_transaction_repo: YahooTransactionRepo
+    yahoo_team_stats_repo: YahooTeamStatsRepo
     player_repo: PlayerRepo
     projection_repo: ProjectionRepo
     valuation_repo: ValuationRepo
@@ -778,6 +781,7 @@ def build_yahoo_context(data_dir: str, config_dir: Path) -> Iterator[YahooContex
             yahoo_roster_repo=SqliteYahooRosterRepo(SingleConnectionProvider(conn)),
             yahoo_draft_repo=SqliteYahooDraftRepo(SingleConnectionProvider(conn)),
             yahoo_transaction_repo=SqliteYahooTransactionRepo(SingleConnectionProvider(conn)),
+            yahoo_team_stats_repo=SqliteYahooTeamStatsRepo(SingleConnectionProvider(conn)),
             player_repo=SqlitePlayerRepo(SingleConnectionProvider(conn)),
             projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
             valuation_repo=SqliteValuationRepo(SingleConnectionProvider(conn)),

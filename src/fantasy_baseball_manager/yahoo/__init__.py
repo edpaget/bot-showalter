@@ -7,6 +7,7 @@ from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 from fantasy_baseball_manager.yahoo.player_parsing import extract_player_data
 from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
+from fantasy_baseball_manager.yahoo.standings_source import YahooStandingsSource
 from fantasy_baseball_manager.yahoo.transaction_source import YahooTransactionSource
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "YahooLeagueSource",
     "YahooPlayerMapper",
     "YahooRosterSource",
+    "YahooStandingsSource",
     "YahooTransactionSource",
     "extract_player_data",
 ]

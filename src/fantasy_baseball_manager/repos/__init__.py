@@ -55,6 +55,7 @@ from fantasy_baseball_manager.repos.protocols import (
     YahooRosterRepo,
     YahooRosterSourceProto,
     YahooTeamRepo,
+    YahooTeamStatsRepo,
     YahooTransactionRepo,
     YahooTransactionSourceProto,
 )
@@ -71,6 +72,9 @@ from fantasy_baseball_manager.repos.yahoo_player_map_repo import (
     SqliteYahooPlayerMapRepo,
 )
 from fantasy_baseball_manager.repos.yahoo_roster_repo import SqliteYahooRosterRepo
+from fantasy_baseball_manager.repos.yahoo_team_stats_repo import (
+    SqliteYahooTeamStatsRepo,
+)
 from fantasy_baseball_manager.repos.yahoo_transaction_repo import (
     SqliteYahooTransactionRepo,
 )
@@ -126,6 +130,7 @@ __all__ = [
     "SqliteYahooPlayerMapRepo",
     "SqliteYahooRosterRepo",
     "SqliteYahooTeamRepo",
+    "SqliteYahooTeamStatsRepo",
     "SqliteYahooTransactionRepo",
     "StatcastPitchRepo",
     "TeamRepo",
@@ -139,6 +144,7 @@ __all__ = [
     "YahooRosterRepo",
     "YahooRosterSourceProto",
     "YahooTeamRepo",
+    "YahooTeamStatsRepo",
     "YahooTransactionRepo",
     "YahooTransactionSourceProto",
 ]

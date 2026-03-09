@@ -66,6 +66,7 @@ from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
 from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
+from fantasy_baseball_manager.yahoo.standings_source import YahooStandingsSource
 from fantasy_baseball_manager.yahoo.transaction_source import YahooTransactionSource
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,68 @@ def yahoo_sync(  # pragma: no cover
     for team in teams:
         marker = " (you)" if team.is_owned_by_user else ""
         console.print(f"  - {team.name} ({team.manager_name}){marker}")
+
+
+@yahoo_app.command("standings")
+def yahoo_standings(  # pragma: no cover
+    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
+    data_dir: _DataDirOpt = "./data",
+    config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
+) -> None:
+    """Fetch and display league standings (team category totals)."""
+    if season is None:
+        season = current_season()
+    try:
+        config = load_yahoo_config(Path(config_dir))
+    except YahooConfigError as exc:
+        print_error(str(exc))
+        raise typer.Exit(code=1) from None
+
+    if league is None:
+        try:
+            league = resolve_default_league(config)
+        except YahooConfigError as exc:
+            print_error(str(exc))
+            raise typer.Exit(code=1) from None
+
+    if league not in config.leagues:
+        print_error(f"League '{league}' not found in [yahoo.leagues]")
+        raise typer.Exit(code=1)
+
+    league_config = config.leagues[league]
+
+    with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
+        league_key = resolve_league_key(ctx, league_config.league_id, season)
+        source = YahooStandingsSource(ctx.client)
+        team_stats = source.fetch(league_key, season)
+
+        for ts in team_stats:
+            ctx.yahoo_team_stats_repo.upsert(ts)
+        ctx.conn.commit()
+
+    # Display results
+    if not team_stats:
+        console.print("[yellow]No standings data returned.[/yellow]")
+        return
+
+    # Build category columns from the first team's stat keys
+    categories = sorted(team_stats[0].stat_values.keys())
+
+    table = Table(title=f"Standings — {league} {season}")
+    table.add_column("Rank", justify="right")
+    table.add_column("Team")
+    for cat in categories:
+        table.add_column(cat.upper(), justify="right")
+
+    for ts in sorted(team_stats, key=lambda t: t.final_rank):
+        row: list[str] = [str(ts.final_rank), ts.team_name]
+        for cat in categories:
+            val = ts.stat_values.get(cat, 0.0)
+            row.append(f"{val:g}")
+        table.add_row(*row)
+
+    console.print(table)
 
 
 @yahoo_app.command("map-player")
