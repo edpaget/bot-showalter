@@ -614,6 +614,110 @@ class TestValuationEvaluator:
         for _n, rate in result.hit_rates.items():
             assert rate == pytest.approx(100.0)
 
+    # -----------------------------------------------------------------------
+    # Stratification tests
+    # -----------------------------------------------------------------------
+
+    def test_stratify_player_type_returns_cohorts(self) -> None:
+        """stratify='player_type' produces cohorts with batter and pitcher keys."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), stratify="player_type")
+        assert result.cohorts is not None
+        assert "batter" in result.cohorts
+        assert "pitcher" in result.cohorts
+
+    def test_stratify_cohort_n_matches_player_count(self) -> None:
+        """Each cohort n equals the number of that player type."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), stratify="player_type")
+        assert result.cohorts is not None
+        assert result.cohorts["batter"].n == 3  # 3 batters
+        assert result.cohorts["pitcher"].n == 2  # 2 pitchers
+
+    def test_stratify_cohort_metrics_independent(self) -> None:
+        """Each cohort has its own MAE and ρ (not the overall values)."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), stratify="player_type")
+        assert result.cohorts is not None
+        batter_cohort = result.cohorts["batter"]
+        pitcher_cohort = result.cohorts["pitcher"]
+        # Cohort MAE should differ from overall (different populations)
+        assert batter_cohort.value_mae != result.value_mae or pitcher_cohort.value_mae != result.value_mae
+
+    def test_stratify_none_no_cohorts(self) -> None:
+        """Without stratify, cohorts is None (backward compat)."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.cohorts is None
+
+    def test_stratify_composes_with_min_value(self) -> None:
+        """Cohorts respect the min_value population filter."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), min_value=15.0, stratify="player_type")
+        assert result.cohorts is not None
+        # Total cohort n should equal filtered n
+        cohort_total = sum(c.n for c in result.cohorts.values())
+        assert cohort_total == result.n
+
+    def test_stratify_includes_war_correlation(self) -> None:
+        """Cohort results include WAR ρ when WAR data is present."""
+        batting = [
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=35, r=100, war=5.0),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=45, r=110, war=7.0),
+            BattingStats(player_id=3, season=2025, source="fangraphs", pa=500, hr=20, r=80, war=3.0),
+        ]
+        pitching = [
+            PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0, war=4.0),
+            PitchingStats(player_id=5, season=2025, source="fangraphs", ip=70.0, w=5, sv=30, war=2.0),
+        ]
+        evaluator = _build_evaluator(batting=batting, pitching=pitching)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), stratify="player_type")
+        assert result.cohorts is not None
+        # Batter cohort has 3 players with WAR — should have war_correlation
+        assert result.cohorts["batter"].war_correlation is not None
+
+    # -----------------------------------------------------------------------
+    # Tail accuracy tests
+    # -----------------------------------------------------------------------
+
+    def test_tail_results_computed(self) -> None:
+        """With 5 players and tail_ns=(3, 5), result has tail_results with keys 3 and 5."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), tail_ns=(3, 5))
+        assert result.tail_results is not None
+        assert 3 in result.tail_results
+        assert 5 in result.tail_results
+
+    def test_tail_results_skip_large_n(self) -> None:
+        """With 5 players, tail_ns=(3, 50) → only key 3 present."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), tail_ns=(3, 50))
+        assert result.tail_results is not None
+        assert 3 in result.tail_results
+        assert 50 not in result.tail_results
+
+    def test_tail_none_by_default(self) -> None:
+        """Without tail_ns, tail_results is None."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.tail_results is None
+
+    def test_tail_composes_with_stratify(self) -> None:
+        """tail + stratify both active, both populated."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), stratify="player_type", tail_ns=(3, 5))
+        assert result.cohorts is not None
+        assert result.tail_results is not None
+        assert 3 in result.tail_results
+
+    def test_tail_composes_with_min_value(self) -> None:
+        """Tail respects population filter."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), min_value=15.0, tail_ns=(3,))
+        assert result.tail_results is not None
+        if 3 in result.tail_results:
+            assert result.tail_results[3].n == 3
+
     def test_version_filter(self) -> None:
         """Two versions of valuations, filter returns correct one."""
         v1_valuations = _standard_valuations()

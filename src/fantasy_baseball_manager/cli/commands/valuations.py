@@ -63,6 +63,8 @@ def valuations_evaluate(
     targets_opt: Annotated[
         str | None, typer.Option("--targets", help="Comma-separated targets: war,hit-rate (default: all)")
     ] = None,
+    stratify: Annotated[str | None, typer.Option("--stratify", help="Stratify by: player_type")] = None,
+    tail: Annotated[bool, typer.Option("--tail", help="Include top-25 and top-50 tail accuracy")] = False,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Evaluate valuation accuracy against end-of-season actuals."""
@@ -83,9 +85,23 @@ def valuations_evaluate(
             )
         targets = parsed
 
+    valid_stratify = {"player_type"}
+    if stratify is not None and stratify not in valid_stratify:
+        raise typer.BadParameter(f"Unknown stratify value: {stratify}. Valid: {', '.join(sorted(valid_stratify))}")
+
+    tail_ns: tuple[int, ...] | None = (25, 50) if tail else None
+
     league = load_league(league_name, Path.cwd())
     with build_valuation_eval_context(data_dir) as ctx:
         result = ctx.evaluator.evaluate(
-            system, version, season, league, top=top_n, min_value=min_value, targets=targets
+            system,
+            version,
+            season,
+            league,
+            top=top_n,
+            min_value=min_value,
+            targets=targets,
+            stratify=stratify,
+            tail_ns=tail_ns,
         )
     print_valuation_eval_result(result, top=top)

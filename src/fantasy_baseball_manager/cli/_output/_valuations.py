@@ -61,6 +61,23 @@ def print_valuation_rankings(rankings: list[PlayerValuation]) -> None:
     console.print(table)
 
 
+def _print_metrics_block(result: ValuationEvalResult) -> None:
+    """Print the MAE / ρ / WAR / hit-rate lines for a single result."""
+    console.print(f"  Value MAE: [bold]{result.value_mae:.2f}[/bold]")
+    console.print(f"  Spearman rank correlation: [bold]{result.rank_correlation:.4f}[/bold]")
+
+    if result.war_correlation is not None:
+        console.print(f"  WAR correlation (all):      [bold]{result.war_correlation:.4f}[/bold]")
+    if result.war_correlation_batters is not None:
+        console.print(f"  WAR correlation (batters):  [bold]{result.war_correlation_batters:.4f}[/bold]")
+    if result.war_correlation_pitchers is not None:
+        console.print(f"  WAR correlation (pitchers): [bold]{result.war_correlation_pitchers:.4f}[/bold]")
+
+    if result.hit_rates:
+        parts = [f"top-{n}: {rate:.1f}%" for n, rate in sorted(result.hit_rates.items())]
+        console.print(f"  Top-N hit rate:  {'  '.join(parts)}")
+
+
 def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = None) -> None:
     """Print valuation evaluation results with metrics and per-player breakdown."""
     if result.n == 0:
@@ -75,19 +92,21 @@ def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = N
         f"Valuation evaluation: [bold]{result.system}[/bold] v{result.version}"
         f" — season {result.season} ({population_info})"
     )
-    console.print(f"  Value MAE: [bold]{result.value_mae:.2f}[/bold]")
-    console.print(f"  Spearman rank correlation: [bold]{result.rank_correlation:.4f}[/bold]")
+    _print_metrics_block(result)
 
-    if result.war_correlation is not None:
-        console.print(f"  WAR correlation (all):      [bold]{result.war_correlation:.4f}[/bold]")
-    if result.war_correlation_batters is not None:
-        console.print(f"  WAR correlation (batters):  [bold]{result.war_correlation_batters:.4f}[/bold]")
-    if result.war_correlation_pitchers is not None:
-        console.print(f"  WAR correlation (pitchers): [bold]{result.war_correlation_pitchers:.4f}[/bold]")
+    # Cohort output (stratification)
+    if result.cohorts is not None:
+        for label, cohort in sorted(result.cohorts.items()):
+            console.print()
+            console.print(f"  [bold]--- {label.title()}s (n={cohort.n}) ---[/bold]")
+            _print_metrics_block(cohort)
 
-    if result.hit_rates:
-        parts = [f"top-{n}: {rate:.1f}%" for n, rate in sorted(result.hit_rates.items())]
-        console.print(f"  Top-N hit rate:  {'  '.join(parts)}")
+    # Tail output
+    if result.tail_results is not None:
+        for n, tail in sorted(result.tail_results.items()):
+            console.print()
+            console.print(f"  [bold]--- Top {n} ---[/bold]")
+            _print_metrics_block(tail)
 
     console.print()
 

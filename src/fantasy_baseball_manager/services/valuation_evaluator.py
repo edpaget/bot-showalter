@@ -49,6 +49,8 @@ class ValuationEvaluator:
         top: int | None = None,
         min_value: float | None = None,
         targets: frozenset[str] | None = None,
+        stratify: str | None = None,
+        tail_ns: tuple[int, ...] | None = None,
     ) -> ValuationEvalResult:
         logger.info("Evaluating valuations: %s/%s season=%d", system, version, season)
         # 1. Fetch predicted valuations, filter by version
@@ -194,29 +196,54 @@ class ValuationEvaluator:
             )
 
         # 7. Compute metrics
-        value_mae = sum(abs(p.predicted_value - p.actual_value) for p in matched) / len(matched)
-        predicted_ranks = [p.predicted_rank for p in matched]
-        actual_ranks = [p.actual_rank for p in matched]
+        metrics = self._compute_metrics(matched, targets)
 
-        if len(matched) >= 3:
-            corr, _ = spearmanr(predicted_ranks, actual_ranks)
-            rank_correlation = float(corr)
-        else:
-            rank_correlation = 0.0
+        # 7b. Cohorts (stratification)
+        cohorts: dict[str, ValuationEvalResult] | None = None
+        if stratify == "player_type":
+            groups: dict[str, list[ValuationAccuracy]] = {}
+            for p in matched:
+                groups.setdefault(p.player_type, []).append(p)
+            cohorts = {}
+            for ptype, group in sorted(groups.items()):
+                cm = self._compute_metrics(group, targets)
+                cohorts[ptype] = ValuationEvalResult(
+                    system=system,
+                    version=version,
+                    season=season,
+                    value_mae=cm.value_mae,
+                    rank_correlation=cm.rank_correlation,
+                    n=cm.n,
+                    players=sorted(group, key=lambda p: abs(p.surplus), reverse=True),
+                    war_correlation=cm.war_correlation,
+                    war_correlation_batters=cm.war_correlation_batters,
+                    war_correlation_pitchers=cm.war_correlation_pitchers,
+                    hit_rates=cm.hit_rates,
+                )
 
-        # 7b. WAR correlation
-        war_correlation: float | None = None
-        war_correlation_batters: float | None = None
-        war_correlation_pitchers: float | None = None
-        compute_war = targets is None or "war" in targets
-        if compute_war:
-            war_correlation, war_correlation_batters, war_correlation_pitchers = self._compute_war_correlations(matched)
-
-        # 7c. Top-N hit rates
-        hit_rates: dict[int, float] | None = None
-        compute_hit_rate = targets is None or "hit-rate" in targets
-        if compute_hit_rate:
-            hit_rates = self._compute_hit_rates(matched)
+        # 7c. Tail accuracy
+        tail_results: dict[int, ValuationEvalResult] | None = None
+        if tail_ns is not None:
+            tail_results = {}
+            by_pred_rank = sorted(matched, key=lambda p: p.predicted_rank)
+            for n in tail_ns:
+                if n > len(matched):
+                    continue
+                tail_slice = by_pred_rank[:n]
+                tm = self._compute_metrics(tail_slice, targets)
+                tail_results[n] = ValuationEvalResult(
+                    system=system,
+                    version=version,
+                    season=season,
+                    value_mae=tm.value_mae,
+                    rank_correlation=tm.rank_correlation,
+                    n=tm.n,
+                    players=sorted(tail_slice, key=lambda p: abs(p.surplus), reverse=True),
+                    war_correlation=tm.war_correlation,
+                    war_correlation_batters=tm.war_correlation_batters,
+                    war_correlation_pitchers=tm.war_correlation_pitchers,
+                    hit_rates=tm.hit_rates,
+                )
 
         # 8. Sort by absolute surplus descending
         matched.sort(key=lambda p: abs(p.surplus), reverse=True)
@@ -226,12 +253,66 @@ class ValuationEvaluator:
             system=system,
             version=version,
             season=season,
-            value_mae=round(value_mae, 2),
-            rank_correlation=round(rank_correlation, 4),
-            n=len(matched),
+            value_mae=metrics.value_mae,
+            rank_correlation=metrics.rank_correlation,
+            n=metrics.n,
             players=matched,
             total_matched=total_matched,
             filter_description=filter_description,
+            war_correlation=metrics.war_correlation,
+            war_correlation_batters=metrics.war_correlation_batters,
+            war_correlation_pitchers=metrics.war_correlation_pitchers,
+            hit_rates=metrics.hit_rates,
+            cohorts=cohorts,
+            tail_results=tail_results,
+        )
+
+    @staticmethod
+    def _compute_metrics(
+        matched: list[ValuationAccuracy],
+        targets: frozenset[str] | None,
+    ) -> ValuationEvalResult:
+        """Compute MAE, rank ρ, WAR ρ, and hit rates for a player list.
+
+        Returns a minimal ValuationEvalResult holding only the metric fields.
+        """
+        n = len(matched)
+        if n == 0:
+            return ValuationEvalResult(
+                system="", version="", season=0, value_mae=0.0, rank_correlation=0.0, n=0, players=[]
+            )
+
+        value_mae = round(sum(abs(p.predicted_value - p.actual_value) for p in matched) / n, 2)
+
+        if n >= 3:
+            corr, _ = spearmanr(
+                [p.predicted_rank for p in matched],
+                [p.actual_rank for p in matched],
+            )
+            rank_correlation = round(float(corr), 4)
+        else:
+            rank_correlation = 0.0
+
+        war_correlation: float | None = None
+        war_correlation_batters: float | None = None
+        war_correlation_pitchers: float | None = None
+        if targets is None or "war" in targets:
+            war_correlation, war_correlation_batters, war_correlation_pitchers = (
+                ValuationEvaluator._compute_war_correlations(matched)
+            )
+
+        hit_rates: dict[int, float] | None = None
+        if targets is None or "hit-rate" in targets:
+            hit_rates = ValuationEvaluator._compute_hit_rates(matched)
+
+        return ValuationEvalResult(
+            system="",
+            version="",
+            season=0,
+            value_mae=value_mae,
+            rank_correlation=rank_correlation,
+            n=n,
+            players=[],
             war_correlation=war_correlation,
             war_correlation_batters=war_correlation_batters,
             war_correlation_pitchers=war_correlation_pitchers,

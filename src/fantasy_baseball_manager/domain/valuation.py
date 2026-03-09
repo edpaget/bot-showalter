@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -61,3 +63,5 @@ class ValuationEvalResult:
     war_correlation_batters: float | None = None
     war_correlation_pitchers: float | None = None
     hit_rates: dict[int, float] | None = None
+    cohorts: dict[str, ValuationEvalResult] | None = None
+    tail_results: dict[int, ValuationEvalResult] | None = None
