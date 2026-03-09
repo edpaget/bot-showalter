@@ -12,14 +12,13 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Web API Hardening](web-api-hardening.md) | 3 | phases 1-2 done | web-ui-foundation (phases 1-3) |
+| [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 | phases 1-2 done | injury-risk-discount (done), valuation-system-unification phase 1 |
 | [Web UI Foundation](web-ui-foundation.md) | 6 | phases 1-3 done | draft-session-persistence (phase 2 needs phases 1-2) |
 | [Opponent Draft Model](opponent-draft-model.md) | 3 | not started | live-draft-tracker (done), adp-integration (done) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 2 | not started | live-draft-tracker (done), adp-integration (done) |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 | not started | mock-draft-simulator (done), live-draft-tracker (done) |
 | [CLI Consistency](cli-consistency.md) | 4 | phase 1 done | none |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phase 1 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
-| [CLI Consistency](cli-consistency.md) | 4 | not started | none |
 
 ## Completed Roadmaps
 
@@ -79,6 +78,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Prior-Season Roster Lookup](prior-season-roster-lookup.md) | 3 |
 | [Valuation System Unification](valuation-system-unification.md) | 2 |
 | [Variance Correction](variance-correction.md) | 3 |
+| [Web API Hardening](web-api-hardening.md) | 3 |
 | [Yahoo Integration Improvements](yahoo-integration-improvements.md) | 3 |
 | [ZAR Distributional](zar-distributional.md) | 3 |
 | [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 |
