@@ -115,5 +115,7 @@ def web(  # pragma: no cover
         yahoo_poller_manager=yahoo_poller_manager,
         breakout_predictions=breakout_predictions,
         frontend_dir=frontend_dir,
+        default_system=system,
+        default_version=version,
     )
     uvicorn.run(app, host=host, port=port)

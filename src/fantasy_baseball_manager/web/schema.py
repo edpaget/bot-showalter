@@ -79,13 +79,15 @@ class Query:
         self,
         info: Info,
         season: int,
-        system: str = "zar",
-        version: str = "1.0",
+        system: str | None = None,
+        version: str | None = None,
         player_type: str | None = None,
         position: str | None = None,
         top: int | None = None,
     ) -> DraftBoardType:
         ctx = _get_context(info)
+        system = system or ctx.default_system
+        version = version or ctx.default_version
         valuations = ctx.container.valuation_repo.get_by_season(season, system=system, version=version)
 
         if player_type is not None:
@@ -123,13 +125,15 @@ class Query:
         self,
         info: Info,
         season: int,
-        system: str = "zar",
-        version: str = "1.0",
+        system: str | None = None,
+        version: str | None = None,
         player_type: str | None = None,
         method: str = "gap",
         max_tiers: int = 5,
     ) -> list[PlayerTierType]:
         ctx = _get_context(info)
+        system = system or ctx.default_system
+        version = version or ctx.default_version
         valuations = ctx.container.valuation_repo.get_by_season(season, system=system, version=version)
 
         if player_type is not None:
@@ -143,10 +147,12 @@ class Query:
         self,
         info: Info,
         season: int,
-        system: str = "zar",
-        version: str = "1.0",
+        system: str | None = None,
+        version: str | None = None,
     ) -> list[PositionScarcityType]:
         ctx = _get_context(info)
+        system = system or ctx.default_system
+        version = version or ctx.default_version
         valuations = ctx.container.valuation_repo.get_by_season(season, system=system, version=version)
 
         result = compute_scarcity(valuations, ctx.league)
@@ -258,14 +264,16 @@ class Mutation:
         self,
         info: Info,
         season: int,
-        system: str = "zar",
-        version: str = "1.0",
+        system: str | None = None,
+        version: str | None = None,
         teams: int | None = None,
         user_team: int = 1,
         format: str = "snake",
         budget: int | None = None,
     ) -> DraftStateType:
         ctx = _get_context(info)
+        system = system or ctx.default_system
+        version = version or ctx.default_version
         mgr = _get_session_manager(info)
         session_id, engine = mgr.start_session(
             season,

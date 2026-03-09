@@ -26,6 +26,8 @@ class AppContext:
     container: AnalysisContainer
     league: LeagueSettings
     adp_provider: str
+    default_system: str = "zar"
+    default_version: str = "1.0"
     event_bus: EventBus = field(default_factory=EventBus)
     session_manager: SessionManager | None = None
     yahoo_poller_manager: YahooPollerManager | None = None
@@ -41,12 +43,16 @@ def create_app(
     yahoo_poller_manager: YahooPollerManager | None = None,
     breakout_predictions: list[BreakoutPrediction] | None = None,
     frontend_dir: str | None = None,
+    default_system: str = "zar",
+    default_version: str = "1.0",
 ) -> FastAPI:
     """Create a FastAPI application with a GraphQL endpoint at /graphql."""
     app_context = AppContext(
         container=container,
         league=league,
         adp_provider=adp_provider,
+        default_system=default_system,
+        default_version=default_version,
         event_bus=event_bus or EventBus(),
         session_manager=session_manager,
         yahoo_poller_manager=yahoo_poller_manager,
