@@ -37,7 +37,7 @@ function boardMock(): MockedResponse {
   return {
     request: {
       query: BOARD_QUERY,
-      variables: { season: 2026, system: "zar", version: "1.0" },
+      variables: { season: 2026 },
     },
     result: {
       data: {

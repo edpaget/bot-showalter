@@ -82,11 +82,15 @@ export interface DraftBoardTableProps {
 
 export function DraftBoardTable({
   season,
-  system = "zar",
-  version = "1.0",
+  system,
+  version,
 }: DraftBoardTableProps) {
+  const variables: BoardVars = { season };
+  if (system != null) variables.system = system;
+  if (version != null) variables.version = version;
+
   const { data, loading, error } = useQuery<BoardData, BoardVars>(BOARD_QUERY, {
-    variables: { season, system, version },
+    variables,
   });
 
   const [sortKey, setSortKey] = useState<SortKey>("rank");
