@@ -61,6 +61,7 @@ from fantasy_baseball_manager.services.draft_session import (
     FallsCommand,
     ReachesCommand,
     ThreatsCommand,
+    auto_detect_position,
     load_draft,
     load_draft_from_db,
 )
@@ -406,6 +407,7 @@ __all__ = [
     "remap_candidate_keys",
     "resolve_feature",
     "validate_expression",
+    "auto_detect_position",
     "recommend",
     "resolve_player",
     "DEFAULT_SCENARIO_WEIGHTS",

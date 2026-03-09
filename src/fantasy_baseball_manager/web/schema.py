@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain import DraftBoard
 from fantasy_baseball_manager.services import (
     DraftFormat,
     analyze_roster,
+    auto_detect_position,
     build_draft_board,
     compute_scarcity,
     generate_tiers,
@@ -303,6 +304,17 @@ class Mutation:
         ctx = _get_context(info)
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
+
+        # Normalize position to uppercase roster-slot key
+        position = position.upper()
+
+        if position not in engine.state.config.roster_slots:
+            # Try auto-detecting from the player's data (e.g., "P" → "SP"/"RP")
+            player = engine.state.available_pool.get(player_id)
+            if player is not None:
+                detected = auto_detect_position(player, engine.my_needs(), engine.state.config.roster_slots)
+                if detected is not None:
+                    position = detected
 
         if team is None:
             if engine.state.config.format == DraftFormat.SNAKE:

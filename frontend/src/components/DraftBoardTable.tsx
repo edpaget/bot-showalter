@@ -228,7 +228,7 @@ export function DraftBoardTable({
                     <td className="border border-gray-200 px-2 py-1">
                       {!isDrafted && onDraft && (
                         <button
-                          onClick={() => onDraft(row.playerId, row.position)}
+                          onClick={() => onDraft(row.playerId, row.position.toUpperCase())}
                           className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                         >
                           Draft

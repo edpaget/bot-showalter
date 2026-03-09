@@ -64,7 +64,7 @@ export function RecommendationPanel({
                 <td className="py-1">
                   {sessionActive && (
                     <button
-                      onClick={() => onDraft(rec.playerId, rec.position)}
+                      onClick={() => onDraft(rec.playerId, rec.position.toUpperCase())}
                       className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                     >
                       Draft
