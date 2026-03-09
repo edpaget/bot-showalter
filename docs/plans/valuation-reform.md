@@ -27,7 +27,13 @@ Compute per-category SGP (Standings Gain Points) denominators from real league s
 
 SGP denominators answer: "how many standings points does one additional unit of a category buy?" For example, if the average gap between adjacent teams in HR is 25, then SGP(HR) = 25 — each additional 25 HR is worth roughly one standings point. This replaces the z-score approach (which measures distance from the population mean in stdev units) with a measure calibrated to actual league outcomes.
 
-The [League Standings Import](league-standings-import.md) roadmap provides the raw data: per-team season category totals for 4–5 seasons of the redraft league. This phase transforms that raw data into SGP denominators.
+The [League Standings Import](league-standings-import.md) roadmap provides the raw data: per-team season category totals for the redraft league. The import discovered 14 seasons (2012–2025) of standings — far more history than the 4–5 originally expected. This phase transforms that raw data into SGP denominators.
+
+An exploratory notebook ([`notebooks/sgp_denominator_analysis.ipynb`](../notebooks/sgp_denominator_analysis.ipynb)) prototyped the computation and validated the data:
+- Denominators are in the expected range (e.g., ~8 HR/SGP, ~0.09 ERA/SGP, ~16 R/SGP).
+- Coefficient of variation is 24–36% across categories — moderate stability, recent-5yr averages are reasonable.
+- League size changed over time (10→14→12→14 teams), which affects gap magnitudes.
+- A quick SGP-vs-ZAR$ comparison (Spearman ρ = 0.576) revealed that naive SGP massively overvalues low-IP relievers on rate stats — the production engine must address this (see phase 2 rate stat handling).
 
 ### Steps
 
@@ -51,7 +57,7 @@ The [League Standings Import](league-standings-import.md) roadmap provides the r
 
 ### Dependencies
 
-- [League Standings Import](league-standings-import.md) phase 2 (historical standings data must be imported first).
+- [League Standings Import](league-standings-import.md) (done — 14 seasons of redraft standings imported).
 
 ---
 
