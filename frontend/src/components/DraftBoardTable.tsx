@@ -171,7 +171,7 @@ export function DraftBoardTable({
                 <td className="border border-gray-200 px-2 py-1 whitespace-nowrap">
                   {row.playerName}
                 </td>
-                <td className="border border-gray-200 px-2 py-1">{row.position}</td>
+                <td className="border border-gray-200 px-2 py-1">{row.position.toUpperCase()}</td>
                 <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
                 <td className="border border-gray-200 px-2 py-1 font-mono">
                   ${row.value.toFixed(1)}
