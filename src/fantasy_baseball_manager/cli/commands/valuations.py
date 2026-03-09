@@ -56,6 +56,10 @@ def valuations_evaluate(
     system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     top: Annotated[int | None, typer.Option("--top", help="Show top N mispricings")] = None,
+    min_value: Annotated[
+        float | None, typer.Option("--min-value", help="Min predicted or actual value to include")
+    ] = None,
+    top_n: Annotated[int | None, typer.Option("--top-n", help="Top N by predicted rank for population filter")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Evaluate valuation accuracy against end-of-season actuals."""
@@ -66,5 +70,5 @@ def valuations_evaluate(
         version = defaults.version
     league = load_league(league_name, Path.cwd())
     with build_valuation_eval_context(data_dir) as ctx:
-        result = ctx.evaluator.evaluate(system, version, season, league)
+        result = ctx.evaluator.evaluate(system, version, season, league, top=top_n, min_value=min_value)
     print_valuation_eval_result(result, top=top)

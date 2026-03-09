@@ -54,3 +54,5 @@ class ValuationEvalResult:
     rank_correlation: float  # Spearman rho
     n: int
     players: list[ValuationAccuracy]
+    total_matched: int | None = None
+    filter_description: str | None = None

@@ -403,6 +403,58 @@ class TestValuationEvaluator:
         actual_player_ids = {p.player_id for p in result.players}
         assert 3 in actual_player_ids
 
+    def test_min_value_filter_reduces_n(self) -> None:
+        """With min_value, only players with pred or actual > threshold are included."""
+        evaluator = _build_evaluator()
+        unfiltered = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        filtered = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), min_value=15.0)
+        assert filtered.n < unfiltered.n
+        # Every included player should have predicted > 15 or actual > 15
+        for p in filtered.players:
+            assert p.predicted_value > 15.0 or p.actual_value > 15.0
+
+    def test_top_filter_reduces_n(self) -> None:
+        """With top=3, only top 3 by predicted rank are included."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), top=3)
+        assert result.n == 3
+        # All included players should have predicted_rank <= 3
+        for p in result.players:
+            assert p.predicted_rank <= 3
+
+    def test_both_filters_compose(self) -> None:
+        """min_value applied first, then top limits the remaining set."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), min_value=15.0, top=2)
+        # Should be at most 2
+        assert result.n <= 2
+        # And all should pass min_value
+        for p in result.players:
+            assert p.predicted_value > 15.0 or p.actual_value > 15.0
+
+    def test_no_filter_backward_compatible(self) -> None:
+        """Without filters, total_matched is None (backward compatible)."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.total_matched is None
+        assert result.filter_description is None
+
+    def test_min_value_all_filtered_returns_empty(self) -> None:
+        """If min_value is so high nothing passes, result is empty."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), min_value=9999.0)
+        assert result.n == 0
+        assert result.players == []
+
+    def test_total_matched_set_when_filtering(self) -> None:
+        """total_matched reflects pre-filter count when filtering is active."""
+        evaluator = _build_evaluator()
+        unfiltered = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        filtered = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), min_value=15.0)
+        assert filtered.total_matched is not None
+        assert filtered.total_matched == unfiltered.n
+        assert filtered.n < filtered.total_matched
+
     def test_version_filter(self) -> None:
         """Two versions of valuations, filter returns correct one."""
         v1_valuations = _standard_valuations()

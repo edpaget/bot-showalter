@@ -67,9 +67,13 @@ def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = N
         console.print("No matched players found.")
         return
 
+    if result.filter_description is not None and result.total_matched is not None:
+        population_info = f"{result.n} of {result.total_matched} matched players, {result.filter_description}"
+    else:
+        population_info = f"{result.n} matched players"
     console.print(
         f"Valuation evaluation: [bold]{result.system}[/bold] v{result.version}"
-        f" — season {result.season} ({result.n} matched players)"
+        f" — season {result.season} ({population_info})"
     )
     console.print(f"  Value MAE: [bold]{result.value_mae:.2f}[/bold]")
     console.print(f"  Spearman rank correlation: [bold]{result.rank_correlation:.4f}[/bold]")

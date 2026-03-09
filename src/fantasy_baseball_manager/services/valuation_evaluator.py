@@ -45,6 +45,9 @@ class ValuationEvaluator:
         season: int,
         league: LeagueSettings,
         actuals_source: str = "fangraphs",
+        *,
+        top: int | None = None,
+        min_value: float | None = None,
     ) -> ValuationEvalResult:
         logger.info("Evaluating valuations: %s/%s season=%d", system, version, season)
         # 1. Fetch predicted valuations, filter by version
@@ -145,6 +148,27 @@ class ValuationEvaluator:
                 )
             )
 
+        # 6b. Apply population filters
+        filtering = min_value is not None or top is not None
+        total_matched = len(matched) if filtering else None
+
+        if min_value is not None:
+            matched = [p for p in matched if p.predicted_value > min_value or p.actual_value > min_value]
+
+        if top is not None:
+            matched.sort(key=lambda p: p.predicted_rank)
+            matched = matched[:top]
+
+        # Build filter description
+        filter_description: str | None = None
+        if filtering:
+            parts: list[str] = []
+            if min_value is not None:
+                parts.append(f"pred|act > ${min_value}")
+            if top is not None:
+                parts.append(f"top {top} by pred rank")
+            filter_description = ", ".join(parts)
+
         if not matched:
             return ValuationEvalResult(
                 system=system,
@@ -154,6 +178,8 @@ class ValuationEvaluator:
                 rank_correlation=0.0,
                 n=0,
                 players=[],
+                total_matched=total_matched,
+                filter_description=filter_description,
             )
 
         # 7. Compute metrics
@@ -179,6 +205,8 @@ class ValuationEvaluator:
             rank_correlation=round(rank_correlation, 4),
             n=len(matched),
             players=matched,
+            total_matched=total_matched,
+            filter_description=filter_description,
         )
 
     def _value_pool(
