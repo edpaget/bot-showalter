@@ -455,6 +455,165 @@ class TestValuationEvaluator:
         assert filtered.total_matched == unfiltered.n
         assert filtered.n < filtered.total_matched
 
+    # -----------------------------------------------------------------------
+    # WAR correlation tests
+    # -----------------------------------------------------------------------
+
+    def test_war_correlation_computed(self) -> None:
+        """With WAR on all players, war_correlation is in [-1, 1]."""
+        batting = [
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=35, r=100, war=5.0),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=45, r=110, war=7.0),
+            BattingStats(player_id=3, season=2025, source="fangraphs", pa=500, hr=20, r=80, war=3.0),
+        ]
+        pitching = [
+            PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0, war=4.0),
+            PitchingStats(player_id=5, season=2025, source="fangraphs", ip=70.0, w=5, sv=30, war=2.0),
+        ]
+        evaluator = _build_evaluator(batting=batting, pitching=pitching)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.war_correlation is not None
+        assert -1.0 <= result.war_correlation <= 1.0
+
+    def test_war_correlation_batters_pitchers_separate(self) -> None:
+        """Separate WAR ρ for batters and pitchers."""
+        batting = [
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=35, r=100, war=5.0),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=45, r=110, war=7.0),
+            BattingStats(player_id=3, season=2025, source="fangraphs", pa=500, hr=20, r=80, war=3.0),
+        ]
+        pitching = [
+            PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0, war=4.0),
+            PitchingStats(player_id=5, season=2025, source="fangraphs", ip=70.0, w=5, sv=30, war=2.0),
+        ]
+        evaluator = _build_evaluator(batting=batting, pitching=pitching)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.war_correlation_batters is not None
+        assert -1.0 <= result.war_correlation_batters <= 1.0
+        # Only 2 pitchers — need ≥3 for correlation
+        assert result.war_correlation_pitchers is None
+
+    def test_war_correlation_none_when_no_war_data(self) -> None:
+        """All WAR=None → WAR fields stay None."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.war_correlation is None
+        assert result.war_correlation_batters is None
+        assert result.war_correlation_pitchers is None
+
+    def test_war_correlation_none_when_target_excluded(self) -> None:
+        """targets=frozenset({'hit-rate'}) → WAR fields None."""
+        batting = [
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=35, r=100, war=5.0),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=45, r=110, war=7.0),
+            BattingStats(player_id=3, season=2025, source="fangraphs", pa=500, hr=20, r=80, war=3.0),
+        ]
+        evaluator = _build_evaluator(batting=batting)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), targets=frozenset({"hit-rate"}))
+        assert result.war_correlation is None
+        assert result.war_correlation_batters is None
+        assert result.war_correlation_pitchers is None
+
+    def test_war_correlation_pitchers_too_few(self) -> None:
+        """<3 pitchers with WAR → war_correlation_pitchers is None."""
+        batting = [
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=35, r=100, war=5.0),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=45, r=110, war=7.0),
+            BattingStats(player_id=3, season=2025, source="fangraphs", pa=500, hr=20, r=80, war=3.0),
+        ]
+        pitching = [
+            PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0, war=4.0),
+        ]
+        evaluator = _build_evaluator(batting=batting, pitching=pitching)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.war_correlation_batters is not None
+        assert result.war_correlation_pitchers is None
+
+    # -----------------------------------------------------------------------
+    # Top-N hit rate tests
+    # -----------------------------------------------------------------------
+
+    def test_hit_rate_computed(self) -> None:
+        """With 5 players, hit_rates has keys ≤ 5 only."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.hit_rates is not None
+        for n in result.hit_rates:
+            assert n <= 5
+            assert 0.0 <= result.hit_rates[n] <= 100.0
+
+    def test_hit_rate_skipped_for_large_n(self) -> None:
+        """With 5 players, N=25/50/100 are absent from hit_rates."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.hit_rates is not None
+        assert 25 not in result.hit_rates
+        assert 50 not in result.hit_rates
+        assert 100 not in result.hit_rates
+
+    def test_hit_rate_none_when_target_excluded(self) -> None:
+        """targets=frozenset({'war'}) → hit_rates is None."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), targets=frozenset({"war"}))
+        assert result.hit_rates is None
+
+    def test_hit_rate_perfect_when_rankings_match(self) -> None:
+        """Identical predicted/actual ranks → 100% hit rate."""
+        # Use 3 batters with same ordering in predicted and actual
+        valuations = [
+            Valuation(
+                player_id=1,
+                season=2025,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="batter",
+                position="of",
+                value=40.0,
+                rank=1,
+                category_scores={"hr": 1.5, "r": 1.0},
+            ),
+            Valuation(
+                player_id=2,
+                season=2025,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="batter",
+                position="util",
+                value=30.0,
+                rank=2,
+                category_scores={"hr": 0.8, "r": 0.5},
+            ),
+            Valuation(
+                player_id=3,
+                season=2025,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="batter",
+                position="of",
+                value=20.0,
+                rank=3,
+                category_scores={"hr": 0.0, "r": 0.2},
+            ),
+        ]
+        # Actuals in same order: player 1 best, player 3 worst
+        batting = [
+            BattingStats(player_id=1, season=2025, source="fangraphs", pa=600, hr=50, r=120),
+            BattingStats(player_id=2, season=2025, source="fangraphs", pa=550, hr=30, r=90),
+            BattingStats(player_id=3, season=2025, source="fangraphs", pa=500, hr=10, r=60),
+        ]
+        evaluator = _build_evaluator(valuations=valuations, batting=batting, pitching=[])
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league(), targets=frozenset({"hit-rate"}))
+        assert result.hit_rates is not None
+        # All hit rates should be 100% since ordering matches
+        for _n, rate in result.hit_rates.items():
+            assert rate == pytest.approx(100.0)
+
     def test_version_filter(self) -> None:
         """Two versions of valuations, filter returns correct one."""
         v1_valuations = _standard_valuations()

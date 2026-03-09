@@ -77,11 +77,25 @@ def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = N
     )
     console.print(f"  Value MAE: [bold]{result.value_mae:.2f}[/bold]")
     console.print(f"  Spearman rank correlation: [bold]{result.rank_correlation:.4f}[/bold]")
+
+    if result.war_correlation is not None:
+        console.print(f"  WAR correlation (all):      [bold]{result.war_correlation:.4f}[/bold]")
+    if result.war_correlation_batters is not None:
+        console.print(f"  WAR correlation (batters):  [bold]{result.war_correlation_batters:.4f}[/bold]")
+    if result.war_correlation_pitchers is not None:
+        console.print(f"  WAR correlation (pitchers): [bold]{result.war_correlation_pitchers:.4f}[/bold]")
+
+    if result.hit_rates:
+        parts = [f"top-{n}: {rate:.1f}%" for n, rate in sorted(result.hit_rates.items())]
+        console.print(f"  Top-N hit rate:  {'  '.join(parts)}")
+
     console.print()
 
     players = result.players
     if top is not None:
         players = players[:top]
+
+    has_war = any(p.actual_war is not None for p in players)
 
     table = Table(show_edge=False, pad_edge=False)
     table.add_column("Player")
@@ -91,9 +105,11 @@ def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = N
     table.add_column("Surplus$", justify="right")
     table.add_column("PredRank", justify="right")
     table.add_column("ActRank", justify="right")
+    if has_war:
+        table.add_column("WAR", justify="right")
     for p in players:
         surplus_str = f"{p.surplus:+.1f}"
-        table.add_row(
+        row = [
             p.player_name,
             p.player_type,
             f"${p.predicted_value:.1f}",
@@ -101,5 +117,8 @@ def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = N
             surplus_str,
             str(p.predicted_rank),
             str(p.actual_rank),
-        )
+        ]
+        if has_war:
+            row.append(f"{p.actual_war:.1f}" if p.actual_war is not None else "—")
+        table.add_row(*row)
     console.print(table)

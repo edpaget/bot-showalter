@@ -48,6 +48,7 @@ class ValuationEvaluator:
         *,
         top: int | None = None,
         min_value: float | None = None,
+        targets: frozenset[str] | None = None,
     ) -> ValuationEvalResult:
         logger.info("Evaluating valuations: %s/%s season=%d", system, version, season)
         # 1. Fetch predicted valuations, filter by version
@@ -67,6 +68,15 @@ class ValuationEvaluator:
         # 2. Fetch actual stats
         batting_actuals = self._batting_repo.get_by_season(season, source=actuals_source)
         pitching_actuals = self._pitching_repo.get_by_season(season, source=actuals_source)
+
+        # 2b. Build WAR lookup
+        war_lookup: dict[tuple[int, str], float] = {}
+        for bs in batting_actuals:
+            if bs.war is not None:
+                war_lookup[(bs.player_id, "batter")] = bs.war
+        for ps in pitching_actuals:
+            if ps.war is not None:
+                war_lookup[(ps.player_id, "pitcher")] = ps.war
 
         # 3. Convert actual stats to float dicts
         batter_stats: dict[int, dict[str, float]] = {}
@@ -145,6 +155,7 @@ class ValuationEvaluator:
                     surplus=surplus,
                     predicted_rank=pred_val.rank,
                     actual_rank=actual_rank,
+                    actual_war=war_lookup.get(key),
                 )
             )
 
@@ -193,6 +204,20 @@ class ValuationEvaluator:
         else:
             rank_correlation = 0.0
 
+        # 7b. WAR correlation
+        war_correlation: float | None = None
+        war_correlation_batters: float | None = None
+        war_correlation_pitchers: float | None = None
+        compute_war = targets is None or "war" in targets
+        if compute_war:
+            war_correlation, war_correlation_batters, war_correlation_pitchers = self._compute_war_correlations(matched)
+
+        # 7c. Top-N hit rates
+        hit_rates: dict[int, float] | None = None
+        compute_hit_rate = targets is None or "hit-rate" in targets
+        if compute_hit_rate:
+            hit_rates = self._compute_hit_rates(matched)
+
         # 8. Sort by absolute surplus descending
         matched.sort(key=lambda p: abs(p.surplus), reverse=True)
 
@@ -207,7 +232,53 @@ class ValuationEvaluator:
             players=matched,
             total_matched=total_matched,
             filter_description=filter_description,
+            war_correlation=war_correlation,
+            war_correlation_batters=war_correlation_batters,
+            war_correlation_pitchers=war_correlation_pitchers,
+            hit_rates=hit_rates,
         )
+
+    @staticmethod
+    def _compute_war_correlations(
+        matched: list[ValuationAccuracy],
+    ) -> tuple[float | None, float | None, float | None]:
+        """Compute Spearman ρ of predicted $ vs actual WAR (overall, batters, pitchers)."""
+        with_war = [(p.predicted_value, p.actual_war, p.player_type) for p in matched if p.actual_war is not None]
+        if len(with_war) < 3:
+            return None, None, None
+
+        pred_vals = [w[0] for w in with_war]
+        wars = [w[1] for w in with_war]
+        corr, _ = spearmanr(pred_vals, wars)
+        war_correlation = round(float(corr), 4)
+
+        # Batters
+        batter_data = [(pv, w) for pv, w, pt in with_war if pt == "batter"]
+        war_correlation_batters: float | None = None
+        if len(batter_data) >= 3:
+            corr_b, _ = spearmanr([b[0] for b in batter_data], [b[1] for b in batter_data])
+            war_correlation_batters = round(float(corr_b), 4)
+
+        # Pitchers
+        pitcher_data = [(pv, w) for pv, w, pt in with_war if pt == "pitcher"]
+        war_correlation_pitchers: float | None = None
+        if len(pitcher_data) >= 3:
+            corr_p, _ = spearmanr([p[0] for p in pitcher_data], [p[1] for p in pitcher_data])
+            war_correlation_pitchers = round(float(corr_p), 4)
+
+        return war_correlation, war_correlation_batters, war_correlation_pitchers
+
+    @staticmethod
+    def _compute_hit_rates(matched: list[ValuationAccuracy]) -> dict[int, float]:
+        """Compute top-N hit rates for N in (25, 50, 100) where N ≤ len(matched)."""
+        hit_rates: dict[int, float] = {}
+        for n in (25, 50, 100):
+            if n > len(matched):
+                continue
+            predicted_top = {p.player_id for p in sorted(matched, key=lambda p: p.predicted_rank)[:n]}
+            actual_top = {p.player_id for p in sorted(matched, key=lambda p: p.actual_rank)[:n]}
+            hit_rates[n] = round(len(predicted_top & actual_top) / n * 100, 1)
+        return hit_rates
 
     def _value_pool(
         self,

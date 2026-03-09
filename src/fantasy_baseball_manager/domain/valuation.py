@@ -43,6 +43,7 @@ class ValuationAccuracy:
     surplus: float  # predicted - actual (positive = overpaid)
     predicted_rank: int
     actual_rank: int
+    actual_war: float | None = None
 
 
 @dataclass(frozen=True)
@@ -56,3 +57,7 @@ class ValuationEvalResult:
     players: list[ValuationAccuracy]
     total_matched: int | None = None
     filter_description: str | None = None
+    war_correlation: float | None = None
+    war_correlation_batters: float | None = None
+    war_correlation_pitchers: float | None = None
+    hit_rates: dict[int, float] | None = None

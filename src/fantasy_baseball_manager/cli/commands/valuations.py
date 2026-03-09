@@ -60,6 +60,9 @@ def valuations_evaluate(
         float | None, typer.Option("--min-value", help="Min predicted or actual value to include")
     ] = None,
     top_n: Annotated[int | None, typer.Option("--top-n", help="Top N by predicted rank for population filter")] = None,
+    targets_opt: Annotated[
+        str | None, typer.Option("--targets", help="Comma-separated targets: war,hit-rate (default: all)")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Evaluate valuation accuracy against end-of-season actuals."""
@@ -68,7 +71,21 @@ def valuations_evaluate(
         system = defaults.system
     if version is None:
         version = defaults.version
+
+    valid_targets = {"war", "hit-rate"}
+    targets: frozenset[str] | None = None
+    if targets_opt is not None:
+        parsed = frozenset(t.strip() for t in targets_opt.split(","))
+        invalid = parsed - valid_targets
+        if invalid:
+            raise typer.BadParameter(
+                f"Unknown targets: {', '.join(sorted(invalid))}. Valid: {', '.join(sorted(valid_targets))}"
+            )
+        targets = parsed
+
     league = load_league(league_name, Path.cwd())
     with build_valuation_eval_context(data_dir) as ctx:
-        result = ctx.evaluator.evaluate(system, version, season, league, top=top_n, min_value=min_value)
+        result = ctx.evaluator.evaluate(
+            system, version, season, league, top=top_n, min_value=min_value, targets=targets
+        )
     print_valuation_eval_result(result, top=top)
