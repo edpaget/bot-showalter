@@ -315,7 +315,10 @@ from fantasy_baseball_manager.domain.valuation import (
     PlayerValuation,
     Valuation,
     ValuationAccuracy,
+    ValuationComparisonResult,
     ValuationEvalResult,
+    ValuationRegressionCheck,
+    check_valuation_regression,
 )
 from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
 from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
@@ -547,7 +550,10 @@ __all__ = [
     "ValidationResult",
     "Valuation",
     "ValuationAccuracy",
+    "ValuationComparisonResult",
     "ValuationEvalResult",
+    "ValuationRegressionCheck",
+    "check_valuation_regression",
     "ValueOverADP",
     "ValueOverADPReport",
     "VarianceClassification",

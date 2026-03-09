@@ -1,21 +1,27 @@
 from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
 
 from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_defaults
 from fantasy_baseball_manager.cli._output import (
     print_player_valuations,
+    print_valuation_comparison,
     print_valuation_eval_result,
     print_valuation_rankings,
+    print_valuation_regression_check,
 )
 from fantasy_baseball_manager.cli.factory import (
     build_valuation_eval_context,
     build_valuations_context,
 )
 from fantasy_baseball_manager.config_league import load_league
+from fantasy_baseball_manager.domain import check_valuation_regression
 
 valuations_app = typer.Typer(name="valuations", help="Look up and explore player valuations")
+
+_DEFAULT_MIN_VALUE = 0.01
 
 
 @valuations_app.command("lookup")
@@ -49,8 +55,34 @@ def valuations_rankings(  # pragma: no cover
     print_valuation_rankings(results)
 
 
+def _parse_targets(targets_opt: str | None) -> frozenset[str] | None:
+    valid_targets = {"war", "hit-rate"}
+    if targets_opt is None:
+        return None
+    parsed = frozenset(t.strip() for t in targets_opt.split(","))
+    invalid = parsed - valid_targets
+    if invalid:
+        raise typer.BadParameter(
+            f"Unknown targets: {', '.join(sorted(invalid))}. Valid: {', '.join(sorted(valid_targets))}"
+        )
+    return parsed
+
+
+def _resolve_min_value(min_value: float | None, full: bool, *, min_value_given: bool) -> float | None:
+    """Resolve the effective min_value for evaluate/compare commands.
+
+    Priority: explicit --min-value > --full > default (0.01).
+    """
+    if min_value_given:
+        return min_value
+    if full:
+        return None
+    return _DEFAULT_MIN_VALUE
+
+
 @valuations_app.command("evaluate")
 def valuations_evaluate(
+    ctx: typer.Context,
     season: Annotated[int, typer.Option("--season", help="Season year")],
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
     system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
@@ -65,6 +97,7 @@ def valuations_evaluate(
     ] = None,
     stratify: Annotated[str | None, typer.Option("--stratify", help="Stratify by: player_type")] = None,
     tail: Annotated[bool, typer.Option("--tail", help="Include top-25 and top-50 tail accuracy")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include all players (no min-value filter)")] = False,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Evaluate valuation accuracy against end-of-season actuals."""
@@ -74,16 +107,9 @@ def valuations_evaluate(
     if version is None:
         version = defaults.version
 
-    valid_targets = {"war", "hit-rate"}
-    targets: frozenset[str] | None = None
-    if targets_opt is not None:
-        parsed = frozenset(t.strip() for t in targets_opt.split(","))
-        invalid = parsed - valid_targets
-        if invalid:
-            raise typer.BadParameter(
-                f"Unknown targets: {', '.join(sorted(invalid))}. Valid: {', '.join(sorted(valid_targets))}"
-            )
-        targets = parsed
+    min_value_given = ctx.get_parameter_source("min_value") == click.core.ParameterSource.COMMANDLINE
+    effective_min_value = _resolve_min_value(min_value, full, min_value_given=min_value_given)
+    targets = _parse_targets(targets_opt)
 
     valid_stratify = {"player_type"}
     if stratify is not None and stratify not in valid_stratify:
@@ -92,16 +118,83 @@ def valuations_evaluate(
     tail_ns: tuple[int, ...] | None = (25, 50) if tail else None
 
     league = load_league(league_name, Path.cwd())
-    with build_valuation_eval_context(data_dir) as ctx:
-        result = ctx.evaluator.evaluate(
+    with build_valuation_eval_context(data_dir) as eval_ctx:
+        result = eval_ctx.evaluator.evaluate(
             system,
             version,
             season,
             league,
             top=top_n,
-            min_value=min_value,
+            min_value=effective_min_value,
             targets=targets,
             stratify=stratify,
             tail_ns=tail_ns,
         )
     print_valuation_eval_result(result, top=top)
+
+
+@valuations_app.command("compare")
+def valuations_compare(
+    systems: Annotated[list[str], typer.Argument(help="Two system/version pairs (e.g. zar/holdout zar-v2/holdout)")],
+    ctx: typer.Context,
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
+    min_value: Annotated[
+        float | None, typer.Option("--min-value", help="Min predicted or actual value to include")
+    ] = None,
+    top_n: Annotated[int | None, typer.Option("--top-n", help="Top N by predicted rank for population filter")] = None,
+    targets_opt: Annotated[
+        str | None, typer.Option("--targets", help="Comma-separated targets: war,hit-rate (default: all)")
+    ] = None,
+    stratify: Annotated[str | None, typer.Option("--stratify", help="Stratify by: player_type")] = None,
+    tail: Annotated[bool, typer.Option("--tail", help="Include top-25 and top-50 tail accuracy")] = False,
+    check: Annotated[bool, typer.Option("--check", help="Exit non-zero on regression")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include all players (no min-value filter)")] = False,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Compare two valuation systems side-by-side."""
+    if len(systems) != 2:
+        raise typer.BadParameter("Exactly 2 system/version pairs required (e.g. zar/holdout zar-v2/holdout)")
+
+    def _parse_system_version(spec: str) -> tuple[str, str]:
+        parts = spec.split("/", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise typer.BadParameter(f"Invalid system/version format: '{spec}'. Expected 'system/version'.")
+        return parts[0], parts[1]
+
+    baseline_system, baseline_version = _parse_system_version(systems[0])
+    candidate_system, candidate_version = _parse_system_version(systems[1])
+
+    min_value_given = ctx.get_parameter_source("min_value") == click.core.ParameterSource.COMMANDLINE
+    effective_min_value = _resolve_min_value(min_value, full, min_value_given=min_value_given)
+    targets = _parse_targets(targets_opt)
+
+    valid_stratify = {"player_type"}
+    if stratify is not None and stratify not in valid_stratify:
+        raise typer.BadParameter(f"Unknown stratify value: {stratify}. Valid: {', '.join(sorted(valid_stratify))}")
+
+    tail_ns: tuple[int, ...] | None = (25, 50) if tail else None
+
+    league = load_league(league_name, Path.cwd())
+    with build_valuation_eval_context(data_dir) as eval_ctx:
+        comparison = eval_ctx.evaluator.compare(
+            baseline_system,
+            baseline_version,
+            candidate_system,
+            candidate_version,
+            season,
+            league,
+            min_value=effective_min_value,
+            top=top_n,
+            targets=targets,
+            stratify=stratify,
+            tail_ns=tail_ns,
+        )
+
+    print_valuation_comparison(comparison)
+
+    if check:
+        regression = check_valuation_regression(comparison.baseline, comparison.candidate)
+        print_valuation_regression_check(regression)
+        if not regression.passed:
+            raise SystemExit(1)

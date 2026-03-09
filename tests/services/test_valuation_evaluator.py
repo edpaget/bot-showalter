@@ -13,7 +13,12 @@ from fantasy_baseball_manager.domain.league_settings import (
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
-from fantasy_baseball_manager.domain.valuation import Valuation
+from fantasy_baseball_manager.domain.valuation import (
+    Valuation,
+    ValuationComparisonResult,
+    ValuationEvalResult,
+    check_valuation_regression,
+)
 from fantasy_baseball_manager.services.valuation_evaluator import ValuationEvaluator
 from tests.fakes.repos import (
     FakeBattingStatsRepo,
@@ -743,3 +748,137 @@ class TestValuationEvaluator:
         assert result.version == "2.0"
         player_ids = {p.player_id for p in result.players}
         assert player_ids == {1}
+
+
+# ---------------------------------------------------------------------------
+# Compare tests
+# ---------------------------------------------------------------------------
+
+
+class TestValuationCompare:
+    def test_compare_returns_both_results(self) -> None:
+        evaluator = _build_evaluator()
+        result = evaluator.compare(
+            "zar",
+            "1.0",
+            "zar",
+            "1.0",
+            2025,
+            _counting_league(),
+            min_value=None,
+            top=None,
+            targets=None,
+            stratify=None,
+            tail_ns=None,
+        )
+        assert isinstance(result, ValuationComparisonResult)
+        assert result.season == 2025
+        assert result.baseline.system == "zar"
+        assert result.candidate.system == "zar"
+        assert result.baseline.n == 5
+        assert result.candidate.n == 5
+
+    def test_compare_passes_filters(self) -> None:
+        evaluator = _build_evaluator()
+        result = evaluator.compare(
+            "zar",
+            "1.0",
+            "zar",
+            "1.0",
+            2025,
+            _counting_league(),
+            min_value=15.0,
+            top=None,
+            targets=frozenset({"war"}),
+            stratify="player_type",
+            tail_ns=(3,),
+        )
+        # Both results should have the same filtered n
+        assert result.baseline.n == result.candidate.n
+        # min_value filter should reduce population
+        assert result.baseline.n < 5
+        # stratify should produce cohorts
+        assert result.baseline.cohorts is not None
+        # targets=war should exclude hit-rate
+        assert result.baseline.hit_rates is None
+
+
+# ---------------------------------------------------------------------------
+# Regression check tests
+# ---------------------------------------------------------------------------
+
+
+def _make_eval_result(
+    *,
+    war_correlation: float | None = None,
+    war_correlation_batters: float | None = None,
+    war_correlation_pitchers: float | None = None,
+    hit_rates: dict[int, float] | None = None,
+) -> ValuationEvalResult:
+    return ValuationEvalResult(
+        system="test",
+        version="1.0",
+        season=2025,
+        value_mae=10.0,
+        rank_correlation=0.5,
+        n=100,
+        players=[],
+        war_correlation=war_correlation,
+        war_correlation_batters=war_correlation_batters,
+        war_correlation_pitchers=war_correlation_pitchers,
+        hit_rates=hit_rates,
+    )
+
+
+class TestValuationRegressionCheck:
+    def test_passes_when_no_drop(self) -> None:
+        baseline = _make_eval_result(war_correlation=0.20, hit_rates={25: 30.0, 50: 40.0})
+        candidate = _make_eval_result(war_correlation=0.22, hit_rates={25: 32.0, 50: 42.0})
+        result = check_valuation_regression(baseline, candidate)
+        assert result.passed is True
+        assert result.war_passed is True
+        assert result.hit_rate_passed is True
+
+    def test_fails_on_war_drop(self) -> None:
+        baseline = _make_eval_result(war_correlation=0.20, hit_rates={25: 30.0, 50: 40.0})
+        candidate = _make_eval_result(war_correlation=0.15, hit_rates={25: 30.0, 50: 40.0})
+        result = check_valuation_regression(baseline, candidate)
+        assert result.passed is False
+        assert result.war_passed is False
+        assert result.hit_rate_passed is True
+
+    def test_fails_on_hit_rate_drop(self) -> None:
+        baseline = _make_eval_result(war_correlation=0.20, hit_rates={25: 40.0, 50: 50.0})
+        candidate = _make_eval_result(war_correlation=0.20, hit_rates={25: 30.0, 50: 40.0})
+        result = check_valuation_regression(baseline, candidate)
+        assert result.passed is False
+        assert result.war_passed is True
+        assert result.hit_rate_passed is False
+
+    def test_handles_none_war(self) -> None:
+        baseline = _make_eval_result(war_correlation=None, hit_rates={25: 30.0})
+        candidate = _make_eval_result(war_correlation=None, hit_rates={25: 30.0})
+        result = check_valuation_regression(baseline, candidate)
+        assert result.passed is True
+        assert result.war_passed is True
+
+    def test_handles_none_hit_rates(self) -> None:
+        baseline = _make_eval_result(war_correlation=0.20, hit_rates=None)
+        candidate = _make_eval_result(war_correlation=0.20, hit_rates=None)
+        result = check_valuation_regression(baseline, candidate)
+        assert result.passed is True
+        assert result.hit_rate_passed is True
+
+    def test_war_drop_at_threshold_passes(self) -> None:
+        """Exactly 0.01 drop is allowed (<=)."""
+        baseline = _make_eval_result(war_correlation=0.20, hit_rates={25: 30.0})
+        candidate = _make_eval_result(war_correlation=0.19, hit_rates={25: 30.0})
+        result = check_valuation_regression(baseline, candidate)
+        assert result.war_passed is True
+
+    def test_hit_rate_drop_at_threshold_passes(self) -> None:
+        """Exactly 5pp drop is allowed (<=)."""
+        baseline = _make_eval_result(war_correlation=0.20, hit_rates={25: 35.0})
+        candidate = _make_eval_result(war_correlation=0.20, hit_rates={25: 30.0})
+        result = check_valuation_regression(baseline, candidate)
+        assert result.hit_rate_passed is True

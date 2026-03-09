@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from scipy.stats import spearmanr
 
-from fantasy_baseball_manager.domain import ValuationAccuracy, ValuationEvalResult
+from fantasy_baseball_manager.domain import ValuationAccuracy, ValuationComparisonResult, ValuationEvalResult
 from fantasy_baseball_manager.models.zar.engine import (
     compute_budget_split,
     run_zar_pipeline,
@@ -266,6 +266,46 @@ class ValuationEvaluator:
             cohorts=cohorts,
             tail_results=tail_results,
         )
+
+    def compare(
+        self,
+        baseline_system: str,
+        baseline_version: str,
+        candidate_system: str,
+        candidate_version: str,
+        season: int,
+        league: LeagueSettings,
+        *,
+        min_value: float | None,
+        top: int | None,
+        targets: frozenset[str] | None,
+        stratify: str | None,
+        tail_ns: tuple[int, ...] | None,
+    ) -> ValuationComparisonResult:
+        """Evaluate two valuation systems and return both results for comparison."""
+        baseline = self.evaluate(
+            baseline_system,
+            baseline_version,
+            season,
+            league,
+            top=top,
+            min_value=min_value,
+            targets=targets,
+            stratify=stratify,
+            tail_ns=tail_ns,
+        )
+        candidate = self.evaluate(
+            candidate_system,
+            candidate_version,
+            season,
+            league,
+            top=top,
+            min_value=min_value,
+            targets=targets,
+            stratify=stratify,
+            tail_ns=tail_ns,
+        )
+        return ValuationComparisonResult(season=season, baseline=baseline, candidate=candidate)
 
     @staticmethod
     def _compute_metrics(

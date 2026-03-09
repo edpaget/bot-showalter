@@ -5,7 +5,12 @@ from rich.table import Table
 from fantasy_baseball_manager.cli._output._common import console
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import PlayerValuation, ValuationEvalResult
+    from fantasy_baseball_manager.domain import (
+        PlayerValuation,
+        ValuationComparisonResult,
+        ValuationEvalResult,
+        ValuationRegressionCheck,
+    )
 
 
 def print_player_valuations(valuations: list[PlayerValuation]) -> None:
@@ -141,3 +146,81 @@ def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = N
             row.append(f"{p.actual_war:.1f}" if p.actual_war is not None else "—")
         table.add_row(*row)
     console.print(table)
+
+
+def _fmt_delta(candidate: float, baseline: float, fmt: str = ".2f", suffix: str = "") -> str:
+    """Format a delta value with +/- prefix."""
+    delta = candidate - baseline
+    return f"{delta:+{fmt}}{suffix}"
+
+
+def print_valuation_comparison(result: ValuationComparisonResult) -> None:
+    """Print side-by-side comparison of two valuation evaluation results."""
+    b = result.baseline
+    c = result.candidate
+
+    b_label = f"{b.system}/{b.version}"
+    c_label = f"{c.system}/{c.version}"
+
+    console.print(f"Valuation comparison — season {result.season}")
+    console.print()
+
+    table = Table(show_edge=False, pad_edge=False)
+    table.add_column("Metric")
+    table.add_column(f"baseline ({b_label})", justify="right")
+    table.add_column(f"candidate ({c_label})", justify="right")
+    table.add_column("Δ", justify="right")
+
+    # Value MAE (lower is better)
+    table.add_row("Value MAE", f"{b.value_mae:.2f}", f"{c.value_mae:.2f}", _fmt_delta(c.value_mae, b.value_mae))
+
+    # Rank ρ
+    table.add_row(
+        "Rank ρ",
+        f"{b.rank_correlation:.4f}",
+        f"{c.rank_correlation:.4f}",
+        _fmt_delta(c.rank_correlation, b.rank_correlation, ".4f"),
+    )
+
+    # WAR correlations
+    if b.war_correlation is not None and c.war_correlation is not None:
+        table.add_row(
+            "WAR ρ (all)",
+            f"{b.war_correlation:.4f}",
+            f"{c.war_correlation:.4f}",
+            _fmt_delta(c.war_correlation, b.war_correlation, ".4f"),
+        )
+    if b.war_correlation_batters is not None and c.war_correlation_batters is not None:
+        table.add_row(
+            "WAR ρ (batters)",
+            f"{b.war_correlation_batters:.4f}",
+            f"{c.war_correlation_batters:.4f}",
+            _fmt_delta(c.war_correlation_batters, b.war_correlation_batters, ".4f"),
+        )
+    if b.war_correlation_pitchers is not None and c.war_correlation_pitchers is not None:
+        table.add_row(
+            "WAR ρ (pitchers)",
+            f"{b.war_correlation_pitchers:.4f}",
+            f"{c.war_correlation_pitchers:.4f}",
+            _fmt_delta(c.war_correlation_pitchers, b.war_correlation_pitchers, ".4f"),
+        )
+
+    # Hit rates
+    if b.hit_rates and c.hit_rates:
+        common_ns = sorted(set(b.hit_rates) & set(c.hit_rates))
+        for n in common_ns:
+            table.add_row(
+                f"Hit rate top-{n}",
+                f"{b.hit_rates[n]:.1f}%",
+                f"{c.hit_rates[n]:.1f}%",
+                _fmt_delta(c.hit_rates[n], b.hit_rates[n], ".1f", "pp"),
+            )
+
+    console.print(table)
+    console.print(f"\n  Population: baseline n={b.n}, candidate n={c.n}")
+
+
+def print_valuation_regression_check(check: ValuationRegressionCheck) -> None:
+    """Print the regression check result."""
+    style = "bold green" if check.passed else "bold red"
+    console.print(f"\nRegression check: [{style}]{check.explanation}[/{style}]")

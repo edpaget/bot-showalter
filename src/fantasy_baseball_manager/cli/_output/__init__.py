@@ -120,8 +120,10 @@ from fantasy_baseball_manager.cli._output._runs import (
 from fantasy_baseball_manager.cli._output._validate import print_preflight_result, print_validation_result
 from fantasy_baseball_manager.cli._output._valuations import (
     print_player_valuations,
+    print_valuation_comparison,
     print_valuation_eval_result,
     print_valuation_rankings,
+    print_valuation_regression_check,
 )
 
 _SUBMODULE_NAMES = (
@@ -265,8 +267,10 @@ __all__ = [
     "print_tune_result",
     "print_upgrades",
     "print_validation_result",
+    "print_valuation_comparison",
     "print_valuation_eval_result",
     "print_valuation_rankings",
+    "print_valuation_regression_check",
     "print_value_curve",
     "print_value_over_adp",
     "print_variance_targets",
