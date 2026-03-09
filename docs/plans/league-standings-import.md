@@ -9,7 +9,7 @@ The redraft league (ID 91300 in `fbm.local.toml`) has 4 seasons (2021–2025) of
 | Phase | Status |
 |-------|--------|
 | 1 — Standings API pipeline | done (2025-03-09) |
-| 2 — Historical league discovery and bulk import | in progress (2025-03-09) |
+| 2 — Historical league discovery and bulk import | done (2025-03-09) |
 
 ## Phase 1: Standings API pipeline
 
