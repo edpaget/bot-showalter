@@ -33,7 +33,7 @@ from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
-from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade, Valuation
+from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade, Valuation, current_season
 from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo
 from fantasy_baseball_manager.services import (
@@ -471,7 +471,7 @@ def draft_delete(  # pragma: no cover
 @draft_app.command("report")
 def draft_report_cmd(
     draft_file: Annotated[Path, typer.Argument(help="Path to saved draft JSON file")],
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
@@ -479,6 +479,8 @@ def draft_report_cmd(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Generate a post-draft analysis report from a saved draft file."""
+    if season is None:
+        season = current_season()
     league = load_league(league_name, Path.cwd())
 
     with build_draft_board_context(data_dir) as ctx:

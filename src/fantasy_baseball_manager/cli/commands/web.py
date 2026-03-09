@@ -9,6 +9,7 @@ from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain import current_season
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqliteYahooPlayerMapRepo, SqliteYahooTeamRepo
 from fantasy_baseball_manager.web import EventBus, SessionManager, YahooPollerManager, create_app
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
@@ -18,7 +19,7 @@ from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 
 
 def web(  # pragma: no cover
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "default",
@@ -28,6 +29,8 @@ def web(  # pragma: no cover
     yahoo_config_dir: Annotated[str | None, typer.Option("--yahoo-config-dir", help="Yahoo config directory")] = None,
 ) -> None:
     """Start the GraphQL API server."""
+    if season is None:
+        season = current_season()
     league = load_league(league_name, Path.cwd())
     conn = create_connection(Path(data_dir) / "fbm.db")
     provider = SingleConnectionProvider(conn)

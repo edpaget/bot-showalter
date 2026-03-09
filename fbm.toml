@@ -5,7 +5,7 @@ system = "zar"
 version = "production"
 
 [models.ensemble.params]
-season = 2026
+season = 2026  # model param, not a CLI default — update seasonally
 fallback = "steamer"
 
 [models.ensemble.params.components]

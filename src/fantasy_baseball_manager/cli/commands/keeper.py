@@ -15,7 +15,7 @@ from fantasy_baseball_manager.cli._output import (
 )
 from fantasy_baseball_manager.cli.factory import build_keeper_context
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import Err, KeeperConstraints, KeeperDecision, Ok
+from fantasy_baseball_manager.domain import Err, KeeperConstraints, KeeperDecision, Ok, current_season
 from fantasy_baseball_manager.ingest import import_keeper_costs
 from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.services import (
@@ -113,7 +113,7 @@ def set_cmd(
     player_name: Annotated[str, typer.Argument(help="Player name to search for")],
     cost: Annotated[float | None, typer.Option(help="Keeper cost")] = None,
     round_num: Annotated[int | None, typer.Option("--round", help="Draft round (converted to dollars)")] = None,
-    season: Annotated[int, typer.Option(help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option(help="Season year")] = None,
     league: Annotated[str, typer.Option(help="League name")] = "dynasty",
     years: Annotated[int, typer.Option(help="Years remaining on contract")] = 1,
     source: Annotated[str, typer.Option(help="Cost source type")] = "auction",
@@ -123,6 +123,8 @@ def set_cmd(
     data_dir: Annotated[str, typer.Option(help="Data directory")] = "data",
 ) -> None:
     """Set a keeper cost for a single player."""
+    if season is None:
+        season = current_season()
     if cost is not None and round_num is not None:
         typer.echo("Error: --cost and --round are mutually exclusive", err=True)
         raise typer.Exit(code=1)

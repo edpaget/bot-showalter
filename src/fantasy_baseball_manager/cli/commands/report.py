@@ -40,6 +40,7 @@ from fantasy_baseball_manager.domain import (
     BreakoutPrediction,
     ConfidenceReport,
     VarianceClassification,
+    current_season,
 )
 from fantasy_baseball_manager.models import ModelConfig
 from fantasy_baseball_manager.services import classify_variance, compute_confidence
@@ -454,7 +455,7 @@ def report_injury_profile(
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show a player's injury history summary."""
-    current_year = 2026
+    current_year = current_season()
     season_list = list(range(current_year - seasons, current_year))
 
     with build_injury_profile_context(data_dir) as ctx:

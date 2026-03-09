@@ -29,6 +29,7 @@ from fantasy_baseball_manager.domain import (
     Ok,
     YahooDraftPick,
     YahooPlayerMap,
+    current_season,
 )
 from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.repos import (
@@ -97,11 +98,13 @@ def yahoo_auth(  # pragma: no cover
 @yahoo_app.command("sync")
 def yahoo_sync(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Sync league metadata from Yahoo Fantasy API."""
+    if season is None:
+        season = current_season()
     try:
         config = load_yahoo_config(Path(config_dir))
     except YahooConfigError as exc:
@@ -205,11 +208,13 @@ def yahoo_map_player(  # pragma: no cover
 @yahoo_app.command("rosters")
 def yahoo_rosters(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Fetch and display all teams' rosters from Yahoo Fantasy."""
+    if season is None:
+        season = current_season()
     try:
         config = load_yahoo_config(Path(config_dir))
     except YahooConfigError as exc:
@@ -294,11 +299,13 @@ def yahoo_rosters(  # pragma: no cover
 @yahoo_app.command("my-roster")
 def yahoo_my_roster(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Fetch your roster and show projections/valuations."""
+    if season is None:
+        season = current_season()
     try:
         config = load_yahoo_config(Path(config_dir))
     except YahooConfigError as exc:
@@ -389,11 +396,13 @@ def yahoo_my_roster(  # pragma: no cover
 @yahoo_app.command("draft-results")
 def yahoo_draft_results(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Fetch and display draft results from Yahoo Fantasy."""
+    if season is None:
+        season = current_season()
     try:
         config = load_yahoo_config(Path(config_dir))
     except YahooConfigError as exc:
@@ -455,7 +464,7 @@ def yahoo_draft_results(  # pragma: no cover
 @yahoo_app.command("draft-live")
 def yahoo_draft_live(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     league_name: Annotated[str, typer.Option("--league-config", help="League name from fbm.toml")] = "default",
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "1.0",
@@ -465,6 +474,8 @@ def yahoo_draft_live(  # pragma: no cover
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Start a live Yahoo draft session with auto-pick ingestion."""
+    if season is None:
+        season = current_season()
     try:
         config = load_yahoo_config(Path(config_dir))
     except YahooConfigError as exc:
@@ -564,12 +575,14 @@ def yahoo_draft_live(  # pragma: no cover
 @yahoo_app.command("transactions")
 def yahoo_transactions(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     days: Annotated[int, typer.Option("--days", help="Show transactions from last N days")] = 7,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Fetch and display recent league transactions."""
+    if season is None:
+        season = current_season()
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 
@@ -616,11 +629,13 @@ def yahoo_transactions(  # pragma: no cover
 @yahoo_app.command("refresh")
 def yahoo_refresh(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Incrementally sync all league data (rosters + transactions)."""
+    if season is None:
+        season = current_season()
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 
@@ -764,12 +779,14 @@ def _ensure_prior_season(
 @yahoo_app.command("keeper-costs")
 def yahoo_keeper_costs(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     cost_floor: Annotated[float, typer.Option("--cost-floor", help="Minimum keeper cost for FA pickups")] = 1.0,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Derive keeper costs from Yahoo draft history and current roster."""
+    if season is None:
+        season = current_season()
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 
@@ -866,7 +883,7 @@ def yahoo_keeper_costs(  # pragma: no cover
 @yahoo_app.command("keeper-decisions")
 def yahoo_keeper_decisions(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     threshold: Annotated[float, typer.Option("--threshold", help="Minimum surplus for keep recommendation")] = 0.0,
@@ -880,6 +897,8 @@ def yahoo_keeper_decisions(  # pragma: no cover
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Show keeper decisions ranked by surplus value using Yahoo-derived costs."""
+    if season is None:
+        season = current_season()
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 
@@ -1026,7 +1045,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
 @yahoo_app.command("keeper-league")
 def yahoo_keeper_league(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     max_keepers_opt: Annotated[int | None, typer.Option("--max-keepers", help="Override max keepers")] = None,
@@ -1035,6 +1054,8 @@ def yahoo_keeper_league(  # pragma: no cover
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Show league-wide keeper projections, category comparison, and trade targets."""
+    if season is None:
+        season = current_season()
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 
@@ -1106,7 +1127,7 @@ def yahoo_keeper_league(  # pragma: no cover
 @yahoo_app.command("draft-needs")
 def yahoo_draft_needs(  # pragma: no cover
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     system: Annotated[str, typer.Option("--system", help="Valuation system")] = "zar",
     version: Annotated[str, typer.Option("--version", help="Valuation version")] = "production",
     max_keepers_opt: Annotated[int | None, typer.Option("--max-keepers", help="Override max keepers")] = None,
@@ -1115,6 +1136,8 @@ def yahoo_draft_needs(  # pragma: no cover
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Show category gaps and draft recommendations based on projected keepers."""
+    if season is None:
+        season = current_season()
     league_name, config = _resolve_league_context(league, config_dir)
     league_config = config.leagues[league_name]
 
@@ -1254,13 +1277,15 @@ def yahoo_keeper_cost_set(  # pragma: no cover
     player_name: Annotated[str, typer.Argument(help="Player name")],
     cost: Annotated[float, typer.Option("--cost", help="Keeper cost")],
     league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
-    season: Annotated[int, typer.Option("--season", help="Season year")] = 2026,
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     years: Annotated[int, typer.Option("--years", help="Years remaining on contract")] = 1,
     source: Annotated[str, typer.Option("--source", help="Cost source type")] = "manual",
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Manually set a keeper cost for a player in a Yahoo league."""
+    if season is None:
+        season = current_season()
     league_name, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
