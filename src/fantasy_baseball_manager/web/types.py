@@ -6,13 +6,16 @@ from fantasy_baseball_manager.domain import Position, position_from_raw
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
+        ArbitrageReport,
         CategoryConfig,
         DraftBoard,
         DraftBoardRow,
         DraftSessionRecord,
+        FallingPlayer,
         LeagueSettings,
         PlayerTier,
         PositionScarcity,
+        ReachPick,
         Recommendation,
         TeamCategoryProjection,
     )
@@ -288,12 +291,84 @@ class CategoryBalanceType:
 
 
 @strawberry.type
+class FallingPlayerType:
+    player_id: int
+    player_name: str
+    position: str
+    adp: float
+    current_pick: int
+    picks_past_adp: float
+    value: float
+    value_rank: int
+    arbitrage_score: float
+
+    @staticmethod
+    def from_domain(fp: FallingPlayer) -> FallingPlayerType:
+        return FallingPlayerType(
+            player_id=fp.player_id,
+            player_name=fp.player_name,
+            position=fp.position,
+            adp=fp.adp,
+            current_pick=fp.current_pick,
+            picks_past_adp=fp.picks_past_adp,
+            value=fp.value,
+            value_rank=fp.value_rank,
+            arbitrage_score=fp.arbitrage_score,
+        )
+
+
+@strawberry.type
+class ReachPickType:
+    player_id: int
+    player_name: str
+    position: str
+    adp: float
+    pick_number: int
+    picks_ahead_of_adp: float
+    drafter_team: int
+
+    @staticmethod
+    def from_domain(rp: ReachPick) -> ReachPickType:
+        return ReachPickType(
+            player_id=rp.player_id,
+            player_name=rp.player_name,
+            position=rp.position,
+            adp=rp.adp,
+            pick_number=rp.pick_number,
+            picks_ahead_of_adp=rp.picks_ahead_of_adp,
+            drafter_team=rp.drafter_team,
+        )
+
+
+@strawberry.type
+class ArbitrageReportType:
+    current_pick: int
+    falling: list[FallingPlayerType]
+    reaches: list[ReachPickType]
+
+    @staticmethod
+    def from_domain(report: ArbitrageReport) -> ArbitrageReportType:
+        return ArbitrageReportType(
+            current_pick=report.current_pick,
+            falling=[FallingPlayerType.from_domain(f) for f in report.falling],
+            reaches=[ReachPickType.from_domain(r) for r in report.reaches],
+        )
+
+
+@strawberry.type
+class ArbitrageAlertEvent:
+    session_id: int
+    falling: list[FallingPlayerType]
+
+
+@strawberry.type
 class PickResultType:
     pick: DraftPickType
     state: DraftStateType
     recommendations: list[RecommendationType]
     roster: list[DraftPickType]
     needs: list[RosterSlotType]
+    arbitrage: ArbitrageReportType | None
 
 
 @strawberry.type
@@ -315,7 +390,7 @@ class SessionEvent:
 
 
 DraftEventType = Annotated[
-    PickEvent | UndoEvent | SessionEvent,
+    PickEvent | UndoEvent | SessionEvent | ArbitrageAlertEvent,
     strawberry.union("DraftEventType"),
 ]
 

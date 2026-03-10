@@ -160,6 +160,34 @@ export const AVAILABLE_QUERY = gql`
   }
 `;
 
+export const ARBITRAGE_QUERY = gql`
+  query Arbitrage($sessionId: Int!, $threshold: Int, $position: String, $limit: Int) {
+    arbitrage(sessionId: $sessionId, threshold: $threshold, position: $position, limit: $limit) {
+      currentPick
+      falling {
+        playerId
+        playerName
+        position
+        adp
+        currentPick
+        picksPastAdp
+        value
+        valueRank
+        arbitrageScore
+      }
+      reaches {
+        playerId
+        playerName
+        position
+        adp
+        pickNumber
+        picksAheadOfAdp
+        drafterTeam
+      }
+    }
+  }
+`;
+
 export const YAHOO_POLL_STATUS_QUERY = gql`
   query YahooPollStatus($sessionId: Int!) {
     yahooPollStatus(sessionId: $sessionId) {

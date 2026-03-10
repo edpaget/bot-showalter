@@ -45,6 +45,29 @@ const PICK_RESULT_FIELDS = `
     position
     remaining
   }
+  arbitrage {
+    currentPick
+    falling {
+      playerId
+      playerName
+      position
+      adp
+      currentPick
+      picksPastAdp
+      value
+      valueRank
+      arbitrageScore
+    }
+    reaches {
+      playerId
+      playerName
+      position
+      adp
+      pickNumber
+      picksAheadOfAdp
+      drafterTeam
+    }
+  }
 `;
 
 export const START_SESSION = gql`

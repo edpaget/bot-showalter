@@ -55,12 +55,41 @@ export interface CategoryBalance {
   strength: string;
 }
 
+export interface FallingPlayer {
+  playerId: number;
+  playerName: string;
+  position: string;
+  adp: number;
+  currentPick: number;
+  picksPastAdp: number;
+  value: number;
+  valueRank: number;
+  arbitrageScore: number;
+}
+
+export interface ReachPick {
+  playerId: number;
+  playerName: string;
+  position: string;
+  adp: number;
+  pickNumber: number;
+  picksAheadOfAdp: number;
+  drafterTeam: number;
+}
+
+export interface ArbitrageReport {
+  currentPick: number;
+  falling: FallingPlayer[];
+  reaches: ReachPick[];
+}
+
 export interface PickResult {
   pick: DraftPick;
   state: DraftState;
   recommendations: Recommendation[];
   roster: DraftPick[];
   needs: RosterSlot[];
+  arbitrage: ArbitrageReport | null;
 }
 
 export interface YahooPollStatus {

@@ -30,6 +30,20 @@ export const DRAFT_EVENTS_SUBSCRIPTION = gql`
         sessionId
         eventType
       }
+      ... on ArbitrageAlertEvent {
+        sessionId
+        falling {
+          playerId
+          playerName
+          position
+          adp
+          currentPick
+          picksPastAdp
+          value
+          valueRank
+          arbitrageScore
+        }
+      }
     }
   }
 `;

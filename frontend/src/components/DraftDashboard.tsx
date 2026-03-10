@@ -9,6 +9,7 @@ import { RecommendationPanel } from "./RecommendationPanel";
 import { RosterPanel } from "./RosterPanel";
 import { NeedsPanel } from "./NeedsPanel";
 import { CategoryBalancePanel } from "./CategoryBalancePanel";
+import { ArbitragePanel } from "./ArbitragePanel";
 import { PickLogPanel } from "./PickLogPanel";
 import { SessionControls } from "./SessionControls";
 import type { DraftSessionSummary, PickResult, DraftState, CategoryBalance, Recommendation, DraftPick, RosterSlot } from "../types/session";
@@ -166,6 +167,11 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
               recommendations={ctx.recommendations}
               onDraft={handleDraft}
               sessionActive
+            />
+            <ArbitragePanel
+              arbitrage={ctx.arbitrage}
+              sessionId={ctx.sessionId!}
+              onDraft={handleDraft}
             />
             <RosterPanel
               roster={ctx.roster}

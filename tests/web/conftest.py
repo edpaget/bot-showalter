@@ -5,6 +5,7 @@ from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
+    ADP,
     CategoryConfig,
     Direction,
     LeagueFormat,
@@ -13,7 +14,7 @@ from fantasy_baseball_manager.domain import (
     StatType,
     Valuation,
 )
-from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqlitePlayerRepo, SqliteValuationRepo
+from fantasy_baseball_manager.repos import SqliteADPRepo, SqliteDraftSessionRepo, SqlitePlayerRepo, SqliteValuationRepo
 from fantasy_baseball_manager.web import SessionManager, create_app
 
 _LEAGUE = LeagueSettings(
@@ -92,6 +93,15 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
     ]
     for v in valuations:
         valuation_repo.upsert(v)
+
+    adp_repo = SqliteADPRepo(provider)
+    adp_records = [
+        ADP(player_id=1, season=2026, provider="fantasypros", overall_pick=5.0, rank=5, positions="OF"),
+        ADP(player_id=2, season=2026, provider="fantasypros", overall_pick=8.0, rank=8, positions="OF"),
+        ADP(player_id=3, season=2026, provider="fantasypros", overall_pick=12.0, rank=12, positions="SP"),
+    ]
+    for a in adp_records:
+        adp_repo.upsert(a)
 
     with provider.connection() as conn:
         conn.commit()

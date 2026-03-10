@@ -4,17 +4,21 @@ from typing import TYPE_CHECKING
 import strawberry
 from strawberry.types import Info  # noqa: TC002 — Strawberry needs this at runtime
 
-from fantasy_baseball_manager.domain import DraftBoard, Position, position_from_raw
+from fantasy_baseball_manager.domain import ArbitrageReport, DraftBoard, Position, position_from_raw
 from fantasy_baseball_manager.services import (
     DraftFormat,
     analyze_roster,
     auto_detect_position,
+    build_arbitrage_report,
     build_draft_board,
     compute_scarcity,
+    detect_falling_players,
     generate_tiers,
     recommend,
 )
 from fantasy_baseball_manager.web.types import (
+    ArbitrageAlertEvent,
+    ArbitrageReportType,
     CategoryBalanceType,
     DraftBoardRowType,
     DraftBoardType,
@@ -22,6 +26,7 @@ from fantasy_baseball_manager.web.types import (
     DraftPickType,
     DraftSessionSummaryType,
     DraftStateType,
+    FallingPlayerType,
     LeagueSettingsType,
     PickEvent,
     PickResultType,
@@ -64,12 +69,22 @@ def _build_pick_result(
     roster = engine.my_roster()
     needs = engine.my_needs()
 
+    adp_lookup = {r.player_id: r.adp_overall for r in engine.state.available_pool.values() if r.adp_overall is not None}
+    available = engine.available()
+    report = build_arbitrage_report(
+        engine.state.current_pick,
+        available,
+        engine.state.picks,
+        adp_lookup,
+    )
+
     return PickResultType(
         pick=pick,
         state=DraftStateType.from_state(session_id, engine.state),
         recommendations=[RecommendationType.from_domain(r) for r in recs],
         roster=[DraftPickType.from_domain(p) for p in roster],
         needs=[RosterSlotType(position=position_from_raw(pos), remaining=count) for pos, count in needs.items()],
+        arbitrage=ArbitrageReportType.from_domain(report),
     )
 
 
@@ -246,6 +261,38 @@ class Query:
         return [DraftBoardRowType.from_domain(r) for r in rows]
 
     @strawberry.field
+    def arbitrage(
+        self,
+        info: Info,
+        session_id: int,
+        threshold: int = 10,
+        position: Position | None = None,
+        limit: int = 20,
+    ) -> ArbitrageReportType:
+        mgr = _get_session_manager(info)
+        engine = mgr.get_engine(session_id)
+        adp_lookup = {
+            r.player_id: r.adp_overall for r in engine.state.available_pool.values() if r.adp_overall is not None
+        }
+        available = engine.available()
+        report = build_arbitrage_report(
+            engine.state.current_pick,
+            available,
+            engine.state.picks,
+            adp_lookup,
+            threshold=threshold,
+            limit=limit,
+        )
+        if position is not None:
+            filtered_falling = [f for f in report.falling if f.position == position.value]
+            report = ArbitrageReport(
+                current_pick=report.current_pick,
+                falling=filtered_falling,
+                reaches=report.reaches,
+            )
+        return ArbitrageReportType.from_domain(report)
+
+    @strawberry.field
     def yahoo_poll_status(self, info: Info, session_id: int) -> YahooPollStatusType:
         ctx = _get_context(info)
         ypm = ctx.yahoo_poller_manager
@@ -329,6 +376,20 @@ class Mutation:
             session_id,
             PickEvent(pick=pick_type, session_id=session_id),
         )
+
+        # Publish arbitrage alert for significant fallers
+        available = engine.available()
+        falling = detect_falling_players(engine.state.current_pick, available, threshold=20, limit=20)
+        alert_falling = [f for f in falling if f.value_rank <= 50][:3]
+        if alert_falling:
+            await ctx.event_bus.publish(
+                session_id,
+                ArbitrageAlertEvent(
+                    session_id=session_id,
+                    falling=[FallingPlayerType.from_domain(f) for f in alert_falling],
+                ),
+            )
+
         return _build_pick_result(info, session_id, pick_type)
 
     @strawberry.mutation

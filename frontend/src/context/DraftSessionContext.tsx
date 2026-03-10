@@ -6,6 +6,7 @@ import type {
   DraftPick,
   RosterSlot,
   CategoryBalance,
+  ArbitrageReport,
   PickResult,
 } from "../types/session";
 
@@ -16,6 +17,7 @@ interface DraftSessionContextValue {
   roster: DraftPick[];
   needs: RosterSlot[];
   balance: CategoryBalance[];
+  arbitrage: ArbitrageReport | null;
   draftedPlayerIds: Set<number>;
   setSessionId: (id: number | null) => void;
   setState: (state: DraftState | null) => void;
@@ -23,6 +25,7 @@ interface DraftSessionContextValue {
   setRoster: (roster: DraftPick[]) => void;
   setNeeds: (needs: RosterSlot[]) => void;
   setBalance: (balance: CategoryBalance[]) => void;
+  setArbitrage: (arbitrage: ArbitrageReport | null) => void;
   applyPickResult: (result: PickResult) => void;
   clearSession: () => void;
 }
@@ -36,6 +39,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
   const [roster, setRoster] = useState<DraftPick[]>([]);
   const [needs, setNeeds] = useState<RosterSlot[]>([]);
   const [balance, setBalance] = useState<CategoryBalance[]>([]);
+  const [arbitrage, setArbitrage] = useState<ArbitrageReport | null>(null);
 
   const draftedPlayerIds = useMemo(() => {
     if (!state) return new Set<number>();
@@ -47,6 +51,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
     setRecommendations(result.recommendations);
     setRoster(result.roster);
     setNeeds(result.needs);
+    setArbitrage(result.arbitrage);
   }, []);
 
   const clearSession = useCallback(() => {
@@ -56,6 +61,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
     setRoster([]);
     setNeeds([]);
     setBalance([]);
+    setArbitrage(null);
   }, []);
 
   const value = useMemo(
@@ -66,6 +72,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       roster,
       needs,
       balance,
+      arbitrage,
       draftedPlayerIds,
       setSessionId,
       setState,
@@ -73,10 +80,11 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       setRoster,
       setNeeds,
       setBalance,
+      setArbitrage,
       applyPickResult,
       clearSession,
     }),
-    [sessionId, state, recommendations, roster, needs, balance, draftedPlayerIds, applyPickResult, clearSession],
+    [sessionId, state, recommendations, roster, needs, balance, arbitrage, draftedPlayerIds, applyPickResult, clearSession],
   );
 
   return <DraftSessionContext.Provider value={value}>{children}</DraftSessionContext.Provider>;

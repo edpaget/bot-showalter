@@ -363,6 +363,83 @@ def test_available_query(session_client: TestClient) -> None:
         assert row["position"] == "OF"
 
 
+_ARBITRAGE_QUERY = """
+query Arbitrage($sid: Int!, $threshold: Int, $position: Position, $limit: Int) {
+    arbitrage(sessionId: $sid, threshold: $threshold, position: $position, limit: $limit) {
+        currentPick
+        falling {
+            playerId
+            playerName
+            position
+            adp
+            currentPick
+            picksPastAdp
+            value
+            valueRank
+            arbitrageScore
+        }
+        reaches {
+            playerId
+            playerName
+            position
+            adp
+            pickNumber
+            picksAheadOfAdp
+            drafterTeam
+        }
+    }
+}
+"""
+
+_PICK_WITH_ARBITRAGE_MUTATION = """
+mutation Pick($sessionId: Int!, $playerId: Int!, $position: Position!) {
+    pick(sessionId: $sessionId, playerId: $playerId, position: $position) {
+        pick { pickNumber playerName position team }
+        state { sessionId currentPick }
+        arbitrage {
+            currentPick
+            falling { playerId playerName }
+            reaches { playerId playerName }
+        }
+    }
+}
+"""
+
+
+def test_arbitrage_query(session_client: TestClient) -> None:
+    sid = _start_session(session_client)
+    result = _gql(session_client, _ARBITRAGE_QUERY, {"sid": sid})
+    assert "errors" not in result, result.get("errors")
+    data = result["data"]["arbitrage"]
+    assert "currentPick" in data
+    assert isinstance(data["falling"], list)
+    assert isinstance(data["reaches"], list)
+
+
+def test_arbitrage_query_with_position_filter(session_client: TestClient) -> None:
+    sid = _start_session(session_client)
+    result = _gql(session_client, _ARBITRAGE_QUERY, {"sid": sid, "position": "SP"})
+    assert "errors" not in result, result.get("errors")
+    data = result["data"]["arbitrage"]
+    for fp in data["falling"]:
+        assert fp["position"] == "SP"
+
+
+def test_pick_result_includes_arbitrage(session_client: TestClient) -> None:
+    sid = _start_session(session_client)
+    result = _gql(
+        session_client,
+        _PICK_WITH_ARBITRAGE_MUTATION,
+        {"sessionId": sid, "playerId": 1, "position": "OF"},
+    )
+    assert "errors" not in result, result.get("errors")
+    data = result["data"]["pick"]
+    assert "arbitrage" in data
+    assert "currentPick" in data["arbitrage"]
+    assert isinstance(data["arbitrage"]["falling"], list)
+    assert isinstance(data["arbitrage"]["reaches"], list)
+
+
 def test_pick_invalid_player(session_client: TestClient) -> None:
     sid = _start_session(session_client)
     result = _gql(
