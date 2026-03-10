@@ -290,6 +290,7 @@ from fantasy_baseball_manager.domain.roster_optimizer import (
 from fantasy_baseball_manager.domain.roster_stint import RosterStint
 from fantasy_baseball_manager.domain.season import current_season
 from fantasy_baseball_manager.domain.season_data import SeasonData
+from fantasy_baseball_manager.domain.sgp import SgpDenominators, SgpSeasonDenominator
 from fantasy_baseball_manager.domain.sprint_speed import SprintSpeed
 from fantasy_baseball_manager.domain.statcast_pitch import StatcastPitch
 from fantasy_baseball_manager.domain.talent_quality import (
@@ -499,6 +500,8 @@ __all__ = [
     "RosterStint",
     "SimulationSummary",
     "SeasonCorrelationResult",
+    "SgpDenominators",
+    "SgpSeasonDenominator",
     "SeasonData",
     "SensitivityEntry",
     "SprintSpeed",

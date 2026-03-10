@@ -114,6 +114,27 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.team_resolver import TeamResolver
 
 
+@dataclass(frozen=True)
+class SgpContext:
+    conn: sqlite3.Connection
+    yahoo_league_repo: SqliteYahooLeagueRepo
+    yahoo_team_stats_repo: SqliteYahooTeamStatsRepo
+
+
+@contextmanager
+def build_sgp_context(data_dir: str) -> Iterator[SgpContext]:
+    """Composition-root context manager for SGP commands."""
+    conn = create_connection(Path(data_dir) / "fbm.db")
+    try:
+        yield SgpContext(
+            conn=conn,
+            yahoo_league_repo=SqliteYahooLeagueRepo(SingleConnectionProvider(conn)),
+            yahoo_team_stats_repo=SqliteYahooTeamStatsRepo(SingleConnectionProvider(conn)),
+        )
+    finally:
+        conn.close()
+
+
 class DbLabelSource:
     """LabelSource that generates labels from ADP and valuation data in the database."""
 

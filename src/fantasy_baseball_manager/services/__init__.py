@@ -123,6 +123,7 @@ from fantasy_baseball_manager.services.keeper_service import (
 from fantasy_baseball_manager.services.league_environment_service import (
     LeagueEnvironmentService,
 )
+from fantasy_baseball_manager.services.league_lineage import find_league_lineage
 from fantasy_baseball_manager.services.mock_draft import (
     DraftBot,
     run_batch_simulation,
@@ -227,6 +228,7 @@ from fantasy_baseball_manager.services.scenario_generator import (
     generate_scenarios,
     scale_projection_to_pt,
 )
+from fantasy_baseball_manager.services.sgp_denominator import compute_sgp_denominators
 from fantasy_baseball_manager.services.stats_conversion import METADATA_FIELDS, stats_to_dict
 from fantasy_baseball_manager.services.tier_generator import (
     generate_tiers,
@@ -342,6 +344,7 @@ __all__ = [
     "compute_stint_days",
     "METADATA_FIELDS",
     "stats_to_dict",
+    "find_league_lineage",
     "estimate_games_lost",
     "IL_TYPE_DEFAULTS",
     "build_draft_board",
@@ -369,6 +372,7 @@ __all__ = [
     "blend_stat_line",
     "ReplacementPaddingService",
     "compute_replacement_profiles",
+    "compute_sgp_denominators",
     "compute_scarcity",
     "compute_scarcity_rankings",
     "compute_value_curves",
