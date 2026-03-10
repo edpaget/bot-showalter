@@ -85,6 +85,8 @@ from fantasy_baseball_manager.services import (
     StatcastColumnProfiler,
     StatsBasedPlayerUniverse,
     TemporalStabilityChecker,
+    compute_sgp_denominators,
+    find_league_lineage,
     generate_labels,
 )
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
@@ -133,6 +135,35 @@ def build_sgp_context(data_dir: str) -> Iterator[SgpContext]:
         )
     finally:
         conn.close()
+
+
+def _build_denominator_provider(conn: sqlite3.Connection) -> Any:  # pragma: no cover
+    """Build a callable that computes SGP denominators from Yahoo standings data."""
+    yahoo_league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
+    yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(SingleConnectionProvider(conn))
+
+    def provider(league: Any) -> Any:
+        all_leagues = yahoo_league_repo.get_all()
+        redraft_leagues = [lg for lg in all_leagues if not lg.is_keeper]
+        if not redraft_leagues:
+            msg = "No redraft leagues found in database"
+            raise ValueError(msg)
+        redraft_leagues.sort(key=lambda lg: lg.season, reverse=True)
+        start_key = redraft_leagues[0].league_key
+
+        lineage_keys = find_league_lineage(all_leagues, start_key)
+        all_standings = []
+        for league_key in lineage_keys:
+            yahoo_league = next((lg for lg in all_leagues if lg.league_key == league_key), None)
+            if yahoo_league is None:
+                continue
+            team_stats = yahoo_team_stats_repo.get_by_league_season(league_key, yahoo_league.season)
+            all_standings.extend(team_stats)
+
+        all_categories = list(league.batting_categories) + list(league.pitching_categories)
+        return compute_sgp_denominators(all_standings, all_categories)
+
+    return provider
 
 
 class DbLabelSource:
@@ -229,6 +260,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             label_source=label_source,
             injury_profiler=injury_profiler,
             replacement_padder=ReplacementPaddingService(),
+            denominator_provider=_build_denominator_provider(conn),
         )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)
