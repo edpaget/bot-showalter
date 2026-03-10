@@ -5,6 +5,7 @@ import type {
   CategoryBalance,
   DraftPick,
   DraftState,
+  KeeperInfo,
   PickResult,
   Recommendation,
   RosterSlot,
@@ -18,6 +19,7 @@ interface DraftSessionContextValue {
   needs: RosterSlot[];
   balance: CategoryBalance[];
   arbitrage: ArbitrageReport | null;
+  keepers: KeeperInfo[];
   draftedPlayerIds: Set<number>;
   setSessionId: (id: number | null) => void;
   setState: (state: DraftState | null) => void;
@@ -26,6 +28,7 @@ interface DraftSessionContextValue {
   setNeeds: (needs: RosterSlot[]) => void;
   setBalance: (balance: CategoryBalance[]) => void;
   setArbitrage: (arbitrage: ArbitrageReport | null) => void;
+  setKeepers: (keepers: KeeperInfo[]) => void;
   applyPickResult: (result: PickResult) => void;
   clearSession: () => void;
 }
@@ -40,6 +43,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
   const [needs, setNeeds] = useState<RosterSlot[]>([]);
   const [balance, setBalance] = useState<CategoryBalance[]>([]);
   const [arbitrage, setArbitrage] = useState<ArbitrageReport | null>(null);
+  const [keepers, setKeepers] = useState<KeeperInfo[]>([]);
 
   const draftedPlayerIds = useMemo(() => {
     if (!state) return new Set<number>();
@@ -62,6 +66,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
     setNeeds([]);
     setBalance([]);
     setArbitrage(null);
+    setKeepers([]);
   }, []);
 
   const value = useMemo(
@@ -73,6 +78,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       needs,
       balance,
       arbitrage,
+      keepers,
       draftedPlayerIds,
       setSessionId,
       setState,
@@ -81,6 +87,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       setNeeds,
       setBalance,
       setArbitrage,
+      setKeepers,
       applyPickResult,
       clearSession,
     }),
@@ -92,6 +99,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       needs,
       balance,
       arbitrage,
+      keepers,
       draftedPlayerIds,
       applyPickResult,
       clearSession,

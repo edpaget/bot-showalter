@@ -12,6 +12,7 @@ const ACTIVE_STATE: DraftState = {
   teams: 12,
   userTeam: 1,
   budgetRemaining: null,
+  keeperCount: 0,
 };
 
 const SESSIONS: DraftSessionSummary[] = [

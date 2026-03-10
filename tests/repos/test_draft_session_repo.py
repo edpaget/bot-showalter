@@ -258,6 +258,63 @@ class TestKeeperPlayerIds:
         assert sessions[0].keeper_player_ids == [5, 15]
 
 
+class TestKeeperSnapshot:
+    def test_roundtrip_with_keeper_snapshot(self, repo: SqliteDraftSessionRepo) -> None:
+        snapshot = [
+            {
+                "player_id": 1,
+                "player_name": "Mike Trout",
+                "position": "OF",
+                "team_name": "Team A",
+                "cost": 35.0,
+                "value": 40.0,
+            },
+            {
+                "player_id": 2,
+                "player_name": "Shohei Ohtani",
+                "position": "OF",
+                "team_name": "Team B",
+                "cost": None,
+                "value": 30.0,
+            },
+        ]
+        record = _make_record(keeper_snapshot=snapshot)
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.keeper_snapshot is not None
+        assert len(loaded.keeper_snapshot) == 2
+        assert loaded.keeper_snapshot[0]["player_name"] == "Mike Trout"
+        assert loaded.keeper_snapshot[1]["cost"] is None
+
+    def test_roundtrip_without_keeper_snapshot(self, repo: SqliteDraftSessionRepo) -> None:
+        record = _make_record()
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.keeper_snapshot is None
+
+    def test_list_sessions_includes_keeper_snapshot(self, repo: SqliteDraftSessionRepo) -> None:
+        snapshot = [
+            {
+                "player_id": 1,
+                "player_name": "Mike Trout",
+                "position": "OF",
+                "team_name": "Team A",
+                "cost": 35.0,
+                "value": 40.0,
+            }
+        ]
+        repo.create_session(_make_record(keeper_snapshot=snapshot))
+
+        sessions = repo.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].keeper_snapshot is not None
+        assert sessions[0].keeper_snapshot[0]["player_id"] == 1
+
+
 class TestLoadSessionNotFound:
     def test_returns_none(self, repo: SqliteDraftSessionRepo) -> None:
         assert repo.load_session(9999) is None

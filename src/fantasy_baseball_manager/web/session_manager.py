@@ -81,6 +81,9 @@ class SessionManager:
             if league_keepers:
                 keeper_player_ids = {k.player_id for k in league_keepers}
 
+        # Build keeper snapshot before filtering the pool
+        keeper_snapshot = self._build_keeper_snapshot(season, keeper_player_ids) if keeper_player_ids else None
+
         players = self._build_player_pool(season, system, version, keeper_player_ids=keeper_player_ids)
         roster_slots = build_draft_roster_slots(self._league)
         config = DraftConfig(
@@ -110,6 +113,7 @@ class SessionManager:
             system=system,
             version=version,
             keeper_player_ids=sorted(keeper_player_ids) if keeper_player_ids is not None else None,
+            keeper_snapshot=keeper_snapshot,
         )
         session_id = self._repo.create_session(record)
         self._engines[session_id] = engine
@@ -195,6 +199,50 @@ class SessionManager:
         if status is not None:
             records = [r for r in records if r.status == status]
         return [DraftSessionSummary(record=r, pick_count=self._repo.count_picks(r.id or 0)) for r in records]
+
+    def get_keepers(self, session_id: int) -> list[dict[str, object]]:
+        record = self._repo.load_session(session_id)
+        if record is None:
+            msg = f"Draft session {session_id} not found"
+            raise ValueError(msg)
+        return record.keeper_snapshot or []
+
+    def _build_keeper_snapshot(
+        self,
+        season: int,
+        keeper_player_ids: set[int],
+    ) -> list[dict[str, object]]:
+        # Resolve player names/positions
+        players = self._player_repo.get_by_ids(list(keeper_player_ids))
+        player_map = {p.id: p for p in players if p.id is not None}
+
+        # Get keeper team/cost from league keeper repo if available
+        keeper_details: dict[int, tuple[str, float | None]] = {}
+        if self._league_keeper_repo is not None:
+            league_keepers = self._league_keeper_repo.find_by_season_league(season, self._league.name)
+            for lk in league_keepers:
+                if lk.player_id in keeper_player_ids:
+                    keeper_details[lk.player_id] = (lk.team_name, lk.cost)
+
+        # Get valuations for value info
+        valuations = self._valuation_repo.get_by_season(season, system="zar", version="1.0")
+        val_map = {v.player_id: v for v in valuations}
+
+        snapshot: list[dict[str, object]] = []
+        for pid in sorted(keeper_player_ids):
+            player = player_map.get(pid)
+            val = val_map.get(pid)
+            team_name, cost = keeper_details.get(pid, ("Unknown", None))
+            entry: dict[str, object] = {
+                "player_id": pid,
+                "player_name": f"{player.name_first} {player.name_last}" if player else f"Player {pid}",
+                "position": val.position if val else "UTIL",
+                "team_name": team_name,
+                "cost": cost,
+                "value": val.value if val else 0.0,
+            }
+            snapshot.append(entry)
+        return snapshot
 
     def _build_player_pool(
         self,

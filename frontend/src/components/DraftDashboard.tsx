@@ -5,6 +5,7 @@ import { usePlayerDrawer } from "../context/PlayerDrawerContext";
 import { END_SESSION, PICK, START_SESSION, UNDO } from "../graphql/mutations";
 import {
   BALANCE_QUERY,
+  KEEPERS_QUERY,
   NEEDS_QUERY,
   RECOMMENDATIONS_QUERY,
   ROSTER_QUERY,
@@ -17,11 +18,13 @@ import type {
   DraftPick,
   DraftSessionSummary,
   DraftState,
+  KeeperInfo,
   PickResult,
   Recommendation,
   RosterSlot,
 } from "../types/session";
 import { ArbitragePanel } from "./ArbitragePanel";
+import { KeeperPanel } from "./KeeperPanel";
 import { CategoryBalancePanel } from "./CategoryBalancePanel";
 import { DraftBoardTable } from "./DraftBoardTable";
 import { NeedsPanel } from "./NeedsPanel";
@@ -55,6 +58,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const [fetchRecs] = useLazyQuery<{ recommendations: Recommendation[] }>(RECOMMENDATIONS_QUERY);
   const [fetchRoster] = useLazyQuery<{ roster: DraftPick[] }>(ROSTER_QUERY);
   const [fetchNeeds] = useLazyQuery<{ needs: RosterSlot[] }>(NEEDS_QUERY);
+  const [fetchKeepers] = useLazyQuery<{ keepers: KeeperInfo[] }>(KEEPERS_QUERY);
   const [startSession] = useMutation<{ startSession: DraftState }>(START_SESSION);
   const [pickMutation] = useMutation<{ pick: PickResult }>(PICK, {
     refetchQueries: [{ query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } }],
@@ -103,18 +107,24 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         const state = result.data.startSession;
         ctx.setSessionId(state.sessionId);
         ctx.setState(state);
+        // Fetch keepers if this is a keeper session
+        if (state.keeperCount > 0) {
+          const keepersRes = await fetchKeepers({ variables: { sessionId: state.sessionId } });
+          ctx.setKeepers(keepersRes.data?.keepers ?? []);
+        }
       }
     },
-    [startSession, ctx],
+    [startSession, ctx, fetchKeepers],
   );
 
   const handleResume = useCallback(
     async (sessionId: number) => {
-      const [sessionRes, recsRes, rosterRes, needsRes] = await Promise.all([
+      const [sessionRes, recsRes, rosterRes, needsRes, keepersRes] = await Promise.all([
         fetchSession({ variables: { sessionId } }),
         fetchRecs({ variables: { sessionId, limit: 10 } }),
         fetchRoster({ variables: { sessionId } }),
         fetchNeeds({ variables: { sessionId } }),
+        fetchKeepers({ variables: { sessionId } }),
       ]);
       if (sessionRes.data) {
         ctx.setSessionId(sessionId);
@@ -122,9 +132,10 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         ctx.setRecommendations(recsRes.data?.recommendations ?? []);
         ctx.setRoster(rosterRes.data?.roster ?? []);
         ctx.setNeeds(needsRes.data?.needs ?? []);
+        ctx.setKeepers(keepersRes.data?.keepers ?? []);
       }
     },
-    [ctx, fetchSession, fetchRecs, fetchRoster, fetchNeeds],
+    [ctx, fetchSession, fetchRecs, fetchRoster, fetchNeeds, fetchKeepers],
   );
 
   const handleDraft = useCallback(
@@ -181,6 +192,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
 
         {sessionActive && (
           <div className="w-80 flex-shrink-0 flex flex-col gap-3 overflow-auto">
+            {ctx.keepers.length > 0 && <KeeperPanel keepers={ctx.keepers} />}
             <RecommendationPanel
               recommendations={ctx.recommendations}
               onDraft={handleDraft}

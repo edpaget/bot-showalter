@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING
 from fastapi.testclient import TestClient
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
-from fantasy_baseball_manager.repos import SqliteDraftSessionRepo
+from fantasy_baseball_manager.domain import LeagueKeeper
+from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqliteLeagueKeeperRepo
 from fantasy_baseball_manager.web import SessionManager, create_app
 
 from .conftest import _LEAGUE
@@ -513,6 +514,105 @@ def test_start_session_without_keepers_backward_compatible(session_client: TestC
     assert 1 in available_ids
     assert 2 in available_ids
     assert 3 in available_ids
+
+
+_KEEPERS_QUERY = """
+query Keepers($sessionId: Int!) {
+    keepers(sessionId: $sessionId) {
+        playerId
+        playerName
+        position
+        teamName
+        cost
+        value
+    }
+}
+"""
+
+
+def test_keepers_query_with_keeper_session(session_provider: SingleConnectionProvider) -> None:
+    """keepers query returns snapshot data for a keeper session."""
+    container = AnalysisContainer(session_provider)
+    session_repo = SqliteDraftSessionRepo(session_provider)
+    league_keeper_repo = SqliteLeagueKeeperRepo(session_provider)
+
+    # Seed league keepers
+    league_keeper_repo.upsert_batch(
+        [
+            LeagueKeeper(player_id=1, season=2026, league="Test League", team_name="Team A", cost=35.0),
+        ]
+    )
+    with session_provider.connection() as conn:
+        conn.commit()
+
+    def fake_adjuster(kept_ids: set[int], valuations: list, season: int) -> list:
+        return [v for v in valuations if v.player_id not in kept_ids]
+
+    mgr = SessionManager(
+        session_repo=session_repo,
+        valuation_repo=container.valuation_repo,
+        player_repo=container.player_repo,
+        adp_repo=container.adp_repo,
+        player_profile_service=container.player_profile_service,
+        league=_LEAGUE,
+        adp_provider="fantasypros",
+        valuation_adjuster=fake_adjuster,
+        league_keeper_repo=league_keeper_repo,
+    )
+    app = create_app(container, _LEAGUE, session_manager=mgr, default_system="zar", default_version="1.0")
+    client = TestClient(app)
+
+    # Start session with keeper
+    result = _gql(
+        client,
+        """
+        mutation StartSession($season: Int!, $keepers: [Int!]) {
+            startSession(season: $season, teams: 10, userTeam: 1, format: "snake", keeperPlayerIds: $keepers) {
+                sessionId keeperCount
+            }
+        }
+        """,
+        {"season": 2026, "keepers": [1]},
+    )
+    assert "errors" not in result, result.get("errors")
+    sid = result["data"]["startSession"]["sessionId"]
+    assert result["data"]["startSession"]["keeperCount"] == 1
+
+    # Query keepers
+    result = _gql(client, _KEEPERS_QUERY, {"sessionId": sid})
+    assert "errors" not in result, result.get("errors")
+    keepers = result["data"]["keepers"]
+    assert len(keepers) == 1
+    assert keepers[0]["playerName"] == "Mike Trout"
+    assert keepers[0]["teamName"] == "Team A"
+    assert keepers[0]["cost"] == 35.0
+    assert keepers[0]["value"] > 0
+
+
+def test_keepers_query_empty_for_non_keeper_session(session_client: TestClient) -> None:
+    """keepers query returns empty list for non-keeper session."""
+    sid = _start_session(session_client)
+    result = _gql(session_client, _KEEPERS_QUERY, {"sessionId": sid})
+    assert "errors" not in result, result.get("errors")
+    assert result["data"]["keepers"] == []
+
+
+def test_session_query_includes_keeper_count(session_client: TestClient) -> None:
+    """Session query includes keeperCount field."""
+    sid = _start_session(session_client)
+    result = _gql(
+        session_client,
+        """
+        query Session($sid: Int!) {
+            session(sessionId: $sid) {
+                sessionId keeperCount
+            }
+        }
+        """,
+        {"sid": sid},
+    )
+    assert "errors" not in result, result.get("errors")
+    assert result["data"]["session"]["keeperCount"] == 0
 
 
 def test_pick_invalid_player(session_client: TestClient) -> None:

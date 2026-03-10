@@ -335,6 +335,73 @@ class TestKeeperExclusion:
         assert record.keeper_player_ids == [1, 3]
 
 
+class TestKeeperSnapshot:
+    def test_keeper_snapshot_populated_at_start(self) -> None:
+        mgr, provider = _make_manager_with_adjuster()
+
+        # Add league keepers for team/cost info
+        league_keeper_repo = SqliteLeagueKeeperRepo(provider)
+        league_keeper_repo.upsert_batch(
+            [
+                LeagueKeeper(player_id=1, season=2026, league="Test League", team_name="Team A", cost=35.0),
+                LeagueKeeper(player_id=3, season=2026, league="Test League", team_name="Team B", cost=20.0),
+            ]
+        )
+        with provider.connection() as c:
+            c.commit()
+
+        mgr_with_keepers = SessionManager(
+            session_repo=SqliteDraftSessionRepo(provider),
+            valuation_repo=SqliteValuationRepo(provider),
+            player_repo=SqlitePlayerRepo(provider),
+            adp_repo=SqliteADPRepo(provider),
+            player_profile_service=PlayerProfileService(SqlitePlayerRepo(provider)),
+            league=_LEAGUE,
+            adp_provider="fantasypros",
+            valuation_adjuster=lambda kept_ids, valuations, season: [
+                v for v in valuations if v.player_id not in kept_ids
+            ],
+            league_keeper_repo=league_keeper_repo,
+        )
+
+        sid, _ = mgr_with_keepers.start_session(2026, keeper_player_ids={1, 3})
+        keepers = mgr_with_keepers.get_keepers(sid)
+
+        assert len(keepers) == 2
+        by_id = {k["player_id"]: k for k in keepers}
+        assert by_id[1]["player_name"] == "Mike Trout"
+        assert by_id[1]["team_name"] == "Team A"
+        assert by_id[1]["cost"] == 35.0
+        assert by_id[3]["player_name"] == "Gerrit Cole"
+        assert by_id[3]["team_name"] == "Team B"
+
+    def test_get_keepers_empty_for_non_keeper_session(self) -> None:
+        mgr = _make_manager()
+        sid, _ = mgr.start_session(2026)
+        keepers = mgr.get_keepers(sid)
+        assert keepers == []
+
+    def test_keeper_snapshot_survives_persist_load(self) -> None:
+        mgr, provider = _make_manager_with_adjuster()
+        sid, _ = mgr.start_session(2026, keeper_player_ids={1})
+        keepers = mgr.get_keepers(sid)
+        assert len(keepers) == 1
+        assert keepers[0]["player_name"] == "Mike Trout"
+
+        # Create fresh manager to simulate restart
+        mgr2 = SessionManager(
+            session_repo=SqliteDraftSessionRepo(provider),
+            valuation_repo=SqliteValuationRepo(provider),
+            player_repo=SqlitePlayerRepo(provider),
+            adp_repo=SqliteADPRepo(provider),
+            player_profile_service=PlayerProfileService(SqlitePlayerRepo(provider)),
+            league=_LEAGUE,
+            adp_provider="fantasypros",
+        )
+        keepers2 = mgr2.get_keepers(sid)
+        assert keepers2 == keepers
+
+
 class TestAutoLoadKeepers:
     def test_auto_loads_from_league_keeper_repo(self) -> None:
         conn = create_connection(":memory:", check_same_thread=False)

@@ -16,6 +16,7 @@ class DraftSessionRecord:
     system: str = "zar"
     version: str = "1.0"
     keeper_player_ids: list[int] | None = None
+    keeper_snapshot: list[dict[str, object]] | None = None
     id: int | None = None
 
 

@@ -17,6 +17,16 @@ export interface DraftState {
   teams: number;
   userTeam: number;
   budgetRemaining: number | null;
+  keeperCount: number;
+}
+
+export interface KeeperInfo {
+  playerId: number;
+  playerName: string;
+  position: string;
+  teamName: string;
+  cost: number | null;
+  value: number;
 }
 
 export interface DraftSessionSummary {

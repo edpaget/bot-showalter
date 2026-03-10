@@ -229,6 +229,28 @@ class DraftSessionSummaryType:
 
 
 @strawberry.type
+class KeeperInfoType:
+    player_id: int
+    player_name: str
+    position: str
+    team_name: str
+    cost: float | None
+    value: float
+
+    @staticmethod
+    def from_dict(d: dict[str, object]) -> KeeperInfoType:
+        raw_cost = d.get("cost")
+        return KeeperInfoType(
+            player_id=int(str(d["player_id"])),
+            player_name=str(d["player_name"]),
+            position=str(d["position"]),
+            team_name=str(d["team_name"]),
+            cost=float(str(raw_cost)) if raw_cost is not None else None,
+            value=float(str(d["value"])),
+        )
+
+
+@strawberry.type
 class DraftStateType:
     session_id: int
     current_pick: int
@@ -237,9 +259,10 @@ class DraftStateType:
     teams: int
     user_team: int
     budget_remaining: int | None
+    keeper_count: int
 
     @staticmethod
-    def from_state(session_id: int, state: DraftState) -> DraftStateType:
+    def from_state(session_id: int, state: DraftState, *, keeper_count: int = 0) -> DraftStateType:
         is_auction = state.config.format.value == "auction"
         return DraftStateType(
             session_id=session_id,
@@ -249,6 +272,7 @@ class DraftStateType:
             teams=state.config.teams,
             user_team=state.config.user_team,
             budget_remaining=state.team_budgets[state.config.user_team] if is_auction else None,
+            keeper_count=keeper_count,
         )
 
 

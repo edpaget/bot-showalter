@@ -28,6 +28,7 @@ from fantasy_baseball_manager.web.types import (
     DraftSessionSummaryType,
     DraftStateType,
     FallingPlayerType,
+    KeeperInfoType,
     LeagueSettingsType,
     PickEvent,
     PickResultType,
@@ -62,6 +63,10 @@ def _get_session_manager(info: Info) -> SessionManager:
     return mgr
 
 
+def _get_keeper_count(mgr: SessionManager, session_id: int) -> int:
+    return len(mgr.get_keepers(session_id))
+
+
 def _build_pick_result(
     info: Info,
     session_id: int,
@@ -83,9 +88,10 @@ def _build_pick_result(
         adp_lookup,
     )
 
+    keeper_count = _get_keeper_count(mgr, session_id)
     return PickResultType(
         pick=pick,
-        state=DraftStateType.from_state(session_id, engine.state),
+        state=DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count),
         recommendations=[RecommendationType.from_domain(r) for r in recs],
         roster=[DraftPickType.from_domain(p) for p in roster],
         needs=[RosterSlotType(position=position_from_raw(pos), remaining=count) for pos, count in needs.items()],
@@ -193,7 +199,14 @@ class Query:
     def session(self, info: Info, session_id: int) -> DraftStateType:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
-        return DraftStateType.from_state(session_id, engine.state)
+        keeper_count = _get_keeper_count(mgr, session_id)
+        return DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count)
+
+    @strawberry.field
+    def keepers(self, info: Info, session_id: int) -> list[KeeperInfoType]:
+        mgr = _get_session_manager(info)
+        snapshot = mgr.get_keepers(session_id)
+        return [KeeperInfoType.from_dict(k) for k in snapshot]
 
     @strawberry.field
     def sessions(
@@ -435,7 +448,8 @@ class Mutation:
             session_id,
             SessionEvent(session_id=session_id, event_type="started"),
         )
-        return DraftStateType.from_state(session_id, engine.state)
+        keeper_count = _get_keeper_count(mgr, session_id)
+        return DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count)
 
     @strawberry.mutation
     async def pick(
