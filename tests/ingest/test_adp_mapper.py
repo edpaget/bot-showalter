@@ -4,11 +4,11 @@ from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
     _discover_provider_columns,
-    _normalize_name,
     _split_raw_name,
     ingest_fantasypros_adp,
 )
 from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
+from fantasy_baseball_manager.name_utils import normalize_name
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from tests.helpers import seed_player
@@ -50,49 +50,49 @@ def _make_row(
 
 class TestNormalizeName:
     def test_basic(self) -> None:
-        assert _normalize_name("Mike Trout") == "mike trout"
+        assert normalize_name("Mike Trout") == "mike trout"
 
     def test_strips_jr_suffix(self) -> None:
-        assert _normalize_name("Bobby Witt Jr.") == "bobby witt"
+        assert normalize_name("Bobby Witt Jr.") == "bobby witt"
 
     def test_strips_ii_suffix(self) -> None:
-        assert _normalize_name("Ken Griffey II") == "ken griffey"
+        assert normalize_name("Ken Griffey II") == "ken griffey"
 
     def test_strips_batter_parenthetical(self) -> None:
-        assert _normalize_name("Shohei Ohtani (Batter)") == "shohei ohtani"
+        assert normalize_name("Shohei Ohtani (Batter)") == "shohei ohtani"
 
     def test_strips_pitcher_parenthetical(self) -> None:
-        assert _normalize_name("Shohei Ohtani (Pitcher)") == "shohei ohtani"
+        assert normalize_name("Shohei Ohtani (Pitcher)") == "shohei ohtani"
 
     def test_strips_accents(self) -> None:
-        assert _normalize_name("Ronald Acuña") == "ronald acuna"
+        assert normalize_name("Ronald Acuña") == "ronald acuna"
 
     def test_collapses_initials_with_spaces(self) -> None:
-        assert _normalize_name("J. T. Realmuto") == "jt realmuto"
+        assert normalize_name("J. T. Realmuto") == "jt realmuto"
 
     def test_collapses_initials_without_spaces(self) -> None:
-        assert _normalize_name("J.T. Realmuto") == "jt realmuto"
+        assert normalize_name("J.T. Realmuto") == "jt realmuto"
 
     def test_collapses_single_initial(self) -> None:
-        assert _normalize_name("A.J. Minter") == "aj minter"
+        assert normalize_name("A.J. Minter") == "aj minter"
 
     def test_collapses_initials_with_extra_spaces(self) -> None:
-        assert _normalize_name("A. J. Minter") == "aj minter"
+        assert normalize_name("A. J. Minter") == "aj minter"
 
     def test_initials_match_across_formats(self) -> None:
         # "J. P. Crawford" from DB should match "J.P. Crawford" from ADP
-        assert _normalize_name("J. P. Crawford") == _normalize_name("J.P. Crawford")
+        assert normalize_name("J. P. Crawford") == normalize_name("J.P. Crawford")
 
     def test_nickname_matthew_matches_matt(self) -> None:
-        assert _normalize_name("Matthew Boyd") == _normalize_name("Matt Boyd")
+        assert normalize_name("Matthew Boyd") == normalize_name("Matt Boyd")
 
     def test_nickname_michael_matches_mike(self) -> None:
-        assert _normalize_name("Michael King") == _normalize_name("Mike King")
+        assert normalize_name("Michael King") == normalize_name("Mike King")
 
     def test_nickname_does_not_affect_last_name(self) -> None:
         # "Stephen" in a last name should still be aliased (acceptable trade-off),
         # but verify normalization is consistent
-        assert _normalize_name("John Matthew") == "john matt"
+        assert normalize_name("John Matthew") == "john matt"
 
 
 class TestSplitRawName:

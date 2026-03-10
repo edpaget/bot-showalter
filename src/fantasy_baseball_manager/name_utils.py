@@ -2,6 +2,8 @@ import re
 import unicodedata
 from typing import TYPE_CHECKING
 
+from fantasy_baseball_manager.team_aliases import TEAM_ALIASES
+
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import Player
     from fantasy_baseball_manager.repos import PlayerRepo
@@ -65,6 +67,33 @@ def normalize_name(name: str) -> str:
     tokens = lowered.split()
     tokens = [NICK_ALIASES.get(t, t) for t in tokens]
     return " ".join(tokens)
+
+
+def build_player_lookups(
+    players: list[Player],
+    player_teams: dict[int, str] | None = None,
+) -> tuple[dict[tuple[str, str], int], dict[str, list[int]]]:
+    """Build lookup dicts for matching player names.
+
+    Returns (by_name_team, by_name) where:
+    - by_name_team maps (normalized_name, team_abbrev) → player_id
+    - by_name maps normalized_name → [player_ids]
+    """
+    by_name_team: dict[tuple[str, str], int] = {}
+    by_name: dict[str, list[int]] = {}
+
+    for p in players:
+        if p.id is None:
+            continue
+        full_name = f"{p.name_first} {p.name_last}"
+        normalized = normalize_name(full_name)
+        by_name.setdefault(normalized, []).append(p.id)
+        if player_teams and p.id in player_teams:
+            raw_team = player_teams[p.id]
+            team_abbrev = TEAM_ALIASES.get(raw_team, raw_team)
+            by_name_team[(normalized, team_abbrev)] = p.id
+
+    return by_name_team, by_name
 
 
 def resolve_players(player_repo: PlayerRepo, name: str) -> list[Player]:

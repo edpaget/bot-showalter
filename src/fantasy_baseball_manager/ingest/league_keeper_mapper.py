@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain import LeagueKeeper
-from fantasy_baseball_manager.ingest.adp_mapper import _build_player_lookups, _normalize_name
+from fantasy_baseball_manager.name_utils import build_player_lookups, normalize_name
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import Player
@@ -28,7 +28,7 @@ def import_league_keepers(
     season: int,
     league: str,
 ) -> LeagueKeeperImportResult:
-    _, by_name = _build_player_lookups(players)
+    _, by_name = build_player_lookups(players)
 
     loaded = 0
     skipped = 0
@@ -45,7 +45,7 @@ def import_league_keepers(
             skipped += 1
             continue
 
-        normalized = _normalize_name(raw_name)
+        normalized = normalize_name(raw_name)
         candidates = by_name.get(normalized, [])
 
         if len(candidates) != 1:

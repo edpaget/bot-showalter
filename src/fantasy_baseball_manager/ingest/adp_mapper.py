@@ -4,12 +4,10 @@ from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain import ADP, Player
 from fantasy_baseball_manager.name_utils import (
-    normalize_name as _normalize_name,
-)
-from fantasy_baseball_manager.name_utils import (
+    build_player_lookups,
+    normalize_name,
     strip_name_decorations,
 )
-from fantasy_baseball_manager.team_aliases import TEAM_ALIASES
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import ADPRepo, PlayerRepo
@@ -27,27 +25,6 @@ _PROVIDER_SLUGS: dict[str, str] = {
 }
 
 
-def _build_player_lookups(
-    players: list[Player],
-    player_teams: dict[int, str] | None = None,
-) -> tuple[dict[tuple[str, str], int], dict[str, list[int]]]:
-    by_name_team: dict[tuple[str, str], int] = {}
-    by_name: dict[str, list[int]] = {}
-
-    for p in players:
-        if p.id is None:
-            continue
-        full_name = f"{p.name_first} {p.name_last}"
-        normalized = _normalize_name(full_name)
-        by_name.setdefault(normalized, []).append(p.id)
-        if player_teams and p.id in player_teams:
-            raw_team = player_teams[p.id]
-            team_abbrev = TEAM_ALIASES.get(raw_team, raw_team)
-            by_name_team[(normalized, team_abbrev)] = p.id
-
-    return by_name_team, by_name
-
-
 def _resolve_player(
     row: dict[str, Any],
     by_name_team: dict[tuple[str, str], int],
@@ -55,7 +32,7 @@ def _resolve_player(
 ) -> int | None:
     raw_name = row.get("Player") or ""
     team = (row.get("Team") or "").strip()
-    normalized = _normalize_name(raw_name)
+    normalized = normalize_name(raw_name)
 
     if team:
         player_id = by_name_team.get((normalized, team))
@@ -110,7 +87,7 @@ def ingest_fantasypros_adp(
     player_teams: dict[int, str] | None = None,
     player_repo: PlayerRepo | None = None,
 ) -> ADPIngestResult:
-    by_name_team, by_name = _build_player_lookups(players, player_teams)
+    by_name_team, by_name = build_player_lookups(players, player_teams)
 
     if not rows:
         return ADPIngestResult(loaded=0, skipped=0, unmatched=[])
@@ -127,7 +104,7 @@ def ingest_fantasypros_adp(
         player_id = _resolve_player(row, by_name_team, by_name)
         if player_id is None:
             raw_name = row.get("Player") or ""
-            normalized = _normalize_name(raw_name)
+            normalized = normalize_name(raw_name)
             candidates = by_name.get(normalized, [])
             # Only create stubs for truly missing players (not ambiguous ones)
             if player_repo is not None and len(candidates) == 0:
