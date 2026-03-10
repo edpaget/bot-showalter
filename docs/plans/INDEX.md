@@ -11,7 +11,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [Web UI Foundation](web-ui-foundation.md) | 6 | phases 1-5 done | draft-session-persistence (phase 2 needs phases 1-2) |
 | [Evaluation Framework](evaluation-framework.md) | 4 | phases 1-3 done | none |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
 | [Valuation Reform](valuation-reform.md) | 4 | phases 1-2 done | league-standings-import, evaluation-framework phase 2 |
@@ -83,6 +82,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Web API Hardening](web-api-hardening.md) | 3 |
 | [Yahoo Integration Improvements](yahoo-integration-improvements.md) | 3 |
 | [ZAR Distributional](zar-distributional.md) | 3 |
+| [Web UI Foundation](web-ui-foundation.md) | 6 |
 | [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
