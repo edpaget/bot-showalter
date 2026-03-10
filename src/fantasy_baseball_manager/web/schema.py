@@ -17,6 +17,7 @@ from fantasy_baseball_manager.services import (
     recommend,
 )
 from fantasy_baseball_manager.web.types import (
+    ADPReportType,
     ArbitrageAlertEvent,
     ArbitrageReportType,
     CategoryBalanceType,
@@ -30,12 +31,15 @@ from fantasy_baseball_manager.web.types import (
     LeagueSettingsType,
     PickEvent,
     PickResultType,
+    PlayerSummaryType,
     PlayerTierType,
     PositionScarcityType,
+    ProjectionType,
     RecommendationType,
     RosterSlotType,
     SessionEvent,
     UndoEvent,
+    ValuationType,
     YahooPollStatusType,
 )
 
@@ -291,6 +295,85 @@ class Query:
                 reaches=report.reaches,
             )
         return ArbitrageReportType.from_domain(report)
+
+    @strawberry.field
+    def projections(
+        self,
+        info: Info,
+        season: int,
+        player_name: str,
+        system: str | None = None,
+    ) -> list[ProjectionType]:
+        ctx = _get_context(info)
+        results = ctx.container.projection_lookup_service.lookup(player_name, season, system=system)
+        return [ProjectionType.from_domain(p) for p in results]
+
+    @strawberry.field
+    def valuations(
+        self,
+        info: Info,
+        season: int,
+        system: str | None = None,
+        version: str | None = None,
+        player_type: str | None = None,
+        position: str | None = None,
+        top: int | None = None,
+    ) -> list[ValuationType]:
+        ctx = _get_context(info)
+        results = ctx.container.valuation_lookup_service.rankings(
+            season,
+            system=system,
+            version=version,
+            player_type=player_type,
+            position=position,
+            top=top,
+        )
+        return [ValuationType.from_domain(v) for v in results]
+
+    @strawberry.field
+    def adp_report(
+        self,
+        info: Info,
+        season: int,
+        system: str | None = None,
+        version: str | None = None,
+        provider: str | None = None,
+    ) -> ADPReportType:
+        ctx = _get_context(info)
+        system = system or ctx.default_system
+        version = version or ctx.default_version
+        provider = provider or ctx.adp_provider
+        report = ctx.container.adp_report_service.compute_value_over_adp(
+            season,
+            system,
+            version,
+            provider=provider,
+        )
+        return ADPReportType.from_domain(report)
+
+    @strawberry.field
+    def player_search(
+        self,
+        info: Info,
+        name: str,
+        season: int,
+    ) -> list[PlayerSummaryType]:
+        ctx = _get_context(info)
+        results = ctx.container.player_bio_service.search(name, season)
+        return [PlayerSummaryType.from_domain(s) for s in results]
+
+    @strawberry.field
+    def player_bio(
+        self,
+        info: Info,
+        player_id: int,
+        season: int,
+    ) -> PlayerSummaryType | None:
+        ctx = _get_context(info)
+        result = ctx.container.player_bio_service.get_bio(player_id, season)
+        if result is None:
+            return None
+        return PlayerSummaryType.from_domain(result)
 
     @strawberry.field
     def yahoo_poll_status(self, info: Info, session_id: int) -> YahooPollStatusType:

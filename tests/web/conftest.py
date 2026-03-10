@@ -11,10 +11,23 @@ from fantasy_baseball_manager.domain import (
     LeagueFormat,
     LeagueSettings,
     Player,
+    PositionAppearance,
+    Projection,
+    RosterStint,
     StatType,
+    Team,
     Valuation,
 )
-from fantasy_baseball_manager.repos import SqliteADPRepo, SqliteDraftSessionRepo, SqlitePlayerRepo, SqliteValuationRepo
+from fantasy_baseball_manager.repos import (
+    SqliteADPRepo,
+    SqliteDraftSessionRepo,
+    SqlitePlayerRepo,
+    SqlitePositionAppearanceRepo,
+    SqliteProjectionRepo,
+    SqliteRosterStintRepo,
+    SqliteTeamRepo,
+    SqliteValuationRepo,
+)
 from fantasy_baseball_manager.web import SessionManager, create_app
 
 _LEAGUE = LeagueSettings(
@@ -38,14 +51,31 @@ _LEAGUE = LeagueSettings(
 
 
 def _seed_data(provider: SingleConnectionProvider) -> None:
-    """Seed the in-memory database with test players and valuations."""
+    """Seed the in-memory database with test players, valuations, projections, ADP, and bio data."""
     player_repo = SqlitePlayerRepo(provider)
     valuation_repo = SqliteValuationRepo(provider)
+    projection_repo = SqliteProjectionRepo(provider)
+    adp_repo = SqliteADPRepo(provider)
+    team_repo = SqliteTeamRepo(provider)
+    roster_stint_repo = SqliteRosterStintRepo(provider)
+    position_appearance_repo = SqlitePositionAppearanceRepo(provider)
 
     players = [
-        Player(name_first="Mike", name_last="Trout", id=1, mlbam_id=545361),
-        Player(name_first="Shohei", name_last="Ohtani", id=2, mlbam_id=660271),
-        Player(name_first="Gerrit", name_last="Cole", id=3, mlbam_id=543037),
+        Player(
+            name_first="Mike", name_last="Trout", id=1, mlbam_id=545361, bats="R", throws="R", birth_date="1991-08-07"
+        ),
+        Player(
+            name_first="Shohei",
+            name_last="Ohtani",
+            id=2,
+            mlbam_id=660271,
+            bats="L",
+            throws="R",
+            birth_date="1994-07-05",
+        ),
+        Player(
+            name_first="Gerrit", name_last="Cole", id=3, mlbam_id=543037, bats="R", throws="R", birth_date="1990-09-08"
+        ),
     ]
     for p in players:
         player_repo.upsert(p)
@@ -94,14 +124,67 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
     for v in valuations:
         valuation_repo.upsert(v)
 
-    adp_repo = SqliteADPRepo(provider)
+    projections = [
+        Projection(
+            player_id=1,
+            season=2026,
+            system="steamer",
+            version="2026",
+            player_type="batter",
+            stat_json={"pa": 600, "hr": 35, "rbi": 90},
+        ),
+        Projection(
+            player_id=2,
+            season=2026,
+            system="steamer",
+            version="2026",
+            player_type="batter",
+            stat_json={"pa": 550, "hr": 40, "rbi": 100},
+        ),
+        Projection(
+            player_id=3,
+            season=2026,
+            system="steamer",
+            version="2026",
+            player_type="pitcher",
+            stat_json={"ip": 180, "w": 14, "k": 220},
+        ),
+    ]
+    for proj in projections:
+        projection_repo.upsert(proj)
+
     adp_records = [
         ADP(player_id=1, season=2026, provider="fantasypros", overall_pick=5.0, rank=5, positions="OF"),
-        ADP(player_id=2, season=2026, provider="fantasypros", overall_pick=8.0, rank=8, positions="OF"),
-        ADP(player_id=3, season=2026, provider="fantasypros", overall_pick=12.0, rank=12, positions="SP"),
+        ADP(player_id=2, season=2026, provider="fantasypros", overall_pick=3.0, rank=3, positions="OF,DH"),
+        ADP(player_id=3, season=2026, provider="fantasypros", overall_pick=15.0, rank=15, positions="SP"),
     ]
-    for a in adp_records:
-        adp_repo.upsert(a)
+    for adp in adp_records:
+        adp_repo.upsert(adp)
+
+    teams = [
+        Team(abbreviation="LAA", name="Los Angeles Angels", league="AL", division="West"),
+        Team(abbreviation="LAD", name="Los Angeles Dodgers", league="NL", division="West"),
+        Team(abbreviation="NYY", name="New York Yankees", league="AL", division="East"),
+    ]
+    team_ids = {}
+    for t in teams:
+        team_ids[t.abbreviation] = team_repo.upsert(t)
+
+    stints = [
+        RosterStint(player_id=1, team_id=team_ids["LAA"], season=2026, start_date="2026-03-28"),
+        RosterStint(player_id=2, team_id=team_ids["LAD"], season=2026, start_date="2026-03-28"),
+        RosterStint(player_id=3, team_id=team_ids["NYY"], season=2026, start_date="2026-03-28"),
+    ]
+    for s in stints:
+        roster_stint_repo.upsert(s)
+
+    appearances = [
+        PositionAppearance(player_id=1, season=2026, position="CF", games=100),
+        PositionAppearance(player_id=2, season=2026, position="DH", games=120),
+        PositionAppearance(player_id=3, season=2026, position="SP", games=30),
+    ]
+    for a in appearances:
+        position_appearance_repo.upsert(a)
 
     with provider.connection() as conn:
         conn.commit()

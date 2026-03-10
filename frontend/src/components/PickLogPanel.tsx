@@ -4,9 +4,10 @@ import { displayPosition } from "../types/position";
 
 interface PickLogPanelProps {
   picks: DraftPick[];
+  onPlayerClick?: (playerId: number, playerName: string) => void;
 }
 
-export function PickLogPanel({ picks }: PickLogPanelProps) {
+export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const latestPickNumber = picks.length > 0 ? picks[picks.length - 1]!.pickNumber : null;
 
@@ -44,7 +45,18 @@ export function PickLogPanel({ picks }: PickLogPanelProps) {
                   >
                     <td className="px-3 py-1">{pick.pickNumber}</td>
                     <td className="py-1">Team {pick.team}</td>
-                    <td className="py-1">{pick.playerName}</td>
+                    <td className="py-1">
+                      {onPlayerClick ? (
+                        <button
+                          onClick={() => onPlayerClick(pick.playerId, pick.playerName)}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {pick.playerName}
+                        </button>
+                      ) : (
+                        pick.playerName
+                      )}
+                    </td>
                     <td className="py-1">{displayPosition(pick.position)}</td>
                     <td className="py-1">{pick.price != null ? `$${pick.price}` : "—"}</td>
                   </tr>

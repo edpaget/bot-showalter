@@ -81,6 +81,7 @@ export interface DraftBoardTableProps {
   version?: string;
   draftedPlayerIds?: Set<number>;
   onDraft?: (playerId: number, position: string) => void;
+  onPlayerClick?: (playerId: number, playerName: string) => void;
   sessionActive?: boolean;
 }
 
@@ -92,6 +93,7 @@ export function DraftBoardTable({
   version,
   draftedPlayerIds,
   onDraft,
+  onPlayerClick,
   sessionActive = false,
 }: DraftBoardTableProps) {
   const variables: BoardVars = { season };
@@ -212,7 +214,16 @@ export function DraftBoardTable({
                 >
                   <td className="border border-gray-200 px-2 py-1">{row.rank}</td>
                   <td className="border border-gray-200 px-2 py-1 whitespace-nowrap">
-                    {row.playerName}
+                    {onPlayerClick ? (
+                      <button
+                        onClick={() => onPlayerClick(row.playerId, row.playerName)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {row.playerName}
+                      </button>
+                    ) : (
+                      row.playerName
+                    )}
                   </td>
                   <td className="border border-gray-200 px-2 py-1">{displayPosition(row.position)}</td>
                   <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>

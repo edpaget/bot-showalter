@@ -7,12 +7,14 @@ const POSITION_FILTERS = ["All", ...Object.values(Position)] as const;
 interface RecommendationPanelProps {
   recommendations: Recommendation[];
   onDraft: (playerId: number, position: string) => void;
+  onPlayerClick?: (playerId: number, playerName: string) => void;
   sessionActive: boolean;
 }
 
 export function RecommendationPanel({
   recommendations,
   onDraft,
+  onPlayerClick,
   sessionActive,
 }: RecommendationPanelProps) {
   const [posFilter, setPosFilter] = useState<string>("All");
@@ -57,7 +59,16 @@ export function RecommendationPanel({
             {filtered.map((rec) => (
               <tr key={rec.playerId} className="border-t border-gray-100">
                 <td className="py-1" title={rec.reason}>
-                  {rec.playerName}
+                  {onPlayerClick ? (
+                    <button
+                      onClick={() => onPlayerClick(rec.playerId, rec.playerName)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {rec.playerName}
+                    </button>
+                  ) : (
+                    rec.playerName
+                  )}
                 </td>
                 <td className="py-1">{displayPosition(rec.position)}</td>
                 <td className="py-1 font-mono">${rec.value.toFixed(1)}</td>

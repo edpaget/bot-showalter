@@ -4,6 +4,258 @@ if TYPE_CHECKING:
     from fastapi.testclient import TestClient
 
 
+class TestProjectionsQuery:
+    def test_lookup_by_player_name(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        projections(season: 2026, playerName: "Mike Trout") {
+                            playerName
+                            system
+                            version
+                            sourceType
+                            playerType
+                            stats
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["projections"]
+        assert len(data) >= 1
+        proj = data[0]
+        assert proj["playerName"] == "Mike Trout"
+        assert proj["system"] == "steamer"
+        assert proj["playerType"] == "batter"
+        assert "hr" in proj["stats"]
+
+    def test_filter_by_system(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        projections(season: 2026, playerName: "Trout", system: "steamer") {
+                            playerName
+                            system
+                        }
+                    }
+                """
+            },
+        )
+        data = response.json()["data"]["projections"]
+        assert all(p["system"] == "steamer" for p in data)
+
+
+class TestValuationsQuery:
+    def test_rankings_returns_sorted(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        valuations(season: 2026) {
+                            playerName
+                            system
+                            version
+                            projectionSystem
+                            projectionVersion
+                            playerType
+                            position
+                            value
+                            rank
+                            categoryScores
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["valuations"]
+        assert len(data) == 3
+        ranks = [v["rank"] for v in data]
+        assert ranks == sorted(ranks)
+
+    def test_filter_by_player_type(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        valuations(season: 2026, playerType: "pitcher") {
+                            playerName
+                            playerType
+                        }
+                    }
+                """
+            },
+        )
+        data = response.json()["data"]["valuations"]
+        assert len(data) == 1
+        assert data[0]["playerType"] == "pitcher"
+
+    def test_filter_by_position(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        valuations(season: 2026, position: "OF") {
+                            playerName
+                            position
+                        }
+                    }
+                """
+            },
+        )
+        data = response.json()["data"]["valuations"]
+        assert len(data) == 2
+        assert all(v["position"] == "OF" for v in data)
+
+    def test_top_n(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        valuations(season: 2026, top: 2) {
+                            playerName
+                        }
+                    }
+                """
+            },
+        )
+        data = response.json()["data"]["valuations"]
+        assert len(data) == 2
+
+
+class TestADPReportQuery:
+    def test_returns_report_sections(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        adpReport(season: 2026) {
+                            season
+                            system
+                            version
+                            provider
+                            buyTargets {
+                                playerId
+                                playerName
+                                playerType
+                                position
+                                zarRank
+                                zarValue
+                                adpRank
+                                adpPick
+                                rankDelta
+                                provider
+                            }
+                            avoidList {
+                                playerName
+                                rankDelta
+                            }
+                            unrankedValuable {
+                                playerName
+                            }
+                            nMatched
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["adpReport"]
+        assert data["season"] == 2026
+        assert data["system"] == "zar"
+        assert data["provider"] == "fantasypros"
+        assert isinstance(data["buyTargets"], list)
+        assert isinstance(data["avoidList"], list)
+        assert isinstance(data["unrankedValuable"], list)
+        assert data["nMatched"] >= 0
+
+
+class TestPlayerSearchQuery:
+    def test_search_returns_matching_players(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        playerSearch(name: "Trout", season: 2026) {
+                            playerId
+                            name
+                            team
+                            age
+                            primaryPosition
+                            bats
+                            throws
+                            experience
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["playerSearch"]
+        assert len(data) >= 1
+        player = data[0]
+        assert "Trout" in player["name"]
+        assert player["playerId"] == 1
+        assert player["bats"] == "R"
+
+
+class TestPlayerBioQuery:
+    def test_lookup_by_player_id(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        playerBio(playerId: 1, season: 2026) {
+                            playerId
+                            name
+                            team
+                            age
+                            primaryPosition
+                            bats
+                            throws
+                            experience
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["playerBio"]
+        assert data["playerId"] == 1
+        assert data["name"] == "Mike Trout"
+        assert data["bats"] == "R"
+
+    def test_returns_null_for_unknown_player(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        playerBio(playerId: 9999, season: 2026) {
+                            playerId
+                            name
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["playerBio"]
+        assert data is None
+
+
 class TestBoardQuery:
     def test_returns_all_rows(self, client: TestClient) -> None:
         response = client.post(

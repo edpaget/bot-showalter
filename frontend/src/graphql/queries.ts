@@ -197,3 +197,125 @@ export const YAHOO_POLL_STATUS_QUERY = gql`
     }
   }
 `;
+
+export const PROJECTIONS_QUERY = gql`
+  query Projections($season: Int!, $playerName: String!, $system: String) {
+    projections(season: $season, playerName: $playerName, system: $system) {
+      playerName
+      system
+      version
+      sourceType
+      playerType
+      stats
+    }
+  }
+`;
+
+export const VALUATIONS_QUERY = gql`
+  query Valuations(
+    $season: Int!
+    $system: String
+    $version: String
+    $playerType: String
+    $position: String
+    $top: Int
+  ) {
+    valuations(
+      season: $season
+      system: $system
+      version: $version
+      playerType: $playerType
+      position: $position
+      top: $top
+    ) {
+      playerName
+      system
+      version
+      projectionSystem
+      projectionVersion
+      playerType
+      position
+      value
+      rank
+      categoryScores
+    }
+  }
+`;
+
+export const ADP_REPORT_QUERY = gql`
+  query ADPReport($season: Int!, $system: String, $version: String, $provider: String) {
+    adpReport(season: $season, system: $system, version: $version, provider: $provider) {
+      season
+      system
+      version
+      provider
+      buyTargets {
+        playerId
+        playerName
+        playerType
+        position
+        zarRank
+        zarValue
+        adpRank
+        adpPick
+        rankDelta
+        provider
+      }
+      avoidList {
+        playerId
+        playerName
+        playerType
+        position
+        zarRank
+        zarValue
+        adpRank
+        adpPick
+        rankDelta
+        provider
+      }
+      unrankedValuable {
+        playerId
+        playerName
+        playerType
+        position
+        zarRank
+        zarValue
+        adpRank
+        adpPick
+        rankDelta
+        provider
+      }
+      nMatched
+    }
+  }
+`;
+
+export const PLAYER_SEARCH_QUERY = gql`
+  query PlayerSearch($name: String!, $season: Int!) {
+    playerSearch(name: $name, season: $season) {
+      playerId
+      name
+      team
+      age
+      primaryPosition
+      bats
+      throws
+      experience
+    }
+  }
+`;
+
+export const PLAYER_BIO_QUERY = gql`
+  query PlayerBio($playerId: Int!, $season: Int!) {
+    playerBio(playerId: $playerId, season: $season) {
+      playerId
+      name
+      team
+      age
+      primaryPosition
+      bats
+      throws
+      experience
+    }
+  }
+`;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { useMutation, useQuery, useSubscription, useLazyQuery } from "@apollo/client";
 import { useDraftSession } from "../context/DraftSessionContext";
+import { usePlayerDrawer } from "../context/PlayerDrawerContext";
 import { SESSIONS_QUERY, BALANCE_QUERY, SESSION_QUERY, RECOMMENDATIONS_QUERY, ROSTER_QUERY, NEEDS_QUERY } from "../graphql/queries";
 import { START_SESSION, PICK, UNDO, END_SESSION } from "../graphql/mutations";
 import { DRAFT_EVENTS_SUBSCRIPTION } from "../graphql/subscriptions";
@@ -16,6 +17,7 @@ import type { DraftSessionSummary, PickResult, DraftState, CategoryBalance, Reco
 
 export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const ctx = useDraftSession();
+  const { openPlayer } = usePlayerDrawer();
   const sessionActive = ctx.sessionId != null && ctx.state != null;
 
   const { data: sessionsData } = useQuery<{ sessions: DraftSessionSummary[] }>(SESSIONS_QUERY, {
@@ -157,6 +159,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
             season={season}
             draftedPlayerIds={sessionActive ? ctx.draftedPlayerIds : undefined}
             onDraft={sessionActive ? handleDraft : undefined}
+            onPlayerClick={openPlayer}
             sessionActive={sessionActive}
           />
         </div>
@@ -166,6 +169,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
             <RecommendationPanel
               recommendations={ctx.recommendations}
               onDraft={handleDraft}
+              onPlayerClick={openPlayer}
               sessionActive
             />
             <ArbitragePanel
@@ -185,7 +189,9 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         )}
       </div>
 
-      {sessionActive && ctx.state && <PickLogPanel picks={ctx.state.picks} />}
+      {sessionActive && ctx.state && (
+        <PickLogPanel picks={ctx.state.picks} onPlayerClick={openPlayer} />
+      )}
     </div>
   );
 }

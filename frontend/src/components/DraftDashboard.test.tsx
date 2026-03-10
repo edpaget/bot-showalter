@@ -4,6 +4,7 @@ import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
 import { describe, it, expect, afterEach } from "vitest";
 import { DraftDashboard } from "./DraftDashboard";
 import { DraftSessionProvider } from "../context/DraftSessionContext";
+import { PlayerDrawerProvider } from "../context/PlayerDrawerContext";
 import { BOARD_QUERY, SESSIONS_QUERY, BALANCE_QUERY } from "../graphql/queries";
 import { START_SESSION, PICK, UNDO, END_SESSION } from "../graphql/mutations";
 import type { DraftBoardRow } from "../types/board";
@@ -167,9 +168,11 @@ async function tick() {
 function renderDashboard(mocks: MockedResponse[]) {
   render(
     <MockedProvider mocks={mocks}>
-      <DraftSessionProvider>
-        <DraftDashboard season={2026} />
-      </DraftSessionProvider>
+      <PlayerDrawerProvider>
+        <DraftSessionProvider>
+          <DraftDashboard season={2026} />
+        </DraftSessionProvider>
+      </PlayerDrawerProvider>
     </MockedProvider>,
   );
 }

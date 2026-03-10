@@ -13,11 +13,16 @@ if TYPE_CHECKING:
         DraftSessionRecord,
         FallingPlayer,
         LeagueSettings,
+        PlayerProjection,
+        PlayerSummary,
         PlayerTier,
+        PlayerValuation,
         PositionScarcity,
         ReachPick,
         Recommendation,
         TeamCategoryProjection,
+        ValueOverADP,
+        ValueOverADPReport,
     )
     from fantasy_baseball_manager.services import DraftPick, DraftState
 
@@ -400,3 +405,132 @@ class YahooPollStatusType:
     active: bool
     last_poll_at: str | None
     picks_ingested: int
+
+
+@strawberry.type
+class ProjectionType:
+    player_name: str
+    system: str
+    version: str
+    source_type: str
+    player_type: str
+    stats: strawberry.scalars.JSON
+
+    @staticmethod
+    def from_domain(proj: PlayerProjection) -> ProjectionType:
+        return ProjectionType(
+            player_name=proj.player_name,
+            system=proj.system,
+            version=proj.version,
+            source_type=proj.source_type,
+            player_type=proj.player_type,
+            stats=cast("Any", dict(proj.stats)),
+        )
+
+
+@strawberry.type
+class ValuationType:
+    player_name: str
+    system: str
+    version: str
+    projection_system: str
+    projection_version: str
+    player_type: str
+    position: Position
+    value: float
+    rank: int
+    category_scores: strawberry.scalars.JSON
+
+    @staticmethod
+    def from_domain(val: PlayerValuation) -> ValuationType:
+        return ValuationType(
+            player_name=val.player_name,
+            system=val.system,
+            version=val.version,
+            projection_system=val.projection_system,
+            projection_version=val.projection_version,
+            player_type=val.player_type,
+            position=position_from_raw(val.position),
+            value=val.value,
+            rank=val.rank,
+            category_scores=cast("Any", dict(val.category_scores)),
+        )
+
+
+@strawberry.type
+class ADPReportRowType:
+    player_id: int
+    player_name: str
+    player_type: str
+    position: Position
+    zar_rank: int
+    zar_value: float
+    adp_rank: int
+    adp_pick: float
+    rank_delta: int
+    provider: str
+
+    @staticmethod
+    def from_domain(row: ValueOverADP) -> ADPReportRowType:
+        return ADPReportRowType(
+            player_id=row.player_id,
+            player_name=row.player_name,
+            player_type=row.player_type,
+            position=position_from_raw(row.position),
+            zar_rank=row.zar_rank,
+            zar_value=row.zar_value,
+            adp_rank=row.adp_rank,
+            adp_pick=row.adp_pick,
+            rank_delta=row.rank_delta,
+            provider=row.provider,
+        )
+
+
+@strawberry.type
+class ADPReportType:
+    season: int
+    system: str
+    version: str
+    provider: str
+    buy_targets: list[ADPReportRowType]
+    avoid_list: list[ADPReportRowType]
+    unranked_valuable: list[ADPReportRowType]
+    n_matched: int
+
+    @staticmethod
+    def from_domain(report: ValueOverADPReport) -> ADPReportType:
+        return ADPReportType(
+            season=report.season,
+            system=report.system,
+            version=report.version,
+            provider=report.provider,
+            buy_targets=[ADPReportRowType.from_domain(r) for r in report.buy_targets],
+            avoid_list=[ADPReportRowType.from_domain(r) for r in report.avoid_list],
+            unranked_valuable=[ADPReportRowType.from_domain(r) for r in report.unranked_valuable],
+            n_matched=report.n_matched,
+        )
+
+
+@strawberry.type
+class PlayerSummaryType:
+    player_id: int
+    name: str
+    team: str
+    age: int | None
+    primary_position: str
+    bats: str | None
+    throws: str | None
+    experience: int
+
+    @staticmethod
+    def from_domain(summary: PlayerSummary) -> PlayerSummaryType:
+        return PlayerSummaryType(
+            player_id=summary.player_id,
+            name=summary.name,
+            team=summary.team,
+            age=summary.age,
+            primary_position=summary.primary_position,
+            bats=summary.bats,
+            throws=summary.throws,
+            experience=summary.experience,
+        )
