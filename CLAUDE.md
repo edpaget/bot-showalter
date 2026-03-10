@@ -16,6 +16,28 @@ Fantasy baseball manager. Python 3.14+, uses `uv` for dependency management. Tes
 - **Install deps:** `uv sync`
 - **CI:** GitHub Actions runs the full quality gate (format, lint, type check, tests + coverage) on every push to main and on PRs.
 
+## Frontend Development
+
+### Commands
+
+All commands run from `frontend/`.
+
+- **Install deps:** `bun install` — lock file is `bun.lock`.
+- **Dev server:** `bun run dev` (Vite dev server; proxies `/graphql` to `http://127.0.0.1:8000` including WebSocket for subscriptions)
+- **Build:** `bun run build` (TypeScript check + Vite production build)
+- **Run tests:** `bun run test` (Vitest, jsdom environment). **Not** `bun test` — that invokes bun's native runner which skips the Vitest/jsdom config.
+- **Watch tests:** `bun run test:watch`
+- **Package manager:** `bun` (not npm/yarn).
+
+### Code Style
+
+- **Component files:** PascalCase (`PlayerDrawer.tsx`). Named exports, not default exports.
+- **Test co-location:** Tests live next to components (`PlayerDrawer.test.tsx`).
+- **Styling:** TailwindCSS v4 utility classes directly in `className`. No CSS modules or styled-components. Tailwind is configured via the `@tailwindcss/vite` plugin — no separate `tailwind.config` or `postcss.config` files.
+- **State management:** Apollo Client cache + React Context. No Redux or external state library.
+- **Apollo mocking in tests:** Use `MockedProvider` from `@apollo/client/testing` with `addTypename: false`. Define mock responses as `MockedResponse` objects with `request` (query + variables) and `result` (data).
+- **GraphQL queries/mutations/subscriptions** are defined in `frontend/src/graphql/` (`queries.ts`, `mutations.ts`, `subscriptions.ts`).
+
 ## Code Style
 
 - Use Python type annotations everywhere: function signatures, return types, variable declarations where not obvious. Use `typing` module types and modern syntax (e.g., `str | None` over `Optional[str]`).

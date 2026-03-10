@@ -8,7 +8,7 @@ This roadmap adds frontend linting/formatting (Biome), GraphQL codegen for autom
 
 | Phase | Status |
 |-------|--------|
-| 1 — CLAUDE.md frontend docs | not started |
+| 1 — CLAUDE.md frontend docs | done (2026-03-09) |
 | 2 — Biome linting and formatting | not started |
 | 3 — Frontend CI integration | not started |
 | 4 — Conditional pre-commit hooks | not started |
