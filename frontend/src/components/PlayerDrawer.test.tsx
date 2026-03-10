@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { PlayerDrawerProvider, usePlayerDrawer } from "../context/PlayerDrawerContext";
-import { PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } from "../graphql/queries";
+import { LEAGUE_QUERY, PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } from "../graphql/queries";
 import { PlayerDrawer } from "./PlayerDrawer";
 
 function bioMock(): MockedResponse {
@@ -79,6 +79,33 @@ function valMock(): MockedResponse {
   };
 }
 
+function leagueMock(): MockedResponse {
+  return {
+    request: { query: LEAGUE_QUERY },
+    result: {
+      data: {
+        league: {
+          name: "H2H",
+          format: "h2h_categories",
+          teams: 12,
+          budget: 260,
+          rosterBatters: 9,
+          rosterPitchers: 8,
+          rosterUtil: 1,
+          battingCategories: [
+            { key: "hr", name: "HR", statType: "counting", direction: "higher" },
+            { key: "r", name: "R", statType: "counting", direction: "higher" },
+          ],
+          pitchingCategories: [
+            { key: "era", name: "ERA", statType: "rate", direction: "lower" },
+            { key: "so", name: "K", statType: "counting", direction: "higher" },
+          ],
+        },
+      },
+    },
+  };
+}
+
 function OpenButton() {
   const { openPlayer } = usePlayerDrawer();
   return (
@@ -88,7 +115,7 @@ function OpenButton() {
   );
 }
 
-function renderDrawer(mocks: MockedResponse[] = [bioMock(), projMock(), valMock()]) {
+function renderDrawer(mocks: MockedResponse[] = [bioMock(), projMock(), valMock(), leagueMock()]) {
   return render(
     <MockedProvider mocks={mocks} addTypename={false}>
       <PlayerDrawerProvider season={2026}>
@@ -128,7 +155,7 @@ describe("PlayerDrawer", () => {
     expect(screen.queryByText("Biography")).not.toBeInTheDocument();
   });
 
-  it("filters projections by player type and shows version column", async () => {
+  it("filters projections by player type and shows league category columns", async () => {
     const mixedProjMock: MockedResponse = {
       request: {
         query: PROJECTIONS_QUERY,
@@ -143,7 +170,7 @@ describe("PlayerDrawer", () => {
               version: "2026",
               sourceType: "first_party",
               playerType: "batter",
-              stats: { pa: 600, hr: 35 },
+              stats: { pa: 600, hr: 35, r: 90 },
             },
             {
               playerName: "Mike Trout",
@@ -151,29 +178,30 @@ describe("PlayerDrawer", () => {
               version: "2026",
               sourceType: "first_party",
               playerType: "pitcher",
-              stats: { ip: 10, k: 5 },
+              stats: { ip: 10, era: 4.5, so: 5 },
             },
           ],
         },
       },
     };
 
-    renderDrawer([bioMock(), mixedProjMock, valMock()]);
+    renderDrawer([bioMock(), mixedProjMock, valMock(), leagueMock()]);
     await act(() => userEvent.click(screen.getByText("Open Drawer")));
 
     // Wait for bio to load (which determines player type)
     expect(await screen.findByText("CF")).toBeInTheDocument();
 
     // Should show batter projection but not pitcher projection
-    // The batter row should be visible, pitcher row filtered out
+    // Only 1 steamer row (batter), the pitcher one is filtered out
     const rows = screen.getAllByRole("row");
     const projRows = rows.filter((r) => r.textContent?.includes("steamer"));
-    // Only the batter projection should appear (1 row), not the pitcher one
     expect(projRows.length).toBe(1);
-    expect(projRows[0]!.textContent).toContain("batter");
-    expect(projRows[0]!.textContent).not.toContain("pitcher");
+    // The batter row should show HR stat value, not pitcher stats
+    expect(projRows[0]!.textContent).toContain("35");
+    expect(projRows[0]!.textContent).toContain("90");
 
-    // Version columns should be present (projections + valuations tables)
-    expect(screen.getAllByText("Version").length).toBeGreaterThanOrEqual(1);
+    // League category headers should be present for batting (HR, R)
+    expect(screen.getByRole("columnheader", { name: "HR" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "R" })).toBeInTheDocument();
   });
 });

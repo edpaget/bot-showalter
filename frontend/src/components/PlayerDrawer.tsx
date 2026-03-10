@@ -1,7 +1,8 @@
 import { useQuery } from "@apollo/client";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
-import { PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } from "../graphql/queries";
+import { LEAGUE_QUERY, PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } from "../graphql/queries";
 import type { PlayerSummary, Projection, ValuationRow } from "../types/analysis";
+import type { CategoryConfig, LeagueSettings } from "../types/board";
 import { displayPosition } from "../types/position";
 
 export function PlayerDrawer() {
@@ -28,6 +29,10 @@ export function PlayerDrawer() {
     skip: !isOpen,
   });
 
+  const { data: leagueData } = useQuery<{ league: LeagueSettings }>(LEAGUE_QUERY, {
+    skip: !isOpen,
+  });
+
   if (!isOpen) return null;
 
   const bio = bioData?.playerBio;
@@ -37,6 +42,10 @@ export function PlayerDrawer() {
   const projections = playerType ? allProjections.filter((p) => p.playerType === playerType) : allProjections;
   const allValuations = valData?.valuations ?? [];
   const valuations = playerName ? allValuations.filter((v) => v.playerName === playerName) : [];
+  const leagueCategories: CategoryConfig[] =
+    playerType === "pitcher"
+      ? (leagueData?.league.pitchingCategories ?? [])
+      : (leagueData?.league.battingCategories ?? []);
 
   return (
     <>
@@ -97,23 +106,22 @@ export function PlayerDrawer() {
               <thead>
                 <tr>
                   <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">System</th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Version</th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Type</th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Stats</th>
+                  {leagueCategories.map((cat) => (
+                    <th key={cat.key} className="border border-gray-200 px-2 py-1 bg-gray-50 text-right">
+                      {cat.name}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {projections.map((p, i) => (
                   <tr key={i}>
                     <td className="border border-gray-200 px-2 py-1">{p.system}</td>
-                    <td className="border border-gray-200 px-2 py-1">{p.version}</td>
-                    <td className="border border-gray-200 px-2 py-1">{p.playerType}</td>
-                    <td className="border border-gray-200 px-2 py-1">
-                      {Object.entries(p.stats)
-                        .slice(0, 5)
-                        .map(([k, v]) => `${k}: ${typeof v === "number" ? v.toFixed(0) : v}`)
-                        .join(", ")}
-                    </td>
+                    {leagueCategories.map((cat) => (
+                      <td key={cat.key} className="border border-gray-200 px-2 py-1 text-right font-mono">
+                        {formatStat(p.stats[cat.key], cat.statType)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -158,4 +166,10 @@ export function PlayerDrawer() {
       </div>
     </>
   );
+}
+
+function formatStat(value: number | undefined, statType: string): string {
+  if (value == null) return "—";
+  if (statType === "rate") return value.toFixed(3);
+  return Math.round(value).toString();
 }

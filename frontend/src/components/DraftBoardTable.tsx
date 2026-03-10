@@ -7,10 +7,12 @@ import { displayPosition } from "../types/position";
 import { FilterBar, type PlayerTypeFilter } from "./FilterBar";
 import { SearchInput } from "./SearchInput";
 
-type SortKey = keyof Pick<
+type FixedSortKey = keyof Pick<
   DraftBoardRow,
   "rank" | "playerName" | "position" | "tier" | "value" | "adpOverall" | "adpDelta" | "breakoutRank" | "bustRank"
 >;
+
+type SortKey = FixedSortKey | `z:${string}`;
 
 type SortDir = "asc" | "desc";
 
@@ -28,12 +30,15 @@ interface BoardVars {
   version?: string;
 }
 
-const COLUMNS: { key: SortKey; label: string }[] = [
+const LEFT_COLUMNS: { key: FixedSortKey; label: string }[] = [
   { key: "rank", label: "Rank" },
   { key: "playerName", label: "Player" },
   { key: "position", label: "Pos" },
   { key: "tier", label: "Tier" },
   { key: "value", label: "Value" },
+];
+
+const RIGHT_COLUMNS: { key: FixedSortKey; label: string }[] = [
   { key: "adpOverall", label: "ADP" },
   { key: "adpDelta", label: "Delta" },
   { key: "breakoutRank", label: "Breakout" },
@@ -51,6 +56,27 @@ function compareValues(
   const cmp = typeof a === "string" ? a.localeCompare(b as string) : (a as number) - (b as number);
   return dir === "asc" ? cmp : -cmp;
 }
+
+function zScoreColor(z: number): string {
+  if (z >= 1.5) return "text-green-700 font-semibold";
+  if (z >= 0.5) return "text-green-600";
+  if (z <= -1.5) return "text-red-700 font-semibold";
+  if (z <= -0.5) return "text-red-600";
+  return "text-gray-600";
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  hr: "HR",
+  r: "R",
+  rbi: "RBI",
+  obp: "OBP",
+  sb: "SB",
+  era: "ERA",
+  whip: "WHIP",
+  so: "K",
+  w: "W",
+  "sv+hld": "SV+H",
+};
 
 function tierBackground(tier: number | null): string | undefined {
   if (tier == null) return undefined;
@@ -108,9 +134,17 @@ export function DraftBoardTable({
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "value" ? "desc" : "asc");
+      setSortDir(key === "value" || key.startsWith("z:") ? "desc" : "asc");
     }
   };
+
+  const visibleCategories = useMemo(() => {
+    if (!data) return { batting: [] as string[], pitching: [] as string[] };
+    const { battingCategories, pitchingCategories } = data.board;
+    if (playerTypeFilter === "pitcher") return { batting: [], pitching: pitchingCategories };
+    if (playerTypeFilter === "batter") return { batting: battingCategories, pitching: [] };
+    return { batting: battingCategories, pitching: pitchingCategories };
+  }, [data, playerTypeFilter]);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -134,7 +168,15 @@ export function DraftBoardTable({
       }
     }
 
-    return [...filtered].sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDir));
+    return [...filtered].sort((a, b) => {
+      if (sortKey.startsWith("z:")) {
+        const cat = sortKey.slice(2);
+        const aVal = a.categoryZScores[cat] ?? null;
+        const bVal = b.categoryZScores[cat] ?? null;
+        return compareValues(aVal, bVal, sortDir);
+      }
+      return compareValues(a[sortKey as FixedSortKey], b[sortKey as FixedSortKey], sortDir);
+    });
   }, [data, sortKey, sortDir, positionFilter, playerTypeFilter, searchQuery, draftedPlayerIds, statusFilter]);
 
   if (loading) return <div className="p-4 text-gray-500">Loading board…</div>;
@@ -175,7 +217,37 @@ export function DraftBoardTable({
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10">
             <tr>
-              {COLUMNS.map((col) => (
+              {LEFT_COLUMNS.map((col) => (
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
+                  className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200 whitespace-nowrap"
+                >
+                  {col.label}
+                  {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+              ))}
+              {visibleCategories.batting.map((cat) => (
+                <th
+                  key={`bat-${cat}`}
+                  onClick={() => handleSort(`z:${cat}`)}
+                  className="bg-green-50 border border-gray-300 px-2 py-1.5 text-right cursor-pointer select-none hover:bg-green-100 whitespace-nowrap"
+                >
+                  {CATEGORY_LABELS[cat] ?? cat.toUpperCase()}
+                  {sortKey === `z:${cat}` && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+              ))}
+              {visibleCategories.pitching.map((cat) => (
+                <th
+                  key={`pit-${cat}`}
+                  onClick={() => handleSort(`z:${cat}`)}
+                  className="bg-blue-50 border border-gray-300 px-2 py-1.5 text-right cursor-pointer select-none hover:bg-blue-100 whitespace-nowrap"
+                >
+                  {CATEGORY_LABELS[cat] ?? cat.toUpperCase()}
+                  {sortKey === `z:${cat}` && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+              ))}
+              {RIGHT_COLUMNS.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
@@ -216,6 +288,28 @@ export function DraftBoardTable({
                   <td className="border border-gray-200 px-2 py-1">{displayPosition(row.position)}</td>
                   <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
                   <td className="border border-gray-200 px-2 py-1 font-mono">${row.value.toFixed(1)}</td>
+                  {visibleCategories.batting.map((cat) => {
+                    const z = row.playerType !== "pitcher" ? row.categoryZScores[cat] : undefined;
+                    return (
+                      <td
+                        key={`bat-${cat}`}
+                        className={`border border-gray-200 px-2 py-1 text-right font-mono text-xs ${z != null ? zScoreColor(z) : ""}`}
+                      >
+                        {z != null ? z.toFixed(1) : ""}
+                      </td>
+                    );
+                  })}
+                  {visibleCategories.pitching.map((cat) => {
+                    const z = row.playerType === "pitcher" ? row.categoryZScores[cat] : undefined;
+                    return (
+                      <td
+                        key={`pit-${cat}`}
+                        className={`border border-gray-200 px-2 py-1 text-right font-mono text-xs ${z != null ? zScoreColor(z) : ""}`}
+                      >
+                        {z != null ? z.toFixed(1) : ""}
+                      </td>
+                    );
+                  })}
                   <td className="border border-gray-200 px-2 py-1">
                     {row.adpOverall != null ? row.adpOverall.toFixed(1) : ""}
                   </td>
