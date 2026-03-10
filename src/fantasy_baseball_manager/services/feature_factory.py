@@ -239,6 +239,74 @@ def inject_candidate_values(
             row[column_name] = values.get(key, float("nan"))
 
 
+def inject_candidate_values_lagged(
+    rows_by_season: dict[int, list[dict[str, Any]]],
+    column_name: str,
+    values: dict[tuple[int, int], float],
+    lags: tuple[int, ...],
+    weights: tuple[float, ...],
+) -> None:
+    """Inject lag-adjusted candidate values into row dicts in-place.
+
+    For each target season, look up the candidate value from prior seasons
+    (``target_season - lag``) and blend with *weights*.  This matches the
+    weighted-lag feature materialization pipeline.
+    """
+    nan = float("nan")
+    for target_season, season_rows in rows_by_season.items():
+        for row in season_rows:
+            pid = row["player_id"]
+            blended = 0.0
+            total_weight = 0.0
+            for lag, weight in zip(lags, weights, strict=True):
+                source_season = target_season - lag
+                val = values.get((pid, source_season))
+                if val is not None:
+                    blended += weight * val
+                    total_weight += weight
+            row[column_name] = blended / total_weight if total_weight > 0 else nan
+
+
+def source_seasons_for_lags(
+    target_seasons: list[int],
+    lags: tuple[int, ...],
+) -> list[int]:
+    """Compute the set of source seasons needed to resolve lagged candidates."""
+    sources: set[int] = set()
+    for ts in target_seasons:
+        for lag in lags:
+            sources.add(ts - lag)
+    return sorted(sources)
+
+
+def resolve_and_inject_candidates(
+    rows_by_season: dict[int, list[dict[str, Any]]],
+    candidate_names: list[str],
+    statcast_conn: sqlite3.Connection,
+    candidate_repo: FeatureCandidateRepo,
+    mlbam_to_internal: dict[int, int],
+    player_type: str,
+    lags: tuple[int, ...],
+    weights: tuple[float, ...],
+) -> None:
+    """Resolve candidate features from statcast and inject lag-aligned values.
+
+    This is the correct entry point for experiment commands.  It handles:
+    1. Computing which source seasons to query (shifted by *lags*).
+    2. Resolving candidate values from statcast data.
+    3. Remapping mlbam → internal IDs.
+    4. Blending multi-lag values with *weights* and injecting into rows.
+    """
+    target_seasons = list(rows_by_season.keys())
+    query_seasons = source_seasons_for_lags(target_seasons, lags)
+
+    for cand_name in candidate_names:
+        cv = resolve_feature(cand_name, statcast_conn, candidate_repo, query_seasons, player_type)
+        values_dict = candidate_values_to_dict(cv)
+        remapped = remap_candidate_keys(values_dict, mlbam_to_internal)
+        inject_candidate_values_lagged(rows_by_season, cand_name, remapped, lags, weights)
+
+
 def remap_candidate_keys(
     values: dict[tuple[int, int], float],
     mlbam_to_internal: dict[int, int],

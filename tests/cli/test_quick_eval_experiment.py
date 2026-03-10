@@ -41,6 +41,9 @@ class _FakeModel:
             2024: [{"season": 2024, "col_a": 1.1, "col_b": 2.1, "barrel_rate": 0.2, "slg": 0.420}],
         }
 
+    def experiment_candidate_lags(self, player_type: str) -> tuple[tuple[int, ...], tuple[float, ...]]:
+        return (0,), (1.0,)
+
     def experiment_training_backend(self) -> GBMTrainingBackend:
         return GBMTrainingBackend()
 

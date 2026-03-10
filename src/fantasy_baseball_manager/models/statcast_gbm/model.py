@@ -325,6 +325,12 @@ class _StatcastGBMBase:
             rows_by_season.setdefault(row["season"], []).append(row)
         return rows_by_season
 
+    def experiment_candidate_lags(self, player_type: str) -> tuple[tuple[int, ...], tuple[float, ...]]:
+        if player_type == "batter":
+            return (1, 2), (0.7, 0.3)
+        # Pitchers use avg_lag(1, 2) — pool raw data equally across seasons
+        return (1, 2), (0.5, 0.5)
+
     def experiment_training_backend(self) -> GBMTrainingBackend:
         return GBMTrainingBackend()
 

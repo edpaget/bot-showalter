@@ -16,11 +16,8 @@ from fantasy_baseball_manager.domain import Err, Experimentable
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
 from fantasy_baseball_manager.repos import SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.services import (
-    candidate_values_to_dict,
     compare_feature_sets,
-    inject_candidate_values,
-    remap_candidate_keys,
-    resolve_feature,
+    resolve_and_inject_candidates,
 )
 
 
@@ -78,16 +75,21 @@ def compare_features_cmd(  # pragma: no cover
         all_columns = set(columns_a) | set(columns_b)
         missing_columns = [c for c in all_columns if c not in existing_keys]
         if missing_columns:
+            lags, weights = model_instance.experiment_candidate_lags(player_type)
             statcast_conn = create_statcast_connection(Path(resolved_data_dir) / "statcast.db")
             try:
                 candidate_repo = SqliteFeatureCandidateRepo(SingleConnectionProvider(conn))
-                all_seasons = list(rows_by_season.keys())
                 mlbam_to_internal: dict[int, int] = dict(conn.execute("SELECT mlbam_id, id FROM player").fetchall())
-                for col_name in missing_columns:
-                    cv = resolve_feature(col_name, statcast_conn, candidate_repo, all_seasons, player_type)
-                    values_dict = candidate_values_to_dict(cv)
-                    remapped = remap_candidate_keys(values_dict, mlbam_to_internal)
-                    inject_candidate_values(rows_by_season, col_name, remapped)
+                resolve_and_inject_candidates(
+                    rows_by_season,
+                    missing_columns,
+                    statcast_conn,
+                    candidate_repo,
+                    mlbam_to_internal,
+                    player_type,
+                    lags,
+                    weights,
+                )
             finally:
                 statcast_conn.close()
 

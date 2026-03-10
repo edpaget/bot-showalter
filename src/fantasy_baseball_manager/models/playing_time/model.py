@@ -176,6 +176,9 @@ class PlayingTimeModel:
             rows_by_season.setdefault(row["season"], []).append(row)
         return rows_by_season
 
+    def experiment_candidate_lags(self, player_type: str) -> tuple[tuple[int, ...], tuple[float, ...]]:
+        return (0,), (1.0,)
+
     def experiment_training_backend(self) -> OLSTrainingBackend:
         return OLSTrainingBackend()
 

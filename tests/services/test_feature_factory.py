@@ -17,9 +17,11 @@ from fantasy_baseball_manager.services.feature_factory import (
     candidate_values_to_dict,
     cross_bin_candidates,
     inject_candidate_values,
+    inject_candidate_values_lagged,
     interact_candidates,
     remap_candidate_keys,
     resolve_feature,
+    source_seasons_for_lags,
     validate_expression,
 )
 
@@ -618,3 +620,83 @@ class TestRemapCandidateKeys:
         values = {(100, 2023): 0.5}
         result = remap_candidate_keys(values, {})
         assert result == {}
+
+
+class TestSourceSeasonsForLags:
+    def test_single_lag(self) -> None:
+        result = source_seasons_for_lags([2023, 2024], (1,))
+        assert result == [2022, 2023]
+
+    def test_weighted_lags(self) -> None:
+        result = source_seasons_for_lags([2023, 2024], (1, 2))
+        assert result == [2021, 2022, 2023]
+
+    def test_zero_lag(self) -> None:
+        result = source_seasons_for_lags([2023, 2024], (0,))
+        assert result == [2023, 2024]
+
+    def test_deduplicates(self) -> None:
+        # lag-1 of 2024 == lag-0 of 2023 == 2023
+        result = source_seasons_for_lags([2023, 2024], (0, 1))
+        assert result == [2022, 2023, 2024]
+
+    def test_empty_seasons(self) -> None:
+        result = source_seasons_for_lags([], (1, 2))
+        assert result == []
+
+
+class TestInjectCandidateValuesLagged:
+    def test_single_lag(self) -> None:
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2024: [{"player_id": 1}, {"player_id": 2}],
+        }
+        values = {(1, 2023): 0.300, (2, 2023): 0.250}
+        inject_candidate_values_lagged(rows_by_season, "xba", values, (1,), (1.0,))
+        assert rows_by_season[2024][0]["xba"] == pytest.approx(0.300)
+        assert rows_by_season[2024][1]["xba"] == pytest.approx(0.250)
+
+    def test_weighted_two_lags(self) -> None:
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2024: [{"player_id": 1}],
+        }
+        # lag-1: 2023, lag-2: 2022
+        values = {(1, 2023): 0.300, (1, 2022): 0.200}
+        inject_candidate_values_lagged(rows_by_season, "xba", values, (1, 2), (0.7, 0.3))
+        expected = 0.7 * 0.300 + 0.3 * 0.200
+        assert rows_by_season[2024][0]["xba"] == pytest.approx(expected)
+
+    def test_partial_lag_data(self) -> None:
+        """When only one lag has data, re-normalizes weight."""
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2024: [{"player_id": 1}],
+        }
+        # Only lag-1 available, lag-2 missing
+        values = {(1, 2023): 0.300}
+        inject_candidate_values_lagged(rows_by_season, "xba", values, (1, 2), (0.7, 0.3))
+        # Should use only the available lag, re-normalized: 0.7*0.300 / 0.7 = 0.300
+        assert rows_by_season[2024][0]["xba"] == pytest.approx(0.300)
+
+    def test_no_lag_data_gives_nan(self) -> None:
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2024: [{"player_id": 1}],
+        }
+        inject_candidate_values_lagged(rows_by_season, "xba", {}, (1, 2), (0.7, 0.3))
+        assert math.isnan(rows_by_season[2024][0]["xba"])
+
+    def test_zero_lag_uses_same_season(self) -> None:
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2024: [{"player_id": 1}],
+        }
+        values = {(1, 2024): 0.400}
+        inject_candidate_values_lagged(rows_by_season, "xba", values, (0,), (1.0,))
+        assert rows_by_season[2024][0]["xba"] == pytest.approx(0.400)
+
+    def test_multiple_seasons(self) -> None:
+        rows_by_season: dict[int, list[dict[str, Any]]] = {
+            2023: [{"player_id": 1}],
+            2024: [{"player_id": 1}],
+        }
+        values = {(1, 2022): 0.280, (1, 2023): 0.300}
+        inject_candidate_values_lagged(rows_by_season, "xba", values, (1,), (1.0,))
+        assert rows_by_season[2023][0]["xba"] == pytest.approx(0.280)
+        assert rows_by_season[2024][0]["xba"] == pytest.approx(0.300)

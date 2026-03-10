@@ -17,6 +17,7 @@ from fantasy_baseball_manager.features.transforms import (
     BATTER_CONTEXT,
     COMMAND,
     EXPECTED_STATS,
+    EXPECTED_STATS_ADVANCED,
     PITCH_MIX,
     PLATE_DISCIPLINE,
     SPIN_PROFILE,
@@ -274,6 +275,7 @@ def build_batter_preseason_weighted_set(seasons: Sequence[int]) -> FeatureSet:
             BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3)),
             PLATE_DISCIPLINE.with_weighted_lag((1, 2), (0.7, 0.3)),
             EXPECTED_STATS.with_weighted_lag((1, 2), (0.7, 0.3)),
+            EXPECTED_STATS_ADVANCED.with_weighted_lag((1, 2), (0.7, 0.3)),
             SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
         ]
     )
@@ -294,6 +296,7 @@ def build_batter_preseason_weighted_training_set(seasons: Sequence[int]) -> Feat
             BATTED_BALL.with_weighted_lag((1, 2), (0.7, 0.3)),
             PLATE_DISCIPLINE.with_weighted_lag((1, 2), (0.7, 0.3)),
             EXPECTED_STATS.with_weighted_lag((1, 2), (0.7, 0.3)),
+            EXPECTED_STATS_ADVANCED.with_weighted_lag((1, 2), (0.7, 0.3)),
             SPRAY_ANGLE.with_weighted_lag((1, 2), (0.7, 0.3)),
         ]
     )

@@ -33,6 +33,9 @@ class _ValidExperimentable:
     def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]:
         return {}
 
+    def experiment_candidate_lags(self, player_type: str) -> tuple[tuple[int, ...], tuple[float, ...]]:
+        return (0,), (1.0,)
+
     def experiment_training_backend(self) -> TrainingBackend:
         return _FakeTrainingBackend()
 

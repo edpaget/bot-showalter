@@ -233,6 +233,9 @@ class BreakoutBustModel:
             rows_by_season.setdefault(row["season"], []).append(row)
         return rows_by_season
 
+    def experiment_candidate_lags(self, player_type: str) -> tuple[tuple[int, ...], tuple[float, ...]]:
+        return (1, 2), (0.7, 0.3)
+
     def experiment_training_backend(self) -> ClassificationTrainingBackend:
         return ClassificationTrainingBackend()
 

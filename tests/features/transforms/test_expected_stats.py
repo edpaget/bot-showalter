@@ -6,6 +6,8 @@ import pytest
 
 from fantasy_baseball_manager.features.transforms.expected_stats import (
     EXPECTED_STATS,
+    EXPECTED_STATS_ADVANCED,
+    expected_stats_advanced_profile,
     expected_stats_profile,
 )
 from fantasy_baseball_manager.features.types import Source, TransformFeature
@@ -142,3 +144,84 @@ class TestExpectedStatsTransformFeature:
 
     def test_transform_callable(self) -> None:
         assert EXPECTED_STATS.transform is expected_stats_profile
+
+
+class TestExpectedStatsAdvancedProfile:
+    def test_basic_metrics(self) -> None:
+        rows = [
+            {"estimated_woba_using_speedangle": 1.200, "pitch_type": "FF"},
+            {"estimated_woba_using_speedangle": 0.400, "pitch_type": "FF"},
+            {"estimated_woba_using_speedangle": 0.300, "pitch_type": "SL"},
+            {"estimated_woba_using_speedangle": 0.800, "pitch_type": "SI"},
+        ]
+        result = expected_stats_advanced_profile(rows)
+        # elite: 1 out of 4 = 0.25
+        assert result["xwoba_elite_rate"] == pytest.approx(0.25)
+        # fastball (FF, SI): (1.2 + 0.4 + 0.8) / 3 = 0.8
+        assert result["xwoba_fastball"] == pytest.approx(0.800)
+
+    def test_empty_rows(self) -> None:
+        result = expected_stats_advanced_profile([])
+        assert math.isnan(result["xwoba_elite_rate"])
+        assert math.isnan(result["xwoba_fastball"])
+
+    def test_all_null_xwoba(self) -> None:
+        rows = [{"estimated_woba_using_speedangle": None, "pitch_type": "FF"}]
+        result = expected_stats_advanced_profile(rows)
+        assert math.isnan(result["xwoba_elite_rate"])
+        assert math.isnan(result["xwoba_fastball"])
+
+    def test_no_fastballs(self) -> None:
+        rows = [
+            {"estimated_woba_using_speedangle": 0.500, "pitch_type": "SL"},
+            {"estimated_woba_using_speedangle": 1.100, "pitch_type": "CU"},
+        ]
+        result = expected_stats_advanced_profile(rows)
+        assert result["xwoba_elite_rate"] == pytest.approx(0.5)
+        assert math.isnan(result["xwoba_fastball"])
+
+    def test_all_elite(self) -> None:
+        rows = [
+            {"estimated_woba_using_speedangle": 1.500, "pitch_type": "FF"},
+            {"estimated_woba_using_speedangle": 1.000, "pitch_type": "SI"},
+        ]
+        result = expected_stats_advanced_profile(rows)
+        assert result["xwoba_elite_rate"] == pytest.approx(1.0)
+
+    def test_no_elite(self) -> None:
+        rows = [
+            {"estimated_woba_using_speedangle": 0.200, "pitch_type": "FF"},
+            {"estimated_woba_using_speedangle": 0.999, "pitch_type": "SL"},
+        ]
+        result = expected_stats_advanced_profile(rows)
+        assert result["xwoba_elite_rate"] == pytest.approx(0.0)
+
+    def test_output_keys(self) -> None:
+        result = expected_stats_advanced_profile([])
+        assert set(result.keys()) == {"xwoba_elite_rate", "xwoba_fastball"}
+
+    def test_null_xwoba_excluded(self) -> None:
+        rows = [
+            {"estimated_woba_using_speedangle": None, "pitch_type": "FF"},
+            {"estimated_woba_using_speedangle": 1.200, "pitch_type": "FF"},
+        ]
+        result = expected_stats_advanced_profile(rows)
+        assert result["xwoba_elite_rate"] == pytest.approx(1.0)
+        assert result["xwoba_fastball"] == pytest.approx(1.200)
+
+
+class TestExpectedStatsAdvancedTransformFeature:
+    def test_is_transform_feature(self) -> None:
+        assert isinstance(EXPECTED_STATS_ADVANCED, TransformFeature)
+
+    def test_source_is_statcast(self) -> None:
+        assert EXPECTED_STATS_ADVANCED.source == Source.STATCAST
+
+    def test_outputs(self) -> None:
+        assert EXPECTED_STATS_ADVANCED.outputs == ("xwoba_elite_rate", "xwoba_fastball")
+
+    def test_columns_include_pitch_type(self) -> None:
+        assert "pitch_type" in EXPECTED_STATS_ADVANCED.columns
+
+    def test_transform_callable(self) -> None:
+        assert EXPECTED_STATS_ADVANCED.transform is expected_stats_advanced_profile

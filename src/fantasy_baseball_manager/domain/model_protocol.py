@@ -197,6 +197,17 @@ class Experimentable(Protocol):
     def experiment_training_data(self, player_type: str, seasons: list[int]) -> dict[int, list[dict[str, Any]]]: ...
     def experiment_training_backend(self) -> TrainingBackend: ...
 
+    def experiment_candidate_lags(self, player_type: str) -> tuple[tuple[int, ...], tuple[float, ...]]:
+        """Return (lags, weights) for candidate feature lag alignment.
+
+        Candidates are computed from statcast data for shifted seasons and
+        blended with the given weights to match the production feature pipeline.
+
+        Default ``((0,), (1.0,))`` means no lag shift (same-season data).
+        ``((1, 2), (0.7, 0.3))`` means 70 % lag-1 + 30 % lag-2.
+        """
+        ...
+
 
 @runtime_checkable
 class EligibilityProvider(Protocol):
