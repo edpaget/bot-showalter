@@ -465,6 +465,87 @@ class TestScarcityQuery:
             assert "dropoffSlope" in entry
 
 
+class TestWebConfigQuery:
+    def test_returns_configured_systems(self, filtered_client: TestClient) -> None:
+        response = filtered_client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        webConfig {
+                            projections { system version }
+                            valuations { system version }
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["webConfig"]
+        assert len(data["projections"]) == 1
+        assert data["projections"][0]["system"] == "steamer"
+        assert data["projections"][0]["version"] == "2026"
+        assert len(data["valuations"]) == 1
+        assert data["valuations"][0]["system"] == "zar"
+
+    def test_empty_config_returns_empty_lists(self, client: TestClient) -> None:
+        """Default client has no web config — returns empty lists (show everything)."""
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        webConfig {
+                            projections { system version }
+                            valuations { system version }
+                        }
+                    }
+                """
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["webConfig"]
+        assert data["projections"] == []
+        assert data["valuations"] == []
+
+    def test_projections_filtered_by_web_config(self, filtered_client: TestClient) -> None:
+        """When web config specifies projection systems, only those are returned."""
+        response = filtered_client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        projections(season: 2026, playerName: "Trout") {
+                            system
+                            version
+                        }
+                    }
+                """
+            },
+        )
+        data = response.json()["data"]["projections"]
+        assert all(p["system"] == "steamer" and p["version"] == "2026" for p in data)
+
+    def test_valuations_filtered_by_web_config(self, filtered_client: TestClient) -> None:
+        """When web config specifies valuation systems, only those are returned."""
+        response = filtered_client.post(
+            "/graphql",
+            json={
+                "query": """
+                    query {
+                        valuations(season: 2026) {
+                            system
+                            version
+                            playerName
+                        }
+                    }
+                """
+            },
+        )
+        data = response.json()["data"]["valuations"]
+        assert all(v["system"] == "zar" and v["version"] == "1.0" for v in data)
+
+
 class TestLeagueQuery:
     def test_returns_league_settings(self, client: TestClient) -> None:
         response = client.post(

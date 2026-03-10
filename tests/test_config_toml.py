@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.config_toml import deep_merge, load_toml
+from fantasy_baseball_manager.config_toml import WebConfig, deep_merge, load_toml, load_web_config
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -97,3 +97,31 @@ class TestLoadToml:
         (tmp_path / "fbm.toml").write_text("[common]\nseasons = [2024]\n")
         result = load_toml(None)
         assert result == {"common": {"seasons": [2024]}}
+
+
+class TestLoadWebConfig:
+    def test_no_web_section_returns_empty(self, tmp_path: Path) -> None:
+        (tmp_path / "fbm.toml").write_text("[common]\nsystem = 'zar'\n")
+        config = load_web_config(tmp_path)
+        assert config == WebConfig()
+        assert config.projections == []
+        assert config.valuations == []
+
+    def test_parses_projections_and_valuations(self, tmp_path: Path) -> None:
+        (tmp_path / "fbm.toml").write_text(
+            '[[web.projections]]\nsystem = "steamer"\nversion = "2026"\n\n'
+            '[[web.projections]]\nsystem = "statcast-gbm"\nversion = "latest"\n\n'
+            '[[web.valuations]]\nsystem = "zar"\nversion = "production"\n'
+        )
+        config = load_web_config(tmp_path)
+        assert len(config.projections) == 2
+        assert config.projections[0].system == "steamer"
+        assert config.projections[0].version == "2026"
+        assert config.projections[1].system == "statcast-gbm"
+        assert len(config.valuations) == 1
+        assert config.valuations[0].system == "zar"
+        assert config.valuations[0].version == "production"
+
+    def test_no_toml_files_returns_empty(self, tmp_path: Path) -> None:
+        config = load_web_config(tmp_path)
+        assert config == WebConfig()

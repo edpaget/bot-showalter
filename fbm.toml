@@ -85,6 +85,18 @@ max_iter = 200
 max_leaf_nodes = 15
 min_samples_leaf = 5
 
+# --- Web UI configuration ---
+# Controls which projection/valuation system+version pairs the web UI displays.
+# When empty (or omitted), all available data is shown.
+
+[[web.projections]]
+system = "steamer"
+version = "2026"
+
+[[web.valuations]]
+system = "zar"
+version = "production"
+
 # --- League configurations ---
 
 [leagues.h2h]

@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from strawberry.fastapi import GraphQLRouter
 
-from fantasy_baseball_manager.config_toml import load_toml
+from fantasy_baseball_manager.config_toml import WebConfig, load_toml, load_web_config
 from fantasy_baseball_manager.web.event_bus import EventBus
 from fantasy_baseball_manager.web.schema import Mutation, Query, Subscription
 
@@ -36,6 +36,7 @@ class AppContext:
     adp_provider: str
     default_system: str
     default_version: str
+    web_config: WebConfig = field(default_factory=WebConfig)
     event_bus: EventBus = field(default_factory=EventBus)
     session_manager: SessionManager | None = None
     yahoo_poller_manager: YahooPollerManager | None = None
@@ -53,6 +54,7 @@ def create_app(
     frontend_dir: str | None = None,
     default_system: str | None = None,
     default_version: str | None = None,
+    web_config: WebConfig | None = None,
 ) -> FastAPI:
     """Create a FastAPI application with a GraphQL endpoint at /graphql."""
     if default_system is None or default_version is None:
@@ -62,12 +64,16 @@ def create_app(
         if default_version is None:
             default_version = ver_default
 
+    if web_config is None:
+        web_config = load_web_config()
+
     app_context = AppContext(
         container=container,
         league=league,
         adp_provider=adp_provider,
         default_system=default_system,
         default_version=default_version,
+        web_config=web_config,
         event_bus=event_bus or EventBus(),
         session_manager=session_manager,
         yahoo_poller_manager=yahoo_poller_manager,

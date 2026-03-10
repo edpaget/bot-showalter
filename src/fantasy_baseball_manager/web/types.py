@@ -5,6 +5,7 @@ import strawberry
 from fantasy_baseball_manager.domain import Position, position_from_raw
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.config_toml import WebConfig
     from fantasy_baseball_manager.domain import (
         ArbitrageReport,
         CategoryConfig,
@@ -533,4 +534,23 @@ class PlayerSummaryType:
             bats=summary.bats,
             throws=summary.throws,
             experience=summary.experience,
+        )
+
+
+@strawberry.type
+class SystemVersionType:
+    system: str
+    version: str
+
+
+@strawberry.type
+class WebConfigType:
+    projections: list[SystemVersionType]
+    valuations: list[SystemVersionType]
+
+    @staticmethod
+    def from_domain(config: WebConfig) -> WebConfigType:
+        return WebConfigType(
+            projections=[SystemVersionType(system=sv.system, version=sv.version) for sv in config.projections],
+            valuations=[SystemVersionType(system=sv.system, version=sv.version) for sv in config.valuations],
         )

@@ -40,6 +40,7 @@ from fantasy_baseball_manager.web.types import (
     SessionEvent,
     UndoEvent,
     ValuationType,
+    WebConfigType,
     YahooPollStatusType,
 )
 
@@ -184,6 +185,11 @@ class Query:
         return LeagueSettingsType.from_domain(ctx.league)
 
     @strawberry.field
+    def web_config(self, info: Info) -> WebConfigType:
+        ctx = _get_context(info)
+        return WebConfigType.from_domain(ctx.web_config)
+
+    @strawberry.field
     def session(self, info: Info, session_id: int) -> DraftStateType:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
@@ -306,6 +312,9 @@ class Query:
     ) -> list[ProjectionType]:
         ctx = _get_context(info)
         results = ctx.container.projection_lookup_service.lookup(player_name, season, system=system)
+        allow = ctx.web_config.projections
+        if allow:
+            results = [r for r in results if any(sv.system == r.system and sv.version == r.version for sv in allow)]
         return [ProjectionType.from_domain(p) for p in results]
 
     @strawberry.field
@@ -328,6 +337,9 @@ class Query:
             position=position,
             top=top,
         )
+        allow = ctx.web_config.valuations
+        if allow:
+            results = [r for r in results if any(sv.system == r.system and sv.version == r.version for sv in allow)]
         return [ValuationType.from_domain(v) for v in results]
 
     @strawberry.field

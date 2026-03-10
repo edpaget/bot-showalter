@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
+from fantasy_baseball_manager.config_toml import SystemVersion, WebConfig
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
@@ -202,7 +203,7 @@ def client() -> TestClient:
     """Create a test client with an in-memory SQLite database seeded with test data."""
     provider = _make_provider()
     container = AnalysisContainer(provider)
-    app = create_app(container, _LEAGUE, default_system="zar", default_version="1.0")
+    app = create_app(container, _LEAGUE, default_system="zar", default_version="1.0", web_config=WebConfig())
     return TestClient(app)
 
 
@@ -221,7 +222,27 @@ def session_client() -> TestClient:
         league=_LEAGUE,
         adp_provider="fantasypros",
     )
-    app = create_app(container, _LEAGUE, session_manager=session_manager, default_system="zar", default_version="1.0")
+    app = create_app(
+        container,
+        _LEAGUE,
+        session_manager=session_manager,
+        default_system="zar",
+        default_version="1.0",
+        web_config=WebConfig(),
+    )
+    return TestClient(app)
+
+
+@pytest.fixture
+def filtered_client() -> TestClient:
+    """Create a test client with web config that filters to steamer/2026 projections and zar/1.0 valuations."""
+    provider = _make_provider()
+    container = AnalysisContainer(provider)
+    web_config = WebConfig(
+        projections=[SystemVersion(system="steamer", version="2026")],
+        valuations=[SystemVersion(system="zar", version="1.0")],
+    )
+    app = create_app(container, _LEAGUE, default_system="zar", default_version="1.0", web_config=web_config)
     return TestClient(app)
 
 

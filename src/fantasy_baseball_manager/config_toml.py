@@ -1,9 +1,40 @@
 import tomllib
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 _CONFIG_FILENAME = "fbm.toml"
 _LOCAL_CONFIG_FILENAME = "fbm.local.toml"
+
+
+@dataclass(frozen=True)
+class SystemVersion:
+    """A system/version pair for filtering projections or valuations."""
+
+    system: str
+    version: str
+
+
+@dataclass(frozen=True)
+class WebConfig:
+    """Configuration for the web UI, loaded from ``[web]`` in fbm.toml."""
+
+    projections: list[SystemVersion] = field(default_factory=list)
+    valuations: list[SystemVersion] = field(default_factory=list)
+
+
+def load_web_config(config_dir: Path | None = None) -> WebConfig:
+    """Load ``[web]`` section from fbm.toml into a :class:`WebConfig`.
+
+    Returns a default (empty) config when no ``[web]`` section exists, which
+    means "show everything" — no filtering applied.
+    """
+    toml_data = load_toml(config_dir)
+    web = toml_data.get("web", {})
+
+    projections = [SystemVersion(system=p["system"], version=p["version"]) for p in web.get("projections", [])]
+    valuations = [SystemVersion(system=v["system"], version=v["version"]) for v in web.get("valuations", [])]
+    return WebConfig(projections=projections, valuations=valuations)
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
