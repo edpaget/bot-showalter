@@ -24,6 +24,9 @@ class TestFromRaw:
     def test_util(self) -> None:
         assert position_from_raw("util") == Position.UTIL
 
+    def test_bench(self) -> None:
+        assert position_from_raw("BN") == Position.BN
+
     def test_whitespace_stripped(self) -> None:
         assert position_from_raw(" SP ") == Position.SP
 

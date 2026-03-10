@@ -1,7 +1,7 @@
 import contextlib
 from typing import Any
 
-from fantasy_baseball_manager.domain import position_from_raw
+from fantasy_baseball_manager.domain import ROSTER_ONLY_POSITIONS, position_from_raw
 
 
 def extract_player_data(player_meta: list[Any]) -> dict[str, Any]:
@@ -28,5 +28,7 @@ def _normalize_positions(raw_positions: list[str]) -> list[str]:
     normalized: list[str] = []
     for raw in raw_positions:
         with contextlib.suppress(ValueError):
-            normalized.append(position_from_raw(raw))
+            pos = position_from_raw(raw)
+            if pos not in ROSTER_ONLY_POSITIONS:
+                normalized.append(pos)
     return normalized

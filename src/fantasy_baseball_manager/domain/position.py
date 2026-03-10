@@ -13,6 +13,7 @@ class Position(StrEnum):
     OF = "OF"
     DH = "DH"
     UTIL = "UTIL"
+    BN = "BN"
     SP = "SP"
     RP = "RP"
     P = "P"
@@ -31,6 +32,9 @@ def position_from_raw(s: str) -> Position:
 
 
 OF_POSITIONS: frozenset[Position] = frozenset({Position.LF, Position.CF, Position.RF, Position.OF})
+
+# Positions that are roster slots only — not player eligibility positions.
+ROSTER_ONLY_POSITIONS: frozenset[Position] = frozenset({Position.BN})
 
 
 def consolidate_outfield(pos: Position) -> Position:

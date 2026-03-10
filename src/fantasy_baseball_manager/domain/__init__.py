@@ -213,6 +213,7 @@ from fantasy_baseball_manager.domain.player_bio import PlayerSummary
 from fantasy_baseball_manager.domain.player_profile import PlayerProfile, compute_age
 from fantasy_baseball_manager.domain.position import (
     OF_POSITIONS,
+    ROSTER_ONLY_POSITIONS,
     Position,
     consolidate_outfield,
     position_from_raw,
@@ -469,6 +470,7 @@ __all__ = [
     "PlayerValuation",
     "PlayingTimeScenario",
     "OF_POSITIONS",
+    "ROSTER_ONLY_POSITIONS",
     "Position",
     "PositionAppearance",
     "PositionRun",
