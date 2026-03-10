@@ -10,7 +10,7 @@ This roadmap depends on: keeper-optimization-solver (done), keeper-surplus-value
 
 | Phase | Status |
 |-------|--------|
-| 1 — League keeper list | not started |
+| 1 — League keeper list | in progress |
 | 2 — Keeper-adjusted draft pool | not started |
 | 3 — Keeper state display | not started |
 | 4 — Keeper-aware recommendations | not started |
