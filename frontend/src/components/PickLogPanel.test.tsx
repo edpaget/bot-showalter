@@ -1,8 +1,8 @@
-import { render, screen, cleanup } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, afterEach } from "vitest";
-import { PickLogPanel } from "./PickLogPanel";
+import { afterEach, describe, expect, it } from "vitest";
 import type { DraftPick } from "../types/session";
+import { PickLogPanel } from "./PickLogPanel";
 
 const PICKS: DraftPick[] = [
   { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: 35 },

@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
 import { useLazyQuery } from "@apollo/client";
-import { PLAYER_SEARCH_QUERY } from "../graphql/queries";
+import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
+import { PLAYER_SEARCH_QUERY } from "../graphql/queries";
 import type { PlayerSummary } from "../types/analysis";
 
 type SortKey = "name" | "team" | "age" | "primaryPosition" | "experience";
@@ -40,10 +40,7 @@ export function PlayerSearchView({ season = 2026 }: { season?: number }) {
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
-      const cmp =
-        typeof av === "number"
-          ? (av as number) - (bv as number)
-          : String(av).localeCompare(String(bv));
+      const cmp = typeof av === "number" ? (av as number) - (bv as number) : String(av).localeCompare(String(bv));
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [data, sortKey, sortDir]);
@@ -70,10 +67,7 @@ export function PlayerSearchView({ season = 2026 }: { season?: number }) {
             placeholder="Search player..."
           />
         </div>
-        <button
-          type="submit"
-          className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-        >
+        <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
           Search
         </button>
       </form>
@@ -93,14 +87,10 @@ export function PlayerSearchView({ season = 2026 }: { season?: number }) {
                     className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200"
                   >
                     {col.label}
-                    {sortKey === col.key && (
-                      <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>
-                    )}
+                    {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
                   </th>
                 ))}
-                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left">
-                  Bats/Throws
-                </th>
+                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left">Bats/Throws</th>
               </tr>
             </thead>
             <tbody>
@@ -108,6 +98,7 @@ export function PlayerSearchView({ season = 2026 }: { season?: number }) {
                 <tr key={p.playerId} className="hover:bg-gray-50">
                   <td className="border border-gray-200 px-2 py-1">
                     <button
+                      type="button"
                       onClick={() => openPlayer(p.playerId, p.name)}
                       className="text-blue-600 hover:underline"
                     >

@@ -1,8 +1,8 @@
-import { render, screen, cleanup } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { RecommendationPanel } from "./RecommendationPanel";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Recommendation } from "../types/session";
+import { RecommendationPanel } from "./RecommendationPanel";
 
 const RECS: Recommendation[] = [
   { playerId: 1, playerName: "Mike Trout", position: "OF", value: 35, score: 0.95, reason: "Best value" },

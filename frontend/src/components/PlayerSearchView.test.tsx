@@ -1,10 +1,10 @@
-import { render, screen, act, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
-import { describe, it, expect, afterEach } from "vitest";
-import { PlayerSearchView } from "./PlayerSearchView";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it } from "vitest";
 import { PlayerDrawerProvider } from "../context/PlayerDrawerContext";
 import { PLAYER_SEARCH_QUERY } from "../graphql/queries";
+import { PlayerSearchView } from "./PlayerSearchView";
 
 function searchMock(): MockedResponse {
   return {

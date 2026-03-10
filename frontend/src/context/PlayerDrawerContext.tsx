@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
 
 interface PlayerDrawerState {
   isOpen: boolean;
@@ -11,34 +11,23 @@ interface PlayerDrawerState {
 
 const PlayerDrawerContext = createContext<PlayerDrawerState | null>(null);
 
-export function PlayerDrawerProvider({
-  children,
-  season = 2026,
-}: {
-  children: ReactNode;
-  season?: number;
-}) {
+export function PlayerDrawerProvider({ children, season = 2026 }: { children: ReactNode; season?: number }) {
   const [isOpen, setIsOpen] = useState(false);
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [playerName, setPlayerName] = useState<string | null>(null);
 
-  const openPlayer = useCallback(
-    (id: number, name: string) => {
-      setPlayerId(id);
-      setPlayerName(name);
-      setIsOpen(true);
-    },
-    [],
-  );
+  const openPlayer = useCallback((id: number, name: string) => {
+    setPlayerId(id);
+    setPlayerName(name);
+    setIsOpen(true);
+  }, []);
 
   const closeDrawer = useCallback(() => {
     setIsOpen(false);
   }, []);
 
   return (
-    <PlayerDrawerContext.Provider
-      value={{ isOpen, playerId, playerName, season, openPlayer, closeDrawer }}
-    >
+    <PlayerDrawerContext.Provider value={{ isOpen, playerId, playerName, season, openPlayer, closeDrawer }}>
       {children}
     </PlayerDrawerContext.Provider>
   );

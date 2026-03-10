@@ -1,8 +1,8 @@
-import { render, screen, cleanup } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, afterEach } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import type { DraftState, PickResult } from "../types/session";
 import { DraftSessionProvider, useDraftSession } from "./DraftSessionContext";
-import type { PickResult, DraftState } from "../types/session";
 
 function TestConsumer() {
   const ctx = useDraftSession();
@@ -14,15 +14,16 @@ function TestConsumer() {
       <span data-testid="roster-count">{ctx.roster.length}</span>
       <span data-testid="needs-count">{ctx.needs.length}</span>
       <span data-testid="balance-count">{ctx.balance.length}</span>
-      <button onClick={() => ctx.setSessionId(42)}>set-session</button>
+      <button type="button" onClick={() => ctx.setSessionId(42)}>
+        set-session
+      </button>
       <button
+        type="button"
         onClick={() => {
           const state: DraftState = {
             sessionId: 42,
             currentPick: 2,
-            picks: [
-              { pickNumber: 1, team: 1, playerId: 100, playerName: "Test Player", position: "OF", price: null },
-            ],
+            picks: [{ pickNumber: 1, team: 1, playerId: 100, playerName: "Test Player", position: "OF", price: null }],
             format: "snake",
             teams: 12,
             userTeam: 1,
@@ -34,6 +35,7 @@ function TestConsumer() {
         set-state
       </button>
       <button
+        type="button"
         onClick={() => {
           const result: PickResult = {
             pick: { pickNumber: 2, team: 1, playerId: 200, playerName: "New Player", position: "SP", price: null },
@@ -50,20 +52,30 @@ function TestConsumer() {
               budgetRemaining: null,
             },
             recommendations: [
-              { playerId: 300, playerName: "Rec Player", position: "FIRST_BASE", value: 20, score: 0.8, reason: "Need 1B" },
+              {
+                playerId: 300,
+                playerName: "Rec Player",
+                position: "FIRST_BASE",
+                value: 20,
+                score: 0.8,
+                reason: "Need 1B",
+              },
             ],
             roster: [
               { pickNumber: 1, team: 1, playerId: 100, playerName: "Test Player", position: "OF", price: null },
               { pickNumber: 2, team: 1, playerId: 200, playerName: "New Player", position: "SP", price: null },
             ],
             needs: [{ position: "C", remaining: 1 }],
+            arbitrage: null,
           };
           ctx.applyPickResult(result);
         }}
       >
         apply-pick
       </button>
-      <button onClick={() => ctx.clearSession()}>clear</button>
+      <button type="button" onClick={() => ctx.clearSession()}>
+        clear
+      </button>
     </div>
   );
 }

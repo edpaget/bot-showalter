@@ -1,6 +1,6 @@
-import { render, screen, act, cleanup } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, afterEach } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { PlayerDrawerProvider, usePlayerDrawer } from "./PlayerDrawerContext";
 
 function TestConsumer() {
@@ -10,10 +10,10 @@ function TestConsumer() {
       <span data-testid="open">{String(isOpen)}</span>
       <span data-testid="id">{String(playerId)}</span>
       <span data-testid="name">{String(playerName)}</span>
-      <button data-testid="open-btn" onClick={() => openPlayer(42, "Mike Trout")}>
+      <button type="button" data-testid="open-btn" onClick={() => openPlayer(42, "Mike Trout")}>
         Open
       </button>
-      <button data-testid="close-btn" onClick={closeDrawer}>
+      <button type="button" data-testid="close-btn" onClick={closeDrawer}>
         Close
       </button>
     </div>
@@ -59,8 +59,6 @@ describe("PlayerDrawerContext", () => {
   });
 
   it("throws when used outside provider", () => {
-    expect(() => render(<TestConsumer />)).toThrow(
-      "usePlayerDrawer must be used within PlayerDrawerProvider",
-    );
+    expect(() => render(<TestConsumer />)).toThrow("usePlayerDrawer must be used within PlayerDrawerProvider");
   });
 });

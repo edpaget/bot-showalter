@@ -1,8 +1,8 @@
 import { useQuery } from "@apollo/client";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
 import { PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } from "../graphql/queries";
-import { displayPosition } from "../types/position";
 import type { PlayerSummary, Projection, ValuationRow } from "../types/analysis";
+import { displayPosition } from "../types/position";
 
 export function PlayerDrawer() {
   const { isOpen, playerId, playerName, season, closeDrawer } = usePlayerDrawer();
@@ -34,17 +34,17 @@ export function PlayerDrawer() {
   const allProjections = projData?.projections ?? [];
   // Filter projections to only show those matching the player's type (batter/pitcher)
   const playerType = bio ? (["SP", "RP", "P"].includes(bio.primaryPosition) ? "pitcher" : "batter") : null;
-  const projections = playerType
-    ? allProjections.filter((p) => p.playerType === playerType)
-    : allProjections;
+  const projections = playerType ? allProjections.filter((p) => p.playerType === playerType) : allProjections;
   const allValuations = valData?.valuations ?? [];
-  const valuations = playerName
-    ? allValuations.filter((v) => v.playerName === playerName)
-    : [];
+  const valuations = playerName ? allValuations.filter((v) => v.playerName === playerName) : [];
 
   return (
     <>
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss doesn't need keyboard handler */}
+      {/* biome-ignore lint/a11y/useSemanticElements: full-screen backdrop overlay isn't a semantic button */}
       <div
+        role="button"
+        tabIndex={-1}
         className="fixed inset-0 bg-black/30 z-40"
         onClick={closeDrawer}
         data-testid="drawer-backdrop"
@@ -53,6 +53,7 @@ export function PlayerDrawer() {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold">{playerName}</h2>
           <button
+            type="button"
             onClick={closeDrawer}
             className="text-gray-500 hover:text-gray-800 text-xl"
             aria-label="Close drawer"
@@ -95,18 +96,10 @@ export function PlayerDrawer() {
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    System
-                  </th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    Version
-                  </th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    Type
-                  </th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    Stats
-                  </th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">System</th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Version</th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Type</th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Stats</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,21 +132,11 @@ export function PlayerDrawer() {
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    System
-                  </th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    Version
-                  </th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    Pos
-                  </th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    Value
-                  </th>
-                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
-                    Rank
-                  </th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">System</th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Version</th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Pos</th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Value</th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">Rank</th>
                 </tr>
               </thead>
               <tbody>
@@ -161,12 +144,8 @@ export function PlayerDrawer() {
                   <tr key={i}>
                     <td className="border border-gray-200 px-2 py-1">{v.system}</td>
                     <td className="border border-gray-200 px-2 py-1">{v.version}</td>
-                    <td className="border border-gray-200 px-2 py-1">
-                      {displayPosition(v.position)}
-                    </td>
-                    <td className="border border-gray-200 px-2 py-1 font-mono">
-                      ${v.value.toFixed(1)}
-                    </td>
+                    <td className="border border-gray-200 px-2 py-1">{displayPosition(v.position)}</td>
+                    <td className="border border-gray-200 px-2 py-1 font-mono">${v.value.toFixed(1)}</td>
                     <td className="border border-gray-200 px-2 py-1">{v.rank}</td>
                   </tr>
                 ))}

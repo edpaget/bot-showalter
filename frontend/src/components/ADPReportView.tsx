@@ -1,9 +1,9 @@
-import { useState, useMemo } from "react";
 import { useQuery } from "@apollo/client";
-import { ADP_REPORT_QUERY } from "../graphql/queries";
+import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
-import { displayPosition } from "../types/position";
+import { ADP_REPORT_QUERY } from "../graphql/queries";
 import type { ADPReport, ADPReportRow } from "../types/analysis";
+import { displayPosition } from "../types/position";
 
 type SortKey = "playerName" | "zarRank" | "zarValue" | "adpRank" | "rankDelta";
 type SortDir = "asc" | "desc";
@@ -71,9 +71,7 @@ function ADPSection({
                 className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200"
               >
                 {col.label}
-                {sortKey === col.key && (
-                  <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>
-                )}
+                {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
               </th>
             ))}
             <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left">Pos</th>
@@ -82,15 +80,12 @@ function ADPSection({
         <tbody>
           {sorted.map((r) => {
             const deltaColor =
-              r.rankDelta > 0
-                ? "text-green-700 font-bold"
-                : r.rankDelta < 0
-                  ? "text-red-700 font-bold"
-                  : "";
+              r.rankDelta > 0 ? "text-green-700 font-bold" : r.rankDelta < 0 ? "text-red-700 font-bold" : "";
             return (
               <tr key={r.playerId} className="hover:bg-gray-50">
                 <td className="border border-gray-200 px-2 py-1">
                   <button
+                    type="button"
                     onClick={() => openPlayer(r.playerId, r.playerName)}
                     className="text-blue-600 hover:underline"
                   >
@@ -98,18 +93,12 @@ function ADPSection({
                   </button>
                 </td>
                 <td className="border border-gray-200 px-2 py-1">{r.zarRank}</td>
-                <td className="border border-gray-200 px-2 py-1 font-mono">
-                  ${r.zarValue.toFixed(1)}
-                </td>
-                <td className="border border-gray-200 px-2 py-1">
-                  {r.adpRank > 0 ? r.adpRank : "—"}
-                </td>
+                <td className="border border-gray-200 px-2 py-1 font-mono">${r.zarValue.toFixed(1)}</td>
+                <td className="border border-gray-200 px-2 py-1">{r.adpRank > 0 ? r.adpRank : "—"}</td>
                 <td className={`border border-gray-200 px-2 py-1 ${deltaColor}`}>
                   {r.rankDelta > 0 ? `+${r.rankDelta}` : r.rankDelta}
                 </td>
-                <td className="border border-gray-200 px-2 py-1">
-                  {displayPosition(r.position)}
-                </td>
+                <td className="border border-gray-200 px-2 py-1">{displayPosition(r.position)}</td>
               </tr>
             );
           })}
@@ -139,11 +128,7 @@ export function ADPReportView({ season = 2026 }: { season?: number }) {
       </p>
       <ADPSection title="Buy Targets" rows={report.buyTargets} openPlayer={openPlayer} />
       <ADPSection title="Avoid List" rows={report.avoidList} openPlayer={openPlayer} />
-      <ADPSection
-        title="Unranked Valuable"
-        rows={report.unrankedValuable}
-        openPlayer={openPlayer}
-      />
+      <ADPSection title="Unranked Valuable" rows={report.unrankedValuable} openPlayer={openPlayer} />
     </div>
   );
 }

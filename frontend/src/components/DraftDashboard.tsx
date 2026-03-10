@@ -1,19 +1,34 @@
+import { useLazyQuery, useMutation, useQuery, useSubscription } from "@apollo/client";
 import { useCallback, useEffect } from "react";
-import { useMutation, useQuery, useSubscription, useLazyQuery } from "@apollo/client";
 import { useDraftSession } from "../context/DraftSessionContext";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
-import { SESSIONS_QUERY, BALANCE_QUERY, SESSION_QUERY, RECOMMENDATIONS_QUERY, ROSTER_QUERY, NEEDS_QUERY } from "../graphql/queries";
-import { START_SESSION, PICK, UNDO, END_SESSION } from "../graphql/mutations";
+import { END_SESSION, PICK, START_SESSION, UNDO } from "../graphql/mutations";
+import {
+  BALANCE_QUERY,
+  NEEDS_QUERY,
+  RECOMMENDATIONS_QUERY,
+  ROSTER_QUERY,
+  SESSION_QUERY,
+  SESSIONS_QUERY,
+} from "../graphql/queries";
 import { DRAFT_EVENTS_SUBSCRIPTION } from "../graphql/subscriptions";
+import type {
+  CategoryBalance,
+  DraftPick,
+  DraftSessionSummary,
+  DraftState,
+  PickResult,
+  Recommendation,
+  RosterSlot,
+} from "../types/session";
+import { ArbitragePanel } from "./ArbitragePanel";
+import { CategoryBalancePanel } from "./CategoryBalancePanel";
 import { DraftBoardTable } from "./DraftBoardTable";
+import { NeedsPanel } from "./NeedsPanel";
+import { PickLogPanel } from "./PickLogPanel";
 import { RecommendationPanel } from "./RecommendationPanel";
 import { RosterPanel } from "./RosterPanel";
-import { NeedsPanel } from "./NeedsPanel";
-import { CategoryBalancePanel } from "./CategoryBalancePanel";
-import { ArbitragePanel } from "./ArbitragePanel";
-import { PickLogPanel } from "./PickLogPanel";
 import { SessionControls } from "./SessionControls";
-import type { DraftSessionSummary, PickResult, DraftState, CategoryBalance, Recommendation, DraftPick, RosterSlot } from "../types/session";
 
 export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const ctx = useDraftSession();
@@ -34,7 +49,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
     if (balanceData?.balance) {
       ctx.setBalance(balanceData.balance);
     }
-  }, [balanceData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [balanceData, ctx.setBalance]);
 
   const [fetchSession] = useLazyQuery<{ session: DraftState }>(SESSION_QUERY);
   const [fetchRecs] = useLazyQuery<{ recommendations: Recommendation[] }>(RECOMMENDATIONS_QUERY);
@@ -172,11 +187,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
               onPlayerClick={openPlayer}
               sessionActive
             />
-            <ArbitragePanel
-              arbitrage={ctx.arbitrage}
-              sessionId={ctx.sessionId!}
-              onDraft={handleDraft}
-            />
+            <ArbitragePanel arbitrage={ctx.arbitrage} sessionId={ctx.sessionId!} onDraft={handleDraft} />
             <RosterPanel
               roster={ctx.roster}
               needs={ctx.needs}
@@ -189,9 +200,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         )}
       </div>
 
-      {sessionActive && ctx.state && (
-        <PickLogPanel picks={ctx.state.picks} onPlayerClick={openPlayer} />
-      )}
+      {sessionActive && ctx.state && <PickLogPanel picks={ctx.state.picks} onPlayerClick={openPlayer} />}
     </div>
   );
 }

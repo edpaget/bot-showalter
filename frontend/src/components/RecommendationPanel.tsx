@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { displayPosition, Position } from "../types/position";
 import type { Recommendation } from "../types/session";
-import { Position, displayPosition } from "../types/position";
 
 const POSITION_FILTERS = ["All", ...Object.values(Position)] as const;
 
@@ -19,10 +19,7 @@ export function RecommendationPanel({
 }: RecommendationPanelProps) {
   const [posFilter, setPosFilter] = useState<string>("All");
 
-  const filtered =
-    posFilter === "All"
-      ? recommendations
-      : recommendations.filter((r) => r.position === posFilter);
+  const filtered = posFilter === "All" ? recommendations : recommendations.filter((r) => r.position === posFilter);
 
   return (
     <div className="border border-gray-200 rounded p-3">
@@ -30,12 +27,11 @@ export function RecommendationPanel({
       <div className="flex flex-wrap gap-1 mb-2">
         {POSITION_FILTERS.map((pos) => (
           <button
+            type="button"
             key={pos}
             onClick={() => setPosFilter(pos)}
             className={`px-2 py-0.5 text-xs rounded ${
-              posFilter === pos
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              posFilter === pos ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
             {pos === "All" ? "All" : displayPosition(pos)}
@@ -61,6 +57,7 @@ export function RecommendationPanel({
                 <td className="py-1" title={rec.reason}>
                   {onPlayerClick ? (
                     <button
+                      type="button"
                       onClick={() => onPlayerClick(rec.playerId, rec.playerName)}
                       className="text-blue-600 hover:underline"
                     >
@@ -76,6 +73,7 @@ export function RecommendationPanel({
                 <td className="py-1">
                   {sessionActive && (
                     <button
+                      type="button"
                       onClick={() => onDraft(rec.playerId, rec.position)}
                       className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                     >

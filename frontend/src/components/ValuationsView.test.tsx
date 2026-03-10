@@ -1,9 +1,9 @@
-import { render, screen, cleanup } from "@testing-library/react";
 import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
-import { describe, it, expect, afterEach } from "vitest";
-import { ValuationsView } from "./ValuationsView";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { PlayerDrawerProvider } from "../context/PlayerDrawerContext";
 import { VALUATIONS_QUERY } from "../graphql/queries";
+import { ValuationsView } from "./ValuationsView";
 
 function valMock(): MockedResponse {
   return {

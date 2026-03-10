@@ -1,23 +1,15 @@
-import { useState, useMemo } from "react";
 import { useQuery } from "@apollo/client";
+import { useMemo, useState } from "react";
+import { ADP_DELTA_THRESHOLD, TIER_COLORS } from "../constants/tiers";
 import { BOARD_QUERY } from "../graphql/queries";
 import type { DraftBoardRow } from "../types/board";
 import { displayPosition } from "../types/position";
-import { TIER_COLORS, ADP_DELTA_THRESHOLD } from "../constants/tiers";
 import { FilterBar, type PlayerTypeFilter } from "./FilterBar";
 import { SearchInput } from "./SearchInput";
 
 type SortKey = keyof Pick<
   DraftBoardRow,
-  | "rank"
-  | "playerName"
-  | "position"
-  | "tier"
-  | "value"
-  | "adpOverall"
-  | "adpDelta"
-  | "breakoutRank"
-  | "bustRank"
+  "rank" | "playerName" | "position" | "tier" | "value" | "adpOverall" | "adpDelta" | "breakoutRank" | "bustRank"
 >;
 
 type SortDir = "asc" | "desc";
@@ -62,7 +54,7 @@ function compareValues(
 
 function tierBackground(tier: number | null): string | undefined {
   if (tier == null) return undefined;
-  return TIER_COLORS[((tier - 1) % TIER_COLORS.length)]!;
+  return TIER_COLORS[(tier - 1) % TIER_COLORS.length]!;
 }
 
 function breakoutTint(row: DraftBoardRow): string | undefined {
@@ -163,12 +155,11 @@ export function DraftBoardTable({
             <div className="flex gap-1">
               {(["all", "available", "drafted"] as StatusFilter[]).map((s) => (
                 <button
+                  type="button"
                   key={s}
                   onClick={() => setStatusFilter(s)}
                   className={`px-2 py-1 text-xs rounded ${
-                    statusFilter === s
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    statusFilter === s ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   {s === "all" ? "All" : s === "available" ? "Available" : "Drafted"}
@@ -191,15 +182,11 @@ export function DraftBoardTable({
                   className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200 whitespace-nowrap"
                 >
                   {col.label}
-                  {sortKey === col.key && (
-                    <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>
-                  )}
+                  {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
                 </th>
               ))}
               {sessionActive && (
-                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left whitespace-nowrap">
-                  Action
-                </th>
+                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left whitespace-nowrap">Action</th>
               )}
             </tr>
           </thead>
@@ -216,6 +203,7 @@ export function DraftBoardTable({
                   <td className="border border-gray-200 px-2 py-1 whitespace-nowrap">
                     {onPlayerClick ? (
                       <button
+                        type="button"
                         onClick={() => onPlayerClick(row.playerId, row.playerName)}
                         className="text-blue-600 hover:underline"
                       >
@@ -227,9 +215,7 @@ export function DraftBoardTable({
                   </td>
                   <td className="border border-gray-200 px-2 py-1">{displayPosition(row.position)}</td>
                   <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
-                  <td className="border border-gray-200 px-2 py-1 font-mono">
-                    ${row.value.toFixed(1)}
-                  </td>
+                  <td className="border border-gray-200 px-2 py-1 font-mono">${row.value.toFixed(1)}</td>
                   <td className="border border-gray-200 px-2 py-1">
                     {row.adpOverall != null ? row.adpOverall.toFixed(1) : ""}
                   </td>
@@ -240,6 +226,7 @@ export function DraftBoardTable({
                     <td className="border border-gray-200 px-2 py-1">
                       {!isDrafted && onDraft && (
                         <button
+                          type="button"
                           onClick={() => onDraft(row.playerId, row.position)}
                           className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                         >

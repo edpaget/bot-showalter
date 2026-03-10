@@ -1,13 +1,13 @@
-import { render, screen, act, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
-import { describe, it, expect, afterEach } from "vitest";
-import { DraftDashboard } from "./DraftDashboard";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it } from "vitest";
 import { DraftSessionProvider } from "../context/DraftSessionContext";
 import { PlayerDrawerProvider } from "../context/PlayerDrawerContext";
-import { BOARD_QUERY, SESSIONS_QUERY, BALANCE_QUERY } from "../graphql/queries";
-import { START_SESSION, PICK, UNDO, END_SESSION } from "../graphql/mutations";
+import { END_SESSION, PICK, START_SESSION, UNDO } from "../graphql/mutations";
+import { BALANCE_QUERY, BOARD_QUERY, SESSIONS_QUERY } from "../graphql/queries";
 import type { DraftBoardRow } from "../types/board";
+import { DraftDashboard } from "./DraftDashboard";
 
 function makeRow(overrides: Partial<DraftBoardRow> & { playerId: number }): DraftBoardRow {
   return {
@@ -91,9 +91,7 @@ function pickMock(): MockedResponse {
           state: {
             sessionId: 1,
             currentPick: 2,
-            picks: [
-              { pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null },
-            ],
+            picks: [{ pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null }],
             format: "snake",
             teams: 12,
             userTeam: 1,
@@ -102,10 +100,11 @@ function pickMock(): MockedResponse {
           recommendations: [
             { playerId: 2, playerName: "Gerrit Cole", position: "SP", value: 25, score: 0.9, reason: "Best value" },
           ],
-          roster: [
-            { pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null },
+          roster: [{ pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null }],
+          needs: [
+            { position: "C", remaining: 1 },
+            { position: "SP", remaining: 2 },
           ],
-          needs: [{ position: "C", remaining: 1 }, { position: "SP", remaining: 2 }],
         },
       },
     },
@@ -132,7 +131,10 @@ function undoMock(): MockedResponse {
             { playerId: 1, playerName: "Mike Trout", position: "OF", value: 35, score: 0.95, reason: "Best value" },
           ],
           roster: [],
-          needs: [{ position: "C", remaining: 1 }, { position: "OF", remaining: 3 }],
+          needs: [
+            { position: "C", remaining: 1 },
+            { position: "OF", remaining: 3 },
+          ],
         },
       },
     },
@@ -151,9 +153,7 @@ function balanceMock(sessionId: number = 1): MockedResponse {
     request: { query: BALANCE_QUERY, variables: { sessionId } },
     result: {
       data: {
-        balance: [
-          { category: "HR", projectedValue: 245, leagueRankEstimate: 3, strength: "strong" },
-        ],
+        balance: [{ category: "HR", projectedValue: 245, leagueRankEstimate: 3, strength: "strong" }],
       },
     },
   };

@@ -1,10 +1,10 @@
-import { render, screen, within, act, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { DraftBoardTable } from "./DraftBoardTable";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { BOARD_QUERY } from "../graphql/queries";
 import type { DraftBoardRow } from "../types/board";
+import { DraftBoardTable } from "./DraftBoardTable";
 
 function makeRow(overrides: Partial<DraftBoardRow> & { playerId: number }): DraftBoardRow {
   return {
@@ -27,9 +27,35 @@ function makeRow(overrides: Partial<DraftBoardRow> & { playerId: number }): Draf
 }
 
 const ROWS: DraftBoardRow[] = [
-  makeRow({ playerId: 1, playerName: "Mike Trout", rank: 1, position: "OF", value: 35, tier: 1, adpDelta: 15, breakoutRank: 3 }),
-  makeRow({ playerId: 2, playerName: "Shohei Ohtani", rank: 2, position: "OF", value: 30, tier: 2, adpDelta: -12, bustRank: 5 }),
-  makeRow({ playerId: 3, playerName: "Gerrit Cole", rank: 3, playerType: "pitcher", position: "SP", value: 25, tier: 3 }),
+  makeRow({
+    playerId: 1,
+    playerName: "Mike Trout",
+    rank: 1,
+    position: "OF",
+    value: 35,
+    tier: 1,
+    adpDelta: 15,
+    breakoutRank: 3,
+  }),
+  makeRow({
+    playerId: 2,
+    playerName: "Shohei Ohtani",
+    rank: 2,
+    position: "OF",
+    value: 30,
+    tier: 2,
+    adpDelta: -12,
+    bustRank: 5,
+  }),
+  makeRow({
+    playerId: 3,
+    playerName: "Gerrit Cole",
+    rank: 3,
+    playerType: "pitcher",
+    position: "SP",
+    value: 25,
+    tier: 3,
+  }),
   makeRow({ playerId: 4, playerName: "Aaron Judge", rank: 4, position: "OF", value: 20, tier: 1, breakoutRank: 1 }),
 ];
 

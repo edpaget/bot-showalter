@@ -1,10 +1,10 @@
-import { render, screen, act, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
-import { describe, it, expect, afterEach } from "vitest";
-import { ProjectionsView } from "./ProjectionsView";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it } from "vitest";
 import { PlayerDrawerProvider } from "../context/PlayerDrawerContext";
 import { PROJECTIONS_QUERY } from "../graphql/queries";
+import { ProjectionsView } from "./ProjectionsView";
 
 function projMock(): MockedResponse {
   return {

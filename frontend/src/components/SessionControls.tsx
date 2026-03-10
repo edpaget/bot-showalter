@@ -29,9 +29,7 @@ export function SessionControls({
   if (sessionActive && state) {
     return (
       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded border border-gray-200">
-        <span className="text-sm font-semibold">
-          Pick #{state.currentPick}
-        </span>
+        <span className="text-sm font-semibold">Pick #{state.currentPick}</span>
         <span className="text-xs text-gray-500">
           {state.format} · {state.teams} teams
         </span>
@@ -40,6 +38,7 @@ export function SessionControls({
         )}
         <div className="flex-1" />
         <button
+          type="button"
           onClick={onUndo}
           disabled={state.picks.length === 0}
           className="px-3 py-1 text-sm bg-amber-500 text-white rounded hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -47,6 +46,7 @@ export function SessionControls({
           Undo
         </button>
         <button
+          type="button"
           onClick={onEnd}
           className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
         >
@@ -111,6 +111,7 @@ export function SessionControls({
           </div>
         )}
         <button
+          type="button"
           onClick={() =>
             onStart({
               season,
@@ -132,6 +133,7 @@ export function SessionControls({
           <div className="flex flex-wrap gap-2">
             {resumableSessions.map((s) => (
               <button
+                type="button"
                 key={s.id}
                 onClick={() => onResume(s.id)}
                 className="px-3 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-100"

@@ -1,5 +1,5 @@
-import type { RosterSlot } from "../types/session";
 import { displayPosition } from "../types/position";
+import type { RosterSlot } from "../types/session";
 
 interface NeedsPanelProps {
   needs: RosterSlot[];

@@ -1,15 +1,13 @@
-import { render, screen, cleanup } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DraftSessionSummary, DraftState } from "../types/session";
 import { SessionControls } from "./SessionControls";
-import type { DraftState, DraftSessionSummary } from "../types/session";
 
 const ACTIVE_STATE: DraftState = {
   sessionId: 1,
   currentPick: 5,
-  picks: [
-    { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: null },
-  ],
+  picks: [{ pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: null }],
   format: "snake",
   teams: 12,
   userTeam: 1,

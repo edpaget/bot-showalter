@@ -1,9 +1,9 @@
-import { useState, useMemo } from "react";
 import { useQuery } from "@apollo/client";
-import { VALUATIONS_QUERY } from "../graphql/queries";
+import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
-import { displayPosition } from "../types/position";
+import { VALUATIONS_QUERY } from "../graphql/queries";
 import type { ValuationRow } from "../types/analysis";
+import { displayPosition } from "../types/position";
 
 type SortKey = "rank" | "playerName" | "position" | "value" | "playerType" | "system" | "version";
 type SortDir = "asc" | "desc";
@@ -16,17 +16,14 @@ export function ValuationsView({ season = 2026 }: { season?: number }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { openPlayer } = usePlayerDrawer();
 
-  const { data, loading, error } = useQuery<{ valuations: ValuationRow[] }>(
-    VALUATIONS_QUERY,
-    {
-      variables: {
-        season,
-        playerType: playerType || undefined,
-        position: position || undefined,
-        top: topN ? parseInt(topN, 10) : undefined,
-      },
+  const { data, loading, error } = useQuery<{ valuations: ValuationRow[] }>(VALUATIONS_QUERY, {
+    variables: {
+      season,
+      playerType: playerType || undefined,
+      position: position || undefined,
+      top: topN ? parseInt(topN, 10) : undefined,
     },
-  );
+  });
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -112,9 +109,7 @@ export function ValuationsView({ season = 2026 }: { season?: number }) {
                     className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200"
                   >
                     {col.label}
-                    {sortKey === col.key && (
-                      <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>
-                    )}
+                    {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
                   </th>
                 ))}
               </tr>
@@ -125,18 +120,15 @@ export function ValuationsView({ season = 2026 }: { season?: number }) {
                   <td className="border border-gray-200 px-2 py-1">{v.rank}</td>
                   <td className="border border-gray-200 px-2 py-1">
                     <button
+                      type="button"
                       onClick={() => openPlayer(0, v.playerName)}
                       className="text-blue-600 hover:underline"
                     >
                       {v.playerName}
                     </button>
                   </td>
-                  <td className="border border-gray-200 px-2 py-1">
-                    {displayPosition(v.position)}
-                  </td>
-                  <td className="border border-gray-200 px-2 py-1 font-mono">
-                    ${v.value.toFixed(1)}
-                  </td>
+                  <td className="border border-gray-200 px-2 py-1">{displayPosition(v.position)}</td>
+                  <td className="border border-gray-200 px-2 py-1 font-mono">${v.value.toFixed(1)}</td>
                   <td className="border border-gray-200 px-2 py-1">{v.playerType}</td>
                   <td className="border border-gray-200 px-2 py-1">{v.system}</td>
                   <td className="border border-gray-200 px-2 py-1">{v.version}</td>

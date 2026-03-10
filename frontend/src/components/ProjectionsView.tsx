@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
 import { useLazyQuery } from "@apollo/client";
-import { PROJECTIONS_QUERY } from "../graphql/queries";
+import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
+import { PROJECTIONS_QUERY } from "../graphql/queries";
 import type { Projection } from "../types/analysis";
 
 type SortKey = "playerName" | "system" | "version" | "playerType";
@@ -80,10 +80,7 @@ export function ProjectionsView({ season = 2026 }: { season?: number }) {
             placeholder="All systems"
           />
         </div>
-        <button
-          type="submit"
-          className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-        >
+        <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
           Search
         </button>
       </form>
@@ -103,14 +100,10 @@ export function ProjectionsView({ season = 2026 }: { season?: number }) {
                     className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200"
                   >
                     {col.label}
-                    {sortKey === col.key && (
-                      <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>
-                    )}
+                    {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
                   </th>
                 ))}
-                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left">
-                  Key Stats
-                </th>
+                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left">Key Stats</th>
               </tr>
             </thead>
             <tbody>
@@ -118,6 +111,7 @@ export function ProjectionsView({ season = 2026 }: { season?: number }) {
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="border border-gray-200 px-2 py-1">
                     <button
+                      type="button"
                       onClick={() => openPlayer(0, p.playerName)}
                       className="text-blue-600 hover:underline"
                     >

@@ -1,7 +1,7 @@
-import { render, screen, cleanup } from "@testing-library/react";
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { CategoryBalancePanel } from "./CategoryBalancePanel";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CategoryBalance } from "../types/session";
+import { CategoryBalancePanel } from "./CategoryBalancePanel";
 
 // Mock recharts to avoid canvas issues in jsdom
 vi.mock("recharts", () => ({

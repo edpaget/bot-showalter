@@ -1,10 +1,10 @@
-import { render, screen, act, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
-import { describe, it, expect, afterEach } from "vitest";
-import { PlayerDrawer } from "./PlayerDrawer";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it } from "vitest";
 import { PlayerDrawerProvider, usePlayerDrawer } from "../context/PlayerDrawerContext";
 import { PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } from "../graphql/queries";
+import { PlayerDrawer } from "./PlayerDrawer";
 
 function bioMock(): MockedResponse {
   return {
@@ -81,7 +81,11 @@ function valMock(): MockedResponse {
 
 function OpenButton() {
   const { openPlayer } = usePlayerDrawer();
-  return <button onClick={() => openPlayer(1, "Mike Trout")}>Open Drawer</button>;
+  return (
+    <button type="button" onClick={() => openPlayer(1, "Mike Trout")}>
+      Open Drawer
+    </button>
+  );
 }
 
 function renderDrawer(mocks: MockedResponse[] = [bioMock(), projMock(), valMock()]) {
@@ -166,8 +170,8 @@ describe("PlayerDrawer", () => {
     const projRows = rows.filter((r) => r.textContent?.includes("steamer"));
     // Only the batter projection should appear (1 row), not the pitcher one
     expect(projRows.length).toBe(1);
-    expect(projRows[0].textContent).toContain("batter");
-    expect(projRows[0].textContent).not.toContain("pitcher");
+    expect(projRows[0]!.textContent).toContain("batter");
+    expect(projRows[0]!.textContent).not.toContain("pitcher");
 
     // Version columns should be present (projections + valuations tables)
     expect(screen.getAllByText("Version").length).toBeGreaterThanOrEqual(1);

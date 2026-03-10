@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useLazyQuery } from "@apollo/client";
+import { useState } from "react";
 import { ARBITRAGE_QUERY } from "../graphql/queries";
 import type { ArbitrageReport, FallingPlayer } from "../types/session";
 
@@ -38,8 +38,7 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
   const falling = report?.falling ?? [];
   const reaches = report?.reaches ?? [];
 
-  const filteredFalling =
-    posFilter === "All" ? falling : falling.filter((f) => f.position === posFilter);
+  const filteredFalling = posFilter === "All" ? falling : falling.filter((f) => f.position === posFilter);
 
   return (
     <div className="border border-gray-200 rounded p-3">
@@ -47,6 +46,7 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
 
       <div className="flex gap-1 mb-2">
         <button
+          type="button"
           onClick={() => setTab("falling")}
           className={`px-2 py-0.5 text-xs rounded ${
             tab === "falling" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -55,6 +55,7 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
           Falling ({falling.length})
         </button>
         <button
+          type="button"
           onClick={() => setTab("reaches")}
           className={`px-2 py-0.5 text-xs rounded ${
             tab === "reaches" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -70,12 +71,11 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
             <div className="flex flex-wrap gap-1">
               {POSITION_FILTERS.map((pos) => (
                 <button
+                  type="button"
                   key={pos}
                   onClick={() => setPosFilter(pos)}
                   className={`px-2 py-0.5 text-xs rounded ${
-                    posFilter === pos
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    posFilter === pos ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   {pos}
@@ -98,9 +98,7 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
         </>
       )}
 
-      {tab === "reaches" && (
-        <ReachesTable reaches={reaches} />
-      )}
+      {tab === "reaches" && <ReachesTable reaches={reaches} />}
     </div>
   );
 }
@@ -139,6 +137,7 @@ function FallingTable({
             <td className="py-1 font-mono">{fp.arbitrageScore.toFixed(1)}</td>
             <td className="py-1">
               <button
+                type="button"
                 onClick={() => onDraft(fp.playerId, fp.position.toUpperCase())}
                 className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
               >

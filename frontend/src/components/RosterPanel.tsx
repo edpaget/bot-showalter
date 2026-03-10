@@ -1,5 +1,5 @@
-import type { DraftPick, RosterSlot } from "../types/session";
 import { displayPosition } from "../types/position";
+import type { DraftPick, RosterSlot } from "../types/session";
 
 interface RosterPanelProps {
   roster: DraftPick[];
@@ -10,10 +10,7 @@ interface RosterPanelProps {
 
 export function RosterPanel({ roster, needs, budgetRemaining, format }: RosterPanelProps) {
   const totalValue = roster.reduce((sum, p) => sum + (p.price ?? 0), 0);
-  const allPositions = [
-    ...needs.map((n) => n.position),
-    ...roster.map((p) => p.position),
-  ];
+  const allPositions = [...needs.map((n) => n.position), ...roster.map((p) => p.position)];
   const uniquePositions = [...new Set(allPositions)];
 
   return (
@@ -29,10 +26,7 @@ export function RosterPanel({ roster, needs, budgetRemaining, format }: RosterPa
               <span className="font-medium w-8">{displayPosition(pos)}</span>
               <div className="flex gap-1 flex-1 flex-wrap">
                 {filled.map((p) => (
-                  <span
-                    key={p.pickNumber}
-                    className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs"
-                  >
+                  <span key={p.pickNumber} className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs">
                     {p.playerName}
                     {p.price != null && ` ($${p.price})`}
                   </span>
@@ -52,9 +46,7 @@ export function RosterPanel({ roster, needs, budgetRemaining, format }: RosterPa
       </div>
       <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-600 flex gap-4">
         <span>Players: {roster.length}</span>
-        {format === "auction" && budgetRemaining != null && (
-          <span>Budget: ${budgetRemaining}</span>
-        )}
+        {format === "auction" && budgetRemaining != null && <span>Budget: ${budgetRemaining}</span>}
         {format === "auction" && <span>Spent: ${totalValue}</span>}
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { DraftPick } from "../types/session";
 import { displayPosition } from "../types/position";
+import type { DraftPick } from "../types/session";
 
 interface PickLogPanelProps {
   picks: DraftPick[];
@@ -9,11 +9,12 @@ interface PickLogPanelProps {
 
 export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const latestPickNumber = picks.length > 0 ? picks[picks.length - 1]!.pickNumber : null;
+  const latestPickNumber = picks.length > 0 ? picks[picks.length - 1]?.pickNumber : null;
 
   return (
     <div className="border border-gray-200 rounded">
       <button
+        type="button"
         onClick={() => setCollapsed(!collapsed)}
         className="w-full px-3 py-2 text-sm font-semibold text-left flex justify-between items-center hover:bg-gray-50"
       >
@@ -48,6 +49,7 @@ export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
                     <td className="py-1">
                       {onPlayerClick ? (
                         <button
+                          type="button"
                           onClick={() => onPlayerClick(pick.playerId, pick.playerName)}
                           className="text-blue-600 hover:underline"
                         >

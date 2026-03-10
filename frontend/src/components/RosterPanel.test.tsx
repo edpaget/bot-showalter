@@ -1,7 +1,7 @@
-import { render, screen, cleanup } from "@testing-library/react";
-import { describe, it, expect, afterEach } from "vitest";
-import { RosterPanel } from "./RosterPanel";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import type { DraftPick, RosterSlot } from "../types/session";
+import { RosterPanel } from "./RosterPanel";
 
 const ROSTER: DraftPick[] = [
   { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: null },

@@ -1,7 +1,7 @@
-import { render, screen, cleanup } from "@testing-library/react";
-import { describe, it, expect, afterEach } from "vitest";
-import { NeedsPanel } from "./NeedsPanel";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import type { RosterSlot } from "../types/session";
+import { NeedsPanel } from "./NeedsPanel";
 
 const NEEDS: RosterSlot[] = [
   { position: "C", remaining: 1 },

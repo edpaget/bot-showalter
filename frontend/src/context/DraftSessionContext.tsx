@@ -1,13 +1,13 @@
-import { createContext, useContext, useState, useMemo, useCallback } from "react";
 import type { ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type {
-  DraftState,
-  Recommendation,
-  DraftPick,
-  RosterSlot,
-  CategoryBalance,
   ArbitrageReport,
+  CategoryBalance,
+  DraftPick,
+  DraftState,
   PickResult,
+  Recommendation,
+  RosterSlot,
 } from "../types/session";
 
 interface DraftSessionContextValue {
@@ -84,7 +84,18 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       applyPickResult,
       clearSession,
     }),
-    [sessionId, state, recommendations, roster, needs, balance, arbitrage, draftedPlayerIds, applyPickResult, clearSession],
+    [
+      sessionId,
+      state,
+      recommendations,
+      roster,
+      needs,
+      balance,
+      arbitrage,
+      draftedPlayerIds,
+      applyPickResult,
+      clearSession,
+    ],
   );
 
   return <DraftSessionContext.Provider value={value}>{children}</DraftSessionContext.Provider>;

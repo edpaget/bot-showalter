@@ -21,9 +21,7 @@ export function AppLayout() {
             end={item.to === "/"}
             className={({ isActive }) =>
               `px-3 py-1 rounded text-sm ${
-                isActive
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-300 hover:text-white hover:bg-gray-700"
+                isActive ? "bg-blue-600 text-white" : "text-gray-300 hover:text-white hover:bg-gray-700"
               }`
             }
           >

@@ -27,6 +27,9 @@ All commands run from `frontend/`.
 - **Build:** `bun run build` (TypeScript check + Vite production build)
 - **Run tests:** `bun run test` (Vitest, jsdom environment). **Not** `bun test` — that invokes bun's native runner which skips the Vitest/jsdom config.
 - **Watch tests:** `bun run test:watch`
+- **Lint:** `bun run lint` (Biome check — linting + format verification)
+- **Format:** `bun run format` (auto-format all frontend source files)
+- **Lint + fix:** `bun run lint:fix` (auto-fix lint and format issues)
 - **Package manager:** `bun` (not npm/yarn).
 
 ### Code Style
