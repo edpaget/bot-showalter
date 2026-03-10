@@ -3,7 +3,14 @@ from __future__ import annotations
 import dataclasses
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import BudgetAllocation, DraftBoard, RoundTarget, SnakeDraftPlan
+from fantasy_baseball_manager.domain import (
+    BudgetAllocation,
+    DraftBoard,
+    Position,
+    RoundTarget,
+    SnakeDraftPlan,
+    position_from_raw,
+)
 from fantasy_baseball_manager.services.draft_board import build_draft_board
 from fantasy_baseball_manager.services.mock_draft import run_batch_simulation
 from fantasy_baseball_manager.services.mock_draft_bots import ADPBot, BestValueBot
@@ -27,17 +34,18 @@ def _build_slot_list(league: LeagueSettings) -> list[str]:
     for pos, count in league.positions.items():
         slots.extend([pos] * count)
     if league.roster_util > 0:
-        slots.extend(["util"] * league.roster_util)
+        slots.extend([Position.UTIL] * league.roster_util)
     for pos, count in league.pitcher_positions.items():
         slots.extend([pos] * count)
     return slots
 
 
 def _group_by_position(valuations: list[Valuation]) -> dict[str, list[Valuation]]:
-    """Group valuations by position, sorted descending by value."""
+    """Group valuations by normalized position, sorted descending by value."""
     groups: dict[str, list[Valuation]] = {}
     for v in valuations:
-        groups.setdefault(v.position, []).append(v)
+        key = position_from_raw(v.position)
+        groups.setdefault(key, []).append(v)
     for vals in groups.values():
         vals.sort(key=lambda v: v.value, reverse=True)
     return groups
@@ -51,7 +59,7 @@ def _find_target_players(
 ) -> tuple[str, ...]:
     """Find players whose value is <= budget for the given position."""
     candidates = by_position.get(position, [])
-    if position == "util":
+    if position == Position.UTIL:
         candidates = []
         for vals in by_position.values():
             candidates.extend(vals)
@@ -88,7 +96,7 @@ def _balanced_allocation(
         idx = position_slot_index.get(pos, 0)
         position_slot_index[pos] = idx + 1
         candidates = by_position.get(pos, [])
-        if pos == "util":
+        if pos == Position.UTIL:
             all_batters = []
             for vals in by_position.values():
                 all_batters.extend(vals)
@@ -124,7 +132,7 @@ def _stars_and_scrubs_allocation(
         idx = position_slot_index.get(pos, 0)
         position_slot_index[pos] = idx + 1
         candidates = by_position.get(pos, [])
-        if pos == "util":
+        if pos == Position.UTIL:
             all_batters = []
             for vals in by_position.values():
                 all_batters.extend(vals)
@@ -168,7 +176,7 @@ def optimize_auction_budget(
     tier_lookup: dict[str, list[PlayerTier]] = {}
     if tiers is not None:
         for t in tiers:
-            tier_lookup.setdefault(t.position, []).append(t)
+            tier_lookup.setdefault(position_from_raw(t.position), []).append(t)
         for tier_list in tier_lookup.values():
             tier_list.sort(key=lambda t: t.value, reverse=True)
 
@@ -207,8 +215,18 @@ def optimize_auction_budget(
     return result
 
 
-_PITCHER_TYPES = frozenset({"sp", "rp"})
-_BATTER_TYPES = frozenset({"c", "1b", "2b", "3b", "ss", "of", "dh"})
+_PITCHER_TYPES: frozenset[Position] = frozenset({Position.SP, Position.RP})
+_BATTER_TYPES: frozenset[Position] = frozenset(
+    {
+        Position.C,
+        Position.FIRST_BASE,
+        Position.SECOND_BASE,
+        Position.THIRD_BASE,
+        Position.SS,
+        Position.OF,
+        Position.DH,
+    }
+)
 
 
 def _snake_pick_numbers(draft_slot: int, teams: int, total_rounds: int) -> list[int]:
@@ -230,23 +248,27 @@ def _build_needs(
         needs[pos] = needs.get(pos, 0) + 1
     if my_keepers:
         for _pid, pos in my_keepers:
-            lpos = pos.lower()
-            if lpos in needs and needs[lpos] > 0:
-                needs[lpos] -= 1
-            elif "util" in needs and needs["util"] > 0 and lpos in _BATTER_TYPES:
-                needs["util"] -= 1
-            elif "p" in needs and needs["p"] > 0 and lpos in _PITCHER_TYPES:
-                needs["p"] -= 1
+            norm = position_from_raw(pos)
+            if norm in needs and needs[norm] > 0:
+                needs[norm] -= 1
+            elif Position.UTIL in needs and needs[Position.UTIL] > 0 and norm in _BATTER_TYPES:
+                needs[Position.UTIL] -= 1
+            elif Position.P in needs and needs[Position.P] > 0 and norm in _PITCHER_TYPES:
+                needs[Position.P] -= 1
     return {pos: count for pos, count in needs.items() if count > 0}
 
 
 def _positions_for_slot(slot_pos: str) -> Set[str]:
     """Return the set of valuation positions that can fill *slot_pos*."""
-    if slot_pos == "util":
+    try:
+        norm = position_from_raw(slot_pos)
+    except ValueError:
+        return frozenset({slot_pos})
+    if norm == Position.UTIL:
         return _BATTER_TYPES
-    if slot_pos == "p":
+    if norm == Position.P:
         return _PITCHER_TYPES
-    return frozenset({slot_pos})
+    return frozenset({norm})
 
 
 def _best_available(
@@ -414,20 +436,20 @@ def _reduce_league_for_keepers(
     util_reduction = 0
 
     for _pid, pos in my_keepers:
-        upper_pos = pos.upper()
-        if upper_pos in positions and positions[upper_pos] > 0:
-            positions[upper_pos] -= 1
+        norm = position_from_raw(pos)
+        if norm in positions and positions[norm] > 0:
+            positions[norm] -= 1
             batter_reduction += 1
-        elif upper_pos in pitcher_positions and pitcher_positions[upper_pos] > 0:
-            pitcher_positions[upper_pos] -= 1
+        elif norm in pitcher_positions and pitcher_positions[norm] > 0:
+            pitcher_positions[norm] -= 1
             pitcher_reduction += 1
-        elif upper_pos in _BATTER_TYPES and league.roster_util - util_reduction > 0:
+        elif norm in _BATTER_TYPES and league.roster_util - util_reduction > 0:
             util_reduction += 1
             batter_reduction += 1
-        elif upper_pos in _PITCHER_TYPES:
+        elif norm in _PITCHER_TYPES:
             # Try generic P slot
-            if "P" in pitcher_positions and pitcher_positions["P"] > 0:
-                pitcher_positions["P"] -= 1
+            if Position.P in pitcher_positions and pitcher_positions[Position.P] > 0:
+                pitcher_positions[Position.P] -= 1
                 pitcher_reduction += 1
 
     return dataclasses.replace(

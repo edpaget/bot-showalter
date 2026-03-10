@@ -731,7 +731,7 @@ def plan_command(
                 if pid is None:
                     console.print(f"[yellow]Keeper '{name.strip()}' not found, skipping[/yellow]")
                     continue
-                my_keepers_list.append((pid, pos.strip().lower()))
+                my_keepers_list.append((pid, pos.strip()))
 
         league_keeper_ids: set[int] | None = None
         if league_keepers is not None:
@@ -813,7 +813,7 @@ def simulate_command(
                 if pid is None:
                     console.print(f"[yellow]Keeper '{name.strip()}' not found, skipping[/yellow]")
                     continue
-                my_keepers_list.append((pid, pos.strip().upper()))
+                my_keepers_list.append((pid, pos.strip()))
 
         league_keeper_ids: set[int] | None = None
         if league_keepers is not None:

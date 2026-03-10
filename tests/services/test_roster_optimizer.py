@@ -6,9 +6,11 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 from fantasy_baseball_manager.domain.mock_draft import BatchSimulationResult
+from fantasy_baseball_manager.domain.position import Position
 from fantasy_baseball_manager.domain.tier import PlayerTier
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.services.roster_optimizer import (
+    _reduce_league_for_keepers,
     _snake_pick_numbers,
     optimize_auction_budget,
     plan_snake_draft,
@@ -36,8 +38,8 @@ def _league(
             CategoryConfig(key="w", name="W", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
         ),
         roster_util=roster_util,
-        positions=positions or {"c": 1, "1b": 1, "ss": 1, "of": 3},
-        pitcher_positions=pitcher_positions or {"sp": 2, "rp": 2},
+        positions=positions or {Position.C: 1, Position.FIRST_BASE: 1, Position.SS: 1, Position.OF: 3},
+        pitcher_positions=pitcher_positions or {Position.SP: 2, Position.RP: 2},
     )
 
 
@@ -319,7 +321,7 @@ class TestEarlyPicksTargetHighValue:
         plan = plan_snake_draft(valuations, league, names, draft_slot=1)
         first_pos = plan.rounds[0].recommended_position
         # The first pick should be one of the high-value positions
-        assert first_pos in {"of", "sp", "ss", "c", "1b"}
+        assert first_pos in {Position.OF, Position.SP, Position.SS, Position.C, Position.FIRST_BASE}
 
 
 class TestPlanAdaptsToDraftSlot:
@@ -431,7 +433,7 @@ def _sim_league() -> LeagueSettings:
         pitching_categories=(
             CategoryConfig(key="K", name="K", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
         ),
-        positions={"C": 1, "1B": 1, "OF": 1},
+        positions={Position.C: 1, Position.FIRST_BASE: 1, Position.OF: 1},
         roster_util=1,
     )
 
@@ -557,3 +559,77 @@ class TestSimulateDraftsKeepers:
         total_pct_no_k = sum(f.pct_drafted for f in r_no_keepers.player_frequencies)
         total_pct_k = sum(f.pct_drafted for f in r_keepers.player_frequencies)
         assert total_pct_k < total_pct_no_k
+
+
+# --- _reduce_league_for_keepers Tests ---
+
+
+class TestReduceLeagueForKeepers:
+    def test_pitcher_keeper_reduces_pitcher_slot(self) -> None:
+        """Keeper at SP reduces the SP pitcher slot."""
+        league = _league()
+        result = _reduce_league_for_keepers(league, [(100, "sp")])
+        assert result.pitcher_positions[Position.SP] == 1
+        assert result.roster_pitchers == league.roster_pitchers - 1
+
+    def test_multiple_pitcher_keepers(self) -> None:
+        """Multiple pitcher keepers reduce their respective slots."""
+        league = _league()
+        result = _reduce_league_for_keepers(league, [(100, "sp"), (101, "rp")])
+        assert result.pitcher_positions[Position.SP] == 1
+        assert result.pitcher_positions[Position.RP] == 1
+        assert result.roster_pitchers == league.roster_pitchers - 2
+
+    def test_batter_keeper_overflows_to_util(self) -> None:
+        """Batter keeper with no position slot left uses util."""
+        league = _league(
+            positions={Position.C: 0, Position.FIRST_BASE: 1, Position.SS: 1, Position.OF: 3}, roster_util=1
+        )
+        result = _reduce_league_for_keepers(league, [(100, "c")])
+        assert result.roster_util == 0
+        assert result.roster_batters == league.roster_batters - 1
+
+    def test_pitcher_keeper_falls_back_to_generic_p_slot(self) -> None:
+        """Pitcher keeper with exhausted specific slot falls back to generic P."""
+        league = _league(pitcher_positions={Position.SP: 0, Position.RP: 0, Position.P: 2})
+        result = _reduce_league_for_keepers(league, [(100, "sp")])
+        assert result.pitcher_positions[Position.P] == 1
+        assert result.roster_pitchers == league.roster_pitchers - 1
+
+
+# --- simulate_drafts extra_reductions Tests ---
+
+
+class TestSimulateDraftsExtraReductions:
+    def test_keepers_per_team_greater_than_my_keepers(self) -> None:
+        """When keepers_per_team > len(my_keepers), extra slots are reduced (lines 493-514)."""
+        league = _sim_league()
+        valuations, names = _sim_pool()
+        # keepers_per_team=3 but only 1 my_keeper → 2 extra reductions
+        result = simulate_drafts(
+            valuations,
+            league,
+            names,
+            draft_slot=1,
+            n_simulations=5,
+            my_keepers=[(1, "C")],
+            league_keeper_ids={1},
+            keepers_per_team=3,
+            seed=42,
+        )
+        assert isinstance(result, BatchSimulationResult)
+        # With more keepers_per_team, fewer picks happen overall
+        r_1keeper = simulate_drafts(
+            valuations,
+            league,
+            names,
+            draft_slot=1,
+            n_simulations=5,
+            my_keepers=[(1, "C")],
+            league_keeper_ids={1},
+            keepers_per_team=1,
+            seed=42,
+        )
+        total_pct_3k = sum(f.pct_drafted for f in result.player_frequencies)
+        total_pct_1k = sum(f.pct_drafted for f in r_1keeper.player_frequencies)
+        assert total_pct_3k < total_pct_1k
