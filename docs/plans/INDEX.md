@@ -11,7 +11,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | not started | none |
-| [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 | phases 1-2 done | injury-risk-discount (done), valuation-system-unification phase 1 |
 | [Web UI Foundation](web-ui-foundation.md) | 6 | phases 1-5 done | draft-session-persistence (phase 2 needs phases 1-2) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 3 | phases 1-2 done | live-draft-tracker (done), adp-integration (done) |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
