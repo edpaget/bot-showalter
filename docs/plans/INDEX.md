@@ -13,6 +13,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Evaluation Framework](evaluation-framework.md) | 4 | phases 1-3 done | none |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
+| [Keeper Draft Integration](keeper-draft-integration.md) | 5 | not started | keeper-optimization-solver (done), keeper-surplus-value (done), web-ui-foundation phases 1-5 (done), adp-arbitrage-alerts (done) |
 | [Valuation Reform](valuation-reform.md) | 4 | phases 1-3 done | league-standings-import, evaluation-framework phase 2 |
 
 ## Completed Roadmaps
@@ -123,4 +124,5 @@ These aren't hard blockers but enhance the consuming roadmap when available:
 - **Playing time flexibility** enhances: projection-blender (flexible PT source for blended projections)
 - **Opponent draft model** enhances: live-draft-tracker (threat/run alerts in REPL), mock-draft-insights (opponent behavior modeling)
 - **ADP arbitrage alerts** enhances: live-draft-tracker (falling player alerts in REPL)
+- **Keeper draft integration** enhances: live-draft-tracker (keeper-adjusted pool and recommendations)
 - **Mock draft insights** enhances: live-draft-tracker (mock-informed recommendations)
