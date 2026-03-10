@@ -32,6 +32,10 @@ All commands run from `frontend/`.
 - **Lint + fix:** `bun run lint:fix` (auto-fix lint and format issues)
 - **Package manager:** `bun` (not npm/yarn).
 
+### Pre-commit Hooks
+
+Committing `.ts`/`.tsx` files under `frontend/` automatically triggers three frontend hooks: Biome check, tsc type check, and Vitest. Python-only commits skip these entirely. This is controlled by `types_or: [ts, tsx]` and `files: ^frontend/` filters in `.pre-commit-config.yaml`.
+
 ### Code Style
 
 - **Component files:** PascalCase (`PlayerDrawer.tsx`). Named exports, not default exports.

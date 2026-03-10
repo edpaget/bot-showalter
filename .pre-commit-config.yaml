@@ -19,3 +19,24 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
+      - id: biome-check
+        name: biome check
+        entry: bash -c 'cd frontend && bunx biome check src'
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx]
+        files: ^frontend/
+      - id: tsc-check
+        name: tsc type check
+        entry: bash -c 'cd frontend && bunx tsc -b'
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx]
+        files: ^frontend/
+      - id: vitest
+        name: vitest
+        entry: bash -c 'cd frontend && bun run test'
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx]
+        files: ^frontend/
