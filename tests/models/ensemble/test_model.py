@@ -90,10 +90,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr", "rbi"],
             },
         )
@@ -118,10 +118,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg", "obp"],
                 "pt_stat": "pa",
             },
@@ -144,10 +144,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr"],
             },
         )
@@ -162,10 +162,10 @@ class TestEnsemblePredict:
         repo = FakeProjectionRepo([])
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr"],
             },
         )
@@ -181,10 +181,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 1.0},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr", "era"],
             },
             output_dir="/tmp/out",
@@ -210,10 +210,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 1.0},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr", "era"],
             },
         )
@@ -230,10 +230,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.5, "steamer": 0.5},
                 "mode": "weighted_average",
-                "season": 2025,
             },
         )
         result = model.predict(config)
@@ -251,10 +251,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr"],
             },
         )
@@ -272,10 +272,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["hr"],
             },
         )
@@ -293,10 +293,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr", "rbi"],
             },
         )
@@ -322,10 +322,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr"],
             },
         )
@@ -343,10 +343,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr"],
             },
         )
@@ -364,10 +364,10 @@ class TestEnsemblePredict:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "steamer": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["hr"],
             },
         )
@@ -392,10 +392,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg"],
                 "pt_stat": "pa",
                 "playing_time": "consensus",
@@ -418,10 +418,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["era"],
                 "pt_stat": "ip",
                 "playing_time": "consensus",
@@ -444,10 +444,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg", "obp"],
                 "pt_stat": "pa",
                 "playing_time": "consensus",
@@ -475,10 +475,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg"],
                 "pt_stat": "pa",
                 "playing_time": "consensus",
@@ -507,10 +507,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg", "era"],
                 "pt_stat": "pa",
                 "playing_time": "consensus",
@@ -535,10 +535,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["avg", "pa"],
                 "playing_time": "consensus",
             },
@@ -565,10 +565,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg"],
                 "pt_stat": "pa",
                 "playing_time": "consensus:steamer,zips,atc",
@@ -590,10 +590,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg"],
                 "pt_stat": "pa",
                 "playing_time": "steamer",
@@ -613,10 +613,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg"],
                 "pt_stat": "pa",
                 "playing_time": "no-such-system",
@@ -641,10 +641,10 @@ class TestEnsembleConsensusPT:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg"],
                 "pt_stat": "pa",
                 # no "playing_time" key
@@ -680,10 +680,10 @@ class TestEnsembleStatcastGBMIntegration:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
             },
         )
         result = model.predict(config)
@@ -732,10 +732,10 @@ class TestEnsembleStatcastGBMIntegration:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
             },
         )
         result = model.predict(config)
@@ -767,10 +767,10 @@ class TestEnsembleStatcastGBMIntegration:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["avg"],
             },
         )
@@ -791,10 +791,10 @@ class TestEnsembleStatcastGBMIntegration:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
             },
         )
         result = model.predict(config)
@@ -813,10 +813,10 @@ class TestEnsembleStatcastGBMIntegration:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
             },
         )
         result = model.predict(config)
@@ -848,10 +848,10 @@ class TestEnsembleStatcastGBMIntegration:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "blend_rates",
-                "season": 2025,
                 "stats": ["avg", "obp"],
                 "pt_stat": "pa",
             },
@@ -883,10 +883,10 @@ class TestEnsembleStatcastGBMIntegration:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"marcel": 0.6, "statcast-gbm": 0.4},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stats": ["avg"],
                 "versions": {"marcel": "v1", "statcast-gbm": "v1"},
             },
@@ -895,6 +895,118 @@ class TestEnsembleStatcastGBMIntegration:
         pred = result.predictions[0]
         # Only marcel v1 (avg=0.280) used, not "old" (avg=0.200)
         assert pred["avg"] == pytest.approx(0.280 * 0.6 + 0.270 * 0.4)
+
+    def test_versions_param_filters_by_season(self) -> None:
+        """Version-pinned fetch must only use projections from the target season."""
+        repo = FakeProjectionRepo(
+            [
+                # Target season (2026) — correct projection
+                Projection(
+                    player_id=1,
+                    season=2026,
+                    system="sgbm",
+                    version="latest",
+                    player_type="pitcher",
+                    stat_json={"era": 3.50},
+                ),
+                # Old season (2019) — should be ignored, not overwrite 2026
+                Projection(
+                    player_id=1,
+                    season=2019,
+                    system="sgbm",
+                    version="latest",
+                    player_type="pitcher",
+                    stat_json={"era": 9.10},
+                ),
+                _make_projection(1, "steamer", "pitcher", {"era": 3.80}, season=2026),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            seasons=[2026],
+            model_params={
+                "components": {"sgbm": 0.5, "steamer": 0.5},
+                "mode": "weighted_average",
+                "stats": ["era"],
+                "versions": {"sgbm": "latest"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # Should use 2026 sgbm (3.50), not 2019 (9.10)
+        assert pred["era"] == pytest.approx(3.50 * 0.5 + 3.80 * 0.5)
+
+    def test_multi_season_produces_per_season_predictions(self) -> None:
+        """config.seasons generates separate predictions per season."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"hr": 30.0}, season=2025),
+                _make_projection(1, "steamer", "batter", {"hr": 28.0}, season=2026),
+                _make_projection(2, "steamer", "batter", {"hr": 20.0}, season=2025),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            seasons=[2025, 2026],
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "weighted_average",
+                "stats": ["hr"],
+            },
+        )
+        result = model.predict(config)
+        by_key = {(p["player_id"], p["season"]): p for p in result.predictions}
+        assert by_key[(1, 2025)]["hr"] == pytest.approx(30.0)
+        assert by_key[(1, 2026)]["hr"] == pytest.approx(28.0)
+        assert by_key[(2, 2025)]["hr"] == pytest.approx(20.0)
+        assert (2, 2026) not in by_key
+
+    def test_multi_season_with_version_pinning(self) -> None:
+        """config.seasons + versions selects correct season from version-pinned system."""
+        repo = FakeProjectionRepo(
+            [
+                Projection(
+                    player_id=1,
+                    season=2024,
+                    system="sgbm",
+                    version="latest",
+                    player_type="pitcher",
+                    stat_json={"era": 4.00},
+                ),
+                Projection(
+                    player_id=1,
+                    season=2025,
+                    system="sgbm",
+                    version="latest",
+                    player_type="pitcher",
+                    stat_json={"era": 3.50},
+                ),
+                Projection(
+                    player_id=1,
+                    season=2026,
+                    system="sgbm",
+                    version="latest",
+                    player_type="pitcher",
+                    stat_json={"era": 9.10},  # should be excluded
+                ),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            seasons=[2024, 2025],
+            model_params={
+                "components": {"sgbm": 1.0},
+                "mode": "weighted_average",
+                "stats": ["era"],
+                "versions": {"sgbm": "latest"},
+            },
+        )
+        result = model.predict(config)
+        by_key = {p["season"]: p for p in result.predictions}
+        assert by_key[2024]["era"] == pytest.approx(4.00)
+        assert by_key[2025]["era"] == pytest.approx(3.50)
+        # 2026 should NOT be in results
+        assert 2026 not in by_key
 
 
 class TestEnsembleRoutedMode:
@@ -908,10 +1020,10 @@ class TestEnsembleRoutedMode:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "steamer", "obp": "statcast-gbm"},
             },
         )
@@ -930,10 +1042,10 @@ class TestEnsembleRoutedMode:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "statcast-gbm", "obp": "statcast-gbm"},
                 "fallback": "steamer",
             },
@@ -953,10 +1065,10 @@ class TestEnsembleRoutedMode:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "statcast-gbm"},
             },
         )
@@ -974,10 +1086,10 @@ class TestEnsembleRoutedMode:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.9, "statcast-gbm": 0.1},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "statcast-gbm"},
             },
         )
@@ -997,10 +1109,10 @@ class TestEnsembleRoutedMode:
         model = EnsembleModel(projection_repo=repo)
         routes = {"hr": "steamer", "obp": "statcast-gbm"}
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "routed",
-                "season": 2025,
                 "routes": routes,
             },
         )
@@ -1021,10 +1133,10 @@ class TestEnsembleStatWeights:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stat_weights": {
                     "obp": {"statcast-gbm": 1.0, "steamer": 0.0},
                     "hr": {"steamer": 1.0, "statcast-gbm": 0.0},
@@ -1046,10 +1158,10 @@ class TestEnsembleStatWeights:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stat_weights": {
                     "obp": {"statcast-gbm": 0.7, "steamer": 0.3},
                     "hr": {"statcast-gbm": 0.0, "steamer": 1.0},
@@ -1072,10 +1184,10 @@ class TestEnsembleStatWeights:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stat_weights": {
                     "obp": {"statcast-gbm": 0.7, "steamer": 0.3},
                 },
@@ -1097,10 +1209,10 @@ class TestEnsembleStatWeights:
         model = EnsembleModel(projection_repo=repo)
         stat_weights = {"hr": {"steamer": 0.6, "statcast-gbm": 0.4}}
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "weighted_average",
-                "season": 2025,
                 "stat_weights": stat_weights,
             },
         )
@@ -1120,9 +1232,9 @@ class TestEnsembleRouteGroups:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
-                "season": 2025,
                 "route_groups": {"batting_rate": "statcast-gbm", "batting_counting": "steamer"},
             },
         )
@@ -1144,9 +1256,9 @@ class TestEnsembleRouteGroups:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
-                "season": 2025,
                 "route_groups": {"batting_rate": "statcast-gbm"},
                 "routes": {"obp": "steamer"},
             },
@@ -1168,9 +1280,9 @@ class TestEnsembleRouteGroups:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
-                "season": 2025,
                 "stat_groups": {"key_stats": ["hr", "obp"]},
                 "route_groups": {"key_stats": "statcast-gbm"},
             },
@@ -1190,9 +1302,9 @@ class TestEnsembleRouteGroups:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
-                "season": 2025,
                 "route_groups": {"batting_rate": "statcast-gbm", "batting_counting": "statcast-gbm"},
                 "fallback": "steamer",
             },
@@ -1214,9 +1326,9 @@ class TestEnsembleRouteGroups:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
-                "season": 2025,
                 "route_groups": {"batting_rate": "statcast-gbm"},
             },
         )
@@ -1260,9 +1372,9 @@ class TestEnsembleRouteGroups:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 1.0},
-                "season": 2025,
                 "route_groups": {"league_required": "steamer"},
                 "league": league,
             },
@@ -1320,10 +1432,10 @@ class TestEnsembleCoverageValidation:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 1.0},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "steamer"},
                 "league": league,
             },
@@ -1345,10 +1457,10 @@ class TestEnsembleCoverageValidation:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 1.0},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "steamer"},
                 "league": league,
             },
@@ -1370,10 +1482,10 @@ class TestEnsembleCoverageValidation:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 1.0},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "steamer"},
                 "league": league,
                 "check": True,
@@ -1395,10 +1507,10 @@ class TestEnsembleCoverageValidation:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 1.0},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "steamer"},
                 "league": league,
                 "check": True,
@@ -1416,10 +1528,10 @@ class TestEnsembleCoverageValidation:
         )
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 1.0},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "steamer"},
                 # no league
             },
@@ -1445,10 +1557,10 @@ class TestEnsembleDryRun:
         repo = FakeProjectionRepo([])
         model = EnsembleModel(projection_repo=repo)
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "steamer", "obp": "statcast-gbm"},
                 "dry_run": True,
             },
@@ -1465,10 +1577,10 @@ class TestEnsembleDryRun:
         model = EnsembleModel(projection_repo=repo)
         routes = {"hr": "steamer", "obp": "statcast-gbm"}
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "routed",
-                "season": 2025,
                 "routes": routes,
                 "dry_run": True,
             },
@@ -1484,10 +1596,10 @@ class TestEnsembleDryRun:
         repo = _NeverCalledProjectionRepo()
         model = EnsembleModel(projection_repo=repo)  # type: ignore[arg-type]
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
                 "mode": "routed",
-                "season": 2025,
                 "routes": {"hr": "steamer"},
                 "dry_run": True,
             },
@@ -1501,9 +1613,9 @@ class TestEnsembleDryRun:
         repo = _NeverCalledProjectionRepo()
         model = EnsembleModel(projection_repo=repo)  # type: ignore[arg-type]
         config = ModelConfig(
+            seasons=[2025],
             model_params={
                 "components": {"steamer": 0.5, "statcast-gbm": 0.5},
-                "season": 2025,
                 "route_groups": {"batting_rate": "statcast-gbm", "batting_counting": "steamer"},
                 "dry_run": True,
             },

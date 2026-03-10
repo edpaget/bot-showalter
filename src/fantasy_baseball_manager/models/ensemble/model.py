@@ -57,7 +57,7 @@ class EnsembleModel:
         params = config.model_params
         components: dict[str, float] = params["components"]
         mode: str = params.get("mode", "weighted_average")
-        season: int = params["season"]
+        seasons: list[int] = config.seasons
         stats: Sequence[str] | None = params.get("stats")
         pt_stat: str = params.get("pt_stat", "pa")
         versions: dict[str, str] = params.get("versions", {})
@@ -100,31 +100,37 @@ class EnsembleModel:
                 output_path=output_path,
             )
 
-        # Fetch projections for each component system
+        # Fetch projections for each component system, filtered to target seasons
         system_projections: dict[str, list[Projection]] = {}
         for system in components:
             if system in versions:
-                system_projections[system] = self._projection_repo.get_by_system_version(system, versions[system])
+                all_versions = self._projection_repo.get_by_system_version(system, versions[system])
+                system_projections[system] = [p for p in all_versions if p.season in seasons]
             else:
-                system_projections[system] = self._projection_repo.get_by_season(season, system=system)
+                projs: list[Projection] = []
+                for s in seasons:
+                    projs.extend(self._projection_repo.get_by_season(s, system=system))
+                system_projections[system] = projs
 
-        # Build consensus PT lookup when requested
-        consensus: ConsensusLookup | None = resolve_playing_time(
-            pt_mode,
-            season,
-            fetch_projections=self._projection_repo.get_by_season,
-        )
-
-        # Group by (player_id, player_type)
-        grouped: dict[tuple[int, str], dict[str, Projection]] = defaultdict(dict)
+        # Group by (player_id, player_type, season)
+        grouped: dict[tuple[int, str, int], dict[str, Projection]] = defaultdict(dict)
         for system, projections in system_projections.items():
             for proj in projections:
-                grouped[(proj.player_id, proj.player_type)][system] = proj
+                grouped[(proj.player_id, proj.player_type, proj.season)][system] = proj
 
-        # Compute ensemble for each player
+        # Build consensus PT lookup per season when requested
+        consensus_by_season: dict[int, ConsensusLookup | None] = {}
+        for s in seasons:
+            consensus_by_season[s] = resolve_playing_time(
+                pt_mode,
+                s,
+                fetch_projections=self._projection_repo.get_by_season,
+            )
+
+        # Compute ensemble for each player-season
         predictions: list[dict[str, Any]] = []
         all_distributions: list[dict[str, Any]] = []
-        for (player_id, player_type), system_map in grouped.items():
+        for (player_id, player_type, pred_season), system_map in grouped.items():
             # Collect (stat_json, weight) pairs for available systems
             pairs: list[tuple[dict[str, Any], float]] = []
             for system, weight in components.items():
@@ -137,13 +143,14 @@ class EnsembleModel:
             # Determine stats to average
             effective_stats = stats
             if effective_stats is None:
-                # Use union of all stats across available systems
+                # Use union of all stats across available systems (skip metadata keys)
                 all_keys: set[str] = set()
                 for stat_json, _ in pairs:
-                    all_keys.update(stat_json.keys())
+                    all_keys.update(k for k in stat_json if not k.startswith("_"))
                 effective_stats = sorted(all_keys)
 
             # Resolve consensus PT for this player
+            consensus = consensus_by_season.get(pred_season)
             cpt: float | None = None
             cpt_key: str = pt_stat
             if consensus is not None:
@@ -175,7 +182,7 @@ class EnsembleModel:
                 predictions.append(
                     {
                         "player_id": player_id,
-                        "season": season,
+                        "season": pred_season,
                         "player_type": player_type,
                         **result_stats,
                         "_components": dict(components),
@@ -192,7 +199,7 @@ class EnsembleModel:
                         {
                             "player_id": player_id,
                             "player_type": player_type,
-                            "season": season,
+                            "season": pred_season,
                             "stat": stat_name,
                             "p10": dist.p10,
                             "p25": dist.p25,
