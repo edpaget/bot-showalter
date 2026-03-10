@@ -16,7 +16,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Keeper Draft Integration](keeper-draft-integration.md) | 5 | phases 1-3 done | keeper-optimization-solver (done), keeper-surplus-value (done), web-ui-foundation phases 1-5 (done), adp-arbitrage-alerts (done) |
 | [Frontend DX](frontend-dx.md) | 5 | phases 1-4 done | web-ui-foundation (done) |
 | [Direct Rate Stats](zar-direct-rate-stats.md) | 2 | phase 1 done | none |
-| [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 | not started | direct-rate-stats phase 1 (done) |
+| [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 | phase 1 done | direct-rate-stats phase 1 (done) |
 
 ## Completed Roadmaps
 
