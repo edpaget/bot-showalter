@@ -196,3 +196,84 @@ class TestRunSgpPipeline:
         result = run_sgp_pipeline(stats, categories, denominators, positions, roster_spots, num_teams=1, budget=100.0)
         # ERA SGP should be identical
         assert result.sgp_scores[0].category_sgp["era"] == pytest.approx(result.sgp_scores[1].category_sgp["era"])
+
+
+class TestComputeSgpScoresDirectRates:
+    def test_direct_rate_used_when_present(self) -> None:
+        """When stats dict has 'avg' field that disagrees with h/ab, direct rate wins."""
+        stats = [
+            {"h": 150.0, "ab": 500.0, "avg": 0.350},  # h/ab=0.300, but avg=0.350
+            {"h": 125.0, "ab": 500.0, "avg": 0.200},  # h/ab=0.250, but avg=0.200
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        denominators = {"avg": 0.005}
+        result_direct = compute_sgp_scores(stats, categories, denominators, use_direct_rates=True)
+        result_derived = compute_sgp_scores(stats, categories, denominators, use_direct_rates=False)
+        # Results should differ
+        assert result_direct[0].category_sgp["avg"] != pytest.approx(result_derived[0].category_sgp["avg"])
+
+    def test_median_baseline_uses_direct_rates(self) -> None:
+        """Baseline should be median of direct rates, not derived rates."""
+        # Three players with direct avg: 0.300, 0.280, 0.260 → median = 0.280
+        # Derived avg would be: 0.250, 0.250, 0.250 → median = 0.250
+        stats = [
+            {"h": 125.0, "ab": 500.0, "avg": 0.300},
+            {"h": 125.0, "ab": 500.0, "avg": 0.280},
+            {"h": 125.0, "ab": 500.0, "avg": 0.260},
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        denominators = {"avg": 0.005}
+        result = compute_sgp_scores(stats, categories, denominators, use_direct_rates=True)
+        # Baseline = median(0.300, 0.280, 0.260) = 0.280
+        # Player 0: (0.300 - 0.280) / 0.005 = 4.0
+        # Player 2: (0.260 - 0.280) / 0.005 = -4.0
+        assert result[0].category_sgp["avg"] == pytest.approx(4.0)
+        assert result[2].category_sgp["avg"] == pytest.approx(-4.0)
+
+    def test_fallback_when_key_missing(self) -> None:
+        """Player without direct rate key falls back to derived calculation."""
+        stats = [
+            {"h": 150.0, "ab": 500.0, "avg": 0.350},  # has direct rate
+            {"h": 125.0, "ab": 500.0},  # no avg key → derived = 0.250
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        denominators = {"avg": 0.005}
+        result = compute_sgp_scores(stats, categories, denominators, use_direct_rates=True)
+        # Baseline = median(0.350, 0.250) = 0.300
+        # Player 0: (0.350 - 0.300) / 0.005 = 10.0
+        # Player 1: (0.250 - 0.300) / 0.005 = -10.0  (derived rate used)
+        assert result[0].category_sgp["avg"] == pytest.approx(10.0)
+        assert result[1].category_sgp["avg"] == pytest.approx(-10.0)
+
+    def test_false_preserves_behavior(self) -> None:
+        """Explicit use_direct_rates=False matches default behavior."""
+        stats = [
+            {"h": 150.0, "ab": 500.0, "avg": 0.350},
+            {"h": 125.0, "ab": 500.0, "avg": 0.200},
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        denominators = {"avg": 0.005}
+        result_default = compute_sgp_scores(stats, categories, denominators)
+        result_false = compute_sgp_scores(stats, categories, denominators, use_direct_rates=False)
+        assert result_default[0].category_sgp == result_false[0].category_sgp
+        assert result_default[1].category_sgp == result_false[1].category_sgp
+
+    def test_pipeline_with_direct_rates(self) -> None:
+        """run_sgp_pipeline with use_direct_rates=True produces different scores."""
+        stats = [
+            {"hr": 30.0, "h": 150.0, "ab": 500.0, "avg": 0.350},
+            {"hr": 20.0, "h": 100.0, "ab": 400.0, "avg": 0.200},
+        ]
+        categories = [_counting("hr"), _rate("avg", "h", "ab")]
+        denominators = {"hr": 5.0, "avg": 0.005}
+        positions = [["of"], ["of"]]
+        roster_spots = {"of": 2}
+        result_off = run_sgp_pipeline(
+            stats, categories, denominators, positions, roster_spots, num_teams=1, budget=100.0, use_direct_rates=False
+        )
+        result_on = run_sgp_pipeline(
+            stats, categories, denominators, positions, roster_spots, num_teams=1, budget=100.0, use_direct_rates=True
+        )
+        sgp_off = [s.composite_sgp for s in result_off.sgp_scores]
+        sgp_on = [s.composite_sgp for s in result_on.sgp_scores]
+        assert sgp_off != sgp_on

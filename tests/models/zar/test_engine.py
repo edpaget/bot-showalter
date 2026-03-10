@@ -669,3 +669,107 @@ class TestRunZarPipeline:
         assert result.replacement["of"] == pytest.approx(-1.0)
         assert result.dollar_values[0] == pytest.approx(20.0)
         assert result.dollar_values[1] == pytest.approx(0.0)
+
+
+class TestConvertRateStatsDirectRates:
+    def test_direct_rate_used_when_present(self) -> None:
+        """When stats dict has an 'avg' field that disagrees with h/ab, direct rate wins."""
+        # h/ab = 150/500 = 0.300, but avg field says 0.320
+        stats = [
+            {"h": 150.0, "ab": 500.0, "avg": 0.320},
+            {"h": 100.0, "ab": 400.0, "avg": 0.260},
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        result_direct = convert_rate_stats(stats, categories, use_direct_rates=True)
+        result_derived = convert_rate_stats(stats, categories, use_direct_rates=False)
+        # Direct and derived should differ because avg != h/ab
+        assert result_direct[0]["avg"] != pytest.approx(result_derived[0]["avg"])
+
+    def test_baseline_volume_weighted(self) -> None:
+        """Baseline should be volume-weighted mean of direct rates."""
+        # Player A: avg=0.300, ab=600; Player B: avg=0.250, ab=400
+        # Weighted baseline = (0.300*600 + 0.250*400) / (600+400) = (180+100)/1000 = 0.280
+        # Marginal A = (0.300 - 0.280) * 600 = 12.0
+        # Marginal B = (0.250 - 0.280) * 400 = -12.0
+        stats = [
+            {"h": 999.0, "ab": 600.0, "avg": 0.300},  # h is irrelevant when direct
+            {"h": 999.0, "ab": 400.0, "avg": 0.250},
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        result = convert_rate_stats(stats, categories, use_direct_rates=True)
+        assert result[0]["avg"] == pytest.approx(12.0)
+        assert result[1]["avg"] == pytest.approx(-12.0)
+
+    def test_fallback_when_key_missing(self) -> None:
+        """Player without direct rate key falls back to derived calculation."""
+        # Player A has avg field, Player B does not
+        # Player A: avg=0.320, ab=500
+        # Player B: h=100, ab=400 → derived rate = 0.250
+        # Baseline: weighted mean = (0.320*500 + 0.250*400)/(500+400) = (160+100)/900 ≈ 0.28889
+        # Marginal A = (0.320 - 0.28889) * 500 ≈ 15.556
+        # Marginal B = (0.250 - 0.28889) * 400 ≈ -15.556
+        stats = [
+            {"h": 150.0, "ab": 500.0, "avg": 0.320},
+            {"h": 100.0, "ab": 400.0},  # no avg key
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        result = convert_rate_stats(stats, categories, use_direct_rates=True)
+        assert result[0]["avg"] == pytest.approx(15.556, abs=0.01)
+        assert result[1]["avg"] == pytest.approx(-15.556, abs=0.01)
+
+    def test_counting_stats_unaffected(self) -> None:
+        """Counting stats produce the same result regardless of the flag."""
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        categories = [_counting("hr")]
+        result_off = convert_rate_stats(stats, categories, use_direct_rates=False)
+        result_on = convert_rate_stats(stats, categories, use_direct_rates=True)
+        assert result_off == result_on
+
+    def test_mixed_categories(self) -> None:
+        """One counting + one rate category with flag on."""
+        stats = [
+            {"hr": 30.0, "h": 150.0, "ab": 500.0, "avg": 0.320},
+            {"hr": 20.0, "h": 100.0, "ab": 400.0, "avg": 0.260},
+        ]
+        categories = [_counting("hr"), _rate("avg", "h", "ab")]
+        result = convert_rate_stats(stats, categories, use_direct_rates=True)
+        # Counting: unchanged
+        assert result[0]["hr"] == 30.0
+        assert result[1]["hr"] == 20.0
+        # Rate: uses direct rates (0.320 and 0.260), not h/ab
+        # Baseline = (0.320*500 + 0.260*400) / 900 = (160+104)/900 ≈ 0.29333
+        assert result[0]["avg"] == pytest.approx((0.320 - 0.29333) * 500, abs=0.1)
+
+    def test_false_preserves_behavior(self) -> None:
+        """Explicit use_direct_rates=False produces identical results to no-flag call."""
+        stats = [
+            {"h": 150.0, "ab": 500.0, "avg": 0.320},
+            {"h": 100.0, "ab": 400.0, "avg": 0.260},
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        result_default = convert_rate_stats(stats, categories)
+        result_false = convert_rate_stats(stats, categories, use_direct_rates=False)
+        assert result_default == result_false
+
+    def test_pipeline_with_direct_rates(self) -> None:
+        """run_zar_pipeline with use_direct_rates=True produces different z-scores."""
+        # Three players with rate stats that diverge from counting components.
+        # With 3 players, z-score normalization doesn't collapse to ±1.
+        stats = [
+            {"h": 150.0, "ab": 500.0, "avg": 0.350},  # derived=0.300, direct=0.350
+            {"h": 100.0, "ab": 400.0, "avg": 0.200},  # derived=0.250, direct=0.200
+            {"h": 120.0, "ab": 400.0, "avg": 0.280},  # derived=0.300, direct=0.280
+        ]
+        categories = [_rate("avg", "h", "ab")]
+        positions = [["of"], ["of"], ["of"]]
+        roster_spots = {"of": 3}
+        result_off = run_zar_pipeline(
+            stats, categories, positions, roster_spots, num_teams=1, budget=100.0, use_direct_rates=False
+        )
+        result_on = run_zar_pipeline(
+            stats, categories, positions, roster_spots, num_teams=1, budget=100.0, use_direct_rates=True
+        )
+        # Category z-scores should differ because marginal contributions change
+        z_off = [pz.category_z["avg"] for pz in result_off.z_scores]
+        z_on = [pz.category_z["avg"] for pz in result_on.z_scores]
+        assert z_off != z_on

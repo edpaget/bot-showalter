@@ -33,6 +33,8 @@ def compute_sgp_scores(
     stats_list: list[dict[str, float]],
     categories: list[CategoryConfig],
     denominators: dict[str, float],
+    *,
+    use_direct_rates: bool = False,
 ) -> list[PlayerSgpScores]:
     """Compute per-category SGP scores for each player.
 
@@ -41,6 +43,11 @@ def compute_sgp_scores(
                 sgp = (baseline - player_rate) / abs(denom) (lower-is-better)
 
     No IP/PA multiplication for rate stats — this is the key difference from ZAR.
+
+    When *use_direct_rates* is ``True``, rate categories read the player rate
+    directly from ``stats[cat.key]`` instead of deriving from components.
+    The baseline becomes the median of direct rates.  Falls back to the
+    derived calculation for players missing the key.
     """
     if not stats_list:
         return []
@@ -53,8 +60,10 @@ def compute_sgp_scores(
             for stats in stats_list:
                 denom_val = stats.get(cat.denominator, 0.0)
                 if denom_val > 0.0:
-                    rate = resolve_numerator(cat.numerator, stats) / denom_val
-                    rates.append(rate)
+                    if use_direct_rates and cat.key in stats:
+                        rates.append(stats[cat.key])
+                    else:
+                        rates.append(resolve_numerator(cat.numerator, stats) / denom_val)
             baselines[cat.key] = statistics.median(rates) if rates else 0.0
 
     result: list[PlayerSgpScores] = []
@@ -74,7 +83,10 @@ def compute_sgp_scores(
                 if denom_val <= 0.0:
                     category_sgp[cat.key] = 0.0
                     continue
-                player_rate = resolve_numerator(cat.numerator, stats) / denom_val
+                if use_direct_rates and cat.key in stats:
+                    player_rate = stats[cat.key]
+                else:
+                    player_rate = resolve_numerator(cat.numerator, stats) / denom_val
                 baseline = baselines[cat.key]
                 if cat.direction is Direction.LOWER:
                     category_sgp[cat.key] = (baseline - player_rate) / abs(denom)
@@ -100,12 +112,14 @@ def run_sgp_pipeline(
     roster_spots: dict[str, int],
     num_teams: int,
     budget: float,
+    *,
+    use_direct_rates: bool = False,
 ) -> SgpPipelineResult:
     """Run the full SGP pipeline: SGP scores → replacement → VAR → dollars."""
     if not stats_list:
         return SgpPipelineResult(sgp_scores=[], replacement={}, dollar_values=[])
 
-    sgp_scores = compute_sgp_scores(stats_list, categories, denominators)
+    sgp_scores = compute_sgp_scores(stats_list, categories, denominators, use_direct_rates=use_direct_rates)
 
     # Reuse ZAR's replacement/VAR/dollars logic — it operates on composite scores
     # and positions, agnostic to whether the scores are z-scores or SGP.

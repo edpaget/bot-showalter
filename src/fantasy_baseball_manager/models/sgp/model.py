@@ -112,6 +112,9 @@ class SgpModel:
         batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) >= min_pa]
         pitcher_projs = [p for p in projections if p.player_type == "pitcher" and p.stat_json.get("ip", 0) >= min_ip]
 
+        # 3.5. Direct rate stats flag
+        use_direct_rates: bool = config.model_params.get("use_direct_rates", False)
+
         # 4. Budget split
         batter_budget, pitcher_budget = compute_budget_split(league)
 
@@ -127,6 +130,7 @@ class SgpModel:
             season,
             version,
             proj_system,
+            use_direct_rates=use_direct_rates,
         )
 
         # 6. Run SGP for pitchers
@@ -149,6 +153,7 @@ class SgpModel:
             version,
             proj_system,
             pitcher_roster_spots=pitcher_roster_spots,
+            use_direct_rates=use_direct_rates,
         )
 
         # 7. Rank all valuations combined
@@ -196,6 +201,7 @@ class SgpModel:
         proj_system: str,
         *,
         pitcher_roster_spots: dict[str, int] | None = None,
+        use_direct_rates: bool = False,
     ) -> list[Valuation]:
         """Run the full SGP pipeline for one player pool."""
         if not projections:
@@ -219,6 +225,7 @@ class SgpModel:
             roster_spots,
             league.teams,
             budget,
+            use_direct_rates=use_direct_rates,
         )
 
         valuations: list[Valuation] = []

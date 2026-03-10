@@ -99,6 +99,7 @@ class ZarModel:
 
         # 3.5a. Category weights (optional, for ZAR reform)
         category_weights: dict[str, float] | None = config.model_params.get("category_weights")
+        use_direct_rates: bool = config.model_params.get("use_direct_rates", False)
 
         # 3.5. Variance correction: split pre-computed stdev overrides by pool
         batter_stdev_overrides: dict[str, float] | None = None
@@ -123,6 +124,7 @@ class ZarModel:
             proj_system,
             stdev_overrides=batter_stdev_overrides,
             category_weights=category_weights,
+            use_direct_rates=use_direct_rates,
             system=valuation_system,
         )
 
@@ -147,6 +149,7 @@ class ZarModel:
             pitcher_roster_spots=pitcher_roster_spots,
             stdev_overrides=pitcher_stdev_overrides,
             category_weights=category_weights,
+            use_direct_rates=use_direct_rates,
             system=valuation_system,
         )
 
@@ -196,6 +199,7 @@ class ZarModel:
         pitcher_roster_spots: dict[str, int] | None = None,
         stdev_overrides: dict[str, float] | None = None,
         category_weights: dict[str, float] | None = None,
+        use_direct_rates: bool = False,
         system: str = "zar",
     ) -> list[Valuation]:
         """Run the full ZAR pipeline for one player pool (batters or pitchers)."""
@@ -221,6 +225,7 @@ class ZarModel:
             budget,
             stdev_overrides=stdev_overrides,
             category_weights=category_weights,
+            use_direct_rates=use_direct_rates,
         )
 
         # Build Valuation objects (rank=0 placeholder, filled later)

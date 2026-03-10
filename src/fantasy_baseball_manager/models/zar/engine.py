@@ -32,21 +32,41 @@ def resolve_numerator(expression: str, stats: dict[str, float]) -> float:
 def convert_rate_stats(
     stats_list: list[dict[str, float]],
     categories: list[CategoryConfig],
+    *,
+    use_direct_rates: bool = False,
 ) -> list[dict[str, float]]:
     """Convert rate stats to marginal contributions; negate counting stats with LOWER direction.
+
+    When *use_direct_rates* is ``True``, rate categories read the player rate
+    directly from ``stats[cat.key]`` (e.g. ``stats["avg"]``) instead of
+    deriving it from ``numerator / denominator``.  The baseline becomes a
+    volume-weighted mean of direct rates.  Falls back to the derived
+    calculation for players missing the key.
 
     Returns new dicts — input is not mutated.
     """
     if not stats_list:
         return []
 
-    # Pre-compute baselines for rate categories (ratio of sums)
+    # Pre-compute baselines for rate categories
     baselines: dict[str, float] = {}
     for cat in categories:
         if cat.stat_type is StatType.RATE and cat.numerator and cat.denominator:
-            total_num = sum(resolve_numerator(cat.numerator, s) for s in stats_list)
-            total_denom = sum(s.get(cat.denominator, 0.0) for s in stats_list)
-            baselines[cat.key] = total_num / total_denom if total_denom else 0.0
+            if use_direct_rates:
+                # Volume-weighted mean of direct rates
+                weighted_sum = 0.0
+                total_denom = 0.0
+                for s in stats_list:
+                    d = s.get(cat.denominator, 0.0)
+                    if d > 0.0:
+                        rate = s[cat.key] if cat.key in s else resolve_numerator(cat.numerator, s) / d
+                        weighted_sum += rate * d
+                        total_denom += d
+                baselines[cat.key] = weighted_sum / total_denom if total_denom else 0.0
+            else:
+                total_num = sum(resolve_numerator(cat.numerator, s) for s in stats_list)
+                total_denom = sum(s.get(cat.denominator, 0.0) for s in stats_list)
+                baselines[cat.key] = total_num / total_denom if total_denom else 0.0
 
     result: list[dict[str, float]] = []
     for stats in stats_list:
@@ -60,7 +80,10 @@ def convert_rate_stats(
                 if denom == 0.0:
                     row[cat.key] = 0.0
                 else:
-                    player_rate = resolve_numerator(cat.numerator, stats) / denom
+                    if use_direct_rates and cat.key in stats:
+                        player_rate = stats[cat.key]
+                    else:
+                        player_rate = resolve_numerator(cat.numerator, stats) / denom
                     baseline = baselines[cat.key]
                     if cat.direction is Direction.LOWER:
                         row[cat.key] = (baseline - player_rate) * denom
@@ -230,12 +253,13 @@ def run_zar_pipeline(
     *,
     stdev_overrides: dict[str, float] | None = None,
     category_weights: dict[str, float] | None = None,
+    use_direct_rates: bool = False,
 ) -> ZarPipelineResult:
     """Run the full ZAR pipeline: convert → z-score → replacement → VAR → dollars."""
     if not stats_list:
         return ZarPipelineResult(z_scores=[], replacement={}, dollar_values=[])
     category_keys = [c.key for c in categories]
-    converted = convert_rate_stats(stats_list, categories)
+    converted = convert_rate_stats(stats_list, categories, use_direct_rates=use_direct_rates)
     z_scores = compute_z_scores(
         converted, category_keys, stdev_overrides=stdev_overrides, category_weights=category_weights
     )
