@@ -13,7 +13,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Evaluation Framework](evaluation-framework.md) | 4 | phases 1-3 done | none |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
-| [Valuation Reform](valuation-reform.md) | 4 | phases 1-2 done | league-standings-import, evaluation-framework phase 2 |
+| [Valuation Reform](valuation-reform.md) | 4 | phases 1-3 done | league-standings-import, evaluation-framework phase 2 |
 
 ## Completed Roadmaps
 
