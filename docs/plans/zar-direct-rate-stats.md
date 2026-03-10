@@ -8,7 +8,7 @@ This roadmap adds an opt-in mode to both engines that uses projected rate stats 
 
 | Phase | Status |
 |-------|--------|
-| 1 — Direct rate stat mode in ZAR and SGP engines | not started |
+| 1 — Direct rate stat mode in ZAR and SGP engines | in progress |
 | 2 — Validation on holdout seasons | not started |
 
 ## Phase 1: Direct rate stat mode in ZAR and SGP engines
