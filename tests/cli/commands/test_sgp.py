@@ -69,7 +69,7 @@ def _mock_sgp_context(ctx: SgpContext) -> Iterator[None]:
     def factory(data_dir: str) -> Iterator[SgpContext]:
         yield ctx
 
-    with patch("fantasy_baseball_manager.cli.commands.sgp.build_sgp_context", factory):
+    with patch("fantasy_baseball_manager.cli.commands.valuations.build_sgp_context", factory):
         yield
 
 
@@ -80,7 +80,7 @@ def test_sgp_denominators_command(conn: sqlite3.Connection) -> None:
     with _mock_sgp_context(ctx):
         result = runner.invoke(
             app,
-            ["sgp", "denominators", "--league", "h2h", "--yahoo-league", "412.l.91300"],
+            ["valuations", "sgp-denominators", "--league", "h2h", "--yahoo-league", "412.l.91300"],
         )
 
     assert result.exit_code == 0, result.output
@@ -95,7 +95,7 @@ def test_sgp_denominators_seasons_filter(conn: sqlite3.Connection) -> None:
     with _mock_sgp_context(ctx):
         result = runner.invoke(
             app,
-            ["sgp", "denominators", "--league", "h2h", "--yahoo-league", "412.l.91300", "--seasons", "1"],
+            ["valuations", "sgp-denominators", "--league", "h2h", "--yahoo-league", "412.l.91300", "--seasons", "1"],
         )
 
     assert result.exit_code == 0, result.output

@@ -36,7 +36,6 @@ from fantasy_baseball_manager.cli.commands.quick_eval import quick_eval_cmd
 from fantasy_baseball_manager.cli.commands.report import report_app
 from fantasy_baseball_manager.cli.commands.residuals import residuals_app
 from fantasy_baseball_manager.cli.commands.runs import runs_app
-from fantasy_baseball_manager.cli.commands.sgp import sgp_app
 from fantasy_baseball_manager.cli.commands.standalone import (
     chat_cmd,
     compare_cmd,
@@ -104,6 +103,5 @@ app.add_typer(experiment_app, name="experiment")
 app.add_typer(feature_app, name="feature")
 app.add_typer(keeper_app, name="keeper")
 app.add_typer(profile_app, name="profile")
-app.add_typer(sgp_app, name="sgp")
 app.add_typer(validate_app, name="validate")
 app.add_typer(yahoo_app, name="yahoo")
