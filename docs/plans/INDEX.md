@@ -14,7 +14,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Web UI Foundation](web-ui-foundation.md) | 6 | phases 1-5 done | draft-session-persistence (phase 2 needs phases 1-2) |
 | [ADP Arbitrage Alerts](adp-arbitrage-alerts.md) | 3 | phases 1-2 done | live-draft-tracker (done), adp-integration (done) |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
-| [Valuation Reform](valuation-reform.md) | 4 | not started | league-standings-import, evaluation-framework phase 2 |
+| [Valuation Reform](valuation-reform.md) | 4 | phase 1 in progress | league-standings-import, evaluation-framework phase 2 |
 
 ## Completed Roadmaps
 

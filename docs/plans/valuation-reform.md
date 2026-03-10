@@ -14,7 +14,7 @@ The circular evaluation target problem (actual ZAR$ uses the same flawed formula
 
 | Phase | Status |
 |-------|--------|
-| 1 — SGP denominator computation | not started |
+| 1 — SGP denominator computation | in progress |
 | 2 — SGP valuation engine | not started |
 | 3 — ZAR category signal reform | not started |
 | 4 — Head-to-head validation and production adoption | not started |
