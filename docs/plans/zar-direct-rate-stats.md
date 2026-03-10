@@ -9,7 +9,7 @@ This roadmap adds an opt-in mode to both engines that uses projected rate stats 
 | Phase | Status |
 |-------|--------|
 | 1 — Direct rate stat mode in ZAR and SGP engines | done (2026-03-09) |
-| 2 — Validation on holdout seasons | in progress |
+| 2 — Validation on holdout seasons | done (2026-03-10) — **no-go** |
 
 ## Phase 1: Direct rate stat mode in ZAR and SGP engines
 
@@ -79,6 +79,46 @@ The whole point of phase 1 is to let statcast-gbm-preseason's rate stat predicti
 - Go/no-go decision recorded in the status table with key metrics.
 - If go: update production valuation version to use direct rates with the routed ensemble.
 - If no-go: document findings and leave default as `use_direct_rates=False`.
+
+### Results
+
+**Decision: NO-GO.** Direct rate stats via `use_direct_rates=True` regress valuation accuracy across most engine/season combinations. The default remains `use_direct_rates=False`.
+
+#### ZAR-reformed: direct-rate vs holdout (steamer-only baseline)
+
+| Metric | 2024 baseline | 2024 direct-rate | 2024 Δ | 2025 baseline | 2025 direct-rate | 2025 Δ |
+|--------|--------------|-----------------|--------|--------------|-----------------|--------|
+| Value MAE | 14.63 | 15.01 | +0.38 | 13.88 | 14.52 | +0.64 |
+| WAR ρ (all) | 0.2162 | 0.0832 | **-0.1330** | 0.2412 | 0.1615 | **-0.0797** |
+| WAR ρ (batters) | 0.2002 | 0.1679 | -0.0323 | 0.2001 | 0.2598 | +0.0597 |
+| WAR ρ (pitchers) | 0.2184 | -0.0085 | **-0.2269** | 0.2480 | 0.0572 | **-0.1908** |
+| Hit rate top-25 | 28.0% | 28.0% | +0.0pp | 40.0% | 44.0% | +4.0pp |
+| Hit rate top-50 | 40.0% | 40.0% | +0.0pp | 46.0% | 44.0% | -2.0pp |
+| Hit rate top-100 | 48.0% | 37.0% | -11.0pp | 52.0% | 43.0% | -9.0pp |
+| Check | FAIL | | | FAIL | | |
+
+Note: `routed-sgbm` (pre-phase-1, without `use_direct_rates`) produces identical valuations to `holdout` (steamer-only), confirming that rate stats were previously derived from counting stats as expected.
+
+#### SGP: direct-rate vs holdout (steamer-only baseline)
+
+| Metric | 2024 baseline | 2024 direct-rate | 2024 Δ | 2025 baseline | 2025 direct-rate | 2025 Δ |
+|--------|--------------|-----------------|--------|--------------|-----------------|--------|
+| Value MAE | 15.99 | 17.55 | +1.56 | 16.17 | 16.36 | +0.19 |
+| WAR ρ (all) | 0.0628 | -0.0562 | **-0.1190** | 0.0866 | 0.1333 | +0.0467 |
+| WAR ρ (batters) | 0.1002 | -0.0993 | -0.1995 | 0.0691 | 0.1456 | +0.0765 |
+| WAR ρ (pitchers) | -0.0039 | -0.0438 | -0.0399 | 0.0215 | 0.0819 | +0.0604 |
+| Hit rate top-25 | 20.0% | 20.0% | +0.0pp | 24.0% | 28.0% | +4.0pp |
+| Hit rate top-50 | 36.0% | 28.0% | -8.0pp | 36.0% | 36.0% | +0.0pp |
+| Hit rate top-100 | 45.0% | 36.0% | -9.0pp | 43.0% | 47.0% | +4.0pp |
+| Check | FAIL | | | PASS | | |
+
+#### Analysis
+
+- **Pitcher WAR ρ regresses badly in ZAR-reformed** on both seasons (-0.23 and -0.19), the opposite of what was hoped. The statcast-gbm-preseason rate projections, while potentially more accurate in isolation, appear to create inconsistencies when combined with steamer counting stats in the ZAR marginal-value framework.
+- **SGP shows mixed results**: strong regression in 2024 but improvement in 2025. Not consistent enough to warrant adoption.
+- **Hit rate top-100 degrades consistently** across most comparisons, suggesting direct rates hurt the middle-tier player ordering.
+- **Batter WAR ρ improves in 2025** for both engines, hinting that the rate stat signal has value for batters in some seasons, but not reliably.
+- The routed ensemble's value likely comes from its counting stat routing, not from injecting external rate stats into the valuation formula. The marginal-value computation in ZAR and SGP is tightly coupled to the relationship between rate stats and their denominators — using rates from a different source than the denominators breaks this coupling.
 
 ## Ordering
 
