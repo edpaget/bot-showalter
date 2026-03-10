@@ -97,6 +97,9 @@ class ZarModel:
         # 3. Budget split proportional to category count
         batter_budget, pitcher_budget = compute_budget_split(league)
 
+        # 3.5a. Category weights (optional, for ZAR reform)
+        category_weights: dict[str, float] | None = config.model_params.get("category_weights")
+
         # 3.5. Variance correction: split pre-computed stdev overrides by pool
         batter_stdev_overrides: dict[str, float] | None = None
         pitcher_stdev_overrides: dict[str, float] | None = None
@@ -119,6 +122,7 @@ class ZarModel:
             version,
             proj_system,
             stdev_overrides=batter_stdev_overrides,
+            category_weights=category_weights,
             system=valuation_system,
         )
 
@@ -142,6 +146,7 @@ class ZarModel:
             proj_system,
             pitcher_roster_spots=pitcher_roster_spots,
             stdev_overrides=pitcher_stdev_overrides,
+            category_weights=category_weights,
             system=valuation_system,
         )
 
@@ -190,6 +195,7 @@ class ZarModel:
         *,
         pitcher_roster_spots: dict[str, int] | None = None,
         stdev_overrides: dict[str, float] | None = None,
+        category_weights: dict[str, float] | None = None,
         system: str = "zar",
     ) -> list[Valuation]:
         """Run the full ZAR pipeline for one player pool (batters or pitchers)."""
@@ -214,6 +220,7 @@ class ZarModel:
             league.teams,
             budget,
             stdev_overrides=stdev_overrides,
+            category_weights=category_weights,
         )
 
         # Build Valuation objects (rank=0 placeholder, filled later)

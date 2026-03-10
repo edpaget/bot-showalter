@@ -285,6 +285,54 @@ class TestComputeZScores:
         assert without[1].category_z == with_none[1].category_z
 
 
+class TestCategoryWeights:
+    def test_category_weights_applied(self) -> None:
+        """Weight of 0.5 on one category halves its contribution to composite."""
+        stats = [{"hr": 30.0, "rbi": 100.0}, {"hr": 20.0, "rbi": 80.0}]
+        unweighted = compute_z_scores(stats, ["hr", "rbi"])
+        weighted = compute_z_scores(stats, ["hr", "rbi"], category_weights={"hr": 0.5, "rbi": 1.0})
+        # HR z-scores are the same, but composite differs because HR contribution is halved
+        assert weighted[0].category_z["hr"] == unweighted[0].category_z["hr"]
+        expected_composite = unweighted[0].category_z["hr"] * 0.5 + unweighted[0].category_z["rbi"]
+        assert weighted[0].composite_z == pytest.approx(expected_composite)
+
+    def test_category_weight_zero_removes_from_composite(self) -> None:
+        """Weight=0 for a category → same composite as omitting that category entirely."""
+        stats = [{"hr": 30.0, "sv": 40.0}, {"hr": 20.0, "sv": 10.0}]
+        with_zero = compute_z_scores(stats, ["hr", "sv"], category_weights={"sv": 0.0})
+        without_cat = compute_z_scores(stats, ["hr"])
+        assert with_zero[0].composite_z == pytest.approx(without_cat[0].composite_z)
+        assert with_zero[1].composite_z == pytest.approx(without_cat[1].composite_z)
+
+    def test_category_weights_none_is_backward_compatible(self) -> None:
+        """Default (None) → same as all weights=1.0."""
+        stats = [{"hr": 30.0, "rbi": 100.0}, {"hr": 20.0, "rbi": 80.0}]
+        without = compute_z_scores(stats, ["hr", "rbi"])
+        with_none = compute_z_scores(stats, ["hr", "rbi"], category_weights=None)
+        with_ones = compute_z_scores(stats, ["hr", "rbi"], category_weights={"hr": 1.0, "rbi": 1.0})
+        assert without[0].composite_z == pytest.approx(with_none[0].composite_z)
+        assert without[0].composite_z == pytest.approx(with_ones[0].composite_z)
+
+    def test_pipeline_with_category_weights(self) -> None:
+        """run_zar_pipeline with weights produces valid results with different z-scores."""
+        stats = [{"hr": 30.0, "sv": 40.0}, {"hr": 20.0, "sv": 10.0}]
+        categories = [_counting("hr"), _counting("sv")]
+        positions = [["of"], ["of"]]
+        roster_spots = {"of": 1}
+        without = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
+        with_weights = run_zar_pipeline(
+            stats, categories, positions, roster_spots, num_teams=1, budget=100.0, category_weights={"sv": 0.0}
+        )
+        # With sv zeroed out, composite z-scores should differ
+        without_z = [pz.composite_z for pz in without.z_scores]
+        with_z = [pz.composite_z for pz in with_weights.z_scores]
+        assert without_z != with_z
+        # Composite with weight=0 should equal hr-only z-scores
+        hr_only = run_zar_pipeline(stats, [_counting("hr")], positions, roster_spots, num_teams=1, budget=100.0)
+        hr_only_z = [pz.composite_z for pz in hr_only.z_scores]
+        assert with_z == pytest.approx(hr_only_z)
+
+
 def _pz(index: int, composite: float) -> PlayerZScores:
     """Shorthand for creating a PlayerZScores with just composite_z."""
     return PlayerZScores(player_index=index, category_z={}, composite_z=composite)
