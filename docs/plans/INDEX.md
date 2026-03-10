@@ -15,12 +15,12 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
 | [Keeper Draft Integration](keeper-draft-integration.md) | 5 | phase 1 done | keeper-optimization-solver (done), keeper-surplus-value (done), web-ui-foundation phases 1-5 (done), adp-arbitrage-alerts (done) |
 | [Frontend DX](frontend-dx.md) | 5 | not started | web-ui-foundation (done) |
-| [Valuation Reform](valuation-reform.md) | 4 | phases 1-3 done | league-standings-import, evaluation-framework phase 2 |
 
 ## Completed Roadmaps
 
 | Roadmap | Phases |
 |---------|--------|
+| [Valuation Reform](valuation-reform.md) | 4 |
 | [League Standings Import](league-standings-import.md) | 2 |
 | [CLI Consistency](cli-consistency.md) | 4 |
 | [Mock Draft Insights](mock-draft-insights.md) | 3 |
