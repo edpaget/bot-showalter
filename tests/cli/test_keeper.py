@@ -15,6 +15,7 @@ from fantasy_baseball_manager.domain import (
     Direction,
     KeeperCost,
     LeagueFormat,
+    LeagueKeeper,
     LeagueSettings,
     Projection,
     StatType,
@@ -22,6 +23,7 @@ from fantasy_baseball_manager.domain import (
 )
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
+from fantasy_baseball_manager.repos.league_keeper_repo import SqliteLeagueKeeperRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
@@ -54,6 +56,7 @@ def _build_test_keeper_context(conn: sqlite3.Connection) -> Any:
             projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
             eligibility_service=eligibility_service,
             adp_repo=SqliteADPRepo(SingleConnectionProvider(conn)),
+            league_keeper_repo=SqliteLeagueKeeperRepo(SingleConnectionProvider(conn)),
         )
 
     return _ctx
@@ -1429,4 +1432,238 @@ class TestKeeperTradeImpact:
         )
         assert result.exit_code == 1
         assert "no player found" in result.output
+        conn.close()
+
+
+class TestLeagueSet:
+    def test_league_set_creates_keeper(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, player_id=1, name_first="Mike", name_last="Trout")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "keeper",
+                "league-set",
+                "Mike Trout",
+                "--team",
+                "Team A",
+                "--season",
+                "2026",
+                "--league",
+                "dynasty",
+                "--cost",
+                "25",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+        assert "Team A" in result.output
+
+        repo = SqliteLeagueKeeperRepo(SingleConnectionProvider(conn))
+        stored = repo.find_by_season_league(2026, "dynasty")
+        assert len(stored) == 1
+        assert stored[0].player_id == 1
+        assert stored[0].team_name == "Team A"
+        assert stored[0].cost == 25.0
+        conn.close()
+
+    def test_league_set_idempotent(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, player_id=1, name_first="Mike", name_last="Trout")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        # Set once
+        runner.invoke(
+            app,
+            ["keeper", "league-set", "Mike Trout", "--team", "Team A", "--season", "2026", "--league", "dynasty"],
+        )
+        # Set again with different team
+        result = runner.invoke(
+            app,
+            ["keeper", "league-set", "Mike Trout", "--team", "Team B", "--season", "2026", "--league", "dynasty"],
+        )
+        assert result.exit_code == 0, result.output
+
+        repo = SqliteLeagueKeeperRepo(SingleConnectionProvider(conn))
+        stored = repo.find_by_season_league(2026, "dynasty")
+        assert len(stored) == 1
+        assert stored[0].team_name == "Team B"
+        conn.close()
+
+    def test_league_set_unknown_player(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app,
+            ["keeper", "league-set", "Nobody Here", "--team", "Team A", "--season", "2026", "--league", "dynasty"],
+        )
+        assert result.exit_code == 1
+        assert "no player found" in result.output
+        conn.close()
+
+
+class TestLeagueImport:
+    def test_league_import_success(self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, name_first="Mike", name_last="Trout")
+        seed_player(conn, name_first="Shohei", name_last="Ohtani")
+
+        csv_file = tmp_path / "league_keepers.csv"  # type: ignore[operator]
+        csv_file.write_text(
+            textwrap.dedent("""\
+            player_name,team_name,cost
+            Mike Trout,Team A,25
+            Shohei Ohtani,Team B,30
+        """)
+        )
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app, ["keeper", "league-import", str(csv_file), "--season", "2026", "--league", "dynasty"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "Loaded 2" in result.output
+
+        repo = SqliteLeagueKeeperRepo(SingleConnectionProvider(conn))
+        stored = repo.find_by_season_league(2026, "dynasty")
+        assert len(stored) == 2
+        conn.close()
+
+    def test_league_import_file_not_found(self) -> None:
+        result = runner.invoke(
+            app, ["keeper", "league-import", "/nonexistent/file.csv", "--season", "2026", "--league", "dynasty"]
+        )
+        assert result.exit_code == 1
+        assert "file not found" in result.output
+
+    def test_league_import_with_unmatched(
+        self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, name_first="Mike", name_last="Trout")
+
+        csv_file = tmp_path / "league_keepers.csv"  # type: ignore[operator]
+        csv_file.write_text(
+            textwrap.dedent("""\
+            player_name,team_name
+            Mike Trout,Team A
+            Nobody Here,Team B
+        """)
+        )
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(
+            app, ["keeper", "league-import", str(csv_file), "--season", "2026", "--league", "dynasty"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "Loaded 1" in result.output
+        assert "Unmatched" in result.output
+        assert "Nobody Here" in result.output
+        conn.close()
+
+
+class TestLeagueList:
+    def test_league_list_shows_keepers(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, player_id=1, name_first="Mike", name_last="Trout")
+        seed_player(conn, player_id=2, name_first="Shohei", name_last="Ohtani")
+
+        repo = SqliteLeagueKeeperRepo(SingleConnectionProvider(conn))
+        repo.upsert_batch(
+            [
+                LeagueKeeper(player_id=1, season=2026, league="dynasty", team_name="Team A", cost=25.0),
+                LeagueKeeper(player_id=2, season=2026, league="dynasty", team_name="Team B", cost=30.0),
+            ]
+        )
+        conn.commit()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(app, ["keeper", "league-list", "--season", "2026", "--league", "dynasty"])
+        assert result.exit_code == 0, result.output
+        assert "Mike Trout" in result.output
+        assert "Shohei Ohtani" in result.output
+        assert "Team A" in result.output
+        assert "Team B" in result.output
+        conn.close()
+
+    def test_league_list_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(app, ["keeper", "league-list", "--season", "2026", "--league", "dynasty"])
+        assert result.exit_code == 0, result.output
+        assert "No league keepers found" in result.output
+        conn.close()
+
+
+class TestLeagueClear:
+    def test_league_clear_removes_keepers(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+        seed_player(conn, player_id=1, name_first="Mike", name_last="Trout")
+        seed_player(conn, player_id=2, name_first="Shohei", name_last="Ohtani")
+
+        repo = SqliteLeagueKeeperRepo(SingleConnectionProvider(conn))
+        repo.upsert_batch(
+            [
+                LeagueKeeper(player_id=1, season=2026, league="dynasty", team_name="Team A"),
+                LeagueKeeper(player_id=2, season=2026, league="dynasty", team_name="Team B"),
+            ]
+        )
+        conn.commit()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(app, ["keeper", "league-clear", "--season", "2026", "--league", "dynasty"])
+        assert result.exit_code == 0, result.output
+        assert "Removed 2" in result.output
+
+        stored = repo.find_by_season_league(2026, "dynasty")
+        assert len(stored) == 0
+        conn.close()
+
+    def test_league_clear_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = create_connection(":memory:")
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.keeper.build_keeper_context",
+            _build_test_keeper_context(conn),
+        )
+
+        result = runner.invoke(app, ["keeper", "league-clear", "--season", "2026", "--league", "dynasty"])
+        assert result.exit_code == 0, result.output
+        assert "Removed 0" in result.output
         conn.close()

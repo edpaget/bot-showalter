@@ -12,12 +12,13 @@ from fantasy_baseball_manager.cli._output import (
     print_keeper_scenarios,
     print_keeper_solution,
     print_keeper_trade_impact,
+    print_league_keepers,
     print_trade_evaluation,
 )
 from fantasy_baseball_manager.cli.factory import build_keeper_context
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import Err, KeeperConstraints, KeeperDecision, Ok
-from fantasy_baseball_manager.ingest import import_keeper_costs
+from fantasy_baseball_manager.domain import Err, KeeperConstraints, KeeperDecision, LeagueKeeper, Ok
+from fantasy_baseball_manager.ingest import import_keeper_costs, import_league_keepers
 from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.services import (
     compare_scenarios,
@@ -512,3 +513,98 @@ def trade_impact_cmd(
         impact = keeper_trade_impact(candidates, constraints, acquire_decisions, release_ids)
 
     print_keeper_trade_impact(impact)
+
+
+@keeper_app.command("league-set")
+def league_set_cmd(
+    player_name: Annotated[str, typer.Argument(help="Player name to search for")],
+    team: Annotated[str, typer.Option("--team", help="Team name that is keeping the player")],
+    season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
+    league: Annotated[str, typer.Option(help="League name")] = "dynasty",
+    cost: Annotated[float | None, typer.Option(help="Keeper cost")] = None,
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Set a single player as kept by a specific team."""
+    defaults = load_cli_defaults()
+    if season is None:
+        season = defaults.season
+
+    with build_keeper_context(data_dir) as ctx:
+        matches = resolve_players(ctx.player_repo, player_name)
+        if len(matches) == 0:
+            typer.echo(f"Error: no player found matching '{player_name}'", err=True)
+            raise typer.Exit(code=1)
+        if len(matches) > 1:
+            names = [f"{p.name_first} {p.name_last}" for p in matches]
+            typer.echo(f"Error: ambiguous name '{player_name}', matches: {', '.join(names)}", err=True)
+            raise typer.Exit(code=1)
+        player = matches[0]
+        assert player.id is not None  # noqa: S101
+
+        keeper = LeagueKeeper(
+            player_id=player.id,
+            season=season,
+            league=league,
+            team_name=team,
+            cost=cost,
+        )
+        ctx.league_keeper_repo.upsert_batch([keeper])
+        ctx.conn.commit()
+
+    name = f"{player.name_first} {player.name_last}"
+    cost_str = f" (${cost:.0f})" if cost is not None else ""
+    typer.echo(f"Set {name} as keeper for {team}{cost_str}")
+
+
+@keeper_app.command("league-import")
+def league_import_cmd(
+    csv_path: Annotated[Path, typer.Argument(help="Path to league keepers CSV file")],
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    league: Annotated[str, typer.Option(help="League name")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Import league-wide keepers from a CSV file."""
+    if not csv_path.exists():
+        typer.echo(f"Error: file not found: {csv_path}", err=True)
+        raise typer.Exit(code=1)
+
+    with open(csv_path, newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    with build_keeper_context(data_dir) as ctx:
+        players = ctx.player_repo.all()
+        result = import_league_keepers(rows, ctx.league_keeper_repo, players, season=season, league=league)
+        ctx.conn.commit()
+
+    typer.echo(f"Loaded {result.loaded} league keepers, skipped {result.skipped}")
+    if result.unmatched:
+        typer.echo(f"Unmatched players ({len(result.unmatched)}): {', '.join(result.unmatched)}")
+
+
+@keeper_app.command("league-list")
+def league_list_cmd(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    league: Annotated[str, typer.Option(help="League name")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Show the current league keeper list for a season/league."""
+    with build_keeper_context(data_dir) as ctx:
+        keepers = ctx.league_keeper_repo.find_by_season_league(season, league)
+        players = ctx.player_repo.all()
+
+    print_league_keepers(keepers, players)
+
+
+@keeper_app.command("league-clear")
+def league_clear_cmd(
+    season: Annotated[int, typer.Option("--season", help="Season year")],
+    league: Annotated[str, typer.Option(help="League name")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Remove all league keepers for a season/league."""
+    with build_keeper_context(data_dir) as ctx:
+        count = ctx.league_keeper_repo.delete_by_season_league(season, league)
+        ctx.conn.commit()
+
+    typer.echo(f"Removed {count} league keeper(s)")

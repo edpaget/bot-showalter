@@ -40,6 +40,10 @@ from fantasy_baseball_manager.ingest.lahman_source import (
     LahmanPeopleSource,
     LahmanTeamsSource,
 )
+from fantasy_baseball_manager.ingest.league_keeper_mapper import (
+    LeagueKeeperImportResult,
+    import_league_keepers,
+)
 from fantasy_baseball_manager.ingest.loader import Loader
 from fantasy_baseball_manager.ingest.mlb_milb_stats_source import (
     MLBMinorLeagueBattingSource,
@@ -63,6 +67,7 @@ __all__ = [
     "FgStatsSource",
     "ILParseResult",
     "KeeperImportResult",
+    "LeagueKeeperImportResult",
     "LahmanAppearancesSource",
     "LahmanCsvSource",
     "LahmanPeopleSource",
@@ -80,6 +85,7 @@ __all__ = [
     "ingest_roster_api",
     "fetch_mlb_active_teams",
     "import_keeper_costs",
+    "import_league_keepers",
     "ingest_fantasypros_adp",
     "lahman_team_row_to_team",
     "PROJECTION_SYSTEMS",

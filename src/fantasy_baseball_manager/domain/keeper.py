@@ -85,6 +85,17 @@ class LeagueKeeperOverview:
 
 
 @dataclass(frozen=True)
+class LeagueKeeper:
+    player_id: int
+    season: int
+    league: str
+    team_name: str
+    cost: float | None = None
+    source: str | None = None
+    id: int | None = None
+
+
+@dataclass(frozen=True)
 class AdjustedValuation:
     player_id: int
     player_name: str

@@ -10,6 +10,7 @@ from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
 from fantasy_baseball_manager.repos.league_environment_repo import (
     SqliteLeagueEnvironmentRepo,
 )
+from fantasy_baseball_manager.repos.league_keeper_repo import SqliteLeagueKeeperRepo
 from fantasy_baseball_manager.repos.level_factor_repo import SqliteLevelFactorRepo
 from fantasy_baseball_manager.repos.load_log_repo import SqliteLoadLogRepo
 from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import (
@@ -33,6 +34,7 @@ from fantasy_baseball_manager.repos.protocols import (
     ILStintRepo,
     KeeperCostRepo,
     LeagueEnvironmentRepo,
+    LeagueKeeperRepo,
     LevelFactorRepo,
     LoadLogRepo,
     MinorLeagueBattingStatsRepo,
@@ -94,6 +96,7 @@ __all__ = [
     "ILStintRepo",
     "KeeperCostRepo",
     "LeagueEnvironmentRepo",
+    "LeagueKeeperRepo",
     "LevelFactorRepo",
     "LoadLogRepo",
     "MinorLeagueBattingStatsRepo",
@@ -112,6 +115,7 @@ __all__ = [
     "SqliteILStintRepo",
     "SqliteKeeperCostRepo",
     "SqliteLeagueEnvironmentRepo",
+    "SqliteLeagueKeeperRepo",
     "SqliteLevelFactorRepo",
     "SqliteLoadLogRepo",
     "SqliteMinorLeagueBattingStatsRepo",

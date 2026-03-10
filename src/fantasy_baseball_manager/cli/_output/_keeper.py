@@ -13,7 +13,9 @@ if TYPE_CHECKING:
         KeeperScenario,
         KeeperSolution,
         KeeperTradeImpact,
+        LeagueKeeper,
         LeagueKeeperOverview,
+        Player,
         RosterAnalysis,
         TradeEvaluation,
         TradePlayerDetail,
@@ -349,3 +351,37 @@ def print_keeper_draft_needs(
 
     # 3. Delegate to existing category needs renderer
     print_category_needs(needs, num_teams)
+
+
+def print_league_keepers(keepers: list[LeagueKeeper], players: list[Player]) -> None:
+    """Print league keepers grouped by team, showing player name, position, and cost."""
+    if not keepers:
+        console.print("[dim]No league keepers found.[/dim]")
+        return
+
+    player_lookup: dict[int, Player] = {p.id: p for p in players if p.id is not None}
+
+    # Group by team
+    by_team: dict[str, list[LeagueKeeper]] = {}
+    for k in keepers:
+        by_team.setdefault(k.team_name, []).append(k)
+
+    table = Table(title="League Keepers", show_edge=False, pad_edge=False)
+    table.add_column("Team", justify="left")
+    table.add_column("Player", justify="left")
+    table.add_column("Cost", justify="right")
+
+    for team_name in sorted(by_team):
+        team_keepers = by_team[team_name]
+        for i, k in enumerate(team_keepers):
+            player = player_lookup.get(k.player_id)
+            name = f"{player.name_first} {player.name_last}" if player else f"ID:{k.player_id}"
+            cost_str = f"${k.cost:.0f}" if k.cost is not None else "-"
+            # Only show team name on first row for the team
+            table.add_row(
+                team_name if i == 0 else "",
+                name,
+                cost_str,
+            )
+
+    console.print(table)

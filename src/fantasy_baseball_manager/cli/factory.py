@@ -45,6 +45,7 @@ from fantasy_baseball_manager.repos import (
     SqliteILStintRepo,
     SqliteKeeperCostRepo,
     SqliteLeagueEnvironmentRepo,
+    SqliteLeagueKeeperRepo,
     SqliteLevelFactorRepo,
     SqliteLoadLogRepo,
     SqliteMinorLeagueBattingStatsRepo,
@@ -855,6 +856,7 @@ class KeeperContext:
     projection_repo: SqliteProjectionRepo
     eligibility_service: PlayerEligibilityService
     adp_repo: SqliteADPRepo
+    league_keeper_repo: SqliteLeagueKeeperRepo
 
 
 @contextmanager
@@ -876,6 +878,7 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:  # pragma: n
             projection_repo=SqliteProjectionRepo(SingleConnectionProvider(conn)),
             eligibility_service=eligibility_service,
             adp_repo=SqliteADPRepo(SingleConnectionProvider(conn)),
+            league_keeper_repo=SqliteLeagueKeeperRepo(SingleConnectionProvider(conn)),
         )
     finally:
         conn.close()
