@@ -1,34 +1,20 @@
 import { useQuery } from "@apollo/client";
 import { useMemo, useState } from "react";
 import { ADP_DELTA_THRESHOLD, TIER_COLORS } from "../constants/tiers";
+import type { BoardQuery, DraftBoardRowType } from "../generated/graphql";
 import { BOARD_QUERY } from "../graphql/queries";
-import type { DraftBoardRow } from "../types/board";
-import { displayPosition } from "../types/position";
+import { displayPosition } from "../lib/position";
 import { FilterBar, type PlayerTypeFilter } from "./FilterBar";
 import { SearchInput } from "./SearchInput";
 
 type FixedSortKey = keyof Pick<
-  DraftBoardRow,
+  DraftBoardRowType,
   "rank" | "playerName" | "position" | "tier" | "value" | "adpOverall" | "adpDelta" | "breakoutRank" | "bustRank"
 >;
 
 type SortKey = FixedSortKey | `z:${string}`;
 
 type SortDir = "asc" | "desc";
-
-interface BoardData {
-  board: {
-    rows: DraftBoardRow[];
-    battingCategories: string[];
-    pitchingCategories: string[];
-  };
-}
-
-interface BoardVars {
-  season: number;
-  system?: string;
-  version?: string;
-}
 
 const LEFT_COLUMNS: { key: FixedSortKey; label: string }[] = [
   { key: "rank", label: "Rank" },
@@ -83,13 +69,13 @@ function tierBackground(tier: number | null): string | undefined {
   return TIER_COLORS[(tier - 1) % TIER_COLORS.length]!;
 }
 
-function breakoutTint(row: DraftBoardRow): string | undefined {
+function breakoutTint(row: DraftBoardRowType): string | undefined {
   if (row.breakoutRank != null && row.breakoutRank <= 20) return "rgba(0, 128, 0, 0.06)";
   if (row.bustRank != null && row.bustRank <= 20) return "rgba(200, 0, 0, 0.06)";
   return undefined;
 }
 
-function rowBackground(row: DraftBoardRow): string | undefined {
+function rowBackground(row: DraftBoardRowType): string | undefined {
   return breakoutTint(row) ?? tierBackground(row.tier);
 }
 
@@ -114,12 +100,8 @@ export function DraftBoardTable({
   onPlayerClick,
   sessionActive = false,
 }: DraftBoardTableProps) {
-  const variables: BoardVars = { season };
-  if (system != null) variables.system = system;
-  if (version != null) variables.version = version;
-
-  const { data, loading, error } = useQuery<BoardData, BoardVars>(BOARD_QUERY, {
-    variables,
+  const { data, loading, error } = useQuery<BoardQuery>(BOARD_QUERY, {
+    variables: { season, system: system ?? null, version: version ?? null },
   });
 
   const [sortKey, setSortKey] = useState<SortKey>("rank");

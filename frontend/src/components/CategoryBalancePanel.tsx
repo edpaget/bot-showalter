@@ -1,8 +1,8 @@
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer } from "recharts";
-import type { CategoryBalance } from "../types/session";
+import type { CategoryBalanceType } from "../generated/graphql";
 
 interface CategoryBalancePanelProps {
-  balance: CategoryBalance[];
+  balance: CategoryBalanceType[];
 }
 
 const STRENGTH_COLORS: Record<string, string> = {

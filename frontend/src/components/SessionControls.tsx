@@ -1,10 +1,10 @@
 import { useState } from "react";
-import type { DraftSessionSummary, DraftState } from "../types/session";
+import type { DraftSessionSummaryType, DraftStateType } from "../generated/graphql";
 
 interface SessionControlsProps {
   sessionActive: boolean;
-  state: DraftState | null;
-  sessions: DraftSessionSummary[];
+  state: DraftStateType | null;
+  sessions: DraftSessionSummaryType[];
   onStart: (config: { season: number; teams: number; format: string; userTeam: number; budget?: number }) => void;
   onResume: (sessionId: number) => void;
   onUndo: () => void;

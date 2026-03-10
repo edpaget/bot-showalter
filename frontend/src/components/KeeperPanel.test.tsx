@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
-import type { KeeperInfo } from "../types/session";
+import type { KeeperInfo } from "../context/DraftSessionContext";
 import { KeeperPanel } from "./KeeperPanel";
 
 const KEEPERS: KeeperInfo[] = [

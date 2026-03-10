@@ -4,12 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { DraftSessionProvider } from "../context/DraftSessionContext";
 import { PlayerDrawerProvider } from "../context/PlayerDrawerContext";
+import type { DraftBoardRowType } from "../generated/graphql";
 import { END_SESSION, PICK, START_SESSION, UNDO } from "../graphql/mutations";
 import { BALANCE_QUERY, BOARD_QUERY, SESSIONS_QUERY } from "../graphql/queries";
-import type { DraftBoardRow } from "../types/board";
 import { DraftDashboard } from "./DraftDashboard";
 
-function makeRow(overrides: Partial<DraftBoardRow> & { playerId: number }): DraftBoardRow {
+function makeRow(overrides: Partial<DraftBoardRowType> & { playerId: number }): DraftBoardRowType {
   return {
     playerName: `Player ${overrides.playerId}`,
     rank: overrides.playerId,
@@ -36,7 +36,7 @@ const BOARD_ROWS = [
 
 function boardMock(): MockedResponse {
   return {
-    request: { query: BOARD_QUERY, variables: { season: 2026 } },
+    request: { query: BOARD_QUERY, variables: { season: 2026, system: null, version: null } },
     result: {
       data: {
         board: {
@@ -107,6 +107,7 @@ function pickMock(): MockedResponse {
             { position: "C", remaining: 1 },
             { position: "SP", remaining: 2 },
           ],
+          arbitrage: null,
         },
       },
     },

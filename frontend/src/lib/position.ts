@@ -1,6 +1,8 @@
+import type { Position as PositionType } from "../generated/graphql";
+
 /**
- * Position enum matching the backend GraphQL Position enum.
- * Member names are the GraphQL enum values; displayLabel maps to human-readable strings.
+ * Runtime Position values for iteration (e.g., Object.values(Position)).
+ * Type comes from codegen; this const provides the values at runtime.
  */
 export const Position = {
   C: "C",
@@ -17,9 +19,9 @@ export const Position = {
   SP: "SP",
   RP: "RP",
   P: "P",
-} as const;
+} as const satisfies Record<string, PositionType>;
 
-export type Position = (typeof Position)[keyof typeof Position];
+export type Position = PositionType;
 
 const DISPLAY_LABELS: Record<Position, string> = {
   C: "C",
@@ -33,6 +35,7 @@ const DISPLAY_LABELS: Record<Position, string> = {
   OF: "OF",
   DH: "DH",
   UTIL: "UTIL",
+  BN: "BN",
   SP: "SP",
   RP: "RP",
   P: "P",

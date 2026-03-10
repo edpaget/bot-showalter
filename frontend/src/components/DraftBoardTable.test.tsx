@@ -2,11 +2,11 @@ import { MockedProvider, type MockedResponse } from "@apollo/client/testing";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DraftBoardRowType } from "../generated/graphql";
 import { BOARD_QUERY } from "../graphql/queries";
-import type { DraftBoardRow } from "../types/board";
 import { DraftBoardTable } from "./DraftBoardTable";
 
-function makeRow(overrides: Partial<DraftBoardRow> & { playerId: number }): DraftBoardRow {
+function makeRow(overrides: Partial<DraftBoardRowType> & { playerId: number }): DraftBoardRowType {
   return {
     playerName: `Player ${overrides.playerId}`,
     rank: overrides.playerId,
@@ -26,7 +26,7 @@ function makeRow(overrides: Partial<DraftBoardRow> & { playerId: number }): Draf
   };
 }
 
-const ROWS: DraftBoardRow[] = [
+const ROWS: DraftBoardRowType[] = [
   makeRow({
     playerId: 1,
     playerName: "Mike Trout",
@@ -63,7 +63,7 @@ function boardMock(): MockedResponse {
   return {
     request: {
       query: BOARD_QUERY,
-      variables: { season: 2026 },
+      variables: { season: 2026, system: null, version: null },
     },
     result: {
       data: {

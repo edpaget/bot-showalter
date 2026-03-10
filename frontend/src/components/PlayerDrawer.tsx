@@ -1,35 +1,28 @@
 import { useQuery } from "@apollo/client";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
+import type { CategoryConfigType, LeagueQuery, PlayerBioQuery, ProjectionsQuery, ValuationsQuery } from "../generated/graphql";
 import { LEAGUE_QUERY, PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } from "../graphql/queries";
-import type { PlayerSummary, Projection, ValuationRow } from "../types/analysis";
-import type { CategoryConfig, LeagueSettings } from "../types/board";
-import { displayPosition } from "../types/position";
+import { displayPosition } from "../lib/position";
 
 export function PlayerDrawer() {
   const { isOpen, playerId, playerName, season, closeDrawer } = usePlayerDrawer();
 
-  const { data: bioData, loading: bioLoading } = useQuery<{
-    playerBio: PlayerSummary | null;
-  }>(PLAYER_BIO_QUERY, {
+  const { data: bioData, loading: bioLoading } = useQuery<PlayerBioQuery>(PLAYER_BIO_QUERY, {
     variables: { playerId, season },
     skip: !isOpen || playerId == null,
   });
 
-  const { data: projData, loading: projLoading } = useQuery<{
-    projections: Projection[];
-  }>(PROJECTIONS_QUERY, {
+  const { data: projData, loading: projLoading } = useQuery<ProjectionsQuery>(PROJECTIONS_QUERY, {
     variables: { season, playerName: playerName ?? "" },
     skip: !isOpen || !playerName,
   });
 
-  const { data: valData, loading: valLoading } = useQuery<{
-    valuations: ValuationRow[];
-  }>(VALUATIONS_QUERY, {
+  const { data: valData, loading: valLoading } = useQuery<ValuationsQuery>(VALUATIONS_QUERY, {
     variables: { season, top: 500 },
     skip: !isOpen,
   });
 
-  const { data: leagueData } = useQuery<{ league: LeagueSettings }>(LEAGUE_QUERY, {
+  const { data: leagueData } = useQuery<LeagueQuery>(LEAGUE_QUERY, {
     skip: !isOpen,
   });
 
@@ -42,7 +35,7 @@ export function PlayerDrawer() {
   const projections = playerType ? allProjections.filter((p) => p.playerType === playerType) : allProjections;
   const allValuations = valData?.valuations ?? [];
   const valuations = playerName ? allValuations.filter((v) => v.playerName === playerName) : [];
-  const leagueCategories: CategoryConfig[] =
+  const leagueCategories: CategoryConfigType[] =
     playerType === "pitcher"
       ? (leagueData?.league.pitchingCategories ?? [])
       : (leagueData?.league.battingCategories ?? []);

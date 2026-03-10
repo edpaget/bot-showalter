@@ -1,9 +1,9 @@
 import { useQuery } from "@apollo/client";
 import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
+import type { ValuationsQuery } from "../generated/graphql";
 import { VALUATIONS_QUERY } from "../graphql/queries";
-import type { ValuationRow } from "../types/analysis";
-import { displayPosition } from "../types/position";
+import { displayPosition } from "../lib/position";
 
 type SortKey = "rank" | "playerName" | "position" | "value" | "playerType" | "system" | "version";
 type SortDir = "asc" | "desc";
@@ -16,7 +16,7 @@ export function ValuationsView({ season = 2026 }: { season?: number }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { openPlayer } = usePlayerDrawer();
 
-  const { data, loading, error } = useQuery<{ valuations: ValuationRow[] }>(VALUATIONS_QUERY, {
+  const { data, loading, error } = useQuery<ValuationsQuery>(VALUATIONS_QUERY, {
     variables: {
       season,
       playerType: playerType || undefined,

@@ -1,4 +1,4 @@
-import { displayPosition, Position } from "../types/position";
+import { displayPosition, Position } from "../lib/position";
 
 const POSITIONS = [
   Position.C,

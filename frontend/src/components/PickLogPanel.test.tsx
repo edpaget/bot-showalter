@@ -1,10 +1,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
-import type { DraftPick } from "../types/session";
+import type { DraftPickType } from "../generated/graphql";
 import { PickLogPanel } from "./PickLogPanel";
 
-const PICKS: DraftPick[] = [
+const PICKS: DraftPickType[] = [
   { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: 35 },
   { pickNumber: 2, team: 2, playerId: 200, playerName: "Gerrit Cole", position: "SP", price: 28 },
   { pickNumber: 3, team: 1, playerId: 300, playerName: "Aaron Judge", position: "OF", price: 32 },

@@ -1,9 +1,9 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { RosterSlot } from "../types/session";
+import type { RosterSlotType } from "../generated/graphql";
 import { NeedsPanel } from "./NeedsPanel";
 
-const NEEDS: RosterSlot[] = [
+const NEEDS: RosterSlotType[] = [
   { position: "C", remaining: 1 },
   { position: "OF", remaining: 3 },
   { position: "SP", remaining: 2 },

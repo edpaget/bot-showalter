@@ -1,10 +1,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Recommendation } from "../types/session";
+import type { RecommendationType } from "../generated/graphql";
 import { RecommendationPanel } from "./RecommendationPanel";
 
-const RECS: Recommendation[] = [
+const RECS: RecommendationType[] = [
   { playerId: 1, playerName: "Mike Trout", position: "OF", value: 35, score: 0.95, reason: "Best value" },
   { playerId: 2, playerName: "Gerrit Cole", position: "SP", value: 25, score: 0.85, reason: "Need SP" },
   { playerId: 3, playerName: "Pete Alonso", position: "FIRST_BASE", value: 20, score: 0.75, reason: "Need 1B" },

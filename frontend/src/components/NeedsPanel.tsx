@@ -1,8 +1,8 @@
-import { displayPosition } from "../types/position";
-import type { RosterSlot } from "../types/session";
+import type { RosterSlotType } from "../generated/graphql";
+import { displayPosition } from "../lib/position";
 
 interface NeedsPanelProps {
-  needs: RosterSlot[];
+  needs: RosterSlotType[];
 }
 
 export function NeedsPanel({ needs }: NeedsPanelProps) {

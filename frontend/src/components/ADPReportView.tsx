@@ -1,9 +1,9 @@
 import { useQuery } from "@apollo/client";
 import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
+import type { AdpReportQuery, AdpReportRowType } from "../generated/graphql";
 import { ADP_REPORT_QUERY } from "../graphql/queries";
-import type { ADPReport, ADPReportRow } from "../types/analysis";
-import { displayPosition } from "../types/position";
+import { displayPosition } from "../lib/position";
 
 type SortKey = "playerName" | "zarRank" | "zarValue" | "adpRank" | "rankDelta";
 type SortDir = "asc" | "desc";
@@ -19,7 +19,7 @@ function ADPSection({
   openPlayer,
 }: {
   title: string;
-  rows: ADPReportRow[];
+  rows: AdpReportRowType[];
   openPlayer: (id: number, name: string) => void;
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("rankDelta");
@@ -110,7 +110,7 @@ function ADPSection({
 
 export function ADPReportView({ season = 2026 }: { season?: number }) {
   const { openPlayer } = usePlayerDrawer();
-  const { data, loading, error } = useQuery<{ adpReport: ADPReport }>(ADP_REPORT_QUERY, {
+  const { data, loading, error } = useQuery<AdpReportQuery>(ADP_REPORT_QUERY, {
     variables: { season },
   });
 

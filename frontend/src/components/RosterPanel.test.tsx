@@ -1,14 +1,14 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { DraftPick, RosterSlot } from "../types/session";
+import type { DraftPickType, RosterSlotType } from "../generated/graphql";
 import { RosterPanel } from "./RosterPanel";
 
-const ROSTER: DraftPick[] = [
+const ROSTER: DraftPickType[] = [
   { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: null },
   { pickNumber: 5, team: 1, playerId: 200, playerName: "Gerrit Cole", position: "SP", price: null },
 ];
 
-const NEEDS: RosterSlot[] = [
+const NEEDS: RosterSlotType[] = [
   { position: "C", remaining: 1 },
   { position: "OF", remaining: 2 },
 ];
@@ -34,7 +34,7 @@ describe("RosterPanel", () => {
   });
 
   it("shows budget in auction format", () => {
-    const auctionRoster: DraftPick[] = [
+    const auctionRoster: DraftPickType[] = [
       { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: 35 },
     ];
     render(<RosterPanel roster={auctionRoster} needs={NEEDS} budgetRemaining={225} format="auction" />);
@@ -48,7 +48,7 @@ describe("RosterPanel", () => {
   });
 
   it("shows price next to player name in auction", () => {
-    const auctionRoster: DraftPick[] = [
+    const auctionRoster: DraftPickType[] = [
       { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: 35 },
     ];
     render(<RosterPanel roster={auctionRoster} needs={[]} budgetRemaining={225} format="auction" />);

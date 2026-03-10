@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { displayPosition } from "../types/position";
-import type { DraftPick } from "../types/session";
+import type { DraftPickType } from "../generated/graphql";
+import { displayPosition } from "../lib/position";
 
 interface PickLogPanelProps {
-  picks: DraftPick[];
+  picks: DraftPickType[];
   onPlayerClick?: (playerId: number, playerName: string) => void;
 }
 

@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
-import type { DraftState, PickResult } from "../types/session";
+import type { DraftStateType, PickResultFieldsFragment } from "../generated/graphql";
 import { DraftSessionProvider, useDraftSession } from "./DraftSessionContext";
 
 function TestConsumer() {
@@ -20,7 +20,7 @@ function TestConsumer() {
       <button
         type="button"
         onClick={() => {
-          const state: DraftState = {
+          const state: DraftStateType = {
             sessionId: 42,
             currentPick: 2,
             picks: [{ pickNumber: 1, team: 1, playerId: 100, playerName: "Test Player", position: "OF", price: null }],
@@ -38,7 +38,7 @@ function TestConsumer() {
       <button
         type="button"
         onClick={() => {
-          const result: PickResult = {
+          const result: PickResultFieldsFragment = {
             pick: { pickNumber: 2, team: 1, playerId: 200, playerName: "New Player", position: "SP", price: null },
             state: {
               sessionId: 42,

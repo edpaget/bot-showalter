@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { displayPosition, Position } from "../types/position";
-import type { Recommendation } from "../types/session";
+import type { RecommendationType } from "../generated/graphql";
+import { displayPosition, Position } from "../lib/position";
 
 const POSITION_FILTERS = ["All", ...Object.values(Position)] as const;
 
 interface RecommendationPanelProps {
-  recommendations: Recommendation[];
+  recommendations: RecommendationType[];
   onDraft: (playerId: number, position: string) => void;
   onPlayerClick?: (playerId: number, playerName: string) => void;
   sessionActive: boolean;

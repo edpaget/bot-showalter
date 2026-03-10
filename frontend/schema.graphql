@@ -1,0 +1,307 @@
+type ADPReportRowType {
+  playerId: Int!
+  playerName: String!
+  playerType: String!
+  position: Position!
+  zarRank: Int!
+  zarValue: Float!
+  adpRank: Int!
+  adpPick: Float!
+  rankDelta: Int!
+  provider: String!
+}
+
+type ADPReportType {
+  season: Int!
+  system: String!
+  version: String!
+  provider: String!
+  buyTargets: [ADPReportRowType!]!
+  avoidList: [ADPReportRowType!]!
+  unrankedValuable: [ADPReportRowType!]!
+  nMatched: Int!
+}
+
+type ArbitrageAlertEvent {
+  sessionId: Int!
+  falling: [FallingPlayerType!]!
+}
+
+type ArbitrageReportType {
+  currentPick: Int!
+  falling: [FallingPlayerType!]!
+  reaches: [ReachPickType!]!
+}
+
+type CategoryBalanceType {
+  category: String!
+  projectedValue: Float!
+  leagueRankEstimate: Int!
+  strength: String!
+}
+
+type CategoryConfigType {
+  key: String!
+  name: String!
+  statType: String!
+  direction: String!
+}
+
+type DraftBoardRowType {
+  playerId: Int!
+  playerName: String!
+  rank: Int!
+  playerType: String!
+  position: Position!
+  value: Float!
+  categoryZScores: JSON!
+  age: Int
+  batsThrows: String
+  tier: Int
+  adpOverall: Float
+  adpRank: Int
+  adpDelta: Int
+  breakoutRank: Int
+  bustRank: Int
+}
+
+type DraftBoardType {
+  rows: [DraftBoardRowType!]!
+  battingCategories: [String!]!
+  pitchingCategories: [String!]!
+}
+
+union DraftEventType = PickEvent | UndoEvent | SessionEvent | ArbitrageAlertEvent
+
+type DraftPickType {
+  pickNumber: Int!
+  team: Int!
+  playerId: Int!
+  playerName: String!
+  position: Position!
+  price: Int
+}
+
+type DraftSessionSummaryType {
+  id: Int!
+  league: String!
+  season: Int!
+  teams: Int!
+  format: String!
+  userTeam: Int!
+  status: String!
+  pickCount: Int!
+  createdAt: String!
+  updatedAt: String!
+  system: String!
+  version: String!
+}
+
+type DraftStateType {
+  sessionId: Int!
+  currentPick: Int!
+  picks: [DraftPickType!]!
+  format: String!
+  teams: Int!
+  userTeam: Int!
+  budgetRemaining: Int
+}
+
+type FallingPlayerType {
+  playerId: Int!
+  playerName: String!
+  position: String!
+  adp: Float!
+  currentPick: Int!
+  picksPastAdp: Float!
+  value: Float!
+  valueRank: Int!
+  arbitrageScore: Float!
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
+
+type LeagueSettingsType {
+  name: String!
+  format: String!
+  teams: Int!
+  budget: Int!
+  rosterBatters: Int!
+  rosterPitchers: Int!
+  rosterUtil: Int!
+  battingCategories: [CategoryConfigType!]!
+  pitchingCategories: [CategoryConfigType!]!
+  positions: JSON!
+  pitcherPositions: JSON!
+}
+
+type Mutation {
+  startSession(season: Int!, system: String = null, version: String = null, teams: Int = null, userTeam: Int! = 1, format: String! = "snake", budget: Int = null, keeperPlayerIds: [Int!] = null): DraftStateType!
+  pick(sessionId: Int!, playerId: Int!, position: Position!, price: Int = null, team: Int = null): PickResultType!
+  undo(sessionId: Int!): PickResultType!
+  endSession(sessionId: Int!): Boolean!
+  startYahooPoll(sessionId: Int!, leagueKey: String!): Boolean!
+  stopYahooPoll(sessionId: Int!): Boolean!
+}
+
+type PickEvent {
+  pick: DraftPickType!
+  sessionId: Int!
+}
+
+type PickResultType {
+  pick: DraftPickType!
+  state: DraftStateType!
+  recommendations: [RecommendationType!]!
+  roster: [DraftPickType!]!
+  needs: [RosterSlotType!]!
+  arbitrage: ArbitrageReportType
+}
+
+type PlayerSummaryType {
+  playerId: Int!
+  name: String!
+  team: String!
+  age: Int
+  primaryPosition: String!
+  bats: String
+  throws: String
+  experience: Int!
+}
+
+type PlayerTierType {
+  playerId: Int!
+  playerName: String!
+  position: Position!
+  tier: Int!
+  value: Float!
+  rank: Int!
+}
+
+enum Position {
+  C
+  FIRST_BASE
+  SECOND_BASE
+  THIRD_BASE
+  SS
+  LF
+  CF
+  RF
+  OF
+  DH
+  UTIL
+  BN
+  SP
+  RP
+  P
+}
+
+type PositionScarcityType {
+  position: Position!
+  tier1Value: Float!
+  replacementValue: Float!
+  totalSurplus: Float!
+  dropoffSlope: Float!
+  steepRank: Int
+}
+
+type ProjectionType {
+  playerName: String!
+  system: String!
+  version: String!
+  sourceType: String!
+  playerType: String!
+  stats: JSON!
+}
+
+type Query {
+  board(season: Int!, system: String = null, version: String = null, playerType: String = null, position: Position = null, top: Int = null): DraftBoardType!
+  tiers(season: Int!, system: String = null, version: String = null, playerType: String = null, method: String! = "gap", maxTiers: Int! = 5): [PlayerTierType!]!
+  scarcity(season: Int!, system: String = null, version: String = null): [PositionScarcityType!]!
+  league: LeagueSettingsType!
+  webConfig: WebConfigType!
+  session(sessionId: Int!): DraftStateType!
+  sessions(league: String = null, season: Int = null, status: String = null): [DraftSessionSummaryType!]!
+  recommendations(sessionId: Int!, position: Position = null, limit: Int! = 10): [RecommendationType!]!
+  roster(sessionId: Int!, team: Int = null): [DraftPickType!]!
+  needs(sessionId: Int!): [RosterSlotType!]!
+  balance(sessionId: Int!): [CategoryBalanceType!]!
+  available(sessionId: Int!, position: Position = null, limit: Int! = 50): [DraftBoardRowType!]!
+  arbitrage(sessionId: Int!, threshold: Int! = 10, position: Position = null, limit: Int! = 20): ArbitrageReportType!
+  projections(season: Int!, playerName: String!, system: String = null): [ProjectionType!]!
+  valuations(season: Int!, system: String = null, version: String = null, playerType: String = null, position: String = null, top: Int = null): [ValuationType!]!
+  adpReport(season: Int!, system: String = null, version: String = null, provider: String = null): ADPReportType!
+  playerSearch(name: String!, season: Int!): [PlayerSummaryType!]!
+  playerBio(playerId: Int!, season: Int!): PlayerSummaryType
+  yahooPollStatus(sessionId: Int!): YahooPollStatusType!
+}
+
+type ReachPickType {
+  playerId: Int!
+  playerName: String!
+  position: String!
+  adp: Float!
+  pickNumber: Int!
+  picksAheadOfAdp: Float!
+  drafterTeam: Int!
+}
+
+type RecommendationType {
+  playerId: Int!
+  playerName: String!
+  position: Position!
+  value: Float!
+  score: Float!
+  reason: String!
+}
+
+type RosterSlotType {
+  position: Position!
+  remaining: Int!
+}
+
+type SessionEvent {
+  sessionId: Int!
+  eventType: String!
+}
+
+type Subscription {
+  draftEvents(sessionId: Int!): DraftEventType!
+}
+
+type SystemVersionType {
+  system: String!
+  version: String!
+}
+
+type UndoEvent {
+  pick: DraftPickType!
+  sessionId: Int!
+}
+
+type ValuationType {
+  playerName: String!
+  system: String!
+  version: String!
+  projectionSystem: String!
+  projectionVersion: String!
+  playerType: String!
+  position: Position!
+  value: Float!
+  rank: Int!
+  categoryScores: JSON!
+}
+
+type WebConfigType {
+  projections: [SystemVersionType!]!
+  valuations: [SystemVersionType!]!
+}
+
+type YahooPollStatusType {
+  active: Boolean!
+  lastPollAt: String
+  picksIngested: Int!
+}

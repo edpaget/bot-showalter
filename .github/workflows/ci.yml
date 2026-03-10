@@ -21,6 +21,27 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install Python dependencies
+        run: uv sync
+        working-directory: .
+
+      - name: Export schema
+        run: uv run python scripts/export_schema.py > frontend/schema.graphql
+        working-directory: .
+
+      - name: Run codegen
+        run: bun run codegen
+
+      - name: Check codegen freshness
+        run: git diff --exit-code src/generated/
+        working-directory: frontend
+
       - name: Lint
         run: bun run lint
 

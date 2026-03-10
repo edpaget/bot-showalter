@@ -1,8 +1,8 @@
 import { useLazyQuery } from "@apollo/client";
 import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
+import type { ProjectionsQuery } from "../generated/graphql";
 import { PROJECTIONS_QUERY } from "../graphql/queries";
-import type { Projection } from "../types/analysis";
 
 type SortKey = "playerName" | "system" | "version" | "playerType";
 type SortDir = "asc" | "desc";
@@ -14,9 +14,7 @@ export function ProjectionsView({ season = 2026 }: { season?: number }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { openPlayer } = usePlayerDrawer();
 
-  const [fetchProjections, { data, loading, error }] = useLazyQuery<{
-    projections: Projection[];
-  }>(PROJECTIONS_QUERY);
+  const [fetchProjections, { data, loading, error }] = useLazyQuery<ProjectionsQuery>(PROJECTIONS_QUERY);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

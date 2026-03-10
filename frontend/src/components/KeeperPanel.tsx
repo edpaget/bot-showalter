@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { KeeperInfo } from "../types/session";
+import type { KeeperInfo } from "../context/DraftSessionContext";
 
 interface KeeperPanelProps {
   keepers: KeeperInfo[];

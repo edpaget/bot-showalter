@@ -2,6 +2,15 @@ import { useLazyQuery, useMutation, useQuery, useSubscription } from "@apollo/cl
 import { useCallback, useEffect } from "react";
 import { useDraftSession } from "../context/DraftSessionContext";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
+import type {
+  BalanceQuery,
+  DraftEventsSubscription,
+  PickMutation,
+  SessionQuery,
+  SessionsQuery,
+  StartSessionMutation,
+  UndoMutation,
+} from "../generated/graphql";
 import { END_SESSION, PICK, START_SESSION, UNDO } from "../graphql/mutations";
 import {
   BALANCE_QUERY,
@@ -13,16 +22,6 @@ import {
   SESSIONS_QUERY,
 } from "../graphql/queries";
 import { DRAFT_EVENTS_SUBSCRIPTION } from "../graphql/subscriptions";
-import type {
-  CategoryBalance,
-  DraftPick,
-  DraftSessionSummary,
-  DraftState,
-  KeeperInfo,
-  PickResult,
-  Recommendation,
-  RosterSlot,
-} from "../types/session";
 import { ArbitragePanel } from "./ArbitragePanel";
 import { KeeperPanel } from "./KeeperPanel";
 import { CategoryBalancePanel } from "./CategoryBalancePanel";
@@ -38,12 +37,12 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const { openPlayer } = usePlayerDrawer();
   const sessionActive = ctx.sessionId != null && ctx.state != null;
 
-  const { data: sessionsData } = useQuery<{ sessions: DraftSessionSummary[] }>(SESSIONS_QUERY, {
+  const { data: sessionsData } = useQuery<SessionsQuery>(SESSIONS_QUERY, {
     variables: { status: "active" },
     skip: sessionActive,
   });
 
-  const { data: balanceData } = useQuery<{ balance: CategoryBalance[] }>(BALANCE_QUERY, {
+  const { data: balanceData } = useQuery<BalanceQuery>(BALANCE_QUERY, {
     variables: { sessionId: ctx.sessionId },
     skip: !sessionActive,
   });
@@ -54,21 +53,21 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
     }
   }, [balanceData, ctx.setBalance]);
 
-  const [fetchSession] = useLazyQuery<{ session: DraftState }>(SESSION_QUERY);
-  const [fetchRecs] = useLazyQuery<{ recommendations: Recommendation[] }>(RECOMMENDATIONS_QUERY);
-  const [fetchRoster] = useLazyQuery<{ roster: DraftPick[] }>(ROSTER_QUERY);
-  const [fetchNeeds] = useLazyQuery<{ needs: RosterSlot[] }>(NEEDS_QUERY);
-  const [fetchKeepers] = useLazyQuery<{ keepers: KeeperInfo[] }>(KEEPERS_QUERY);
-  const [startSession] = useMutation<{ startSession: DraftState }>(START_SESSION);
-  const [pickMutation] = useMutation<{ pick: PickResult }>(PICK, {
+  const [fetchSession] = useLazyQuery<SessionQuery>(SESSION_QUERY);
+  const [fetchRecs] = useLazyQuery(RECOMMENDATIONS_QUERY);
+  const [fetchRoster] = useLazyQuery(ROSTER_QUERY);
+  const [fetchNeeds] = useLazyQuery(NEEDS_QUERY);
+  const [fetchKeepers] = useLazyQuery(KEEPERS_QUERY);
+  const [startSession] = useMutation<StartSessionMutation>(START_SESSION);
+  const [pickMutation] = useMutation<PickMutation>(PICK, {
     refetchQueries: [{ query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } }],
   });
-  const [undoMutation] = useMutation<{ undo: PickResult }>(UNDO, {
+  const [undoMutation] = useMutation<UndoMutation>(UNDO, {
     refetchQueries: [{ query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } }],
   });
   const [endSession] = useMutation(END_SESSION);
 
-  useSubscription(DRAFT_EVENTS_SUBSCRIPTION, {
+  useSubscription<DraftEventsSubscription>(DRAFT_EVENTS_SUBSCRIPTION, {
     variables: { sessionId: ctx.sessionId },
     skip: !sessionActive,
     onData: ({ data: subData }) => {
@@ -121,8 +120,8 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
     async (sessionId: number) => {
       const [sessionRes, recsRes, rosterRes, needsRes, keepersRes] = await Promise.all([
         fetchSession({ variables: { sessionId } }),
-        fetchRecs({ variables: { sessionId, limit: 10 } }),
-        fetchRoster({ variables: { sessionId } }),
+        fetchRecs({ variables: { sessionId, position: null, limit: 10 } }),
+        fetchRoster({ variables: { sessionId, team: null } }),
         fetchNeeds({ variables: { sessionId } }),
         fetchKeepers({ variables: { sessionId } }),
       ]);

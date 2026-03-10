@@ -31,6 +31,20 @@ All commands run from `frontend/`.
 - **Format:** `bun run format` (auto-format all frontend source files)
 - **Lint + fix:** `bun run lint:fix` (auto-fix lint and format issues)
 - **Package manager:** `bun` (not npm/yarn).
+- **Codegen:** `bun run codegen` — regenerates `frontend/src/generated/graphql.ts` from `frontend/schema.graphql` + `frontend/src/graphql/documents/*.ts`. Run after changing any GraphQL query/mutation/subscription or after updating the backend schema.
+- **Schema export:** `bun run schema:export` (or `uv run python scripts/export_schema.py > frontend/schema.graphql` from repo root) — exports the Strawberry GraphQL schema as SDL. Run when backend schema types change.
+
+### GraphQL Codegen
+
+Types are auto-generated from the Strawberry schema. **Do not hand-write GraphQL type interfaces.**
+
+- **Schema source:** `frontend/schema.graphql` (committed, exported from Python backend)
+- **Generated file:** `frontend/src/generated/graphql.ts` (committed, excluded from Biome lint)
+- **Document definitions:** `frontend/src/graphql/documents/` — raw `gql` tag definitions that codegen reads
+- **Re-export barrels:** `frontend/src/graphql/queries.ts`, `mutations.ts`, `subscriptions.ts` — re-export typed document nodes from `../generated/graphql` with familiar names (e.g., `BOARD_QUERY`)
+- **Position utility:** `frontend/src/lib/position.ts` — runtime `Position` const + `displayPosition()` function
+- **Workflow:** When adding/changing a query: edit the document in `src/graphql/documents/`, run `bun run codegen`, then import the typed document node from the barrel re-export
+- **CI:** The frontend CI job checks codegen freshness — it exports the schema, runs codegen, and fails if `src/generated/` has uncommitted changes
 
 ### Pre-commit Hooks
 
@@ -42,8 +56,9 @@ Committing `.ts`/`.tsx` files under `frontend/` automatically triggers three fro
 - **Test co-location:** Tests live next to components (`PlayerDrawer.test.tsx`).
 - **Styling:** TailwindCSS v4 utility classes directly in `className`. No CSS modules or styled-components. Tailwind is configured via the `@tailwindcss/vite` plugin — no separate `tailwind.config` or `postcss.config` files.
 - **State management:** Apollo Client cache + React Context. No Redux or external state library.
-- **Apollo mocking in tests:** Use `MockedProvider` from `@apollo/client/testing` with `addTypename: false`. Define mock responses as `MockedResponse` objects with `request` (query + variables) and `result` (data).
-- **GraphQL queries/mutations/subscriptions** are defined in `frontend/src/graphql/` (`queries.ts`, `mutations.ts`, `subscriptions.ts`).
+- **Apollo mocking in tests:** Use `MockedProvider` from `@apollo/client/testing` with `addTypename: false`. Define mock responses as `MockedResponse` objects with `request` (query + variables) and `result` (data). Typed document nodes use `Exact<>` variable types — include all variable fields (pass `null` for optional ones) to match.
+- **GraphQL types:** All TypeScript types for GraphQL are auto-generated in `src/generated/graphql.ts`. Import types (e.g., `BoardQuery`, `DraftBoardRowType`) from `../generated/graphql`. Apollo hooks infer types from typed document nodes — no manual generic parameters needed.
+- **GraphQL queries/mutations/subscriptions:** Re-exported from `frontend/src/graphql/` barrels (`queries.ts`, `mutations.ts`, `subscriptions.ts`). Raw gql definitions live in `frontend/src/graphql/documents/`.
 
 ## Code Style
 

@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CategoryBalance } from "../types/session";
+import type { CategoryBalanceType } from "../generated/graphql";
 import { CategoryBalancePanel } from "./CategoryBalancePanel";
 
 // Mock recharts to avoid canvas issues in jsdom
@@ -13,7 +13,7 @@ vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-const BALANCE: CategoryBalance[] = [
+const BALANCE: CategoryBalanceType[] = [
   { category: "HR", projectedValue: 245, leagueRankEstimate: 3, strength: "strong" },
   { category: "RBI", projectedValue: 850, leagueRankEstimate: 5, strength: "average" },
   { category: "W", projectedValue: 75, leagueRankEstimate: 10, strength: "weak" },

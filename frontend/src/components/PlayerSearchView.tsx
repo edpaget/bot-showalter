@@ -1,8 +1,8 @@
 import { useLazyQuery } from "@apollo/client";
 import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
+import type { PlayerSearchQuery } from "../generated/graphql";
 import { PLAYER_SEARCH_QUERY } from "../graphql/queries";
-import type { PlayerSummary } from "../types/analysis";
 
 type SortKey = "name" | "team" | "age" | "primaryPosition" | "experience";
 type SortDir = "asc" | "desc";
@@ -13,9 +13,7 @@ export function PlayerSearchView({ season = 2026 }: { season?: number }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { openPlayer } = usePlayerDrawer();
 
-  const [fetchPlayers, { data, loading, error }] = useLazyQuery<{
-    playerSearch: PlayerSummary[];
-  }>(PLAYER_SEARCH_QUERY);
+  const [fetchPlayers, { data, loading, error }] = useLazyQuery<PlayerSearchQuery>(PLAYER_SEARCH_QUERY);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,12 +1,12 @@
 import { useLazyQuery } from "@apollo/client";
 import { useState } from "react";
+import type { ArbitrageReportType, FallingPlayerType, Position } from "../generated/graphql";
 import { ARBITRAGE_QUERY } from "../graphql/queries";
-import type { ArbitrageReport, FallingPlayer } from "../types/session";
 
 const POSITION_FILTERS = ["All", "C", "1B", "2B", "SS", "3B", "OF", "SP", "RP"] as const;
 
 interface ArbitragePanelProps {
-  arbitrage: ArbitrageReport | null;
+  arbitrage: ArbitrageReportType | null;
   sessionId: number;
   onDraft: (playerId: number, position: string) => void;
 }
@@ -15,9 +15,9 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
   const [tab, setTab] = useState<"falling" | "reaches">("falling");
   const [posFilter, setPosFilter] = useState<string>("All");
   const [threshold, setThreshold] = useState<number>(10);
-  const [localReport, setLocalReport] = useState<ArbitrageReport | null>(null);
+  const [localReport, setLocalReport] = useState<ArbitrageReportType | null>(null);
 
-  const [fetchArbitrage] = useLazyQuery<{ arbitrage: ArbitrageReport }>(ARBITRAGE_QUERY, {
+  const [fetchArbitrage] = useLazyQuery(ARBITRAGE_QUERY, {
     fetchPolicy: "network-only",
     onCompleted: (data) => setLocalReport(data.arbitrage),
   });
@@ -30,7 +30,8 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
       variables: {
         sessionId,
         threshold: value,
-        position: posFilter === "All" ? null : posFilter,
+        position: posFilter === "All" ? null : (posFilter as Position),
+        limit: null,
       },
     });
   };
@@ -107,7 +108,7 @@ function FallingTable({
   players,
   onDraft,
 }: {
-  players: FallingPlayer[];
+  players: FallingPlayerType[];
   onDraft: (playerId: number, position: string) => void;
 }) {
   if (players.length === 0) {
@@ -151,7 +152,7 @@ function FallingTable({
   );
 }
 
-function ReachesTable({ reaches }: { reaches: ArbitrageReport["reaches"] }) {
+function ReachesTable({ reaches }: { reaches: ArbitrageReportType["reaches"] }) {
   if (reaches.length === 0) {
     return <p className="text-xs text-gray-500">No reach picks detected</p>;
   }

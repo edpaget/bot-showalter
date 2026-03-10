@@ -1,9 +1,9 @@
-import { displayPosition } from "../types/position";
-import type { DraftPick, RosterSlot } from "../types/session";
+import type { DraftPickType, RosterSlotType } from "../generated/graphql";
+import { displayPosition } from "../lib/position";
 
 interface RosterPanelProps {
-  roster: DraftPick[];
-  needs: RosterSlot[];
+  roster: DraftPickType[];
+  needs: RosterSlotType[];
   budgetRemaining: number | null;
   format: string;
 }
