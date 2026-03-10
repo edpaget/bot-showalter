@@ -31,7 +31,12 @@ export function PlayerDrawer() {
   if (!isOpen) return null;
 
   const bio = bioData?.playerBio;
-  const projections = projData?.projections ?? [];
+  const allProjections = projData?.projections ?? [];
+  // Filter projections to only show those matching the player's type (batter/pitcher)
+  const playerType = bio ? (["SP", "RP", "P"].includes(bio.primaryPosition) ? "pitcher" : "batter") : null;
+  const projections = playerType
+    ? allProjections.filter((p) => p.playerType === playerType)
+    : allProjections;
   const allValuations = valData?.valuations ?? [];
   const valuations = playerName
     ? allValuations.filter((v) => v.playerName === playerName)
@@ -94,6 +99,9 @@ export function PlayerDrawer() {
                     System
                   </th>
                   <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
+                    Version
+                  </th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
                     Type
                   </th>
                   <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
@@ -105,6 +113,7 @@ export function PlayerDrawer() {
                 {projections.map((p, i) => (
                   <tr key={i}>
                     <td className="border border-gray-200 px-2 py-1">{p.system}</td>
+                    <td className="border border-gray-200 px-2 py-1">{p.version}</td>
                     <td className="border border-gray-200 px-2 py-1">{p.playerType}</td>
                     <td className="border border-gray-200 px-2 py-1">
                       {Object.entries(p.stats)
@@ -134,6 +143,9 @@ export function PlayerDrawer() {
                     System
                   </th>
                   <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
+                    Version
+                  </th>
+                  <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
                     Pos
                   </th>
                   <th className="border border-gray-200 px-2 py-1 bg-gray-50 text-left">
@@ -148,6 +160,7 @@ export function PlayerDrawer() {
                 {valuations.map((v, i) => (
                   <tr key={i}>
                     <td className="border border-gray-200 px-2 py-1">{v.system}</td>
+                    <td className="border border-gray-200 px-2 py-1">{v.version}</td>
                     <td className="border border-gray-200 px-2 py-1">
                       {displayPosition(v.position)}
                     </td>

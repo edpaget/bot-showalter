@@ -57,6 +57,7 @@ describe("ProjectionsView", () => {
     // Wait for results
     expect(await screen.findByText("Mike Trout")).toBeInTheDocument();
     expect(screen.getByText("steamer")).toBeInTheDocument();
+    expect(screen.getByText("2026")).toBeInTheDocument();
     expect(screen.getByText("batter")).toBeInTheDocument();
   });
 });

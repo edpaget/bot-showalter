@@ -62,11 +62,13 @@ describe("ValuationsView", () => {
     expect(screen.getByText("Valuation Rankings")).toBeInTheDocument();
   });
 
-  it("loads and displays valuations", async () => {
+  it("loads and displays valuations with version", async () => {
     renderView();
     expect(await screen.findByText("Mike Trout")).toBeInTheDocument();
-    // Check values are displayed
+    // Check values and version are displayed
     expect(screen.getByText("$35.0")).toBeInTheDocument();
     expect(screen.getByText("$25.0")).toBeInTheDocument();
+    // Version column header and values
+    expect(screen.getByText("Version")).toBeInTheDocument();
   });
 });

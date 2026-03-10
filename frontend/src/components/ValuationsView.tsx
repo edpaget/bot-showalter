@@ -5,7 +5,7 @@ import { usePlayerDrawer } from "../context/PlayerDrawerContext";
 import { displayPosition } from "../types/position";
 import type { ValuationRow } from "../types/analysis";
 
-type SortKey = "rank" | "playerName" | "position" | "value" | "playerType" | "system";
+type SortKey = "rank" | "playerName" | "position" | "value" | "playerType" | "system" | "version";
 type SortDir = "asc" | "desc";
 
 export function ValuationsView({ season = 2026 }: { season?: number }) {
@@ -57,6 +57,7 @@ export function ValuationsView({ season = 2026 }: { season?: number }) {
     { key: "value", label: "Value" },
     { key: "playerType", label: "Type" },
     { key: "system", label: "System" },
+    { key: "version", label: "Version" },
   ];
 
   return (
@@ -138,6 +139,7 @@ export function ValuationsView({ season = 2026 }: { season?: number }) {
                   </td>
                   <td className="border border-gray-200 px-2 py-1">{v.playerType}</td>
                   <td className="border border-gray-200 px-2 py-1">{v.system}</td>
+                  <td className="border border-gray-200 px-2 py-1">{v.version}</td>
                 </tr>
               ))}
             </tbody>

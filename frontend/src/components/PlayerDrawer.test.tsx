@@ -123,4 +123,53 @@ describe("PlayerDrawer", () => {
     await act(() => userEvent.click(screen.getByTestId("drawer-backdrop")));
     expect(screen.queryByText("Biography")).not.toBeInTheDocument();
   });
+
+  it("filters projections by player type and shows version column", async () => {
+    const mixedProjMock: MockedResponse = {
+      request: {
+        query: PROJECTIONS_QUERY,
+        variables: { season: 2026, playerName: "Mike Trout" },
+      },
+      result: {
+        data: {
+          projections: [
+            {
+              playerName: "Mike Trout",
+              system: "steamer",
+              version: "2026",
+              sourceType: "first_party",
+              playerType: "batter",
+              stats: { pa: 600, hr: 35 },
+            },
+            {
+              playerName: "Mike Trout",
+              system: "steamer",
+              version: "2026",
+              sourceType: "first_party",
+              playerType: "pitcher",
+              stats: { ip: 10, k: 5 },
+            },
+          ],
+        },
+      },
+    };
+
+    renderDrawer([bioMock(), mixedProjMock, valMock()]);
+    await act(() => userEvent.click(screen.getByText("Open Drawer")));
+
+    // Wait for bio to load (which determines player type)
+    expect(await screen.findByText("CF")).toBeInTheDocument();
+
+    // Should show batter projection but not pitcher projection
+    // The batter row should be visible, pitcher row filtered out
+    const rows = screen.getAllByRole("row");
+    const projRows = rows.filter((r) => r.textContent?.includes("steamer"));
+    // Only the batter projection should appear (1 row), not the pitcher one
+    expect(projRows.length).toBe(1);
+    expect(projRows[0].textContent).toContain("batter");
+    expect(projRows[0].textContent).not.toContain("pitcher");
+
+    // Version columns should be present (projections + valuations tables)
+    expect(screen.getAllByText("Version").length).toBeGreaterThanOrEqual(1);
+  });
 });

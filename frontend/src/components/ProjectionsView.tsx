@@ -4,7 +4,7 @@ import { PROJECTIONS_QUERY } from "../graphql/queries";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
 import type { Projection } from "../types/analysis";
 
-type SortKey = "playerName" | "system" | "playerType";
+type SortKey = "playerName" | "system" | "version" | "playerType";
 type SortDir = "asc" | "desc";
 
 export function ProjectionsView({ season = 2026 }: { season?: number }) {
@@ -52,6 +52,7 @@ export function ProjectionsView({ season = 2026 }: { season?: number }) {
   const columns: { key: SortKey; label: string }[] = [
     { key: "playerName", label: "Player" },
     { key: "system", label: "System" },
+    { key: "version", label: "Version" },
     { key: "playerType", label: "Type" },
   ];
 
@@ -124,6 +125,7 @@ export function ProjectionsView({ season = 2026 }: { season?: number }) {
                     </button>
                   </td>
                   <td className="border border-gray-200 px-2 py-1">{p.system}</td>
+                  <td className="border border-gray-200 px-2 py-1">{p.version}</td>
                   <td className="border border-gray-200 px-2 py-1">{p.playerType}</td>
                   <td className="border border-gray-200 px-2 py-1 text-xs text-gray-600">
                     {Object.entries(p.stats)
