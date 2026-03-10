@@ -415,6 +415,7 @@ class Mutation:
         user_team: int = 1,
         format: str = "snake",
         budget: int | None = None,
+        keeper_player_ids: list[int] | None = None,
     ) -> DraftStateType:
         ctx = _get_context(info)
         system = system or ctx.default_system
@@ -428,6 +429,7 @@ class Mutation:
             user_team=user_team,
             fmt=format,
             budget=budget,
+            keeper_player_ids=set(keeper_player_ids) if keeper_player_ids else None,
         )
         await ctx.event_bus.publish(
             session_id,

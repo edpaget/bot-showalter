@@ -15,6 +15,7 @@ class DraftSessionRecord:
     updated_at: str
     system: str = "zar"
     version: str = "1.0"
+    keeper_player_ids: list[int] | None = None
     id: int | None = None
 
 

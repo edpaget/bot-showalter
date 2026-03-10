@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord
 from fantasy_baseball_manager.services import (
@@ -15,13 +15,18 @@ from fantasy_baseball_manager.services import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import DraftBoardRow, LeagueSettings
+    from fantasy_baseball_manager.domain import DraftBoardRow, LeagueSettings, Valuation
     from fantasy_baseball_manager.repos import (
         ADPRepo,
         DraftSessionRepo,
+        LeagueKeeperRepo,
         PlayerRepo,
         ValuationRepo,
     )
+
+
+class ValuationAdjuster(Protocol):
+    def __call__(self, kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]: ...
 
 
 @dataclass(frozen=True)
@@ -41,6 +46,8 @@ class SessionManager:
         player_profile_service: PlayerProfileService,
         league: LeagueSettings,
         adp_provider: str,
+        valuation_adjuster: ValuationAdjuster | None = None,
+        league_keeper_repo: LeagueKeeperRepo | None = None,
     ) -> None:
         self._repo = session_repo
         self._valuation_repo = valuation_repo
@@ -49,6 +56,8 @@ class SessionManager:
         self._player_profile_service = player_profile_service
         self._league = league
         self._adp_provider = adp_provider
+        self._valuation_adjuster = valuation_adjuster
+        self._league_keeper_repo = league_keeper_repo
         self._engines: dict[int, DraftEngine] = {}
 
     def start_session(
@@ -61,11 +70,18 @@ class SessionManager:
         user_team: int = 1,
         fmt: str = "snake",
         budget: int | None = None,
+        keeper_player_ids: set[int] | None = None,
     ) -> tuple[int, DraftEngine]:
         teams = teams or self._league.teams
         budget = budget if budget is not None else self._league.budget
 
-        players = self._build_player_pool(season, system, version)
+        # Auto-load keepers from DB when not explicitly provided
+        if keeper_player_ids is None and self._league_keeper_repo is not None:
+            league_keepers = self._league_keeper_repo.find_by_season_league(season, self._league.name)
+            if league_keepers:
+                keeper_player_ids = {k.player_id for k in league_keepers}
+
+        players = self._build_player_pool(season, system, version, keeper_player_ids=keeper_player_ids)
         roster_slots = build_draft_roster_slots(self._league)
         config = DraftConfig(
             teams=teams,
@@ -93,6 +109,7 @@ class SessionManager:
             updated_at=now,
             system=system,
             version=version,
+            keeper_player_ids=sorted(keeper_player_ids) if keeper_player_ids is not None else None,
         )
         session_id = self._repo.create_session(record)
         self._engines[session_id] = engine
@@ -107,7 +124,8 @@ class SessionManager:
             msg = f"Draft session {session_id} not found"
             raise ValueError(msg)
 
-        players = self._build_player_pool(record.season, record.system, record.version)
+        keeper_ids = set(record.keeper_player_ids) if record.keeper_player_ids else None
+        players = self._build_player_pool(record.season, record.system, record.version, keeper_player_ids=keeper_ids)
         engine = load_draft_from_db(session_id, players, self._repo)
         self._engines[session_id] = engine
         return engine
@@ -178,8 +196,20 @@ class SessionManager:
             records = [r for r in records if r.status == status]
         return [DraftSessionSummary(record=r, pick_count=self._repo.count_picks(r.id or 0)) for r in records]
 
-    def _build_player_pool(self, season: int, system: str, version: str) -> list[DraftBoardRow]:
+    def _build_player_pool(
+        self,
+        season: int,
+        system: str,
+        version: str,
+        *,
+        keeper_player_ids: set[int] | None = None,
+    ) -> list[DraftBoardRow]:
         valuations = self._valuation_repo.get_by_season(season, system=system, version=version)
+
+        # Apply keeper adjustments: re-value pool then exclude kept players
+        if keeper_player_ids and self._valuation_adjuster is not None:
+            valuations = self._valuation_adjuster(keeper_player_ids, valuations, season)
+            valuations = [v for v in valuations if v.player_id not in keeper_player_ids]
 
         player_ids = [v.player_id for v in valuations]
         players = self._player_repo.get_by_ids(player_ids)

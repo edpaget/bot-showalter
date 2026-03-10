@@ -18,8 +18,8 @@ class SqliteDraftSessionRepo:
             cur = conn.execute(
                 "INSERT INTO draft_session"
                 " (league, season, teams, format, user_team, roster_slots,"
-                "  budget, status, created_at, updated_at, system, version)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "  budget, status, created_at, updated_at, system, version, keeper_player_ids)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.league,
                     record.season,
@@ -33,6 +33,7 @@ class SqliteDraftSessionRepo:
                     record.updated_at,
                     record.system,
                     record.version,
+                    json.dumps(sorted(record.keeper_player_ids)) if record.keeper_player_ids is not None else None,
                 ),
             )
             assert cur.lastrowid is not None  # noqa: S101
@@ -66,7 +67,7 @@ class SqliteDraftSessionRepo:
         with self._provider.connection() as conn:
             row = conn.execute(
                 "SELECT id, league, season, teams, format, user_team, roster_slots,"
-                " budget, status, created_at, updated_at, system, version"
+                " budget, status, created_at, updated_at, system, version, keeper_player_ids"
                 " FROM draft_session WHERE id = ?",
                 (session_id,),
             ).fetchone()
@@ -97,7 +98,7 @@ class SqliteDraftSessionRepo:
         with self._provider.connection() as conn:
             rows = conn.execute(
                 "SELECT id, league, season, teams, format, user_team, roster_slots,"  # noqa: S608
-                f" budget, status, created_at, updated_at, system, version FROM draft_session{where}"
+                f" budget, status, created_at, updated_at, system, version, keeper_player_ids FROM draft_session{where}"
                 " ORDER BY created_at DESC",
                 params,
             ).fetchall()
@@ -132,6 +133,8 @@ class SqliteDraftSessionRepo:
 
     @staticmethod
     def _row_to_session(row: sqlite3.Row) -> DraftSessionRecord:
+        raw_keeper_ids = row["keeper_player_ids"]
+        keeper_player_ids: list[int] | None = json.loads(raw_keeper_ids) if raw_keeper_ids is not None else None
         return DraftSessionRecord(
             id=row["id"],
             league=row["league"],
@@ -146,6 +149,7 @@ class SqliteDraftSessionRepo:
             updated_at=row["updated_at"],
             system=row["system"],
             version=row["version"],
+            keeper_player_ids=keeper_player_ids,
         )
 
     @staticmethod

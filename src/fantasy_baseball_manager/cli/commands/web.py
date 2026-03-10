@@ -1,4 +1,5 @@
 import logging
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
 
@@ -12,9 +13,10 @@ from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
-from fantasy_baseball_manager.domain import BreakoutPrediction
+from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings, Valuation
 from fantasy_baseball_manager.models import ModelConfig
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqliteYahooPlayerMapRepo, SqliteYahooTeamRepo
+from fantasy_baseball_manager.services import PlayerEligibilityService, compute_adjusted_valuations
 from fantasy_baseball_manager.web import EventBus, SessionManager, YahooPollerManager, create_app
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
@@ -22,6 +24,61 @@ from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 
 logger = logging.getLogger(__name__)
+
+
+def _make_valuation_adjuster(
+    container: AnalysisContainer,
+    league: LeagueSettings,
+) -> callable:  # type: ignore[type-arg]
+    """Build a ValuationAdjuster-compatible callable for keeper-adjusted draft pools."""
+    eligibility = PlayerEligibilityService(
+        container.position_appearance_repo,
+        pitching_stats_repo=container.pitching_stats_repo,
+    )
+
+    def adjust(kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]:
+        projections = container.projection_repo.get_by_season(season)
+        batter_positions = eligibility.get_batter_positions(season, league)
+        pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
+        pitcher_positions = eligibility.get_pitcher_positions(season, league, pitcher_ids)
+        player_ids = {v.player_id for v in valuations}
+        players = container.player_repo.get_by_ids(list(player_ids))
+
+        adjusted = compute_adjusted_valuations(
+            kept_ids, projections, batter_positions, pitcher_positions, league, valuations, players
+        )
+
+        # Map AdjustedValuation back to Valuation, preserving original metadata
+        orig_lookup: dict[int, Valuation] = {}
+        for v in valuations:
+            if v.player_id not in orig_lookup or v.value > orig_lookup[v.player_id].value:
+                orig_lookup[v.player_id] = v
+
+        result: list[Valuation] = []
+        for adj in adjusted:
+            orig = orig_lookup.get(adj.player_id)
+            if orig is not None:
+                result.append(replace(orig, value=adj.adjusted_value))
+            else:
+                # Player not in original valuations (shouldn't happen but be safe)
+                result.append(
+                    Valuation(
+                        player_id=adj.player_id,
+                        season=season,
+                        system="zar",
+                        version="1.0",
+                        projection_system="",
+                        projection_version="",
+                        player_type=adj.player_type,
+                        position=adj.position,
+                        value=adj.adjusted_value,
+                        rank=0,
+                        category_scores={},
+                    )
+                )
+        return result
+
+    return adjust
 
 
 def web(  # pragma: no cover
@@ -50,6 +107,7 @@ def web(  # pragma: no cover
     event_bus = EventBus()
 
     session_repo = SqliteDraftSessionRepo(provider)
+    valuation_adjuster = _make_valuation_adjuster(container, league)
     session_manager = SessionManager(
         session_repo=session_repo,
         valuation_repo=container.valuation_repo,
@@ -58,6 +116,8 @@ def web(  # pragma: no cover
         player_profile_service=container.player_profile_service,
         league=league,
         adp_provider="fantasypros",
+        valuation_adjuster=valuation_adjuster,
+        league_keeper_repo=container.league_keeper_repo,
     )
 
     # Load breakout/bust predictions if model is trained

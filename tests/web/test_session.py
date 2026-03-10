@@ -440,6 +440,81 @@ def test_pick_result_includes_arbitrage(session_client: TestClient) -> None:
     assert isinstance(data["arbitrage"]["reaches"], list)
 
 
+def test_start_session_with_keeper_ids(session_provider: SingleConnectionProvider) -> None:
+    """Starting a session with keeperPlayerIds excludes those players from available pool."""
+    container = AnalysisContainer(session_provider)
+    session_repo = SqliteDraftSessionRepo(session_provider)
+
+    def fake_adjuster(kept_ids: set[int], valuations: list, season: int) -> list:
+        return [v for v in valuations if v.player_id not in kept_ids]
+
+    mgr = SessionManager(
+        session_repo=session_repo,
+        valuation_repo=container.valuation_repo,
+        player_repo=container.player_repo,
+        adp_repo=container.adp_repo,
+        player_profile_service=container.player_profile_service,
+        league=_LEAGUE,
+        adp_provider="fantasypros",
+        valuation_adjuster=fake_adjuster,
+    )
+    app = create_app(container, _LEAGUE, session_manager=mgr, default_system="zar", default_version="1.0")
+    client = TestClient(app)
+
+    # Start with player 1 as keeper
+    result = _gql(
+        client,
+        """
+        mutation StartSession($season: Int!, $keepers: [Int!]) {
+            startSession(season: $season, teams: 10, userTeam: 1, format: "snake", keeperPlayerIds: $keepers) {
+                sessionId
+                currentPick
+            }
+        }
+        """,
+        {"season": 2026, "keepers": [1]},
+    )
+    assert "errors" not in result, result.get("errors")
+    sid = result["data"]["startSession"]["sessionId"]
+
+    # Verify player 1 is excluded from available
+    avail_result = _gql(
+        client,
+        """
+        query Available($sid: Int!) {
+            available(sessionId: $sid) { playerId }
+        }
+        """,
+        {"sid": sid},
+    )
+    available_ids = [r["playerId"] for r in avail_result["data"]["available"]]
+    assert 1 not in available_ids
+    # Player 2 still available
+    assert 2 in available_ids
+
+
+def test_start_session_without_keepers_backward_compatible(session_client: TestClient) -> None:
+    """Starting without keepers behaves identically to before."""
+    result = _gql(session_client, _START_MUTATION, {"season": 2026})
+    assert "errors" not in result, result.get("errors")
+    sid = result["data"]["startSession"]["sessionId"]
+
+    avail_result = _gql(
+        session_client,
+        """
+        query Available($sid: Int!) {
+            available(sessionId: $sid) { playerId }
+        }
+        """,
+        {"sid": sid},
+    )
+    available_ids = [r["playerId"] for r in avail_result["data"]["available"]]
+    # All 3 test players should be available
+    assert 1 in available_ids
+    assert 2 in available_ids
+    assert 3 in available_ids
+
+
 def test_pick_invalid_player(session_client: TestClient) -> None:
     sid = _start_session(session_client)
     result = _gql(

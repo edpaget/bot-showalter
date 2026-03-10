@@ -233,6 +233,31 @@ class TestCreateAndLoadSessionWithSystemVersion:
         assert sessions[0].version == "2.0"
 
 
+class TestKeeperPlayerIds:
+    def test_roundtrip_with_keeper_ids(self, repo: SqliteDraftSessionRepo) -> None:
+        record = _make_record(keeper_player_ids=[10, 20, 30])
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.keeper_player_ids == [10, 20, 30]
+
+    def test_roundtrip_without_keeper_ids(self, repo: SqliteDraftSessionRepo) -> None:
+        record = _make_record()
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.keeper_player_ids is None
+
+    def test_list_sessions_includes_keeper_ids(self, repo: SqliteDraftSessionRepo) -> None:
+        repo.create_session(_make_record(keeper_player_ids=[5, 15]))
+
+        sessions = repo.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].keeper_player_ids == [5, 15]
+
+
 class TestLoadSessionNotFound:
     def test_returns_none(self, repo: SqliteDraftSessionRepo) -> None:
         assert repo.load_session(9999) is None
