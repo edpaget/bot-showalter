@@ -95,6 +95,54 @@ def weighted_spread(
     return result
 
 
+def normalize_routed_counting_stats(
+    result_stats: dict[str, float],
+    routes: dict[str, str],
+    system_stats: dict[str, dict[str, Any]],
+    pt_stat: str,
+    counting_stats: frozenset[str],
+) -> dict[str, float]:
+    """Rescale counting stats when the PT stat was routed to a different system.
+
+    After ``routed()`` merges stats from different systems, counting stats may
+    be inconsistent with the PT value (e.g. steamer's 80 ER assumes 200 IP,
+    but the playing-time model says 160 IP).  This function detects that
+    mismatch and scales counting stats proportionally.
+    """
+    routed_pt = result_stats.get(pt_stat)
+    if not routed_pt:  # missing or 0
+        return dict(result_stats)
+
+    pt_source = routes.get(pt_stat)
+    if pt_source is None:
+        return dict(result_stats)
+
+    result: dict[str, float] = {}
+    for stat, value in result_stats.items():
+        if stat == pt_stat or stat not in counting_stats:
+            result[stat] = value
+            continue
+
+        stat_source = routes.get(stat)
+        if stat_source is None or stat_source == pt_source:
+            result[stat] = value
+            continue
+
+        source_stats = system_stats.get(stat_source)
+        if source_stats is None:
+            result[stat] = value
+            continue
+
+        source_pt = source_stats.get(pt_stat)
+        if not source_pt:  # missing or 0
+            result[stat] = value
+            continue
+
+        result[stat] = value * routed_pt / float(source_pt)
+
+    return result
+
+
 def routed(
     system_stats: dict[str, dict[str, Any]],
     routes: dict[str, str],

@@ -1122,6 +1122,146 @@ class TestEnsembleRoutedMode:
         assert pred["_routes"] == routes
 
 
+class TestEnsembleRoutedNormalization:
+    """Integration tests for post-routing counting stat normalization."""
+
+    def test_pitcher_ip_routed_to_different_system_scales_counting_stats(self) -> None:
+        """IP from playing_time, counting stats from steamer → counting stats scaled."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(
+                    1,
+                    "steamer",
+                    "pitcher",
+                    {"ip": 200.0, "er": 80.0, "so": 200.0, "era": 3.60, "w": 12.0},
+                ),
+                _make_projection(1, "playing_time", "pitcher", {"ip": 160.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "components": {"steamer": 0.5, "playing_time": 0.5},
+                "mode": "routed",
+                "routes": {
+                    "ip": "playing_time",
+                    "er": "steamer",
+                    "so": "steamer",
+                    "era": "steamer",
+                    "w": "steamer",
+                },
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # IP comes from playing_time
+        assert pred["ip"] == 160.0
+        # Counting stats scaled by 160/200 = 0.8
+        assert pred["er"] == pytest.approx(80.0 * 0.8)
+        assert pred["so"] == pytest.approx(200.0 * 0.8)
+        assert pred["w"] == pytest.approx(12.0 * 0.8)
+        # Rate stats unchanged
+        assert pred["era"] == 3.60
+
+    def test_all_stats_same_system_no_normalization(self) -> None:
+        """When all stats routed to same system, no scaling occurs."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(
+                    1,
+                    "steamer",
+                    "pitcher",
+                    {"ip": 200.0, "er": 80.0, "era": 3.60},
+                ),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "routed",
+                "routes": {"ip": "steamer", "er": "steamer", "era": "steamer"},
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["ip"] == 200.0
+        assert pred["er"] == 80.0
+        assert pred["era"] == 3.60
+
+    def test_batter_pa_routed_scales_counting_stats(self) -> None:
+        """Batter variant: PA from one system, counting stats scaled."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(
+                    1,
+                    "steamer",
+                    "batter",
+                    {"pa": 600.0, "hr": 30.0, "rbi": 100.0, "avg": 0.280},
+                ),
+                _make_projection(1, "playing_time", "batter", {"pa": 500.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "components": {"steamer": 0.5, "playing_time": 0.5},
+                "mode": "routed",
+                "routes": {
+                    "pa": "playing_time",
+                    "hr": "steamer",
+                    "rbi": "steamer",
+                    "avg": "steamer",
+                },
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["pa"] == 500.0
+        assert pred["hr"] == pytest.approx(30.0 * 500.0 / 600.0)
+        assert pred["rbi"] == pytest.approx(100.0 * 500.0 / 600.0)
+        assert pred["avg"] == 0.280  # rate stat unchanged
+
+    def test_rate_stats_always_unchanged_regardless_of_routing(self) -> None:
+        """Rate stats are never scaled even when IP is from a different system."""
+        repo = FakeProjectionRepo(
+            [
+                _make_projection(
+                    1,
+                    "steamer",
+                    "pitcher",
+                    {"ip": 200.0, "era": 3.60, "whip": 1.20, "fip": 3.80, "er": 80.0},
+                ),
+                _make_projection(1, "playing_time", "pitcher", {"ip": 120.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=repo)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "components": {"steamer": 0.5, "playing_time": 0.5},
+                "mode": "routed",
+                "routes": {
+                    "ip": "playing_time",
+                    "era": "steamer",
+                    "whip": "steamer",
+                    "fip": "steamer",
+                    "er": "steamer",
+                },
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        assert pred["era"] == 3.60
+        assert pred["whip"] == 1.20
+        assert pred["fip"] == 3.80
+        # Counting stat is scaled
+        assert pred["er"] == pytest.approx(80.0 * 120.0 / 200.0)
+
+
 class TestEnsembleStatWeights:
     def test_stat_weights_override_global(self) -> None:
         """Per-stat weights used instead of global component weights."""

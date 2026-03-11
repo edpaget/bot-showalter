@@ -1,8 +1,11 @@
 import math
 
+import pytest
+
 from fantasy_baseball_manager.domain.projection import StatDistribution
 from fantasy_baseball_manager.models.ensemble.engine import (
     blend_rates,
+    normalize_routed_counting_stats,
     per_stat_weighted,
     routed,
     weighted_average,
@@ -299,3 +302,183 @@ class TestPerStatWeighted:
         }
         result = per_stat_weighted(system_stats, stat_weights={})
         assert result == {}
+
+
+class TestNormalizeRoutedCountingStats:
+    """Tests for post-routing normalization of counting stats."""
+
+    _PITCHER_COUNTING = frozenset({"w", "l", "g", "gs", "sv", "hld", "ip", "h", "er", "hr", "bb", "so"})
+
+    def test_ip_routed_differently_scales_counting_stats(self) -> None:
+        """IP from playing_time (160), counting stats from steamer (200 IP) → scale by 0.8."""
+        result_stats = {"ip": 160.0, "er": 80.0, "so": 200.0, "era": 3.60}
+        routes = {"ip": "playing_time", "er": "steamer", "so": "steamer", "era": "steamer"}
+        system_stats = {
+            "playing_time": {"ip": 160.0},
+            "steamer": {"ip": 200.0, "er": 80.0, "so": 200.0, "era": 3.60},
+        }
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result["ip"] == 160.0
+        assert result["er"] == pytest.approx(80.0 * 160.0 / 200.0)
+        assert result["so"] == pytest.approx(200.0 * 160.0 / 200.0)
+        # Rate stat unchanged
+        assert result["era"] == 3.60
+
+    def test_all_stats_same_system_no_scaling(self) -> None:
+        """When all stats come from the same system, no normalization needed."""
+        result_stats = {"ip": 200.0, "er": 80.0, "so": 200.0}
+        routes = {"ip": "steamer", "er": "steamer", "so": "steamer"}
+        system_stats = {"steamer": {"ip": 200.0, "er": 80.0, "so": 200.0}}
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result == result_stats
+
+    def test_ip_not_in_routes_no_scaling(self) -> None:
+        """When IP is not explicitly routed, no normalization."""
+        result_stats = {"ip": 200.0, "er": 80.0}
+        routes = {"er": "steamer"}
+        system_stats = {"steamer": {"ip": 200.0, "er": 80.0}}
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result == result_stats
+
+    def test_source_system_zero_ip_no_scaling(self) -> None:
+        """When source system has 0 IP, skip scaling to avoid div/0."""
+        result_stats = {"ip": 160.0, "er": 80.0}
+        routes = {"ip": "playing_time", "er": "steamer"}
+        system_stats = {
+            "playing_time": {"ip": 160.0},
+            "steamer": {"ip": 0.0, "er": 80.0},
+        }
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result["ip"] == 160.0
+        assert result["er"] == 80.0  # unchanged
+
+    def test_rate_stats_left_unchanged(self) -> None:
+        """Stats not in counting_stats are never scaled."""
+        result_stats = {"ip": 160.0, "era": 3.60, "whip": 1.20, "er": 80.0}
+        routes = {"ip": "playing_time", "era": "steamer", "whip": "steamer", "er": "steamer"}
+        system_stats = {
+            "playing_time": {"ip": 160.0},
+            "steamer": {"ip": 200.0, "era": 3.60, "whip": 1.20, "er": 80.0},
+        }
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result["era"] == 3.60
+        assert result["whip"] == 1.20
+        assert result["er"] == pytest.approx(80.0 * 160.0 / 200.0)
+
+    def test_batter_pa_routed_differently(self) -> None:
+        """Batter variant: PA from one system, counting stats from another."""
+        batter_counting = frozenset({"pa", "ab", "h", "hr", "rbi", "r", "sb", "bb", "so"})
+        result_stats = {"pa": 500.0, "hr": 30.0, "rbi": 100.0, "avg": 0.280}
+        routes = {"pa": "playing_time", "hr": "steamer", "rbi": "steamer", "avg": "steamer"}
+        system_stats = {
+            "playing_time": {"pa": 500.0},
+            "steamer": {"pa": 600.0, "hr": 30.0, "rbi": 100.0, "avg": 0.280},
+        }
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="pa",
+            counting_stats=batter_counting,
+        )
+        assert result["pa"] == 500.0
+        assert result["hr"] == pytest.approx(30.0 * 500.0 / 600.0)
+        assert result["rbi"] == pytest.approx(100.0 * 500.0 / 600.0)
+        assert result["avg"] == 0.280  # rate stat, not in counting_stats
+
+    def test_does_not_mutate_input(self) -> None:
+        """The function returns a new dict, not mutating the input."""
+        result_stats = {"ip": 160.0, "er": 80.0}
+        routes = {"ip": "playing_time", "er": "steamer"}
+        system_stats = {
+            "playing_time": {"ip": 160.0},
+            "steamer": {"ip": 200.0, "er": 80.0},
+        }
+        original = dict(result_stats)
+        normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result_stats == original
+
+    def test_pt_stat_missing_from_result_no_scaling(self) -> None:
+        """When pt_stat is not in result_stats, return unchanged."""
+        result_stats = {"er": 80.0, "so": 200.0}
+        routes = {"er": "steamer", "so": "steamer"}
+        system_stats = {"steamer": {"ip": 200.0, "er": 80.0, "so": 200.0}}
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result == result_stats
+
+    def test_pt_stat_zero_no_scaling(self) -> None:
+        """When routed PT is 0, return unchanged."""
+        result_stats = {"ip": 0.0, "er": 80.0}
+        routes = {"ip": "playing_time", "er": "steamer"}
+        system_stats = {
+            "playing_time": {"ip": 0.0},
+            "steamer": {"ip": 200.0, "er": 80.0},
+        }
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result == result_stats
+
+    def test_counting_stat_not_routed_skipped(self) -> None:
+        """Counting stat without an explicit route is not scaled."""
+        result_stats = {"ip": 160.0, "er": 80.0, "so": 200.0}
+        routes = {"ip": "playing_time", "er": "steamer"}  # so not in routes
+        system_stats = {
+            "playing_time": {"ip": 160.0},
+            "steamer": {"ip": 200.0, "er": 80.0, "so": 200.0},
+        }
+        result = normalize_routed_counting_stats(
+            result_stats,
+            routes,
+            system_stats,
+            pt_stat="ip",
+            counting_stats=self._PITCHER_COUNTING,
+        )
+        assert result["er"] == pytest.approx(80.0 * 0.8)
+        assert result["so"] == 200.0  # not in routes → not scaled

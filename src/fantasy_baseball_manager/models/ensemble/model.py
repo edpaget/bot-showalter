@@ -9,8 +9,13 @@ from fantasy_baseball_manager.domain import (
     ConsensusLookup,
     resolve_playing_time,
 )
+from fantasy_baseball_manager.domain.pt_normalization import (
+    _BATTER_COUNTING_SET,
+    _PITCHER_COUNTING_SET,
+)
 from fantasy_baseball_manager.models.ensemble.engine import (
     blend_rates,
+    normalize_routed_counting_stats,
     per_stat_weighted,
     routed,
     weighted_average,
@@ -164,6 +169,16 @@ class EnsembleModel:
                 fallback: str | None = params.get("fallback")
                 sys_stats = {sys: proj.stat_json for sys, proj in system_map.items()}
                 result_stats = routed(sys_stats, routes, fallback)
+                # Normalize counting stats when PT is routed to a different system
+                counting_set = _PITCHER_COUNTING_SET if player_type == "pitcher" else _BATTER_COUNTING_SET
+                pt_key_routed = "ip" if player_type == "pitcher" else "pa"
+                result_stats = normalize_routed_counting_stats(
+                    result_stats,
+                    routes,
+                    sys_stats,
+                    pt_key_routed,
+                    frozenset(counting_set),
+                )
                 extra_meta: dict[str, Any] = {"_routes": dict(routes)}
             elif param_stat_weights is not None:
                 sys_stats = {sys: proj.stat_json for sys, proj in system_map.items()}
