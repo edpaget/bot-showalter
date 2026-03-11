@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from fantasy_baseball_manager.repos import ProjectionRepo
+
 from fantasy_baseball_manager.domain import ArtifactType
 from fantasy_baseball_manager.features import (
     AnyFeature,
@@ -99,8 +101,13 @@ def _parse_pt_systems(model_params: dict[str, Any]) -> tuple[tuple[str, float], 
 
 @register("playing_time")
 class PlayingTimeModel:
-    def __init__(self, assembler: DatasetAssembler) -> None:
+    def __init__(
+        self,
+        assembler: DatasetAssembler,
+        projection_repo: ProjectionRepo | None = None,
+    ) -> None:
         self._assembler = assembler
+        self._projection_repo = projection_repo
 
     @property
     def name(self) -> str:
@@ -118,6 +125,28 @@ class PlayingTimeModel:
     def artifact_type(self) -> str:
         return ArtifactType.FILE.value
 
+    def _get_projection_pitcher_ids(
+        self,
+        season: int,
+        systems: tuple[str, ...] = ("steamer", "zips"),
+    ) -> tuple[int, ...] | None:
+        """Return pitcher player IDs projected by any of the given systems for *season*.
+
+        Returns ``None`` when no projection data is available (e.g. pre-2022
+        seasons) or when no projection_repo was injected — callers should
+        fall back to the stats-based spine.
+        """
+        if self._projection_repo is None:
+            return None
+        ids: set[int] = set()
+        for system in systems:
+            for proj in self._projection_repo.get_by_season(season, system=system):
+                if proj.player_type == "pitcher":
+                    ids.add(proj.player_id)
+        if not ids:
+            return None
+        return tuple(sorted(ids))
+
     def _build_feature_sets(
         self,
         seasons: list[int],
@@ -126,6 +155,7 @@ class PlayingTimeModel:
         lags: int = 3,
         pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
         min_ip: float | None = None,
+        pitcher_player_ids: tuple[int, ...] | None = None,
     ) -> tuple[FeatureSet, FeatureSet]:
         if training:
             bat_features = build_batting_pt_training_features(lags, pt_systems)
@@ -143,12 +173,17 @@ class PlayingTimeModel:
             source_filter="fangraphs",
             spine_filter=SpineFilter(min_pa=50, player_type="batter"),
         )
+        pitcher_spine = (
+            SpineFilter(player_ids=pitcher_player_ids, player_type="pitcher")
+            if pitcher_player_ids is not None
+            else SpineFilter(min_ip=min_ip, player_type="pitcher")
+        )
         pitching_fs = FeatureSet(
             name="playing_time_pitching_train" if training else "playing_time_pitching",
             features=tuple(pitch_features),
             seasons=tuple(seasons),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(min_ip=min_ip, player_type="pitcher"),
+            spine_filter=pitcher_spine,
         )
         return batting_fs, pitching_fs
 
@@ -361,8 +396,19 @@ class PlayingTimeModel:
         residual_buckets_path = artifact_path / _RESIDUAL_BUCKETS_FILENAME
         residual_buckets = load_residual_buckets(residual_buckets_path) if residual_buckets_path.exists() else None
 
+        if not config.seasons:
+            msg = "config.seasons must not be empty"
+            raise ValueError(msg)
+        projected_season = max(config.seasons) + 1
+
+        # Use projection-based spine for pitchers when available
+        pitcher_ids = self._get_projection_pitcher_ids(projected_season)
         batting_fs, pitching_fs = self._build_feature_sets(
-            config.seasons, lags=lags, pt_systems=pt_systems, min_ip=min_ip
+            config.seasons,
+            lags=lags,
+            pt_systems=pt_systems,
+            min_ip=min_ip,
+            pitcher_player_ids=pitcher_ids,
         )
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
@@ -376,11 +422,6 @@ class PlayingTimeModel:
             self._assembler.read(pitch_handle),
             aging_curves["pitcher"],
         )
-
-        if not config.seasons:
-            msg = "config.seasons must not be empty"
-            raise ValueError(msg)
-        projected_season = max(config.seasons) + 1
         version = config.version or "latest"
 
         predictions: list[dict[str, Any]] = []
@@ -428,7 +469,16 @@ class PlayingTimeModel:
                 )
 
         for row in pitch_rows:
-            pt = predict_playing_time(row, pitch_coeff, clamp_min=0.0, clamp_max=250.0)
+            # For pitchers with no lag features (e.g. NPB imports, TJ returns
+            # with no recent stats), fall back to consensus IP from projections.
+            # The projection features use lag=-1 (target season), so
+            # consensus_ip is populated even for first-time MLB pitchers.
+            has_lag = any(row.get(f"ip_{i}") is not None for i in range(1, lags + 1))
+            if has_lag:
+                pt = predict_playing_time(row, pitch_coeff, clamp_min=0.0, clamp_max=250.0)
+            else:
+                consensus = row.get("consensus_ip")
+                pt = max(0.0, min(250.0, float(consensus))) if consensus is not None else 0.0
             domain = pt_projection_to_domain(
                 row["player_id"],
                 projected_season,

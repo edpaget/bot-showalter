@@ -10,18 +10,11 @@ from fantasy_baseball_manager.features import (
     DerivedTransformFeature,
     Feature,
     batting,
-    build_consensus_features,
     il_stint,
+    make_weighted_consensus_transform,
     pitching,
     player,
-)
-from fantasy_baseball_manager.features.consensus_pt import (
-    CONSENSUS_IP,
-    CONSENSUS_PA,
-    steamer_ip,
-    steamer_pa,
-    zips_ip,
-    zips_pa,
+    projection,
 )
 from fantasy_baseball_manager.features.transforms.playing_time import (
     make_il_severity_transform,
@@ -39,16 +32,21 @@ def _build_projection_features(
     stat: str,
     pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
 ) -> list[Feature]:
-    """Build per-system projection features for the given stat."""
+    """Build per-system projection features for the given stat.
+
+    Uses ``lag(-1)`` so that the SQL join resolves to
+    ``projection.season = spine.season + 1`` — i.e. the projection for the
+    *target* season rather than the feature season.  This ensures that NPB
+    imports, TJ returns, and other players whose first steamer/zips entry is
+    for the target year get populated consensus values.
+    """
     if not pt_systems:
         return []
-    if pt_systems == _DEFAULT_PT_SYSTEMS:
-        # Use pre-built module-level features for default systems
-        if stat == "pa":
-            return [steamer_pa, zips_pa]
-        return [steamer_ip, zips_ip]
-    proj_features, _ = build_consensus_features(stat, systems=pt_systems)
-    return proj_features
+    features: list[Feature] = []
+    for system_name, _weight in pt_systems:
+        alias = f"{system_name}_{stat}"
+        features.append(projection.col(stat).system(system_name).lag(-1).alias(alias))
+    return features
 
 
 def build_batting_pt_features(
@@ -98,10 +96,17 @@ def _build_consensus_derived(
     pt_systems: Sequence[tuple[str, float]],
 ) -> DerivedTransformFeature:
     """Build the consensus DerivedTransformFeature for the given stat and systems."""
-    if pt_systems == _DEFAULT_PT_SYSTEMS:
-        return CONSENSUS_PA if stat == "pa" else CONSENSUS_IP
-    _, consensus = build_consensus_features(stat, systems=pt_systems)
-    return consensus
+    source_keys: list[tuple[str, float]] = []
+    for system_name, weight in pt_systems:
+        source_keys.append((f"{system_name}_{stat}", weight))
+    consensus_name = f"consensus_{stat}"
+    return DerivedTransformFeature(
+        name=consensus_name,
+        inputs=tuple(alias for alias, _ in source_keys),
+        group_by=("player_id", "season"),
+        transform=make_weighted_consensus_transform(source_keys, consensus_name),
+        outputs=(consensus_name,),
+    )
 
 
 def build_batting_pt_derived_transforms(

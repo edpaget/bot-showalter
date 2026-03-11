@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
 from fantasy_baseball_manager.models.playing_time.engine import (
@@ -1037,3 +1038,164 @@ class TestPlayingTimeAblateAutoregressive:
         # Still has base groups
         assert "batter:base" in result.feature_impacts
         assert "pitcher:base" in result.feature_impacts
+
+
+class FakeProjectionRepo:
+    """Minimal projection repo for testing projection-based spine."""
+
+    def __init__(self, projections: list[Projection]) -> None:
+        self._projections = projections
+
+    def upsert(self, projection: Projection) -> int:
+        raise NotImplementedError
+
+    def get_by_player_season(
+        self,
+        player_id: int,
+        season: int,
+        system: str | None = None,
+        *,
+        include_distributions: bool = False,
+    ) -> list[Projection]:
+        raise NotImplementedError
+
+    def get_by_season(
+        self,
+        season: int,
+        system: str | None = None,
+        *,
+        include_distributions: bool = False,
+    ) -> list[Projection]:
+        return [p for p in self._projections if p.season == season and (system is None or p.system == system)]
+
+    def get_by_system_version(self, system: str, version: str) -> list[Projection]:
+        raise NotImplementedError
+
+    def delete_by_system_version(self, system: str, version: str) -> int:
+        raise NotImplementedError
+
+    def upsert_distributions(self, projection_id: int, distributions: list[Any]) -> None:
+        raise NotImplementedError
+
+    def get_distributions(self, projection_id: int) -> list[Any]:
+        raise NotImplementedError
+
+
+class TestProjectionBasedSpine:
+    def test_get_projection_pitcher_ids_returns_union(self) -> None:
+        projections = [
+            Projection(player_id=1, season=2024, system="steamer", version="v1", player_type="pitcher", stat_json={}),
+            Projection(player_id=2, season=2024, system="zips", version="v1", player_type="pitcher", stat_json={}),
+            Projection(player_id=1, season=2024, system="zips", version="v1", player_type="pitcher", stat_json={}),
+            Projection(player_id=3, season=2024, system="steamer", version="v1", player_type="batter", stat_json={}),
+        ]
+        repo = FakeProjectionRepo(projections)
+        model = PlayingTimeModel(assembler=_NULL_ASSEMBLER, projection_repo=repo)
+        ids = model._get_projection_pitcher_ids(2024)
+        assert ids == (1, 2)
+
+    def test_get_projection_pitcher_ids_no_repo(self) -> None:
+        model = PlayingTimeModel(assembler=_NULL_ASSEMBLER)
+        assert model._get_projection_pitcher_ids(2024) is None
+
+    def test_get_projection_pitcher_ids_no_data(self) -> None:
+        repo = FakeProjectionRepo([])
+        model = PlayingTimeModel(assembler=_NULL_ASSEMBLER, projection_repo=repo)
+        assert model._get_projection_pitcher_ids(2024) is None
+
+    def test_predict_uses_projection_spine(self, tmp_path: Path) -> None:
+        """When projection_repo is provided, predict() uses projection-based pitcher IDs."""
+        _save_test_coefficients(tmp_path)
+
+        # Create projections for pitcher IDs 10 and 20 in season 2024
+        projections = [
+            Projection(player_id=10, season=2024, system="steamer", version="v1", player_type="pitcher", stat_json={}),
+            Projection(player_id=20, season=2024, system="zips", version="v1", player_type="pitcher", stat_json={}),
+        ]
+        repo = FakeProjectionRepo(projections)
+
+        # Provide rows for both players — the assembler should see these
+        pitching_rows = [
+            _make_pitching_row(10, 2023),
+            _make_pitching_row(20, 2023),
+        ]
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=pitching_rows)
+        model = PlayingTimeModel(assembler=assembler, projection_repo=repo)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        pitcher_preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
+        assert len(pitcher_preds) == 2
+
+    def test_predict_without_projection_repo_uses_stats_spine(self, tmp_path: Path) -> None:
+        """Without projection_repo, predict() falls back to stats-based spine."""
+        _save_test_coefficients(tmp_path)
+        pitching_rows = [_make_pitching_row(10, 2023)]
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)  # no projection_repo
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        pitcher_preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
+        assert len(pitcher_preds) == 1
+
+    def test_build_feature_sets_with_player_ids_uses_player_ids_spine(self) -> None:
+        """_build_feature_sets uses player_ids spine when provided."""
+        model = PlayingTimeModel(assembler=_NULL_ASSEMBLER)
+        _, pitching_fs = model._build_feature_sets([2023], pitcher_player_ids=(1, 2, 3))
+        assert pitching_fs.spine_filter.player_ids == (1, 2, 3)
+        assert pitching_fs.spine_filter.min_ip is None
+
+    def test_build_feature_sets_without_player_ids_uses_stats_spine(self) -> None:
+        """_build_feature_sets falls back to stats spine when no player_ids."""
+        model = PlayingTimeModel(assembler=_NULL_ASSEMBLER)
+        _, pitching_fs = model._build_feature_sets([2023], min_ip=10.0)
+        assert pitching_fs.spine_filter.player_ids is None
+        assert pitching_fs.spine_filter.min_ip == 10.0
+
+    def test_predict_consensus_fallback_for_lagless_pitcher(self, tmp_path: Path) -> None:
+        """Pitchers with no lag features use consensus_ip instead of OLS prediction."""
+        _save_test_coefficients(tmp_path)
+        # Row with no lag features (all None) but has consensus_ip
+        lagless_row = _make_pitching_row(50, 2023)
+        lagless_row["ip_1"] = None
+        lagless_row["ip_2"] = None
+        lagless_row["ip_3"] = None
+        lagless_row["consensus_ip"] = 180.0
+
+        # Row with lag features (normal)
+        normal_row = _make_pitching_row(51, 2023)
+
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=[lagless_row, normal_row])
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"ip_calibration": False},
+        )
+        result = model.predict(config)
+        preds = {p["player_id"]: p for p in result.predictions if p["player_type"] == "pitcher"}
+
+        # Lagless pitcher should get consensus_ip (180.0)
+        assert preds[50]["ip"] == pytest.approx(180.0)
+        # Normal pitcher should get OLS prediction (different from consensus)
+        assert preds[51]["ip"] != 180.0
+        assert preds[51]["ip"] > 0
+
+    def test_predict_lagless_pitcher_no_consensus_gets_zero(self, tmp_path: Path) -> None:
+        """Pitchers with no lags and no consensus_ip get 0 IP."""
+        _save_test_coefficients(tmp_path)
+        row = _make_pitching_row(50, 2023)
+        row["ip_1"] = None
+        row["ip_2"] = None
+        row["ip_3"] = None
+        row["consensus_ip"] = None
+
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=[row])
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"ip_calibration": False},
+        )
+        result = model.predict(config)
+        preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
+        assert preds[0]["ip"] == 0.0
