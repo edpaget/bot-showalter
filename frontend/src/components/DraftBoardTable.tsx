@@ -171,7 +171,7 @@ export function DraftBoardTable({
   if (!data) return null;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 h-full">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <FilterBar
           playerTypeFilter={playerTypeFilter}
@@ -200,7 +200,7 @@ export function DraftBoardTable({
         </div>
       </div>
 
-      <div className="overflow-auto max-h-[calc(100vh-8rem)]">
+      <div className="overflow-auto flex-1 min-h-0">
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10">
             <tr>
