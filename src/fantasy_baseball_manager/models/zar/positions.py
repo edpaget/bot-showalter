@@ -64,8 +64,19 @@ def build_roster_spots(
     return roster_spots
 
 
+_FLEX_POSITIONS = frozenset({"P", "UTIL"})
+
+
 def best_position(eligible: list[str], replacement: dict[str, float]) -> str:
-    """Pick the position with the lowest replacement level (highest VAR)."""
+    """Pick the best position for display, preferring specific over flex.
+
+    Specific positions (SP, RP, C, 1B, etc.) are preferred over flex slots
+    (P, UTIL) when available, since flex slots exist to provide roster
+    flexibility, not to describe a player's role.  Dollar values are computed
+    independently by the pipeline — this only affects the position label.
+    """
     if not eligible:
         return "UTIL"
-    return min(eligible, key=lambda p: replacement.get(p, float("inf")))
+    specific = [p for p in eligible if p not in _FLEX_POSITIONS]
+    candidates = specific if specific else eligible
+    return min(candidates, key=lambda p: replacement.get(p, float("inf")))

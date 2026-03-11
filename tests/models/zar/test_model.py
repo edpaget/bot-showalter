@@ -705,13 +705,13 @@ class TestZarModelPitcherPositions:
         )
         model.predict(config)
         pitcher_vals = {v.player_id: v for v in val_repo.upserted if v.player_type == "pitcher"}
-        # Player 4 (SP only) should be assigned sp or p
-        assert pitcher_vals[4].position in {"SP", "P"}
-        # Player 5 (RP only) should be assigned rp or p
-        assert pitcher_vals[5].position in {"RP", "P"}
+        # Player 4 (SP only) should be assigned SP (specific preferred over flex P)
+        assert pitcher_vals[4].position == "SP"
+        # Player 5 (RP only) should be assigned RP (specific preferred over flex P)
+        assert pitcher_vals[5].position == "RP"
 
     def test_dual_eligible_pitcher_gets_best_position(self) -> None:
-        """A dual SP/RP pitcher should be assigned whichever has lower replacement level."""
+        """A dual SP/RP pitcher should be assigned whichever specific position has lower replacement level."""
         pitching_stats = [
             PitchingStats(player_id=4, season=2025, source="fg", g=32, gs=20),  # dual
             PitchingStats(player_id=5, season=2025, source="fg", g=65, gs=0),  # RP
@@ -735,8 +735,8 @@ class TestZarModelPitcherPositions:
         )
         model.predict(config)
         dual_val = next(v for v in val_repo.upserted if v.player_id == 4)
-        # Dual-eligible pitcher should get a valid pitcher position
-        assert dual_val.position in {"SP", "RP", "P"}
+        # Dual-eligible pitcher should get a specific position (SP or RP), not flex P
+        assert dual_val.position in {"SP", "RP"}
 
 
 # ---------------------------------------------------------------------------

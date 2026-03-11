@@ -6,7 +6,7 @@ from fantasy_baseball_manager.domain.league_settings import (
     StatType,
 )
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
-from fantasy_baseball_manager.models.zar.positions import build_position_map, build_roster_spots
+from fantasy_baseball_manager.models.zar.positions import best_position, build_position_map, build_roster_spots
 
 
 def _league(
@@ -109,6 +109,31 @@ class TestBuildPositionMapMinGames:
         result = build_position_map(appearances, league, min_games=10)
         assert 1 in result
         assert "C" in result[1]
+
+
+class TestBestPosition:
+    def test_prefers_specific_over_flex_pitcher(self) -> None:
+        """SP should be preferred over P even when P has a lower replacement level."""
+        replacement = {"SP": 5.0, "P": 2.0}
+        assert best_position(["SP", "P"], replacement) == "SP"
+
+    def test_prefers_specific_over_flex_batter(self) -> None:
+        """OF should be preferred over UTIL even when UTIL has a lower replacement level."""
+        replacement = {"OF": 5.0, "UTIL": 2.0}
+        assert best_position(["OF", "UTIL"], replacement) == "OF"
+
+    def test_picks_lowest_repl_among_specific(self) -> None:
+        """Among specific positions, pick the one with lowest replacement."""
+        replacement = {"SP": 5.0, "RP": 3.0, "P": 1.0}
+        assert best_position(["SP", "RP", "P"], replacement) == "RP"
+
+    def test_falls_back_to_flex_when_only_option(self) -> None:
+        """If only flex positions are available, use them."""
+        replacement = {"P": 3.0}
+        assert best_position(["P"], replacement) == "P"
+
+    def test_empty_eligible_returns_util(self) -> None:
+        assert best_position([], {"C": 5.0}) == "UTIL"
 
 
 class TestPositionMapKeysMatchLeagueKeys:
