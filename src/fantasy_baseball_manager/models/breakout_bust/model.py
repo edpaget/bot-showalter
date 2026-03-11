@@ -6,7 +6,7 @@ features and historical ADP-relative outcome labels.
 
 import logging
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingClassifier
@@ -16,8 +16,14 @@ from sklearn.metrics import log_loss
 from fantasy_baseball_manager.domain import LabeledSeason, OutcomeLabel, StatMetrics, SystemMetrics
 from fantasy_baseball_manager.features import DatasetAssembler  # noqa: TC001 – needed at runtime by inspect.signature()
 from fantasy_baseball_manager.models.breakout_bust.classification_backend import ClassificationTrainingBackend
+from fantasy_baseball_manager.models.feature_fallback import materialize_with_fallback
 from fantasy_baseball_manager.models.gbm_training import extract_features
-from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult, TrainResult
+from fantasy_baseball_manager.models.protocols import (
+    ModelConfig,
+    PlayerUniverseProvider,  # noqa: TC001 – needed at runtime by inspect.signature()
+    PredictResult,
+    TrainResult,
+)
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.sampling import temporal_expanding_cv
 from fantasy_baseball_manager.models.statcast_gbm.calibration import (
@@ -36,11 +42,22 @@ from fantasy_baseball_manager.models.statcast_gbm.features import (
 from fantasy_baseball_manager.models.statcast_gbm.serialization import load_models, save_models
 from fantasy_baseball_manager.models.training_metadata import save_training_metadata, validate_no_leakage
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 logger = logging.getLogger(__name__)
 
 
 class LabelSource(Protocol):
     def get_labels(self, season: int) -> list[LabeledSeason]: ...
+
+
+class AdpProvider(Protocol):
+    """Provides ADP rank/pick for a season, keyed by player_id."""
+
+    def get_adp(self, season: int, player_type: str) -> dict[int, tuple[int, float]]:
+        """Return {player_id: (adp_rank, adp_pick)} for the given season and player type."""
+        ...
 
 
 LABEL_TO_INT: dict[OutcomeLabel, int] = {
@@ -170,9 +187,17 @@ def _collect_classification_fold_data(
 
 @register("breakout-bust")
 class BreakoutBustModel:
-    def __init__(self, assembler: DatasetAssembler, label_source: LabelSource) -> None:
+    def __init__(
+        self,
+        assembler: DatasetAssembler,
+        label_source: LabelSource,
+        player_universe: PlayerUniverseProvider | None = None,
+        adp_provider: AdpProvider | None = None,
+    ) -> None:
         self._assembler = assembler
         self._label_source = label_source
+        self._player_universe = player_universe
+        self._adp_provider = adp_provider
 
     @property
     def name(self) -> str:
@@ -199,8 +224,7 @@ class BreakoutBustModel:
     def _get_feature_rows(self, seasons: list[int], player_type: str) -> list[dict[str, Any]]:
         builder = _FEATURE_SET_BUILDERS[player_type]
         feature_set = builder(seasons)
-        handle = self._assembler.get_or_materialize(feature_set)
-        return self._assembler.read(handle)
+        return materialize_with_fallback(self._assembler, feature_set, seasons, player_type, self._player_universe)
 
     def _build_joined_rows(
         self,
@@ -341,6 +365,34 @@ class BreakoutBustModel:
             artifacts_path=str(artifact_path),
         )
 
+    def _enrich_with_adp(
+        self,
+        rows: list[dict[str, Any]],
+        seasons: Sequence[int],
+        player_type: str,
+    ) -> None:
+        """Inject adp_rank / adp_pick into feature rows from the ADP provider.
+
+        Rows that already have non-NaN ADP values (e.g. from label join) are
+        left untouched.  Rows without ADP get NaN, which
+        ``HistGradientBoostingClassifier`` handles natively.
+        """
+        if self._adp_provider is None:
+            return
+        adp_lookup: dict[int, dict[int, tuple[int, float]]] = {}
+        for season in seasons:
+            adp_lookup[season] = self._adp_provider.get_adp(season, player_type)
+        for row in rows:
+            pid = row.get("player_id")
+            season = row.get("season")
+            if pid is None or season is None:
+                continue
+            season_adp = adp_lookup.get(season, {})
+            adp_entry = season_adp.get(pid)
+            if adp_entry is not None:
+                row.setdefault("adp_rank", adp_entry[0])
+                row.setdefault("adp_pick", adp_entry[1])
+
     def predict(self, config: ModelConfig) -> PredictResult:
         artifact_path = Path(config.artifacts_dir) / self.artifact_type
         validate_no_leakage(artifact_path, config.seasons)
@@ -353,11 +405,14 @@ class BreakoutBustModel:
             feature_columns: list[str] = clf_data["feature_columns"]
             top_features: list[tuple[str, float]] = clf_data["top_features"]
 
-            joined = self._build_joined_rows(seasons, player_type)
-            if not joined:
+            rows = self._get_feature_rows(seasons, player_type)
+            if not rows:
                 continue
 
-            X = extract_features(joined, feature_columns)
+            # Enrich with ADP data for prediction (labels not needed)
+            self._enrich_with_adp(rows, seasons, player_type)
+
+            X = extract_features(rows, feature_columns)
             proba = clf.predict_proba(X)
 
             # Map clf.classes_ to our label indices
@@ -379,7 +434,7 @@ class BreakoutBustModel:
 
             p_breakout, p_bust, p_neutral = _renormalize_probabilities(p_breakout, p_bust)
 
-            for i, row in enumerate(joined):
+            for i, row in enumerate(rows):
                 predictions.append(
                     {
                         "player_id": row["player_id"],

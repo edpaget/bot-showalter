@@ -1,4 +1,3 @@
-import dataclasses
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -10,9 +9,9 @@ from fantasy_baseball_manager.features import (
     AnyFeature,
     DatasetAssembler,
     FeatureSet,
-    SpineFilter,
 )
 from fantasy_baseball_manager.models.ablation import PlayerTypeConfig, evaluate_projections, run_ablation
+from fantasy_baseball_manager.models.feature_fallback import materialize_with_fallback
 from fantasy_baseball_manager.models.gbm_training import (
     MinValueFilter,
     RowFilter,
@@ -280,29 +279,7 @@ class _StatcastGBMBase:
         player_type: str,
     ) -> list[dict[str, Any]]:
         """Materialize a feature set, falling back to player_ids for missing seasons."""
-        handle = self._assembler.get_or_materialize(feature_set)
-        rows = self._assembler.read(handle)
-        if self._player_universe is None:
-            return rows
-        present_seasons = {row["season"] for row in rows}
-        missing_seasons = [s for s in seasons if s not in present_seasons]
-        if not missing_seasons:
-            return rows
-        all_ids: set[int] = set()
-        for season in missing_seasons:
-            all_ids |= self._player_universe.get_player_ids(season, player_type)
-        if not all_ids:
-            return rows
-        fallback_fs = dataclasses.replace(
-            feature_set,
-            seasons=tuple(missing_seasons),
-            spine_filter=SpineFilter(
-                player_type=feature_set.spine_filter.player_type,
-                player_ids=tuple(sorted(all_ids)),
-            ),
-        )
-        fb_handle = self._assembler.get_or_materialize(fallback_fs)
-        return rows + self._assembler.read(fb_handle)
+        return materialize_with_fallback(self._assembler, feature_set, seasons, player_type, self._player_universe)
 
     def experiment_player_types(self) -> list[str]:
         return ["batter", "pitcher"]

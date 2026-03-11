@@ -181,6 +181,30 @@ class DbLabelSource:
         return generate_labels(adp, vals, LabelConfig())
 
 
+_PITCHER_POSITIONS = {"SP", "RP", "P"}
+
+
+class DbAdpProvider:
+    """Provides ADP rank/pick keyed by player_id for the breakout-bust model."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._adp_repo = SqliteADPRepo(SingleConnectionProvider(conn))
+
+    def get_adp(self, season: int, player_type: str) -> dict[int, tuple[int, float]]:
+        all_adp = self._adp_repo.get_by_season(season)
+        result: dict[int, tuple[int, float]] = {}
+        for a in all_adp:
+            pos_set = {p.strip() for p in a.positions.split(",")} if a.positions else set()
+            is_pitcher = bool(pos_set & _PITCHER_POSITIONS)
+            entry_type = "pitcher" if is_pitcher else "batter"
+            if entry_type != player_type:
+                continue
+            # Keep the best (lowest) pick per player
+            if a.player_id not in result or a.overall_pick < result[a.player_id][1]:
+                result[a.player_id] = (a.rank, a.overall_pick)
+        return result
+
+
 def create_model(name: str, **kwargs: Any) -> Result[Model, ConfigError]:
     """Look up a model class by name and instantiate it, forwarding matching kwargs.
 
@@ -262,6 +286,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             injury_profiler=injury_profiler,
             replacement_padder=ReplacementPaddingService(),
             denominator_provider=_build_denominator_provider(conn),
+            adp_provider=DbAdpProvider(conn),
         )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)
@@ -970,7 +995,20 @@ def build_breakout_bust_report_context(data_dir: str) -> Iterator[BreakoutBustRe
     try:
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(conn), statcast_path=Path(data_dir) / "statcast.db")
         label_source = DbLabelSource(conn)
-        result = create_model("breakout-bust", assembler=assembler, label_source=label_source)
+        batting_stats_repo = SqliteBattingStatsRepo(SingleConnectionProvider(conn))
+        pitching_stats_repo = SqlitePitchingStatsRepo(SingleConnectionProvider(conn))
+        player_universe = StatsBasedPlayerUniverse(
+            batting_repo=batting_stats_repo,
+            pitching_repo=pitching_stats_repo,
+        )
+        adp_provider = DbAdpProvider(conn)
+        result = create_model(
+            "breakout-bust",
+            assembler=assembler,
+            label_source=label_source,
+            player_universe=player_universe,
+            adp_provider=adp_provider,
+        )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)
         yield BreakoutBustReportContext(conn=conn, model=result.value)

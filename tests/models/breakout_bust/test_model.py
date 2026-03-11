@@ -391,6 +391,163 @@ class TestBreakoutBustModelPredict:
 
 
 # ---------------------------------------------------------------------------
+# Future-season predict tests (no labels)
+# ---------------------------------------------------------------------------
+
+
+class FakeAdpProvider:
+    """Returns configurable ADP data per (season, player_type)."""
+
+    def __init__(self, data: dict[tuple[int, str], dict[int, tuple[int, float]]]) -> None:
+        self._data = data
+
+    def get_adp(self, season: int, player_type: str) -> dict[int, tuple[int, float]]:
+        return self._data.get((season, player_type), {})
+
+
+class TestBreakoutBustPredictFutureSeason:
+    """predict() should work when the target season has no labels (future season)."""
+
+    @pytest.fixture
+    def _trained_model_with_future_rows(self, tmp_path: Path) -> BreakoutBustModel:
+        """Train on 2020-2023 (both player types), return model with future rows included."""
+        bat_labels, bat_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="batter",
+        )
+        pit_labels, pit_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="pitcher",
+        )
+        # Feature rows for 2026 — no labels exist for this season
+        future_rows = [
+            _make_feature_row(9000 + i, 2026, OutcomeLabel.NEUTRAL, random.Random(i))  # noqa: S311
+            for i in range(20)
+        ]
+
+        all_labels = bat_labels + pit_labels
+        all_rows = bat_rows + pit_rows + future_rows
+        model = BreakoutBustModel(
+            assembler=FakeAssembler(all_rows),
+            label_source=FakeLabelSource(all_labels),
+        )
+        train_config = ModelConfig(
+            artifacts_dir=str(tmp_path),
+            seasons=[2020, 2021, 2022, 2023],
+            model_params=_MODEL_PARAMS,
+        )
+        model.train(train_config)
+        return model
+
+    def test_predict_returns_predictions_for_unlabeled_season(
+        self,
+        tmp_path: Path,
+        _trained_model_with_future_rows: BreakoutBustModel,
+    ) -> None:
+        predict_config = ModelConfig(
+            artifacts_dir=str(tmp_path),
+            seasons=[2026],
+            model_params=_MODEL_PARAMS,
+        )
+        result = _trained_model_with_future_rows.predict(predict_config)
+        assert len(result.predictions) > 0
+        for pred in result.predictions:
+            total = pred["p_breakout"] + pred["p_bust"] + pred["p_neutral"]
+            assert abs(total - 1.0) < 1e-6
+
+    def test_predict_with_adp_provider(self, tmp_path: Path) -> None:
+        """ADP data is injected into feature rows during predict."""
+        bat_labels, bat_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="batter",
+        )
+        pit_labels, pit_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="pitcher",
+        )
+        # Future rows without adp_rank/adp_pick
+        future_rows = []
+        for i in range(20):
+            row = _make_feature_row(9000 + i, 2026, OutcomeLabel.NEUTRAL, random.Random(i))  # noqa: S311
+            del row["adp_rank"]
+            del row["adp_pick"]
+            future_rows.append(row)
+
+        all_labels = bat_labels + pit_labels
+        all_rows = bat_rows + pit_rows + future_rows
+        adp_data: dict[tuple[int, str], dict[int, tuple[int, float]]] = {
+            (2026, "batter"): {9000 + i: (i + 1, float(i + 1)) for i in range(20)},
+        }
+        model = BreakoutBustModel(
+            assembler=FakeAssembler(all_rows),
+            label_source=FakeLabelSource(all_labels),
+            adp_provider=FakeAdpProvider(adp_data),
+        )
+        train_config = ModelConfig(
+            artifacts_dir=str(tmp_path),
+            seasons=[2020, 2021, 2022, 2023],
+            model_params=_MODEL_PARAMS,
+        )
+        model.train(train_config)
+
+        predict_config = ModelConfig(
+            artifacts_dir=str(tmp_path),
+            seasons=[2026],
+            model_params=_MODEL_PARAMS,
+        )
+        result = model.predict(predict_config)
+        assert len(result.predictions) > 0
+        for pred in result.predictions:
+            total = pred["p_breakout"] + pred["p_bust"] + pred["p_neutral"]
+            assert abs(total - 1.0) < 1e-6
+
+    def test_predict_without_adp_provider_uses_nan(self, tmp_path: Path) -> None:
+        """Without AdpProvider, rows missing ADP get NaN (handled by HGBC)."""
+        bat_labels, bat_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="batter",
+        )
+        pit_labels, pit_rows = _generate_synthetic_data(
+            seasons=[2020, 2021, 2022, 2023],
+            players_per_season=60,
+            player_type="pitcher",
+        )
+        # Future rows without adp_rank/adp_pick
+        future_rows = []
+        for i in range(20):
+            row = _make_feature_row(9000 + i, 2026, OutcomeLabel.NEUTRAL, random.Random(i))  # noqa: S311
+            del row["adp_rank"]
+            del row["adp_pick"]
+            future_rows.append(row)
+
+        all_labels = bat_labels + pit_labels
+        all_rows = bat_rows + pit_rows + future_rows
+        model = BreakoutBustModel(
+            assembler=FakeAssembler(all_rows),
+            label_source=FakeLabelSource(all_labels),
+        )
+        train_config = ModelConfig(
+            artifacts_dir=str(tmp_path),
+            seasons=[2020, 2021, 2022, 2023],
+            model_params=_MODEL_PARAMS,
+        )
+        model.train(train_config)
+
+        predict_config = ModelConfig(
+            artifacts_dir=str(tmp_path),
+            seasons=[2026],
+            model_params=_MODEL_PARAMS,
+        )
+        result = model.predict(predict_config)
+        assert len(result.predictions) > 0
+
+
+# ---------------------------------------------------------------------------
 # Evaluate tests
 # ---------------------------------------------------------------------------
 

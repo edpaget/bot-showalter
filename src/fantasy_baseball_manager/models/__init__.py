@@ -39,6 +39,7 @@ from fantasy_baseball_manager.models.breakout_bust.classification_backend import
     ClassificationFittedModels,
     ClassificationTrainingBackend,
 )
+from fantasy_baseball_manager.models.feature_fallback import materialize_with_fallback
 from fantasy_baseball_manager.models.gbm_training import (
     PerTargetBest,
     extract_per_target_best,
@@ -91,6 +92,7 @@ __all__ = [
     "Tunable",
     "TuneResult",
     "ValidationResult",
+    "materialize_with_fallback",
     "get",
     "list_models",
     "load_training_metadata",
