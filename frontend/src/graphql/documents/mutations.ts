@@ -34,6 +34,7 @@ export const START_SESSION = gql`
       teams
       userTeam
       budgetRemaining
+      keeperCount
     }
   }
 `;

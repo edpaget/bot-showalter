@@ -51,7 +51,7 @@ function TestConsumer() {
               teams: 12,
               userTeam: 1,
               budgetRemaining: null,
-            keeperCount: 0,
+              keeperCount: 0,
             },
             recommendations: [
               {

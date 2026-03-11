@@ -69,6 +69,20 @@ export const SESSION_QUERY = gql`
       teams
       userTeam
       budgetRemaining
+      keeperCount
+    }
+  }
+`;
+
+export const KEEPERS_QUERY = gql`
+  query Keepers($sessionId: Int!) {
+    keepers(sessionId: $sessionId) {
+      playerId
+      playerName
+      position
+      teamName
+      cost
+      value
     }
   }
 `;

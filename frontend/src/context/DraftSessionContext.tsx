@@ -5,42 +5,32 @@ import type {
   CategoryBalanceType,
   DraftPickType,
   DraftStateType,
+  KeeperInfoType,
   PickResultFieldsFragment,
   RecommendationType,
   RosterSlotType,
 } from "../generated/graphql";
 
-// KeeperInfo is not yet in codegen — defined here until the schema is updated.
-export interface KeeperInfo {
-  playerId: number;
-  playerName: string;
-  position: string;
-  teamName: string;
-  cost: number | null;
-  value: number;
-}
-
-// Extend DraftStateType with keeperCount (added on main after codegen was generated).
-export type DraftState = DraftStateType & { keeperCount: number };
+export type { KeeperInfoType as KeeperInfo } from "../generated/graphql";
 
 interface DraftSessionContextValue {
   sessionId: number | null;
-  state: DraftState | null;
+  state: DraftStateType | null;
   recommendations: RecommendationType[];
   roster: DraftPickType[];
   needs: RosterSlotType[];
   balance: CategoryBalanceType[];
   arbitrage: ArbitrageReportType | null;
-  keepers: KeeperInfo[];
+  keepers: KeeperInfoType[];
   draftedPlayerIds: Set<number>;
   setSessionId: (id: number | null) => void;
-  setState: (state: DraftState | null) => void;
+  setState: (state: DraftStateType | null) => void;
   setRecommendations: (recs: RecommendationType[]) => void;
   setRoster: (roster: DraftPickType[]) => void;
   setNeeds: (needs: RosterSlotType[]) => void;
   setBalance: (balance: CategoryBalanceType[]) => void;
   setArbitrage: (arbitrage: ArbitrageReportType | null) => void;
-  setKeepers: (keepers: KeeperInfo[]) => void;
+  setKeepers: (keepers: KeeperInfoType[]) => void;
   applyPickResult: (result: PickResultFieldsFragment) => void;
   clearSession: () => void;
 }
@@ -49,13 +39,13 @@ const DraftSessionContext = createContext<DraftSessionContextValue | null>(null)
 
 export function DraftSessionProvider({ children }: { children: ReactNode }) {
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [state, setState] = useState<DraftState | null>(null);
+  const [state, setState] = useState<DraftStateType | null>(null);
   const [recommendations, setRecommendations] = useState<RecommendationType[]>([]);
   const [roster, setRoster] = useState<DraftPickType[]>([]);
   const [needs, setNeeds] = useState<RosterSlotType[]>([]);
   const [balance, setBalance] = useState<CategoryBalanceType[]>([]);
   const [arbitrage, setArbitrage] = useState<ArbitrageReportType | null>(null);
-  const [keepers, setKeepers] = useState<KeeperInfo[]>([]);
+  const [keepers, setKeepers] = useState<KeeperInfoType[]>([]);
 
   const draftedPlayerIds = useMemo(() => {
     if (!state) return new Set<number>();
@@ -63,7 +53,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
   }, [state]);
 
   const applyPickResult = useCallback((result: PickResultFieldsFragment) => {
-    setState(result.state as DraftState);
+    setState(result.state as DraftStateType);
     setRecommendations(result.recommendations);
     setRoster(result.roster);
     setNeeds(result.needs);

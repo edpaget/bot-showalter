@@ -39,18 +39,14 @@ export function KeeperPanel({ keepers, userTeamName }: KeeperPanelProps) {
           const isCollapsed = collapsed[team] ?? false;
           const teamKeepers = byTeam[team] ?? [];
           return (
-            <div
-              key={team}
-              className={`border rounded ${isUser ? "border-blue-300 bg-blue-50" : "border-gray-100"}`}
-            >
+            <div key={team} className={`border rounded ${isUser ? "border-blue-300 bg-blue-50" : "border-gray-100"}`}>
               <button
                 type="button"
                 className="w-full text-left text-xs font-medium px-2 py-1 flex justify-between items-center"
                 onClick={() => toggleTeam(team)}
               >
                 <span>
-                  {team} ({teamKeepers.length})
-                  {isUser && <span className="ml-1 text-blue-600">(You)</span>}
+                  {team} ({teamKeepers.length}){isUser && <span className="ml-1 text-blue-600">(You)</span>}
                 </span>
                 <span className="text-gray-400">{isCollapsed ? "+" : "-"}</span>
               </button>
@@ -59,8 +55,7 @@ export function KeeperPanel({ keepers, userTeamName }: KeeperPanelProps) {
                   {teamKeepers.map((k) => (
                     <div key={k.playerId} className="flex justify-between text-xs">
                       <span>
-                        {k.playerName}{" "}
-                        <span className="text-gray-400">{k.position}</span>
+                        {k.playerName} <span className="text-gray-400">{k.position}</span>
                       </span>
                       <span className="text-gray-500">
                         {k.cost != null && `$${k.cost}`}

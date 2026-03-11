@@ -23,9 +23,9 @@ import {
 } from "../graphql/queries";
 import { DRAFT_EVENTS_SUBSCRIPTION } from "../graphql/subscriptions";
 import { ArbitragePanel } from "./ArbitragePanel";
-import { KeeperPanel } from "./KeeperPanel";
 import { CategoryBalancePanel } from "./CategoryBalancePanel";
 import { DraftBoardTable } from "./DraftBoardTable";
+import { KeeperPanel } from "./KeeperPanel";
 import { NeedsPanel } from "./NeedsPanel";
 import { PickLogPanel } from "./PickLogPanel";
 import { RecommendationPanel } from "./RecommendationPanel";

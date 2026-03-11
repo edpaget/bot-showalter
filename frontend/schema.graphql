@@ -105,6 +105,7 @@ type DraftStateType {
   teams: Int!
   userTeam: Int!
   budgetRemaining: Int
+  keeperCount: Int!
 }
 
 type FallingPlayerType {
@@ -123,6 +124,15 @@ type FallingPlayerType {
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
 """
 scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
+
+type KeeperInfoType {
+  playerId: Int!
+  playerName: String!
+  position: String!
+  teamName: String!
+  cost: Float
+  value: Float!
+}
 
 type LeagueSettingsType {
   name: String!
@@ -224,6 +234,7 @@ type Query {
   league: LeagueSettingsType!
   webConfig: WebConfigType!
   session(sessionId: Int!): DraftStateType!
+  keepers(sessionId: Int!): [KeeperInfoType!]!
   sessions(league: String = null, season: Int = null, status: String = null): [DraftSessionSummaryType!]!
   recommendations(sessionId: Int!, position: Position = null, limit: Int! = 10): [RecommendationType!]!
   roster(sessionId: Int!, team: Int = null): [DraftPickType!]!

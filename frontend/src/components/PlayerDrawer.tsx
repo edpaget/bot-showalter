@@ -1,6 +1,12 @@
 import { useQuery } from "@apollo/client";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
-import type { CategoryConfigType, LeagueQuery, PlayerBioQuery, ProjectionsQuery, ValuationsQuery } from "../generated/graphql";
+import type {
+  CategoryConfigType,
+  LeagueQuery,
+  PlayerBioQuery,
+  ProjectionsQuery,
+  ValuationsQuery,
+} from "../generated/graphql";
 import { LEAGUE_QUERY, PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } from "../graphql/queries";
 import { displayPosition } from "../lib/position";
 
@@ -112,7 +118,7 @@ export function PlayerDrawer() {
                     <td className="border border-gray-200 px-2 py-1">{p.system}</td>
                     {leagueCategories.map((cat) => (
                       <td key={cat.key} className="border border-gray-200 px-2 py-1 text-right font-mono">
-                        {formatStat(p.stats[cat.key], cat.statType)}
+                        {formatStat(p.stats[cat.key] as number | undefined, cat.statType)}
                       </td>
                     ))}
                   </tr>

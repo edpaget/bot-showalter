@@ -153,8 +153,8 @@ export function DraftBoardTable({
     return [...filtered].sort((a, b) => {
       if (sortKey.startsWith("z:")) {
         const cat = sortKey.slice(2);
-        const aVal = a.categoryZScores[cat] ?? null;
-        const bVal = b.categoryZScores[cat] ?? null;
+        const aVal = (a.categoryZScores[cat] as number | undefined) ?? null;
+        const bVal = (b.categoryZScores[cat] as number | undefined) ?? null;
         return compareValues(aVal, bVal, sortDir);
       }
       return compareValues(a[sortKey as FixedSortKey], b[sortKey as FixedSortKey], sortDir);
@@ -271,7 +271,8 @@ export function DraftBoardTable({
                   <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
                   <td className="border border-gray-200 px-2 py-1 font-mono">${row.value.toFixed(1)}</td>
                   {visibleCategories.batting.map((cat) => {
-                    const z = row.playerType !== "pitcher" ? row.categoryZScores[cat] : undefined;
+                    const z =
+                      row.playerType !== "pitcher" ? (row.categoryZScores[cat] as number | undefined) : undefined;
                     return (
                       <td
                         key={`bat-${cat}`}
@@ -282,7 +283,8 @@ export function DraftBoardTable({
                     );
                   })}
                   {visibleCategories.pitching.map((cat) => {
-                    const z = row.playerType === "pitcher" ? row.categoryZScores[cat] : undefined;
+                    const z =
+                      row.playerType === "pitcher" ? (row.categoryZScores[cat] as number | undefined) : undefined;
                     return (
                       <td
                         key={`pit-${cat}`}
