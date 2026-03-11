@@ -10,8 +10,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
-| [Test Performance](test-performance.md) | 4 | not started | none |
-| [Evaluation Framework](evaluation-framework.md) | 4 | phases 1-3 done | none |
+| [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [Keeper Draft Integration](keeper-draft-integration.md) | 5 | phases 1-4 done | keeper-optimization-solver (done), keeper-surplus-value (done), web-ui-foundation phases 1-5 (done), adp-arbitrage-alerts (done) |
 | [Direct Rate Stats](zar-direct-rate-stats.md) | 2 | phase 1 done | none |
 | [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 | phases 1-2 done | direct-rate-stats phase 1 (done) |
@@ -20,6 +19,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 
 | Roadmap | Phases |
 |---------|--------|
+| [Evaluation Framework](evaluation-framework.md) | 4 |
 | [Frontend DX](frontend-dx.md) | 5 |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 |
 | [Valuation Reform](valuation-reform.md) | 4 |
