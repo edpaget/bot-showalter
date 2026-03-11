@@ -13,6 +13,60 @@ class AssignmentResult:
     var_values: list[float]  # per-player VAR (0.0 for unassigned)
 
 
+_FLEX_POSITIONS = frozenset({"UTIL", "P", "util", "p"})
+
+
+def _normalize_flex_assignments(
+    assignments: dict[int, str],
+    composite_scores: list[float],
+    player_positions: list[list[str]],
+) -> None:
+    """Swap flex-assigned players to specific positions when possible.
+
+    The Hungarian solver maximizes total assigned score, but when a player
+    qualifies for both a specific position and a flex slot (UTIL/P), the
+    total score is the same either way.  This post-processing step pushes
+    the *best* eligible players to specific positions and the *weakest* to
+    flex, producing more natural labels (e.g. Bobby Witt → SS, not UTIL).
+    """
+    # Index assigned players by position
+    by_position: dict[str, list[int]] = {}
+    for idx, pos in assignments.items():
+        by_position.setdefault(pos, []).append(idx)
+
+    changed = True
+    while changed:
+        changed = False
+        for flex_pos in _FLEX_POSITIONS:
+            flex_players = by_position.get(flex_pos, [])
+            # Highest-scoring flex players get first chance to move
+            flex_players.sort(key=lambda i: composite_scores[i], reverse=True)
+
+            for flex_idx in list(flex_players):
+                eligible_specific = [p for p in player_positions[flex_idx] if p not in _FLEX_POSITIONS]
+                for target_pos in eligible_specific:
+                    target_players = by_position.get(target_pos, [])
+                    if not target_players:
+                        continue
+                    weakest_idx = min(target_players, key=lambda i: composite_scores[i])
+                    # Swap only if the flex player is better AND the displaced player can go flex
+                    if composite_scores[flex_idx] > composite_scores[weakest_idx] and flex_pos in set(
+                        player_positions[weakest_idx]
+                    ):
+                        assignments[flex_idx] = target_pos
+                        assignments[weakest_idx] = flex_pos
+                        by_position[flex_pos].remove(flex_idx)
+                        by_position[flex_pos].append(weakest_idx)
+                        by_position[target_pos].remove(weakest_idx)
+                        by_position[target_pos].append(flex_idx)
+                        changed = True
+                        break
+                if changed:
+                    break
+            if changed:
+                break
+
+
 def assign_positions(
     composite_scores: list[float],
     player_positions: list[list[str]],
@@ -22,7 +76,9 @@ def assign_positions(
     """Optimally assign players to position slots using the Hungarian algorithm.
 
     Maximizes total composite score across all assignments while respecting
-    slot capacities and position eligibility.
+    slot capacities and position eligibility.  After the solver runs, position
+    labels are normalized so the best players at each position get their
+    specific slot rather than a flex slot (UTIL/P).
     """
     if not composite_scores:
         return AssignmentResult(assignments={}, replacement={}, var_values=[])
@@ -49,10 +105,7 @@ def assign_positions(
     # Dummy rows ensure feasibility when fewer candidates are eligible than slots.
     # Real candidates: cost = -score if eligible, else PENALTY.
     # Dummy rows: cost = PENALTY for all slots.
-    # Flex slots (UTIL, P) get a tiny penalty so the solver prefers specific positions.
     penalty = 1e18
-    flex_positions = {"UTIL", "P", "util", "p"}
-    epsilon = 1e-6
     n_rows = max(n_candidates, total_slots)
     cost = np.full((n_rows, total_slots), penalty)
     for row, orig_idx in enumerate(candidate_indices):
@@ -60,8 +113,7 @@ def assign_positions(
         score = composite_scores[orig_idx]
         for col, slot_pos in enumerate(slots):
             if slot_pos in eligible:
-                flex_penalty = epsilon if slot_pos in flex_positions else 0.0
-                cost[row, col] = -score + flex_penalty
+                cost[row, col] = -score
 
     # Step 4: Run the Hungarian algorithm
     row_ind, col_ind = linear_sum_assignment(cost)
@@ -72,6 +124,9 @@ def assign_positions(
         if r < n_candidates and cost[r, c] < penalty:
             orig_idx = candidate_indices[r]
             assignments[orig_idx] = slots[c]
+
+    # Step 5b: Normalize — push best players to specific positions, weakest to flex
+    _normalize_flex_assignments(assignments, composite_scores, player_positions)
 
     # Step 6: Derive per-position replacement levels
     replacement: dict[str, float] = {}
