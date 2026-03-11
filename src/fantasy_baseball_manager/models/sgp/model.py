@@ -112,9 +112,10 @@ class SgpModel:
         batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) >= min_pa]
         pitcher_projs = [p for p in projections if p.player_type == "pitcher" and p.stat_json.get("ip", 0) >= min_ip]
 
-        # 3.5. Direct rate stats flag
+        # 3.5. Direct rate stats and volume weighting flags
         use_direct_rates: bool = config.model_params.get("use_direct_rates", False)
         use_optimal_assignment: bool = config.model_params.get("use_optimal_assignment", True)
+        volume_weighted: bool = config.model_params.get("volume_weighted", False)
 
         # 4. Budget split
         batter_budget, pitcher_budget = compute_budget_split(league)
@@ -133,6 +134,7 @@ class SgpModel:
             proj_system,
             use_direct_rates=use_direct_rates,
             use_optimal_assignment=use_optimal_assignment,
+            volume_weighted=volume_weighted,
         )
 
         # 6. Run SGP for pitchers
@@ -157,6 +159,7 @@ class SgpModel:
             pitcher_roster_spots=pitcher_roster_spots,
             use_direct_rates=use_direct_rates,
             use_optimal_assignment=use_optimal_assignment,
+            volume_weighted=volume_weighted,
         )
 
         # 7. Rank all valuations combined
@@ -206,6 +209,7 @@ class SgpModel:
         pitcher_roster_spots: dict[str, int] | None = None,
         use_direct_rates: bool = False,
         use_optimal_assignment: bool = True,
+        volume_weighted: bool = False,
     ) -> list[Valuation]:
         """Run the full SGP pipeline for one player pool."""
         if not projections:
@@ -231,6 +235,7 @@ class SgpModel:
             budget,
             use_direct_rates=use_direct_rates,
             use_optimal_assignment=use_optimal_assignment,
+            volume_weighted=volume_weighted,
         )
 
         valuations: list[Valuation] = []

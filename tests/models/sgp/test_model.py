@@ -467,6 +467,80 @@ class TestSgpModelDenominatorSources:
         assert all(v.projection_version == "v1" for v in val_repo.upserted)
 
 
+class TestSgpModelVolumeWeighted:
+    def test_volume_weighted_param_flows_through(self) -> None:
+        """volume_weighted in model_params should change pitcher valuations."""
+        league = LeagueSettings(
+            name="Test",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=2,
+            budget=260,
+            roster_batters=0,
+            roster_pitchers=3,
+            batting_categories=(),
+            pitching_categories=(
+                CategoryConfig(
+                    key="era",
+                    name="ERA",
+                    stat_type=StatType.RATE,
+                    direction=Direction.LOWER,
+                    numerator="er",
+                    denominator="ip",
+                ),
+                CategoryConfig(key="w", name="Wins", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            ),
+        )
+        projections = [
+            Projection(
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 200, "er": 60.0, "w": 15.0},
+            ),
+            Projection(
+                player_id=2,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 60, "er": 18.0, "w": 4.0},
+            ),
+            Projection(
+                player_id=3,
+                season=2025,
+                system="steamer",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 180, "er": 60.0, "w": 12.0},
+            ),
+        ]
+        denominators = {"era": 0.1, "w": 3.0}
+        model_off, val_repo_off = _build_model(projections=projections, appearances=[])
+        model_on, val_repo_on = _build_model(projections=projections, appearances=[])
+        config_off = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": league,
+                "projection_system": "steamer",
+                "denominators": denominators,
+                "volume_weighted": False,
+            },
+            version="1.0",
+        )
+        config_on = dataclasses.replace(
+            config_off,
+            model_params={**config_off.model_params, "volume_weighted": True},
+        )
+        model_off.predict(config_off)
+        model_on.predict(config_on)
+        vals_off = {v.player_id: v.value for v in val_repo_off.upserted}
+        vals_on = {v.player_id: v.value for v in val_repo_on.upserted}
+        # Volume weighting should change at least some dollar values
+        assert vals_off != vals_on
+
+
 class TestSgpModelPlayingTimeCutoffs:
     def test_min_pa_filters_low_pa_batters(self) -> None:
         league = dataclasses.replace(

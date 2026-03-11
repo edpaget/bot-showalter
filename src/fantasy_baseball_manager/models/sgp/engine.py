@@ -37,6 +37,7 @@ def compute_sgp_scores(
     denominators: dict[str, float],
     *,
     use_direct_rates: bool = False,
+    volume_weighted: bool = False,
 ) -> list[PlayerSgpScores]:
     """Compute per-category SGP scores for each player.
 
@@ -50,23 +51,50 @@ def compute_sgp_scores(
     directly from ``stats[cat.key]`` instead of deriving from components.
     The baseline becomes the median of direct rates.  Falls back to the
     derived calculation for players missing the key.
+
+    When *volume_weighted* is ``True``, rate-stat baselines use volume-weighted
+    means instead of medians, and each player's rate-stat SGP is scaled by
+    ``player_volume / avg_volume``.  This prevents relievers with low IP from
+    receiving the same rate-stat credit as starters with high IP.
     """
     if not stats_list:
         return []
 
-    # Pre-compute median rates for rate categories
+    # Pre-compute baselines for rate categories
     baselines: dict[str, float] = {}
     for cat in categories:
         if cat.stat_type is StatType.RATE and cat.numerator and cat.denominator:
-            rates: list[float] = []
-            for stats in stats_list:
-                denom_val = stats.get(cat.denominator, 0.0)
-                if denom_val > 0.0:
-                    if use_direct_rates and cat.key in stats:
-                        rates.append(stats[cat.key])
-                    else:
-                        rates.append(resolve_numerator(cat.numerator, stats) / denom_val)
-            baselines[cat.key] = statistics.median(rates) if rates else 0.0
+            if volume_weighted:
+                weighted_sum = 0.0
+                total_vol = 0.0
+                for stats in stats_list:
+                    vol = stats.get(cat.denominator, 0.0)
+                    if vol > 0.0:
+                        if use_direct_rates and cat.key in stats:
+                            rate = stats[cat.key]
+                        else:
+                            rate = resolve_numerator(cat.numerator, stats) / vol
+                        weighted_sum += rate * vol
+                        total_vol += vol
+                baselines[cat.key] = weighted_sum / total_vol if total_vol else 0.0
+            else:
+                rates: list[float] = []
+                for stats in stats_list:
+                    denom_val = stats.get(cat.denominator, 0.0)
+                    if denom_val > 0.0:
+                        if use_direct_rates and cat.key in stats:
+                            rates.append(stats[cat.key])
+                        else:
+                            rates.append(resolve_numerator(cat.numerator, stats) / denom_val)
+                baselines[cat.key] = statistics.median(rates) if rates else 0.0
+
+    # Pre-compute average volumes per rate category for volume weighting
+    avg_volumes: dict[str, float] = {}
+    if volume_weighted:
+        for cat in categories:
+            if cat.stat_type is StatType.RATE and cat.denominator:
+                vols = [s.get(cat.denominator, 0.0) for s in stats_list if s.get(cat.denominator, 0.0) > 0]
+                avg_volumes[cat.key] = statistics.mean(vols) if vols else 0.0
 
     result: list[PlayerSgpScores] = []
     for i, stats in enumerate(stats_list):
@@ -91,9 +119,14 @@ def compute_sgp_scores(
                     player_rate = resolve_numerator(cat.numerator, stats) / denom_val
                 baseline = baselines[cat.key]
                 if cat.direction is Direction.LOWER:
-                    category_sgp[cat.key] = (baseline - player_rate) / abs(denom)
+                    raw_sgp = (baseline - player_rate) / abs(denom)
                 else:
-                    category_sgp[cat.key] = (player_rate - baseline) / denom
+                    raw_sgp = (player_rate - baseline) / denom
+                if volume_weighted:
+                    vol_weight = denom_val / avg_volumes.get(cat.key, 1.0)
+                    category_sgp[cat.key] = raw_sgp * vol_weight
+                else:
+                    category_sgp[cat.key] = raw_sgp
 
         composite = sum(category_sgp.values())
         result.append(
@@ -117,12 +150,15 @@ def run_sgp_pipeline(
     *,
     use_direct_rates: bool = False,
     use_optimal_assignment: bool = True,
+    volume_weighted: bool = False,
 ) -> SgpPipelineResult:
     """Run the full SGP pipeline: SGP scores → replacement → VAR → dollars."""
     if not stats_list:
         return SgpPipelineResult(sgp_scores=[], replacement={}, dollar_values=[])
 
-    sgp_scores = compute_sgp_scores(stats_list, categories, denominators, use_direct_rates=use_direct_rates)
+    sgp_scores = compute_sgp_scores(
+        stats_list, categories, denominators, use_direct_rates=use_direct_rates, volume_weighted=volume_weighted
+    )
 
     if use_optimal_assignment:
         composite_scores = [s.composite_sgp for s in sgp_scores]

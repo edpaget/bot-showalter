@@ -316,3 +316,129 @@ class TestRunSgpPipelineOptimal:
         roster_spots = {"of": 3}
         result = run_sgp_pipeline(stats, categories, denominators, positions, roster_spots, num_teams=1, budget=90.0)
         assert sum(result.dollar_values) == pytest.approx(90.0)
+
+
+class TestVolumeWeighted:
+    def test_volume_weighted_false_matches_default(self) -> None:
+        """volume_weighted=False should produce identical results to default."""
+        stats = [
+            {"er": 60.0, "ip": 200.0},
+            {"er": 30.0, "ip": 100.0},
+        ]
+        categories = [_rate("era", "er", "ip", Direction.LOWER)]
+        denominators = {"era": 0.1}
+        result_default = compute_sgp_scores(stats, categories, denominators)
+        result_off = compute_sgp_scores(stats, categories, denominators, volume_weighted=False)
+        for a, b in zip(result_default, result_off, strict=True):
+            assert a.category_sgp == b.category_sgp
+            assert a.composite_sgp == pytest.approx(b.composite_sgp)
+
+    def test_rate_stat_scales_with_ip(self) -> None:
+        """Same ERA, IP 180 vs 60 → ~3:1 SGP ratio when volume_weighted=True."""
+        categories = [_rate("era", "er", "ip", Direction.LOWER)]
+        denominators = {"era": 0.1}
+        # Use a 3-player pool so baseline differs from the two equal-rate players.
+        stats_3 = [
+            {"er": 36.0, "ip": 180.0},  # rate = 0.20 (good)
+            {"er": 12.0, "ip": 60.0},  # rate = 0.20 (good, same rate)
+            {"er": 60.0, "ip": 200.0},  # rate = 0.30 (bad, sets baseline)
+        ]
+        result_3 = compute_sgp_scores(stats_3, categories, denominators, volume_weighted=True)
+        # Both player 0 and 1 have same rate, but player 0 has 3x the IP
+        sgp_0 = result_3[0].category_sgp["era"]
+        sgp_1 = result_3[1].category_sgp["era"]
+        assert sgp_0 != 0.0
+        assert sgp_1 != 0.0
+        assert sgp_0 / sgp_1 == pytest.approx(180.0 / 60.0)
+
+    def test_volume_weighted_baseline_is_weighted_mean(self) -> None:
+        """Baseline should be volume-weighted mean, not median, when enabled."""
+        # Skewed pool: one high-IP pitcher with low rate, two low-IP with high rate
+        stats = [
+            {"er": 60.0, "ip": 300.0},  # rate = 0.20
+            {"er": 30.0, "ip": 100.0},  # rate = 0.30
+            {"er": 30.0, "ip": 100.0},  # rate = 0.30
+        ]
+        categories = [_rate("era", "er", "ip", Direction.LOWER)]
+        denominators = {"era": 0.1}
+
+        result_default = compute_sgp_scores(stats, categories, denominators, volume_weighted=False)
+        result_weighted = compute_sgp_scores(stats, categories, denominators, volume_weighted=True)
+
+        # Median rate = 0.30 (middle of [0.20, 0.30, 0.30])
+        # Weighted mean = (0.20*300 + 0.30*100 + 0.30*100) / (300+100+100) = 120/500 = 0.24
+        # Player 0 gets different baseline → different raw SGP
+        assert result_default[0].category_sgp["era"] != pytest.approx(result_weighted[0].category_sgp["era"])
+
+    def test_volume_weighted_counting_stats_unaffected(self) -> None:
+        """Counting stats should be identical regardless of volume_weighted flag."""
+        stats = [{"hr": 30.0, "ip": 200.0}, {"hr": 20.0, "ip": 60.0}]
+        categories = [_counting("hr")]
+        denominators = {"hr": 10.0}
+        result_off = compute_sgp_scores(stats, categories, denominators, volume_weighted=False)
+        result_on = compute_sgp_scores(stats, categories, denominators, volume_weighted=True)
+        for a, b in zip(result_off, result_on, strict=True):
+            assert a.category_sgp == b.category_sgp
+
+    def test_volume_weighted_zero_ip_gives_zero(self) -> None:
+        """Player with zero IP should get zero SGP for rate stat."""
+        stats = [
+            {"er": 0.0, "ip": 0.0},
+            {"er": 30.0, "ip": 100.0},
+        ]
+        categories = [_rate("era", "er", "ip", Direction.LOWER)]
+        denominators = {"era": 0.1}
+        result = compute_sgp_scores(stats, categories, denominators, volume_weighted=True)
+        assert result[0].category_sgp["era"] == 0.0
+
+    def test_volume_weighted_single_player(self) -> None:
+        """Single player: weight = 1.0, raw SGP = 0 (baseline = own rate)."""
+        stats = [{"er": 30.0, "ip": 100.0}]
+        categories = [_rate("era", "er", "ip", Direction.LOWER)]
+        denominators = {"era": 0.1}
+        result = compute_sgp_scores(stats, categories, denominators, volume_weighted=True)
+        assert result[0].category_sgp["era"] == pytest.approx(0.0)
+
+    def test_volume_weighted_higher_is_better(self) -> None:
+        """OBP with PA weighting — higher is better direction."""
+        stats = [
+            {"obp_num": 210.0, "pa": 600.0},  # OBP = 0.350
+            {"obp_num": 60.0, "pa": 200.0},  # OBP = 0.300
+        ]
+        categories = [_rate("obp", "obp_num", "pa", Direction.HIGHER)]
+        denominators = {"obp": 0.005}
+        result = compute_sgp_scores(stats, categories, denominators, volume_weighted=True)
+        # weighted baseline = (0.350*600 + 0.300*200) / 800 = 270/800 = 0.3375
+        # avg_vol = mean(600, 200) = 400
+        # Player 0: raw = (0.350 - 0.3375) / 0.005 = 2.5, weight = 600/400 = 1.5 → 3.75
+        # Player 1: raw = (0.300 - 0.3375) / 0.005 = -7.5, weight = 200/400 = 0.5 → -3.75
+        assert result[0].category_sgp["obp"] > 0.0
+        assert result[1].category_sgp["obp"] < 0.0
+        assert result[0].category_sgp["obp"] == pytest.approx(3.75)
+        assert result[1].category_sgp["obp"] == pytest.approx(-3.75)
+
+
+class TestPipelineVolumeWeighted:
+    def test_pipeline_with_volume_weighted(self) -> None:
+        """run_sgp_pipeline with volume_weighted=True produces different composite scores."""
+        stats = [
+            {"er": 36.0, "ip": 180.0, "w": 15.0},
+            {"er": 12.0, "ip": 60.0, "w": 5.0},
+            {"er": 60.0, "ip": 200.0, "w": 12.0},
+        ]
+        categories = [
+            _rate("era", "er", "ip", Direction.LOWER),
+            _counting("w"),
+        ]
+        denominators = {"era": 0.1, "w": 3.0}
+        positions = [["P"], ["P"], ["P"]]
+        roster_spots = {"P": 3}
+        result_off = run_sgp_pipeline(
+            stats, categories, denominators, positions, roster_spots, num_teams=1, budget=100.0, volume_weighted=False
+        )
+        result_on = run_sgp_pipeline(
+            stats, categories, denominators, positions, roster_spots, num_teams=1, budget=100.0, volume_weighted=True
+        )
+        sgp_off = [s.composite_sgp for s in result_off.sgp_scores]
+        sgp_on = [s.composite_sgp for s in result_on.sgp_scores]
+        assert sgp_off != sgp_on

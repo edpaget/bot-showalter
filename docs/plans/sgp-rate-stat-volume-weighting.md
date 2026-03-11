@@ -10,7 +10,7 @@ This is orthogonal to the [Optimal Position Assignment](optimal-position-assignm
 
 | Phase | Status |
 |-------|--------|
-| 1 — Volume-weighted rate-stat SGP scores | not started |
+| 1 — Volume-weighted rate-stat SGP scores | done (2025-07-11) |
 | 2 — Holdout validation and adoption | not started |
 
 ## Phase 1: Volume-weighted rate-stat SGP scores

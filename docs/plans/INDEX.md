@@ -12,7 +12,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [Optimal Position Assignment](optimal-position-assignment.md) | 4 | phases 1-3 done | none |
-| [SGP Rate-Stat Volume Weighting](sgp-rate-stat-volume-weighting.md) | 2 | not started | none |
+| [SGP Rate-Stat Volume Weighting](sgp-rate-stat-volume-weighting.md) | 2 | phase 1 done | none |
 
 ## Completed Roadmaps
 
