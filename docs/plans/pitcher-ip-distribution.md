@@ -11,7 +11,7 @@ The playing-time model already exists and predicts IP via OLS regression on hist
 | 1 — Baseline comparison and target calibration | done (2026-03-10) |
 | 2 — PT-model IP in routed ensemble valuations | done (2026-03-10) |
 | 3 — Distribution-aware IP calibration | done (2026-03-10) |
-| 4 — Validation on holdout seasons | not started |
+| 4 — Validation on holdout seasons | done (2026-03-10) — NO-GO |
 
 ## Phase 1: Baseline comparison and target calibration
 
