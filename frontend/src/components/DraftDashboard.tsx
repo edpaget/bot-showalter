@@ -86,6 +86,8 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
 
       if (event.__typename === "PickEvent") {
         const pick = event.pick;
+        // Skip if this player was already added (e.g. by our optimistic update)
+        if (ctx.state.picks.some((p) => p.playerId === pick.playerId)) return;
         ctx.setState({
           ...ctx.state,
           currentPick: ctx.state.currentPick + 1,
@@ -150,6 +152,8 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const handleDraft = useCallback(
     async (playerId: number, position: string) => {
       if (!ctx.sessionId) return;
+      // Optimistically mark player as drafted so the board updates instantly
+      ctx.addOptimisticPick(playerId);
       const result = await pickMutation({
         variables: { sessionId: ctx.sessionId, playerId, position },
       });
@@ -177,7 +181,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   }, [ctx, endSession]);
 
   return (
-    <div className="flex flex-col gap-3 h-screen p-3">
+    <div className="flex flex-col gap-3 h-screen p-3 overflow-hidden">
       <SessionControls
         sessionActive={sessionActive}
         state={ctx.state}

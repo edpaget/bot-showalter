@@ -1,5 +1,6 @@
 import { useQuery } from "@apollo/client";
-import { useMemo, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { ADP_DELTA_THRESHOLD, TIER_COLORS } from "../constants/tiers";
 import type { BoardQuery, DraftBoardRowType } from "../generated/graphql";
 import { BOARD_QUERY } from "../graphql/queries";
@@ -95,6 +96,8 @@ export interface DraftBoardTableProps {
 
 type StatusFilter = "all" | "available" | "drafted";
 
+const ROW_HEIGHT = 33;
+
 export function DraftBoardTable({
   season,
   system,
@@ -133,7 +136,8 @@ export function DraftBoardTable({
     return { batting: battingCategories, pitching: pitchingCategories };
   }, [data, playerTypeFilter]);
 
-  const rows = useMemo(() => {
+  // Expensive sort + filter — does NOT depend on draftedPlayerIds
+  const sortedRows = useMemo(() => {
     if (!data) return [];
     let filtered = data.board.rows;
 
@@ -147,13 +151,6 @@ export function DraftBoardTable({
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((r) => r.playerName.toLowerCase().includes(q));
     }
-    if (draftedPlayerIds && statusFilter !== "all") {
-      if (statusFilter === "available") {
-        filtered = filtered.filter((r) => !draftedPlayerIds.has(r.playerId));
-      } else {
-        filtered = filtered.filter((r) => draftedPlayerIds.has(r.playerId));
-      }
-    }
 
     return [...filtered].sort((a, b) => {
       if (sortKey.startsWith("z:")) {
@@ -164,9 +161,28 @@ export function DraftBoardTable({
       }
       return compareValues(a[sortKey as FixedSortKey], b[sortKey as FixedSortKey], sortDir);
     });
-  }, [data, sortKey, sortDir, positionFilter, playerTypeFilter, searchQuery, draftedPlayerIds, statusFilter]);
+  }, [data, sortKey, sortDir, positionFilter, playerTypeFilter, searchQuery]);
 
-  if (loading) return <div className="p-4 text-gray-500">Loading board…</div>;
+  // Cheap filter — only re-runs when draftedPlayerIds or statusFilter changes
+  const rows = useMemo(() => {
+    if (!draftedPlayerIds || statusFilter === "all") return sortedRows;
+    if (statusFilter === "available") return sortedRows.filter((r) => !draftedPlayerIds.has(r.playerId));
+    return sortedRows.filter((r) => draftedPlayerIds.has(r.playerId));
+  }, [sortedRows, draftedPlayerIds, statusFilter]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 20,
+  });
+  // In JSDOM (tests) there's no layout so the virtualizer produces 0 items.
+  // Fall back to rendering all rows when that happens.
+  const virtualItems = virtualizer.getVirtualItems();
+  const useVirtual = virtualItems.length > 0;
+
+  if (loading) return <div className="p-4 text-gray-500">Loading board...</div>;
   if (error) return <div className="p-4 text-red-600">Error: {error.message}</div>;
   if (!data) return null;
 
@@ -200,7 +216,7 @@ export function DraftBoardTable({
         </div>
       </div>
 
-      <div className="overflow-auto flex-1 min-h-0">
+      <div ref={scrollRef} className="overflow-auto flex-1 min-h-0">
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10">
             <tr>
@@ -259,85 +275,200 @@ export function DraftBoardTable({
               ))}
             </tr>
           </thead>
-          <tbody>
-            {rows.map((row) => {
-              const isDrafted = draftedPlayerIds?.has(row.playerId) ?? false;
-              return (
-                <tr
-                  key={`${row.playerId}-${row.playerType}`}
-                  style={{ backgroundColor: rowBackground(row) }}
-                  className={`hover:brightness-95 ${isDrafted ? "opacity-40" : ""}`}
-                >
-                  <td className="border border-gray-200 px-2 py-1">{row.rank}</td>
-                  <td className="border border-gray-200 px-2 py-1 whitespace-nowrap">
-                    {onPlayerClick ? (
-                      <button
-                        type="button"
-                        onClick={() => onPlayerClick(row.playerId, row.playerName, row.playerType)}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {row.playerName}
-                      </button>
-                    ) : (
-                      row.playerName
-                    )}
-                  </td>
-                  {sessionActive && (
-                    <td className="border border-gray-200 px-2 py-1">
-                      {!isDrafted && onDraft && (
-                        <button
-                          type="button"
-                          disabled={pickLoading}
-                          onClick={() => onDraft(row.playerId, row.position)}
-                          className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Draft
-                        </button>
-                      )}
-                    </td>
-                  )}
-                  <td className="border border-gray-200 px-2 py-1">{displayPosition(row.position)}</td>
-                  <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
-                  <td className="border border-gray-200 px-2 py-1 font-mono">${row.value.toFixed(1)}</td>
-                  {visibleCategories.batting.map((cat) => {
-                    const z =
-                      row.playerType !== "pitcher" ? (row.categoryZScores[cat] as number | undefined) : undefined;
-                    return (
-                      <td
-                        key={`bat-${cat}`}
-                        className={`border border-gray-200 px-2 py-1 text-right font-mono text-xs ${z != null ? zScoreColor(z) : ""}`}
-                      >
-                        {z != null ? z.toFixed(1) : ""}
-                      </td>
-                    );
-                  })}
-                  {visibleCategories.pitching.map((cat) => {
-                    const z =
-                      row.playerType === "pitcher" ? (row.categoryZScores[cat] as number | undefined) : undefined;
-                    return (
-                      <td
-                        key={`pit-${cat}`}
-                        className={`border border-gray-200 px-2 py-1 text-right font-mono text-xs ${z != null ? zScoreColor(z) : ""}`}
-                      >
-                        {z != null ? z.toFixed(1) : ""}
-                      </td>
-                    );
-                  })}
-                  <td className="border border-gray-200 px-2 py-1">
-                    {row.adpOverall != null ? row.adpOverall.toFixed(1) : ""}
-                  </td>
-                  <AdpDeltaCell delta={row.adpDelta} />
-                  <BreakoutCell rank={row.breakoutRank} type="breakout" />
-                  <BreakoutCell rank={row.bustRank} type="bust" />
-                </tr>
-              );
-            })}
-          </tbody>
+          <VirtualBody
+            rows={rows}
+            virtualizer={useVirtual ? virtualizer : null}
+            virtualItems={useVirtual ? virtualItems : null}
+            draftedPlayerIds={draftedPlayerIds}
+            sessionActive={sessionActive}
+            pickLoading={pickLoading}
+            onDraft={onDraft}
+            onPlayerClick={onPlayerClick}
+            battingCategories={visibleCategories.batting}
+            pitchingCategories={visibleCategories.pitching}
+          />
         </table>
       </div>
     </div>
   );
 }
+
+type BoardVirtualizer = ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
+
+interface VirtualBodyProps {
+  rows: DraftBoardRowType[];
+  virtualizer: BoardVirtualizer | null;
+  virtualItems: ReturnType<BoardVirtualizer["getVirtualItems"]> | null;
+  draftedPlayerIds?: Set<number>;
+  sessionActive: boolean;
+  pickLoading?: boolean;
+  onDraft?: (playerId: number, position: string) => void;
+  onPlayerClick?: (playerId: number, playerName: string, playerType: string) => void;
+  battingCategories: string[];
+  pitchingCategories: string[];
+}
+
+function VirtualBody({
+  rows,
+  virtualizer,
+  virtualItems,
+  draftedPlayerIds,
+  sessionActive,
+  pickLoading,
+  onDraft,
+  onPlayerClick,
+  battingCategories,
+  pitchingCategories,
+}: VirtualBodyProps) {
+  if (!virtualizer || !virtualItems) {
+    // Non-virtual fallback (JSDOM in tests)
+    return (
+      <tbody>
+        {rows.map((row) => (
+          <BoardRow
+            key={`${row.playerId}-${row.playerType}`}
+            row={row}
+            isDrafted={draftedPlayerIds?.has(row.playerId) ?? false}
+            sessionActive={sessionActive}
+            pickLoading={pickLoading}
+            onDraft={onDraft}
+            onPlayerClick={onPlayerClick}
+            battingCategories={battingCategories}
+            pitchingCategories={pitchingCategories}
+          />
+        ))}
+      </tbody>
+    );
+  }
+
+  // Use top/bottom padding to maintain scroll position while only rendering
+  // visible rows. This preserves normal table column sizing (unlike position: absolute).
+  const firstItem = virtualItems[0];
+  const lastItem = virtualItems[virtualItems.length - 1];
+  const paddingTop = firstItem ? firstItem.start : 0;
+  const paddingBottom = lastItem ? virtualizer.getTotalSize() - lastItem.end : 0;
+
+  return (
+    <tbody>
+      {paddingTop > 0 && (
+        <tr>
+          <td style={{ height: paddingTop, padding: 0, border: "none" }} />
+        </tr>
+      )}
+      {virtualItems.map((virtualRow) => {
+        const row = rows[virtualRow.index]!;
+        return (
+          <BoardRow
+            key={`${row.playerId}-${row.playerType}`}
+            row={row}
+            isDrafted={draftedPlayerIds?.has(row.playerId) ?? false}
+            sessionActive={sessionActive}
+            pickLoading={pickLoading}
+            onDraft={onDraft}
+            onPlayerClick={onPlayerClick}
+            battingCategories={battingCategories}
+            pitchingCategories={pitchingCategories}
+          />
+        );
+      })}
+      {paddingBottom > 0 && (
+        <tr>
+          <td style={{ height: paddingBottom, padding: 0, border: "none" }} />
+        </tr>
+      )}
+    </tbody>
+  );
+}
+
+interface BoardRowProps {
+  row: DraftBoardRowType;
+  isDrafted: boolean;
+  sessionActive: boolean;
+  pickLoading?: boolean;
+  onDraft?: (playerId: number, position: string) => void;
+  onPlayerClick?: (playerId: number, playerName: string, playerType: string) => void;
+  battingCategories: string[];
+  pitchingCategories: string[];
+}
+
+const BoardRow = memo(function BoardRow({
+  row,
+  isDrafted,
+  sessionActive,
+  pickLoading,
+  onDraft,
+  onPlayerClick,
+  battingCategories,
+  pitchingCategories,
+}: BoardRowProps) {
+  const handlePlayerClick = useCallback(
+    () => onPlayerClick?.(row.playerId, row.playerName, row.playerType),
+    [onPlayerClick, row.playerId, row.playerName, row.playerType],
+  );
+
+  const handleDraft = useCallback(() => onDraft?.(row.playerId, row.position), [onDraft, row.playerId, row.position]);
+
+  return (
+    <tr
+      style={{ backgroundColor: rowBackground(row) }}
+      className={`hover:brightness-95 ${isDrafted ? "opacity-40" : ""}`}
+    >
+      <td className="border border-gray-200 px-2 py-1">{row.rank}</td>
+      <td className="border border-gray-200 px-2 py-1 whitespace-nowrap">
+        {onPlayerClick ? (
+          <button type="button" onClick={handlePlayerClick} className="text-blue-600 hover:underline">
+            {row.playerName}
+          </button>
+        ) : (
+          row.playerName
+        )}
+      </td>
+      {sessionActive && (
+        <td className="border border-gray-200 px-2 py-1">
+          {!isDrafted && onDraft && (
+            <button
+              type="button"
+              disabled={pickLoading}
+              onClick={handleDraft}
+              className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Draft
+            </button>
+          )}
+        </td>
+      )}
+      <td className="border border-gray-200 px-2 py-1">{displayPosition(row.position)}</td>
+      <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
+      <td className="border border-gray-200 px-2 py-1 font-mono">${row.value.toFixed(1)}</td>
+      {battingCategories.map((cat) => {
+        const z = row.playerType !== "pitcher" ? (row.categoryZScores[cat] as number | undefined) : undefined;
+        return (
+          <td
+            key={`bat-${cat}`}
+            className={`border border-gray-200 px-2 py-1 text-right font-mono text-xs ${z != null ? zScoreColor(z) : ""}`}
+          >
+            {z != null ? z.toFixed(1) : ""}
+          </td>
+        );
+      })}
+      {pitchingCategories.map((cat) => {
+        const z = row.playerType === "pitcher" ? (row.categoryZScores[cat] as number | undefined) : undefined;
+        return (
+          <td
+            key={`pit-${cat}`}
+            className={`border border-gray-200 px-2 py-1 text-right font-mono text-xs ${z != null ? zScoreColor(z) : ""}`}
+          >
+            {z != null ? z.toFixed(1) : ""}
+          </td>
+        );
+      })}
+      <td className="border border-gray-200 px-2 py-1">{row.adpOverall != null ? row.adpOverall.toFixed(1) : ""}</td>
+      <AdpDeltaCell delta={row.adpDelta} />
+      <BreakoutCell rank={row.breakoutRank} type="breakout" />
+      <BreakoutCell rank={row.bustRank} type="bust" />
+    </tr>
+  );
+});
 
 function AdpDeltaCell({ delta }: { delta: number | null }) {
   if (delta == null) {

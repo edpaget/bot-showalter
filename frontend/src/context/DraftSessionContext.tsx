@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useMemo, useState } from "react";
 import type {
   ArbitrageReportType,
   CategoryBalanceType,
@@ -35,6 +35,7 @@ interface DraftSessionContextValue {
   setArbitrage: (arbitrage: ArbitrageReportType | null) => void;
   setKeepers: (keepers: KeeperInfoType[]) => void;
   applyPickResult: (result: PickResultFieldsFragment) => void;
+  addOptimisticPick: (playerId: number) => void;
   clearSession: () => void;
 }
 
@@ -57,14 +58,46 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
   }, [state]);
 
   const applyPickResult = useCallback((result: PickResultFieldsFragment) => {
-    setState(result.state as DraftStateType);
-    setRecommendations(result.recommendations);
-    setRoster(result.roster);
-    setNeeds(result.needs);
-    setArbitrage(result.arbitrage);
-    setBalance(result.balance);
-    setCategoryNeeds(result.categoryNeeds);
+    // Use startTransition so the optimistic state stays visible while React
+    // processes the full result update in the background.
+    startTransition(() => {
+      setState(result.state as DraftStateType);
+      setRecommendations(result.recommendations);
+      setRoster(result.roster);
+      setNeeds(result.needs);
+      setArbitrage(result.arbitrage);
+      setBalance(result.balance);
+      setCategoryNeeds(result.categoryNeeds);
+    });
   }, []);
+
+  const addOptimisticPick = useCallback(
+    (playerId: number) => {
+      if (!state) return;
+      // Immediately mark the player as drafted and advance the pick counter.
+      // Placeholder fields (playerName, position, etc.) get replaced when
+      // the real mutation response arrives via applyPickResult.
+      setState({
+        ...state,
+        currentPick: state.currentPick + 1,
+        picks: [
+          ...state.picks,
+          {
+            __typename: "DraftPickType" as const,
+            playerId,
+            playerName: "…",
+            position: "UTIL" as DraftPickType["position"],
+            team: 0,
+            pickNumber: state.currentPick,
+            price: null,
+          },
+        ],
+      });
+      // Filter the drafted player out of recommendations
+      setRecommendations((prev) => prev.filter((r) => r.playerId !== playerId));
+    },
+    [state],
+  );
 
   const clearSession = useCallback(() => {
     setSessionId(null);
@@ -100,6 +133,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       setArbitrage,
       setKeepers,
       applyPickResult,
+      addOptimisticPick,
       clearSession,
     }),
     [
@@ -114,6 +148,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       keepers,
       draftedPlayerIds,
       applyPickResult,
+      addOptimisticPick,
       clearSession,
     ],
   );
