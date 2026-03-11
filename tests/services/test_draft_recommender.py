@@ -811,6 +811,35 @@ class TestCategoryBalance:
         recs = recommend(state, weights=w)
         assert recs[0].player_id == 1
 
+    def test_cat_scores_param_bypasses_category_balance_fn(self) -> None:
+        """Pre-computed cat_scores dict is used directly, skipping category_balance_fn."""
+        players = [
+            _make_player(1, "SB Guy", "OF", 18.0),
+            _make_player(2, "HR Guy", "OF", 20.0),
+        ]
+        state = _make_state(players, roster_slots={"OF": 3})
+
+        w = RecommendationWeights(value=1.0, need=0.0, scarcity=0.0, tier=0.0, adp=0.0, category_balance=2.0)
+        recs = recommend(state, weights=w, cat_scores={1: 1.0, 2: 0.0})
+        # SB Guy should outrank HR Guy despite lower value
+        assert recs[0].player_id == 1
+
+    def test_cat_scores_takes_precedence_over_category_balance_fn(self) -> None:
+        """When both cat_scores and category_balance_fn are provided, cat_scores wins."""
+        players = [
+            _make_player(1, "Player A", "OF", 18.0),
+            _make_player(2, "Player B", "OF", 20.0),
+        ]
+        state = _make_state(players, roster_slots={"OF": 3})
+
+        def cat_balance_fn(roster_ids: list[int], available_ids: list[int]) -> dict[int, float]:
+            return {1: 1.0, 2: 0.0}
+
+        w = RecommendationWeights(value=1.0, need=0.0, scarcity=0.0, tier=0.0, adp=0.0, category_balance=2.0)
+        recs = recommend(state, weights=w, category_balance_fn=cat_balance_fn, cat_scores={1: 0.0, 2: 1.0})
+        # Player B should win because cat_scores takes precedence
+        assert recs[0].player_id == 2
+
     def test_reason_includes_category_balance(self) -> None:
         """Reason includes 'addresses weak categories' when cat_bal > 0.3."""
         players = [

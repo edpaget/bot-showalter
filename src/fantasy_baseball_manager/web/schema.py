@@ -89,19 +89,23 @@ def _build_pick_result(
     info: Info,
     session_id: int,
     pick: DraftPickType,
+    *,
+    arb_cat_scores: dict[int, float] | None = None,
 ) -> PickResultType:
     mgr = _get_session_manager(info)
     engine = mgr.get_engine(session_id)
 
-    cat_bal_fn = mgr.get_category_balance_fn(session_id)
+    # Compute category scores once if not pre-computed (e.g. from undo)
+    if arb_cat_scores is None:
+        arb_cat_scores = _compute_arbitrage_cat_scores(info, session_id, engine)
+
     weak_cats = mgr.get_weak_categories(session_id)
-    recs = recommend(engine.state, limit=10, category_balance_fn=cat_bal_fn, weak_categories=weak_cats)
+    recs = recommend(engine.state, limit=10, cat_scores=arb_cat_scores or {}, weak_categories=weak_cats)
     roster = engine.my_roster()
     needs = engine.my_needs()
 
     adp_lookup = {r.player_id: r.adp_overall for r in engine.state.available_pool.values() if r.adp_overall is not None}
     available = engine.available()
-    arb_cat_scores = _compute_arbitrage_cat_scores(info, session_id, engine)
     report = build_arbitrage_report(
         engine.state.current_pick,
         available,
@@ -581,7 +585,7 @@ class Mutation:
                 ),
             )
 
-        return _build_pick_result(info, session_id, pick_type)
+        return _build_pick_result(info, session_id, pick_type, arb_cat_scores=arb_cat_scores)
 
     @strawberry.mutation
     async def undo(self, info: Info, session_id: int) -> PickResultType:

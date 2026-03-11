@@ -21,6 +21,7 @@ def recommend(
     weights: RecommendationWeights | None = None,
     limit: int = 10,
     category_balance_fn: CategoryBalanceFn | None = None,
+    cat_scores: dict[int, float] | None = None,
     weak_categories: list[str] | None = None,
     draft_plan: DraftPlan | None = None,
     availability: list[AvailabilityWindow] | None = None,
@@ -51,12 +52,12 @@ def recommend(
     if availability is not None:
         avail_map = {aw.player_id: aw for aw in availability}
 
-    # Compute category balance scores once for all available players
-    cat_scores: dict[int, float] = {}
-    if category_balance_fn is not None:
+    # Use pre-computed category balance scores, or compute them from the function
+    if cat_scores is None and category_balance_fn is not None:
         roster_ids = [p.player_id for p in state.team_rosters[state.config.user_team]]
         available_ids = list(state.available_pool.keys())
         cat_scores = category_balance_fn(roster_ids, available_ids)
+    effective_cat_scores: dict[int, float] = cat_scores or {}
 
     scored: list[tuple[float, DraftBoardRow]] = []
     for player in pool:
@@ -71,7 +72,7 @@ def recommend(
             pool,
             state,
             picks_until,
-            cat_scores,
+            effective_cat_scores,
             draft_plan=draft_plan,
             current_round=current_round,
             avail_map=avail_map,
@@ -98,7 +99,7 @@ def recommend(
                     pool,
                     state,
                     picks_until,
-                    cat_scores,
+                    effective_cat_scores,
                     draft_plan=draft_plan,
                     current_round=current_round,
                     avail_map=avail_map,
