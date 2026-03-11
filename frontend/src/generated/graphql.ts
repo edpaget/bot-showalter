@@ -72,6 +72,14 @@ export type CategoryConfigType = {
   statType: Scalars['String']['output'];
 };
 
+export type CategoryNeedType = {
+  __typename?: 'CategoryNeedType';
+  bestAvailable: Array<PlayerRecommendationType>;
+  category: Scalars['String']['output'];
+  currentRank: Scalars['Int']['output'];
+  targetRank: Scalars['Int']['output'];
+};
+
 export type DraftBoardRowType = {
   __typename?: 'DraftBoardRowType';
   adpDelta: Maybe<Scalars['Int']['output']>;
@@ -244,6 +252,14 @@ export type PickResultType = {
   state: DraftStateType;
 };
 
+export type PlayerRecommendationType = {
+  __typename?: 'PlayerRecommendationType';
+  categoryImpact: Scalars['Float']['output'];
+  playerId: Scalars['Int']['output'];
+  playerName: Scalars['String']['output'];
+  tradeoffCategories: Array<Scalars['String']['output']>;
+};
+
 export type PlayerSummaryType = {
   __typename?: 'PlayerSummaryType';
   age: Maybe<Scalars['Int']['output']>;
@@ -311,6 +327,7 @@ export type Query = {
   available: Array<DraftBoardRowType>;
   balance: Array<CategoryBalanceType>;
   board: DraftBoardType;
+  categoryNeeds: Array<CategoryNeedType>;
   keepers: Array<KeeperInfoType>;
   league: LeagueSettingsType;
   needs: Array<RosterSlotType>;
@@ -365,6 +382,12 @@ export type QueryBoardArgs = {
   system?: InputMaybe<Scalars['String']['input']>;
   top?: InputMaybe<Scalars['Int']['input']>;
   version?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryCategoryNeedsArgs = {
+  sessionId: Scalars['Int']['input'];
+  topN?: Scalars['Int']['input'];
 };
 
 
@@ -666,6 +689,14 @@ export type BalanceQueryVariables = Exact<{
 
 export type BalanceQuery = { __typename?: 'Query', balance: Array<{ __typename?: 'CategoryBalanceType', category: string, projectedValue: number, leagueRankEstimate: number, strength: string }> };
 
+export type CategoryNeedsQueryVariables = Exact<{
+  sessionId: Scalars['Int']['input'];
+  topN: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+
+export type CategoryNeedsQuery = { __typename?: 'Query', categoryNeeds: Array<{ __typename?: 'CategoryNeedType', category: string, currentRank: number, targetRank: number, bestAvailable: Array<{ __typename?: 'PlayerRecommendationType', playerId: number, playerName: string, categoryImpact: number, tradeoffCategories: Array<string> }> }> };
+
 export type AvailableQueryVariables = Exact<{
   sessionId: Scalars['Int']['input'];
   position: InputMaybe<Position>;
@@ -782,6 +813,7 @@ export const RecommendationsDocument = {"kind":"Document","definitions":[{"kind"
 export const RosterDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Roster"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"team"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"roster"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"team"},"value":{"kind":"Variable","name":{"kind":"Name","value":"team"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pickNumber"}},{"kind":"Field","name":{"kind":"Name","value":"team"}},{"kind":"Field","name":{"kind":"Name","value":"playerId"}},{"kind":"Field","name":{"kind":"Name","value":"playerName"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"price"}}]}}]}}]} as unknown as DocumentNode<RosterQuery, RosterQueryVariables>;
 export const NeedsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Needs"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"needs"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"remaining"}}]}}]}}]} as unknown as DocumentNode<NeedsQuery, NeedsQueryVariables>;
 export const BalanceDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Balance"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"balance"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"category"}},{"kind":"Field","name":{"kind":"Name","value":"projectedValue"}},{"kind":"Field","name":{"kind":"Name","value":"leagueRankEstimate"}},{"kind":"Field","name":{"kind":"Name","value":"strength"}}]}}]}}]} as unknown as DocumentNode<BalanceQuery, BalanceQueryVariables>;
+export const CategoryNeedsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"CategoryNeeds"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"topN"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryNeeds"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"topN"},"value":{"kind":"Variable","name":{"kind":"Name","value":"topN"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"category"}},{"kind":"Field","name":{"kind":"Name","value":"currentRank"}},{"kind":"Field","name":{"kind":"Name","value":"targetRank"}},{"kind":"Field","name":{"kind":"Name","value":"bestAvailable"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"playerId"}},{"kind":"Field","name":{"kind":"Name","value":"playerName"}},{"kind":"Field","name":{"kind":"Name","value":"categoryImpact"}},{"kind":"Field","name":{"kind":"Name","value":"tradeoffCategories"}}]}}]}}]}}]} as unknown as DocumentNode<CategoryNeedsQuery, CategoryNeedsQueryVariables>;
 export const AvailableDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Available"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"position"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Position"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"limit"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"available"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"position"},"value":{"kind":"Variable","name":{"kind":"Name","value":"position"}}},{"kind":"Argument","name":{"kind":"Name","value":"limit"},"value":{"kind":"Variable","name":{"kind":"Name","value":"limit"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"playerId"}},{"kind":"Field","name":{"kind":"Name","value":"playerName"}},{"kind":"Field","name":{"kind":"Name","value":"rank"}},{"kind":"Field","name":{"kind":"Name","value":"playerType"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"value"}},{"kind":"Field","name":{"kind":"Name","value":"categoryZScores"}},{"kind":"Field","name":{"kind":"Name","value":"age"}},{"kind":"Field","name":{"kind":"Name","value":"batsThrows"}},{"kind":"Field","name":{"kind":"Name","value":"tier"}},{"kind":"Field","name":{"kind":"Name","value":"adpOverall"}},{"kind":"Field","name":{"kind":"Name","value":"adpRank"}},{"kind":"Field","name":{"kind":"Name","value":"adpDelta"}},{"kind":"Field","name":{"kind":"Name","value":"breakoutRank"}},{"kind":"Field","name":{"kind":"Name","value":"bustRank"}}]}}]}}]} as unknown as DocumentNode<AvailableQuery, AvailableQueryVariables>;
 export const ArbitrageDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Arbitrage"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"threshold"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"position"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Position"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"limit"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"arbitrage"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"threshold"},"value":{"kind":"Variable","name":{"kind":"Name","value":"threshold"}}},{"kind":"Argument","name":{"kind":"Name","value":"position"},"value":{"kind":"Variable","name":{"kind":"Name","value":"position"}}},{"kind":"Argument","name":{"kind":"Name","value":"limit"},"value":{"kind":"Variable","name":{"kind":"Name","value":"limit"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"currentPick"}},{"kind":"Field","name":{"kind":"Name","value":"falling"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"playerId"}},{"kind":"Field","name":{"kind":"Name","value":"playerName"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"adp"}},{"kind":"Field","name":{"kind":"Name","value":"currentPick"}},{"kind":"Field","name":{"kind":"Name","value":"picksPastAdp"}},{"kind":"Field","name":{"kind":"Name","value":"value"}},{"kind":"Field","name":{"kind":"Name","value":"valueRank"}},{"kind":"Field","name":{"kind":"Name","value":"arbitrageScore"}}]}},{"kind":"Field","name":{"kind":"Name","value":"reaches"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"playerId"}},{"kind":"Field","name":{"kind":"Name","value":"playerName"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"adp"}},{"kind":"Field","name":{"kind":"Name","value":"pickNumber"}},{"kind":"Field","name":{"kind":"Name","value":"picksAheadOfAdp"}},{"kind":"Field","name":{"kind":"Name","value":"drafterTeam"}}]}}]}}]}}]} as unknown as DocumentNode<ArbitrageQuery, ArbitrageQueryVariables>;
 export const YahooPollStatusDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"YahooPollStatus"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"yahooPollStatus"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"active"}},{"kind":"Field","name":{"kind":"Name","value":"lastPollAt"}},{"kind":"Field","name":{"kind":"Name","value":"picksIngested"}}]}}]}}]} as unknown as DocumentNode<YahooPollStatusQuery, YahooPollStatusQueryVariables>;

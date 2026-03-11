@@ -4,6 +4,7 @@ import { useDraftSession } from "../context/DraftSessionContext";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
 import type {
   BalanceQuery,
+  CategoryNeedsQuery,
   DraftEventsSubscription,
   PickMutation,
   SessionQuery,
@@ -14,6 +15,7 @@ import type {
 import { END_SESSION, PICK, START_SESSION, UNDO } from "../graphql/mutations";
 import {
   BALANCE_QUERY,
+  CATEGORY_NEEDS_QUERY,
   KEEPERS_QUERY,
   NEEDS_QUERY,
   RECOMMENDATIONS_QUERY,
@@ -24,6 +26,7 @@ import {
 import { DRAFT_EVENTS_SUBSCRIPTION } from "../graphql/subscriptions";
 import { ArbitragePanel } from "./ArbitragePanel";
 import { CategoryBalancePanel } from "./CategoryBalancePanel";
+import { CategoryNeedsPanel } from "./CategoryNeedsPanel";
 import { DraftBoardTable } from "./DraftBoardTable";
 import { KeeperPanel } from "./KeeperPanel";
 import { NeedsPanel } from "./NeedsPanel";
@@ -47,6 +50,11 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
     skip: !sessionActive,
   });
 
+  const { data: categoryNeedsData } = useQuery<CategoryNeedsQuery>(CATEGORY_NEEDS_QUERY, {
+    variables: { sessionId: ctx.sessionId },
+    skip: !sessionActive,
+  });
+
   useEffect(() => {
     if (balanceData?.balance) {
       ctx.setBalance(balanceData.balance);
@@ -60,10 +68,16 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const [fetchKeepers] = useLazyQuery(KEEPERS_QUERY);
   const [startSession] = useMutation<StartSessionMutation>(START_SESSION);
   const [pickMutation] = useMutation<PickMutation>(PICK, {
-    refetchQueries: [{ query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } }],
+    refetchQueries: [
+      { query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } },
+      { query: CATEGORY_NEEDS_QUERY, variables: { sessionId: ctx.sessionId } },
+    ],
   });
   const [undoMutation] = useMutation<UndoMutation>(UNDO, {
-    refetchQueries: [{ query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } }],
+    refetchQueries: [
+      { query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } },
+      { query: CATEGORY_NEEDS_QUERY, variables: { sessionId: ctx.sessionId } },
+    ],
   });
   const [endSession] = useMutation(END_SESSION);
 
@@ -207,6 +221,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
             />
             <NeedsPanel needs={ctx.needs} />
             <CategoryBalancePanel balance={ctx.balance} />
+            <CategoryNeedsPanel needs={categoryNeedsData?.categoryNeeds ?? []} onPlayerClick={openPlayer} />
           </div>
         )}
       </div>

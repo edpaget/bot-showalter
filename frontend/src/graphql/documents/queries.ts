@@ -152,6 +152,22 @@ export const BALANCE_QUERY = gql`
   }
 `;
 
+export const CATEGORY_NEEDS_QUERY = gql`
+  query CategoryNeeds($sessionId: Int!, $topN: Int) {
+    categoryNeeds(sessionId: $sessionId, topN: $topN) {
+      category
+      currentRank
+      targetRank
+      bestAvailable {
+        playerId
+        playerName
+        categoryImpact
+        tradeoffCategories
+      }
+    }
+  }
+`;
+
 export const AVAILABLE_QUERY = gql`
   query Available($sessionId: Int!, $position: Position, $limit: Int) {
     available(sessionId: $sessionId, position: $position, limit: $limit) {

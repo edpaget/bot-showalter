@@ -9,12 +9,14 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import (
         ArbitrageReport,
         CategoryConfig,
+        CategoryNeed,
         DraftBoard,
         DraftBoardRow,
         DraftSessionRecord,
         FallingPlayer,
         LeagueSettings,
         PlayerProjection,
+        PlayerRecommendation,
         PlayerSummary,
         PlayerTier,
         PlayerValuation,
@@ -317,6 +319,40 @@ class CategoryBalanceType:
             projected_value=proj.projected_value,
             league_rank_estimate=proj.league_rank_estimate,
             strength=proj.strength,
+        )
+
+
+@strawberry.type
+class PlayerRecommendationType:
+    player_id: int
+    player_name: str
+    category_impact: float
+    tradeoff_categories: list[str]
+
+    @staticmethod
+    def from_domain(rec: PlayerRecommendation) -> PlayerRecommendationType:
+        return PlayerRecommendationType(
+            player_id=rec.player_id,
+            player_name=rec.player_name,
+            category_impact=rec.category_impact,
+            tradeoff_categories=list(rec.tradeoff_categories),
+        )
+
+
+@strawberry.type
+class CategoryNeedType:
+    category: str
+    current_rank: int
+    target_rank: int
+    best_available: list[PlayerRecommendationType]
+
+    @staticmethod
+    def from_domain(need: CategoryNeed) -> CategoryNeedType:
+        return CategoryNeedType(
+            category=need.category,
+            current_rank=need.current_rank,
+            target_rank=need.target_rank,
+            best_available=[PlayerRecommendationType.from_domain(r) for r in need.best_available],
         )
 
 

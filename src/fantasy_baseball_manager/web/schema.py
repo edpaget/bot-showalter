@@ -15,6 +15,7 @@ from fantasy_baseball_manager.services import (
     compute_scarcity,
     detect_falling_players,
     generate_tiers,
+    identify_needs,
     recommend,
 )
 from fantasy_baseball_manager.web.types import (
@@ -22,6 +23,7 @@ from fantasy_baseball_manager.web.types import (
     ArbitrageAlertEvent,
     ArbitrageReportType,
     CategoryBalanceType,
+    CategoryNeedType,
     DraftBoardRowType,
     DraftBoardType,
     DraftEventType,
@@ -295,6 +297,40 @@ class Query:
         projections = ctx.container.projection_repo.get_by_season(engine.state.config.season)
         analysis = analyze_roster(roster_ids, projections, ctx.league)
         return [CategoryBalanceType.from_domain(p) for p in analysis.projections]
+
+    @strawberry.field
+    def category_needs(
+        self,
+        info: Info,
+        session_id: int,
+        top_n: int = 5,
+    ) -> list[CategoryNeedType]:
+        ctx = _get_context(info)
+        mgr = _get_session_manager(info)
+        engine = mgr.get_engine(session_id)
+
+        roster = engine.my_roster()
+        if not roster:
+            return []
+
+        roster_ids = [p.player_id for p in roster]
+        available_rows = engine.available()
+        available_ids = [r.player_id for r in available_rows]
+        projections = ctx.container.projection_repo.get_by_season(engine.state.config.season)
+
+        player_ids = {*roster_ids, *available_ids}
+        players = ctx.container.player_repo.get_by_ids(list(player_ids))
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        needs = identify_needs(
+            roster_ids,
+            available_ids,
+            projections,
+            ctx.league,
+            player_names,
+            top_n=top_n,
+        )
+        return [CategoryNeedType.from_domain(n) for n in needs]
 
     @strawberry.field
     def available(

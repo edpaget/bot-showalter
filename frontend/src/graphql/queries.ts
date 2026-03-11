@@ -4,6 +4,7 @@ export {
   AvailableDocument as AVAILABLE_QUERY,
   BalanceDocument as BALANCE_QUERY,
   BoardDocument as BOARD_QUERY,
+  CategoryNeedsDocument as CATEGORY_NEEDS_QUERY,
   KeepersDocument as KEEPERS_QUERY,
   LeagueDocument as LEAGUE_QUERY,
   NeedsDocument as NEEDS_QUERY,

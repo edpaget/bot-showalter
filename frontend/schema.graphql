@@ -47,6 +47,13 @@ type CategoryConfigType {
   direction: String!
 }
 
+type CategoryNeedType {
+  category: String!
+  currentRank: Int!
+  targetRank: Int!
+  bestAvailable: [PlayerRecommendationType!]!
+}
+
 type DraftBoardRowType {
   playerId: Int!
   playerName: String!
@@ -171,6 +178,13 @@ type PickResultType {
   arbitrage: ArbitrageReportType
 }
 
+type PlayerRecommendationType {
+  playerId: Int!
+  playerName: String!
+  categoryImpact: Float!
+  tradeoffCategories: [String!]!
+}
+
 type PlayerSummaryType {
   playerId: Int!
   name: String!
@@ -241,6 +255,7 @@ type Query {
   roster(sessionId: Int!, team: Int = null): [DraftPickType!]!
   needs(sessionId: Int!): [RosterSlotType!]!
   balance(sessionId: Int!): [CategoryBalanceType!]!
+  categoryNeeds(sessionId: Int!, topN: Int! = 5): [CategoryNeedType!]!
   available(sessionId: Int!, position: Position = null, limit: Int! = 50): [DraftBoardRowType!]!
   arbitrage(sessionId: Int!, threshold: Int! = 10, position: Position = null, limit: Int! = 20): ArbitrageReportType!
   projectionBoard(season: Int!, system: String!, version: String!, playerType: String = null): [ProjectionType!]!
