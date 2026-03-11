@@ -340,6 +340,19 @@ class Query:
         return ArbitrageReportType.from_domain(report)
 
     @strawberry.field
+    def projection_board(
+        self,
+        info: Info,
+        season: int,
+        system: str,
+        version: str,
+        player_type: str | None = None,
+    ) -> list[ProjectionType]:
+        ctx = _get_context(info)
+        results = ctx.container.projection_lookup_service.browse(season, system, version, player_type=player_type)
+        return [ProjectionType.from_domain(p) for p in results]
+
+    @strawberry.field
     def projections(
         self,
         info: Info,

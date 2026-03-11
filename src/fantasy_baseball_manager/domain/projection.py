@@ -37,6 +37,7 @@ class PlayerProjection:
     source_type: str
     player_type: str
     stats: dict[str, Any]
+    player_id: int | None = None
 
 
 @dataclass(frozen=True)

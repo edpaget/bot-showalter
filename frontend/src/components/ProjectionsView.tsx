@@ -1,32 +1,46 @@
-import { useLazyQuery } from "@apollo/client";
+import { useQuery } from "@apollo/client";
 import { useMemo, useState } from "react";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
-import type { ProjectionsQuery } from "../generated/graphql";
-import { PROJECTIONS_QUERY } from "../graphql/queries";
+import type { CategoryConfigType, LeagueQuery, ProjectionBoardQuery, WebConfigQuery } from "../generated/graphql";
+import { LEAGUE_QUERY, PROJECTION_BOARD_QUERY, WEB_CONFIG_QUERY } from "../graphql/queries";
 
-type SortKey = "playerName" | "system" | "version" | "playerType";
+type SortKey = "playerName" | "playerType" | string;
 type SortDir = "asc" | "desc";
 
+function formatStat(value: number | undefined, statType: string): string {
+  if (value == null) return "—";
+  if (statType === "rate") return value.toFixed(3);
+  return Math.round(value).toString();
+}
+
 export function ProjectionsView({ season = 2026 }: { season?: number }) {
-  const [searchInput, setSearchInput] = useState("");
-  const [system, setSystem] = useState("");
+  const [nameFilter, setNameFilter] = useState("");
+  const [playerTypeFilter, setPlayerTypeFilter] = useState<"batter" | "pitcher">("batter");
+  const [selectedSystemIdx, setSelectedSystemIdx] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>("playerName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { openPlayer } = usePlayerDrawer();
 
-  const [fetchProjections, { data, loading, error }] = useLazyQuery<ProjectionsQuery>(PROJECTIONS_QUERY);
+  const { data: configData } = useQuery<WebConfigQuery>(WEB_CONFIG_QUERY);
+  const { data: leagueData } = useQuery<LeagueQuery>(LEAGUE_QUERY);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchInput.trim()) return;
-    fetchProjections({
-      variables: {
-        season,
-        playerName: searchInput.trim(),
-        system: system || undefined,
-      },
-    });
-  };
+  const systems = configData?.webConfig.projections ?? [];
+  const selected = systems[selectedSystemIdx];
+
+  const { data, loading, error } = useQuery<ProjectionBoardQuery>(PROJECTION_BOARD_QUERY, {
+    variables: {
+      season,
+      system: selected?.system ?? "",
+      version: selected?.version ?? "",
+      playerType: playerTypeFilter,
+    },
+    skip: !selected,
+  });
+
+  const categories: CategoryConfigType[] =
+    playerTypeFilter === "pitcher"
+      ? (leagueData?.league.pitchingCategories ?? [])
+      : (leagueData?.league.battingCategories ?? []);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -38,93 +52,116 @@ export function ProjectionsView({ season = 2026 }: { season?: number }) {
   };
 
   const projections = useMemo(() => {
-    if (!data?.projections) return [];
-    return [...data.projections].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      const cmp = String(av).localeCompare(String(bv));
+    if (!data?.projectionBoard) return [];
+    let rows = [...data.projectionBoard];
+
+    if (nameFilter.trim()) {
+      const q = nameFilter.trim().toLowerCase();
+      rows = rows.filter((p) => p.playerName.toLowerCase().includes(q));
+    }
+
+    return rows.sort((a, b) => {
+      let cmp: number;
+      if (sortKey === "playerName" || sortKey === "playerType") {
+        cmp = String(a[sortKey]).localeCompare(String(b[sortKey]));
+      } else {
+        const av = (a.stats[sortKey] as number) ?? -Infinity;
+        const bv = (b.stats[sortKey] as number) ?? -Infinity;
+        cmp = av - bv;
+      }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [data, sortKey, sortDir]);
-
-  const columns: { key: SortKey; label: string }[] = [
-    { key: "playerName", label: "Player" },
-    { key: "system", label: "System" },
-    { key: "version", label: "Version" },
-    { key: "playerType", label: "Type" },
-  ];
+  }, [data, nameFilter, sortKey, sortDir]);
 
   return (
     <div className="p-4 flex flex-col gap-3">
-      <h1 className="text-xl font-bold">Projections Lookup</h1>
-      <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+      <h1 className="text-xl font-bold">Projections</h1>
+
+      <div className="flex gap-3 items-end flex-wrap">
+        {systems.length > 1 && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">System</label>
+            <select
+              value={selectedSystemIdx}
+              onChange={(e) => setSelectedSystemIdx(Number(e.target.value))}
+              className="border border-gray-300 rounded px-2 py-1 text-sm"
+            >
+              {systems.map((sv, i) => (
+                <option key={`${sv.system}-${sv.version}`} value={i}>
+                  {sv.system} {sv.version}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Player Name</label>
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+          <label className="block text-xs text-gray-500 mb-1">Type</label>
+          <select
+            value={playerTypeFilter}
+            onChange={(e) => setPlayerTypeFilter(e.target.value as "batter" | "pitcher")}
             className="border border-gray-300 rounded px-2 py-1 text-sm"
-            placeholder="Search player..."
-          />
+          >
+            <option value="batter">Batters</option>
+            <option value="pitcher">Pitchers</option>
+          </select>
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">System</label>
+          <label className="block text-xs text-gray-500 mb-1">Search</label>
           <input
             type="text"
-            value={system}
-            onChange={(e) => setSystem(e.target.value)}
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
             className="border border-gray-300 rounded px-2 py-1 text-sm"
-            placeholder="All systems"
+            placeholder="Filter by name..."
           />
         </div>
-        <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-          Search
-        </button>
-      </form>
+        {selected && <span className="text-xs text-gray-400 self-center">{projections.length} players</span>}
+      </div>
 
       {loading && <p className="text-gray-500">Loading...</p>}
       {error && <p className="text-red-600">Error: {error.message}</p>}
 
       {projections.length > 0 && (
-        <div className="overflow-auto">
+        <div className="overflow-auto max-h-[calc(100vh-180px)]">
           <table className="w-full text-sm border-collapse">
-            <thead className="sticky top-0">
+            <thead className="sticky top-0 z-10">
               <tr>
-                {columns.map((col) => (
+                <th
+                  onClick={() => handleSort("playerName")}
+                  className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200"
+                >
+                  Player
+                  {sortKey === "playerName" && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+                {categories.map((cat) => (
                   <th
-                    key={col.key}
-                    onClick={() => handleSort(col.key)}
-                    className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200"
+                    key={cat.key}
+                    onClick={() => handleSort(cat.key)}
+                    className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-right cursor-pointer select-none hover:bg-gray-200 whitespace-nowrap"
                   >
-                    {col.label}
-                    {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                    {cat.name}
+                    {sortKey === cat.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
                   </th>
                 ))}
-                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left">Key Stats</th>
               </tr>
             </thead>
             <tbody>
-              {projections.map((p, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+              {projections.map((p) => (
+                <tr key={p.playerId ?? p.playerName} className="hover:bg-gray-50">
                   <td className="border border-gray-200 px-2 py-1">
                     <button
                       type="button"
-                      onClick={() => openPlayer(0, p.playerName)}
+                      onClick={() => openPlayer(p.playerId ?? 0, p.playerName, p.playerType)}
                       className="text-blue-600 hover:underline"
                     >
                       {p.playerName}
                     </button>
                   </td>
-                  <td className="border border-gray-200 px-2 py-1">{p.system}</td>
-                  <td className="border border-gray-200 px-2 py-1">{p.version}</td>
-                  <td className="border border-gray-200 px-2 py-1">{p.playerType}</td>
-                  <td className="border border-gray-200 px-2 py-1 text-xs text-gray-600">
-                    {Object.entries(p.stats)
-                      .slice(0, 6)
-                      .map(([k, v]) => `${k}: ${typeof v === "number" ? v.toFixed(0) : v}`)
-                      .join(", ")}
-                  </td>
+                  {categories.map((cat) => (
+                    <td key={cat.key} className="border border-gray-200 px-2 py-1 text-right font-mono text-xs">
+                      {formatStat(p.stats[cat.key] as number | undefined, cat.statType)}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

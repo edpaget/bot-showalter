@@ -215,12 +215,42 @@ export const YAHOO_POLL_STATUS_QUERY = gql`
 export const PROJECTIONS_QUERY = gql`
   query Projections($season: Int!, $playerName: String!, $system: String) {
     projections(season: $season, playerName: $playerName, system: $system) {
+      playerId
       playerName
       system
       version
       sourceType
       playerType
       stats
+    }
+  }
+`;
+
+export const PROJECTION_BOARD_QUERY = gql`
+  query ProjectionBoard($season: Int!, $system: String!, $version: String!, $playerType: String) {
+    projectionBoard(season: $season, system: $system, version: $version, playerType: $playerType) {
+      playerId
+      playerName
+      system
+      version
+      sourceType
+      playerType
+      stats
+    }
+  }
+`;
+
+export const WEB_CONFIG_QUERY = gql`
+  query WebConfig {
+    webConfig {
+      projections {
+        system
+        version
+      }
+      valuations {
+        system
+        version
+      }
     }
   }
 `;

@@ -37,8 +37,8 @@ export function PlayerDrawer() {
   const bio = bioData?.playerBio;
   const allProjections = projData?.projections ?? [];
   // Use playerType from context (passed by draft board), fall back to bio position
-  const playerType = ctxPlayerType
-    ?? (bio ? (["SP", "RP", "P"].includes(bio.primaryPosition) ? "pitcher" : "batter") : null);
+  const playerType =
+    ctxPlayerType ?? (bio ? (["SP", "RP", "P"].includes(bio.primaryPosition) ? "pitcher" : "batter") : null);
   const projections = playerType ? allProjections.filter((p) => p.playerType === playerType) : allProjections;
   const allValuations = valData?.valuations ?? [];
   const valuations = playerName ? allValuations.filter((v) => v.playerName === playerName) : [];

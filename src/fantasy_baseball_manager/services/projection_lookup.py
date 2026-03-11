@@ -15,6 +15,39 @@ class ProjectionLookupService:
         self._player_repo = player_repo
         self._projection_repo = projection_repo
 
+    def browse(
+        self,
+        season: int,
+        system: str,
+        version: str,
+        player_type: str | None = None,
+    ) -> list[PlayerProjection]:
+        """Return all projections for a system/version/season with resolved player names."""
+        logger.debug("Projection browse: season=%d system=%s version=%s", season, system, version)
+        projections = self._projection_repo.get_by_system_version(system, version)
+        projections = [p for p in projections if p.season == season]
+        if player_type is not None:
+            projections = [p for p in projections if p.player_type == player_type]
+
+        player_ids = list({p.player_id for p in projections})
+        players = self._player_repo.get_by_ids(player_ids)
+        name_map = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        results = [
+            PlayerProjection(
+                player_name=name_map.get(proj.player_id, f"Unknown ({proj.player_id})"),
+                system=proj.system,
+                version=proj.version,
+                source_type=proj.source_type,
+                player_type=proj.player_type,
+                stats=proj.stat_json,
+                player_id=proj.player_id,
+            )
+            for proj in projections
+        ]
+        logger.debug("Projection browse returned %d results", len(results))
+        return results
+
     def lookup(self, player_name: str, season: int, system: str | None = None) -> list[PlayerProjection]:
         logger.debug("Projection lookup: player=%s season=%d system=%s", player_name, season, system)
         players = resolve_players(self._player_repo, player_name)
@@ -32,6 +65,7 @@ class ProjectionLookupService:
                         source_type=proj.source_type,
                         player_type=proj.player_type,
                         stats=proj.stat_json,
+                        player_id=player.id,
                     )
                 )
 

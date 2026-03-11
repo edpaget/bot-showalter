@@ -440,6 +440,7 @@ class ProjectionType:
     source_type: str
     player_type: str
     stats: strawberry.scalars.JSON
+    player_id: int | None = None
 
     @staticmethod
     def from_domain(proj: PlayerProjection) -> ProjectionType:
@@ -450,6 +451,7 @@ class ProjectionType:
             source_type=proj.source_type,
             player_type=proj.player_type,
             stats=cast("Any", dict(proj.stats)),
+            player_id=proj.player_id,
         )
 
 

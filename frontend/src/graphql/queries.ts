@@ -9,11 +9,13 @@ export {
   NeedsDocument as NEEDS_QUERY,
   PlayerBioDocument as PLAYER_BIO_QUERY,
   PlayerSearchDocument as PLAYER_SEARCH_QUERY,
+  ProjectionBoardDocument as PROJECTION_BOARD_QUERY,
   ProjectionsDocument as PROJECTIONS_QUERY,
   RecommendationsDocument as RECOMMENDATIONS_QUERY,
   RosterDocument as ROSTER_QUERY,
   SessionDocument as SESSION_QUERY,
   SessionsDocument as SESSIONS_QUERY,
   ValuationsDocument as VALUATIONS_QUERY,
+  WebConfigDocument as WEB_CONFIG_QUERY,
   YahooPollStatusDocument as YAHOO_POLL_STATUS_QUERY,
 } from "../generated/graphql";

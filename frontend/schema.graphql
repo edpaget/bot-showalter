@@ -225,6 +225,7 @@ type ProjectionType {
   sourceType: String!
   playerType: String!
   stats: JSON!
+  playerId: Int
 }
 
 type Query {
@@ -242,6 +243,7 @@ type Query {
   balance(sessionId: Int!): [CategoryBalanceType!]!
   available(sessionId: Int!, position: Position = null, limit: Int! = 50): [DraftBoardRowType!]!
   arbitrage(sessionId: Int!, threshold: Int! = 10, position: Position = null, limit: Int! = 20): ArbitrageReportType!
+  projectionBoard(season: Int!, system: String!, version: String!, playerType: String = null): [ProjectionType!]!
   projections(season: Int!, playerName: String!, system: String = null): [ProjectionType!]!
   valuations(season: Int!, system: String = null, version: String = null, playerType: String = null, position: String = null, top: Int = null): [ValuationType!]!
   adpReport(season: Int!, system: String = null, version: String = null, provider: String = null): ADPReportType!

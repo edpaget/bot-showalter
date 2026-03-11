@@ -31,9 +31,7 @@ export function PlayerDrawerProvider({ children, season = 2026 }: { children: Re
   }, []);
 
   return (
-    <PlayerDrawerContext.Provider
-      value={{ isOpen, playerId, playerName, playerType, season, openPlayer, closeDrawer }}
-    >
+    <PlayerDrawerContext.Provider value={{ isOpen, playerId, playerName, playerType, season, openPlayer, closeDrawer }}>
       {children}
     </PlayerDrawerContext.Provider>
   );
