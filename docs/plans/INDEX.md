@@ -12,8 +12,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [Keeper Draft Integration](keeper-draft-integration.md) | 5 | phases 1-4 done | keeper-optimization-solver (done), keeper-surplus-value (done), web-ui-foundation phases 1-5 (done), adp-arbitrage-alerts (done) |
-| [Direct Rate Stats](zar-direct-rate-stats.md) | 2 | phase 1 done | none |
-| [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 | phases 1-2 done | direct-rate-stats phase 1 (done) |
+| [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 | phases 1-2 done | direct-rate-stats (done) |
 
 ## Completed Roadmaps
 
@@ -87,6 +86,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Yahoo Integration Improvements](yahoo-integration-improvements.md) | 3 |
 | [ZAR Distributional](zar-distributional.md) | 3 |
 | [Web UI Foundation](web-ui-foundation.md) | 6 |
+| [Direct Rate Stats](zar-direct-rate-stats.md) | 2 |
 | [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
