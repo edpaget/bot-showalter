@@ -98,7 +98,7 @@ version = "production"
 
 # --- League configurations ---
 
-[leagues.h2h]
+[leagues.keeper]
 format = "h2h_categories"
 teams = 12
 budget = 260
@@ -107,7 +107,7 @@ roster_pitchers = 8
 roster_util = 1
 roster_bench = 8
 
-[leagues.h2h.positions]
+[leagues.keeper.positions]
 c = 1
 "1b" = 1
 "2b" = 1
@@ -115,12 +115,12 @@ c = 1
 ss = 1
 of = 3
 
-[leagues.h2h.pitcher_positions]
+[leagues.keeper.pitcher_positions]
 sp = 2
 rp = 2
 p = 4
 
-[leagues.h2h.eligibility]
+[leagues.keeper.eligibility]
 batter_min_games = 5
 sp_min_starts = 3
 rp_min_relief = 5
@@ -128,25 +128,25 @@ carryover_seasons = 1
 min_pa = 200
 min_ip = 30
 
-[[leagues.h2h.batting_categories]]
+[[leagues.keeper.batting_categories]]
 key = "hr"
 name = "Home Runs"
 stat_type = "counting"
 direction = "higher"
 
-[[leagues.h2h.batting_categories]]
+[[leagues.keeper.batting_categories]]
 key = "r"
 name = "Runs"
 stat_type = "counting"
 direction = "higher"
 
-[[leagues.h2h.batting_categories]]
+[[leagues.keeper.batting_categories]]
 key = "rbi"
 name = "RBI"
 stat_type = "counting"
 direction = "higher"
 
-[[leagues.h2h.batting_categories]]
+[[leagues.keeper.batting_categories]]
 key = "obp"
 name = "On-Base Percentage"
 stat_type = "rate"
@@ -154,13 +154,13 @@ direction = "higher"
 numerator = "h+bb+hbp"
 denominator = "pa"
 
-[[leagues.h2h.batting_categories]]
+[[leagues.keeper.batting_categories]]
 key = "sb"
 name = "Stolen Bases"
 stat_type = "counting"
 direction = "higher"
 
-[[leagues.h2h.pitching_categories]]
+[[leagues.keeper.pitching_categories]]
 key = "era"
 name = "ERA"
 stat_type = "rate"
@@ -168,7 +168,7 @@ direction = "lower"
 numerator = "er"
 denominator = "ip"
 
-[[leagues.h2h.pitching_categories]]
+[[leagues.keeper.pitching_categories]]
 key = "whip"
 name = "WHIP"
 stat_type = "rate"
@@ -176,19 +176,117 @@ direction = "lower"
 numerator = "bb+h"
 denominator = "ip"
 
-[[leagues.h2h.pitching_categories]]
+[[leagues.keeper.pitching_categories]]
 key = "so"
 name = "Strikeouts"
 stat_type = "counting"
 direction = "higher"
 
-[[leagues.h2h.pitching_categories]]
+[[leagues.keeper.pitching_categories]]
 key = "w"
 name = "Wins"
 stat_type = "counting"
 direction = "higher"
 
-[[leagues.h2h.pitching_categories]]
+[[leagues.keeper.pitching_categories]]
+key = "sv+hld"
+name = "Net Saves + Holds"
+stat_type = "counting"
+direction = "higher"
+
+# --- Redraft league (14 teams, 2 bench) ---
+
+[leagues.redraft]
+format = "h2h_categories"
+teams = 14
+budget = 260
+roster_batters = 9
+roster_pitchers = 8
+roster_util = 1
+roster_bench = 2
+
+[leagues.redraft.positions]
+c = 1
+"1b" = 1
+"2b" = 1
+"3b" = 1
+ss = 1
+of = 3
+
+[leagues.redraft.pitcher_positions]
+sp = 2
+rp = 2
+p = 4
+
+[leagues.redraft.eligibility]
+batter_min_games = 5
+sp_min_starts = 3
+rp_min_relief = 5
+carryover_seasons = 1
+min_pa = 200
+min_ip = 30
+
+[[leagues.redraft.batting_categories]]
+key = "hr"
+name = "Home Runs"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.redraft.batting_categories]]
+key = "r"
+name = "Runs"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.redraft.batting_categories]]
+key = "rbi"
+name = "RBI"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.redraft.batting_categories]]
+key = "obp"
+name = "On-Base Percentage"
+stat_type = "rate"
+direction = "higher"
+numerator = "h+bb+hbp"
+denominator = "pa"
+
+[[leagues.redraft.batting_categories]]
+key = "sb"
+name = "Stolen Bases"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.redraft.pitching_categories]]
+key = "era"
+name = "ERA"
+stat_type = "rate"
+direction = "lower"
+numerator = "er"
+denominator = "ip"
+
+[[leagues.redraft.pitching_categories]]
+key = "whip"
+name = "WHIP"
+stat_type = "rate"
+direction = "lower"
+numerator = "bb+h"
+denominator = "ip"
+
+[[leagues.redraft.pitching_categories]]
+key = "so"
+name = "Strikeouts"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.redraft.pitching_categories]]
+key = "w"
+name = "Wins"
+stat_type = "counting"
+direction = "higher"
+
+[[leagues.redraft.pitching_categories]]
 key = "sv+hld"
 name = "Net Saves + Holds"
 stat_type = "counting"
@@ -199,19 +297,4 @@ direction = "higher"
 # FBM_YAHOO_CLIENT_ID / FBM_YAHOO_CLIENT_SECRET env vars.
 
 [yahoo]
-default_league = "h2h"
-
-[leagues.h2h.yahoo]
-league_id = 12345
-
-[leagues.redraft]
-format = "h2h_categories"
-teams = 12
-budget = 260
-roster_batters = 9
-roster_pitchers = 8
-batting_categories = []
-pitching_categories = []
-
-[leagues.redraft.yahoo]
-league_id = 67890
+default_league = "keeper"

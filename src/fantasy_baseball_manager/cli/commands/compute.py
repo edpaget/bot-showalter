@@ -38,7 +38,7 @@ def compute_league_env(
 @compute_app.command("actual-valuations")
 def compute_actual_valuations_cmd(
     season: Annotated[list[int], typer.Option("--season", help="Season year(s)")],
-    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "h2h",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "keeper",
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Compute ZAR valuations from end-of-season actual stats."""

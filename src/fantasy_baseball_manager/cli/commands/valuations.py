@@ -207,7 +207,7 @@ def valuations_compare(
 
 @valuations_app.command("sgp-denominators")
 def sgp_denominators(
-    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "h2h",
+    league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "keeper",
     seasons: Annotated[int | None, typer.Option("--seasons", help="Limit to last N seasons")] = None,
     yahoo_league: Annotated[str | None, typer.Option("--yahoo-league", help="Starting Yahoo league key")] = None,
     data_dir: _DataDirOpt = "./data",
