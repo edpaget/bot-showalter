@@ -59,6 +59,8 @@ def recommend(
         cat_scores = category_balance_fn(roster_ids, available_ids)
     effective_cat_scores: dict[int, float] = cat_scores or {}
 
+    tier_urgency_map = _compute_tier_urgency_map(pool)
+
     scored: list[tuple[float, DraftBoardRow]] = []
     for player in pool:
         if not _is_recommendable(player, needs):
@@ -69,7 +71,7 @@ def recommend(
             max_value,
             needs,
             scarcity,
-            pool,
+            tier_urgency_map,
             state,
             picks_until,
             effective_cat_scores,
@@ -96,7 +98,7 @@ def recommend(
                     max_value,
                     needs,
                     scarcity,
-                    pool,
+                    tier_urgency_map,
                     state,
                     picks_until,
                     effective_cat_scores,
@@ -194,38 +196,40 @@ def _compute_scarcity(
     return scarcity
 
 
-def _tier_urgency(player: DraftBoardRow, pool: list[DraftBoardRow]) -> float:
-    """1.0 if next-best at position is in a different (worse) tier, 0.0 if same tier.
+def _compute_tier_urgency_map(pool: list[DraftBoardRow]) -> dict[int, float]:
+    """Pre-compute tier urgency for all players in the pool.
 
-    Returns 0.5 if no tier data is available.
+    Groups by position, sorts each group once by value descending, then walks
+    each group to compute urgency per player. Returns a dict keyed by player_id.
     """
-    if player.tier is None:
-        return 0.5
+    by_pos: dict[str, list[DraftBoardRow]] = {}
+    for p in pool:
+        by_pos.setdefault(p.position, []).append(p)
 
-    # Find other players at the same position, sorted by value descending
-    same_pos = sorted(
-        [p for p in pool if p.position == player.position and p.player_id != player.player_id],
-        key=lambda p: p.value,
-        reverse=True,
-    )
+    # Sort each position group by value descending (one sort per position)
+    for players in by_pos.values():
+        players.sort(key=lambda p: p.value, reverse=True)
 
-    # Find the next-best player (first one with value <= this player's value)
-    next_best: DraftBoardRow | None = None
-    for p in same_pos:
-        if p.value <= player.value:
-            next_best = p
-            break
+    urgency: dict[int, float] = {}
+    for players in by_pos.values():
+        for i, player in enumerate(players):
+            if player.tier is None:
+                urgency[player.player_id] = 0.5
+                continue
 
-    if next_best is None:
-        # This player is the worst at the position — no urgency
-        return 0.0
+            # Next-best is the player immediately after in the sorted list
+            next_best = players[i + 1] if i + 1 < len(players) else None
 
-    if next_best.tier is None:
-        return 0.5
+            if next_best is None:
+                urgency[player.player_id] = 0.0
+            elif next_best.tier is None:
+                urgency[player.player_id] = 0.5
+            elif next_best.tier != player.tier:
+                urgency[player.player_id] = 1.0
+            else:
+                urgency[player.player_id] = 0.0
 
-    if next_best.tier != player.tier:
-        return 1.0
-    return 0.0
+    return urgency
 
 
 def _picks_until_next(state: DraftState) -> int:
@@ -312,7 +316,7 @@ def _score_player(
     max_value: float,
     needs: dict[str, int],
     scarcity: dict[str, float],
-    pool: list[DraftBoardRow],
+    tier_urgency_map: dict[int, float],
     state: DraftState,
     picks_until: int,
     cat_scores: dict[int, float] | None = None,
@@ -325,7 +329,7 @@ def _score_player(
     value_norm = player.value / max_value
     need = _need_bonus(player, needs)
     scar = scarcity.get(player.position, 0.0)
-    tier = _tier_urgency(player, pool)
+    tier = tier_urgency_map.get(player.player_id, 0.5)
     adp = _adp_availability(player, picks_until, state.current_pick)
     cat_bal = cat_scores.get(player.player_id, 0.0) if cat_scores else 0.0
     mock_pos = _mock_position_bonus(player, draft_plan, current_round)
@@ -350,7 +354,7 @@ def _build_reason(
     max_value: float,  # noqa: ARG001
     needs: dict[str, int],
     scarcity: dict[str, float],
-    pool: list[DraftBoardRow],
+    tier_urgency_map: dict[int, float],
     state: DraftState,
     picks_until: int,
     cat_scores: dict[int, float] | None = None,
@@ -376,7 +380,7 @@ def _build_reason(
     if w.scarcity > 0 and scar_val > 0.3:
         contributions.append((w.scarcity * scar_val, f"positional scarcity at {pos}"))
 
-    tier_val = _tier_urgency(player, pool)
+    tier_val = tier_urgency_map.get(player.player_id, 0.5)
     if w.tier > 0 and tier_val >= 0.8:
         tier_label = f"tier {player.tier}" if player.tier is not None else "tier break"
         contributions.append((w.tier * tier_val, f"tier urgency at {pos} ({tier_label})"))

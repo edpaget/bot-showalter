@@ -10,6 +10,7 @@ from fantasy_baseball_manager.domain.draft_recommendation import (
 )
 from fantasy_baseball_manager.services.draft_recommender import (
     _compute_scarcity,
+    _compute_tier_urgency_map,
     _picks_until_next,
     recommend,
 )
@@ -397,6 +398,45 @@ class TestScarcity:
 # ---------------------------------------------------------------------------
 # Step 5: Tier urgency
 # ---------------------------------------------------------------------------
+
+
+class TestComputeTierUrgencyMap:
+    def test_basic_tier_urgency_map(self) -> None:
+        """Pre-computed map matches per-player _tier_urgency semantics."""
+        players = [
+            _make_player(1, "SS-1", "SS", 30.0, tier=1),
+            _make_player(2, "SS-2", "SS", 25.0, tier=2),
+            _make_player(3, "SS-3", "SS", 20.0, tier=2),
+            _make_player(4, "C-1", "C", 28.0, tier=1),
+            _make_player(5, "C-2", "C", 22.0, tier=1),
+        ]
+        result = _compute_tier_urgency_map(players)
+        # SS-1: next-best is SS-2 (tier 2, different) → 1.0
+        assert result[1] == 1.0
+        # SS-2: next-best is SS-3 (tier 2, same) → 0.0
+        assert result[2] == 0.0
+        # SS-3: worst at position, no next-best → 0.0
+        assert result[3] == 0.0
+        # C-1: next-best is C-2 (tier 1, same) → 0.0
+        assert result[4] == 0.0
+        # C-2: worst at position → 0.0
+        assert result[5] == 0.0
+
+    def test_no_tier_data_returns_neutral(self) -> None:
+        """Players without tier data get 0.5."""
+        players = [
+            _make_player(1, "SS-1", "SS", 30.0),
+            _make_player(2, "SS-2", "SS", 25.0),
+        ]
+        result = _compute_tier_urgency_map(players)
+        assert result[1] == 0.5
+        assert result[2] == 0.5
+
+    def test_single_player_at_position(self) -> None:
+        """Sole player at a position → 0.0 (no next-best)."""
+        players = [_make_player(1, "C-1", "C", 30.0, tier=1)]
+        result = _compute_tier_urgency_map(players)
+        assert result[1] == 0.0
 
 
 class TestTierUrgency:

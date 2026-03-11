@@ -12,7 +12,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 | phases 1-3 done | direct-rate-stats (done) |
-| [Draft Performance](draft-performance.md) | 4 | phase 1 done | none |
+| [Draft Performance](draft-performance.md) | 4 | phases 1-2 done | none |
 
 ## Completed Roadmaps
 

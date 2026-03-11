@@ -7,7 +7,7 @@ The draft UI is sluggish both when starting a session and when making picks. Pro
 | Phase | Status |
 |-------|--------|
 | 1 — Eliminate duplicate computation per pick | done (2026-03-10) |
-| 2 — Cache tier urgency within recommend() | not started |
+| 2 — Cache tier urgency within recommend() | done (2026-03-10) |
 | 3 — Remove redundant frontend refetchQueries | not started |
 | 4 — Add database indexes for session startup | not started |
 
