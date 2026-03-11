@@ -85,7 +85,7 @@ export interface DraftBoardTableProps {
   version?: string;
   draftedPlayerIds?: Set<number>;
   onDraft?: (playerId: number, position: string) => void;
-  onPlayerClick?: (playerId: number, playerName: string) => void;
+  onPlayerClick?: (playerId: number, playerName: string, playerType: string) => void;
   sessionActive?: boolean;
 }
 
@@ -258,7 +258,7 @@ export function DraftBoardTable({
                     {onPlayerClick ? (
                       <button
                         type="button"
-                        onClick={() => onPlayerClick(row.playerId, row.playerName)}
+                        onClick={() => onPlayerClick(row.playerId, row.playerName, row.playerType)}
                         className="text-blue-600 hover:underline"
                       >
                         {row.playerName}

@@ -11,7 +11,7 @@ import { LEAGUE_QUERY, PLAYER_BIO_QUERY, PROJECTIONS_QUERY, VALUATIONS_QUERY } f
 import { displayPosition } from "../lib/position";
 
 export function PlayerDrawer() {
-  const { isOpen, playerId, playerName, season, closeDrawer } = usePlayerDrawer();
+  const { isOpen, playerId, playerName, playerType: ctxPlayerType, season, closeDrawer } = usePlayerDrawer();
 
   const { data: bioData, loading: bioLoading } = useQuery<PlayerBioQuery>(PLAYER_BIO_QUERY, {
     variables: { playerId, season },
@@ -36,8 +36,9 @@ export function PlayerDrawer() {
 
   const bio = bioData?.playerBio;
   const allProjections = projData?.projections ?? [];
-  // Filter projections to only show those matching the player's type (batter/pitcher)
-  const playerType = bio ? (["SP", "RP", "P"].includes(bio.primaryPosition) ? "pitcher" : "batter") : null;
+  // Use playerType from context (passed by draft board), fall back to bio position
+  const playerType = ctxPlayerType
+    ?? (bio ? (["SP", "RP", "P"].includes(bio.primaryPosition) ? "pitcher" : "batter") : null);
   const projections = playerType ? allProjections.filter((p) => p.playerType === playerType) : allProjections;
   const allValuations = valData?.valuations ?? [];
   const valuations = playerName ? allValuations.filter((v) => v.playerName === playerName) : [];
@@ -98,7 +99,7 @@ export function PlayerDrawer() {
         {/* Projections Section */}
         <section className="mb-4">
           <h3 className="font-semibold text-sm text-gray-600 mb-2">Projections</h3>
-          {projLoading ? (
+          {projLoading || bioLoading ? (
             <p className="text-gray-400 text-sm">Loading...</p>
           ) : projections.length > 0 ? (
             <table className="w-full text-xs border-collapse">

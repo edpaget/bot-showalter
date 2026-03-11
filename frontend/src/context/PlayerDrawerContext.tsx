@@ -1,11 +1,13 @@
+// @refresh reset
 import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
 
 interface PlayerDrawerState {
   isOpen: boolean;
   playerId: number | null;
   playerName: string | null;
+  playerType: string | null;
   season: number;
-  openPlayer: (playerId: number, playerName: string) => void;
+  openPlayer: (playerId: number, playerName: string, playerType?: string) => void;
   closeDrawer: () => void;
 }
 
@@ -15,10 +17,12 @@ export function PlayerDrawerProvider({ children, season = 2026 }: { children: Re
   const [isOpen, setIsOpen] = useState(false);
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [playerName, setPlayerName] = useState<string | null>(null);
+  const [playerType, setPlayerType] = useState<string | null>(null);
 
-  const openPlayer = useCallback((id: number, name: string) => {
+  const openPlayer = useCallback((id: number, name: string, type?: string) => {
     setPlayerId(id);
     setPlayerName(name);
+    setPlayerType(type ?? null);
     setIsOpen(true);
   }, []);
 
@@ -27,7 +31,9 @@ export function PlayerDrawerProvider({ children, season = 2026 }: { children: Re
   }, []);
 
   return (
-    <PlayerDrawerContext.Provider value={{ isOpen, playerId, playerName, season, openPlayer, closeDrawer }}>
+    <PlayerDrawerContext.Provider
+      value={{ isOpen, playerId, playerName, playerType, season, openPlayer, closeDrawer }}
+    >
       {children}
     </PlayerDrawerContext.Provider>
   );

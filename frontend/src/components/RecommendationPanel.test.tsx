@@ -53,7 +53,7 @@ describe("RecommendationPanel", () => {
   });
 
   it("shows Cat badge when reason includes category fill", () => {
-    const catRecs: Recommendation[] = [
+    const catRecs: RecommendationType[] = [
       { playerId: 10, playerName: "SB Guy", position: "OF", value: 15, score: 0.8, reason: "fills SB + ERA gaps" },
       { playerId: 11, playerName: "No Cat", position: "OF", value: 15, score: 0.7, reason: "best value available" },
     ];
@@ -63,7 +63,7 @@ describe("RecommendationPanel", () => {
   });
 
   it("shows Cat badge for generic weak categories reason", () => {
-    const catRecs: Recommendation[] = [
+    const catRecs: RecommendationType[] = [
       {
         playerId: 10,
         playerName: "Weak Cat",
