@@ -12,7 +12,7 @@ export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
   const latestPickNumber = picks.length > 0 ? picks[picks.length - 1]?.pickNumber : null;
 
   return (
-    <div className="border border-gray-200 rounded">
+    <div className="border border-gray-200 rounded bg-white">
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
