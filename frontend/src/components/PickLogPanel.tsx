@@ -12,7 +12,7 @@ export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
   const latestPickNumber = picks.length > 0 ? picks[picks.length - 1]?.pickNumber : null;
 
   return (
-    <div className="border border-gray-200 rounded bg-white">
+    <div className="border border-gray-200 rounded bg-white flex-shrink-0">
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
@@ -22,7 +22,7 @@ export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
         <span>{collapsed ? "▶" : "▼"}</span>
       </button>
       {!collapsed && (
-        <div className="max-h-48 overflow-auto">
+        <div className="max-h-40 overflow-auto">
           {picks.length === 0 ? (
             <p className="px-3 py-2 text-xs text-gray-500">No picks yet</p>
           ) : (
