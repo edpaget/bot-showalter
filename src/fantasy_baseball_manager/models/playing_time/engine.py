@@ -199,6 +199,38 @@ def compute_residual_buckets(
     return ResidualBuckets(buckets=buckets, player_type=coefficients.player_type)
 
 
+def generate_holdout_predictions(
+    train_rows: list[dict[str, Any]],
+    holdout_rows: list[dict[str, Any]],
+    feature_names: list[str],
+    target_column: str,
+    player_type: str,
+    alpha: float = 0.0,
+    treat_none_as_zero: bool = False,
+) -> tuple[list[float], list[float]]:
+    """Fit on train, predict on holdout. Return (predicted, actual) lists.
+
+    When treat_none_as_zero=True, rows with target=None are included
+    with actual=0.0 (for calibration of non-participating pitchers).
+    """
+    coeff = fit_playing_time(train_rows, feature_names, target_column, player_type, alpha=alpha)
+
+    predicted: list[float] = []
+    actual: list[float] = []
+    for row in holdout_rows:
+        target = row.get(target_column)
+        if target is None and not treat_none_as_zero:
+            continue
+        pred = coeff.intercept
+        for name, c in zip(coeff.feature_names, coeff.coefficients, strict=True):
+            val = row.get(name)
+            pred += c * (float(val) if val is not None else 0.0)
+        predicted.append(pred)
+        actual.append(0.0 if target is None else float(target))
+
+    return predicted, actual
+
+
 def evaluate_holdout(
     train_rows: list[dict[str, Any]],
     holdout_rows: list[dict[str, Any]],

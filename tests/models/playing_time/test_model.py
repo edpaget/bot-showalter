@@ -9,11 +9,14 @@ from fantasy_baseball_manager.models.playing_time.engine import (
     ResidualBuckets,
     ResidualPercentiles,
 )
+from fantasy_baseball_manager.models.playing_time.ip_calibration import IPCalibrator
 from fantasy_baseball_manager.models.playing_time.model import PlayingTimeModel
 from fantasy_baseball_manager.models.playing_time.serialization import (
     load_coefficients,
+    load_ip_calibrator,
     save_aging_curves,
     save_coefficients,
+    save_ip_calibrator,
     save_residual_buckets,
 )
 from fantasy_baseball_manager.models.protocols import (
@@ -889,6 +892,131 @@ class TestPlayingTimeAblateThreeSystems:
         result = model.ablate(config)
         assert "batter:consensus_pt" in result.feature_impacts
         assert "pitcher:consensus_pt" in result.feature_impacts
+
+
+class TestIPCalibrationIntegration:
+    def test_train_with_multiple_seasons_saves_calibrator(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        model.train(_multi_season_train_config(tmp_path, seasons))
+        calibrator_path = tmp_path / "playing_time" / "latest" / "pt_ip_calibrator.joblib"
+        assert calibrator_path.exists()
+
+    def test_train_single_season_no_calibrator(self, tmp_path: Path) -> None:
+        batting_rows = [_make_batting_row(i, 2023, pa_1=400.0 + i * 20) for i in range(10)]
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=150.0 + i * 10) for i in range(10)]
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        model.train(_train_config(tmp_path))
+        calibrator_path = tmp_path / "playing_time" / "latest" / "pt_ip_calibrator.joblib"
+        assert not calibrator_path.exists()
+
+    def test_train_with_calibration_disabled(self, tmp_path: Path) -> None:
+        seasons = [2020, 2021, 2022, 2023]
+        batting_rows = _make_multi_season_batting_rows(seasons)
+        pitching_rows = _make_multi_season_pitching_rows(seasons)
+        assembler = FakeAssembler(batting_rows, pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=seasons,
+            artifacts_dir=str(tmp_path),
+            model_params={"aging_min_samples": 1, "ip_calibration": False},
+        )
+        model.train(config)
+        calibrator_path = tmp_path / "playing_time" / "latest" / "pt_ip_calibrator.joblib"
+        assert not calibrator_path.exists()
+
+    def test_predict_with_calibration_changes_ip(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        # Save a calibrator that shifts IP down
+        cal = IPCalibrator(
+            x_thresholds=(0.0, 100.0, 200.0),
+            y_calibrated=(0.0, 70.0, 150.0),
+        )
+        artifact_dir = tmp_path / "playing_time" / "latest"
+        save_ip_calibrator(cal, artifact_dir / "pt_ip_calibrator.joblib")
+
+        pitching_rows = [_make_pitching_row(10, 2023)]
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        pitcher_preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
+        assert len(pitcher_preds) == 1
+        # With the calibrator, IP should be less than the uncalibrated value
+        # ip_1=180 * 0.7 + 20 = 146 raw, calibrator maps down
+        assert pitcher_preds[0]["ip"] < 200.0
+
+    def test_predict_with_target_pitcher_count(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        cal = IPCalibrator(
+            x_thresholds=(0.0, 250.0),
+            y_calibrated=(0.0, 250.0),
+        )
+        artifact_dir = tmp_path / "playing_time" / "latest"
+        save_ip_calibrator(cal, artifact_dir / "pt_ip_calibrator.joblib")
+
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=50.0 + i * 20) for i in range(10)]
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(
+            seasons=[2023],
+            artifacts_dir=str(tmp_path),
+            model_params={"target_pitcher_count": 5},
+        )
+        result = model.predict(config)
+        pitcher_preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
+        assert len(pitcher_preds) == 5
+
+    def test_predict_without_calibrator_backward_compatible(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        # No calibrator file saved — should work fine
+        pitching_rows = [_make_pitching_row(10, 2023)]
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        pitcher_preds = [p for p in result.predictions if p["player_type"] == "pitcher"]
+        assert len(pitcher_preds) == 1
+        assert pitcher_preds[0]["ip"] > 0
+
+    def test_predict_calibration_preserves_rank_order(self, tmp_path: Path) -> None:
+        _save_test_coefficients(tmp_path)
+        # Calibrator that preserves order (monotone)
+        cal = IPCalibrator(
+            x_thresholds=(0.0, 100.0, 200.0),
+            y_calibrated=(0.0, 60.0, 180.0),
+        )
+        artifact_dir = tmp_path / "playing_time" / "latest"
+        save_ip_calibrator(cal, artifact_dir / "pt_ip_calibrator.joblib")
+
+        pitching_rows = [_make_pitching_row(i + 100, 2023, ip_1=50.0 + i * 30) for i in range(5)]
+        assembler = FakeAssembler(batting_rows=[], pitching_rows=pitching_rows)
+        model = PlayingTimeModel(assembler=assembler)
+        config = ModelConfig(seasons=[2023], artifacts_dir=str(tmp_path))
+        result = model.predict(config)
+        pitcher_preds = sorted(
+            [p for p in result.predictions if p["player_type"] == "pitcher"],
+            key=lambda p: p["player_id"],
+        )
+        ips = [p["ip"] for p in pitcher_preds]
+        # Monotone calibrator means higher ip_1 → higher calibrated IP
+        for i in range(len(ips) - 1):
+            assert ips[i] <= ips[i + 1]
+
+    def test_calibrator_roundtrip_serialization(self, tmp_path: Path) -> None:
+        cal = IPCalibrator(
+            x_thresholds=(0.0, 50.0, 100.0, 200.0),
+            y_calibrated=(0.0, 40.0, 85.0, 180.0),
+        )
+        path = tmp_path / "test_cal.joblib"
+        save_ip_calibrator(cal, path)
+        loaded = load_ip_calibrator(path)
+        assert loaded.x_thresholds == cal.x_thresholds
+        assert loaded.y_calibrated == cal.y_calibrated
 
 
 class TestPlayingTimeAblateAutoregressive:

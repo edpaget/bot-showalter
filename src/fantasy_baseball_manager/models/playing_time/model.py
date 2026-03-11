@@ -26,6 +26,7 @@ from fantasy_baseball_manager.models.playing_time.engine import (
     compute_residual_buckets,
     evaluate_holdout,
     fit_playing_time,
+    generate_holdout_predictions,
     predict_playing_time,
     predict_playing_time_distribution,
     select_alpha,
@@ -41,13 +42,19 @@ from fantasy_baseball_manager.models.playing_time.features import (
     build_pitching_pt_training_features,
     pitching_pt_feature_columns,
 )
+from fantasy_baseball_manager.models.playing_time.ip_calibration import (
+    calibrate_ip_batch,
+    fit_ip_calibrator,
+)
 from fantasy_baseball_manager.models.playing_time.ols_backend import OLSTrainingBackend
 from fantasy_baseball_manager.models.playing_time.serialization import (
     load_aging_curves,
     load_coefficients,
+    load_ip_calibrator,
     load_residual_buckets,
     save_aging_curves,
     save_coefficients,
+    save_ip_calibrator,
     save_residual_buckets,
 )
 from fantasy_baseball_manager.models.protocols import (
@@ -58,12 +65,13 @@ from fantasy_baseball_manager.models.protocols import (
     TrainResult,
 )
 from fantasy_baseball_manager.models.registry import register
-from fantasy_baseball_manager.models.sampling import temporal_holdout_split
+from fantasy_baseball_manager.models.sampling import season_kfold, temporal_holdout_split
 from fantasy_baseball_manager.models.training_metadata import save_training_metadata, validate_no_leakage
 
 _ARTIFACT_FILENAME = "pt_coefficients.joblib"
 _AGING_CURVES_FILENAME = "pt_aging_curves.joblib"
 _RESIDUAL_BUCKETS_FILENAME = "pt_residual_buckets.joblib"
+_IP_CALIBRATOR_FILENAME = "pt_ip_calibrator.joblib"
 
 
 def _parse_pt_systems(model_params: dict[str, Any]) -> tuple[tuple[str, float], ...]:
@@ -270,6 +278,28 @@ class PlayingTimeModel:
             artifact_path / _RESIDUAL_BUCKETS_FILENAME,
         )
 
+        # Fit IP calibrator via cross-validated holdout predictions
+        ip_calibration_enabled = config.model_params.get("ip_calibration", True)
+        folds = list(season_kfold(pitch_rows))
+        if ip_calibration_enabled and len(folds) >= 2:
+            all_predicted: list[float] = []
+            all_actual: list[float] = []
+            for fold_train, fold_holdout in folds:
+                pred, act = generate_holdout_predictions(
+                    fold_train,
+                    fold_holdout,
+                    pitch_columns,
+                    "target_ip",
+                    "pitcher",
+                    alpha=pitch_alpha,
+                    treat_none_as_zero=True,
+                )
+                all_predicted.extend(pred)
+                all_actual.extend(act)
+            if all_predicted:
+                ip_calibrator = fit_ip_calibrator(all_predicted, all_actual)
+                save_ip_calibrator(ip_calibrator, artifact_path / _IP_CALIBRATOR_FILENAME)
+
         metrics: dict[str, float] = {
             "r_squared_batter": bat_coeff.r_squared,
             "r_squared_pitcher": pitch_coeff.r_squared,
@@ -429,6 +459,18 @@ class PlayingTimeModel:
                         "std": dist.std,
                     }
                 )
+
+        # Apply IP calibration if available
+        ip_calibration_enabled = config.model_params.get("ip_calibration", True)
+        ip_calibrator_path = artifact_path / _IP_CALIBRATOR_FILENAME
+        if ip_calibration_enabled and ip_calibrator_path.exists():
+            ip_cal = load_ip_calibrator(ip_calibrator_path)
+            target_count = config.model_params.get("target_pitcher_count")
+            predictions = calibrate_ip_batch(predictions, ip_cal, target_count)
+        elif not ip_calibration_enabled and config.model_params.get("target_pitcher_count") is not None:
+            # Allow count filtering even without calibration
+            target_count = config.model_params["target_pitcher_count"]
+            predictions = calibrate_ip_batch(predictions, None, target_count)
 
         return PredictResult(
             model_name=self.name,

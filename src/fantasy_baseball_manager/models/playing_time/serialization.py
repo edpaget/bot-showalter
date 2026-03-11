@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
     from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
     from fantasy_baseball_manager.models.playing_time.engine import PlayingTimeCoefficients, ResidualBuckets
+    from fantasy_baseball_manager.models.playing_time.ip_calibration import IPCalibrator
 
 
 def save_coefficients(
@@ -59,4 +60,18 @@ def load_residual_buckets(path: Path) -> dict[str, ResidualBuckets]:
         msg = f"Residual buckets file not found: {path}"
         raise FileNotFoundError(msg)
     result: dict[str, ResidualBuckets] = joblib.load(path)
+    return result
+
+
+def save_ip_calibrator(calibrator: IPCalibrator, path: Path) -> None:
+    """Save IP calibrator to a joblib file."""
+    joblib.dump(calibrator, path)
+
+
+def load_ip_calibrator(path: Path) -> IPCalibrator:
+    """Load IP calibrator from a joblib file."""
+    if not path.exists():
+        msg = f"IP calibrator file not found: {path}"
+        raise FileNotFoundError(msg)
+    result: IPCalibrator = joblib.load(path)
     return result
