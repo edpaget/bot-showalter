@@ -125,6 +125,7 @@ class PlayingTimeModel:
         training: bool = False,
         lags: int = 3,
         pt_systems: Sequence[tuple[str, float]] = _DEFAULT_PT_SYSTEMS,
+        min_ip: float | None = None,
     ) -> tuple[FeatureSet, FeatureSet]:
         if training:
             bat_features = build_batting_pt_training_features(lags, pt_systems)
@@ -147,7 +148,7 @@ class PlayingTimeModel:
             features=tuple(pitch_features),
             seasons=tuple(seasons),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(min_ip=10.0, player_type="pitcher"),
+            spine_filter=SpineFilter(min_ip=min_ip, player_type="pitcher"),
         )
         return batting_fs, pitching_fs
 
@@ -193,8 +194,11 @@ class PlayingTimeModel:
     def prepare(self, config: ModelConfig) -> PrepareResult:
 
         lags = config.model_params.get("lags", 3)
+        min_ip: float | None = config.model_params.get("min_ip", None)
         pt_systems = _parse_pt_systems(config.model_params)
-        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags, pt_systems=pt_systems)
+        batting_fs, pitching_fs = self._build_feature_sets(
+            config.seasons, lags=lags, pt_systems=pt_systems, min_ip=min_ip
+        )
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -209,9 +213,10 @@ class PlayingTimeModel:
 
         lags = config.model_params.get("lags", 3)
         aging_min_samples: int = config.model_params.get("aging_min_samples", 30)
+        min_ip: float | None = config.model_params.get("min_ip", None)
         pt_systems = _parse_pt_systems(config.model_params)
         batting_fs, pitching_fs = self._build_feature_sets(
-            config.seasons, training=True, lags=lags, pt_systems=pt_systems
+            config.seasons, training=True, lags=lags, pt_systems=pt_systems, min_ip=min_ip
         )
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
@@ -342,6 +347,7 @@ class PlayingTimeModel:
     def predict(self, config: ModelConfig) -> PredictResult:
 
         lags = config.model_params.get("lags", 3)
+        min_ip: float | None = config.model_params.get("min_ip", None)
         pt_systems = _parse_pt_systems(config.model_params)
 
         artifact_path = self._artifact_path(config)
@@ -355,7 +361,9 @@ class PlayingTimeModel:
         residual_buckets_path = artifact_path / _RESIDUAL_BUCKETS_FILENAME
         residual_buckets = load_residual_buckets(residual_buckets_path) if residual_buckets_path.exists() else None
 
-        batting_fs, pitching_fs = self._build_feature_sets(config.seasons, lags=lags, pt_systems=pt_systems)
+        batting_fs, pitching_fs = self._build_feature_sets(
+            config.seasons, lags=lags, pt_systems=pt_systems, min_ip=min_ip
+        )
 
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
@@ -483,13 +491,14 @@ class PlayingTimeModel:
 
         lags = config.model_params.get("lags", 3)
         aging_min_samples: int = config.model_params.get("aging_min_samples", 30)
+        min_ip: float | None = config.model_params.get("min_ip", None)
         pt_systems = _parse_pt_systems(config.model_params)
 
         if len(config.seasons) < 2:
             return AblationResult(model_name=self.name, feature_impacts={})
 
         batting_fs, pitching_fs = self._build_feature_sets(
-            config.seasons, training=True, lags=lags, pt_systems=pt_systems
+            config.seasons, training=True, lags=lags, pt_systems=pt_systems, min_ip=min_ip
         )
         bat_handle = self._assembler.get_or_materialize(batting_fs)
         pitch_handle = self._assembler.get_or_materialize(pitching_fs)
