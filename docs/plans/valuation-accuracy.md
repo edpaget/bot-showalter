@@ -4,14 +4,16 @@ ZAR valuations systematically overvalue top pitchers (~2x actual) and miss break
 
 This roadmap attacks valuation accuracy through a series of independent corrections, each validated on holdout seasons (2024, 2025) with an explicit go/no-go gate before proceeding. Phases are ordered by expected impact and implementation cost: fix a known bug first, then layer on injury and breakout adjustments. If these adjustments prove insufficient, a deeper structural change (SGP or distributional ZAR) should be roadmapped separately — see the existing [Valuation System Unification](valuation-system-unification.md), [ZAR Replacement-Padded](zar-replacement-padded.md), and [ZAR Distributional](zar-distributional.md) roadmaps.
 
-## Status
+## Status: **Closed (2026-03-10)**
+
+Phase 2 established that baseline ZAR ranking correlation among fantasy-relevant players is ~0.03 (near random), meaning the binding constraint is projection accuracy, not the valuation formula. Remaining phases (breakout/bust integration, combined validation) would layer adjustments on top of the same weak signal and are unlikely to clear their go/no-go gates. Effort is better directed at projection-improvement roadmaps: Pitcher IP Distribution, Direct Rate Stats, and Composite GBM Tuning.
 
 | Phase | Status |
 |-------|--------|
 | 1 — Fix injury discount PA/IP threshold floor | done (2026-03-08) |
 | 2 — Injury discount holdout validation | done (2026-03-08), no-go |
-| 3 — Breakout/bust valuation integration | not started |
-| 4 — Combined adjustment validation | not started |
+| 3 — Breakout/bust valuation integration | closed — see rationale above |
+| 4 — Combined adjustment validation | closed — see rationale above |
 
 ## Phase 1: Fix injury discount PA/IP threshold floor
 
