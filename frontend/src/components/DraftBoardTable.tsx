@@ -16,9 +16,12 @@ type SortKey = FixedSortKey | `z:${string}`;
 
 type SortDir = "asc" | "desc";
 
-const LEFT_COLUMNS: { key: FixedSortKey; label: string }[] = [
+const NAME_COLUMNS: { key: FixedSortKey; label: string }[] = [
   { key: "rank", label: "Rank" },
   { key: "playerName", label: "Player" },
+];
+
+const STAT_COLUMNS: { key: FixedSortKey; label: string }[] = [
   { key: "position", label: "Pos" },
   { key: "tier", label: "Tier" },
   { key: "value", label: "Value" },
@@ -199,7 +202,20 @@ export function DraftBoardTable({
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10">
             <tr>
-              {LEFT_COLUMNS.map((col) => (
+              {NAME_COLUMNS.map((col) => (
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
+                  className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left cursor-pointer select-none hover:bg-gray-200 whitespace-nowrap"
+                >
+                  {col.label}
+                  {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+              ))}
+              {sessionActive && (
+                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left whitespace-nowrap">Action</th>
+              )}
+              {STAT_COLUMNS.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
@@ -239,9 +255,6 @@ export function DraftBoardTable({
                   {sortKey === col.key && <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
                 </th>
               ))}
-              {sessionActive && (
-                <th className="bg-gray-100 border border-gray-300 px-2 py-1.5 text-left whitespace-nowrap">Action</th>
-              )}
             </tr>
           </thead>
           <tbody>
@@ -267,6 +280,19 @@ export function DraftBoardTable({
                       row.playerName
                     )}
                   </td>
+                  {sessionActive && (
+                    <td className="border border-gray-200 px-2 py-1">
+                      {!isDrafted && onDraft && (
+                        <button
+                          type="button"
+                          onClick={() => onDraft(row.playerId, row.position)}
+                          className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                          Draft
+                        </button>
+                      )}
+                    </td>
+                  )}
                   <td className="border border-gray-200 px-2 py-1">{displayPosition(row.position)}</td>
                   <td className="border border-gray-200 px-2 py-1">{row.tier ?? ""}</td>
                   <td className="border border-gray-200 px-2 py-1 font-mono">${row.value.toFixed(1)}</td>
@@ -300,19 +326,6 @@ export function DraftBoardTable({
                   <AdpDeltaCell delta={row.adpDelta} />
                   <BreakoutCell rank={row.breakoutRank} type="breakout" />
                   <BreakoutCell rank={row.bustRank} type="bust" />
-                  {sessionActive && (
-                    <td className="border border-gray-200 px-2 py-1">
-                      {!isDrafted && onDraft && (
-                        <button
-                          type="button"
-                          onClick={() => onDraft(row.playerId, row.position)}
-                          className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          Draft
-                        </button>
-                      )}
-                    </td>
-                  )}
                 </tr>
               );
             })}
