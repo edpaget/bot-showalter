@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 import type {
   ArbitrageReportType,
   CategoryBalanceType,
+  CategoryNeedType,
   DraftPickType,
   DraftStateType,
   KeeperInfoType,
@@ -20,6 +21,7 @@ interface DraftSessionContextValue {
   roster: DraftPickType[];
   needs: RosterSlotType[];
   balance: CategoryBalanceType[];
+  categoryNeeds: CategoryNeedType[];
   arbitrage: ArbitrageReportType | null;
   keepers: KeeperInfoType[];
   draftedPlayerIds: Set<number>;
@@ -29,6 +31,7 @@ interface DraftSessionContextValue {
   setRoster: (roster: DraftPickType[]) => void;
   setNeeds: (needs: RosterSlotType[]) => void;
   setBalance: (balance: CategoryBalanceType[]) => void;
+  setCategoryNeeds: (needs: CategoryNeedType[]) => void;
   setArbitrage: (arbitrage: ArbitrageReportType | null) => void;
   setKeepers: (keepers: KeeperInfoType[]) => void;
   applyPickResult: (result: PickResultFieldsFragment) => void;
@@ -44,6 +47,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
   const [roster, setRoster] = useState<DraftPickType[]>([]);
   const [needs, setNeeds] = useState<RosterSlotType[]>([]);
   const [balance, setBalance] = useState<CategoryBalanceType[]>([]);
+  const [categoryNeeds, setCategoryNeeds] = useState<CategoryNeedType[]>([]);
   const [arbitrage, setArbitrage] = useState<ArbitrageReportType | null>(null);
   const [keepers, setKeepers] = useState<KeeperInfoType[]>([]);
 
@@ -58,6 +62,8 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
     setRoster(result.roster);
     setNeeds(result.needs);
     setArbitrage(result.arbitrage);
+    setBalance(result.balance);
+    setCategoryNeeds(result.categoryNeeds);
   }, []);
 
   const clearSession = useCallback(() => {
@@ -67,6 +73,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
     setRoster([]);
     setNeeds([]);
     setBalance([]);
+    setCategoryNeeds([]);
     setArbitrage(null);
     setKeepers([]);
   }, []);
@@ -79,6 +86,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       roster,
       needs,
       balance,
+      categoryNeeds,
       arbitrage,
       keepers,
       draftedPlayerIds,
@@ -88,6 +96,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       setRoster,
       setNeeds,
       setBalance,
+      setCategoryNeeds,
       setArbitrage,
       setKeepers,
       applyPickResult,
@@ -100,6 +109,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       roster,
       needs,
       balance,
+      categoryNeeds,
       arbitrage,
       keepers,
       draftedPlayerIds,

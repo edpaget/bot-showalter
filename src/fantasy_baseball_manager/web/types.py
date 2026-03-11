@@ -439,6 +439,8 @@ class PickResultType:
     roster: list[DraftPickType]
     needs: list[RosterSlotType]
     arbitrage: ArbitrageReportType | None
+    balance: list[CategoryBalanceType]
+    category_needs: list[CategoryNeedType]
 
 
 @strawberry.type

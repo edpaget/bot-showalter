@@ -70,5 +70,22 @@ export const PICK_RESULT_FRAGMENT = gql`
         drafterTeam
       }
     }
+    balance {
+      category
+      projectedValue
+      leagueRankEstimate
+      strength
+    }
+    categoryNeeds {
+      category
+      currentRank
+      targetRank
+      bestAvailable {
+        playerId
+        playerName
+        categoryImpact
+        tradeoffCategories
+      }
+    }
   }
 `;

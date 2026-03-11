@@ -41,6 +41,11 @@ mutation Pick($sessionId: Int!, $playerId: Int!, $position: Position!) {
         recommendations { playerName }
         roster { playerName position }
         needs { position remaining }
+        balance { category projectedValue leagueRankEstimate strength }
+        categoryNeeds {
+            category currentRank targetRank
+            bestAvailable { playerId playerName categoryImpact tradeoffCategories }
+        }
     }
 }
 """
@@ -53,6 +58,11 @@ mutation Undo($sessionId: Int!) {
         recommendations { playerName }
         roster { playerName }
         needs { position remaining }
+        balance { category projectedValue leagueRankEstimate strength }
+        categoryNeeds {
+            category currentRank targetRank
+            bestAvailable { playerId playerName categoryImpact tradeoffCategories }
+        }
     }
 }
 """

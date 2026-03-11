@@ -61,24 +61,20 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
     }
   }, [balanceData, ctx.setBalance]);
 
+  useEffect(() => {
+    if (categoryNeedsData?.categoryNeeds) {
+      ctx.setCategoryNeeds(categoryNeedsData.categoryNeeds);
+    }
+  }, [categoryNeedsData, ctx.setCategoryNeeds]);
+
   const [fetchSession] = useLazyQuery<SessionQuery>(SESSION_QUERY);
   const [fetchRecs] = useLazyQuery(RECOMMENDATIONS_QUERY);
   const [fetchRoster] = useLazyQuery(ROSTER_QUERY);
   const [fetchNeeds] = useLazyQuery(NEEDS_QUERY);
   const [fetchKeepers] = useLazyQuery(KEEPERS_QUERY);
   const [startSession] = useMutation<StartSessionMutation>(START_SESSION);
-  const [pickMutation] = useMutation<PickMutation>(PICK, {
-    refetchQueries: [
-      { query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } },
-      { query: CATEGORY_NEEDS_QUERY, variables: { sessionId: ctx.sessionId } },
-    ],
-  });
-  const [undoMutation] = useMutation<UndoMutation>(UNDO, {
-    refetchQueries: [
-      { query: BALANCE_QUERY, variables: { sessionId: ctx.sessionId } },
-      { query: CATEGORY_NEEDS_QUERY, variables: { sessionId: ctx.sessionId } },
-    ],
-  });
+  const [pickMutation] = useMutation<PickMutation>(PICK);
+  const [undoMutation] = useMutation<UndoMutation>(UNDO);
   const [endSession] = useMutation(END_SESSION);
 
   useSubscription<DraftEventsSubscription>(DRAFT_EVENTS_SUBSCRIPTION, {
@@ -221,7 +217,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
             />
             <NeedsPanel needs={ctx.needs} />
             <CategoryBalancePanel balance={ctx.balance} />
-            <CategoryNeedsPanel needs={categoryNeedsData?.categoryNeeds ?? []} onPlayerClick={openPlayer} />
+            <CategoryNeedsPanel needs={ctx.categoryNeeds} onPlayerClick={openPlayer} />
           </div>
         )}
       </div>

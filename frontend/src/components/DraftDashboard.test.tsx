@@ -108,6 +108,8 @@ function pickMock(): MockedResponse {
             { position: "SP", remaining: 2 },
           ],
           arbitrage: null,
+          balance: [],
+          categoryNeeds: [],
         },
       },
     },
@@ -140,6 +142,8 @@ function undoMock(): MockedResponse {
             { position: "OF", remaining: 3 },
           ],
           arbitrage: null,
+          balance: [],
+          categoryNeeds: [],
         },
       },
     },
@@ -214,15 +218,7 @@ describe("DraftDashboard", () => {
   });
 
   it("picks a player and updates panels", async () => {
-    renderDashboard([
-      boardMock(),
-      sessionsMock(),
-      startSessionMock(),
-      balanceMock(),
-      boardMock(),
-      pickMock(),
-      balanceMock(),
-    ]);
+    renderDashboard([boardMock(), sessionsMock(), startSessionMock(), balanceMock(), boardMock(), pickMock()]);
     await tick();
 
     const user = userEvent.setup();
@@ -249,9 +245,7 @@ describe("DraftDashboard", () => {
       balanceMock(),
       boardMock(),
       pickMock(),
-      balanceMock(),
       undoMock(),
-      balanceMock(),
     ]);
     await tick();
 

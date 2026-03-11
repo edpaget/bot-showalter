@@ -14,6 +14,7 @@ function TestConsumer() {
       <span data-testid="roster-count">{ctx.roster.length}</span>
       <span data-testid="needs-count">{ctx.needs.length}</span>
       <span data-testid="balance-count">{ctx.balance.length}</span>
+      <span data-testid="cat-needs-count">{ctx.categoryNeeds.length}</span>
       <button type="button" onClick={() => ctx.setSessionId(42)}>
         set-session
       </button>
@@ -69,6 +70,8 @@ function TestConsumer() {
             ],
             needs: [{ position: "C", remaining: 1 }],
             arbitrage: null,
+            balance: [{ category: "HR", projectedValue: 200, leagueRankEstimate: 4, strength: "average" }],
+            categoryNeeds: [],
           };
           ctx.applyPickResult(result);
         }}

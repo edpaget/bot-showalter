@@ -115,6 +115,31 @@ def _build_pick_result(
         category_scores=arb_cat_scores,
     )
 
+    # Compute category balance and needs for the updated roster
+    ctx = _get_context(info)
+    roster_ids = [p.player_id for p in roster]
+    if roster_ids:
+        projections = ctx.container.projection_repo.get_by_season(engine.state.config.season)
+        analysis = analyze_roster(roster_ids, projections, ctx.league)
+        balance_types = [CategoryBalanceType.from_domain(p) for p in analysis.projections]
+
+        available_ids = [r.player_id for r in available]
+        player_ids = {*roster_ids, *available_ids}
+        players = ctx.container.player_repo.get_by_ids(list(player_ids))
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+        cat_needs = identify_needs(
+            roster_ids,
+            available_ids,
+            projections,
+            ctx.league,
+            player_names,
+            top_n=5,
+        )
+        category_needs_types = [CategoryNeedType.from_domain(n) for n in cat_needs]
+    else:
+        balance_types = []
+        category_needs_types = []
+
     keeper_count = _get_keeper_count(mgr, session_id)
     return PickResultType(
         pick=pick,
@@ -123,6 +148,8 @@ def _build_pick_result(
         roster=[DraftPickType.from_domain(p) for p in roster],
         needs=[RosterSlotType(position=position_from_raw(pos), remaining=count) for pos, count in needs.items()],
         arbitrage=ArbitrageReportType.from_domain(report),
+        balance=balance_types,
+        category_needs=category_needs_types,
     )
 
 

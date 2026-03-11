@@ -211,6 +211,8 @@ type PickResultType {
   roster: [DraftPickType!]!
   needs: [RosterSlotType!]!
   arbitrage: ArbitrageReportType
+  balance: [CategoryBalanceType!]!
+  categoryNeeds: [CategoryNeedType!]!
 }
 
 type PlayerRecommendationType {
