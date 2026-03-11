@@ -32,7 +32,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_draft_board_context,
 )
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_config
+from fantasy_baseball_manager.config_yahoo import YahooConfigError, load_yahoo_league
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow, PickTrade, Valuation
@@ -98,16 +98,14 @@ def _apply_keeper_exclusion(  # pragma: no cover
 ) -> list[Valuation]:
     """Remove estimated league keepers from valuations and recalculate values."""
     try:
-        yahoo_config = load_yahoo_config(Path.cwd())
+        league_config = load_yahoo_league(exclude_keepers, Path.cwd())
     except YahooConfigError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from None
 
-    if exclude_keepers not in yahoo_config.leagues:
-        console.print(f"[red]Yahoo league '{exclude_keepers}' not found in [yahoo.leagues][/red]")
+    if league_config is None:
+        console.print(f"[red]League '{exclude_keepers}' has no [leagues.{exclude_keepers}.yahoo] config[/red]")
         raise typer.Exit(code=1)
-
-    league_config = yahoo_config.leagues[exclude_keepers]
     max_keepers = league_config.max_keepers
     if max_keepers is None:
         console.print(f"[red]max_keepers not configured for Yahoo league '{exclude_keepers}'[/red]")

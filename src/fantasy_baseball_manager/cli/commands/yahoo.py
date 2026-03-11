@@ -21,7 +21,9 @@ from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import (
     YahooConfig,
     YahooConfigError,
+    YahooLeagueConfig,
     load_yahoo_config,
+    load_yahoo_league,
     resolve_default_league,
 )
 from fantasy_baseball_manager.db.pool import ConnectionPool, SingleConnectionProvider
@@ -98,7 +100,7 @@ def yahoo_auth(  # pragma: no cover
 
 @yahoo_app.command("sync")
 def yahoo_sync(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
@@ -106,24 +108,7 @@ def yahoo_sync(  # pragma: no cover
     """Sync league metadata from Yahoo Fantasy API."""
     if season is None:
         season = current_season()
-    try:
-        config = load_yahoo_config(Path(config_dir))
-    except YahooConfigError as exc:
-        print_error(str(exc))
-        raise typer.Exit(code=1) from None
-
-    if league is None:
-        try:
-            league = resolve_default_league(config)
-        except YahooConfigError as exc:
-            print_error(str(exc))
-            raise typer.Exit(code=1) from None
-
-    if league not in config.leagues:
-        print_error(f"League '{league}' not found in [yahoo.leagues]")
-        raise typer.Exit(code=1)
-
-    league_config = config.leagues[league]
+    league, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
@@ -153,7 +138,7 @@ def yahoo_sync(  # pragma: no cover
 
 @yahoo_app.command("standings")
 def yahoo_standings(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     all_seasons: Annotated[bool, typer.Option("--all-seasons", help="Import all historical seasons")] = False,
     since: Annotated[
@@ -169,24 +154,7 @@ def yahoo_standings(  # pragma: no cover
 
     if season is None:
         season = current_season()
-    try:
-        config = load_yahoo_config(Path(config_dir))
-    except YahooConfigError as exc:
-        print_error(str(exc))
-        raise typer.Exit(code=1) from None
-
-    if league is None:
-        try:
-            league = resolve_default_league(config)
-        except YahooConfigError as exc:
-            print_error(str(exc))
-            raise typer.Exit(code=1) from None
-
-    if league not in config.leagues:
-        print_error(f"League '{league}' not found in [yahoo.leagues]")
-        raise typer.Exit(code=1)
-
-    league_config = config.leagues[league]
+    league, league_config, _config = _resolve_league_context(league, config_dir)
 
     if all_seasons:
         _standings_all_seasons(league, league_config, data_dir, config_dir, season, since)
@@ -344,7 +312,7 @@ def yahoo_map_player(  # pragma: no cover
 
 @yahoo_app.command("rosters")
 def yahoo_rosters(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
@@ -352,24 +320,7 @@ def yahoo_rosters(  # pragma: no cover
     """Fetch and display all teams' rosters from Yahoo Fantasy."""
     if season is None:
         season = current_season()
-    try:
-        config = load_yahoo_config(Path(config_dir))
-    except YahooConfigError as exc:
-        print_error(str(exc))
-        raise typer.Exit(code=1) from None
-
-    if league is None:
-        try:
-            league = resolve_default_league(config)
-        except YahooConfigError as exc:
-            print_error(str(exc))
-            raise typer.Exit(code=1) from None
-
-    if league not in config.leagues:
-        print_error(f"League '{league}' not found in [yahoo.leagues]")
-        raise typer.Exit(code=1)
-
-    league_config = config.leagues[league]
+    league, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
@@ -435,7 +386,7 @@ def yahoo_rosters(  # pragma: no cover
 
 @yahoo_app.command("my-roster")
 def yahoo_my_roster(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
@@ -443,24 +394,7 @@ def yahoo_my_roster(  # pragma: no cover
     """Fetch your roster and show projections/valuations."""
     if season is None:
         season = current_season()
-    try:
-        config = load_yahoo_config(Path(config_dir))
-    except YahooConfigError as exc:
-        print_error(str(exc))
-        raise typer.Exit(code=1) from None
-
-    if league is None:
-        try:
-            league = resolve_default_league(config)
-        except YahooConfigError as exc:
-            print_error(str(exc))
-            raise typer.Exit(code=1) from None
-
-    if league not in config.leagues:
-        print_error(f"League '{league}' not found in [yahoo.leagues]")
-        raise typer.Exit(code=1)
-
-    league_config = config.leagues[league]
+    league, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
@@ -532,7 +466,7 @@ def yahoo_my_roster(  # pragma: no cover
 
 @yahoo_app.command("draft-results")
 def yahoo_draft_results(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
@@ -540,24 +474,7 @@ def yahoo_draft_results(  # pragma: no cover
     """Fetch and display draft results from Yahoo Fantasy."""
     if season is None:
         season = current_season()
-    try:
-        config = load_yahoo_config(Path(config_dir))
-    except YahooConfigError as exc:
-        print_error(str(exc))
-        raise typer.Exit(code=1) from None
-
-    if league is None:
-        try:
-            league = resolve_default_league(config)
-        except YahooConfigError as exc:
-            print_error(str(exc))
-            raise typer.Exit(code=1) from None
-
-    if league not in config.leagues:
-        print_error(f"League '{league}' not found in [yahoo.leagues]")
-        raise typer.Exit(code=1)
-
-    league_config = config.leagues[league]
+    league, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
@@ -600,9 +517,8 @@ def yahoo_draft_results(  # pragma: no cover
 
 @yahoo_app.command("draft-live")
 def yahoo_draft_live(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
-    league_name: Annotated[str, typer.Option("--league-config", help="League name from fbm.toml")] = "default",
     system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
     provider: Annotated[str, typer.Option("--provider", help="ADP provider")] = "fantasypros",
@@ -618,25 +534,8 @@ def yahoo_draft_live(  # pragma: no cover
         system = defaults.system
     if version is None:
         version = defaults.version
-    try:
-        config = load_yahoo_config(Path(config_dir))
-    except YahooConfigError as exc:
-        print_error(str(exc))
-        raise typer.Exit(code=1) from None
-
-    if league is None:
-        try:
-            league = resolve_default_league(config)
-        except YahooConfigError as exc:
-            print_error(str(exc))
-            raise typer.Exit(code=1) from None
-
-    if league not in config.leagues:
-        print_error(f"League '{league}' not found in [yahoo.leagues]")
-        raise typer.Exit(code=1)
-
-    league_config = config.leagues[league]
-    fbm_league = load_league(league_name, Path.cwd())
+    league, league_config, _config = _resolve_league_context(league, config_dir)
+    fbm_league = load_league(league, Path(config_dir))
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
@@ -716,7 +615,7 @@ def yahoo_draft_live(  # pragma: no cover
 
 @yahoo_app.command("transactions")
 def yahoo_transactions(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     days: Annotated[int, typer.Option("--days", help="Show transactions from last N days")] = 7,
     data_dir: _DataDirOpt = "./data",
@@ -725,8 +624,7 @@ def yahoo_transactions(  # pragma: no cover
     """Fetch and display recent league transactions."""
     if season is None:
         season = current_season()
-    league_name, config = _resolve_league_context(league, config_dir)
-    league_config = config.leagues[league_name]
+    league_name, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
@@ -770,7 +668,7 @@ def yahoo_transactions(  # pragma: no cover
 
 @yahoo_app.command("refresh")
 def yahoo_refresh(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
@@ -778,8 +676,7 @@ def yahoo_refresh(  # pragma: no cover
     """Incrementally sync all league data (rosters + transactions)."""
     if season is None:
         season = current_season()
-    league_name, config = _resolve_league_context(league, config_dir)
-    league_config = config.leagues[league_name]
+    league_name, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
@@ -836,8 +733,8 @@ def yahoo_refresh(  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 
-def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, YahooConfig]:
-    """Resolve Yahoo config and league name. Returns (league_name, config)."""
+def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, YahooLeagueConfig, YahooConfig]:
+    """Resolve Yahoo config and league name. Returns (league_name, league_config, config)."""
     try:
         config = load_yahoo_config(Path(config_dir))
     except YahooConfigError as exc:
@@ -851,11 +748,17 @@ def _resolve_league_context(league: str | None, config_dir: str) -> tuple[str, Y
             print_error(str(exc))
             raise typer.Exit(code=1) from None
 
-    if league not in config.leagues:
-        print_error(f"League '{league}' not found in [yahoo.leagues]")
+    try:
+        league_config = load_yahoo_league(league, Path(config_dir))
+    except YahooConfigError as exc:
+        print_error(str(exc))
+        raise typer.Exit(code=1) from None
+
+    if league_config is None:
+        print_error(f"League '{league}' has no [leagues.{league}.yahoo] config")
         raise typer.Exit(code=1)
 
-    return league, config
+    return league, league_config, config
 
 
 def resolve_league_key(ctx: YahooContext, league_id: int, season: int, *, current_year: int | None = None) -> str:
@@ -920,7 +823,7 @@ def _ensure_prior_season(
 
 @yahoo_app.command("keeper-costs")
 def yahoo_keeper_costs(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     cost_floor: Annotated[float, typer.Option("--cost-floor", help="Minimum keeper cost for FA pickups")] = 1.0,
     data_dir: _DataDirOpt = "./data",
@@ -929,8 +832,7 @@ def yahoo_keeper_costs(  # pragma: no cover
     """Derive keeper costs from Yahoo draft history and current roster."""
     if season is None:
         season = current_season()
-    league_name, config = _resolve_league_context(league, config_dir)
-    league_config = config.leagues[league_name]
+    league_name, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         game_key = ctx.client.get_game_key(season)
@@ -1024,7 +926,7 @@ def yahoo_keeper_costs(  # pragma: no cover
 
 @yahoo_app.command("keeper-decisions")
 def yahoo_keeper_decisions(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
@@ -1046,8 +948,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
         system = defaults.system
     if version is None:
         version = defaults.version
-    league_name, config = _resolve_league_context(league, config_dir)
-    league_config = config.leagues[league_name]
+    league_name, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         game_key = ctx.client.get_game_key(season)
@@ -1191,7 +1092,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
 
 @yahoo_app.command("keeper-league")
 def yahoo_keeper_league(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
@@ -1208,8 +1109,7 @@ def yahoo_keeper_league(  # pragma: no cover
         system = defaults.system
     if version is None:
         version = defaults.version
-    league_name, config = _resolve_league_context(league, config_dir)
-    league_config = config.leagues[league_name]
+    league_name, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         game_key = ctx.client.get_game_key(season)
@@ -1278,7 +1178,7 @@ def yahoo_keeper_league(  # pragma: no cover
 
 @yahoo_app.command("draft-needs")
 def yahoo_draft_needs(  # pragma: no cover
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     system: Annotated[str | None, typer.Option("--system", help="Valuation system")] = None,
     version: Annotated[str | None, typer.Option("--version", help="Valuation version")] = None,
@@ -1295,8 +1195,7 @@ def yahoo_draft_needs(  # pragma: no cover
         system = defaults.system
     if version is None:
         version = defaults.version
-    league_name, config = _resolve_league_context(league, config_dir)
-    league_config = config.leagues[league_name]
+    league_name, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         game_key = ctx.client.get_game_key(season)
@@ -1386,12 +1285,12 @@ def yahoo_draft_needs(  # pragma: no cover
 @yahoo_app.command("keeper-history")
 def yahoo_keeper_history(  # pragma: no cover
     player: Annotated[str, typer.Argument(help="Player name to look up")],
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
     """Show a player's keeper cost history across seasons."""
-    league_name, _config = _resolve_league_context(league, config_dir)
+    league_name, _league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         matches = resolve_players(ctx.player_repo, player)
@@ -1433,7 +1332,7 @@ def yahoo_keeper_history(  # pragma: no cover
 def yahoo_keeper_cost_set(  # pragma: no cover
     player_name: Annotated[str, typer.Argument(help="Player name")],
     cost: Annotated[float, typer.Option("--cost", help="Keeper cost")],
-    league: Annotated[str | None, typer.Option("--league", help="League name from [yahoo.leagues]")] = None,
+    league: Annotated[str | None, typer.Option("--league", help="League name from [leagues]")] = None,
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     years: Annotated[int, typer.Option("--years", help="Years remaining on contract")] = 1,
     source: Annotated[str, typer.Option("--source", help="Cost source type")] = "manual",
@@ -1443,7 +1342,7 @@ def yahoo_keeper_cost_set(  # pragma: no cover
     """Manually set a keeper cost for a player in a Yahoo league."""
     if season is None:
         season = current_season()
-    league_name, _config = _resolve_league_context(league, config_dir)
+    league_name, _league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         result = set_keeper_cost(
