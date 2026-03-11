@@ -56,6 +56,7 @@ class DistributionalZarRunner(Protocol):
         budget: float,
         *,
         stdev_overrides: dict[str, float] | None = None,
+        use_optimal_assignment: bool = True,
     ) -> ZarPipelineResult: ...
 
 
@@ -172,6 +173,7 @@ class ZarDistributionalModel:
 
         # 7. Budget split
         batter_budget, pitcher_budget = compute_budget_split(league)
+        use_optimal_assignment: bool = config.model_params.get("use_optimal_assignment", True)
 
         # 8. Position maps
         position_map = self._eligibility_service.get_batter_positions(season, league)
@@ -188,6 +190,7 @@ class ZarDistributionalModel:
             season,
             version,
             proj_system,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # 10. Value pitchers
@@ -212,6 +215,7 @@ class ZarDistributionalModel:
             version,
             proj_system,
             pitcher_roster_spots=pitcher_roster_spots,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # 11. Rank all valuations combined
@@ -292,6 +296,7 @@ class ZarDistributionalModel:
         proj_system: str,
         *,
         pitcher_roster_spots: dict[str, int] | None = None,
+        use_optimal_assignment: bool = True,
     ) -> list[Valuation]:
         """Run distributional ZAR for one player pool."""
         if not projections:
@@ -336,6 +341,7 @@ class ZarDistributionalModel:
             roster_spots,
             league.teams,
             budget,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # Build Valuation objects

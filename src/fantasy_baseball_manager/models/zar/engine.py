@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.models.zar.assignment import assign_positions
 
 
 @dataclass(frozen=True)
@@ -237,11 +238,67 @@ def var_to_dollars(
     return result
 
 
+def assignment_to_dollars(
+    var_values: list[float],
+    assignments: dict[int, str],
+    total_budget: float,
+    min_bid: float = 1.0,
+) -> list[float]:
+    """Convert VAR to dollars using the optimal assignment set.
+
+    All assigned players are draftable (including VAR=0 replacement-level players,
+    who receive *min_bid*).  Players with VAR > 0 share the surplus proportionally.
+    Unassigned players receive $0.
+    """
+    if not var_values:
+        return []
+
+    n_assigned = len(assignments)
+    if n_assigned == 0:
+        return [0.0] * len(var_values)
+
+    base_cost = n_assigned * min_bid
+    surplus = total_budget - base_cost
+
+    sum_positive_var = sum(var_values[i] for i in assignments if var_values[i] > 0.0)
+
+    result = [0.0] * len(var_values)
+    if sum_positive_var > 0.0 and surplus > 0.0:
+        for i in assignments:
+            if var_values[i] > 0.0:
+                result[i] = min_bid + (var_values[i] / sum_positive_var) * surplus
+            else:
+                result[i] = min_bid
+    else:
+        # All assigned players at replacement level — distribute evenly
+        equal_share = total_budget / n_assigned
+        for i in assignments:
+            result[i] = equal_share
+    return result
+
+
+def run_optimal_pipeline(
+    composite_scores: list[float],
+    player_positions: list[list[str]],
+    roster_spots: dict[str, int],
+    num_teams: int,
+    budget: float,
+) -> tuple[dict[str, float], list[float], dict[int, str]]:
+    """Run optimal assignment pipeline: assign → dollars.
+
+    Returns (replacement_levels, dollar_values, assignments).
+    """
+    result = assign_positions(composite_scores, player_positions, roster_spots, num_teams)
+    dollar_values = assignment_to_dollars(result.var_values, result.assignments, budget)
+    return result.replacement, dollar_values, result.assignments
+
+
 @dataclass(frozen=True)
 class ZarPipelineResult:
     z_scores: list[PlayerZScores]
     replacement: dict[str, float]
     dollar_values: list[float]
+    assignments: dict[int, str] | None = None
 
 
 def run_zar_pipeline(
@@ -255,6 +312,7 @@ def run_zar_pipeline(
     stdev_overrides: dict[str, float] | None = None,
     category_weights: dict[str, float] | None = None,
     use_direct_rates: bool = False,
+    use_optimal_assignment: bool = True,
 ) -> ZarPipelineResult:
     """Run the full ZAR pipeline: convert → z-score → replacement → VAR → dollars."""
     if not stats_list:
@@ -264,6 +322,16 @@ def run_zar_pipeline(
     z_scores = compute_z_scores(
         converted, category_keys, stdev_overrides=stdev_overrides, category_weights=category_weights
     )
+
+    if use_optimal_assignment:
+        composite_scores = [pz.composite_z for pz in z_scores]
+        replacement, dollar_values, assignments = run_optimal_pipeline(
+            composite_scores, player_positions, roster_spots, num_teams, budget
+        )
+        return ZarPipelineResult(
+            z_scores=z_scores, replacement=replacement, dollar_values=dollar_values, assignments=assignments
+        )
+
     replacement = compute_replacement_level(z_scores, player_positions, roster_spots, num_teams)
     var_values = compute_var(z_scores, replacement, player_positions)
     roster_spots_total = sum(spots * num_teams for spots in roster_spots.values())

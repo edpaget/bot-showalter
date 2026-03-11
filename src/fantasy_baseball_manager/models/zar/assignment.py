@@ -45,8 +45,13 @@ def assign_positions(
     indexed_scores = sorted(enumerate(composite_scores), key=lambda x: x[1], reverse=True)
     candidate_indices = [idx for idx, _ in indexed_scores[:n_candidates]]
 
-    # Step 3: Build cost matrix (candidates × slots), cost = -score if eligible else inf
-    cost = np.full((n_candidates, total_slots), np.inf)
+    # Step 3: Build cost matrix (candidates + dummies × slots).
+    # Dummy rows ensure feasibility when fewer candidates are eligible than slots.
+    # Real candidates: cost = -score if eligible, else PENALTY.
+    # Dummy rows: cost = PENALTY for all slots.
+    penalty = 1e18
+    n_rows = max(n_candidates, total_slots)
+    cost = np.full((n_rows, total_slots), penalty)
     for row, orig_idx in enumerate(candidate_indices):
         eligible = set(player_positions[orig_idx])
         score = composite_scores[orig_idx]
@@ -57,10 +62,10 @@ def assign_positions(
     # Step 4: Run the Hungarian algorithm
     row_ind, col_ind = linear_sum_assignment(cost)
 
-    # Step 5: Map back to original indices and positions
+    # Step 5: Map back to original indices and positions (skip dummy/penalty assignments)
     assignments: dict[int, str] = {}
     for r, c in zip(row_ind, col_ind, strict=True):
-        if cost[r, c] < np.inf:
+        if r < n_candidates and cost[r, c] < penalty:
             orig_idx = candidate_indices[r]
             assignments[orig_idx] = slots[c]
 

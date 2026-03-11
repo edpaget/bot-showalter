@@ -230,6 +230,7 @@ def _config(residual_buckets: dict[str, ResidualBuckets] | None = None) -> Model
     params: dict[str, object] = {
         "league": _league(),
         "projection_system": "steamer",
+        "use_optimal_assignment": False,
     }
     if residual_buckets is not None:
         params["_residual_buckets"] = residual_buckets
@@ -300,7 +301,11 @@ class TestZarDistributionalPredict:
         plain_model.predict(
             ModelConfig(
                 seasons=[2025],
-                model_params={"league": _league(), "projection_system": "steamer"},
+                model_params={
+                    "league": _league(),
+                    "projection_system": "steamer",
+                    "use_optimal_assignment": False,
+                },
                 version="1.0",
             )
         )
@@ -322,7 +327,7 @@ class TestZarDistributionalPredict:
         plain_model.predict(
             ModelConfig(
                 seasons=[2025],
-                model_params={"league": _league(), "projection_system": "steamer"},
+                model_params={"league": _league(), "projection_system": "steamer", "use_optimal_assignment": False},
                 version="1.0",
             )
         )
@@ -344,7 +349,7 @@ class TestZarDistributionalPredict:
         plain_model.predict(
             ModelConfig(
                 seasons=[2025],
-                model_params={"league": _league(), "projection_system": "steamer"},
+                model_params={"league": _league(), "projection_system": "steamer", "use_optimal_assignment": False},
                 version="1.0",
             )
         )

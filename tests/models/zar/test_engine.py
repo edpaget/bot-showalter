@@ -11,12 +11,14 @@ from fantasy_baseball_manager.domain.league_settings import (
 from fantasy_baseball_manager.models.zar.engine import (
     PlayerZScores,
     ZarPipelineResult,
+    assignment_to_dollars,
     compute_budget_split,
     compute_replacement_level,
     compute_var,
     compute_z_scores,
     convert_rate_stats,
     resolve_numerator,
+    run_optimal_pipeline,
     run_zar_pipeline,
     var_to_dollars,
 )
@@ -698,12 +700,15 @@ class TestRunZarPipeline:
         categories = [_counting("hr")]
         positions = [["of"], ["of"]]
         roster_spots = {"of": 1}
-        result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=20.0)
+        result = run_zar_pipeline(
+            stats, categories, positions, roster_spots, num_teams=1, budget=20.0, use_optimal_assignment=False
+        )
         assert result.z_scores[0].composite_z == pytest.approx(1.0)
         assert result.z_scores[1].composite_z == pytest.approx(-1.0)
         assert result.replacement["of"] == pytest.approx(-1.0)
         assert result.dollar_values[0] == pytest.approx(20.0)
         assert result.dollar_values[1] == pytest.approx(0.0)
+        assert result.assignments is None
 
 
 class TestConvertRateStatsDirectRates:
@@ -808,3 +813,113 @@ class TestConvertRateStatsDirectRates:
         z_off = [pz.category_z["avg"] for pz in result_off.z_scores]
         z_on = [pz.category_z["avg"] for pz in result_on.z_scores]
         assert z_off != z_on
+
+
+class TestAssignmentToDollars:
+    def test_basic_proportional_distribution(self) -> None:
+        # 3 assigned players: VAR [6, 4, 0], budget=20, min_bid=1
+        # 3 assigned → base cost=3, surplus=17
+        # Player 0: 1 + (6/10)*17 = 1 + 10.2 = 11.2
+        # Player 1: 1 + (4/10)*17 = 1 + 6.8 = 7.8
+        # Player 2 (VAR=0): 1.0 (min bid)
+        var_values = [6.0, 4.0, 0.0]
+        assignments = {0: "of", 1: "of", 2: "of"}
+        result = assignment_to_dollars(var_values, assignments, total_budget=20.0)
+        assert result[0] == pytest.approx(11.2)
+        assert result[1] == pytest.approx(7.8)
+        assert result[2] == pytest.approx(1.0)
+
+    def test_replacement_level_player_gets_min_bid(self) -> None:
+        var_values = [5.0, 0.0]
+        assignments = {0: "c", 1: "c"}
+        result = assignment_to_dollars(var_values, assignments, total_budget=20.0)
+        assert result[1] == pytest.approx(1.0)
+
+    def test_unassigned_player_gets_zero(self) -> None:
+        var_values = [5.0, 3.0, 0.0]
+        assignments = {0: "c", 1: "of"}  # player 2 not assigned
+        result = assignment_to_dollars(var_values, assignments, total_budget=20.0)
+        assert result[2] == 0.0
+
+    def test_dollar_sum_equals_budget(self) -> None:
+        var_values = [10.0, 5.0, 3.0, 0.0, 0.0]
+        assignments = {0: "c", 1: "of", 2: "of", 3: "of", 4: "c"}
+        budget = 100.0
+        result = assignment_to_dollars(var_values, assignments, total_budget=budget)
+        assert sum(result) == pytest.approx(budget)
+
+    def test_empty_input(self) -> None:
+        result = assignment_to_dollars([], {}, total_budget=100.0)
+        assert result == []
+
+    def test_no_assignments(self) -> None:
+        result = assignment_to_dollars([5.0, 3.0], {}, total_budget=100.0)
+        assert result == [0.0, 0.0]
+
+    def test_all_replacement_level(self) -> None:
+        # All assigned players have VAR=0 → distribute budget evenly
+        var_values = [0.0, 0.0, 0.0]
+        assignments = {0: "c", 1: "of", 2: "of"}
+        result = assignment_to_dollars(var_values, assignments, total_budget=30.0)
+        assert result == [pytest.approx(10.0), pytest.approx(10.0), pytest.approx(10.0)]
+        assert sum(result) == pytest.approx(30.0)
+
+
+class TestRunOptimalPipeline:
+    def test_dollar_values_sum_to_budget(self) -> None:
+        scores = [10.0, 8.0, 5.0, 3.0, 1.0]
+        positions = [["c", "of"]] * 5
+        roster_spots = {"c": 1, "of": 1}
+        budget = 100.0
+        replacement, dollars, assignments = run_optimal_pipeline(scores, positions, roster_spots, 1, budget)
+        assert sum(dollars) == pytest.approx(budget)
+
+    def test_assigned_count_equals_total_slots(self) -> None:
+        scores = [10.0, 8.0, 5.0, 3.0, 1.0]
+        positions = [["of"]] * 5
+        roster_spots = {"of": 2}
+        _, _, assignments = run_optimal_pipeline(scores, positions, roster_spots, 1, 100.0)
+        assert len(assignments) == 2
+
+    def test_replacement_derived_from_worst_assigned(self) -> None:
+        scores = [10.0, 5.0, 1.0]
+        positions = [["of"], ["of"], ["of"]]
+        roster_spots = {"of": 2}
+        replacement, _, assignments = run_optimal_pipeline(scores, positions, roster_spots, 1, 100.0)
+        # 2 slots, top 2 assigned (scores 10.0 and 5.0), replacement = 5.0
+        assert replacement["of"] == pytest.approx(5.0)
+
+    def test_empty_input(self) -> None:
+        replacement, dollars, assignments = run_optimal_pipeline([], [], {}, 1, 100.0)
+        assert replacement == {}
+        assert dollars == []
+        assert assignments == {}
+
+
+class TestRunZarPipelineOptimal:
+    def test_optimal_assignment_default(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}, {"hr": 10.0}]
+        categories = [_counting("hr")]
+        positions = [["of"], ["of"], ["of"]]
+        roster_spots = {"of": 2}
+        result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
+        assert result.assignments is not None
+        assert len(result.assignments) == 2
+
+    def test_optimal_dollar_sum(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}, {"hr": 10.0}]
+        categories = [_counting("hr")]
+        positions = [["of"], ["of"], ["of"]]
+        roster_spots = {"of": 3}
+        result = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=90.0)
+        assert sum(result.dollar_values) == pytest.approx(90.0)
+
+    def test_greedy_flag_disables_assignments(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        categories = [_counting("hr")]
+        positions = [["of"], ["of"]]
+        roster_spots = {"of": 1}
+        result = run_zar_pipeline(
+            stats, categories, positions, roster_spots, num_teams=1, budget=100.0, use_optimal_assignment=False
+        )
+        assert result.assignments is None

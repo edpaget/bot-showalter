@@ -27,6 +27,7 @@ def run_distributional_zar(
     budget: float,
     *,
     stdev_overrides: dict[str, float] | None = None,
+    use_optimal_assignment: bool = True,
 ) -> ZarPipelineResult:
     """Run ZAR at each scenario level and compute expected dollar values.
 
@@ -67,6 +68,7 @@ def run_distributional_zar(
         num_teams,
         budget,
         stdev_overrides=stdev_overrides,
+        use_optimal_assignment=use_optimal_assignment,
     )
 
     # Determine number of scenario passes from the max scenario count
@@ -100,6 +102,7 @@ def run_distributional_zar(
             num_teams,
             budget,
             stdev_overrides=stdev_overrides,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # Record each player's dollar value at this scenario

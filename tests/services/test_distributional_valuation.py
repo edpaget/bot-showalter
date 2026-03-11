@@ -76,8 +76,17 @@ class TestRunDistributionalZar:
             self.ROSTER_SPOTS,
             self.NUM_TEAMS,
             self.BUDGET,
+            use_optimal_assignment=False,
         )
-        point = run_zar_pipeline(stats, self.CATEGORIES, self.POSITIONS, self.ROSTER_SPOTS, self.NUM_TEAMS, self.BUDGET)
+        point = run_zar_pipeline(
+            stats,
+            self.CATEGORIES,
+            self.POSITIONS,
+            self.ROSTER_SPOTS,
+            self.NUM_TEAMS,
+            self.BUDGET,
+            use_optimal_assignment=False,
+        )
         for i in range(len(stats)):
             assert result.dollar_values[i] == pytest.approx(point.dollar_values[i])
 
@@ -96,8 +105,17 @@ class TestRunDistributionalZar:
             self.ROSTER_SPOTS,
             self.NUM_TEAMS,
             self.BUDGET,
+            use_optimal_assignment=False,
         )
-        point = run_zar_pipeline(stats, self.CATEGORIES, self.POSITIONS, self.ROSTER_SPOTS, self.NUM_TEAMS, self.BUDGET)
+        point = run_zar_pipeline(
+            stats,
+            self.CATEGORIES,
+            self.POSITIONS,
+            self.ROSTER_SPOTS,
+            self.NUM_TEAMS,
+            self.BUDGET,
+            use_optimal_assignment=False,
+        )
         for i in range(len(stats)):
             assert result.dollar_values[i] == pytest.approx(point.dollar_values[i])
 
@@ -129,9 +147,16 @@ class TestRunDistributionalZar:
             self.ROSTER_SPOTS,
             self.NUM_TEAMS,
             self.BUDGET,
+            use_optimal_assignment=False,
         )
         point = run_zar_pipeline(
-            base_stats, self.CATEGORIES, self.POSITIONS, self.ROSTER_SPOTS, self.NUM_TEAMS, self.BUDGET
+            base_stats,
+            self.CATEGORIES,
+            self.POSITIONS,
+            self.ROSTER_SPOTS,
+            self.NUM_TEAMS,
+            self.BUDGET,
+            use_optimal_assignment=False,
         )
         # Player 0 should be valued lower in distributional than point estimate
         assert result.dollar_values[0] < point.dollar_values[0]
@@ -159,9 +184,16 @@ class TestRunDistributionalZar:
             self.ROSTER_SPOTS,
             self.NUM_TEAMS,
             self.BUDGET,
+            use_optimal_assignment=False,
         )
         point = run_zar_pipeline(
-            base_stats, self.CATEGORIES, self.POSITIONS, self.ROSTER_SPOTS, self.NUM_TEAMS, self.BUDGET
+            base_stats,
+            self.CATEGORIES,
+            self.POSITIONS,
+            self.ROSTER_SPOTS,
+            self.NUM_TEAMS,
+            self.BUDGET,
+            use_optimal_assignment=False,
         )
         # Should be closer to point estimate than the left-skewed case, but
         # non-linearity in the dollar conversion (draftable cutoff, VAR→$ mapping)

@@ -209,6 +209,7 @@ def _config() -> ModelConfig:
         model_params={
             "league": _league(),
             "projection_system": "steamer",
+            "use_optimal_assignment": False,
         },
         version="1.0",
     )

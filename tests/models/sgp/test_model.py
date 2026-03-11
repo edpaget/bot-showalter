@@ -1,4 +1,5 @@
 import dataclasses
+from collections import Counter
 from typing import Any
 
 import pytest
@@ -512,3 +513,57 @@ class TestSgpModelPlayingTimeCutoffs:
         player_ids = {v.player_id for v in val_repo.upserted}
         assert 1 in player_ids
         assert 2 not in player_ids
+
+
+# ---------------------------------------------------------------------------
+# Optimal assignment integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestSgpModelOptimalAssignment:
+    def test_predict_uses_optimal_by_default(self) -> None:
+        """Default predict uses optimal assignment."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        assert len(val_repo.upserted) == 5
+
+    def test_predict_greedy_via_param(self) -> None:
+        """use_optimal_assignment=False preserves old greedy behavior."""
+        model, val_repo = _build_model()
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "denominators": _standard_denominators(),
+                "use_optimal_assignment": False,
+            },
+            version="1.0",
+        )
+        model.predict(config)
+        assert len(val_repo.upserted) == 5
+
+    def test_optimal_dollar_sum_equals_budget(self) -> None:
+        """Dollar values should sum to total league budget."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        total = sum(v.value for v in val_repo.upserted)
+        league = _standard_league()
+        expected_budget = league.budget * league.teams
+        assert total == pytest.approx(expected_budget, abs=1.0)
+
+    def test_optimal_position_capacities(self) -> None:
+        """No position should exceed its slot count × teams."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        league = _standard_league()
+        batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
+        pos_counts = Counter(v.position for v in batter_vals if v.value > 0)
+        for pos, count in pos_counts.items():
+            if pos == "UTIL":
+                max_slots = league.roster_util * league.teams
+            elif pos in league.positions:
+                max_slots = league.positions[pos] * league.teams
+            else:
+                continue
+            assert count <= max_slots, f"{pos} has {count} assigned but only {max_slots} slots"

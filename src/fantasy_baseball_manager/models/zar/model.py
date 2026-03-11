@@ -100,6 +100,7 @@ class ZarModel:
         # 3.5a. Category weights (optional, for ZAR reform)
         category_weights: dict[str, float] | None = config.model_params.get("category_weights")
         use_direct_rates: bool = config.model_params.get("use_direct_rates", False)
+        use_optimal_assignment: bool = config.model_params.get("use_optimal_assignment", True)
 
         # 3.5. Variance correction: split pre-computed stdev overrides by pool
         batter_stdev_overrides: dict[str, float] | None = None
@@ -126,6 +127,7 @@ class ZarModel:
             category_weights=category_weights,
             use_direct_rates=use_direct_rates,
             system=valuation_system,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # 5. Run ZAR for pitchers
@@ -151,6 +153,7 @@ class ZarModel:
             category_weights=category_weights,
             use_direct_rates=use_direct_rates,
             system=valuation_system,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # 6. Rank all valuations combined by value descending
@@ -201,6 +204,7 @@ class ZarModel:
         category_weights: dict[str, float] | None = None,
         use_direct_rates: bool = False,
         system: str = "zar",
+        use_optimal_assignment: bool = True,
     ) -> list[Valuation]:
         """Run the full ZAR pipeline for one player pool (batters or pitchers)."""
         if not projections:
@@ -226,12 +230,16 @@ class ZarModel:
             stdev_overrides=stdev_overrides,
             category_weights=category_weights,
             use_direct_rates=use_direct_rates,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # Build Valuation objects (rank=0 placeholder, filled later)
         valuations: list[Valuation] = []
         for i, proj in enumerate(projections):
-            best_pos = best_position(player_positions[i], result.replacement)
+            if result.assignments is not None and i in result.assignments:
+                pos = result.assignments[i]
+            else:
+                pos = best_position(player_positions[i], result.replacement)
             valuations.append(
                 Valuation(
                     player_id=proj.player_id,
@@ -241,7 +249,7 @@ class ZarModel:
                     projection_system=proj_system,
                     projection_version=proj.version,
                     player_type=player_type,
-                    position=best_pos,
+                    position=pos,
                     value=round(result.dollar_values[i], 2),
                     rank=0,
                     category_scores=dict(result.z_scores[i].category_z),

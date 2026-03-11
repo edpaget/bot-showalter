@@ -114,6 +114,7 @@ class SgpModel:
 
         # 3.5. Direct rate stats flag
         use_direct_rates: bool = config.model_params.get("use_direct_rates", False)
+        use_optimal_assignment: bool = config.model_params.get("use_optimal_assignment", True)
 
         # 4. Budget split
         batter_budget, pitcher_budget = compute_budget_split(league)
@@ -131,6 +132,7 @@ class SgpModel:
             version,
             proj_system,
             use_direct_rates=use_direct_rates,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # 6. Run SGP for pitchers
@@ -154,6 +156,7 @@ class SgpModel:
             proj_system,
             pitcher_roster_spots=pitcher_roster_spots,
             use_direct_rates=use_direct_rates,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         # 7. Rank all valuations combined
@@ -202,6 +205,7 @@ class SgpModel:
         *,
         pitcher_roster_spots: dict[str, int] | None = None,
         use_direct_rates: bool = False,
+        use_optimal_assignment: bool = True,
     ) -> list[Valuation]:
         """Run the full SGP pipeline for one player pool."""
         if not projections:
@@ -226,11 +230,15 @@ class SgpModel:
             league.teams,
             budget,
             use_direct_rates=use_direct_rates,
+            use_optimal_assignment=use_optimal_assignment,
         )
 
         valuations: list[Valuation] = []
         for i, proj in enumerate(projections):
-            best_pos = best_position(player_positions[i], result.replacement)
+            if result.assignments is not None and i in result.assignments:
+                pos = result.assignments[i]
+            else:
+                pos = best_position(player_positions[i], result.replacement)
             valuations.append(
                 Valuation(
                     player_id=proj.player_id,
@@ -240,7 +248,7 @@ class SgpModel:
                     projection_system=proj_system,
                     projection_version=proj.version,
                     player_type=player_type,
-                    position=best_pos,
+                    position=pos,
                     value=round(result.dollar_values[i], 2),
                     rank=0,
                     category_scores=dict(result.sgp_scores[i].category_sgp),

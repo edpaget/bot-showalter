@@ -422,7 +422,9 @@ class ValuationEvaluator:
         player_positions = [position_map.get(pid, no_pos) for pid in player_ids]
         roster_spots = build_roster_spots(league, pitcher_roster_spots=pitcher_roster_spots)
 
-        result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
+        result = run_zar_pipeline(
+            stats_list, categories, player_positions, roster_spots, league.teams, budget, use_optimal_assignment=False
+        )
 
         return {(pid, player_type): val for pid, val in zip(player_ids, result.dollar_values, strict=True)}
 

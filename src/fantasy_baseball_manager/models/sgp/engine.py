@@ -11,6 +11,7 @@ from fantasy_baseball_manager.models.zar.engine import (
     compute_replacement_level,
     compute_var,
     resolve_numerator,
+    run_optimal_pipeline,
     var_to_dollars,
 )
 
@@ -27,6 +28,7 @@ class SgpPipelineResult:
     sgp_scores: list[PlayerSgpScores]
     replacement: dict[str, float]
     dollar_values: list[float]
+    assignments: dict[int, str] | None = None
 
 
 def compute_sgp_scores(
@@ -114,6 +116,7 @@ def run_sgp_pipeline(
     budget: float,
     *,
     use_direct_rates: bool = False,
+    use_optimal_assignment: bool = True,
 ) -> SgpPipelineResult:
     """Run the full SGP pipeline: SGP scores → replacement → VAR → dollars."""
     if not stats_list:
@@ -121,8 +124,16 @@ def run_sgp_pipeline(
 
     sgp_scores = compute_sgp_scores(stats_list, categories, denominators, use_direct_rates=use_direct_rates)
 
-    # Reuse ZAR's replacement/VAR/dollars logic — it operates on composite scores
-    # and positions, agnostic to whether the scores are z-scores or SGP.
+    if use_optimal_assignment:
+        composite_scores = [s.composite_sgp for s in sgp_scores]
+        replacement, dollar_values, assignments = run_optimal_pipeline(
+            composite_scores, player_positions, roster_spots, num_teams, budget
+        )
+        return SgpPipelineResult(
+            sgp_scores=sgp_scores, replacement=replacement, dollar_values=dollar_values, assignments=assignments
+        )
+
+    # Greedy fallback: reuse ZAR's replacement/VAR/dollars logic
     z_compat = [
         PlayerZScores(
             player_index=s.player_index,

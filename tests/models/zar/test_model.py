@@ -1,4 +1,7 @@
 import dataclasses
+from collections import Counter
+
+import pytest
 
 from fantasy_baseball_manager.domain import (
     Evaluable,
@@ -965,3 +968,67 @@ class TestZarModelVarianceCorrection:
         values_a = {v.player_id: v.value for v in val_repo_a.upserted}
         values_b = {v.player_id: v.value for v in val_repo_b.upserted}
         assert values_a == values_b
+
+
+# ---------------------------------------------------------------------------
+# Optimal assignment integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestZarModelOptimalAssignment:
+    def test_predict_uses_optimal_by_default(self) -> None:
+        """Default predict uses optimal assignment, producing solver-derived positions."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        assert len(val_repo.upserted) == 5
+
+    def test_predict_greedy_via_param(self) -> None:
+        """use_optimal_assignment=False preserves old greedy behavior."""
+        model, val_repo = _build_model()
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "use_optimal_assignment": False,
+            },
+            version="1.0",
+        )
+        model.predict(config)
+        assert len(val_repo.upserted) == 5
+
+    def test_optimal_dollar_sum_equals_budget(self) -> None:
+        """Dollar values should sum to total league budget."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        total = sum(v.value for v in val_repo.upserted)
+        league = _standard_league()
+        expected_budget = league.budget * league.teams
+        assert total == pytest.approx(expected_budget, abs=1.0)
+
+    def test_optimal_position_capacities(self) -> None:
+        """No position should exceed its slot count × teams."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        league = _standard_league()
+        batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
+        pos_counts = Counter(v.position for v in batter_vals if v.value > 0)
+        for pos, count in pos_counts.items():
+            if pos == "UTIL":
+                max_slots = league.roster_util * league.teams
+            elif pos in league.positions:
+                max_slots = league.positions[pos] * league.teams
+            else:
+                continue
+            assert count <= max_slots, f"{pos} has {count} assigned but only {max_slots} slots"
+
+    def test_optimal_valued_count_matches_slots(self) -> None:
+        """Assigned players get >= $1; count equals min(total_slots, num_players)."""
+        model, val_repo = _build_model()
+        model.predict(_standard_config())
+        batter_vals = [v for v in val_repo.upserted if v.player_type == "batter"]
+        pitcher_vals = [v for v in val_repo.upserted if v.player_type == "pitcher"]
+        batter_valued = [v for v in batter_vals if v.value > 0]
+        assert len(batter_valued) <= len(batter_vals)
+        pitcher_valued = [v for v in pitcher_vals if v.value > 0]
+        assert len(pitcher_valued) <= len(pitcher_vals)

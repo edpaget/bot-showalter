@@ -277,3 +277,42 @@ class TestComputeSgpScoresDirectRates:
         sgp_off = [s.composite_sgp for s in result_off.sgp_scores]
         sgp_on = [s.composite_sgp for s in result_on.sgp_scores]
         assert sgp_off != sgp_on
+
+
+class TestRunSgpPipelineOptimal:
+    def test_optimal_assignment_default(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}, {"hr": 10.0}]
+        categories = [_counting("hr")]
+        denominators = {"hr": 10.0}
+        positions = [["of"], ["of"], ["of"]]
+        roster_spots = {"of": 2}
+        result = run_sgp_pipeline(stats, categories, denominators, positions, roster_spots, num_teams=1, budget=100.0)
+        assert result.assignments is not None
+        assert len(result.assignments) == 2
+
+    def test_greedy_flag_disables_assignments(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}]
+        categories = [_counting("hr")]
+        denominators = {"hr": 10.0}
+        positions = [["of"], ["of"]]
+        roster_spots = {"of": 1}
+        result = run_sgp_pipeline(
+            stats,
+            categories,
+            denominators,
+            positions,
+            roster_spots,
+            num_teams=1,
+            budget=100.0,
+            use_optimal_assignment=False,
+        )
+        assert result.assignments is None
+
+    def test_optimal_dollar_sum(self) -> None:
+        stats = [{"hr": 30.0}, {"hr": 20.0}, {"hr": 10.0}]
+        categories = [_counting("hr")]
+        denominators = {"hr": 10.0}
+        positions = [["of"], ["of"], ["of"]]
+        roster_spots = {"of": 3}
+        result = run_sgp_pipeline(stats, categories, denominators, positions, roster_spots, num_teams=1, budget=90.0)
+        assert sum(result.dollar_values) == pytest.approx(90.0)
