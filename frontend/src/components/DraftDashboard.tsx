@@ -72,9 +72,9 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const [fetchRoster] = useLazyQuery(ROSTER_QUERY);
   const [fetchNeeds] = useLazyQuery(NEEDS_QUERY);
   const [fetchKeepers] = useLazyQuery(KEEPERS_QUERY);
-  const [startSession] = useMutation<StartSessionMutation>(START_SESSION);
-  const [pickMutation] = useMutation<PickMutation>(PICK);
-  const [undoMutation] = useMutation<UndoMutation>(UNDO);
+  const [startSession, { loading: starting }] = useMutation<StartSessionMutation>(START_SESSION);
+  const [pickMutation, { loading: picking }] = useMutation<PickMutation>(PICK);
+  const [undoMutation, { loading: undoing }] = useMutation<UndoMutation>(UNDO);
   const [endSession] = useMutation(END_SESSION);
 
   useSubscription<DraftEventsSubscription>(DRAFT_EVENTS_SUBSCRIPTION, {
@@ -186,6 +186,8 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         onResume={handleResume}
         onUndo={handleUndo}
         onEnd={handleEnd}
+        loading={starting}
+        undoing={undoing}
       />
 
       <div className="flex gap-3 flex-1 min-h-0">
@@ -196,6 +198,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
             onDraft={sessionActive ? handleDraft : undefined}
             onPlayerClick={openPlayer}
             sessionActive={sessionActive}
+            pickLoading={picking}
           />
         </div>
 
@@ -207,8 +210,14 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
               onDraft={handleDraft}
               onPlayerClick={openPlayer}
               sessionActive
+              pickLoading={picking}
             />
-            <ArbitragePanel arbitrage={ctx.arbitrage} sessionId={ctx.sessionId!} onDraft={handleDraft} />
+            <ArbitragePanel
+              arbitrage={ctx.arbitrage}
+              sessionId={ctx.sessionId!}
+              onDraft={handleDraft}
+              pickLoading={picking}
+            />
             <RosterPanel
               roster={ctx.roster}
               needs={ctx.needs}

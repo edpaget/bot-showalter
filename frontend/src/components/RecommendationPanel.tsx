@@ -9,6 +9,7 @@ interface RecommendationPanelProps {
   onDraft: (playerId: number, position: string) => void;
   onPlayerClick?: (playerId: number, playerName: string) => void;
   sessionActive: boolean;
+  pickLoading?: boolean;
 }
 
 export function RecommendationPanel({
@@ -16,6 +17,7 @@ export function RecommendationPanel({
   onDraft,
   onPlayerClick,
   sessionActive,
+  pickLoading,
 }: RecommendationPanelProps) {
   const [posFilter, setPosFilter] = useState<string>("All");
 
@@ -79,8 +81,9 @@ export function RecommendationPanel({
                   {sessionActive && (
                     <button
                       type="button"
+                      disabled={pickLoading}
                       onClick={() => onDraft(rec.playerId, rec.position)}
-                      className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                      className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Draft
                     </button>

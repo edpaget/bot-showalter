@@ -90,6 +90,7 @@ export interface DraftBoardTableProps {
   onDraft?: (playerId: number, position: string) => void;
   onPlayerClick?: (playerId: number, playerName: string, playerType: string) => void;
   sessionActive?: boolean;
+  pickLoading?: boolean;
 }
 
 type StatusFilter = "all" | "available" | "drafted";
@@ -102,6 +103,7 @@ export function DraftBoardTable({
   onDraft,
   onPlayerClick,
   sessionActive = false,
+  pickLoading,
 }: DraftBoardTableProps) {
   const { data, loading, error } = useQuery<BoardQuery>(BOARD_QUERY, {
     variables: { season, system: system ?? null, version: version ?? null },
@@ -285,8 +287,9 @@ export function DraftBoardTable({
                       {!isDrafted && onDraft && (
                         <button
                           type="button"
+                          disabled={pickLoading}
                           onClick={() => onDraft(row.playerId, row.position)}
-                          className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                          className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Draft
                         </button>

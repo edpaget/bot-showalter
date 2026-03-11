@@ -9,9 +9,10 @@ interface ArbitragePanelProps {
   arbitrage: ArbitrageReportType | null;
   sessionId: number;
   onDraft: (playerId: number, position: string) => void;
+  pickLoading?: boolean;
 }
 
-export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanelProps) {
+export function ArbitragePanel({ arbitrage, sessionId, onDraft, pickLoading }: ArbitragePanelProps) {
   const [tab, setTab] = useState<"falling" | "reaches">("falling");
   const [posFilter, setPosFilter] = useState<string>("All");
   const [threshold, setThreshold] = useState<number>(10);
@@ -95,7 +96,7 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
               />
             </label>
           </div>
-          <FallingTable players={filteredFalling} onDraft={onDraft} />
+          <FallingTable players={filteredFalling} onDraft={onDraft} pickLoading={pickLoading} />
         </>
       )}
 
@@ -107,9 +108,11 @@ export function ArbitragePanel({ arbitrage, sessionId, onDraft }: ArbitragePanel
 function FallingTable({
   players,
   onDraft,
+  pickLoading,
 }: {
   players: FallingPlayerType[];
   onDraft: (playerId: number, position: string) => void;
+  pickLoading?: boolean;
 }) {
   if (players.length === 0) {
     return <p className="text-xs text-gray-500">No falling players detected</p>;
@@ -139,8 +142,9 @@ function FallingTable({
             <td className="py-1">
               <button
                 type="button"
+                disabled={pickLoading}
                 onClick={() => onDraft(fp.playerId, fp.position.toUpperCase())}
-                className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Draft
               </button>

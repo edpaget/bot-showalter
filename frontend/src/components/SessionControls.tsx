@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { DraftSessionSummaryType, DraftStateType } from "../generated/graphql";
+import { Spinner } from "./Spinner";
 
 interface SessionControlsProps {
   sessionActive: boolean;
@@ -9,6 +10,8 @@ interface SessionControlsProps {
   onResume: (sessionId: number) => void;
   onUndo: () => void;
   onEnd: () => void;
+  loading?: boolean;
+  undoing?: boolean;
 }
 
 export function SessionControls({
@@ -19,6 +22,8 @@ export function SessionControls({
   onResume,
   onUndo,
   onEnd,
+  loading,
+  undoing,
 }: SessionControlsProps) {
   const [season, setSeason] = useState(2026);
   const [teams, setTeams] = useState(12);
@@ -40,9 +45,10 @@ export function SessionControls({
         <button
           type="button"
           onClick={onUndo}
-          disabled={state.picks.length === 0}
-          className="px-3 py-1 text-sm bg-amber-500 text-white rounded hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={undoing || state.picks.length === 0}
+          className="px-3 py-1 text-sm bg-amber-500 text-white rounded hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
         >
+          {undoing && <Spinner className="h-3 w-3" />}
           Undo
         </button>
         <button
@@ -112,6 +118,7 @@ export function SessionControls({
         )}
         <button
           type="button"
+          disabled={loading}
           onClick={() =>
             onStart({
               season,
@@ -121,9 +128,10 @@ export function SessionControls({
               budget: format === "auction" ? budget : undefined,
             })
           }
-          className="px-4 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-4 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
         >
-          Start Draft
+          {loading && <Spinner className="h-3 w-3" />}
+          {loading ? "Starting…" : "Start Draft"}
         </button>
       </div>
 
@@ -135,8 +143,9 @@ export function SessionControls({
               <button
                 type="button"
                 key={s.id}
+                disabled={loading}
                 onClick={() => onResume(s.id)}
-                className="px-3 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-100"
+                className="px-3 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 #{s.id} — {s.season} {s.format} ({s.pickCount} picks)
               </button>
