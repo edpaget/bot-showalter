@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import strawberry
 from strawberry.types import Info  # noqa: TC002 — Strawberry needs this at runtime
 
-from fantasy_baseball_manager.domain import ArbitrageReport, DraftBoard, Position, position_from_raw
+from fantasy_baseball_manager.domain import ArbitrageReport, DraftBoard, Position, TierAssignment, position_from_raw
 from fantasy_baseball_manager.services import (
     DraftEngine,
     DraftFormat,
@@ -149,10 +149,14 @@ class Query:
         adp_list = ctx.container.adp_repo.get_by_season(season, provider=ctx.adp_provider)
         profiles = ctx.container.player_profile_service.enrich_valuations(valuations, season)
 
+        tier_results = generate_tiers(valuations, ctx.container.player_repo)
+        tier_assignments = [TierAssignment(player_id=t.player_id, tier=t.tier) for t in tier_results]
+
         board = build_draft_board(
             valuations,
             ctx.league,
             player_names,
+            tiers=tier_assignments,
             adp=adp_list if adp_list else None,
             profiles=profiles,
             breakout_predictions=ctx.breakout_predictions,
