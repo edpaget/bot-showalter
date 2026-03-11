@@ -56,14 +56,6 @@ class SqliteKeeperCostRepo:
             ).fetchall()
             return [self._row_to_keeper_cost(row) for row in rows]
 
-    def rename_league(self, from_league: str, to_league: str) -> int:
-        with self._provider.connection() as conn:
-            cursor = conn.execute(
-                "UPDATE keeper_cost SET league = ? WHERE league = ?",
-                (to_league, from_league),
-            )
-            return cursor.rowcount
-
     @staticmethod
     def _select_sql() -> str:
         return (

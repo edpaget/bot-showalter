@@ -1,4 +1,3 @@
-from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.name_utils import strip_accents
@@ -6,7 +5,7 @@ from fantasy_baseball_manager.name_utils import strip_accents
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain.adp import ADP
     from fantasy_baseball_manager.domain.batting_stats import BattingStats
-    from fantasy_baseball_manager.domain.keeper import KeeperCost, LeagueKeeper
+    from fantasy_baseball_manager.domain.keeper import KeeperCost
     from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
     from fantasy_baseball_manager.domain.player import Player
     from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
@@ -215,53 +214,3 @@ class FakeKeeperCostRepo:
 
     def find_by_player(self, player_id: int) -> list[KeeperCost]:
         return [c for c in self._costs if c.player_id == player_id]
-
-    def rename_league(self, from_league: str, to_league: str) -> int:
-        count = 0
-        updated: list[KeeperCost] = []
-        for c in self._costs:
-            if c.league == from_league:
-                updated.append(replace(c, league=to_league))
-                count += 1
-            else:
-                updated.append(c)
-        self._costs = updated
-        return count
-
-
-class FakeLeagueKeeperRepo:
-    def __init__(self, keepers: list[LeagueKeeper] | None = None) -> None:
-        self._keepers: list[LeagueKeeper] = list(keepers) if keepers else []
-
-    def upsert_batch(self, keepers: list[LeagueKeeper]) -> int:
-        for keeper in keepers:
-            self._keepers = [
-                k
-                for k in self._keepers
-                if not (k.player_id == keeper.player_id and k.season == keeper.season and k.league == keeper.league)
-            ]
-            self._keepers.append(keeper)
-        return len(keepers)
-
-    def find_by_season_league(self, season: int, league: str) -> list[LeagueKeeper]:
-        return [k for k in self._keepers if k.season == season and k.league == league]
-
-    def find_by_team(self, season: int, league: str, team_name: str) -> list[LeagueKeeper]:
-        return [k for k in self._keepers if k.season == season and k.league == league and k.team_name == team_name]
-
-    def delete_by_season_league(self, season: int, league: str) -> int:
-        before = len(self._keepers)
-        self._keepers = [k for k in self._keepers if not (k.season == season and k.league == league)]
-        return before - len(self._keepers)
-
-    def rename_league(self, from_league: str, to_league: str) -> int:
-        count = 0
-        updated: list[LeagueKeeper] = []
-        for k in self._keepers:
-            if k.league == from_league:
-                updated.append(replace(k, league=to_league))
-                count += 1
-            else:
-                updated.append(k)
-        self._keepers = updated
-        return count

@@ -105,7 +105,6 @@ from fantasy_baseball_manager.services.injury_discount import apply_injury_disco
 from fantasy_baseball_manager.services.injury_profiler import InjuryProfiler, build_profiles
 from fantasy_baseball_manager.services.keeper_cost_derivation import derive_keeper_costs
 from fantasy_baseball_manager.services.keeper_history import build_keeper_histories
-from fantasy_baseball_manager.services.keeper_migration import migrate_league_name
 from fantasy_baseball_manager.services.keeper_optimizer import (
     compare_scenarios,
     compute_adjusted_draft_pool,
@@ -386,7 +385,6 @@ __all__ = [
     "KeeperPlannerService",
     "estimate_other_keepers",
     "derive_keeper_costs",
-    "migrate_league_name",
     "draft_report",
     "evaluate_pick_trade",
     "evaluate_pick_trade_with_context",

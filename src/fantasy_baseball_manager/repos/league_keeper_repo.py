@@ -60,14 +60,6 @@ class SqliteLeagueKeeperRepo:
             )
             return cursor.rowcount
 
-    def rename_league(self, from_league: str, to_league: str) -> int:
-        with self._provider.connection() as conn:
-            cursor = conn.execute(
-                "UPDATE league_keeper SET league = ? WHERE league = ?",
-                (to_league, from_league),
-            )
-            return cursor.rowcount
-
     @staticmethod
     def _select_sql() -> str:
         return "SELECT id, player_id, season, league, team_name, cost, source FROM league_keeper"
