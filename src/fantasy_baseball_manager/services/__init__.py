@@ -113,6 +113,7 @@ from fantasy_baseball_manager.services.keeper_optimizer import (
     solve_keepers,
     solve_keepers_with_pool,
 )
+from fantasy_baseball_manager.services.keeper_planner import KeeperPlannerService
 from fantasy_baseball_manager.services.keeper_service import (
     adjust_valuations_for_league_keepers,
     build_keeper_draft_needs,
@@ -381,6 +382,7 @@ __all__ = [
     "compute_value_curves",
     "scarcity_adjusted_value",
     "compute_surplus",
+    "KeeperPlannerService",
     "estimate_other_keepers",
     "derive_keeper_costs",
     "draft_report",

@@ -379,3 +379,66 @@ export const PLAYER_BIO_QUERY = gql`
     }
   }
 `;
+
+export const PLAN_KEEPER_DRAFT_QUERY = gql`
+  query PlanKeeperDraft(
+    $season: Int!
+    $maxKeepers: Int!
+    $system: String
+    $version: String
+    $customScenarios: [[Int!]!]
+    $boardPreviewSize: Int
+  ) {
+    planKeeperDraft(
+      season: $season
+      maxKeepers: $maxKeepers
+      system: $system
+      version: $version
+      customScenarios: $customScenarios
+      boardPreviewSize: $boardPreviewSize
+    ) {
+      scenarios {
+        keeperIds
+        keepers {
+          playerId
+          playerName
+          position
+          cost
+          surplus
+          projectedValue
+          recommendation
+        }
+        totalSurplus
+        boardPreview {
+          playerId
+          playerName
+          playerType
+          position
+          originalValue
+          adjustedValue
+          valueChange
+        }
+        scarcity {
+          position
+          tier1Value
+          replacementValue
+          totalSurplus
+          dropoffSlope
+        }
+        categoryNeeds {
+          category
+          currentRank
+          targetRank
+          bestAvailable {
+            playerId
+            playerName
+            categoryImpact
+            tradeoffCategories
+          }
+        }
+        strongestCategories
+        weakestCategories
+      }
+    }
+  }
+`;

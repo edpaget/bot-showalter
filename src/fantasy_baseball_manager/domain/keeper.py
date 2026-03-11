@@ -1,4 +1,11 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.category_tracker import CategoryNeed
+    from fantasy_baseball_manager.domain.positional_scarcity import PositionScarcity
 
 
 @dataclass(frozen=True)
@@ -93,6 +100,23 @@ class LeagueKeeper:
     cost: float | None = None
     source: str | None = None
     id: int | None = None
+
+
+@dataclass(frozen=True)
+class KeeperScenarioResult:
+    keeper_ids: frozenset[int]
+    keeper_decisions: tuple[KeeperDecision, ...]
+    total_surplus: float
+    board_preview: tuple[AdjustedValuation, ...]
+    scarcity: tuple[PositionScarcity, ...]
+    category_needs: tuple[CategoryNeed, ...]
+    strongest_categories: tuple[str, ...]
+    weakest_categories: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class KeeperPlanResult:
+    scenarios: tuple[KeeperScenarioResult, ...]
 
 
 @dataclass(frozen=True)

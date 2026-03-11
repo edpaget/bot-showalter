@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/valuations", label: "Valuations" },
   { to: "/adp", label: "ADP Report" },
   { to: "/players", label: "Player Search" },
+  { to: "/keeper-planner", label: "Keeper Planner" },
 ];
 
 export function AppLayout() {

@@ -22,6 +22,16 @@ type ADPReportType {
   nMatched: Int!
 }
 
+type AdjustedValuationType {
+  playerId: Int!
+  playerName: String!
+  playerType: String!
+  position: Position!
+  originalValue: Float!
+  adjustedValue: Float!
+  valueChange: Float!
+}
+
 type ArbitrageAlertEvent {
   sessionId: Int!
   falling: [FallingPlayerType!]!
@@ -132,6 +142,16 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](https:/
 """
 scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
 
+type KeeperDecisionType {
+  playerId: Int!
+  playerName: String!
+  position: Position!
+  cost: Float!
+  surplus: Float!
+  projectedValue: Float!
+  recommendation: String!
+}
+
 type KeeperInfoType {
   playerId: Int!
   playerName: String!
@@ -139,6 +159,21 @@ type KeeperInfoType {
   teamName: String!
   cost: Float
   value: Float!
+}
+
+type KeeperPlanType {
+  scenarios: [KeeperScenarioType!]!
+}
+
+type KeeperScenarioType {
+  keeperIds: [Int!]!
+  keepers: [KeeperDecisionType!]!
+  totalSurplus: Float!
+  boardPreview: [AdjustedValuationType!]!
+  scarcity: [PositionScarcityType!]!
+  categoryNeeds: [CategoryNeedType!]!
+  strongestCategories: [String!]!
+  weakestCategories: [String!]!
 }
 
 type LeagueSettingsType {
@@ -264,6 +299,7 @@ type Query {
   adpReport(season: Int!, system: String = null, version: String = null, provider: String = null): ADPReportType!
   playerSearch(name: String!, season: Int!): [PlayerSummaryType!]!
   playerBio(playerId: Int!, season: Int!): PlayerSummaryType
+  planKeeperDraft(season: Int!, maxKeepers: Int!, system: String = null, version: String = null, customScenarios: [[Int!]!] = null, boardPreviewSize: Int! = 20): KeeperPlanType!
   yahooPollStatus(sessionId: Int!): YahooPollStatusType!
 }
 

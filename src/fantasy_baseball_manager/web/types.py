@@ -7,6 +7,7 @@ from fantasy_baseball_manager.domain import Position, position_from_raw
 if TYPE_CHECKING:
     from fantasy_baseball_manager.config_toml import WebConfig
     from fantasy_baseball_manager.domain import (
+        AdjustedValuation,
         ArbitrageReport,
         CategoryConfig,
         CategoryNeed,
@@ -14,6 +15,9 @@ if TYPE_CHECKING:
         DraftBoardRow,
         DraftSessionRecord,
         FallingPlayer,
+        KeeperDecision,
+        KeeperPlanResult,
+        KeeperScenarioResult,
         LeagueSettings,
         PlayerProjection,
         PlayerRecommendation,
@@ -615,4 +619,86 @@ class WebConfigType:
         return WebConfigType(
             projections=[SystemVersionType(system=sv.system, version=sv.version) for sv in config.projections],
             valuations=[SystemVersionType(system=sv.system, version=sv.version) for sv in config.valuations],
+        )
+
+
+@strawberry.type
+class KeeperDecisionType:
+    player_id: int
+    player_name: str
+    position: Position
+    cost: float
+    surplus: float
+    projected_value: float
+    recommendation: str
+
+    @staticmethod
+    def from_domain(d: KeeperDecision) -> KeeperDecisionType:
+        return KeeperDecisionType(
+            player_id=d.player_id,
+            player_name=d.player_name,
+            position=position_from_raw(d.position),
+            cost=d.cost,
+            surplus=d.surplus,
+            projected_value=d.projected_value,
+            recommendation=d.recommendation,
+        )
+
+
+@strawberry.type
+class AdjustedValuationType:
+    player_id: int
+    player_name: str
+    player_type: str
+    position: Position
+    original_value: float
+    adjusted_value: float
+    value_change: float
+
+    @staticmethod
+    def from_domain(av: AdjustedValuation) -> AdjustedValuationType:
+        return AdjustedValuationType(
+            player_id=av.player_id,
+            player_name=av.player_name,
+            player_type=av.player_type,
+            position=position_from_raw(av.position),
+            original_value=av.original_value,
+            adjusted_value=av.adjusted_value,
+            value_change=av.value_change,
+        )
+
+
+@strawberry.type
+class KeeperScenarioType:
+    keeper_ids: list[int]
+    keepers: list[KeeperDecisionType]
+    total_surplus: float
+    board_preview: list[AdjustedValuationType]
+    scarcity: list[PositionScarcityType]
+    category_needs: list[CategoryNeedType]
+    strongest_categories: list[str]
+    weakest_categories: list[str]
+
+    @staticmethod
+    def from_domain(s: KeeperScenarioResult) -> KeeperScenarioType:
+        return KeeperScenarioType(
+            keeper_ids=sorted(s.keeper_ids),
+            keepers=[KeeperDecisionType.from_domain(d) for d in s.keeper_decisions],
+            total_surplus=s.total_surplus,
+            board_preview=[AdjustedValuationType.from_domain(a) for a in s.board_preview],
+            scarcity=[PositionScarcityType.from_domain(sc) for sc in s.scarcity],
+            category_needs=[CategoryNeedType.from_domain(n) for n in s.category_needs],
+            strongest_categories=list(s.strongest_categories),
+            weakest_categories=list(s.weakest_categories),
+        )
+
+
+@strawberry.type
+class KeeperPlanType:
+    scenarios: list[KeeperScenarioType]
+
+    @staticmethod
+    def from_domain(plan: KeeperPlanResult) -> KeeperPlanType:
+        return KeeperPlanType(
+            scenarios=[KeeperScenarioType.from_domain(s) for s in plan.scenarios],
         )

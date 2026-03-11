@@ -10,6 +10,7 @@ export const START_SESSION = gql`
     $userTeam: Int! = 1
     $format: String! = "snake"
     $budget: Int
+    $keeperPlayerIds: [Int!]
   ) {
     startSession(
       season: $season
@@ -19,6 +20,7 @@ export const START_SESSION = gql`
       userTeam: $userTeam
       format: $format
       budget: $budget
+      keeperPlayerIds: $keeperPlayerIds
     ) {
       sessionId
       currentPick

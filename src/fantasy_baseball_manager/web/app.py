@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from fantasy_baseball_manager.analysis_container import AnalysisContainer
     from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings
+    from fantasy_baseball_manager.services import KeeperPlannerService
     from fantasy_baseball_manager.web.session_manager import SessionManager
     from fantasy_baseball_manager.web.yahoo_poller_manager import YahooPollerManager
 
@@ -41,6 +42,7 @@ class AppContext:
     session_manager: SessionManager | None = None
     yahoo_poller_manager: YahooPollerManager | None = None
     breakout_predictions: list[BreakoutPrediction] | None = None
+    keeper_planner: KeeperPlannerService | None = None
 
 
 def create_app(
@@ -55,6 +57,7 @@ def create_app(
     default_system: str | None = None,
     default_version: str | None = None,
     web_config: WebConfig | None = None,
+    keeper_planner: KeeperPlannerService | None = None,
 ) -> FastAPI:
     """Create a FastAPI application with a GraphQL endpoint at /graphql."""
     if default_system is None or default_version is None:
@@ -78,6 +81,7 @@ def create_app(
         session_manager=session_manager,
         yahoo_poller_manager=yahoo_poller_manager,
         breakout_predictions=breakout_predictions,
+        keeper_planner=keeper_planner,
     )
 
     schema = strawberry.Schema(query=Query, mutation=Mutation, subscription=Subscription)

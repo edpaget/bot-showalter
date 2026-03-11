@@ -32,6 +32,7 @@ from fantasy_baseball_manager.web.types import (
     DraftStateType,
     FallingPlayerType,
     KeeperInfoType,
+    KeeperPlanType,
     LeagueSettingsType,
     PickEvent,
     PickResultType,
@@ -480,6 +481,31 @@ class Query:
         if result is None:
             return None
         return PlayerSummaryType.from_domain(result)
+
+    @strawberry.field
+    def plan_keeper_draft(
+        self,
+        info: Info,
+        season: int,
+        max_keepers: int,
+        system: str | None = None,
+        version: str | None = None,
+        custom_scenarios: list[list[int]] | None = None,
+        board_preview_size: int = 20,
+    ) -> KeeperPlanType:
+        ctx = _get_context(info)
+        keeper_planner = ctx.keeper_planner
+        if keeper_planner is None:
+            msg = "Keeper planner is not configured"
+            raise ValueError(msg)
+        converted = [set(s) for s in custom_scenarios] if custom_scenarios else None
+        result = keeper_planner.plan(
+            season=season,
+            max_keepers=max_keepers,
+            custom_scenarios=converted,
+            board_preview_size=board_preview_size,
+        )
+        return KeeperPlanType.from_domain(result)
 
     @strawberry.field
     def yahoo_poll_status(self, info: Info, session_id: int) -> YahooPollStatusType:

@@ -16,7 +16,11 @@ from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings, Valuation
 from fantasy_baseball_manager.models import ModelConfig
 from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqliteYahooPlayerMapRepo, SqliteYahooTeamRepo
-from fantasy_baseball_manager.services import PlayerEligibilityService, compute_adjusted_valuations
+from fantasy_baseball_manager.services import (
+    KeeperPlannerService,
+    PlayerEligibilityService,
+    compute_adjusted_valuations,
+)
 from fantasy_baseball_manager.web import EventBus, SessionManager, YahooPollerManager, create_app
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
@@ -151,6 +155,28 @@ def web(  # pragma: no cover
         frontend_dir = str(dist_path)
         logger.info("Serving frontend from %s", frontend_dir)
 
+    # Build keeper planner if keeper cost data exists
+    eligibility = PlayerEligibilityService(
+        container.position_appearance_repo,
+        pitching_stats_repo=container.pitching_stats_repo,
+    )
+    keeper_costs = container.keeper_cost_repo.find_by_season_league(season, league_name)
+    valuations = container.valuation_repo.get_by_season(season, system=system, version=version)
+    players_for_planner = container.player_repo.get_by_ids([v.player_id for v in valuations])
+    projections_for_planner = container.projection_repo.get_by_season(season)
+    batter_positions = eligibility.get_batter_positions(season, league)
+    pitcher_ids = [p.player_id for p in projections_for_planner if p.player_type == "pitcher"]
+    pitcher_positions = eligibility.get_pitcher_positions(season, league, pitcher_ids)
+    keeper_planner: KeeperPlannerService | None = KeeperPlannerService(
+        keeper_costs=keeper_costs,
+        valuations=valuations,
+        players=players_for_planner,
+        projections=projections_for_planner,
+        league=league,
+        batter_positions=batter_positions,
+        pitcher_positions=pitcher_positions,
+    )
+
     yahoo_poller_manager = None
     if yahoo_config_dir is not None:
         config = load_yahoo_config(Path(yahoo_config_dir))
@@ -178,5 +204,6 @@ def web(  # pragma: no cover
         frontend_dir=frontend_dir,
         default_system=system,
         default_version=version,
+        keeper_planner=keeper_planner,
     )
     uvicorn.run(app, host=host, port=port)

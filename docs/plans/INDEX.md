@@ -11,7 +11,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
-| [Keeper Draft Integration](keeper-draft-integration.md) | 5 | phases 1-4 done | keeper-optimization-solver (done), keeper-surplus-value (done), web-ui-foundation phases 1-5 (done), adp-arbitrage-alerts (done) |
 | [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 | phases 1-3 done | direct-rate-stats (done) |
 | [Draft Performance](draft-performance.md) | 4 | phase 1 done | none |
 
@@ -20,6 +19,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases |
 |---------|--------|
 | [Evaluation Framework](evaluation-framework.md) | 4 |
+| [Keeper Draft Integration](keeper-draft-integration.md) | 5 |
 | [Frontend DX](frontend-dx.md) | 5 |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 |
 | [Valuation Reform](valuation-reform.md) | 4 |

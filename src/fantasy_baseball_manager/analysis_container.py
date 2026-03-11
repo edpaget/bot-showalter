@@ -7,6 +7,7 @@ from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
     SqliteBattingStatsRepo,
+    SqliteKeeperCostRepo,
     SqliteLeagueKeeperRepo,
     SqlitePitchingStatsRepo,
     SqlitePlayerRepo,
@@ -83,6 +84,10 @@ class AnalysisContainer:
     @functools.cached_property
     def roster_stint_repo(self) -> SqliteRosterStintRepo:
         return SqliteRosterStintRepo(self._provider)
+
+    @functools.cached_property
+    def keeper_cost_repo(self) -> SqliteKeeperCostRepo:
+        return SqliteKeeperCostRepo(self._provider)
 
     @functools.cached_property
     def league_keeper_repo(self) -> SqliteLeagueKeeperRepo:
