@@ -10,7 +10,7 @@ This roadmap merges Yahoo league config into the league settings as `[leagues.*.
 |-------|--------|
 | 1 — Merge config parsing | done (2026-03-10) |
 | 2 — Migrate CLI and services | done (2026-03-11) |
-| 3 — Database migration and cleanup | not started |
+| 3 — Database migration and cleanup | in progress |
 
 ## Phase 1: Merge config parsing
 
