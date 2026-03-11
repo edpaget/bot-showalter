@@ -20,7 +20,7 @@ function ADPSection({
 }: {
   title: string;
   rows: AdpReportRowType[];
-  openPlayer: (id: number, name: string) => void;
+  openPlayer: (id: number, name: string, playerType?: string) => void;
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("rankDelta");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -86,7 +86,7 @@ function ADPSection({
                 <td className="border border-gray-200 px-2 py-1">
                   <button
                     type="button"
-                    onClick={() => openPlayer(r.playerId, r.playerName)}
+                    onClick={() => openPlayer(r.playerId, r.playerName, r.playerType)}
                     className="text-blue-600 hover:underline"
                   >
                     {r.playerName}

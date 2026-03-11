@@ -97,7 +97,13 @@ export function PlayerSearchView({ season = 2026 }: { season?: number }) {
                   <td className="border border-gray-200 px-2 py-1">
                     <button
                       type="button"
-                      onClick={() => openPlayer(p.playerId, p.name)}
+                      onClick={() =>
+                        openPlayer(
+                          p.playerId,
+                          p.name,
+                          ["SP", "RP", "P"].includes(p.primaryPosition) ? "pitcher" : "batter",
+                        )
+                      }
                       className="text-blue-600 hover:underline"
                     >
                       {p.name}

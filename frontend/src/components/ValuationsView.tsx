@@ -121,7 +121,7 @@ export function ValuationsView({ season = 2026 }: { season?: number }) {
                   <td className="border border-gray-200 px-2 py-1">
                     <button
                       type="button"
-                      onClick={() => openPlayer(0, v.playerName)}
+                      onClick={() => openPlayer(0, v.playerName, v.playerType)}
                       className="text-blue-600 hover:underline"
                     >
                       {v.playerName}

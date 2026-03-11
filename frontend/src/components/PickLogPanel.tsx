@@ -4,7 +4,7 @@ import { displayPosition } from "../lib/position";
 
 interface PickLogPanelProps {
   picks: DraftPickType[];
-  onPlayerClick?: (playerId: number, playerName: string) => void;
+  onPlayerClick?: (playerId: number, playerName: string, playerType?: string) => void;
 }
 
 export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
@@ -50,7 +50,13 @@ export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
                       {onPlayerClick ? (
                         <button
                           type="button"
-                          onClick={() => onPlayerClick(pick.playerId, pick.playerName)}
+                          onClick={() =>
+                            onPlayerClick(
+                              pick.playerId,
+                              pick.playerName,
+                              ["SP", "RP", "P"].includes(pick.position) ? "pitcher" : "batter",
+                            )
+                          }
                           className="text-blue-600 hover:underline"
                         >
                           {pick.playerName}
