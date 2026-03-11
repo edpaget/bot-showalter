@@ -21,6 +21,7 @@ def recommend(
     weights: RecommendationWeights | None = None,
     limit: int = 10,
     category_balance_fn: CategoryBalanceFn | None = None,
+    weak_categories: list[str] | None = None,
     draft_plan: DraftPlan | None = None,
     availability: list[AvailabilityWindow] | None = None,
 ) -> list[Recommendation]:
@@ -101,6 +102,7 @@ def recommend(
                     draft_plan=draft_plan,
                     current_round=current_round,
                     avail_map=avail_map,
+                    weak_categories=weak_categories,
                 ),
             )
         )
@@ -355,6 +357,7 @@ def _build_reason(
     draft_plan: DraftPlan | None = None,
     current_round: int = 1,
     avail_map: dict[int, AvailabilityWindow] | None = None,
+    weak_categories: list[str] | None = None,
 ) -> str:
     """Generate human-readable reason from the dominant secondary scoring factors."""
     pos = player.position
@@ -383,7 +386,8 @@ def _build_reason(
 
     cat_bal = cat_scores.get(player.player_id, 0.0) if cat_scores else 0.0
     if w.category_balance > 0 and cat_bal > 0.3:
-        contributions.append((w.category_balance * cat_bal, "addresses weak categories"))
+        cat_label = "fills " + " + ".join(weak_categories) + " gaps" if weak_categories else "addresses weak categories"
+        contributions.append((w.category_balance * cat_bal, cat_label))
 
     mock_pos = _mock_position_bonus(player, draft_plan, current_round)
     if w.mock_position > 0 and mock_pos > 0:

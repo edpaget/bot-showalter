@@ -9,8 +9,10 @@ from fantasy_baseball_manager.services import (
     DraftFormat,
     DraftPick,
     PlayerProfileService,
+    analyze_roster,
     build_draft_board,
     build_draft_roster_slots,
+    compute_category_balance_scores,
     load_draft_from_db,
 )
 
@@ -21,8 +23,10 @@ if TYPE_CHECKING:
         DraftSessionRepo,
         LeagueKeeperRepo,
         PlayerRepo,
+        ProjectionRepo,
         ValuationRepo,
     )
+    from fantasy_baseball_manager.services.draft_recommender import CategoryBalanceFn
 
 
 class ValuationAdjuster(Protocol):
@@ -48,6 +52,7 @@ class SessionManager:
         adp_provider: str,
         valuation_adjuster: ValuationAdjuster | None = None,
         league_keeper_repo: LeagueKeeperRepo | None = None,
+        projection_repo: ProjectionRepo | None = None,
     ) -> None:
         self._repo = session_repo
         self._valuation_repo = valuation_repo
@@ -58,6 +63,7 @@ class SessionManager:
         self._adp_provider = adp_provider
         self._valuation_adjuster = valuation_adjuster
         self._league_keeper_repo = league_keeper_repo
+        self._projection_repo = projection_repo
         self._engines: dict[int, DraftEngine] = {}
 
     def start_session(
@@ -206,6 +212,36 @@ class SessionManager:
             msg = f"Draft session {session_id} not found"
             raise ValueError(msg)
         return record.keeper_snapshot or []
+
+    def get_category_balance_fn(self, session_id: int) -> CategoryBalanceFn | None:
+        """Return a category-balance scoring function for keeper sessions, None otherwise."""
+        if self._projection_repo is None:
+            return None
+        record = self._repo.load_session(session_id)
+        if record is None or not record.keeper_player_ids:
+            return None
+        projections = self._projection_repo.get_by_season(record.season)
+        if not projections:
+            return None
+        league = self._league
+
+        def _category_balance(roster_ids: list[int], available_ids: list[int]) -> dict[int, float]:
+            return compute_category_balance_scores(roster_ids, available_ids, projections, league)
+
+        return _category_balance
+
+    def get_weak_categories(self, session_id: int) -> list[str] | None:
+        """Return weak category names for keeper sessions, None otherwise."""
+        if self._projection_repo is None:
+            return None
+        record = self._repo.load_session(session_id)
+        if record is None or not record.keeper_player_ids:
+            return None
+        projections = self._projection_repo.get_by_season(record.season)
+        if not projections:
+            return None
+        analysis = analyze_roster(record.keeper_player_ids, projections, self._league)
+        return analysis.weakest_categories or None
 
     def _build_keeper_snapshot(
         self,

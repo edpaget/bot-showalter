@@ -86,6 +86,34 @@ class TestDetectFallingPlayers:
         assert len(detect_falling_players(55, available, threshold=5)) == 1
 
 
+class TestCategoryScoresBoost:
+    def test_category_scores_boost_arbitrage_score(self) -> None:
+        available = [
+            _row(1, "CatFiller", 10.0, 30.0),
+            _row(2, "NoCat", 10.0, 30.0),
+        ]
+        cat_scores = {1: 1.0, 2: 0.0}
+        result = detect_falling_players(50, available, category_scores=cat_scores)
+        assert len(result) == 2
+        filler = next(r for r in result if r.player_id == 1)
+        nocat = next(r for r in result if r.player_id == 2)
+        assert filler.arbitrage_score > nocat.arbitrage_score
+
+    def test_category_scores_none_unchanged(self) -> None:
+        available = [_row(1, "Alice", 10.0, 30.0)]
+        result_none = detect_falling_players(50, available, category_scores=None)
+        result_default = detect_falling_players(50, available)
+        assert result_none[0].arbitrage_score == result_default[0].arbitrage_score
+
+    def test_category_scores_threaded_through_report(self) -> None:
+        available = [_row(1, "Faller", 10.0, 20.0)]
+        picks: list[DraftPick] = []
+        cat_scores = {1: 1.0}
+        report = build_arbitrage_report(40, available, picks, {}, category_scores=cat_scores)
+        report_no_cat = build_arbitrage_report(40, available, picks, {})
+        assert report.falling[0].arbitrage_score > report_no_cat.falling[0].arbitrage_score
+
+
 class TestDetectReaches:
     def test_reach_detected(self) -> None:
         picks = [DraftPick(pick_number=20, team=1, player_id=1, player_name="Alice", position="OF")]

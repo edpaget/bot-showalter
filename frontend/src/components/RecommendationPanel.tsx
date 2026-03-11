@@ -69,7 +69,12 @@ export function RecommendationPanel({
                 </td>
                 <td className="py-1">{displayPosition(rec.position)}</td>
                 <td className="py-1 font-mono">${rec.value.toFixed(1)}</td>
-                <td className="py-1 font-mono">{rec.score.toFixed(2)}</td>
+                <td className="py-1 font-mono">
+                  {rec.score.toFixed(2)}
+                  {/fills .+ gaps|addresses weak categories/.test(rec.reason) && (
+                    <span className="ml-1 px-1 py-0.5 text-[10px] bg-teal-100 text-teal-700 rounded">Cat</span>
+                  )}
+                </td>
                 <td className="py-1">
                   {sessionActive && (
                     <button

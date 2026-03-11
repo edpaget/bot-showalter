@@ -13,7 +13,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Performance](test-performance.md) | 4 | not started | none |
 | [Evaluation Framework](evaluation-framework.md) | 4 | phases 1-3 done | none |
 | [Valuation Accuracy](valuation-accuracy.md) | 4 | phases 1-2 done | breakout-bust-classifier (done), injury-risk-discount (done), variance-correction (done) |
-| [Keeper Draft Integration](keeper-draft-integration.md) | 5 | phases 1-3 done | keeper-optimization-solver (done), keeper-surplus-value (done), web-ui-foundation phases 1-5 (done), adp-arbitrage-alerts (done) |
+| [Keeper Draft Integration](keeper-draft-integration.md) | 5 | phases 1-4 done | keeper-optimization-solver (done), keeper-surplus-value (done), web-ui-foundation phases 1-5 (done), adp-arbitrage-alerts (done) |
 | [Direct Rate Stats](zar-direct-rate-stats.md) | 2 | phase 1 done | none |
 | [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 | phase 1 done | direct-rate-stats phase 1 (done) |
 

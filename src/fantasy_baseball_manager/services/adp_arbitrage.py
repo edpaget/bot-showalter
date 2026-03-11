@@ -14,12 +14,16 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.services.draft_state import DraftPick
 
 
+_CATEGORY_BOOST_WEIGHT = 0.5
+
+
 def detect_falling_players(
     current_pick: int,
     available: list[DraftBoardRow],
     *,
     threshold: int = 10,
     limit: int = 20,
+    category_scores: dict[int, float] | None = None,
 ) -> list[FallingPlayer]:
     with_adp = [r for r in available if r.adp_overall is not None]
 
@@ -35,7 +39,12 @@ def detect_falling_players(
         picks_past = current_pick - adp
         if picks_past <= threshold:
             continue
-        score = row.value * math.log(1 + picks_past)
+        base_score = row.value * math.log(1 + picks_past)
+        if category_scores is not None:
+            cat_score = category_scores.get(row.player_id, 0.0)
+            score = base_score * (1 + _CATEGORY_BOOST_WEIGHT * cat_score)
+        else:
+            score = base_score
         falling.append(
             FallingPlayer(
                 player_id=row.player_id,
@@ -91,9 +100,12 @@ def build_arbitrage_report(
     *,
     threshold: int = 10,
     limit: int = 20,
+    category_scores: dict[int, float] | None = None,
 ) -> ArbitrageReport:
     return ArbitrageReport(
         current_pick=current_pick,
-        falling=detect_falling_players(current_pick, available, threshold=threshold, limit=limit),
+        falling=detect_falling_players(
+            current_pick, available, threshold=threshold, limit=limit, category_scores=category_scores
+        ),
         reaches=detect_reaches(picks, adp_lookup, threshold=threshold),
     )

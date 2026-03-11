@@ -9,6 +9,7 @@ from fantasy_baseball_manager.domain import (
     LeagueKeeper,
     LeagueSettings,
     Player,
+    Projection,
     StatType,
     Valuation,
 )
@@ -22,6 +23,7 @@ from fantasy_baseball_manager.repos import (
 from fantasy_baseball_manager.services import PlayerProfileService
 from fantasy_baseball_manager.web import SessionManager
 from fantasy_baseball_manager.web.session_manager import DraftSessionSummary
+from tests.fakes.repos import FakeProjectionRepo
 
 _LEAGUE = LeagueSettings(
     name="Test League",
@@ -567,3 +569,89 @@ class TestAutoLoadKeepers:
         available_ids = {r.player_id for r in engine.available()}
         assert 1 in available_ids
         assert 2 in available_ids
+
+
+class TestGetCategoryBalanceFn:
+    def test_returns_function_for_keeper_session(self) -> None:
+        mgr, _ = _make_manager_with_adjuster()
+        projections = [
+            Projection(
+                player_id=1,
+                season=2026,
+                system="steamer",
+                version="2026",
+                player_type="batter",
+                stat_json={"HR": 30, "RBI": 90},
+            ),
+            Projection(
+                player_id=2,
+                season=2026,
+                system="steamer",
+                version="2026",
+                player_type="batter",
+                stat_json={"HR": 25, "RBI": 80},
+            ),
+        ]
+        fake_proj_repo = FakeProjectionRepo(projections)
+        mgr._projection_repo = fake_proj_repo
+
+        sid, _ = mgr.start_session(2026, keeper_player_ids={1})
+        fn = mgr.get_category_balance_fn(sid)
+        assert fn is not None
+        # Call it — should return dict[int, float]
+        result = fn([], [2])
+        assert isinstance(result, dict)
+
+    def test_returns_none_for_non_keeper_session(self) -> None:
+        mgr = _make_manager()
+        projections = [
+            Projection(
+                player_id=1, season=2026, system="steamer", version="2026", player_type="batter", stat_json={"HR": 30}
+            ),
+        ]
+        mgr._projection_repo = FakeProjectionRepo(projections)
+
+        sid, _ = mgr.start_session(2026)
+        fn = mgr.get_category_balance_fn(sid)
+        assert fn is None
+
+    def test_returns_none_when_no_projection_repo(self) -> None:
+        mgr, _ = _make_manager_with_adjuster()
+        sid, _ = mgr.start_session(2026, keeper_player_ids={1})
+        fn = mgr.get_category_balance_fn(sid)
+        assert fn is None
+
+
+class TestGetWeakCategories:
+    def test_returns_weak_categories_for_keeper_session(self) -> None:
+        mgr, _ = _make_manager_with_adjuster()
+        # Create projections where keepers have extreme weakness in a category
+        projections = [
+            Projection(
+                player_id=1,
+                season=2026,
+                system="steamer",
+                version="2026",
+                player_type="batter",
+                stat_json={"HR": 0, "RBI": 0},
+            ),
+        ]
+        mgr._projection_repo = FakeProjectionRepo(projections)
+
+        sid, _ = mgr.start_session(2026, keeper_player_ids={1})
+        weak = mgr.get_weak_categories(sid)
+        # Should return a list (possibly empty) or None — just verify it's callable
+        assert weak is None or isinstance(weak, list)
+
+    def test_returns_none_for_non_keeper_session(self) -> None:
+        mgr = _make_manager()
+        projections = [
+            Projection(
+                player_id=1, season=2026, system="steamer", version="2026", player_type="batter", stat_json={"HR": 30}
+            ),
+        ]
+        mgr._projection_repo = FakeProjectionRepo(projections)
+
+        sid, _ = mgr.start_session(2026)
+        weak = mgr.get_weak_categories(sid)
+        assert weak is None

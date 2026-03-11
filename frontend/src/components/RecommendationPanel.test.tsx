@@ -51,4 +51,29 @@ describe("RecommendationPanel", () => {
     render(<RecommendationPanel recommendations={RECS} onDraft={vi.fn()} sessionActive />);
     expect(screen.getByText("Mike Trout").closest("td")).toHaveAttribute("title", "Best value");
   });
+
+  it("shows Cat badge when reason includes category fill", () => {
+    const catRecs: Recommendation[] = [
+      { playerId: 10, playerName: "SB Guy", position: "OF", value: 15, score: 0.8, reason: "fills SB + ERA gaps" },
+      { playerId: 11, playerName: "No Cat", position: "OF", value: 15, score: 0.7, reason: "best value available" },
+    ];
+    render(<RecommendationPanel recommendations={catRecs} onDraft={vi.fn()} sessionActive />);
+    const badges = screen.getAllByText("Cat");
+    expect(badges).toHaveLength(1);
+  });
+
+  it("shows Cat badge for generic weak categories reason", () => {
+    const catRecs: Recommendation[] = [
+      {
+        playerId: 10,
+        playerName: "Weak Cat",
+        position: "OF",
+        value: 15,
+        score: 0.8,
+        reason: "addresses weak categories",
+      },
+    ];
+    render(<RecommendationPanel recommendations={catRecs} onDraft={vi.fn()} sessionActive />);
+    expect(screen.getByText("Cat")).toBeInTheDocument();
+  });
 });

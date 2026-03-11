@@ -6,6 +6,7 @@ from strawberry.types import Info  # noqa: TC002 — Strawberry needs this at ru
 
 from fantasy_baseball_manager.domain import ArbitrageReport, DraftBoard, Position, position_from_raw
 from fantasy_baseball_manager.services import (
+    DraftEngine,
     DraftFormat,
     analyze_roster,
     auto_detect_position,
@@ -67,6 +68,21 @@ def _get_keeper_count(mgr: SessionManager, session_id: int) -> int:
     return len(mgr.get_keepers(session_id))
 
 
+def _compute_arbitrage_cat_scores(
+    info: Info,
+    session_id: int,
+    engine: DraftEngine,
+) -> dict[int, float] | None:
+    """Compute category balance scores for arbitrage boosting in keeper sessions."""
+    mgr = _get_session_manager(info)
+    cat_bal_fn = mgr.get_category_balance_fn(session_id)
+    if cat_bal_fn is None:
+        return None
+    roster_ids = [p.player_id for p in engine.my_roster()]
+    available_ids = list(engine.state.available_pool.keys())
+    return cat_bal_fn(roster_ids, available_ids)
+
+
 def _build_pick_result(
     info: Info,
     session_id: int,
@@ -75,17 +91,21 @@ def _build_pick_result(
     mgr = _get_session_manager(info)
     engine = mgr.get_engine(session_id)
 
-    recs = recommend(engine.state, limit=10)
+    cat_bal_fn = mgr.get_category_balance_fn(session_id)
+    weak_cats = mgr.get_weak_categories(session_id)
+    recs = recommend(engine.state, limit=10, category_balance_fn=cat_bal_fn, weak_categories=weak_cats)
     roster = engine.my_roster()
     needs = engine.my_needs()
 
     adp_lookup = {r.player_id: r.adp_overall for r in engine.state.available_pool.values() if r.adp_overall is not None}
     available = engine.available()
+    arb_cat_scores = _compute_arbitrage_cat_scores(info, session_id, engine)
     report = build_arbitrage_report(
         engine.state.current_pick,
         available,
         engine.state.picks,
         adp_lookup,
+        category_scores=arb_cat_scores,
     )
 
     keeper_count = _get_keeper_count(mgr, session_id)
@@ -230,7 +250,9 @@ class Query:
     ) -> list[RecommendationType]:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
-        recs = recommend(engine.state, limit=limit)
+        cat_bal_fn = mgr.get_category_balance_fn(session_id)
+        weak_cats = mgr.get_weak_categories(session_id)
+        recs = recommend(engine.state, limit=limit, category_balance_fn=cat_bal_fn, weak_categories=weak_cats)
         if position is not None:
             recs = [r for r in recs if r.position == position.value]
         return [RecommendationType.from_domain(r) for r in recs]
@@ -298,6 +320,7 @@ class Query:
             r.player_id: r.adp_overall for r in engine.state.available_pool.values() if r.adp_overall is not None
         }
         available = engine.available()
+        arb_cat_scores = _compute_arbitrage_cat_scores(info, session_id, engine)
         report = build_arbitrage_report(
             engine.state.current_pick,
             available,
@@ -305,6 +328,7 @@ class Query:
             adp_lookup,
             threshold=threshold,
             limit=limit,
+            category_scores=arb_cat_scores,
         )
         if position is not None:
             filtered_falling = [f for f in report.falling if f.position == position.value]
@@ -490,7 +514,10 @@ class Mutation:
 
         # Publish arbitrage alert for significant fallers
         available = engine.available()
-        falling = detect_falling_players(engine.state.current_pick, available, threshold=20, limit=20)
+        arb_cat_scores = _compute_arbitrage_cat_scores(info, session_id, engine)
+        falling = detect_falling_players(
+            engine.state.current_pick, available, threshold=20, limit=20, category_scores=arb_cat_scores
+        )
         alert_falling = [f for f in falling if f.value_rank <= 50][:3]
         if alert_falling:
             await ctx.event_bus.publish(
