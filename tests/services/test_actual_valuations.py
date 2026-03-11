@@ -1,4 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from fantasy_baseball_manager.domain import Position
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -39,6 +46,7 @@ class FakeEligibilityProvider:
         season: int,
         league: LeagueSettings,
         pitcher_ids: list[int],
+        projections: list[Projection] | None = None,
     ) -> dict[int, list[str]]:
         return {pid: self._pitcher_positions.get(pid, ["p"]) for pid in pitcher_ids}
 

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.models.zar.positions import build_position_map
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import LeagueSettings, PitchingStats
+    from fantasy_baseball_manager.domain import LeagueSettings, PitchingStats, Projection
     from fantasy_baseball_manager.repos import PitchingStatsRepo, PositionAppearanceRepo
 
 
@@ -44,6 +44,7 @@ class PlayerEligibilityService:
         season: int,
         league: LeagueSettings,
         pitcher_ids: list[int],
+        projections: list[Projection] | None = None,
     ) -> dict[int, list[str]]:
         """Return a map of pitcher IDs to eligible pitcher position keys.
 
@@ -51,14 +52,25 @@ class PlayerEligibilityService:
         pitcher (backward-compatible behaviour).
 
         Otherwise derives SP/RP eligibility from pitching stats (games started
-        vs. relief appearances) and falls back to *season - 1* when no stats
-        exist for the target season.
+        vs. relief appearances) and falls back to projected G/GS when no
+        historical stats exist for a pitcher.
         """
         if not league.pitcher_positions:
             return {pid: ["P"] for pid in pitcher_ids}
 
         stats = self._get_pitching_stats(season, league.eligibility.carryover_seasons)
         aggregated = self._aggregate_pitching_stats(stats, pitcher_ids)
+
+        # Fill in pitchers missing from stats using projection G/GS
+        if projections is not None:
+            pid_set = set(pitcher_ids)
+            for proj in projections:
+                if proj.player_id in pid_set and proj.player_id not in aggregated:
+                    g = proj.stat_json.get("g") or 0
+                    gs = proj.stat_json.get("gs") or 0
+                    if isinstance(g, (int, float)) and isinstance(gs, (int, float)):
+                        aggregated[proj.player_id] = (int(g), int(gs))
+
         return self._classify(
             aggregated,
             pitcher_ids,

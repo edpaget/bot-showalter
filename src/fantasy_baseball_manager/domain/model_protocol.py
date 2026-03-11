@@ -222,6 +222,7 @@ class EligibilityProvider(Protocol):
         season: int,
         league: LeagueSettings,
         pitcher_ids: list[int],
+        projections: list[Projection] | None = None,
     ) -> dict[int, list[str]]: ...
 
 

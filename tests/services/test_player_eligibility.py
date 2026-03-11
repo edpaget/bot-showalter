@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain.league_settings import (
 )
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
+from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.services.player_eligibility import PlayerEligibilityService
 from tests.fakes.repos import FakePitchingStatsRepo, FakePositionAppearanceRepo
 
@@ -505,3 +506,82 @@ class TestCustomPitcherThresholds:
         result = service.get_pitcher_positions(2025, league, [10])
         assert "SP" in result[10]
         assert "RP" not in result[10]
+
+
+class TestProjectionFallback:
+    """Pitchers without historical stats use projected G/GS as a fallback."""
+
+    def test_projection_fallback_classifies_sp(self) -> None:
+        """Pitcher with no stats but projected as starter gets SP."""
+        projs = [
+            Projection(
+                player_id=99,
+                season=2026,
+                system="steamer",
+                version="2026",
+                player_type="pitcher",
+                stat_json={"g": 32, "gs": 32, "ip": 190},
+            ),
+        ]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2026, league, [99], projections=projs)
+        assert "SP" in result[99]
+        assert "P" in result[99]
+
+    def test_projection_fallback_classifies_rp(self) -> None:
+        """Pitcher with no stats but projected as reliever gets RP."""
+        projs = [
+            Projection(
+                player_id=99,
+                season=2026,
+                system="steamer",
+                version="2026",
+                player_type="pitcher",
+                stat_json={"g": 60, "gs": 0, "ip": 65},
+            ),
+        ]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2026, league, [99], projections=projs)
+        assert "RP" in result[99]
+        assert "SP" not in result[99]
+
+    def test_historical_stats_take_precedence(self) -> None:
+        """When both historical stats and projections exist, historical wins."""
+        stats = [_pitching_stats(10, 2025, g=60, gs=0)]
+        projs = [
+            Projection(
+                player_id=10,
+                season=2026,
+                system="steamer",
+                version="2026",
+                player_type="pitcher",
+                stat_json={"g": 32, "gs": 32},
+            ),
+        ]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2026, league, [10], projections=projs)
+        # Historical says RP, projection says SP — historical wins
+        assert "RP" in result[10]
+        assert "SP" not in result[10]
+
+    def test_no_projections_still_works(self) -> None:
+        """Without projections parameter, behaves as before."""
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2025, league, [99])
+        assert result[99] == ["P"]

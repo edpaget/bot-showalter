@@ -130,7 +130,7 @@ class ZarModel:
 
         # 5. Run ZAR for pitchers
         pitcher_position_map = self._eligibility_service.get_pitcher_positions(
-            season, league, [p.player_id for p in pitcher_projs]
+            season, league, [p.player_id for p in pitcher_projs], projections=pitcher_projs
         )
         if league.pitcher_positions:
             pitcher_roster_spots = dict(league.pitcher_positions)
