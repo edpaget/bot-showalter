@@ -13,6 +13,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Draft Performance](draft-performance.md) | 4 | phases 1-2 done | none |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [Unified League Config](unified-league-config.md) | 3 | phases 1-2 done | none |
+| [Optimal Position Assignment](optimal-position-assignment.md) | 4 | not started | none |
 
 ## Completed Roadmaps
 
