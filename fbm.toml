@@ -199,10 +199,19 @@ direction = "higher"
 # FBM_YAHOO_CLIENT_ID / FBM_YAHOO_CLIENT_SECRET env vars.
 
 [yahoo]
-default_league = "keeper"
+default_league = "h2h"
 
-[yahoo.leagues.keeper]
+[leagues.h2h.yahoo]
 league_id = 12345
 
-[yahoo.leagues.redraft]
+[leagues.redraft]
+format = "h2h_categories"
+teams = 12
+budget = 260
+roster_batters = 9
+roster_pitchers = 8
+batting_categories = []
+pitching_categories = []
+
+[leagues.redraft.yahoo]
 league_id = 67890

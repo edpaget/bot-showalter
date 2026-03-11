@@ -448,6 +448,33 @@ class TestParseLeague:
         settings = parse_league("main", raw)
         assert settings.pitcher_positions == {"SP": 2, "RP": 2, "P": 4}
 
+    def test_yahoo_subtable_ignored(self) -> None:
+        """parse_league() silently ignores a 'yahoo' sub-table (used by config_yahoo)."""
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+            "yahoo": {"league_id": 12345, "keeper": True},
+        }
+        settings = parse_league("main", raw)
+        assert settings.name == "main"
+        assert settings.teams == 12
+
     def test_missing_required_field(self) -> None:
         raw = {
             "format": "h2h_categories",
