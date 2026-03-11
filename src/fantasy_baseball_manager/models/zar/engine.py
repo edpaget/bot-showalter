@@ -2,6 +2,7 @@ import statistics
 from dataclasses import dataclass
 
 from fantasy_baseball_manager.domain import (
+    BudgetSplitMode,
     CategoryConfig,
     Direction,
     LeagueSettings,
@@ -271,11 +272,27 @@ def run_zar_pipeline(
 
 
 def compute_budget_split(league: LeagueSettings) -> tuple[float, float]:
-    """Split total league budget proportionally between batting and pitching categories."""
+    """Split total league budget between batting and pitching.
+
+    When ``budget_split`` is ``ROSTER_SPOTS`` (the default), the split is
+    proportional to ``roster_batters / (roster_batters + roster_pitchers)``.
+    When ``CATEGORIES``, it uses the category count ratio (legacy behaviour).
+    """
+    total_budget = league.budget * league.teams
+
+    if league.budget_split is BudgetSplitMode.ROSTER_SPOTS:
+        total_slots = league.roster_batters + league.roster_pitchers
+        if total_slots == 0:
+            return 0.0, 0.0
+        return (
+            total_budget * league.roster_batters / total_slots,
+            total_budget * league.roster_pitchers / total_slots,
+        )
+
+    # CATEGORIES mode — legacy behaviour
     n_bat = len(league.batting_categories)
     n_pitch = len(league.pitching_categories)
     total = n_bat + n_pitch
-    total_budget = league.budget * league.teams
     if total == 0:
         return 0.0, 0.0
     return total_budget * n_bat / total, total_budget * n_pitch / total

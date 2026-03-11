@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.config_toml import load_toml
 from fantasy_baseball_manager.domain import (
+    BudgetSplitMode,
     CategoryConfig,
     Direction,
     EligibilityRules,
@@ -129,6 +130,14 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
     eligibility_raw = raw.get("eligibility", {})
     eligibility = EligibilityRules(**eligibility_raw)
 
+    budget_split_kwargs: dict[str, BudgetSplitMode] = {}
+    raw_budget_split = raw.get("budget_split")
+    if raw_budget_split is not None:
+        try:
+            budget_split_kwargs["budget_split"] = BudgetSplitMode(raw_budget_split)
+        except ValueError:
+            raise LeagueConfigError(f"{context}: invalid budget_split '{raw_budget_split}'") from None
+
     settings = LeagueSettings(
         name=name,
         format=league_format,
@@ -142,6 +151,7 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
         roster_bench=raw.get("roster_bench", 0),
         positions=_parse_positions(raw.get("positions", {}), context),
         pitcher_positions=_parse_positions(raw.get("pitcher_positions", {}), context),
+        **budget_split_kwargs,
         eligibility=eligibility,
     )
 

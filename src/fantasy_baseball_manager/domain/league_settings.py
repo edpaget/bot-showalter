@@ -12,6 +12,11 @@ class Direction(StrEnum):
     LOWER = "lower"
 
 
+class BudgetSplitMode(StrEnum):
+    CATEGORIES = "categories"
+    ROSTER_SPOTS = "roster_spots"
+
+
 class LeagueFormat(StrEnum):
     H2H_CATEGORIES = "h2h_categories"
     ROTO = "roto"
@@ -51,4 +56,5 @@ class LeagueSettings:
     roster_bench: int = 0
     positions: dict[str, int] = field(default_factory=dict)
     pitcher_positions: dict[str, int] = field(default_factory=dict)
+    budget_split: BudgetSplitMode = BudgetSplitMode.ROSTER_SPOTS
     eligibility: EligibilityRules = field(default_factory=EligibilityRules)

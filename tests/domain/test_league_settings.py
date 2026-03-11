@@ -1,6 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.domain.league_settings import (
+    BudgetSplitMode,
     CategoryConfig,
     Direction,
     EligibilityRules,
@@ -28,6 +29,16 @@ class TestDirection:
     def test_invalid_raises(self) -> None:
         with pytest.raises(ValueError):
             Direction("invalid")
+
+
+class TestBudgetSplitMode:
+    def test_from_string(self) -> None:
+        assert BudgetSplitMode("categories") is BudgetSplitMode.CATEGORIES
+        assert BudgetSplitMode("roster_spots") is BudgetSplitMode.ROSTER_SPOTS
+
+    def test_invalid_raises(self) -> None:
+        with pytest.raises(ValueError):
+            BudgetSplitMode("invalid")
 
 
 class TestLeagueFormat:
@@ -162,6 +173,7 @@ class TestLeagueSettings:
         )
         assert settings.roster_util == 0
         assert settings.positions == {}
+        assert settings.budget_split is BudgetSplitMode.ROSTER_SPOTS
 
     def test_frozen(
         self,

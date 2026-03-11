@@ -148,6 +148,7 @@ from fantasy_baseball_manager.domain.keeper_optimization import (
 )
 from fantasy_baseball_manager.domain.league_environment import LeagueEnvironment
 from fantasy_baseball_manager.domain.league_settings import (
+    BudgetSplitMode,
     CategoryConfig,
     Direction,
     EligibilityRules,
@@ -353,6 +354,7 @@ __all__ = [
     "BinTargetMean",
     "BinnedValue",
     "BotStrategy",
+    "BudgetSplitMode",
     "CalibrationBin",
     "ClassifierCalibrationBin",
     "ClassifierEvaluation",

@@ -12,6 +12,7 @@ from fantasy_baseball_manager.config_league import (
     validate_league,
 )
 from fantasy_baseball_manager.domain.league_settings import (
+    BudgetSplitMode,
     CategoryConfig,
     Direction,
     EligibilityRules,
@@ -447,6 +448,105 @@ class TestParseLeague:
         }
         settings = parse_league("main", raw)
         assert settings.pitcher_positions == {"SP": 2, "RP": 2, "P": 4}
+
+    def test_budget_split_omitted_uses_default(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.budget_split is BudgetSplitMode.ROSTER_SPOTS
+
+    def test_budget_split_categories_explicit(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "budget_split": "categories",
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.budget_split is BudgetSplitMode.CATEGORIES
+
+    def test_budget_split_roster_spots_explicit(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "budget_split": "roster_spots",
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.budget_split is BudgetSplitMode.ROSTER_SPOTS
+
+    def test_budget_split_invalid_rejected(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "budget_split": "invalid",
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        with pytest.raises(LeagueConfigError, match="budget_split"):
+            parse_league("main", raw)
 
     def test_yahoo_subtable_ignored(self) -> None:
         """parse_league() silently ignores a 'yahoo' sub-table (used by config_yahoo)."""

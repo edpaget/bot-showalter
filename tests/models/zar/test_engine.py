@@ -1,6 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.domain.league_settings import (
+    BudgetSplitMode,
     CategoryConfig,
     Direction,
     LeagueFormat,
@@ -549,48 +550,82 @@ def _league(
     pitching_categories: tuple[CategoryConfig, ...] = (),
     teams: int = 2,
     budget: int = 260,
+    roster_batters: int = 3,
+    roster_pitchers: int = 2,
+    budget_split: BudgetSplitMode = BudgetSplitMode.ROSTER_SPOTS,
 ) -> LeagueSettings:
     return LeagueSettings(
         name="Test",
         format=LeagueFormat.H2H_CATEGORIES,
         teams=teams,
         budget=budget,
-        roster_batters=3,
-        roster_pitchers=2,
+        roster_batters=roster_batters,
+        roster_pitchers=roster_pitchers,
         batting_categories=batting_categories,
         pitching_categories=pitching_categories,
+        budget_split=budget_split,
     )
 
 
 class TestComputeBudgetSplit:
-    def test_equal_categories_50_50(self) -> None:
+    def test_default_uses_roster_spots(self) -> None:
+        """Default mode (ROSTER_SPOTS) splits by roster_batters / roster_pitchers."""
         league = _league(
             batting_categories=(_counting("hr"), _counting("r")),
             pitching_categories=(_counting("w"), _counting("sv")),
             teams=1,
             budget=100,
+            roster_batters=3,
+            roster_pitchers=2,
         )
         bat_budget, pitch_budget = compute_budget_split(league)
-        assert bat_budget == pytest.approx(50.0)
-        assert pitch_budget == pytest.approx(50.0)
+        # 3/(3+2) = 60%, 2/(3+2) = 40%
+        assert bat_budget == pytest.approx(60.0)
+        assert pitch_budget == pytest.approx(40.0)
 
-    def test_unequal_categories_proportional(self) -> None:
+    def test_categories_mode_explicit(self) -> None:
+        """Explicit CATEGORIES mode uses category count ratio."""
         league = _league(
             batting_categories=(_counting("hr"), _counting("r"), _counting("rbi")),
             pitching_categories=(_counting("w"),),
             teams=2,
             budget=260,
+            budget_split=BudgetSplitMode.CATEGORIES,
         )
         bat_budget, pitch_budget = compute_budget_split(league)
         total = 260 * 2
         assert bat_budget == pytest.approx(total * 3 / 4)
         assert pitch_budget == pytest.approx(total * 1 / 4)
 
-    def test_zero_total_categories(self) -> None:
-        league = _league()
+    def test_zero_roster_totals(self) -> None:
+        """roster_batters=0 and roster_pitchers=0 returns (0.0, 0.0)."""
+        league = _league(roster_batters=0, roster_pitchers=0)
         bat_budget, pitch_budget = compute_budget_split(league)
         assert bat_budget == 0.0
         assert pitch_budget == 0.0
+
+    def test_zero_total_categories(self) -> None:
+        """CATEGORIES mode with no categories returns (0.0, 0.0)."""
+        league = _league(budget_split=BudgetSplitMode.CATEGORIES)
+        bat_budget, pitch_budget = compute_budget_split(league)
+        assert bat_budget == 0.0
+        assert pitch_budget == 0.0
+
+    def test_roster_spots_proportional(self) -> None:
+        """H2H-like config: 9 batters, 8 pitchers, $260x12."""
+        league = _league(
+            batting_categories=(_counting("hr"),) * 5,
+            pitching_categories=(_counting("w"),) * 5,
+            teams=12,
+            budget=260,
+            roster_batters=9,
+            roster_pitchers=8,
+        )
+        bat_budget, pitch_budget = compute_budget_split(league)
+        total = 260 * 12  # 3120
+        assert bat_budget == pytest.approx(total * 9 / 17)  # ~1651.76
+        assert pitch_budget == pytest.approx(total * 8 / 17)  # ~1468.24
+        assert bat_budget + pitch_budget == pytest.approx(total)
 
 
 class TestRunZarPipeline:
