@@ -247,6 +247,47 @@ class TestTopLimitsSections:
         assert len(report.avoid_list) == 5
 
 
+class TestZeroValueExcluded:
+    def test_zero_value_players_excluded_from_all_sections(self, conn: sqlite3.Connection) -> None:
+        """Players with $0 valuations should not appear in any section."""
+        pid_zero = seed_player(conn, name_first="Zero", name_last="Value", mlbam_id=100001)
+        pid_good = seed_player(conn, name_first="Good", name_last="Player", mlbam_id=100002)
+
+        _seed_valuation(conn, pid_zero, rank=250, value=0.0)
+        _seed_adp(conn, pid_zero, overall_pick=200.0, rank=200, positions="OF")
+
+        _seed_valuation(conn, pid_good, rank=5, value=30.0)
+        _seed_adp(conn, pid_good, overall_pick=50.0, rank=50, positions="OF")
+
+        svc = _make_service(conn)
+        report = svc.compute_value_over_adp(2026, "zar", "1.0")
+
+        assert report.n_matched == 1
+        all_entries = report.buy_targets + report.avoid_list + report.unranked_valuable
+        assert all(e.player_name != "Zero Value" for e in all_entries)
+
+    def test_zero_value_sleeper_excluded(self, conn: sqlite3.Connection) -> None:
+        """A $0 player with no ADP should not appear as unranked valuable."""
+        pid = seed_player(conn, name_first="Zero", name_last="Sleeper", mlbam_id=100001)
+        _seed_valuation(conn, pid, rank=100, value=0.0)
+
+        svc = _make_service(conn)
+        report = svc.compute_value_over_adp(2026, "zar", "1.0")
+
+        assert len(report.unranked_valuable) == 0
+
+    def test_negative_value_excluded(self, conn: sqlite3.Connection) -> None:
+        """Players with negative valuations should also be excluded."""
+        pid = seed_player(conn, name_first="Negative", name_last="Value", mlbam_id=100001)
+        _seed_valuation(conn, pid, rank=280, value=-2.0)
+        _seed_adp(conn, pid, overall_pick=150.0, rank=150, positions="OF")
+
+        svc = _make_service(conn)
+        report = svc.compute_value_over_adp(2026, "zar", "1.0")
+
+        assert report.n_matched == 0
+
+
 class TestEmptyInputs:
     def test_no_valuations(self, conn: sqlite3.Connection) -> None:
         pid = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)

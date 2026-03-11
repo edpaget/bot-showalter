@@ -79,6 +79,9 @@ class ADPReportService:
         unranked: list[ValueOverADP] = []
 
         for pid, val in val_lookup.items():
+            if val.value <= 0:
+                continue
+
             player = player_map.get(pid)
             player_name = f"{player.name_first} {player.name_last}" if player else f"Unknown ({pid})"
 
