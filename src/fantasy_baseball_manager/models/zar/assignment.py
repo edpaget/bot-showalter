@@ -105,7 +105,7 @@ def assign_positions(
     # Dummy rows ensure feasibility when fewer candidates are eligible than slots.
     # Real candidates: cost = -score if eligible, else PENALTY.
     # Dummy rows: cost = PENALTY for all slots.
-    penalty = 1e18
+    penalty = 1e9
     n_rows = max(n_candidates, total_slots)
     cost = np.full((n_rows, total_slots), penalty)
     for row, orig_idx in enumerate(candidate_indices):

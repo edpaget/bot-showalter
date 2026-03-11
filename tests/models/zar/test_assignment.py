@@ -113,6 +113,40 @@ class TestAssignPositionsUtil:
         assert c_assigned[0] in (0, 1)  # one of the catchers
 
 
+class TestAssignPositionsUtilOnlyElite:
+    def test_util_only_elite_player_assigned(self) -> None:
+        """An elite UTIL-only player must be assigned even with many candidates.
+
+        Regression test for a numerical issue where 1e18 penalty caused
+        linear_sum_assignment to misassign the top player to an ineligible slot.
+        """
+        # 200 players, 100 slots: realistic scale
+        n = 200
+        scores = [float(n - i) for i in range(n)]
+        positions: list[list[str]] = []
+        for i in range(n):
+            if i == 0:
+                # Elite UTIL-only player (like Ohtani as DH)
+                positions.append(["UTIL"])
+            elif i % 10 == 0:
+                positions.append(["C", "UTIL"])
+            elif i % 3 == 0:
+                positions.append(["OF", "UTIL"])
+            elif i % 3 == 1:
+                positions.append(["SS", "UTIL"])
+            else:
+                positions.append(["1B", "UTIL"])
+        roster_spots = {"C": 1, "1B": 1, "SS": 1, "OF": 3, "UTIL": 1}
+        num_teams = 10  # 70 total slots
+
+        result = assign_positions(scores, positions, roster_spots, num_teams=num_teams)
+
+        # The elite UTIL-only player MUST be assigned
+        assert 0 in result.assignments, "Elite UTIL-only player should be assigned"
+        assert result.assignments[0] == "UTIL"
+        assert result.var_values[0] > 0
+
+
 class TestAssignPositionsOptimalBeatsGreedy:
     def test_optimal_beats_greedy(self) -> None:
         """Construct a scenario where greedy assignment is suboptimal.
