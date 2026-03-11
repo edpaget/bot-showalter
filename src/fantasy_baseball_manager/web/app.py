@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from fantasy_baseball_manager.analysis_container import AnalysisContainer
-    from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings
+    from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings, YahooLeagueInfo
     from fantasy_baseball_manager.services import KeeperPlannerService
     from fantasy_baseball_manager.web.session_manager import SessionManager
     from fantasy_baseball_manager.web.yahoo_poller_manager import YahooPollerManager
@@ -41,6 +41,7 @@ class AppContext:
     event_bus: EventBus = field(default_factory=EventBus)
     session_manager: SessionManager | None = None
     yahoo_poller_manager: YahooPollerManager | None = None
+    yahoo_league_info: YahooLeagueInfo | None = None
     breakout_predictions: list[BreakoutPrediction] | None = None
     keeper_planner: KeeperPlannerService | None = None
 
@@ -52,6 +53,7 @@ def create_app(
     session_manager: SessionManager | None = None,
     event_bus: EventBus | None = None,
     yahoo_poller_manager: YahooPollerManager | None = None,
+    yahoo_league_info: YahooLeagueInfo | None = None,
     breakout_predictions: list[BreakoutPrediction] | None = None,
     frontend_dir: str | None = None,
     default_system: str | None = None,
@@ -80,6 +82,7 @@ def create_app(
         event_bus=event_bus or EventBus(),
         session_manager=session_manager,
         yahoo_poller_manager=yahoo_poller_manager,
+        yahoo_league_info=yahoo_league_info,
         breakout_predictions=breakout_predictions,
         keeper_planner=keeper_planner,
     )

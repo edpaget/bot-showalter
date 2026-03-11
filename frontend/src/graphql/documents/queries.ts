@@ -267,6 +267,15 @@ export const WEB_CONFIG_QUERY = gql`
         system
         version
       }
+      yahooLeague {
+        leagueKey
+        leagueName
+        season
+        numTeams
+        isKeeper
+        maxKeepers
+        userTeamName
+      }
     }
   }
 `;

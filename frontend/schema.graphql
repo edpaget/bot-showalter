@@ -364,6 +364,17 @@ type ValuationType {
 type WebConfigType {
   projections: [SystemVersionType!]!
   valuations: [SystemVersionType!]!
+  yahooLeague: YahooLeagueInfoType
+}
+
+type YahooLeagueInfoType {
+  leagueKey: String!
+  leagueName: String!
+  season: Int!
+  numTeams: Int!
+  isKeeper: Boolean!
+  maxKeepers: Int
+  userTeamName: String
 }
 
 type YahooPollStatusType {

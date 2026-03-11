@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         TeamCategoryProjection,
         ValueOverADP,
         ValueOverADPReport,
+        YahooLeagueInfo,
     )
     from fantasy_baseball_manager.services import DraftPick, DraftState
 
@@ -612,15 +613,43 @@ class SystemVersionType:
 
 
 @strawberry.type
+class YahooLeagueInfoType:
+    league_key: str
+    league_name: str
+    season: int
+    num_teams: int
+    is_keeper: bool
+    max_keepers: int | None
+    user_team_name: str | None
+
+    @staticmethod
+    def from_domain(info: YahooLeagueInfo) -> YahooLeagueInfoType:
+        return YahooLeagueInfoType(
+            league_key=info.league_key,
+            league_name=info.league_name,
+            season=info.season,
+            num_teams=info.num_teams,
+            is_keeper=info.is_keeper,
+            max_keepers=info.max_keepers,
+            user_team_name=info.user_team_name,
+        )
+
+
+@strawberry.type
 class WebConfigType:
     projections: list[SystemVersionType]
     valuations: list[SystemVersionType]
+    yahoo_league: YahooLeagueInfoType | None
 
     @staticmethod
-    def from_domain(config: WebConfig) -> WebConfigType:
+    def from_domain(
+        config: WebConfig,
+        yahoo_league_info: YahooLeagueInfo | None = None,
+    ) -> WebConfigType:
         return WebConfigType(
             projections=[SystemVersionType(system=sv.system, version=sv.version) for sv in config.projections],
             valuations=[SystemVersionType(system=sv.system, version=sv.version) for sv in config.valuations],
+            yahoo_league=YahooLeagueInfoType.from_domain(yahoo_league_info) if yahoo_league_info is not None else None,
         )
 
 

@@ -251,7 +251,7 @@ class Query:
     @strawberry.field
     def web_config(self, info: Info) -> WebConfigType:
         ctx = _get_context(info)
-        return WebConfigType.from_domain(ctx.web_config)
+        return WebConfigType.from_domain(ctx.web_config, yahoo_league_info=ctx.yahoo_league_info)
 
     @strawberry.field
     def session(self, info: Info, session_id: int) -> DraftStateType:

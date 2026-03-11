@@ -327,7 +327,7 @@ from fantasy_baseball_manager.domain.valuation import (
     check_valuation_regression,
 )
 from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
-from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooTeam
+from fantasy_baseball_manager.domain.yahoo_league import YahooLeague, YahooLeagueInfo, YahooTeam
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 from fantasy_baseball_manager.domain.yahoo_team_stats import TeamSeasonStats
 
@@ -572,6 +572,7 @@ __all__ = [
     "VarianceClassification",
     "YahooDraftPick",
     "YahooLeague",
+    "YahooLeagueInfo",
     "YahooPlayerMap",
     "TeamSeasonStats",
     "YahooTeam",

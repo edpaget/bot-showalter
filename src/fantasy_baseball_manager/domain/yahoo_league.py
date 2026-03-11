@@ -15,6 +15,17 @@ class YahooLeague:
 
 
 @dataclass(frozen=True)
+class YahooLeagueInfo:
+    league_key: str
+    league_name: str
+    season: int
+    num_teams: int
+    is_keeper: bool
+    max_keepers: int | None
+    user_team_name: str | None
+
+
+@dataclass(frozen=True)
 class YahooTeam:
     team_key: str
     league_key: str

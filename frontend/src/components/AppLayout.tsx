@@ -1,4 +1,7 @@
+import { useQuery } from "@apollo/client";
 import { NavLink, Outlet } from "react-router-dom";
+import { WEB_CONFIG_QUERY } from "../graphql/queries";
+import { LeagueBadge } from "./LeagueBadge";
 import { PlayerDrawer } from "./PlayerDrawer";
 
 const NAV_ITEMS = [
@@ -11,6 +14,9 @@ const NAV_ITEMS = [
 ];
 
 export function AppLayout() {
+  const { data } = useQuery(WEB_CONFIG_QUERY);
+  const yahooLeague = data?.webConfig?.yahooLeague ?? null;
+
   return (
     <div className="flex flex-col h-screen">
       <nav className="bg-gray-800 text-white px-4 py-2 flex gap-4 items-center flex-shrink-0">
@@ -29,6 +35,11 @@ export function AppLayout() {
             {item.label}
           </NavLink>
         ))}
+        {yahooLeague && (
+          <div className="ml-auto">
+            <LeagueBadge leagueName={yahooLeague.leagueName} season={yahooLeague.season} />
+          </div>
+        )}
       </nav>
       <div className="flex-1 min-h-0 overflow-auto">
         <Outlet />

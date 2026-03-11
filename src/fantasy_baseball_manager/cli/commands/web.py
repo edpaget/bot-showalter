@@ -13,9 +13,14 @@ from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
-from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings, Valuation
+from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings, Valuation, YahooLeagueInfo
 from fantasy_baseball_manager.models import ModelConfig
-from fantasy_baseball_manager.repos import SqliteDraftSessionRepo, SqliteYahooPlayerMapRepo, SqliteYahooTeamRepo
+from fantasy_baseball_manager.repos import (
+    SqliteDraftSessionRepo,
+    SqliteYahooLeagueRepo,
+    SqliteYahooPlayerMapRepo,
+    SqliteYahooTeamRepo,
+)
 from fantasy_baseball_manager.services import (
     KeeperPlannerService,
     PlayerEligibilityService,
@@ -178,9 +183,10 @@ def web(  # pragma: no cover
     )
 
     yahoo_poller_manager = None
+    yahoo_league_info = None
     if yahoo_config_dir is not None:
-        config = load_yahoo_config(Path(yahoo_config_dir))
-        auth = YahooAuth(config.client_id, config.client_secret)
+        yahoo_config = load_yahoo_config(Path(yahoo_config_dir))
+        auth = YahooAuth(yahoo_config.client_id, yahoo_config.client_secret)
         client = YahooFantasyClient(auth)
         player_map_repo = SqliteYahooPlayerMapRepo(provider)
         player_mapper = YahooPlayerMapper(player_map_repo, container.player_repo)
@@ -194,12 +200,37 @@ def web(  # pragma: no cover
             _team_repo=team_repo,
         )
 
+        # Build league info snapshot from DB
+        league_config = yahoo_config.leagues.get(league_name)
+        if league_config is not None:
+            league_repo = SqliteYahooLeagueRepo(provider)
+            all_leagues = league_repo.get_all()
+            matched = [
+                lg
+                for lg in all_leagues
+                if lg.season == season and lg.league_key.endswith(f".l.{league_config.league_id}")
+            ]
+            if matched:
+                yahoo_league = matched[0]
+                user_team = team_repo.get_user_team(yahoo_league.league_key)
+                yahoo_league_info = YahooLeagueInfo(
+                    league_key=yahoo_league.league_key,
+                    league_name=yahoo_league.name,
+                    season=yahoo_league.season,
+                    num_teams=yahoo_league.num_teams,
+                    is_keeper=yahoo_league.is_keeper,
+                    max_keepers=league_config.max_keepers,
+                    user_team_name=user_team.name if user_team is not None else None,
+                )
+                logger.info("Yahoo league: %s (%s)", yahoo_league_info.league_name, yahoo_league_info.league_key)
+
     app = create_app(
         container,
         league,
         session_manager=session_manager,
         event_bus=event_bus,
         yahoo_poller_manager=yahoo_poller_manager,
+        yahoo_league_info=yahoo_league_info,
         breakout_predictions=breakout_predictions,
         frontend_dir=frontend_dir,
         default_system=system,
