@@ -12,7 +12,7 @@ This roadmap replaces the greedy assignment with an optimal solver (using `scipy
 |-------|--------|
 | 1 — Optimal position assignment solver | done (2025-07-08) |
 | 2 — Budget split by roster spots | done (2025-07-08) |
-| 3 — Integrate into ZAR and SGP models | not started |
+| 3 — Integrate into ZAR and SGP models | in progress |
 | 4 — Holdout validation and production adoption | not started |
 
 ## Phase 1: Optimal position assignment solver

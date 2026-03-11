@@ -11,7 +11,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
-| [Optimal Position Assignment](optimal-position-assignment.md) | 4 | phases 1-2 done | none |
+| [Optimal Position Assignment](optimal-position-assignment.md) | 4 | phase 3 in progress | none |
 | [SGP Rate-Stat Volume Weighting](sgp-rate-stat-volume-weighting.md) | 2 | not started | none |
 
 ## Completed Roadmaps
