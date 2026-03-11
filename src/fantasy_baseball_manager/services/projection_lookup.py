@@ -9,6 +9,19 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import PlayerRepo, ProjectionRepo
 logger = logging.getLogger(__name__)
 
+# Compound stats derived by summing base columns (e.g. sv+hld = sv + hld).
+_DERIVED_STATS: dict[str, list[str]] = {
+    "sv+hld": ["sv", "hld"],
+}
+
+
+def _add_derived_stats(stats: dict[str, float]) -> dict[str, float]:
+    """Add compound derived stats to a raw stat dict."""
+    for key, components in _DERIVED_STATS.items():
+        if key not in stats and any(c in stats for c in components):
+            stats[key] = sum(stats.get(c, 0.0) for c in components)
+    return stats
+
 
 class ProjectionLookupService:
     def __init__(self, player_repo: PlayerRepo, projection_repo: ProjectionRepo) -> None:
@@ -40,7 +53,7 @@ class ProjectionLookupService:
                 version=proj.version,
                 source_type=proj.source_type,
                 player_type=proj.player_type,
-                stats=proj.stat_json,
+                stats=_add_derived_stats(proj.stat_json),
                 player_id=proj.player_id,
             )
             for proj in projections
@@ -64,7 +77,7 @@ class ProjectionLookupService:
                         version=proj.version,
                         source_type=proj.source_type,
                         player_type=proj.player_type,
-                        stats=proj.stat_json,
+                        stats=_add_derived_stats(proj.stat_json),
                         player_id=player.id,
                     )
                 )
