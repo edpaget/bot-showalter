@@ -381,8 +381,7 @@ When the user says something like:
 - "sync ROS projections" → `uv run fbm projections sync --all --season 2026 --ros`
 - "refresh projections" → `uv run fbm projections refresh --season 2026`
 
-For `--league` in yahoo commands, use the league name from `[yahoo.leagues]` in `fbm.toml` (e.g., `keeper`, `redraft`).
-For `--league` in non-yahoo commands, use the league name from `[leagues]` in `fbm.toml` (e.g., `default`, `dynasty`).
+For `--league` in all commands, use the league name from `[leagues]` in `fbm.toml` (e.g., `h2h`, `dynasty`). Yahoo config lives under `[leagues.*.yahoo]`.
 
 For third-party systems (steamer, zips, atc), the version is typically the season year (e.g. `steamer/2025`).
 For first-party models (marcel), the version is typically `latest`.

@@ -1,3 +1,4 @@
+import warnings
 from typing import TYPE_CHECKING
 
 import pytest
@@ -32,11 +33,11 @@ client_id = "my-client-id"
 client_secret = "my-client-secret"
 default_league = "keeper"
 
-[yahoo.leagues.keeper]
+[leagues.keeper.yahoo]
 league_id = 12345
 keeper = true
 
-[yahoo.leagues.redraft]
+[leagues.redraft.yahoo]
 league_id = 67890
 """,
         )
@@ -162,7 +163,7 @@ client_id = "id"
 [yahoo]
 default_league = "keeper"
 
-[yahoo.leagues.keeper]
+[leagues.keeper.yahoo]
 league_id = 12345
 """,
         )
@@ -181,7 +182,7 @@ league_id = 12345
 client_id = "id"
 client_secret = "secret"
 
-[yahoo.leagues.keeper]
+[leagues.keeper.yahoo]
 name = "keeper"
 """,
         )
@@ -196,7 +197,7 @@ name = "keeper"
 client_id = "id"
 client_secret = "secret"
 
-[yahoo.leagues.keeper]
+[leagues.keeper.yahoo]
 league_id = 40214
 keeper = true
 keeper_format = "best_n"
@@ -217,7 +218,7 @@ max_keepers = 4
 client_id = "id"
 client_secret = "secret"
 
-[yahoo.leagues.keeper]
+[leagues.keeper.yahoo]
 league_id = 12345
 keeper = true
 """,
@@ -235,7 +236,7 @@ keeper = true
 client_id = "id"
 client_secret = "secret"
 
-[yahoo.leagues.keeper]
+[leagues.keeper.yahoo]
 league_id = 12345
 keeper_format = "best_n"
 """,
@@ -251,7 +252,7 @@ keeper_format = "best_n"
 client_id = "id"
 client_secret = "secret"
 
-[yahoo.leagues.keeper]
+[leagues.keeper.yahoo]
 league_id = 12345
 keeper_format = "invalid"
 """,
@@ -361,7 +362,7 @@ keeper_format = "best_n"
         with pytest.raises(YahooConfigError, match="max_keepers is required"):
             load_yahoo_config(tmp_path)
 
-    def test_old_format_still_works(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_old_format_emits_deprecation_warning(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("FBM_YAHOO_CLIENT_ID", raising=False)
         monkeypatch.delenv("FBM_YAHOO_CLIENT_SECRET", raising=False)
         _write_toml(
@@ -376,11 +377,16 @@ league_id = 12345
 keeper = true
 """,
         )
-        config = load_yahoo_config(tmp_path)
-        assert "keeper" in config.leagues
-        assert config.leagues["keeper"].league_id == 12345
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = load_yahoo_config(tmp_path)
+        assert len(w) == 1
+        assert issubclass(w[0].category, DeprecationWarning)
+        assert "[yahoo.leagues]" in str(w[0].message)
+        # Old-format leagues are NOT loaded (fallback removed)
+        assert config.leagues == {}
 
-    def test_new_format_takes_precedence(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_old_format_ignored_when_new_format_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("FBM_YAHOO_CLIENT_ID", raising=False)
         monkeypatch.delenv("FBM_YAHOO_CLIENT_SECRET", raising=False)
         _write_toml(
@@ -397,11 +403,14 @@ league_id = 99999
 league_id = 12345
 """,
         )
-        config = load_yahoo_config(tmp_path)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            config = load_yahoo_config(tmp_path)
+        # Only new-format league is loaded
         assert config.leagues["h2h"].league_id == 12345
 
-    def test_both_formats_merged(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Old-format leagues not in new format are still picked up."""
+    def test_old_format_leagues_not_loaded(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Old-format leagues are no longer loaded — only new-format leagues appear."""
         monkeypatch.delenv("FBM_YAHOO_CLIENT_ID", raising=False)
         monkeypatch.delenv("FBM_YAHOO_CLIENT_SECRET", raising=False)
         _write_toml(
@@ -418,9 +427,12 @@ league_id = 67890
 league_id = 12345
 """,
         )
-        config = load_yahoo_config(tmp_path)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            config = load_yahoo_config(tmp_path)
         assert config.leagues["h2h"].league_id == 12345
-        assert config.leagues["redraft"].league_id == 67890
+        # Old-format "redraft" is NOT loaded
+        assert "redraft" not in config.leagues
 
     def test_no_yahoo_section_with_leagues_yahoo_subtable(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

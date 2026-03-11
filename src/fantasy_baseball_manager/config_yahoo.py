@@ -1,4 +1,5 @@
 import os
+import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -58,9 +59,7 @@ def _parse_yahoo_league(name: str, raw: dict[str, Any], context: str) -> YahooLe
 def load_yahoo_config(config_dir: Path) -> YahooConfig:
     """Load Yahoo Fantasy configuration from fbm.toml (+ fbm.local.toml overlay).
 
-    Looks for yahoo league config in two places (new format takes precedence):
-    1. ``[leagues.*.yahoo]`` sub-tables (new format — shares canonical league name)
-    2. ``[yahoo.leagues.*]`` (old format — backward compatibility)
+    Reads Yahoo league config from ``[leagues.*.yahoo]`` sub-tables.
     """
     data = load_toml(config_dir)
 
@@ -72,6 +71,14 @@ def load_yahoo_config(config_dir: Path) -> YahooConfig:
     client_secret: str = os.environ.get("FBM_YAHOO_CLIENT_SECRET") or _require_field(yahoo, "client_secret", "[yahoo]")
     default_league: str | None = yahoo.get("default_league")
 
+    # Deprecation warning for old [yahoo.leagues] format
+    if yahoo.get("leagues"):
+        warnings.warn(
+            "[yahoo.leagues] is deprecated. Move league config to [leagues.<name>.yahoo].",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     leagues: dict[str, YahooLeagueConfig] = {}
 
     # New format: [leagues.*.yahoo] sub-tables
@@ -81,12 +88,6 @@ def load_yahoo_config(config_dir: Path) -> YahooConfig:
             raw_yahoo = league_data["yahoo"]
             if isinstance(raw_yahoo, dict):
                 leagues[name] = _parse_yahoo_league(name, raw_yahoo, f"[leagues.{name}.yahoo]")
-
-    # Old format: [yahoo.leagues.*] — skip leagues already found in new format
-    raw_leagues = yahoo.get("leagues", {})
-    for name, raw_league in raw_leagues.items():
-        if name not in leagues:
-            leagues[name] = _parse_yahoo_league(name, raw_league, f"[yahoo.leagues.{name}]")
 
     return YahooConfig(
         client_id=client_id,

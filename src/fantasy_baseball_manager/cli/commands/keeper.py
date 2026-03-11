@@ -27,6 +27,7 @@ from fantasy_baseball_manager.services import (
     compute_surplus,
     evaluate_trade,
     keeper_trade_impact,
+    migrate_league_name,
     parse_league_keepers,
     round_to_dollar_cost,
     set_keeper_cost,
@@ -608,3 +609,23 @@ def league_clear_cmd(
         ctx.conn.commit()
 
     typer.echo(f"Removed {count} league keeper(s)")
+
+
+@keeper_app.command("migrate-league")
+def migrate_league_cmd(  # pragma: no cover
+    from_league: Annotated[str, typer.Option("--from", help="Old league name to rename")],
+    to_league: Annotated[str, typer.Option("--to", help="New league name")],
+    data_dir: _DataDirOpt = "./data",
+) -> None:
+    """Migrate keeper data from one league name to another.
+
+    Updates the league column in both keeper_cost and league_keeper tables.
+    Use after moving Yahoo config from [yahoo.leagues] to [leagues.*.yahoo].
+    """
+    with build_keeper_context(data_dir) as ctx:
+        kc_count, lk_count = migrate_league_name(ctx.keeper_repo, ctx.league_keeper_repo, from_league, to_league)
+        ctx.conn.commit()
+
+    typer.echo(
+        f"Migrated {kc_count} keeper cost(s) and {lk_count} league keeper(s) from '{from_league}' to '{to_league}'"
+    )
