@@ -49,7 +49,10 @@ def assign_positions(
     # Dummy rows ensure feasibility when fewer candidates are eligible than slots.
     # Real candidates: cost = -score if eligible, else PENALTY.
     # Dummy rows: cost = PENALTY for all slots.
+    # Flex slots (UTIL, P) get a tiny penalty so the solver prefers specific positions.
     penalty = 1e18
+    flex_positions = {"UTIL", "P", "util", "p"}
+    epsilon = 1e-6
     n_rows = max(n_candidates, total_slots)
     cost = np.full((n_rows, total_slots), penalty)
     for row, orig_idx in enumerate(candidate_indices):
@@ -57,7 +60,8 @@ def assign_positions(
         score = composite_scores[orig_idx]
         for col, slot_pos in enumerate(slots):
             if slot_pos in eligible:
-                cost[row, col] = -score
+                flex_penalty = epsilon if slot_pos in flex_positions else 0.0
+                cost[row, col] = -score + flex_penalty
 
     # Step 4: Run the Hungarian algorithm
     row_ind, col_ind = linear_sum_assignment(cost)
