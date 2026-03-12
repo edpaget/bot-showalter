@@ -10,7 +10,7 @@ from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
 from fantasy_baseball_manager.domain.draft_report import DraftReport
-from fantasy_baseball_manager.domain.draft_session import DraftSessionPick, DraftSessionRecord
+from fantasy_baseball_manager.domain.draft_session import DraftSessionPick, DraftSessionRecord, DraftSessionTrade
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -873,6 +873,93 @@ class TestLoadDraftFromDB:
         with pytest.raises(ValueError, match="not found"):
             load_draft_from_db(9999, PLAYERS, repo)
 
+    def test_load_replays_trades(self) -> None:
+        repo = SqliteDraftSessionRepo(_InMemoryProvider())
+
+        record = DraftSessionRecord(
+            league="test",
+            season=2026,
+            teams=4,
+            format="snake",
+            user_team=1,
+            roster_slots={"C": 1, "1B": 1, "OF": 2, "UTIL": 1, "P": 1},
+            budget=0,
+            status="in_progress",
+            created_at="2026-03-07T10:00:00",
+            updated_at="2026-03-07T10:00:00",
+        )
+        session_id = repo.create_session(record)
+
+        # Trade: user (team 1) gives pick 1 to team 2, receives pick 2
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id,
+                trade_number=1,
+                team_a=1,
+                team_b=2,
+                team_a_gives=[1],
+                team_b_gives=[2],
+            )
+        )
+
+        # After trade, pick 1 belongs to team 2, pick 2 belongs to team 1
+        # Team 2 picks first (pick 1), then team 1 (pick 2)
+        repo.save_pick(
+            DraftSessionPick(
+                session_id=session_id, pick_number=1, team=2, player_id=1, player_name="Mike Trout", position="OF"
+            )
+        )
+        repo.save_pick(
+            DraftSessionPick(
+                session_id=session_id, pick_number=2, team=1, player_id=5, player_name="Freddie Freeman", position="1B"
+            )
+        )
+
+        engine = load_draft_from_db(session_id, PLAYERS, repo)
+        assert len(engine.state.picks) == 2
+        assert engine.state.current_pick == 3
+        assert len(engine.trades) == 1
+        # Pick overrides should be in place
+        assert engine.team_for_pick(1) == 2
+        assert engine.team_for_pick(2) == 1
+
+    def test_load_replays_multiple_trades(self) -> None:
+        repo = SqliteDraftSessionRepo(_InMemoryProvider())
+
+        record = DraftSessionRecord(
+            league="test",
+            season=2026,
+            teams=4,
+            format="snake",
+            user_team=1,
+            roster_slots={"C": 1, "1B": 1, "OF": 2, "UTIL": 1, "P": 1},
+            budget=0,
+            status="in_progress",
+            created_at="2026-03-07T10:00:00",
+            updated_at="2026-03-07T10:00:00",
+        )
+        session_id = repo.create_session(record)
+
+        # Trade 1: team 1 gives pick 1 to team 2, receives pick 2
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=1, team_a=1, team_b=2, team_a_gives=[1], team_b_gives=[2]
+            )
+        )
+        # Trade 2: team 1 gives pick 8 (snake: team 1) to team 3, receives pick 3
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=2, team_a=1, team_b=3, team_a_gives=[8], team_b_gives=[3]
+            )
+        )
+
+        engine = load_draft_from_db(session_id, PLAYERS, repo)
+        assert len(engine.trades) == 2
+        assert engine.team_for_pick(1) == 2
+        assert engine.team_for_pick(2) == 1
+        assert engine.team_for_pick(3) == 1
+        assert engine.team_for_pick(8) == 3
+
 
 # ---------------------------------------------------------------------------
 # Fake repo for persistence tests
@@ -922,6 +1009,15 @@ class FakeDraftSessionRepo:
 
     def count_picks(self, session_id: int) -> int:
         return 0
+
+    def save_trade(self, trade: DraftSessionTrade) -> None:
+        pass
+
+    def load_trades(self, session_id: int) -> list[DraftSessionTrade]:
+        return []
+
+    def delete_trade(self, session_id: int, trade_number: int) -> None:
+        pass
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import json
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord
+from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord, DraftSessionTrade
 
 if TYPE_CHECKING:
     import sqlite3
@@ -122,6 +122,7 @@ class SqliteDraftSessionRepo:
 
     def delete_session(self, session_id: int) -> None:
         with self._provider.connection() as conn:
+            conn.execute("DELETE FROM draft_session_trade WHERE session_id = ?", (session_id,))
             conn.execute("DELETE FROM draft_session_pick WHERE session_id = ?", (session_id,))
             conn.execute("DELETE FROM draft_session WHERE id = ?", (session_id,))
 
@@ -132,6 +133,50 @@ class SqliteDraftSessionRepo:
                 (session_id,),
             ).fetchone()
             return row[0]
+
+    def save_trade(self, trade: DraftSessionTrade) -> None:
+        with self._provider.connection() as conn:
+            conn.execute(
+                "INSERT INTO draft_session_trade"
+                " (session_id, trade_number, team_a, team_b, team_a_gives, team_b_gives)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    trade.session_id,
+                    trade.trade_number,
+                    trade.team_a,
+                    trade.team_b,
+                    json.dumps(trade.team_a_gives),
+                    json.dumps(trade.team_b_gives),
+                ),
+            )
+
+    def load_trades(self, session_id: int) -> list[DraftSessionTrade]:
+        with self._provider.connection() as conn:
+            rows = conn.execute(
+                "SELECT id, session_id, trade_number, team_a, team_b, team_a_gives, team_b_gives"
+                " FROM draft_session_trade WHERE session_id = ? ORDER BY trade_number",
+                (session_id,),
+            ).fetchall()
+            return [self._row_to_trade(row) for row in rows]
+
+    def delete_trade(self, session_id: int, trade_number: int) -> None:
+        with self._provider.connection() as conn:
+            conn.execute(
+                "DELETE FROM draft_session_trade WHERE session_id = ? AND trade_number = ?",
+                (session_id, trade_number),
+            )
+
+    @staticmethod
+    def _row_to_trade(row: sqlite3.Row) -> DraftSessionTrade:
+        return DraftSessionTrade(
+            id=row["id"],
+            session_id=row["session_id"],
+            trade_number=row["trade_number"],
+            team_a=row["team_a"],
+            team_b=row["team_b"],
+            team_a_gives=json.loads(row["team_a_gives"]),
+            team_b_gives=json.loads(row["team_b_gives"]),
+        )
 
     @staticmethod
     def _row_to_session(row: sqlite3.Row) -> DraftSessionRecord:

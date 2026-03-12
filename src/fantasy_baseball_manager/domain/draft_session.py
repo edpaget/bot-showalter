@@ -21,6 +21,17 @@ class DraftSessionRecord:
 
 
 @dataclass(frozen=True)
+class DraftSessionTrade:
+    session_id: int
+    trade_number: int
+    team_a: int
+    team_b: int
+    team_a_gives: list[int]
+    team_b_gives: list[int]
+    id: int | None = None
+
+
+@dataclass(frozen=True)
 class DraftSessionPick:
     session_id: int
     pick_number: int

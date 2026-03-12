@@ -655,3 +655,47 @@ class TestGetWeakCategories:
         sid, _ = mgr.start_session(2026)
         weak = mgr.get_weak_categories(sid)
         assert weak is None
+
+
+class TestTradePicksPersists:
+    def test_trade_picks_persists(self) -> None:
+        mgr = _make_manager()
+        sid, engine = mgr.start_session(2026, fmt="snake", teams=4)
+
+        trade = mgr.trade_picks(sid, gives=[1], receives=[2], partner_team=2)
+
+        assert trade.team_a == 1
+        assert trade.team_b == 2
+        assert trade.team_a_gives == [1]
+        assert trade.team_b_gives == [2]
+
+        # Verify persisted
+        trades = mgr._repo.load_trades(sid)
+        assert len(trades) == 1
+        assert trades[0].team_a_gives == [1]
+        assert trades[0].team_b_gives == [2]
+
+    def test_undo_trade_deletes(self) -> None:
+        mgr = _make_manager()
+        sid, _ = mgr.start_session(2026, fmt="snake", teams=4)
+
+        mgr.trade_picks(sid, gives=[1], receives=[2], partner_team=2)
+        assert len(mgr._repo.load_trades(sid)) == 1
+
+        removed = mgr.undo_trade(sid)
+        assert removed.team_a_gives == [1]
+        assert mgr._repo.load_trades(sid) == []
+
+    def test_get_engine_resumes_with_trades(self) -> None:
+        mgr = _make_manager()
+        sid, engine = mgr.start_session(2026, fmt="snake", teams=4)
+
+        mgr.trade_picks(sid, gives=[1], receives=[2], partner_team=2)
+
+        # Evict from cache
+        mgr._engines.clear()
+
+        restored = mgr.get_engine(sid)
+        assert len(restored.trades) == 1
+        assert restored.team_for_pick(1) == 2
+        assert restored.team_for_pick(2) == 1

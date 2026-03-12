@@ -63,6 +63,7 @@ from fantasy_baseball_manager.domain.draft_report import (
 from fantasy_baseball_manager.domain.draft_session import (
     DraftSessionPick,
     DraftSessionRecord,
+    DraftSessionTrade,
 )
 from fantasy_baseball_manager.domain.draft_trade import DraftTrade
 from fantasy_baseball_manager.domain.error_decomposition import (
@@ -404,6 +405,7 @@ __all__ = [
     "DraftResult",
     "DraftSessionPick",
     "DraftSessionRecord",
+    "DraftSessionTrade",
     "EligibilityProvider",
     "EligibilityRules",
     "Err",

@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
-from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord
+from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord, DraftSessionTrade
 from fantasy_baseball_manager.services import (
     DraftConfig,
     DraftEngine,
@@ -17,7 +19,7 @@ from fantasy_baseball_manager.services import (
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import DraftBoardRow, LeagueSettings, Valuation
+    from fantasy_baseball_manager.domain import DraftBoardRow, DraftTrade, LeagueSettings, Valuation
     from fantasy_baseball_manager.repos import (
         ADPRepo,
         DraftSessionRepo,
@@ -174,6 +176,31 @@ class SessionManager:
         self._repo.delete_pick(session_id, undone.pick_number)
         self._repo.update_timestamp(session_id, now)
         return undone
+
+    def trade_picks(self, session_id: int, gives: list[int], receives: list[int], partner_team: int) -> DraftTrade:
+        engine = self.get_engine(session_id)
+        trade = engine.trade_picks(gives, receives, partner_team)
+        now = datetime.now(tz=UTC).isoformat()
+        db_trade = DraftSessionTrade(
+            session_id=session_id,
+            trade_number=len(engine.trades),
+            team_a=trade.team_a,
+            team_b=trade.team_b,
+            team_a_gives=trade.team_a_gives,
+            team_b_gives=trade.team_b_gives,
+        )
+        self._repo.save_trade(db_trade)
+        self._repo.update_timestamp(session_id, now)
+        return trade
+
+    def undo_trade(self, session_id: int) -> DraftTrade:
+        engine = self.get_engine(session_id)
+        trade_number = len(engine.trades)
+        removed = engine.undo_trade()
+        now = datetime.now(tz=UTC).isoformat()
+        self._repo.delete_trade(session_id, trade_number)
+        self._repo.update_timestamp(session_id, now)
+        return removed
 
     def persist_external_pick(self, session_id: int, draft_pick: DraftPick) -> None:
         """Persist a pick that was already applied to the engine (e.g., from Yahoo poller)."""

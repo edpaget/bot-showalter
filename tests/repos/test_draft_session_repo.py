@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord
+from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord, DraftSessionTrade
 from fantasy_baseball_manager.repos.draft_session_repo import SqliteDraftSessionRepo
 
 if TYPE_CHECKING:
@@ -313,6 +313,94 @@ class TestKeeperSnapshot:
         assert len(sessions) == 1
         assert sessions[0].keeper_snapshot is not None
         assert sessions[0].keeper_snapshot[0]["player_id"] == 1
+
+
+class TestSaveTradeAndLoadTrades:
+    def test_save_and_load_roundtrip(self, repo: SqliteDraftSessionRepo) -> None:
+        session_id = repo.create_session(_make_record())
+
+        trade1 = DraftSessionTrade(
+            session_id=session_id, trade_number=1, team_a=1, team_b=2, team_a_gives=[1, 5], team_b_gives=[2, 6]
+        )
+        trade2 = DraftSessionTrade(
+            session_id=session_id, trade_number=2, team_a=1, team_b=3, team_a_gives=[3], team_b_gives=[4]
+        )
+        repo.save_trade(trade1)
+        repo.save_trade(trade2)
+
+        loaded = repo.load_trades(session_id)
+        assert len(loaded) == 2
+        assert loaded[0].trade_number == 1
+        assert loaded[0].team_a == 1
+        assert loaded[0].team_b == 2
+        assert loaded[0].team_a_gives == [1, 5]
+        assert loaded[0].team_b_gives == [2, 6]
+        assert loaded[1].trade_number == 2
+        assert loaded[1].team_a_gives == [3]
+        assert loaded[1].team_b_gives == [4]
+        assert loaded[0].id is not None
+
+    def test_load_trades_ordered_by_trade_number(self, repo: SqliteDraftSessionRepo) -> None:
+        session_id = repo.create_session(_make_record())
+
+        # Insert out of order
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=3, team_a=1, team_b=4, team_a_gives=[7], team_b_gives=[8]
+            )
+        )
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=1, team_a=1, team_b=2, team_a_gives=[1], team_b_gives=[2]
+            )
+        )
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=2, team_a=1, team_b=3, team_a_gives=[3], team_b_gives=[4]
+            )
+        )
+
+        loaded = repo.load_trades(session_id)
+        assert [t.trade_number for t in loaded] == [1, 2, 3]
+
+    def test_delete_trade(self, repo: SqliteDraftSessionRepo) -> None:
+        session_id = repo.create_session(_make_record())
+
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=1, team_a=1, team_b=2, team_a_gives=[1], team_b_gives=[2]
+            )
+        )
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=2, team_a=1, team_b=3, team_a_gives=[3], team_b_gives=[4]
+            )
+        )
+
+        repo.delete_trade(session_id, trade_number=1)
+        remaining = repo.load_trades(session_id)
+        assert len(remaining) == 1
+        assert remaining[0].trade_number == 2
+
+    def test_delete_session_cascades_trades(self, repo: SqliteDraftSessionRepo) -> None:
+        session_id = repo.create_session(_make_record())
+
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=1, team_a=1, team_b=2, team_a_gives=[1], team_b_gives=[2]
+            )
+        )
+        repo.save_trade(
+            DraftSessionTrade(
+                session_id=session_id, trade_number=2, team_a=1, team_b=3, team_a_gives=[3], team_b_gives=[4]
+            )
+        )
+
+        repo.delete_session(session_id)
+        assert repo.load_trades(session_id) == []
+
+    def test_load_trades_empty_for_nonexistent_session(self, repo: SqliteDraftSessionRepo) -> None:
+        assert repo.load_trades(9999) == []
 
 
 class TestLoadSessionNotFound:

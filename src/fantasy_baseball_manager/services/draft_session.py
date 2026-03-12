@@ -339,6 +339,13 @@ def load_draft_from_db(
     engine = DraftEngine()
     engine.start(players, config)
 
+    for trade in repo.load_trades(session_id):
+        engine.trade_picks(
+            gives=trade.team_a_gives,
+            receives=trade.team_b_gives,
+            partner_team=trade.team_b,
+        )
+
     for pick in repo.load_picks(session_id):
         engine.pick(
             player_id=pick.player_id,
