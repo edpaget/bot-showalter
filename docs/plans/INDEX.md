@@ -13,7 +13,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Draft Pick Trades](draft-pick-trades.md) | 4 | phases 1-2 done | draft-pick-trade-evaluator (done) |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [SGP Overhaul](sgp-overhaul.md) | 4 | phases 1-2 done | none |
-| [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 | phase 1 done | none |
+| [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 | phases 1-2 done | none |
 
 ## Completed Roadmaps
 
