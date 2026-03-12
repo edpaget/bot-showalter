@@ -11,7 +11,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
-| [Yahoo Draft Init](yahoo-draft-init.md) | 3 | phase 1 done | none |
+| [Yahoo Draft Init](yahoo-draft-init.md) | 3 | phases 1-2 done | none |
 | [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 | phases 1-2 done | none |
 
 ## Completed Roadmaps
