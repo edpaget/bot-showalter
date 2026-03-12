@@ -66,6 +66,9 @@ def mock_single(
     position: Annotated[int, typer.Option("--position", help="Draft position (1-based, 0=random)")] = 0,
     strategy: Annotated[str, typer.Option("--strategy", help="User strategy")] = "best-value",
     seed: Annotated[int | None, typer.Option("--seed", help="Random seed")] = None,
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Run a single mock draft and print the draft log."""
@@ -74,7 +77,9 @@ def mock_single(
         system = defaults.system
     if version is None:
         version = defaults.version
-    board, league = _fetch_draft_board_data(season, system, version, league_name, provider, data_dir, None, None, None)
+    board, league = _fetch_draft_board_data(
+        season, system, version, league_name, provider, data_dir, None, None, None, exclude_keepers
+    )
 
     if teams > 0:
         league = dataclasses.replace(league, teams=teams)
@@ -108,6 +113,9 @@ def mock_batch(
     strategy: Annotated[str, typer.Option("--strategy", help="User strategy")] = "best-value",
     simulations: Annotated[int, typer.Option("--simulations", help="Number of simulations")] = 100,
     seed: Annotated[int | None, typer.Option("--seed", help="Random seed")] = None,
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Run batch mock draft simulations and print aggregate statistics."""
@@ -116,7 +124,9 @@ def mock_batch(
         system = defaults.system
     if version is None:
         version = defaults.version
-    board, league = _fetch_draft_board_data(season, system, version, league_name, provider, data_dir, None, None, None)
+    board, league = _fetch_draft_board_data(
+        season, system, version, league_name, provider, data_dir, None, None, None, exclude_keepers
+    )
 
     if teams > 0:
         league = dataclasses.replace(league, teams=teams)
@@ -158,6 +168,9 @@ def mock_compare(
     ] = "adp,best-value,positional-need",
     simulations: Annotated[int, typer.Option("--simulations", help="Number of simulations")] = 100,
     seed: Annotated[int | None, typer.Option("--seed", help="Random seed")] = None,
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Compare multiple strategies by running batch simulations for each."""
@@ -166,7 +179,9 @@ def mock_compare(
         system = defaults.system
     if version is None:
         version = defaults.version
-    board, league = _fetch_draft_board_data(season, system, version, league_name, provider, data_dir, None, None, None)
+    board, league = _fetch_draft_board_data(
+        season, system, version, league_name, provider, data_dir, None, None, None, exclude_keepers
+    )
 
     if teams > 0:
         league = dataclasses.replace(league, teams=teams)
@@ -223,6 +238,9 @@ def mock_availability(
     simulations: Annotated[int, typer.Option("--simulations", help="Number of simulations")] = 100,
     player: Annotated[str | None, typer.Option("--player", help="Player name filter (substring)")] = None,
     seed: Annotated[int | None, typer.Option("--seed", help="Random seed")] = None,
+    exclude_keepers: Annotated[
+        str | None, typer.Option("--exclude-keepers", help="Yahoo league name to exclude keepers from")
+    ] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Show player availability windows from mock draft simulations."""
@@ -231,7 +249,9 @@ def mock_availability(
         system = defaults.system
     if version is None:
         version = defaults.version
-    board, league = _fetch_draft_board_data(season, system, version, league_name, provider, data_dir, None, None, None)
+    board, league = _fetch_draft_board_data(
+        season, system, version, league_name, provider, data_dir, None, None, None, exclude_keepers
+    )
 
     if teams > 0:
         league = dataclasses.replace(league, teams=teams)

@@ -173,6 +173,24 @@ class TestMockSingle:
         assert captured_args[0][0] == 2025  # season
         assert captured_args[0][1] == "custom"  # system
 
+    def test_exclude_keepers_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_args: list[tuple[object, ...]] = []
+
+        def fake_fetch(*args: object, **kwargs: object) -> tuple[DraftBoard, LeagueSettings]:
+            captured_args.append(args)
+            return _mock_board(), _mock_league()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.mock_draft._fetch_draft_board_data",
+            fake_fetch,
+        )
+        result = runner.invoke(
+            app,
+            ["draft", "mock", "single", "--season", "2026", "--exclude-keepers", "my-league", "--seed", "1"],
+        )
+        assert result.exit_code == 0, result.output
+        assert captured_args[0][9] == "my-league"  # exclude_keepers
+
 
 class TestMockBatch:
     def test_prints_summary_stats(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -212,6 +230,36 @@ class TestMockBatch:
         )
         assert result.exit_code == 0, result.output
         assert "3" in result.output
+
+    def test_exclude_keepers_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_args: list[tuple[object, ...]] = []
+
+        def fake_fetch(*args: object, **kwargs: object) -> tuple[DraftBoard, LeagueSettings]:
+            captured_args.append(args)
+            return _mock_board(), _mock_league()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.mock_draft._fetch_draft_board_data",
+            fake_fetch,
+        )
+        result = runner.invoke(
+            app,
+            [
+                "draft",
+                "mock",
+                "batch",
+                "--season",
+                "2026",
+                "--exclude-keepers",
+                "my-league",
+                "--simulations",
+                "3",
+                "--seed",
+                "42",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert captured_args[0][9] == "my-league"  # exclude_keepers
 
 
 class TestMockCompare:
@@ -310,3 +358,35 @@ class TestMockCompare:
         # compare calls _fetch once
         assert captured_args[0][0] == 2025  # season
         assert captured_args[0][1] == "custom"  # system
+
+    def test_exclude_keepers_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_args: list[tuple[object, ...]] = []
+
+        def fake_fetch(*args: object, **kwargs: object) -> tuple[DraftBoard, LeagueSettings]:
+            captured_args.append(args)
+            return _mock_board(), _mock_league()
+
+        monkeypatch.setattr(
+            "fantasy_baseball_manager.cli.commands.mock_draft._fetch_draft_board_data",
+            fake_fetch,
+        )
+        result = runner.invoke(
+            app,
+            [
+                "draft",
+                "mock",
+                "compare",
+                "--season",
+                "2026",
+                "--exclude-keepers",
+                "my-league",
+                "--strategies",
+                "adp,best-value",
+                "--simulations",
+                "3",
+                "--seed",
+                "42",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert captured_args[0][9] == "my-league"  # exclude_keepers
