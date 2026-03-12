@@ -14,7 +14,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [SGP Overhaul](sgp-overhaul.md) | 4 | phase 1 done | none |
 | [Yahoo League Web Integration](yahoo-league-web-integration.md) | 4 | phases 1-3 done | yahoo-fantasy-integration (done) |
-| [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 | phase 1 in progress | none |
+| [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 | phase 1 done | none |
 
 ## Completed Roadmaps
 
