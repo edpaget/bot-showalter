@@ -25,6 +25,7 @@ from fantasy_baseball_manager.domain import (
     TeamSeasonStats,
     Valuation,
     YahooDraftPick,
+    YahooLeagueInfo,
     YahooTeam,
 )
 from fantasy_baseball_manager.repos import (
@@ -629,6 +630,16 @@ def yahoo_keeper_client() -> TestClient:
         provider=provider,
     )
 
+    yahoo_league_info = YahooLeagueInfo(
+        league_key="449.l.12345",
+        league_name="Test Fantasy League",
+        season=2026,
+        num_teams=12,
+        is_keeper=True,
+        max_keepers=5,
+        user_team_name="Dynasty Kings",
+    )
+
     app = create_app(
         container,
         _LEAGUE,
@@ -638,5 +649,6 @@ def yahoo_keeper_client() -> TestClient:
         yahoo_web_context=yahoo_web_context,
         yahoo_team_repo=yahoo_team_repo,
         yahoo_roster_repo=yahoo_roster_repo,
+        yahoo_league_info=yahoo_league_info,
     )
     return TestClient(app)

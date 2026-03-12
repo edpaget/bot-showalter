@@ -123,6 +123,76 @@ def _build_keeper_planner(ctx: AppContext, season: int, league_name: str) -> Kee
     )
 
 
+def _derive_keeper_costs_from_yahoo(ctx: AppContext, season: int, league_key: str | None = None) -> None:
+    """Auto-derive keeper costs from Yahoo roster data and commit."""
+    yahoo = ctx.yahoo_web_context
+    if yahoo is None:
+        return
+    team_repo = ctx.yahoo_team_repo
+    if team_repo is None:
+        return
+
+    if league_key is None:
+        league_key = ctx.yahoo_league_info.league_key if ctx.yahoo_league_info else None
+    if league_key is None:
+        return
+
+    prior_season = season - 1
+    stored_league = yahoo.league_repo.get_by_league_key(league_key)
+    if stored_league is not None and stored_league.renew is not None:
+        prior_league_key = stored_league.renew.replace("_", ".l.", 1)
+    else:
+        prior_game_key = yahoo.client.get_game_key(prior_season)
+        league_id = league_key.split(".l.")[1]
+        prior_league_key = f"{prior_game_key}.l.{league_id}"
+
+    roster_source = YahooRosterSource(yahoo.client, yahoo.player_mapper, roster_repo=ctx.yahoo_roster_repo)
+    if yahoo.league_config.keeper_format == "best_n":
+        derive_best_n_keeper_costs(
+            roster_source=roster_source,
+            team_repo=team_repo,
+            keeper_repo=ctx.container.keeper_cost_repo,
+            prior_league_key=prior_league_key,
+            prior_season=prior_season,
+            season=season,
+            league_name=yahoo.league_name,
+        )
+    else:
+        draft_source = YahooDraftSource(yahoo.client, yahoo.player_mapper)
+        derive_and_store_keeper_costs(
+            draft_source=draft_source,
+            roster_source=roster_source,
+            team_repo=team_repo,
+            keeper_repo=ctx.container.keeper_cost_repo,
+            league_key=league_key,
+            prior_league_key=prior_league_key,
+            prior_season=prior_season,
+            season=season,
+            league_name=yahoo.league_name,
+            cost_floor=1.0,
+        )
+
+    with yahoo.provider.connection() as conn:
+        conn.commit()
+
+
+def _ensure_keeper_planner(ctx: AppContext, season: int) -> KeeperPlannerService | None:
+    """Return the keeper planner, auto-deriving costs from Yahoo if needed."""
+    planner = ctx.keeper_planner_ref.planner
+    if planner is not None:
+        return planner
+
+    # No planner yet — try to auto-derive from Yahoo if configured
+    yahoo = ctx.yahoo_web_context
+    if yahoo is None:
+        return None
+
+    _derive_keeper_costs_from_yahoo(ctx, season)
+    planner = _build_keeper_planner(ctx, season, yahoo.league_name)
+    ctx.keeper_planner_ref.planner = planner
+    return planner
+
+
 def _build_pick_result(
     info: Info,
     session_id: int,
@@ -558,7 +628,7 @@ class Query:
         board_preview_size: int = 20,
     ) -> KeeperPlanType:
         ctx = _get_context(info)
-        keeper_planner = ctx.keeper_planner_ref.planner
+        keeper_planner = _ensure_keeper_planner(ctx, season)
         if keeper_planner is None:
             msg = "Keeper planner is not configured"
             raise ValueError(msg)
@@ -820,51 +890,7 @@ class Mutation:
             msg = "Yahoo league is not configured"
             raise ValueError(msg)
 
-        # Resolve prior league key
-        prior_season = season - 1
-        stored_league = yahoo.league_repo.get_by_league_key(league_key)
-        if stored_league is not None and stored_league.renew is not None:
-            prior_league_key = stored_league.renew.replace("_", ".l.", 1)
-        else:
-            prior_game_key = yahoo.client.get_game_key(prior_season)
-            league_id = league_key.split(".l.")[1]
-            prior_league_key = f"{prior_game_key}.l.{league_id}"
-
-        # Construct sources and derive costs
-        team_repo = ctx.yahoo_team_repo
-        if team_repo is None:
-            msg = "Yahoo team repo is not configured"
-            raise ValueError(msg)
-
-        roster_source = YahooRosterSource(yahoo.client, yahoo.player_mapper, roster_repo=ctx.yahoo_roster_repo)
-        if yahoo.league_config.keeper_format == "best_n":
-            derive_best_n_keeper_costs(
-                roster_source=roster_source,
-                team_repo=team_repo,
-                keeper_repo=ctx.container.keeper_cost_repo,
-                prior_league_key=prior_league_key,
-                prior_season=prior_season,
-                season=season,
-                league_name=yahoo.league_name,
-            )
-        else:
-            draft_source = YahooDraftSource(yahoo.client, yahoo.player_mapper)
-            derive_and_store_keeper_costs(
-                draft_source=draft_source,
-                roster_source=roster_source,
-                team_repo=team_repo,
-                keeper_repo=ctx.container.keeper_cost_repo,
-                league_key=league_key,
-                prior_league_key=prior_league_key,
-                prior_season=prior_season,
-                season=season,
-                league_name=yahoo.league_name,
-                cost_floor=cost_floor,
-            )
-
-        # Commit the transaction
-        with yahoo.provider.connection() as conn:
-            conn.commit()
+        _derive_keeper_costs_from_yahoo(ctx, season, league_key=league_key)
 
         # Rebuild keeper planner with fresh data
         ctx.keeper_planner_ref.planner = _build_keeper_planner(ctx, season, yahoo.league_name)

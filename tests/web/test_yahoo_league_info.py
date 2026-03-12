@@ -391,6 +391,36 @@ class TestYahooKeeperOverviewQuery:
         assert "Yahoo league is not configured" in body["errors"][0]["message"]
 
 
+class TestPlanKeeperDraftAutoDerive:
+    """planKeeperDraft should auto-derive costs from Yahoo when no planner is pre-built."""
+
+    _QUERY = """
+        query PlanKeeperDraft($season: Int!, $maxKeepers: Int!) {
+            planKeeperDraft(season: $season, maxKeepers: $maxKeepers) {
+                scenarios {
+                    keeperIds
+                    totalSurplus
+                }
+            }
+        }
+    """
+
+    def test_auto_derives_from_yahoo(self, yahoo_keeper_client: TestClient) -> None:
+        """No explicit deriveKeeperCosts call — planKeeperDraft should derive automatically."""
+        response = yahoo_keeper_client.post(
+            "/graphql",
+            json={
+                "query": self._QUERY,
+                "variables": {"season": 2026, "maxKeepers": 2},
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" not in body, body.get("errors")
+        data = body["data"]["planKeeperDraft"]
+        assert len(data["scenarios"]) >= 1
+
+
 class TestWebConfigQueryYahooLeague:
     def test_returns_null_when_not_configured(self, client: TestClient) -> None:
         response = client.post(
