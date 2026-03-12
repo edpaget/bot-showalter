@@ -12,7 +12,9 @@ from fantasy_baseball_manager.models.zar.positions import build_position_map, bu
 from fantasy_baseball_manager.services.stats_conversion import stats_to_dict
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import LeagueSettings
+    from collections.abc import Sequence
+
+    from fantasy_baseball_manager.domain import CategoryConfig, LeagueSettings
     from fantasy_baseball_manager.repos import (
         BattingStatsRepo,
         PitchingStatsRepo,
@@ -71,14 +73,17 @@ class ValuationEvaluator:
         batting_actuals = self._batting_repo.get_by_season(season, source=actuals_source)
         pitching_actuals = self._pitching_repo.get_by_season(season, source=actuals_source)
 
-        # 2b. Build WAR lookup
+        # 2b. Build WAR lookup and games-started lookup
         war_lookup: dict[tuple[int, str], float] = {}
         for bs in batting_actuals:
             if bs.war is not None:
                 war_lookup[(bs.player_id, "batter")] = bs.war
+        gs_lookup: dict[int, int] = {}
         for ps in pitching_actuals:
             if ps.war is not None:
                 war_lookup[(ps.player_id, "pitcher")] = ps.war
+            if ps.gs is not None:
+                gs_lookup[ps.player_id] = ps.gs
 
         # 3. Convert actual stats to float dicts
         batter_stats: dict[int, dict[str, float]] = {}
@@ -158,6 +163,8 @@ class ValuationEvaluator:
                     predicted_rank=pred_val.rank,
                     actual_rank=actual_rank,
                     actual_war=war_lookup.get(key),
+                    games_started=gs_lookup.get(player_id) if player_type == "pitcher" else None,
+                    category_scores=dict(pred_val.category_scores) if pred_val.category_scores else None,
                 )
             )
 
@@ -218,6 +225,7 @@ class ValuationEvaluator:
                     war_correlation=cm.war_correlation,
                     war_correlation_batters=cm.war_correlation_batters,
                     war_correlation_pitchers=cm.war_correlation_pitchers,
+                    war_correlation_sp=cm.war_correlation_sp,
                     hit_rates=cm.hit_rates,
                 )
 
@@ -242,8 +250,18 @@ class ValuationEvaluator:
                     war_correlation=tm.war_correlation,
                     war_correlation_batters=tm.war_correlation_batters,
                     war_correlation_pitchers=tm.war_correlation_pitchers,
+                    war_correlation_sp=tm.war_correlation_sp,
                     hit_rates=tm.hit_rates,
                 )
+
+        # 7d. Per-category hit rates
+        category_hit_rates: dict[str, float] | None = None
+        if targets is None or "category-hit-rate" in targets:
+            all_actual_stats = {**batter_stats, **pitcher_stats}
+            all_categories = list(league.batting_categories) + list(league.pitching_categories)
+            category_hit_rates = self._compute_category_hit_rates(matched, all_actual_stats, all_categories)
+            if not category_hit_rates:
+                category_hit_rates = None
 
         # 8. Sort by absolute surplus descending
         matched.sort(key=lambda p: abs(p.surplus), reverse=True)
@@ -262,7 +280,9 @@ class ValuationEvaluator:
             war_correlation=metrics.war_correlation,
             war_correlation_batters=metrics.war_correlation_batters,
             war_correlation_pitchers=metrics.war_correlation_pitchers,
+            war_correlation_sp=metrics.war_correlation_sp,
             hit_rates=metrics.hit_rates,
+            category_hit_rates=category_hit_rates,
             cohorts=cohorts,
             tail_results=tail_results,
         )
@@ -336,8 +356,9 @@ class ValuationEvaluator:
         war_correlation: float | None = None
         war_correlation_batters: float | None = None
         war_correlation_pitchers: float | None = None
+        war_correlation_sp: float | None = None
         if targets is None or "war" in targets:
-            war_correlation, war_correlation_batters, war_correlation_pitchers = (
+            war_correlation, war_correlation_batters, war_correlation_pitchers, war_correlation_sp = (
                 ValuationEvaluator._compute_war_correlations(matched)
             )
 
@@ -356,17 +377,18 @@ class ValuationEvaluator:
             war_correlation=war_correlation,
             war_correlation_batters=war_correlation_batters,
             war_correlation_pitchers=war_correlation_pitchers,
+            war_correlation_sp=war_correlation_sp,
             hit_rates=hit_rates,
         )
 
     @staticmethod
     def _compute_war_correlations(
         matched: list[ValuationAccuracy],
-    ) -> tuple[float | None, float | None, float | None]:
-        """Compute Spearman ρ of predicted $ vs actual WAR (overall, batters, pitchers)."""
+    ) -> tuple[float | None, float | None, float | None, float | None]:
+        """Compute Spearman ρ of predicted $ vs actual WAR (overall, batters, pitchers, SP)."""
         with_war = [(p.predicted_value, p.actual_war, p.player_type) for p in matched if p.actual_war is not None]
         if len(with_war) < 3:
-            return None, None, None
+            return None, None, None, None
 
         pred_vals = [w[0] for w in with_war]
         wars = [w[1] for w in with_war]
@@ -380,14 +402,28 @@ class ValuationEvaluator:
             corr_b, _ = spearmanr([b[0] for b in batter_data], [b[1] for b in batter_data])
             war_correlation_batters = round(float(corr_b), 4)
 
-        # Pitchers
+        # Pitchers (all)
         pitcher_data = [(pv, w) for pv, w, pt in with_war if pt == "pitcher"]
         war_correlation_pitchers: float | None = None
         if len(pitcher_data) >= 3:
             corr_p, _ = spearmanr([p[0] for p in pitcher_data], [p[1] for p in pitcher_data])
             war_correlation_pitchers = round(float(corr_p), 4)
 
-        return war_correlation, war_correlation_batters, war_correlation_pitchers
+        # SP only (pitchers with gs >= 5)
+        sp_data = [
+            (p.predicted_value, p.actual_war)
+            for p in matched
+            if p.actual_war is not None
+            and p.player_type == "pitcher"
+            and p.games_started is not None
+            and p.games_started >= 5
+        ]
+        war_correlation_sp: float | None = None
+        if len(sp_data) >= 3:
+            corr_sp, _ = spearmanr([s[0] for s in sp_data], [s[1] for s in sp_data])
+            war_correlation_sp = round(float(corr_sp), 4)
+
+        return war_correlation, war_correlation_batters, war_correlation_pitchers, war_correlation_sp
 
     @staticmethod
     def _compute_hit_rates(matched: list[ValuationAccuracy]) -> dict[int, float]:
@@ -400,6 +436,46 @@ class ValuationEvaluator:
             actual_top = {p.player_id for p in sorted(matched, key=lambda p: p.actual_rank)[:n]}
             hit_rates[n] = round(len(predicted_top & actual_top) / n * 100, 1)
         return hit_rates
+
+    @staticmethod
+    def _compute_category_hit_rates(
+        matched: list[ValuationAccuracy],
+        actual_stats: dict[int, dict[str, float]],
+        categories: Sequence[CategoryConfig],
+        top_n: int = 20,
+    ) -> dict[str, float]:
+        """Compute per-category top-N hit rates.
+
+        For each category, compare the top-N players by predicted category score
+        against the top-N players by actual stat value. Returns hit rate as a
+        percentage for each category.
+        """
+        result: dict[str, float] = {}
+        for cat in categories:
+            # Predicted top-N: players sorted by their category_scores[cat.key]
+            with_scores = [
+                (p.player_id, p.category_scores[cat.key])
+                for p in matched
+                if p.category_scores is not None and cat.key in p.category_scores
+            ]
+            if len(with_scores) < top_n:
+                continue
+            with_scores.sort(key=lambda x: x[1], reverse=True)
+            predicted_top = {pid for pid, _ in with_scores[:top_n]}
+
+            # Actual top-N: players sorted by actual stat value
+            with_actuals = [
+                (pid, actual_stats[pid].get(cat.key, 0.0))
+                for pid in {p.player_id for p in matched}
+                if pid in actual_stats and cat.key in actual_stats[pid]
+            ]
+            if len(with_actuals) < top_n:
+                continue
+            with_actuals.sort(key=lambda x: x[1], reverse=True)
+            actual_top = {pid for pid, _ in with_actuals[:top_n]}
+
+            result[cat.key] = round(len(predicted_top & actual_top) / top_n * 100, 1)
+        return result
 
     def _value_pool(
         self,

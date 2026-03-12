@@ -39,6 +39,7 @@ def compute_sgp_scores(
     use_direct_rates: bool = False,
     volume_weighted: bool = False,
     representative_team: dict[str, tuple[float, float]] | None = None,
+    category_weights: dict[str, float] | None = None,
 ) -> list[PlayerSgpScores]:
     """Compute per-category SGP scores for each player.
 
@@ -142,7 +143,10 @@ def compute_sgp_scores(
                     else:
                         category_sgp[cat.key] = raw_sgp
 
-        composite = sum(category_sgp.values())
+        if category_weights:
+            composite = sum(category_sgp[k] * category_weights.get(k, 1.0) for k in category_sgp)
+        else:
+            composite = sum(category_sgp.values())
         result.append(
             PlayerSgpScores(
                 player_index=i,
@@ -166,6 +170,7 @@ def run_sgp_pipeline(
     use_optimal_assignment: bool = True,
     volume_weighted: bool = False,
     representative_team: dict[str, tuple[float, float]] | None = None,
+    category_weights: dict[str, float] | None = None,
 ) -> SgpPipelineResult:
     """Run the full SGP pipeline: SGP scores → replacement → VAR → dollars."""
     if not stats_list:
@@ -178,6 +183,7 @@ def run_sgp_pipeline(
         use_direct_rates=use_direct_rates,
         volume_weighted=volume_weighted,
         representative_team=representative_team,
+        category_weights=category_weights,
     )
 
     if use_optimal_assignment:

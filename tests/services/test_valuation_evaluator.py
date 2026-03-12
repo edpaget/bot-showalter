@@ -535,6 +535,77 @@ class TestValuationEvaluator:
         assert result.war_correlation_pitchers is None
 
     # -----------------------------------------------------------------------
+    # SP-only WAR ρ tests
+    # -----------------------------------------------------------------------
+
+    def test_war_correlation_sp_populated(self) -> None:
+        """With ≥3 SP (gs≥5), war_correlation_sp is populated."""
+        pitching = [
+            PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0, war=4.0, gs=30),
+            PitchingStats(player_id=5, season=2025, source="fangraphs", ip=180.0, w=12, sv=0, war=3.0, gs=28),
+            PitchingStats(player_id=6, season=2025, source="fangraphs", ip=190.0, w=14, sv=0, war=3.5, gs=29),
+        ]
+        players = _standard_players() + [Player(id=6, name_first="Max", name_last="Scherzer")]
+        valuations = _standard_valuations() + [
+            Valuation(
+                player_id=6,
+                season=2025,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="pitcher",
+                position="p",
+                value=18.0,
+                rank=6,
+                category_scores={"w": 0.8, "sv": 0.0},
+            ),
+        ]
+        evaluator = _build_evaluator(valuations=valuations, pitching=pitching, players=players)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.war_correlation_sp is not None
+        assert -1.0 <= result.war_correlation_sp <= 1.0
+
+    def test_war_correlation_sp_none_when_few_sp(self) -> None:
+        """With <3 SP, war_correlation_sp is None."""
+        pitching = [
+            PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0, war=4.0, gs=30),
+            PitchingStats(player_id=5, season=2025, source="fangraphs", ip=70.0, w=5, sv=30, war=2.0, gs=0),
+        ]
+        evaluator = _build_evaluator(pitching=pitching)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        # Only 1 SP (gs≥5) — not enough
+        assert result.war_correlation_sp is None
+
+    def test_war_correlation_sp_excludes_relievers(self) -> None:
+        """Relievers (gs<5) are excluded from SP WAR ρ."""
+        pitching = [
+            PitchingStats(player_id=4, season=2025, source="fangraphs", ip=200.0, w=15, sv=0, war=4.0, gs=30),
+            PitchingStats(player_id=5, season=2025, source="fangraphs", ip=70.0, w=5, sv=30, war=2.0, gs=0),
+            PitchingStats(player_id=6, season=2025, source="fangraphs", ip=60.0, w=3, sv=25, war=1.0, gs=2),
+        ]
+        players = _standard_players() + [Player(id=6, name_first="Edwin", name_last="Diaz2")]
+        valuations = _standard_valuations() + [
+            Valuation(
+                player_id=6,
+                season=2025,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="pitcher",
+                position="p",
+                value=10.0,
+                rank=6,
+                category_scores={"w": -0.3, "sv": 1.0},
+            ),
+        ]
+        evaluator = _build_evaluator(valuations=valuations, pitching=pitching, players=players)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        # Only 1 pitcher with gs>=5 → sp correlation is None
+        assert result.war_correlation_sp is None
+
+    # -----------------------------------------------------------------------
     # Top-N hit rate tests
     # -----------------------------------------------------------------------
 
@@ -618,6 +689,82 @@ class TestValuationEvaluator:
         # All hit rates should be 100% since ordering matches
         for _n, rate in result.hit_rates.items():
             assert rate == pytest.approx(100.0)
+
+    # -----------------------------------------------------------------------
+    # Per-category hit rate tests
+    # -----------------------------------------------------------------------
+
+    def test_category_hit_rates_computed(self) -> None:
+        """With enough players, category_hit_rates is populated."""
+        # Create 25 batters so top-20 hit rate can be computed for HR and R
+        players: list[Player] = []
+        valuations: list[Valuation] = []
+        batting: list[BattingStats] = []
+        appearances: list[PositionAppearance] = []
+        for i in range(1, 26):
+            players.append(Player(id=i, name_first=f"Player{i}", name_last="Test"))
+            valuations.append(
+                Valuation(
+                    player_id=i,
+                    season=2025,
+                    system="zar",
+                    version="1.0",
+                    projection_system="steamer",
+                    projection_version="v1",
+                    player_type="batter",
+                    position="of",
+                    value=50.0 - i,
+                    rank=i,
+                    category_scores={"hr": 50.0 - i, "r": 100.0 - i},
+                ),
+            )
+            batting.append(
+                BattingStats(player_id=i, season=2025, source="fangraphs", pa=500, hr=50 - i, r=100 - i),
+            )
+            appearances.append(PositionAppearance(player_id=i, season=2025, position="OF", games=100))
+        evaluator = _build_evaluator(
+            valuations=valuations,
+            batting=batting,
+            pitching=[],
+            appearances=appearances,
+            players=players,
+        )
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.category_hit_rates is not None
+        assert "hr" in result.category_hit_rates
+        assert "r" in result.category_hit_rates
+        # Perfect ordering → 100% hit rate
+        assert result.category_hit_rates["hr"] == pytest.approx(100.0)
+        assert result.category_hit_rates["r"] == pytest.approx(100.0)
+
+    def test_category_hit_rates_none_when_too_few_players(self) -> None:
+        """With <20 players, category_hit_rates is None (not enough for top-20)."""
+        evaluator = _build_evaluator()
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        # Only 5 players — not enough for top-20 category hit rate
+        assert result.category_hit_rates is None
+
+    def test_category_hit_rates_empty_category_scores(self) -> None:
+        """Players without category_scores are excluded from category hit rates."""
+        # Create valuations without category_scores
+        valuations = [
+            Valuation(
+                player_id=1,
+                season=2025,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="batter",
+                position="of",
+                value=40.0,
+                rank=1,
+                category_scores={},
+            ),
+        ]
+        evaluator = _build_evaluator(valuations=valuations)
+        result = evaluator.evaluate("zar", "1.0", 2025, _counting_league())
+        assert result.category_hit_rates is None
 
     # -----------------------------------------------------------------------
     # Stratification tests

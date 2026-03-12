@@ -444,6 +444,58 @@ class TestPipelineVolumeWeighted:
         assert sgp_off != sgp_on
 
 
+class TestCategoryWeights:
+    def test_default_no_weights_unchanged(self) -> None:
+        """No weights → identical to current output."""
+        stats = [{"hr": 30.0, "r": 100.0}, {"hr": 20.0, "r": 80.0}]
+        categories = [_counting("hr"), _counting("r")]
+        denominators = {"hr": 10.0, "r": 20.0}
+        result_none = compute_sgp_scores(stats, categories, denominators)
+        result_no_weights = compute_sgp_scores(stats, categories, denominators, category_weights=None)
+        for a, b in zip(result_none, result_no_weights, strict=True):
+            assert a.category_sgp == b.category_sgp
+            assert a.composite_sgp == pytest.approx(b.composite_sgp)
+
+    def test_weight_zero_removes_category(self) -> None:
+        """Weight 0 for HR → HR excluded from composite."""
+        stats = [{"hr": 30.0, "r": 100.0}]
+        categories = [_counting("hr"), _counting("r")]
+        denominators = {"hr": 10.0, "r": 20.0}
+        result = compute_sgp_scores(stats, categories, denominators, category_weights={"hr": 0.0})
+        # composite should equal only R's contribution
+        assert result[0].composite_sgp == pytest.approx(result[0].category_sgp["r"])
+
+    def test_weight_doubles_category(self) -> None:
+        """Weight 2.0 for HR → HR contributes 2x to composite."""
+        stats = [{"hr": 30.0, "r": 100.0}]
+        categories = [_counting("hr"), _counting("r")]
+        denominators = {"hr": 10.0, "r": 20.0}
+        result = compute_sgp_scores(stats, categories, denominators, category_weights={"hr": 2.0})
+        expected = result[0].category_sgp["hr"] * 2.0 + result[0].category_sgp["r"] * 1.0
+        assert result[0].composite_sgp == pytest.approx(expected)
+
+    def test_missing_key_defaults_to_one(self) -> None:
+        """Weight dict provided but category missing → weight = 1.0."""
+        stats = [{"hr": 30.0, "r": 100.0}]
+        categories = [_counting("hr"), _counting("r")]
+        denominators = {"hr": 10.0, "r": 20.0}
+        # Only HR has a weight; R defaults to 1.0
+        result = compute_sgp_scores(stats, categories, denominators, category_weights={"hr": 3.0})
+        expected = result[0].category_sgp["hr"] * 3.0 + result[0].category_sgp["r"] * 1.0
+        assert result[0].composite_sgp == pytest.approx(expected)
+
+    def test_weights_only_affect_composite(self) -> None:
+        """Per-category SGP values unchanged, only composite differs."""
+        stats = [{"hr": 30.0, "r": 100.0}, {"hr": 20.0, "r": 80.0}]
+        categories = [_counting("hr"), _counting("r")]
+        denominators = {"hr": 10.0, "r": 20.0}
+        result_default = compute_sgp_scores(stats, categories, denominators)
+        result_weighted = compute_sgp_scores(stats, categories, denominators, category_weights={"hr": 2.0})
+        for a, b in zip(result_default, result_weighted, strict=True):
+            assert a.category_sgp == b.category_sgp  # per-category unchanged
+            assert a.composite_sgp != pytest.approx(b.composite_sgp)  # composite differs
+
+
 class TestTeamImpact:
     def test_team_impact_different_ip_same_era(self) -> None:
         """Two pitchers with same ERA but different IP get different SGP, not 3:1."""

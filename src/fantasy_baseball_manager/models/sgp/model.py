@@ -125,10 +125,11 @@ class SgpModel:
         batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) >= min_pa]
         pitcher_projs = [p for p in projections if p.player_type == "pitcher" and p.stat_json.get("ip", 0) >= min_ip]
 
-        # 3.5. Direct rate stats and volume weighting flags
+        # 3.5. Direct rate stats, volume weighting, and category weights flags
         use_direct_rates: bool = config.model_params.get("use_direct_rates", False)
         use_optimal_assignment: bool = config.model_params.get("use_optimal_assignment", True)
         volume_weighted: bool = config.model_params.get("volume_weighted", False)
+        category_weights: dict[str, float] | None = config.model_params.get("category_weights")
 
         # 4. Budget split
         batter_budget, pitcher_budget = compute_budget_split(league)
@@ -168,6 +169,7 @@ class SgpModel:
             use_optimal_assignment=use_optimal_assignment,
             volume_weighted=volume_weighted,
             representative_team=representative_team or None,
+            category_weights=category_weights,
         )
 
         # 6. Run SGP for pitchers
@@ -194,6 +196,7 @@ class SgpModel:
             use_optimal_assignment=use_optimal_assignment,
             volume_weighted=volume_weighted,
             representative_team=representative_team or None,
+            category_weights=category_weights,
         )
 
         # 7. Rank all valuations combined
@@ -245,6 +248,7 @@ class SgpModel:
         use_optimal_assignment: bool = True,
         volume_weighted: bool = False,
         representative_team: dict[str, tuple[float, float]] | None = None,
+        category_weights: dict[str, float] | None = None,
     ) -> list[Valuation]:
         """Run the full SGP pipeline for one player pool."""
         if not projections:
@@ -272,6 +276,7 @@ class SgpModel:
             use_optimal_assignment=use_optimal_assignment,
             volume_weighted=volume_weighted,
             representative_team=representative_team,
+            category_weights=category_weights,
         )
 
         valuations: list[Valuation] = []

@@ -47,6 +47,8 @@ class ValuationAccuracy:
     predicted_rank: int
     actual_rank: int
     actual_war: float | None = None
+    games_started: int | None = None
+    category_scores: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -63,7 +65,9 @@ class ValuationEvalResult:
     war_correlation: float | None = None
     war_correlation_batters: float | None = None
     war_correlation_pitchers: float | None = None
+    war_correlation_sp: float | None = None
     hit_rates: dict[int, float] | None = None
+    category_hit_rates: dict[str, float] | None = None
     cohorts: dict[str, ValuationEvalResult] | None = None
     tail_results: dict[int, ValuationEvalResult] | None = None
 

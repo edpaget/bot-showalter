@@ -77,10 +77,16 @@ def _print_metrics_block(result: ValuationEvalResult) -> None:
         console.print(f"  WAR correlation (batters):  [bold]{result.war_correlation_batters:.4f}[/bold]")
     if result.war_correlation_pitchers is not None:
         console.print(f"  WAR correlation (pitchers): [bold]{result.war_correlation_pitchers:.4f}[/bold]")
+    if result.war_correlation_sp is not None:
+        console.print(f"  WAR correlation (SP):       [bold]{result.war_correlation_sp:.4f}[/bold]")
 
     if result.hit_rates:
         parts = [f"top-{n}: {rate:.1f}%" for n, rate in sorted(result.hit_rates.items())]
         console.print(f"  Top-N hit rate:  {'  '.join(parts)}")
+
+    if result.category_hit_rates:
+        cat_parts = [f"{cat}: {rate:.1f}%" for cat, rate in sorted(result.category_hit_rates.items())]
+        console.print(f"  Category hit rate (top-20):  {'  '.join(cat_parts)}")
 
 
 def print_valuation_eval_result(result: ValuationEvalResult, top: int | None = None) -> None:
@@ -204,6 +210,13 @@ def print_valuation_comparison(result: ValuationComparisonResult) -> None:
             f"{c.war_correlation_pitchers:.4f}",
             _fmt_delta(c.war_correlation_pitchers, b.war_correlation_pitchers, ".4f"),
         )
+    if b.war_correlation_sp is not None and c.war_correlation_sp is not None:
+        table.add_row(
+            "WAR ρ (SP)",
+            f"{b.war_correlation_sp:.4f}",
+            f"{c.war_correlation_sp:.4f}",
+            _fmt_delta(c.war_correlation_sp, b.war_correlation_sp, ".4f"),
+        )
 
     # Hit rates
     if b.hit_rates and c.hit_rates:
@@ -214,6 +227,17 @@ def print_valuation_comparison(result: ValuationComparisonResult) -> None:
                 f"{b.hit_rates[n]:.1f}%",
                 f"{c.hit_rates[n]:.1f}%",
                 _fmt_delta(c.hit_rates[n], b.hit_rates[n], ".1f", "pp"),
+            )
+
+    # Category hit rates
+    if b.category_hit_rates and c.category_hit_rates:
+        common_cats = sorted(set(b.category_hit_rates) & set(c.category_hit_rates))
+        for cat in common_cats:
+            table.add_row(
+                f"Cat hit rate ({cat})",
+                f"{b.category_hit_rates[cat]:.1f}%",
+                f"{c.category_hit_rates[cat]:.1f}%",
+                _fmt_delta(c.category_hit_rates[cat], b.category_hit_rates[cat], ".1f", "pp"),
             )
 
     console.print(table)
