@@ -19,7 +19,7 @@ Each fix is independently testable. The final phase runs a full holdout comparis
 | 1 — Regression-slope denominators | done (2026-03-11) |
 | 2 — Team-impact rate-stat formula | done (2026-03-11) |
 | 3 — Category weights and evaluation infrastructure | done (2026-03-11) |
-| 4 — Holdout validation | in progress |
+| 4 — Holdout validation | done (2026-03-11) |
 
 ## Phase 1: Regression-slope denominators
 
@@ -172,6 +172,52 @@ The evaluation uses established independent targets (WAR ρ, top-N hit rates) vi
 ### Gate: go/no-go
 
 **Go (adopt)** if `sgp-overhauled` matches or improves baseline ZAR's SP WAR ρ on both seasons without degrading batter metrics or hit rates, while producing plausible reliever valuations. **Go (blend)** if SGP and ZAR have complementary strengths — pursue an ensemble approach. **No-go** if `sgp-overhauled` still underperforms baseline ZAR on SP WAR ρ on both seasons despite all fixes. In that case, SGP's weakness may be fundamental to H2H category leagues (SGP was designed for and validated on roto, not H2H), and further investment should be redirected to [ZAR Pitcher Budget](zar-pitcher-budget.md) improvements instead.
+
+### Results
+
+All SGP configs used ensemble/routed-sgbm projections to match the ZAR baseline population (~945 players per season). Control: `zar/holdout-baseline`.
+
+#### Comparison matrix
+
+| Config | Season | WAR ρ (all) | WAR ρ (SP) | Hit-25 | Hit-50 | Hit-100 | Regression gate |
+|--------|--------|-------------|------------|--------|--------|---------|-----------------|
+| zar (control) | 2024 | 0.427 | 0.414 | 40% | 36% | 51% | — |
+| zar (control) | 2025 | 0.480 | 0.476 | 48% | 44% | 47% | — |
+| sgp-baseline | 2024 | 0.435 (+0.008) | 0.436 (+0.021) | 36% | 36% | 42% | — |
+| sgp-baseline | 2025 | 0.461 (-0.019) | 0.438 (-0.038) | 40% | 42% | 42% | — |
+| sgp-regression | 2024 | 0.435 (+0.008) | 0.427 (+0.013) | 32% | 38% | 42% | — |
+| sgp-regression | 2025 | 0.467 (-0.014) | 0.433 (-0.043) | 40% | 44% | 42% | — |
+| sgp-team-impact | 2024 | 0.434 (+0.006) | 0.416 (+0.002) | 40% | 38% | 42% | — |
+| sgp-team-impact | 2025 | 0.460 (-0.021) | 0.411 (-0.065) | 40% | 44% | 43% | — |
+| sgp-overhauled | 2024 | 0.433 (+0.006) | 0.411 (-0.004) | 40% | 42% | 43% | PASS |
+| sgp-overhauled | 2025 | 0.467 (-0.013) | 0.423 (-0.053) | 40% | 46% | 43% | FAIL |
+
+Per-category hit rates (sgp-overhauled vs ZAR): HR, R, RBI, SO, W all matched ZAR. OBP consistently -10 to -15pp worse. SB -5pp worse. ERA and WHIP 0% for both systems (expected — these rate stats have noisy actuals). SV+HLD not evaluable (combined stat not tracked in actuals).
+
+#### Phase contribution analysis
+
+- **Regression denominators** (baseline → regression): Negligible impact. WAR ρ changes < 0.01 on both seasons. SP WAR ρ slightly worse (-0.01 on 2024). Regression provides more stable denominators across seasons (lower CoV, proven in phase 1) but doesn't translate to measurably better valuations.
+- **Team-impact rate stats** (baseline → team-impact): Also minimal impact on aggregate metrics. Top-25 hit rate improved to 40% on 2024 (matching ZAR), but SP WAR ρ degraded on 2025 (-0.065). The team-impact formula successfully eliminates reliever inflation ($110 Díaz → < $40) but this correctness improvement doesn't translate to aggregate WAR ρ gains.
+- **Combined (overhauled)**: Reliever inflation eliminated. Top-50 hit rate improved (+6pp on 2024, +2pp on 2025). But OBP hit rate is persistently 10-15pp worse than ZAR, and top-100 hit rate is 4-9pp worse.
+
+#### Pitcher inspection
+
+**sgp-overhauled 2024 top pitchers:** Strider ($53.1 SP), Cease ($40.9), Imanaga ($40.1), Pivetta ($39.6 RP), Steele ($36.8). No RP above $40. Edwin Díaz does not appear in top-20 (was $110 in original SGP, $26 in sgp-baseline). SP aces dominate as expected.
+
+**sgp-overhauled 2025 top pitchers:** Skenes ($72.5), Skubal ($45.2 SP), Sale ($41.6 SP), Wheeler ($33.6 SP). RPs: Bowden Francis ($27.7), Clay Holmes ($25.1). Plausible reliever valuations — closers are in the draftable pool but don't dominate.
+
+#### Go/no-go decision: **No-go**
+
+SGP cannot replace ZAR as the production system. While the overhauled SGP successfully fixes the reliever inflation problem (acceptance criterion 3: met) and is competitive on overall WAR ρ, it:
+
+1. **Fails the regression gate on 2025** (WAR ρ 0.467 vs 0.480, hit rate 43.0% vs 46.3%).
+2. **Does not exceed baseline SGP's SP WAR ρ** (criterion 4: not met — overhauled SP WAR ρ 0.411/0.423 vs baseline's 0.436/0.438).
+3. **Consistently underperforms on OBP category hit rate** (-10 to -15pp), suggesting SGP's rate-stat handling still doesn't capture OBP value as well as ZAR's z-score approach.
+4. **SV+HLD category hit rate untestable** (criterion 5: inconclusive — combined stat not tracked in actuals infrastructure).
+
+The phases 1-3 improvements are technically correct — regression denominators are more robust, the team-impact formula is the theoretically right approach for rate stats, and reliever inflation is eliminated. But these correctness improvements don't translate into aggregate accuracy gains over ZAR in H2H categories format. SGP was designed for and validated in roto leagues (the FanGraphs test); H2H categories may have different dynamics that ZAR's z-score approach handles better.
+
+**Recommendation:** Keep SGP infrastructure as a research tool (it's useful for understanding category value and standings dynamics). Redirect active optimization effort to [ZAR Pitcher Budget](zar-pitcher-budget.md) tuning and OBP-specific improvements. Consider SGP as an ensemble candidate if a future valuation ensemble roadmap emerges — SGP and ZAR have somewhat complementary strengths (SGP slightly better on counting stats, ZAR better on rate stats).
 
 ---
 
