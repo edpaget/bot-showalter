@@ -699,3 +699,32 @@ class TestTradePicksPersists:
         assert len(restored.trades) == 1
         assert restored.team_for_pick(1) == 2
         assert restored.team_for_pick(2) == 1
+
+
+class TestEvaluateTrade:
+    def test_evaluate_trade_returns_evaluation(self) -> None:
+        mgr = _make_manager()
+        sid, engine = mgr.start_session(2026, fmt="snake", teams=4)
+
+        evaluation = mgr.evaluate_trade(sid, gives=[1], receives=[4])
+
+        assert evaluation.gives_value >= 0
+        assert evaluation.receives_value >= 0
+        assert evaluation.net_value == evaluation.receives_value - evaluation.gives_value
+        assert evaluation.recommendation in {"accept", "reject", "even"}
+        assert len(evaluation.gives_detail) == 1
+        assert len(evaluation.receives_detail) == 1
+        assert evaluation.gives_detail[0].pick == 1
+        assert evaluation.receives_detail[0].pick == 4
+
+    def test_evaluate_trade_does_not_modify_engine(self) -> None:
+        mgr = _make_manager()
+        sid, engine = mgr.start_session(2026, fmt="snake", teams=4)
+
+        picks_before = engine.state.current_pick
+        trades_before = len(engine.trades)
+
+        mgr.evaluate_trade(sid, gives=[1], receives=[4])
+
+        assert engine.state.current_pick == picks_before
+        assert len(engine.trades) == trades_before

@@ -637,3 +637,120 @@ def test_pick_invalid_player(session_client: TestClient) -> None:
         },
     )
     assert "errors" in result
+
+
+# ---------------------------------------------------------------------------
+# Trade mutations
+# ---------------------------------------------------------------------------
+
+_TRADE_PICKS_MUTATION = """
+mutation TradePicks($sessionId: Int!, $gives: [Int!]!, $receives: [Int!]!, $partnerTeam: Int!) {
+    tradePicks(sessionId: $sessionId, gives: $gives, receives: $receives, partnerTeam: $partnerTeam) {
+        sessionId
+        currentPick
+        trades {
+            teamA
+            teamB
+            teamAGives
+            teamBGives
+        }
+    }
+}
+"""
+
+_UNDO_TRADE_MUTATION = """
+mutation UndoTrade($sessionId: Int!) {
+    undoTrade(sessionId: $sessionId) {
+        sessionId
+        currentPick
+        trades {
+            teamA
+            teamB
+            teamAGives
+            teamBGives
+        }
+    }
+}
+"""
+
+_EVALUATE_TRADE_QUERY = """
+query EvaluateTrade($sessionId: Int!, $gives: [Int!]!, $receives: [Int!]!) {
+    evaluateTrade(sessionId: $sessionId, gives: $gives, receives: $receives) {
+        givesValue
+        receivesValue
+        netValue
+        givesDetail {
+            pickNumber
+            value
+        }
+        receivesDetail {
+            pickNumber
+            value
+        }
+        recommendation
+    }
+}
+"""
+
+
+def test_trade_picks_mutation(session_client: TestClient) -> None:
+    sid = _start_session(session_client)
+    # In a 10-team snake: pick 1 belongs to team 1, pick 2 belongs to team 2
+    result = _gql(
+        session_client,
+        _TRADE_PICKS_MUTATION,
+        {"sessionId": sid, "gives": [1], "receives": [2], "partnerTeam": 2},
+    )
+    assert "errors" not in result, result.get("errors")
+    data = result["data"]["tradePicks"]
+    assert data["sessionId"] == sid
+    assert len(data["trades"]) == 1
+    trade = data["trades"][0]
+    assert trade["teamA"] == 1
+    assert trade["teamB"] == 2
+    assert trade["teamAGives"] == [1]
+    assert trade["teamBGives"] == [2]
+
+
+def test_undo_trade_mutation(session_client: TestClient) -> None:
+    sid = _start_session(session_client)
+    # Trade then undo
+    _gql(
+        session_client,
+        _TRADE_PICKS_MUTATION,
+        {"sessionId": sid, "gives": [1], "receives": [2], "partnerTeam": 2},
+    )
+    result = _gql(session_client, _UNDO_TRADE_MUTATION, {"sessionId": sid})
+    assert "errors" not in result, result.get("errors")
+    data = result["data"]["undoTrade"]
+    assert data["trades"] == []
+
+
+def test_trade_picks_invalid_session(session_client: TestClient) -> None:
+    result = _gql(
+        session_client,
+        _TRADE_PICKS_MUTATION,
+        {"sessionId": 99999, "gives": [1], "receives": [2], "partnerTeam": 2},
+    )
+    assert "errors" in result
+
+
+def test_evaluate_trade_query(session_client: TestClient) -> None:
+    sid = _start_session(session_client)
+    result = _gql(
+        session_client,
+        _EVALUATE_TRADE_QUERY,
+        {"sessionId": sid, "gives": [1], "receives": [10]},
+    )
+    assert "errors" not in result, result.get("errors")
+    data = result["data"]["evaluateTrade"]
+    assert "givesValue" in data
+    assert "receivesValue" in data
+    assert "netValue" in data
+    assert "recommendation" in data
+    assert isinstance(data["givesDetail"], list)
+    assert isinstance(data["receivesDetail"], list)
+    assert len(data["givesDetail"]) == 1
+    assert data["givesDetail"][0]["pickNumber"] == 1
+    assert len(data["receivesDetail"]) == 1
+    assert data["receivesDetail"][0]["pickNumber"] == 10

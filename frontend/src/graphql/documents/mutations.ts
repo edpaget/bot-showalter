@@ -37,6 +37,12 @@ export const START_SESSION = gql`
       userTeam
       budgetRemaining
       keeperCount
+      trades {
+        teamA
+        teamB
+        teamAGives
+        teamBGives
+      }
     }
   }
 `;
@@ -92,5 +98,71 @@ export const STOP_YAHOO_POLL = gql`
 export const DERIVE_KEEPER_COSTS = gql`
   mutation DeriveKeeperCosts($leagueKey: String!, $season: Int!, $costFloor: Float) {
     deriveKeeperCosts(leagueKey: $leagueKey, season: $season, costFloor: $costFloor)
+  }
+`;
+
+export const TRADE_PICKS = gql`
+  mutation TradePicks(
+    $sessionId: Int!
+    $gives: [Int!]!
+    $receives: [Int!]!
+    $partnerTeam: Int!
+  ) {
+    tradePicks(
+      sessionId: $sessionId
+      gives: $gives
+      receives: $receives
+      partnerTeam: $partnerTeam
+    ) {
+      sessionId
+      currentPick
+      picks {
+        pickNumber
+        team
+        playerId
+        playerName
+        position
+        price
+      }
+      format
+      teams
+      userTeam
+      budgetRemaining
+      keeperCount
+      trades {
+        teamA
+        teamB
+        teamAGives
+        teamBGives
+      }
+    }
+  }
+`;
+
+export const UNDO_TRADE = gql`
+  mutation UndoTrade($sessionId: Int!) {
+    undoTrade(sessionId: $sessionId) {
+      sessionId
+      currentPick
+      picks {
+        pickNumber
+        team
+        playerId
+        playerName
+        position
+        price
+      }
+      format
+      teams
+      userTeam
+      budgetRemaining
+      keeperCount
+      trades {
+        teamA
+        teamB
+        teamAGives
+        teamBGives
+      }
+    }
   }
 `;

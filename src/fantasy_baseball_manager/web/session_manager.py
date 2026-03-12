@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
-from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord, DraftSessionTrade
+from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord, DraftSessionTrade, PickTrade
 from fantasy_baseball_manager.services import (
     DraftConfig,
     DraftEngine,
@@ -15,11 +15,19 @@ from fantasy_baseball_manager.services import (
     build_draft_board,
     build_draft_roster_slots,
     compute_category_balance_scores,
+    compute_pick_value_curve,
+    evaluate_pick_trade,
     load_draft_from_db,
 )
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import DraftBoardRow, DraftTrade, LeagueSettings, Valuation
+    from fantasy_baseball_manager.domain import (
+        DraftBoardRow,
+        DraftTrade,
+        LeagueSettings,
+        PickTradeEvaluation,
+        Valuation,
+    )
     from fantasy_baseball_manager.repos import (
         ADPRepo,
         DraftSessionRepo,
@@ -201,6 +209,22 @@ class SessionManager:
         self._repo.delete_trade(session_id, trade_number)
         self._repo.update_timestamp(session_id, now)
         return removed
+
+    def evaluate_trade(self, session_id: int, gives: list[int], receives: list[int]) -> PickTradeEvaluation:
+        record = self._repo.load_session(session_id)
+        if record is None:
+            msg = f"Draft session {session_id} not found"
+            raise ValueError(msg)
+
+        adp_list = self._adp_repo.get_by_season(record.season, provider=self._adp_provider)
+        valuations = self._valuation_repo.get_by_season(record.season, system=record.system, version=record.version)
+        player_ids = [v.player_id for v in valuations]
+        players = self._player_repo.get_by_ids(player_ids)
+        player_names = {p.id: f"{p.name_first} {p.name_last}" for p in players if p.id is not None}
+
+        curve = compute_pick_value_curve(adp_list, valuations, self._league, player_names)
+        trade = PickTrade(gives=gives, receives=receives)
+        return evaluate_pick_trade(trade, curve)
 
     def persist_external_pick(self, session_id: int, draft_pick: DraftPick) -> None:
         """Persist a pick that was already applied to the engine (e.g., from Yahoo poller)."""

@@ -44,6 +44,26 @@ export const DRAFT_EVENTS_SUBSCRIPTION = gql`
           arbitrageScore
         }
       }
+      ... on TradeEvent {
+        sessionId
+        trade {
+          teamA
+          teamB
+          teamAGives
+          teamBGives
+        }
+        action
+        state {
+          sessionId
+          currentPick
+          trades {
+            teamA
+            teamB
+            teamAGives
+            teamBGives
+          }
+        }
+      }
     }
   }
 `;

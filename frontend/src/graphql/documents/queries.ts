@@ -70,6 +70,12 @@ export const SESSION_QUERY = gql`
       userTeam
       budgetRemaining
       keeperCount
+      trades {
+        teamA
+        teamB
+        teamAGives
+        teamBGives
+      }
     }
   }
 `;
@@ -456,6 +462,25 @@ export const YAHOO_KEEPER_OVERVIEW_QUERY = gql`
         rankOnTeam
       }
       categoryNames
+    }
+  }
+`;
+
+export const EVALUATE_TRADE_QUERY = gql`
+  query EvaluateTrade($sessionId: Int!, $gives: [Int!]!, $receives: [Int!]!) {
+    evaluateTrade(sessionId: $sessionId, gives: $gives, receives: $receives) {
+      givesValue
+      receivesValue
+      netValue
+      givesDetail {
+        pickNumber
+        value
+      }
+      receivesDetail {
+        pickNumber
+        value
+      }
+      recommendation
     }
   }
 `;

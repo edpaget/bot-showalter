@@ -88,7 +88,7 @@ type DraftBoardType {
   pitchingCategories: [String!]!
 }
 
-union DraftEventType = PickEvent | UndoEvent | SessionEvent | ArbitrageAlertEvent
+union DraftEventType = PickEvent | UndoEvent | SessionEvent | ArbitrageAlertEvent | TradeEvent
 
 type DraftPickType {
   pickNumber: Int!
@@ -123,6 +123,14 @@ type DraftStateType {
   userTeam: Int!
   budgetRemaining: Int
   keeperCount: Int!
+  trades: [DraftTradeType!]!
+}
+
+type DraftTradeType {
+  teamA: Int!
+  teamB: Int!
+  teamAGives: [Int!]!
+  teamBGives: [Int!]!
 }
 
 type FallingPlayerType {
@@ -201,6 +209,8 @@ type Mutation {
   pick(sessionId: Int!, playerId: Int!, position: Position!, price: Int = null, team: Int = null): PickResultType!
   undo(sessionId: Int!): PickResultType!
   endSession(sessionId: Int!): Boolean!
+  tradePicks(sessionId: Int!, gives: [Int!]!, receives: [Int!]!, partnerTeam: Int!): DraftStateType!
+  undoTrade(sessionId: Int!): DraftStateType!
   startYahooPoll(sessionId: Int!, leagueKey: String!): Boolean!
   stopYahooPoll(sessionId: Int!): Boolean!
   deriveKeeperCosts(leagueKey: String!, season: Int!, costFloor: Float! = 1): Int!
@@ -220,6 +230,20 @@ type PickResultType {
   arbitrage: ArbitrageReportType
   balance: [CategoryBalanceType!]!
   categoryNeeds: [CategoryNeedType!]!
+}
+
+type PickTradeEvaluationType {
+  givesValue: Float!
+  receivesValue: Float!
+  netValue: Float!
+  givesDetail: [PickValueType!]!
+  receivesDetail: [PickValueType!]!
+  recommendation: String!
+}
+
+type PickValueType {
+  pickNumber: Int!
+  value: Float!
 }
 
 type PlayerRecommendationType {
@@ -323,6 +347,7 @@ type Query {
   yahooRosters(leagueKey: String!): [YahooRosterType!]!
   yahooRoster(teamKey: String!, leagueKey: String!): YahooRosterType
   yahooKeeperOverview(leagueKey: String!, season: Int!, maxKeepers: Int!): LeagueKeeperOverviewType!
+  evaluateTrade(sessionId: Int!, gives: [Int!]!, receives: [Int!]!): PickTradeEvaluationType!
 }
 
 type ReachPickType {
@@ -370,6 +395,13 @@ type TeamKeeperProjectionType {
   keepers: [ProjectedKeeperType!]!
   totalValue: Float!
   categoryTotals: JSON!
+}
+
+type TradeEvent {
+  sessionId: Int!
+  trade: DraftTradeType!
+  action: String!
+  state: DraftStateType!
 }
 
 type TradeTargetType {

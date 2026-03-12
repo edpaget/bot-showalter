@@ -14,12 +14,15 @@ if TYPE_CHECKING:
         DraftBoard,
         DraftBoardRow,
         DraftSessionRecord,
+        DraftTrade,
         FallingPlayer,
         KeeperDecision,
         KeeperPlanResult,
         KeeperScenarioResult,
         LeagueKeeperOverview,
         LeagueSettings,
+        PickTradeEvaluation,
+        PickValue,
         PlayerProjection,
         PlayerRecommendation,
         PlayerSummary,
@@ -266,6 +269,57 @@ class KeeperInfoType:
 
 
 @strawberry.type
+class DraftTradeType:
+    team_a: int
+    team_b: int
+    team_a_gives: list[int]
+    team_b_gives: list[int]
+
+    @staticmethod
+    def from_domain(trade: DraftTrade) -> DraftTradeType:
+        return DraftTradeType(
+            team_a=trade.team_a,
+            team_b=trade.team_b,
+            team_a_gives=list(trade.team_a_gives),
+            team_b_gives=list(trade.team_b_gives),
+        )
+
+
+@strawberry.type
+class PickValueType:
+    pick_number: int
+    value: float
+
+    @staticmethod
+    def from_domain(pv: PickValue) -> PickValueType:
+        return PickValueType(
+            pick_number=pv.pick,
+            value=pv.expected_value,
+        )
+
+
+@strawberry.type
+class PickTradeEvaluationType:
+    gives_value: float
+    receives_value: float
+    net_value: float
+    gives_detail: list[PickValueType]
+    receives_detail: list[PickValueType]
+    recommendation: str
+
+    @staticmethod
+    def from_domain(evaluation: PickTradeEvaluation) -> PickTradeEvaluationType:
+        return PickTradeEvaluationType(
+            gives_value=evaluation.gives_value,
+            receives_value=evaluation.receives_value,
+            net_value=evaluation.net_value,
+            gives_detail=[PickValueType.from_domain(pv) for pv in evaluation.gives_detail],
+            receives_detail=[PickValueType.from_domain(pv) for pv in evaluation.receives_detail],
+            recommendation=evaluation.recommendation,
+        )
+
+
+@strawberry.type
 class DraftStateType:
     session_id: int
     current_pick: int
@@ -275,9 +329,16 @@ class DraftStateType:
     user_team: int
     budget_remaining: int | None
     keeper_count: int
+    trades: list[DraftTradeType]
 
     @staticmethod
-    def from_state(session_id: int, state: DraftState, *, keeper_count: int = 0) -> DraftStateType:
+    def from_state(
+        session_id: int,
+        state: DraftState,
+        *,
+        keeper_count: int = 0,
+        trades: list[DraftTrade] | None = None,
+    ) -> DraftStateType:
         is_auction = state.config.format.value == "auction"
         return DraftStateType(
             session_id=session_id,
@@ -288,6 +349,7 @@ class DraftStateType:
             user_team=state.config.user_team,
             budget_remaining=state.team_budgets[state.config.user_team] if is_auction else None,
             keeper_count=keeper_count,
+            trades=[DraftTradeType.from_domain(t) for t in (trades or [])],
         )
 
 
@@ -470,8 +532,16 @@ class SessionEvent:
     event_type: str
 
 
+@strawberry.type
+class TradeEvent:
+    session_id: int
+    trade: DraftTradeType
+    action: str  # "trade" or "undo"
+    state: DraftStateType
+
+
 DraftEventType = Annotated[
-    PickEvent | UndoEvent | SessionEvent | ArbitrageAlertEvent,
+    PickEvent | UndoEvent | SessionEvent | ArbitrageAlertEvent | TradeEvent,
     strawberry.union("DraftEventType"),
 ]
 

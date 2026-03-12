@@ -30,6 +30,7 @@ function TestConsumer() {
             userTeam: 1,
             budgetRemaining: null,
             keeperCount: 0,
+            trades: [],
           };
           ctx.setState(state);
         }}

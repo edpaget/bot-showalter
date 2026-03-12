@@ -35,6 +35,7 @@ from fantasy_baseball_manager.web.types import (
     DraftPickType,
     DraftSessionSummaryType,
     DraftStateType,
+    DraftTradeType,
     FallingPlayerType,
     KeeperInfoType,
     KeeperPlanType,
@@ -42,6 +43,7 @@ from fantasy_baseball_manager.web.types import (
     LeagueSettingsType,
     PickEvent,
     PickResultType,
+    PickTradeEvaluationType,
     PlayerSummaryType,
     PlayerTierType,
     PositionScarcityType,
@@ -49,6 +51,7 @@ from fantasy_baseball_manager.web.types import (
     RecommendationType,
     RosterSlotType,
     SessionEvent,
+    TradeEvent,
     UndoEvent,
     ValuationType,
     WebConfigType,
@@ -250,7 +253,7 @@ def _build_pick_result(
     keeper_count = _get_keeper_count(mgr, session_id)
     return PickResultType(
         pick=pick,
-        state=DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count),
+        state=DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades),
         recommendations=[RecommendationType.from_domain(r) for r in recs],
         roster=[DraftPickType.from_domain(p) for p in roster],
         needs=[RosterSlotType(position=position_from_raw(pos), remaining=count) for pos, count in needs.items()],
@@ -365,7 +368,7 @@ class Query:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
         keeper_count = _get_keeper_count(mgr, session_id)
-        return DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count)
+        return DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)
 
     @strawberry.field
     def keepers(self, info: Info, session_id: int) -> list[KeeperInfoType]:
@@ -735,6 +738,18 @@ class Query:
         )
         return LeagueKeeperOverviewType.from_domain(overview)
 
+    @strawberry.field
+    def evaluate_trade(
+        self,
+        info: Info,
+        session_id: int,
+        gives: list[int],
+        receives: list[int],
+    ) -> PickTradeEvaluationType:
+        mgr = _get_session_manager(info)
+        evaluation = mgr.evaluate_trade(session_id, gives, receives)
+        return PickTradeEvaluationType.from_domain(evaluation)
+
 
 @strawberry.type
 class Mutation:
@@ -770,7 +785,7 @@ class Mutation:
             SessionEvent(session_id=session_id, event_type="started"),
         )
         keeper_count = _get_keeper_count(mgr, session_id)
-        return DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count)
+        return DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)
 
     @strawberry.mutation
     async def pick(
@@ -852,6 +867,51 @@ class Mutation:
             SessionEvent(session_id=session_id, event_type="ended"),
         )
         return True
+
+    @strawberry.mutation
+    async def trade_picks(
+        self,
+        info: Info,
+        session_id: int,
+        gives: list[int],
+        receives: list[int],
+        partner_team: int,
+    ) -> DraftStateType:
+        ctx = _get_context(info)
+        mgr = _get_session_manager(info)
+        trade = mgr.trade_picks(session_id, gives, receives, partner_team)
+        engine = mgr.get_engine(session_id)
+        keeper_count = _get_keeper_count(mgr, session_id)
+        state = DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)
+        await ctx.event_bus.publish(
+            session_id,
+            TradeEvent(
+                session_id=session_id,
+                trade=DraftTradeType.from_domain(trade),
+                action="trade",
+                state=state,
+            ),
+        )
+        return state
+
+    @strawberry.mutation
+    async def undo_trade(self, info: Info, session_id: int) -> DraftStateType:
+        ctx = _get_context(info)
+        mgr = _get_session_manager(info)
+        removed = mgr.undo_trade(session_id)
+        engine = mgr.get_engine(session_id)
+        keeper_count = _get_keeper_count(mgr, session_id)
+        state = DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)
+        await ctx.event_bus.publish(
+            session_id,
+            TradeEvent(
+                session_id=session_id,
+                trade=DraftTradeType.from_domain(removed),
+                action="undo",
+                state=state,
+            ),
+        )
+        return state
 
     @strawberry.mutation
     async def start_yahoo_poll(
