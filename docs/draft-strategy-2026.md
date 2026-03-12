@@ -85,7 +85,31 @@
 
 ## Mock Draft Simulation Results
 
-200 simulations per scenario, keepers excluded, seed 42.
+200 simulations per scenario, keepers excluded, seed 42. Valuations use ZAR (default system). All opponents draft by ADP with 15% noise, which models a typical league where managers follow Yahoo/FantasyPros rankings.
+
+### How to rerun this analysis
+
+After tweaking valuations, rerun with different `--system` values:
+
+```bash
+# Strategy comparison (slot 7)
+uv run fbm draft mock compare --season 2026 --position 7 --league keeper \
+  --exclude-keepers keeper --simulations 200 --seed 42 [--system <system>]
+
+# Strategy comparison (slot 8)
+uv run fbm draft mock compare --season 2026 --position 8 --league keeper \
+  --exclude-keepers keeper --simulations 200 --seed 42 [--system <system>]
+
+# Detailed batch with most-drafted players (slot 7)
+uv run fbm draft mock batch --season 2026 --position 7 --league keeper \
+  --exclude-keepers keeper --simulations 200 --strategy best-value --seed 42 [--system <system>]
+
+# Sample draft to inspect specific picks
+uv run fbm draft mock single --season 2026 --position 7 --league keeper \
+  --exclude-keepers keeper --strategy best-value --seed 42 [--system <system>]
+```
+
+Available systems: `zar` (default), `zar-reformed`, `sgp`. Omit `--system` for ZAR.
 
 ### Strategy Comparison
 
