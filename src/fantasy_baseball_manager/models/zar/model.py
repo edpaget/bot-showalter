@@ -1,4 +1,5 @@
 import dataclasses
+import statistics
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain import ArtifactType, BudgetSplitMode, EligibilityProvider, Position, Valuation
@@ -137,6 +138,19 @@ class ZarModel:
             use_optimal_assignment=use_optimal_assignment,
         )
 
+        # 4.5. Cross-pool normalization: compute batter composite stdev as reference
+        normalize_cross_pool: bool = config.model_params.get("normalize_cross_pool", False)
+        reference_composite_stdev: float | None = None
+        if normalize_cross_pool and batter_valuations:
+            batter_composites = [
+                sum(v.category_scores[k] * category_weights.get(k, 1.0) for k in v.category_scores)
+                if category_weights
+                else sum(v.category_scores.values())
+                for v in batter_valuations
+            ]
+            if len(batter_composites) > 1:
+                reference_composite_stdev = statistics.pstdev(batter_composites)
+
         # 5. Run ZAR for pitchers
         pitcher_position_map = self._eligibility_service.get_pitcher_positions(
             season, league, [p.player_id for p in pitcher_projs], projections=pitcher_projs
@@ -161,6 +175,7 @@ class ZarModel:
             use_direct_rates=use_direct_rates,
             system=valuation_system,
             use_optimal_assignment=use_optimal_assignment,
+            reference_composite_stdev=reference_composite_stdev,
         )
 
         # 6. Rank all valuations combined by value descending
@@ -212,6 +227,7 @@ class ZarModel:
         use_direct_rates: bool = False,
         system: str = "zar",
         use_optimal_assignment: bool = True,
+        reference_composite_stdev: float | None = None,
     ) -> list[Valuation]:
         """Run the full ZAR pipeline for one player pool (batters or pitchers)."""
         if not projections:
@@ -238,6 +254,7 @@ class ZarModel:
             category_weights=category_weights,
             use_direct_rates=use_direct_rates,
             use_optimal_assignment=use_optimal_assignment,
+            reference_composite_stdev=reference_composite_stdev,
         )
 
         # Build Valuation objects (rank=0 placeholder, filled later)

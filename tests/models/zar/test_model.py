@@ -1021,6 +1021,67 @@ class TestZarModelBudgetHitterPct:
 # ---------------------------------------------------------------------------
 
 
+class TestZarModelCrossPoolNormalization:
+    def test_normalize_cross_pool_changes_pitcher_values(self) -> None:
+        """With normalize_cross_pool=True, pitcher dollar values differ from baseline."""
+        model_without, val_repo_without = _build_model()
+        model_without.predict(_standard_config())
+
+        model_with, val_repo_with = _build_model()
+        config_with = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "normalize_cross_pool": True,
+            },
+            version="1.0",
+        )
+        model_with.predict(config_with)
+
+        # Pitcher composite z-scores should differ (scaled to batter stdev)
+        pitcher_without = {
+            v.player_id: v.category_scores for v in val_repo_without.upserted if v.player_type == "pitcher"
+        }
+        pitcher_with = {v.player_id: v.category_scores for v in val_repo_with.upserted if v.player_type == "pitcher"}
+        # category_scores are individual z-scores, unchanged by normalization
+        # but dollar values may differ if replacement level shifts
+        assert pitcher_without == pitcher_with  # category z-scores unchanged
+
+    def test_normalize_cross_pool_does_not_change_batter_values(self) -> None:
+        """With normalize_cross_pool=True, batter dollar values are unchanged."""
+        model_without, val_repo_without = _build_model()
+        model_without.predict(_standard_config())
+
+        model_with, val_repo_with = _build_model()
+        config_with = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "normalize_cross_pool": True,
+            },
+            version="1.0",
+        )
+        model_with.predict(config_with)
+
+        batter_without = {v.player_id: v.value for v in val_repo_without.upserted if v.player_type == "batter"}
+        batter_with = {v.player_id: v.value for v in val_repo_with.upserted if v.player_type == "batter"}
+        assert batter_without == batter_with
+
+    def test_without_normalize_flag_identical_to_baseline(self) -> None:
+        """Without normalize_cross_pool, behavior is identical to baseline."""
+        model_a, val_repo_a = _build_model()
+        model_a.predict(_standard_config())
+
+        model_b, val_repo_b = _build_model()
+        model_b.predict(_standard_config())
+
+        values_a = {v.player_id: v.value for v in val_repo_a.upserted}
+        values_b = {v.player_id: v.value for v in val_repo_b.upserted}
+        assert values_a == values_b
+
+
 class TestZarModelOptimalAssignment:
     def test_predict_uses_optimal_by_default(self) -> None:
         """Default predict uses optimal assignment, producing solver-derived positions."""

@@ -136,6 +136,27 @@ def compute_z_scores(
     return result
 
 
+def normalize_composite_z(
+    z_scores: list[PlayerZScores],
+    reference_stdev: float,
+) -> list[PlayerZScores]:
+    """Scale composite z-scores so their stdev matches *reference_stdev*."""
+    if len(z_scores) < 2:
+        return z_scores
+    pool_stdev = statistics.pstdev([pz.composite_z for pz in z_scores])
+    if pool_stdev == 0.0:
+        return z_scores
+    scale = reference_stdev / pool_stdev
+    return [
+        PlayerZScores(
+            player_index=pz.player_index,
+            category_z=pz.category_z,
+            composite_z=pz.composite_z * scale,
+        )
+        for pz in z_scores
+    ]
+
+
 def compute_replacement_level(
     z_scores: list[PlayerZScores],
     positions: list[list[str]],
@@ -313,6 +334,7 @@ def run_zar_pipeline(
     category_weights: dict[str, float] | None = None,
     use_direct_rates: bool = False,
     use_optimal_assignment: bool = True,
+    reference_composite_stdev: float | None = None,
 ) -> ZarPipelineResult:
     """Run the full ZAR pipeline: convert → z-score → replacement → VAR → dollars."""
     if not stats_list:
@@ -322,6 +344,9 @@ def run_zar_pipeline(
     z_scores = compute_z_scores(
         converted, category_keys, stdev_overrides=stdev_overrides, category_weights=category_weights
     )
+
+    if reference_composite_stdev is not None:
+        z_scores = normalize_composite_z(z_scores, reference_composite_stdev)
 
     if use_optimal_assignment:
         composite_scores = [pz.composite_z for pz in z_scores]

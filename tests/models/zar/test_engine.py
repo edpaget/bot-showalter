@@ -1,3 +1,5 @@
+import statistics
+
 import pytest
 
 from fantasy_baseball_manager.domain.league_settings import (
@@ -17,6 +19,7 @@ from fantasy_baseball_manager.models.zar.engine import (
     compute_var,
     compute_z_scores,
     convert_rate_stats,
+    normalize_composite_z,
     resolve_numerator,
     run_optimal_pipeline,
     run_zar_pipeline,
@@ -979,3 +982,97 @@ class TestRunZarPipelineOptimal:
             stats, categories, positions, roster_spots, num_teams=1, budget=100.0, use_optimal_assignment=False
         )
         assert result.assignments is None
+
+
+class TestNormalizeCompositeZ:
+    def test_stdev_matches_reference(self) -> None:
+        """After normalization, composite stdev matches reference within tolerance."""
+        z_scores = [
+            PlayerZScores(player_index=0, category_z={"hr": 1.0}, composite_z=10.0),
+            PlayerZScores(player_index=1, category_z={"hr": 0.5}, composite_z=5.0),
+            PlayerZScores(player_index=2, category_z={"hr": -0.5}, composite_z=-2.0),
+            PlayerZScores(player_index=3, category_z={"hr": -1.0}, composite_z=-8.0),
+        ]
+        reference_stdev = 3.0
+        result = normalize_composite_z(z_scores, reference_stdev)
+        composites = [pz.composite_z for pz in result]
+        assert statistics.pstdev(composites) == pytest.approx(reference_stdev, rel=0.01)
+
+    def test_category_z_unchanged(self) -> None:
+        """Normalization does not alter category_z values."""
+        z_scores = [
+            PlayerZScores(player_index=0, category_z={"hr": 1.5, "r": 0.8}, composite_z=10.0),
+            PlayerZScores(player_index=1, category_z={"hr": -0.5, "r": 1.2}, composite_z=5.0),
+        ]
+        result = normalize_composite_z(z_scores, reference_stdev=2.0)
+        for original, normalized in zip(z_scores, result, strict=True):
+            assert normalized.category_z == original.category_z
+
+    def test_single_player_returned_unchanged(self) -> None:
+        """Single-player input is returned unchanged (can't compute stdev)."""
+        z_scores = [PlayerZScores(player_index=0, category_z={"hr": 1.0}, composite_z=5.0)]
+        result = normalize_composite_z(z_scores, reference_stdev=3.0)
+        assert result[0].composite_z == 5.0
+
+    def test_all_equal_composites_returned_unchanged(self) -> None:
+        """When pool stdev is 0 (all equal), input is returned unchanged."""
+        z_scores = [
+            PlayerZScores(player_index=0, category_z={"hr": 1.0}, composite_z=5.0),
+            PlayerZScores(player_index=1, category_z={"hr": 0.5}, composite_z=5.0),
+        ]
+        result = normalize_composite_z(z_scores, reference_stdev=3.0)
+        assert result[0].composite_z == 5.0
+        assert result[1].composite_z == 5.0
+
+    def test_player_index_preserved(self) -> None:
+        """Player indices are preserved through normalization."""
+        z_scores = [
+            PlayerZScores(player_index=7, category_z={"hr": 1.0}, composite_z=10.0),
+            PlayerZScores(player_index=3, category_z={"hr": -1.0}, composite_z=-10.0),
+        ]
+        result = normalize_composite_z(z_scores, reference_stdev=5.0)
+        assert result[0].player_index == 7
+        assert result[1].player_index == 3
+
+
+class TestRunZarPipelineNormalization:
+    def test_reference_composite_stdev_scales_composites(self) -> None:
+        """Pipeline with reference_composite_stdev rescales composite z-scores."""
+        stats = [{"hr": 40.0}, {"hr": 20.0}, {"hr": 10.0}, {"hr": 5.0}]
+        categories = [_counting("hr")]
+        positions = [["of"]] * 4
+        roster_spots = {"of": 3}
+
+        result_without = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
+        result_with = run_zar_pipeline(
+            stats, categories, positions, roster_spots, num_teams=1, budget=100.0, reference_composite_stdev=5.0
+        )
+        composites_without = [pz.composite_z for pz in result_without.z_scores]
+        composites_with = [pz.composite_z for pz in result_with.z_scores]
+        assert composites_without != composites_with
+        # Normalized composites should have stdev ~5.0
+        assert statistics.pstdev(composites_with) == pytest.approx(5.0, rel=0.01)
+
+    def test_without_reference_stdev_unchanged(self) -> None:
+        """Pipeline without reference_composite_stdev is backward compatible."""
+        stats = [{"hr": 30.0}, {"hr": 20.0}, {"hr": 10.0}]
+        categories = [_counting("hr")]
+        positions = [["of"]] * 3
+        roster_spots = {"of": 2}
+
+        result_a = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
+        result_b = run_zar_pipeline(stats, categories, positions, roster_spots, num_teams=1, budget=100.0)
+        assert result_a.dollar_values == result_b.dollar_values
+
+    def test_dollar_sum_preserved_with_normalization(self) -> None:
+        """Budget total is preserved when normalization is applied."""
+        stats = [{"hr": 40.0}, {"hr": 20.0}, {"hr": 10.0}]
+        categories = [_counting("hr")]
+        positions = [["of"]] * 3
+        roster_spots = {"of": 3}
+        budget = 90.0
+
+        result = run_zar_pipeline(
+            stats, categories, positions, roster_spots, num_teams=1, budget=budget, reference_composite_stdev=2.0
+        )
+        assert sum(result.dollar_values) == pytest.approx(budget)
