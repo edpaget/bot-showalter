@@ -143,12 +143,9 @@ class SgpModel:
             if cat.stat_type is StatType.RATE and cat.denominator and cat.key not in representative_team:
                 # Derive avg_volume from projections for this category
                 all_stats = batter_stats + pitcher_stats
-                vols = [s.get(cat.denominator, 0.0) for s in all_stats if s.get(cat.denominator, 0.0) > 0]
-                rates = [
-                    s.get(cat.key, 0.0)
-                    for s in all_stats
-                    if s.get(cat.key) is not None and s.get(cat.denominator, 0.0) > 0
-                ]
+                eligible = [s for s in all_stats if s.get(cat.denominator, 0.0) > 0 and s.get(cat.key) is not None]
+                vols = [s[cat.denominator] for s in eligible]
+                rates = [s.get(cat.key, 0.0) for s in eligible]
                 if vols and rates and league.teams > 0:
                     avg_vol = sum(vols) / league.teams
                     avg_rate = sum(r * v for r, v in zip(rates, vols, strict=True)) / sum(vols)
