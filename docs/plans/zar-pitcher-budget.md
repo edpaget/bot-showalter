@@ -15,7 +15,7 @@ This roadmap addresses the budget split and cross-pool normalization. It does no
 | Phase | Status |
 |-------|--------|
 | 1 — Configurable budget split ratio | done (2026-03-11) |
-| 2 — Pitcher composite normalization | not started |
+| 2 — Pitcher composite normalization | in progress |
 | 3 — Holdout validation and adoption | not started |
 
 ## Phase 1: Configurable budget split ratio
