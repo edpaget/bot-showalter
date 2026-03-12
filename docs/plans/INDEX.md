@@ -10,7 +10,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
-| [Draft Pick Trades](draft-pick-trades.md) | 4 | phases 1-3 done | draft-pick-trade-evaluator (done) |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [SGP Overhaul](sgp-overhaul.md) | 4 | phases 1-3 done | none |
 | [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 | phases 1-2 done | none |
@@ -19,6 +18,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 
 | Roadmap | Phases |
 |---------|--------|
+| [Draft Pick Trades](draft-pick-trades.md) | 4 |
 | [Yahoo League Web Integration](yahoo-league-web-integration.md) | 4 |
 | [Optimal Position Assignment](optimal-position-assignment.md) | 4 |
 | [SGP Rate-Stat Volume Weighting](sgp-rate-stat-volume-weighting.md) | 2 |

@@ -1,13 +1,28 @@
 import { useState } from "react";
-import type { DraftPickType } from "../generated/graphql";
+import type { DraftPickType, DraftTradeType } from "../generated/graphql";
 import { displayPosition } from "../lib/position";
+import { snakeTeam } from "../lib/snakePicks";
+import { Spinner } from "./Spinner";
 
 interface PickLogPanelProps {
   picks: DraftPickType[];
+  trades?: DraftTradeType[];
+  teams?: number;
+  userTeam?: number;
   onPlayerClick?: (playerId: number, playerName: string, playerType?: string) => void;
+  onUndoTrade?: () => void;
+  undoingTrade?: boolean;
 }
 
-export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
+export function PickLogPanel({
+  picks,
+  trades = [],
+  teams = 0,
+  userTeam = 0,
+  onPlayerClick,
+  onUndoTrade,
+  undoingTrade,
+}: PickLogPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const latestPickNumber = picks.length > 0 ? picks[picks.length - 1]?.pickNumber : null;
 
@@ -21,6 +36,33 @@ export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
         <span>Pick Log ({picks.length} picks)</span>
         <span>{collapsed ? "▶" : "▼"}</span>
       </button>
+      {!collapsed && trades.length > 0 && (
+        <div className="px-3 py-2 bg-indigo-50 border-b border-indigo-100">
+          <p className="text-xs font-medium text-indigo-700 mb-1">Trades</p>
+          {trades.map((trade, i) => (
+            <div
+              key={`trade-${trade.teamA}-${trade.teamB}-${i}`}
+              className="flex items-center gap-2 text-xs text-indigo-600"
+            >
+              <span>
+                Team {trade.teamA} ↔ Team {trade.teamB}: gave picks [{trade.teamAGives.join(", ")}] for picks [
+                {trade.teamBGives.join(", ")}]
+              </span>
+              {i === trades.length - 1 && (trade.teamA === userTeam || trade.teamB === userTeam) && onUndoTrade && (
+                <button
+                  type="button"
+                  onClick={onUndoTrade}
+                  disabled={undoingTrade}
+                  className="px-1.5 py-0.5 text-[10px] bg-indigo-200 text-indigo-700 rounded hover:bg-indigo-300 disabled:opacity-50 flex items-center gap-1"
+                >
+                  {undoingTrade && <Spinner className="h-2 w-2" />}
+                  Undo
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {!collapsed && (
         <div className="max-h-40 overflow-auto">
           {picks.length === 0 ? (
@@ -45,7 +87,12 @@ export function PickLogPanel({ picks, onPlayerClick }: PickLogPanelProps) {
                     }`}
                   >
                     <td className="px-3 py-1">{pick.pickNumber}</td>
-                    <td className="py-1">Team {pick.team}</td>
+                    <td className="py-1">
+                      Team {pick.team}
+                      {teams > 0 && snakeTeam(pick.pickNumber, teams) !== pick.team && (
+                        <span className="ml-1 bg-indigo-100 text-indigo-700 text-[10px] px-1 rounded">traded</span>
+                      )}
+                    </td>
                     <td className="py-1">
                       {onPlayerClick ? (
                         <button

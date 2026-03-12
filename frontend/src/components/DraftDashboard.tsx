@@ -1,22 +1,26 @@
 import { useLazyQuery, useMutation, useQuery, useSubscription } from "@apollo/client";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useDraftSession } from "../context/DraftSessionContext";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
 import type {
   BalanceQuery,
   CategoryNeedsQuery,
   DraftEventsSubscription,
+  DraftStateType,
+  LeagueQuery,
   PickMutation,
   SessionQuery,
   SessionsQuery,
   StartSessionMutation,
   UndoMutation,
+  UndoTradeMutation,
 } from "../generated/graphql";
-import { END_SESSION, PICK, START_SESSION, UNDO } from "../graphql/mutations";
+import { END_SESSION, PICK, START_SESSION, UNDO, UNDO_TRADE } from "../graphql/mutations";
 import {
   BALANCE_QUERY,
   CATEGORY_NEEDS_QUERY,
   KEEPERS_QUERY,
+  LEAGUE_QUERY,
   NEEDS_QUERY,
   RECOMMENDATIONS_QUERY,
   ROSTER_QUERY,
@@ -34,11 +38,13 @@ import { PickLogPanel } from "./PickLogPanel";
 import { RecommendationPanel } from "./RecommendationPanel";
 import { RosterPanel } from "./RosterPanel";
 import { SessionControls } from "./SessionControls";
+import { TradeDialog } from "./TradeDialog";
 
 export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const ctx = useDraftSession();
   const { openPlayer } = usePlayerDrawer();
   const sessionActive = ctx.sessionId != null && ctx.state != null;
+  const [tradeDialogOpen, setTradeDialogOpen] = useState(false);
 
   const { data: sessionsData } = useQuery<SessionsQuery>(SESSIONS_QUERY, {
     variables: { status: "active" },
@@ -52,6 +58,10 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
 
   const { data: categoryNeedsData } = useQuery<CategoryNeedsQuery>(CATEGORY_NEEDS_QUERY, {
     variables: { sessionId: ctx.sessionId },
+    skip: !sessionActive,
+  });
+
+  const { data: leagueData } = useQuery<LeagueQuery>(LEAGUE_QUERY, {
     skip: !sessionActive,
   });
 
@@ -76,6 +86,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const [pickMutation, { loading: picking }] = useMutation<PickMutation>(PICK);
   const [undoMutation, { loading: undoing }] = useMutation<UndoMutation>(UNDO);
   const [endSession] = useMutation(END_SESSION);
+  const [undoTradeMutation, { loading: undoingTrade }] = useMutation<UndoTradeMutation>(UNDO_TRADE);
 
   useSubscription<DraftEventsSubscription>(DRAFT_EVENTS_SUBSCRIPTION, {
     variables: { sessionId: ctx.sessionId },
@@ -98,6 +109,11 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           ...ctx.state,
           currentPick: Math.max(1, ctx.state.currentPick - 1),
           picks: ctx.state.picks.slice(0, -1),
+        });
+      } else if (event.__typename === "TradeEvent") {
+        ctx.setState({
+          ...ctx.state,
+          trades: event.state.trades,
         });
       }
     },
@@ -180,6 +196,30 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
     ctx.clearSession();
   }, [ctx, endSession]);
 
+  const handleTradeComplete = useCallback(
+    (state: DraftStateType) => {
+      ctx.setState(state);
+    },
+    [ctx],
+  );
+
+  const handleUndoTrade = useCallback(async () => {
+    if (!ctx.sessionId) return;
+    const result = await undoTradeMutation({
+      variables: { sessionId: ctx.sessionId },
+    });
+    if (result.data) {
+      ctx.setState(result.data.undoTrade);
+    }
+  }, [ctx, undoTradeMutation]);
+
+  const league = leagueData?.league;
+  const totalPicks = league
+    ? (league.rosterBatters + league.rosterPitchers + league.rosterUtil) * (ctx.state?.teams ?? 0)
+    : 0;
+  const isSnakeFormat = ctx.state?.format === "snake";
+  const hasFuturePicks = ctx.state ? ctx.state.currentPick <= totalPicks : false;
+
   return (
     <div className="flex flex-col gap-3 h-screen p-3 overflow-hidden">
       <SessionControls
@@ -192,6 +232,9 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         onEnd={handleEnd}
         loading={starting}
         undoing={undoing}
+        onTrade={() => setTradeDialogOpen(true)}
+        tradeDisabled={!hasFuturePicks || !league}
+        isSnakeFormat={isSnakeFormat}
       />
 
       <div className="flex gap-3 flex-1 min-h-0">
@@ -235,7 +278,30 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         )}
       </div>
 
-      {sessionActive && ctx.state && <PickLogPanel picks={ctx.state.picks} onPlayerClick={openPlayer} />}
+      {sessionActive && ctx.state && (
+        <PickLogPanel
+          picks={ctx.state.picks}
+          trades={ctx.state.trades}
+          teams={ctx.state.teams}
+          userTeam={ctx.state.userTeam}
+          onPlayerClick={openPlayer}
+          onUndoTrade={handleUndoTrade}
+          undoingTrade={undoingTrade}
+        />
+      )}
+
+      {tradeDialogOpen && sessionActive && ctx.state && (
+        <TradeDialog
+          sessionId={ctx.sessionId!}
+          userTeam={ctx.state.userTeam}
+          teams={ctx.state.teams}
+          currentPick={ctx.state.currentPick}
+          totalPicks={totalPicks}
+          trades={ctx.state.trades}
+          onTradeComplete={handleTradeComplete}
+          onClose={() => setTradeDialogOpen(false)}
+        />
+      )}
     </div>
   );
 }

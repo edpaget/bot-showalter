@@ -12,6 +12,9 @@ interface SessionControlsProps {
   onEnd: () => void;
   loading?: boolean;
   undoing?: boolean;
+  onTrade?: () => void;
+  tradeDisabled?: boolean;
+  isSnakeFormat?: boolean;
 }
 
 export function SessionControls({
@@ -24,6 +27,9 @@ export function SessionControls({
   onEnd,
   loading,
   undoing,
+  onTrade,
+  tradeDisabled,
+  isSnakeFormat,
 }: SessionControlsProps) {
   const [season, setSeason] = useState(2026);
   const [teams, setTeams] = useState(12);
@@ -51,6 +57,16 @@ export function SessionControls({
           {undoing && <Spinner className="h-3 w-3" />}
           Undo
         </button>
+        {isSnakeFormat && onTrade && (
+          <button
+            type="button"
+            onClick={onTrade}
+            disabled={tradeDisabled}
+            className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Trade Picks
+          </button>
+        )}
         <button
           type="button"
           onClick={onEnd}

@@ -6,7 +6,7 @@ import { DraftSessionProvider } from "../context/DraftSessionContext";
 import { PlayerDrawerProvider } from "../context/PlayerDrawerContext";
 import type { DraftBoardRowType } from "../generated/graphql";
 import { END_SESSION, PICK, START_SESSION, UNDO } from "../graphql/mutations";
-import { BALANCE_QUERY, BOARD_QUERY, SESSIONS_QUERY } from "../graphql/queries";
+import { BALANCE_QUERY, BOARD_QUERY, LEAGUE_QUERY, SESSIONS_QUERY } from "../graphql/queries";
 import { DraftDashboard } from "./DraftDashboard";
 
 function makeRow(overrides: Partial<DraftBoardRowType> & { playerId: number }): DraftBoardRowType {
@@ -73,6 +73,7 @@ function startSessionMock(): MockedResponse {
           userTeam: 1,
           budgetRemaining: null,
           keeperCount: 0,
+          trades: [],
         },
       },
     },
@@ -154,6 +155,27 @@ function endSessionMock(): MockedResponse {
   return {
     request: { query: END_SESSION, variables: { sessionId: 1 } },
     result: { data: { endSession: true } },
+  };
+}
+
+function leagueMock(): MockedResponse {
+  return {
+    request: { query: LEAGUE_QUERY },
+    result: {
+      data: {
+        league: {
+          name: "Test League",
+          format: "snake",
+          teams: 12,
+          budget: 260,
+          rosterBatters: 10,
+          rosterPitchers: 9,
+          rosterUtil: 1,
+          battingCategories: [],
+          pitchingCategories: [],
+        },
+      },
+    },
   };
 }
 
@@ -286,5 +308,54 @@ describe("DraftDashboard", () => {
     await tick();
 
     expect(screen.getByText("Start Draft")).toBeInTheDocument();
+  });
+
+  it("shows Trade Picks button for snake format sessions", async () => {
+    renderDashboard([boardMock(), sessionsMock(), startSessionMock(), balanceMock(), leagueMock(), boardMock()]);
+    await tick();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Start Draft"));
+    await tick();
+
+    expect(screen.getByText("Trade Picks")).toBeInTheDocument();
+  });
+
+  it("hides Trade Picks button for auction format sessions", async () => {
+    const auctionStartMock: MockedResponse = {
+      request: {
+        query: START_SESSION,
+        variables: { season: 2026, teams: 12, format: "auction", userTeam: 1, budget: 260 },
+      },
+      result: {
+        data: {
+          startSession: {
+            sessionId: 2,
+            currentPick: 1,
+            picks: [],
+            format: "auction",
+            teams: 12,
+            userTeam: 1,
+            budgetRemaining: 260,
+            keeperCount: 0,
+            trades: [],
+          },
+        },
+      },
+    };
+
+    renderDashboard([boardMock(), sessionsMock(), auctionStartMock, balanceMock(2), boardMock()]);
+    await tick();
+
+    const user = userEvent.setup();
+    // Change format to auction
+    const formatSelect = screen.getByDisplayValue("Snake");
+    await user.selectOptions(formatSelect, "auction");
+    await tick();
+
+    await user.click(screen.getByText("Start Draft"));
+    await tick();
+
+    expect(screen.queryByText("Trade Picks")).not.toBeInTheDocument();
   });
 });
