@@ -523,6 +523,110 @@ class TestParseLeague:
         settings = parse_league("main", raw)
         assert settings.budget_split is BudgetSplitMode.ROSTER_SPOTS
 
+    def test_budget_split_fixed_ratio_with_pct(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "budget_split": "fixed_ratio",
+            "budget_hitter_pct": 0.67,
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        settings = parse_league("main", raw)
+        assert settings.budget_split is BudgetSplitMode.FIXED_RATIO
+        assert settings.budget_hitter_pct == 0.67
+
+    def test_fixed_ratio_without_pct_rejected(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "budget_split": "fixed_ratio",
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        with pytest.raises(LeagueConfigError, match="budget_hitter_pct"):
+            parse_league("main", raw)
+
+    def test_budget_hitter_pct_without_fixed_ratio_rejected(self) -> None:
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "budget_split": "roster_spots",
+            "budget_hitter_pct": 0.67,
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        with pytest.raises(LeagueConfigError, match="budget_hitter_pct"):
+            parse_league("main", raw)
+
+    def test_budget_hitter_pct_default_mode_rejected(self) -> None:
+        """budget_hitter_pct without explicit budget_split (defaults to roster_spots) is rejected."""
+        raw = {
+            "format": "h2h_categories",
+            "teams": 12,
+            "budget": 260,
+            "roster_batters": 14,
+            "roster_pitchers": 9,
+            "budget_hitter_pct": 0.67,
+            "batting_categories": [
+                {"key": "hr", "name": "Home Runs", "stat_type": "counting", "direction": "higher"},
+            ],
+            "pitching_categories": [
+                {
+                    "key": "era",
+                    "name": "ERA",
+                    "stat_type": "rate",
+                    "direction": "lower",
+                    "numerator": "er",
+                    "denominator": "ip",
+                },
+            ],
+        }
+        with pytest.raises(LeagueConfigError, match="budget_hitter_pct"):
+            parse_league("main", raw)
+
     def test_budget_split_invalid_rejected(self) -> None:
         raw = {
             "format": "h2h_categories",

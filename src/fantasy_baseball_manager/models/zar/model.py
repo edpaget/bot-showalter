@@ -1,7 +1,7 @@
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import ArtifactType, EligibilityProvider, Position, Valuation
+from fantasy_baseball_manager.domain import ArtifactType, BudgetSplitMode, EligibilityProvider, Position, Valuation
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.zar.engine import (
@@ -94,7 +94,14 @@ class ZarModel:
         batter_projs = [p for p in projections if p.player_type == "batter" and p.stat_json.get("pa", 0) >= min_pa]
         pitcher_projs = [p for p in projections if p.player_type == "pitcher" and p.stat_json.get("ip", 0) >= min_ip]
 
-        # 3. Budget split proportional to category count
+        # 3. Budget split (override via model_params for grid-search testing)
+        budget_hitter_pct: float | None = config.model_params.get("budget_hitter_pct")
+        if budget_hitter_pct is not None:
+            league = dataclasses.replace(
+                league,
+                budget_split=BudgetSplitMode.FIXED_RATIO,
+                budget_hitter_pct=budget_hitter_pct,
+            )
         batter_budget, pitcher_budget = compute_budget_split(league)
 
         # 3.5a. Category weights (optional, for ZAR reform)

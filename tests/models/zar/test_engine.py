@@ -555,6 +555,7 @@ def _league(
     roster_batters: int = 3,
     roster_pitchers: int = 2,
     budget_split: BudgetSplitMode = BudgetSplitMode.ROSTER_SPOTS,
+    budget_hitter_pct: float | None = None,
 ) -> LeagueSettings:
     return LeagueSettings(
         name="Test",
@@ -566,6 +567,7 @@ def _league(
         batting_categories=batting_categories,
         pitching_categories=pitching_categories,
         budget_split=budget_split,
+        budget_hitter_pct=budget_hitter_pct,
     )
 
 
@@ -628,6 +630,60 @@ class TestComputeBudgetSplit:
         assert bat_budget == pytest.approx(total * 9 / 17)  # ~1651.76
         assert pitch_budget == pytest.approx(total * 8 / 17)  # ~1468.24
         assert bat_budget + pitch_budget == pytest.approx(total)
+
+    def test_fixed_ratio_67_33(self) -> None:
+        """FIXED_RATIO with 67% hitter split."""
+        league = _league(
+            teams=1,
+            budget=100,
+            budget_split=BudgetSplitMode.FIXED_RATIO,
+            budget_hitter_pct=0.67,
+        )
+        bat_budget, pitch_budget = compute_budget_split(league)
+        assert bat_budget == pytest.approx(67.0)
+        assert pitch_budget == pytest.approx(33.0)
+
+    def test_fixed_ratio_zero(self) -> None:
+        """FIXED_RATIO with 0% hitter → all budget to pitchers."""
+        league = _league(
+            teams=1,
+            budget=100,
+            budget_split=BudgetSplitMode.FIXED_RATIO,
+            budget_hitter_pct=0.0,
+        )
+        bat_budget, pitch_budget = compute_budget_split(league)
+        assert bat_budget == pytest.approx(0.0)
+        assert pitch_budget == pytest.approx(100.0)
+
+    def test_fixed_ratio_one(self) -> None:
+        """FIXED_RATIO with 100% hitter → all budget to batters."""
+        league = _league(
+            teams=1,
+            budget=100,
+            budget_split=BudgetSplitMode.FIXED_RATIO,
+            budget_hitter_pct=1.0,
+        )
+        bat_budget, pitch_budget = compute_budget_split(league)
+        assert bat_budget == pytest.approx(100.0)
+        assert pitch_budget == pytest.approx(0.0)
+
+    def test_fixed_ratio_half(self) -> None:
+        """FIXED_RATIO with 50% split."""
+        league = _league(
+            teams=2,
+            budget=260,
+            budget_split=BudgetSplitMode.FIXED_RATIO,
+            budget_hitter_pct=0.5,
+        )
+        bat_budget, pitch_budget = compute_budget_split(league)
+        assert bat_budget == pytest.approx(260.0)
+        assert pitch_budget == pytest.approx(260.0)
+
+    def test_fixed_ratio_missing_pct_raises(self) -> None:
+        """FIXED_RATIO without budget_hitter_pct raises ValueError."""
+        league = _league(budget_split=BudgetSplitMode.FIXED_RATIO)
+        with pytest.raises(ValueError, match="budget_hitter_pct"):
+            compute_budget_split(league)
 
 
 class TestRunZarPipeline:

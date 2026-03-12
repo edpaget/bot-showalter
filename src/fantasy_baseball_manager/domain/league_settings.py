@@ -14,6 +14,7 @@ class Direction(StrEnum):
 
 class BudgetSplitMode(StrEnum):
     CATEGORIES = "categories"
+    FIXED_RATIO = "fixed_ratio"
     ROSTER_SPOTS = "roster_spots"
 
 
@@ -57,4 +58,5 @@ class LeagueSettings:
     positions: dict[str, int] = field(default_factory=dict)
     pitcher_positions: dict[str, int] = field(default_factory=dict)
     budget_split: BudgetSplitMode = BudgetSplitMode.ROSTER_SPOTS
+    budget_hitter_pct: float | None = None
     eligibility: EligibilityRules = field(default_factory=EligibilityRules)

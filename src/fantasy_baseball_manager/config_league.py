@@ -130,13 +130,24 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
     eligibility_raw = raw.get("eligibility", {})
     eligibility = EligibilityRules(**eligibility_raw)
 
-    budget_split_kwargs: dict[str, BudgetSplitMode] = {}
+    budget_split = BudgetSplitMode.ROSTER_SPOTS
     raw_budget_split = raw.get("budget_split")
     if raw_budget_split is not None:
         try:
-            budget_split_kwargs["budget_split"] = BudgetSplitMode(raw_budget_split)
+            budget_split = BudgetSplitMode(raw_budget_split)
         except ValueError:
             raise LeagueConfigError(f"{context}: invalid budget_split '{raw_budget_split}'") from None
+
+    budget_hitter_pct: float | None = None
+    raw_budget_hitter_pct = raw.get("budget_hitter_pct")
+    if raw_budget_hitter_pct is not None:
+        budget_hitter_pct = float(raw_budget_hitter_pct)
+
+    # Validate budget_hitter_pct / budget_split consistency
+    if budget_split is BudgetSplitMode.FIXED_RATIO and budget_hitter_pct is None:
+        raise LeagueConfigError(f"{context}: budget_hitter_pct is required when budget_split is 'fixed_ratio'")
+    if budget_split is not BudgetSplitMode.FIXED_RATIO and budget_hitter_pct is not None:
+        raise LeagueConfigError(f"{context}: budget_hitter_pct must not be set when budget_split is '{budget_split}'")
 
     settings = LeagueSettings(
         name=name,
@@ -151,7 +162,8 @@ def parse_league(name: str, raw: dict[str, Any]) -> LeagueSettings:
         roster_bench=raw.get("roster_bench", 0),
         positions=_parse_positions(raw.get("positions", {}), context),
         pitcher_positions=_parse_positions(raw.get("pitcher_positions", {}), context),
-        **budget_split_kwargs,
+        budget_split=budget_split,
+        budget_hitter_pct=budget_hitter_pct,
         eligibility=eligibility,
     )
 

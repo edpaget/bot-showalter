@@ -348,6 +348,14 @@ def compute_budget_split(league: LeagueSettings) -> tuple[float, float]:
     """
     total_budget = league.budget * league.teams
 
+    if league.budget_split is BudgetSplitMode.FIXED_RATIO:
+        if league.budget_hitter_pct is None:
+            raise ValueError("budget_hitter_pct required for FIXED_RATIO mode")
+        return (
+            total_budget * league.budget_hitter_pct,
+            total_budget * (1 - league.budget_hitter_pct),
+        )
+
     if league.budget_split is BudgetSplitMode.ROSTER_SPOTS:
         total_slots = league.roster_batters + league.roster_pitchers
         if total_slots == 0:

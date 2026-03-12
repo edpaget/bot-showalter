@@ -970,6 +970,52 @@ class TestZarModelVarianceCorrection:
         assert values_a == values_b
 
 
+class TestZarModelBudgetHitterPct:
+    def test_budget_hitter_pct_override_changes_values(self) -> None:
+        """Passing budget_hitter_pct in model_params overrides the budget split."""
+        model_without, val_repo_without = _build_model()
+        model_without.predict(_standard_config())
+
+        model_with, val_repo_with = _build_model()
+        config_with = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "budget_hitter_pct": 0.70,
+            },
+            version="1.0",
+        )
+        model_with.predict(config_with)
+
+        values_without = {v.player_id: v.value for v in val_repo_without.upserted}
+        values_with = {v.player_id: v.value for v in val_repo_with.upserted}
+        # The standard league has 3 batters / 2 pitchers = 60/40 split.
+        # With budget_hitter_pct=0.70, batters get more budget → different values.
+        assert values_without != values_with
+
+    def test_budget_hitter_pct_shifts_budget_toward_batters(self) -> None:
+        """Higher hitter_pct means batters get higher dollar values overall."""
+        model_base, val_repo_base = _build_model()
+        model_base.predict(_standard_config())
+
+        model_high, val_repo_high = _build_model()
+        config_high = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "budget_hitter_pct": 0.80,
+            },
+            version="1.0",
+        )
+        model_high.predict(config_high)
+
+        base_batter_total = sum(v.value for v in val_repo_base.upserted if v.player_type == "batter")
+        high_batter_total = sum(v.value for v in val_repo_high.upserted if v.player_type == "batter")
+        assert high_batter_total > base_batter_total
+
+
 # ---------------------------------------------------------------------------
 # Optimal assignment integration tests
 # ---------------------------------------------------------------------------
