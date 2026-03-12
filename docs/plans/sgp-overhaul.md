@@ -6,10 +6,11 @@ This roadmap addresses four specific implementation gaps identified by comparing
 
 1. **Mean-gap denominators** — our computation averages adjacent-team gaps, which is algebraically equivalent to `(1st - last) / (n-1)` and is dominated by outlier teams. The literature strongly favors regression-slope denominators.
 2. **Ad-hoc volume weighting** — our rate-stat formula multiplies by `player_vol / avg_vol`, a linear approximation. The correct approach computes each player's marginal impact on a representative team's aggregate rate stat.
-3. **SV+HLD still active** — the category that's ρ = -0.608 against WAR was never removed from SGP, despite being the primary fix that made ZAR-reformed succeed.
-4. **Redraft denominators applied to keeper league** — league size and roster structure affect standings gaps, and our denominator source doesn't match the target league.
+3. **No category weights infrastructure** — SGP lacks the configurable category weights that ZAR already supports, preventing experimentation with category emphasis without code changes.
 
-Each fix is independently testable. The final phase runs a full holdout comparison against ZAR-reformed to determine if SGP can become competitive.
+Note on SV+HLD: the prior valuation-reform roadmap dropped SV+HLD (weight=0) based on its ρ = -0.608 correlation with WAR. However, this conflates "not correlated with WAR" with "not valuable in fantasy." SV+HLD is a real H2H category that teams need to win — saves and holds simply aren't captured by WAR. Dropping SV+HLD artificially inflates WAR ρ by making the system ignore a category WAR doesn't measure, but it also makes the system unable to value closers and high-leverage relievers, which is a real competitive disadvantage. **This roadmap keeps SV+HLD active** and instead fixes the underlying mechanisms that cause reliever overvaluation: the rate-stat formula (phase 2) and the budget split ([ZAR Pitcher Budget](zar-pitcher-budget.md) roadmap).
+
+Each fix is independently testable. The final phase runs a full holdout comparison against baseline ZAR to determine if SGP can become the production system.
 
 ## Status
 
@@ -17,7 +18,7 @@ Each fix is independently testable. The final phase runs a full holdout comparis
 |-------|--------|
 | 1 — Regression-slope denominators | not started |
 | 2 — Team-impact rate-stat formula | not started |
-| 3 — Category signal alignment | not started |
+| 3 — Category weights and evaluation infrastructure | not started |
 | 4 — Holdout validation | not started |
 
 ## Phase 1: Regression-slope denominators
@@ -98,43 +99,42 @@ This formula:
 
 ---
 
-## Phase 3: Category signal alignment
+## Phase 3: Category weights and evaluation infrastructure
 
-Apply the same category-signal fixes that made ZAR-reformed successful: drop SV+HLD and raise the pitcher eligibility floor.
+Add configurable category weights to SGP (matching ZAR's existing capability) and establish evaluation metrics that don't penalize role-based categories like SV+HLD.
 
 ### Context
 
-The valuation-reform roadmap proved that removing SV+HLD and raising min_ip from 30 to 60 are the two highest-impact changes for pitcher accuracy (pitcher WAR ρ improved by +0.069 in 2024, +0.064 in 2025). SGP was tested in that validation *without* these fixes — it still included SV+HLD and used the league's default min_ip of 30. This is an apples-to-oranges comparison: ZAR-reformed benefited from signal cleanup that SGP never received.
+SGP currently has no category weights infrastructure, unlike ZAR which supports an optional `category_weights` dict. Adding this to SGP enables experimentation — tuning category emphasis without code changes — even though the default should keep all categories at weight 1.0 (including SV+HLD).
 
-This phase creates an `sgp-reformed` variant that mirrors zar-reformed's signal choices, establishing a fair baseline for the phase 4 comparison.
+The current evaluation framework gates primarily on WAR ρ, which is a poor target for validating SV+HLD-inclusive systems: WAR doesn't measure saves/holds, so any system that values relievers will look worse on WAR ρ by construction. Phase 4's validation needs supplementary metrics that capture reliever ranking quality without penalizing the system for valuing a real fantasy category.
 
 ### Steps
 
-1. **Create `sgp-reformed` model variant** in `models/sgp_reformed/`. Follow the same pattern as `zar-reformed`: wrap `SgpModel` with parameter overrides:
-   - `category_weights = {"sv+hld": 0.0}` — but SGP doesn't currently support category weights. Add an optional `category_weights` parameter to `compute_sgp_scores()` that multiplies each category's SGP before summing the composite, identical to how ZAR handles it.
-   - Override min_ip to 60 (read from model_params, same as zar-reformed).
-2. **Add category weights to `compute_sgp_scores()`**. This is a small change — multiply `category_sgp[cat.key]` by `category_weights.get(cat.key, 1.0)` before summing composite. Reuse the same semantics as ZAR: `None` means all weights = 1.0, weight = 0.0 removes the category.
-3. **Register `sgp-reformed` in the model registry.** It should be invocable via `fbm predict sgp-reformed`.
-4. **Add tests.** Verify category weights work. Verify weight=0 removes a category from composite. Verify min_ip override filters the pitcher pool.
+1. **Add category weights to `compute_sgp_scores()`**. Multiply `category_sgp[cat.key]` by `category_weights.get(cat.key, 1.0)` before summing composite. Reuse the same semantics as ZAR: `None` means all weights = 1.0. This enables experimentation but the default keeps all categories active.
+2. **Wire category weights through `SgpModel`**. Read from `model_params.get("category_weights")` and pass to the pipeline, same as ZAR.
+3. **Add a WAR-by-pool evaluation metric.** The current `war_correlation_pitchers` lumps SP and RP together. Add a `war_correlation_sp` metric (pitchers with ≥ some starts threshold) to isolate SP ranking quality from RP noise. This gives phase 4 a fairer target for systems that intentionally value RP via SV+HLD.
+4. **Add a "category hit rate" metric.** For each pitching category, compute how well the top-N predicted contributors actually contributed. For SV+HLD specifically: do the top-20 projected SV+HLD contributors actually produce saves/holds? This measures whether the system values the *right* relievers, not whether it should value relievers at all.
+5. **Add tests.** Verify category weights work in SGP. Verify weight=0 removes a category from composite. Verify new evaluation metrics produce sensible output.
 
 ### Acceptance criteria
 
-- `sgp-reformed` produces valuations with SV+HLD removed and min_ip=60.
-- `sgp` (baseline) produces identical output to current production (backward compatible).
-- Category weights are applied to SGP composite scores using the same semantics as ZAR.
-- `fbm predict sgp-reformed` is a registered, runnable command.
+- `compute_sgp_scores()` accepts optional `category_weights` with the same semantics as ZAR's implementation.
+- Default behavior (no weights) produces identical output to current SGP (backward compatible).
+- Evaluation framework includes SP-only WAR ρ and per-category hit-rate metrics.
+- Phase 4 validation plan uses these supplementary metrics alongside overall WAR ρ.
 
 ---
 
 ## Phase 4: Holdout validation
 
-Run the full comparison matrix: baseline SGP, SGP with regression denominators, SGP with team-impact rates, and the fully reformed SGP — all against ZAR-reformed.
+Run the full comparison matrix: baseline SGP, SGP with regression denominators, SGP with team-impact rates, and the fully overhauled SGP — all against baseline ZAR.
 
 ### Context
 
-Each prior phase produces an independently testable improvement. This phase measures their individual and combined effects on holdout accuracy and determines whether the overhauled SGP can compete with ZAR-reformed as a production system.
+Each prior phase produces an independently testable improvement. This phase measures their individual and combined effects on holdout accuracy and determines whether the overhauled SGP can become the production system.
 
-The evaluation uses established independent targets (WAR ρ, top-N hit rates) via `fbm valuations compare --check`. The bar is ZAR-reformed's holdout performance: WAR ρ 0.216/0.241 (2024/2025), pitcher WAR ρ 0.218/0.248.
+The evaluation uses established independent targets (WAR ρ, top-N hit rates) via `fbm valuations compare --check`, supplemented by the SP-only WAR ρ and per-category hit-rate metrics from phase 3. All SGP configurations keep SV+HLD active — the comparison baseline is **baseline ZAR** (also SV+HLD active), not zar-reformed, to ensure an apples-to-apples comparison.
 
 ### Steps
 
@@ -145,37 +145,40 @@ The evaluation uses established independent targets (WAR ρ, top-N hit rates) vi
    | sgp-baseline | mean-gap | unweighted | active | 30 |
    | sgp-regression | regression | unweighted | active | 30 |
    | sgp-team-impact | mean-gap | team-impact | active | 30 |
-   | sgp-reformed | regression | team-impact | removed | 60 |
-   | zar-reformed (control) | n/a | n/a | removed | 60 |
+   | sgp-overhauled | regression | team-impact | active | 30 |
+   | zar (control) | n/a | n/a | active | 30 |
 
 2. **Generate holdout valuations** for each configuration using ensemble projections.
-3. **Run `fbm valuations compare`** for each candidate against zar-reformed on both seasons. Record WAR ρ (overall, batter, pitcher), top-25/50/100 hit rates.
-4. **Build the comparison matrix.** Identify which fixes matter most. Expected rank order of impact: SV+HLD removal > team-impact rates > regression denominators (based on the prior valuation-reform results and the magnitude of each issue).
-5. **Pitcher-focused inspection.** For `sgp-reformed`: are the top-20 pitcher valuations plausible? Are reliever distortions eliminated? Are SP/RP rankings sensible?
-6. **Run regression gate checks** (`--check`) for `sgp-reformed` vs `zar-reformed` on both seasons.
-7. **Adopt, blend, or reject:**
-   - **Adopt** if `sgp-reformed` matches or beats `zar-reformed` on all independent targets.
+3. **Run `fbm valuations compare`** for each candidate against baseline ZAR on both seasons. Record WAR ρ (overall, batter, pitcher), SP-only WAR ρ, top-25/50/100 hit rates, and per-category hit rates (especially SV+HLD).
+4. **Build the comparison matrix.** Identify which fixes matter most. Expected rank order of impact: team-impact rates > regression denominators (the rate-stat formula is the dominant source of reliever inflation in SGP).
+5. **Pitcher-focused inspection.** For `sgp-overhauled`: are the top-20 pitcher valuations plausible? Are SP aces valued appropriately? Are closers valued but not absurdly inflated (the $110 Edwin Díaz problem should be gone)?
+6. **Reliever sanity check.** Top-10 RP valuations should be positive but modest — closers should appear in the draftable pool but not dominate it. Compare against ADP for reasonableness.
+7. **Run regression gate checks** (`--check`) for `sgp-overhauled` vs baseline ZAR on both seasons.
+8. **Adopt, blend, or reject:**
+   - **Adopt** if `sgp-overhauled` matches or beats baseline ZAR on SP WAR ρ and overall hit rates, while producing more plausible reliever valuations.
    - **Blend** if SGP and ZAR have complementary strengths (e.g., SGP better on pitchers, ZAR better on batters) — consider an ensemble valuation.
-   - **Reject** if `sgp-reformed` still underperforms ZAR-reformed, documenting which fixes helped and which didn't.
-8. **Document results** in this roadmap's status table with the full comparison matrix.
+   - **Reject** if `sgp-overhauled` still underperforms baseline ZAR, documenting which fixes helped and which didn't.
+9. **Document results** in this roadmap's status table with the full comparison matrix.
 
 ### Acceptance criteria
 
-- Comparison matrix covering all configurations on both holdout seasons with WAR ρ and hit-rate metrics.
-- Each phase's individual contribution is measured (regression denominators alone, team-impact rates alone, SV+HLD removal alone).
-- `sgp-reformed` passes `--check` against `zar-reformed` on at least one holdout season (WAR ρ not more than 0.01 worse, hit rates not more than 5pp worse).
-- Pitcher WAR ρ for `sgp-reformed` exceeds baseline SGP's pitcher WAR ρ on both seasons (expected: large improvement from near-zero baseline).
+- Comparison matrix covering all configurations on both holdout seasons with WAR ρ, SP WAR ρ, hit-rate, and per-category hit-rate metrics.
+- Each phase's individual contribution is measured (regression denominators alone, team-impact rates alone).
+- `sgp-overhauled` eliminates the reliever inflation problem: no RP valued above $40 (the $110 Díaz problem from baseline SGP is gone).
+- SP WAR ρ for `sgp-overhauled` exceeds baseline SGP's pitcher WAR ρ on both seasons.
+- SV+HLD category hit rate is at least as good as baseline ZAR (the system values the *right* relievers).
 - Go/no-go decision documented with supporting data.
 
 ### Gate: go/no-go
 
-**Go (adopt)** if `sgp-reformed` matches or improves ZAR-reformed's WAR ρ on both seasons without degrading hit rates. **Go (blend)** if `sgp-reformed` improves pitcher metrics but slightly degrades batter metrics — pursue an ensemble approach. **No-go** if `sgp-reformed` still underperforms ZAR-reformed on overall WAR ρ on both seasons despite all fixes. In that case, SGP's weakness may be fundamental to H2H category leagues (SGP was designed for and validated on roto, not H2H), and further investment should be redirected to [ZAR Pitcher Budget](zar-pitcher-budget.md) improvements instead.
+**Go (adopt)** if `sgp-overhauled` matches or improves baseline ZAR's SP WAR ρ on both seasons without degrading batter metrics or hit rates, while producing plausible reliever valuations. **Go (blend)** if SGP and ZAR have complementary strengths — pursue an ensemble approach. **No-go** if `sgp-overhauled` still underperforms baseline ZAR on SP WAR ρ on both seasons despite all fixes. In that case, SGP's weakness may be fundamental to H2H category leagues (SGP was designed for and validated on roto, not H2H), and further investment should be redirected to [ZAR Pitcher Budget](zar-pitcher-budget.md) improvements instead.
 
 ---
 
 ## Ordering
 
-- **Phases 1, 2, and 3** are independent and can be implemented in any order or in parallel. Phase 1 changes denominator computation, phase 2 changes rate-stat scoring, phase 3 adds category weights and creates the reformed variant. None modify shared code paths.
+- **Phases 1, 2, and 3** are independent and can be implemented in any order or in parallel. Phase 1 changes denominator computation, phase 2 changes rate-stat scoring, phase 3 adds category weights and evaluation metrics. None modify shared code paths.
 - **Phase 4** depends on all prior phases (needs all configurations available for the grid search).
-- This roadmap is independent of [ZAR Pitcher Budget](zar-pitcher-budget.md) — they address the same symptom (pitcher overvaluation) from different angles. If both produce improvements, the better system wins; if both improve different aspects, an ensemble is possible.
+- This roadmap is independent of [ZAR Pitcher Budget](zar-pitcher-budget.md) — they address the same symptom (pitcher overvaluation) from different angles (SGP as an alternative system vs ZAR parameter tuning). If both produce improvements, the better system wins; if both improve different aspects, an ensemble is possible.
 - The [SGP Rate-Stat Volume Weighting](sgp-rate-stat-volume-weighting.md) roadmap's phase 2 (deferred holdout validation) is superseded by this roadmap's phase 4, which tests a strictly better rate-stat approach (team-impact formula subsumes volume weighting).
+- All SGP configurations in this roadmap keep SV+HLD active. The comparison baseline is baseline ZAR (not zar-reformed) to ensure an apples-to-apples comparison where both systems value all league categories.

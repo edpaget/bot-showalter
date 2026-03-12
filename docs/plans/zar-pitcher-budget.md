@@ -55,7 +55,7 @@ Normalize pitcher composite z-scores to match the batter pool's variance before 
 
 The core insight: because dollar conversion is proportional to VAR within each pool, the *shape* of the composite z-score distribution determines how dollars are distributed. The pitcher pool's higher skew (1.57 vs 0.66) and top-concentration means ace SPs absorb outsized dollar shares.
 
-The industry's standard fix — the "0.8 pitcher multiplier" — is a crude proxy for the 4/5 category participation ratio. But since `zar-reformed` already drops SV+HLD (so pitchers effectively contribute to 4/4 active categories), the 0.8 multiplier's theoretical basis doesn't apply.
+The industry's standard fix — the "0.8 pitcher multiplier" — is a crude proxy for the 4/5 category participation ratio. Since SPs don't contribute to SV+HLD, they effectively participate in 4/5 pitching categories, making their raw composite z-score inflated relative to a batter who contributes across all 5 batting categories. The 0.8 multiplier addresses this, but a normalization approach (equalizing composite z variance across pools) is more principled and adapts to any category configuration.
 
 A more principled approach: after computing composite z-scores in each pool, divide the pitcher composites by `pitcher_composite_stdev / batter_composite_stdev`. This rescales the pitcher distribution to have the same spread as the batter distribution, equalizing VAR concentration without requiring an arbitrary multiplier. The effect: dollars within the pitcher pool are distributed more evenly, reducing the $75+ ace valuations.
 
@@ -72,7 +72,7 @@ A more principled approach: after computing composite z-scores in each pool, div
 - When normalization is enabled, pitcher and batter composite z-score stdevs are within 5% of each other.
 - Pitcher pool dollar distribution is less top-concentrated: top-5 pitcher share of positive pitcher VAR decreases (target: from 25.6% to <20%).
 - Total pitcher budget is unchanged (normalization affects within-pool distribution, not the split).
-- `zar-reformed` without the flag produces identical output to current production.
+- Baseline ZAR without the flag produces identical output to current behavior.
 
 ---
 
@@ -88,22 +88,22 @@ The evaluation must use independent targets (WAR ρ, top-N hit rate) per the est
 
 ### Steps
 
-1. **Define the test grid.** Budget split ratios: 60%, 65%, 67%, 70%. Normalization: on/off. Total: 8 configurations. Baseline: current `zar-reformed` production (ROSTER_SPOTS split, no normalization).
+1. **Define the test grid.** Budget split ratios: 60%, 65%, 67%, 70%. Normalization: on/off. Total: 8 configurations. Baseline: current baseline ZAR (ROSTER_SPOTS split, no normalization, all categories active including SV+HLD).
 2. **Generate holdout valuations** for each configuration on seasons 2024 and 2025 using ensemble projections.
-3. **Evaluate each configuration** using `fbm valuations compare` against the `zar-reformed` baseline:
+3. **Evaluate each configuration** using `fbm valuations compare` against the baseline ZAR:
    - WAR ρ (overall, batters, pitchers separately)
    - Top-25, top-50, top-100 hit rates
    - Pitcher WAR ρ specifically (the metric most likely to improve)
 4. **Build a comparison matrix.** Configuration × season × metric. Identify the Pareto-optimal configurations (no other config dominates on all metrics).
 5. **Run regression gate checks** (`--check`) for the top 1-2 candidates against baseline on both seasons.
 6. **Inspect pitcher-specific rankings.** For the best candidate: are the top 20 pitchers more plausible? Are ace SP valuations in the $25-40 range rather than $60-75? Are relievers appropriately discounted?
-7. **Adopt or reject.** If a configuration passes `--check` on both seasons and shows meaningful pitcher WAR ρ improvement, adopt it as the new production default. Update `zar-reformed` params or create a new variant.
+7. **Adopt or reject.** If a configuration passes `--check` on both seasons and shows meaningful pitcher WAR ρ improvement, adopt it as the new production default. Update ZAR params or create a new variant.
 8. **Document results** in this roadmap's status table, including the comparison matrix and go/no-go rationale.
 
 ### Acceptance criteria
 
 - Comparison matrix covers all 8 configurations on both holdout seasons with WAR ρ and hit-rate metrics.
-- The adopted configuration (if any) passes `--check` against current `zar-reformed` on both 2024 and 2025.
+- The adopted configuration (if any) passes `--check` against baseline ZAR on both 2024 and 2025.
 - Pitcher WAR ρ improves by >0.02 on at least one holdout season without degrading batter metrics.
 - Top-5 pitcher dollar values are in a more realistic range (under $50).
 - If no configuration improves on the baseline, document findings and close the roadmap as no-go.
