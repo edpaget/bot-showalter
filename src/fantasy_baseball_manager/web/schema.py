@@ -19,6 +19,7 @@ from fantasy_baseball_manager.services import (
     derive_and_store_keeper_costs,
     derive_best_n_keeper_costs,
     detect_falling_players,
+    ensure_prior_season_teams,
     generate_tiers,
     identify_needs,
     recommend,
@@ -61,6 +62,7 @@ from fantasy_baseball_manager.web.types import (
     YahooTeamType,
 )
 from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
+from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
 
 if TYPE_CHECKING:
@@ -127,17 +129,22 @@ def _build_keeper_planner(ctx: AppContext, season: int, league_name: str) -> Kee
     )
 
 
-def _resolve_prior_league_key(ctx: AppContext, league_key: str, season: int) -> str:
-    """Resolve the prior-season league key from DB or by convention."""
+def _resolve_prior_league_key(ctx: AppContext, league_key: str, season: int) -> tuple[str, str]:
+    """Resolve the prior-season league key and game key.
+
+    Returns (prior_league_key, prior_game_key).
+    """
     yahoo = ctx.yahoo_web_context
     assert yahoo is not None  # noqa: S101
     prior_season = season - 1
     stored_league = yahoo.league_repo.get_by_league_key(league_key)
     if stored_league is not None and stored_league.renew is not None:
-        return stored_league.renew.replace("_", ".l.", 1)
+        prior_league_key = stored_league.renew.replace("_", ".l.", 1)
+        prior_game_key = prior_league_key.split(".l.")[0]
+        return prior_league_key, prior_game_key
     prior_game_key = yahoo.client.get_game_key(prior_season)
     league_id = league_key.split(".l.")[1]
-    return f"{prior_game_key}.l.{league_id}"
+    return f"{prior_game_key}.l.{league_id}", prior_game_key
 
 
 def _derive_keeper_costs_from_yahoo(
@@ -156,8 +163,20 @@ def _derive_keeper_costs_from_yahoo(
     if league_key is None:
         return
 
-    prior_league_key = _resolve_prior_league_key(ctx, league_key, season)
+    prior_league_key, prior_game_key = _resolve_prior_league_key(ctx, league_key, season)
     prior_season = season - 1
+
+    # Sync prior-season teams if not already in DB
+    league_source = YahooLeagueSource(yahoo.client)
+    ensure_prior_season_teams(
+        team_repo=team_repo,
+        league_source=league_source,
+        league_repo=yahoo.league_repo,
+        prior_league_key=prior_league_key,
+        prior_game_key=prior_game_key,
+    )
+    with yahoo.provider.connection() as conn:
+        conn.commit()
 
     roster_source = YahooRosterSource(yahoo.client, yahoo.player_mapper, roster_repo=ctx.yahoo_roster_repo)
     if yahoo.league_config.keeper_format == "best_n":
@@ -729,7 +748,7 @@ class Query:
             raise ValueError(msg)
 
         # Rosters and teams are stored under the prior-season league key
-        prior_league_key = _resolve_prior_league_key(ctx, league_key, season)
+        prior_league_key, _prior_game_key = _resolve_prior_league_key(ctx, league_key, season)
 
         rosters = repo.get_by_league_latest(prior_league_key)
         valuations = ctx.container.valuation_repo.get_by_season(
