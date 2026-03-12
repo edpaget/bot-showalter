@@ -190,7 +190,11 @@ def _ensure_keeper_planner(ctx: AppContext, season: int) -> KeeperPlannerService
     if yahoo is None:
         return None
 
-    _derive_keeper_costs_from_yahoo(ctx, season)
+    # Only derive if no costs exist yet — avoids redundant Yahoo API calls
+    existing = ctx.container.keeper_cost_repo.find_by_season_league(season, yahoo.league_name)
+    if not existing:
+        _derive_keeper_costs_from_yahoo(ctx, season)
+
     planner = _build_keeper_planner(ctx, season, yahoo.league_name)
     ctx.keeper_planner_ref.planner = planner
     return planner
