@@ -55,7 +55,7 @@ class TestAssignPositionsMultiPositionNoFlex:
 
 class TestAssignPositionsFlexSlot:
     def test_flex_slot_optimal_assignment(self) -> None:
-        """SP + P slots: SP gets top SP, P gets next tier, replacement levels differ."""
+        """SP + P slots: inflated SP replacement includes P-overflow SPs."""
         # 6 pitchers: all eligible for SP and P
         scores = [10.0, 8.0, 6.0, 5.0, 3.0, 1.0]
         positions = [["SP", "P"]] * 6
@@ -66,26 +66,28 @@ class TestAssignPositionsFlexSlot:
         assert len(result.assignments) == 4
 
         # The solver should assign top 4 players optimally
-        # All 4 top players assigned; unassigned: players 4, 5
         for i in range(4):
             assert i in result.assignments
 
-        # SP replacement = worst SP-assigned player
         sp_assigned = [i for i, pos in result.assignments.items() if pos == "SP"]
         p_assigned = [i for i, pos in result.assignments.items() if pos == "P"]
         assert len(sp_assigned) == 2
         assert len(p_assigned) == 2
 
-        # SP replacement level
-        sp_min = min(scores[i] for i in sp_assigned)
-        assert result.replacement["SP"] == pytest.approx(sp_min)
+        # SP replacement is inflated: includes P-overflow SPs (all 4 are SP-primary)
+        # so SP replacement = worst of all 4 assigned = score of player 3 = 5.0
+        assert result.replacement["SP"] == pytest.approx(5.0)
 
-        # P replacement level
+        # P replacement = worst P-assigned player (unchanged)
         p_min = min(scores[i] for i in p_assigned)
         assert result.replacement["P"] == pytest.approx(p_min)
 
-        # Replacement levels should differ since SP is scarcer
-        assert result.replacement["SP"] != result.replacement["P"]
+        # No cliff: SP-assigned and P-assigned players both use SP replacement
+        # Player 0 (SP, score 10): VAR = 10 - 5 = 5
+        # Player 2 (P, score 6): VAR = 6 - 5 = 1 (not 6 - 5 = 1 vs old 6 - 5 = 1)
+        # The key: adjacent players straddle the SP/P boundary smoothly
+        for idx in result.assignments:
+            assert result.var_values[idx] >= -1e-9
 
 
 class TestAssignPositionsUtil:

@@ -128,19 +128,54 @@ def assign_positions(
     # Step 5b: Normalize — push best players to specific positions, weakest to flex
     _normalize_flex_assignments(assignments, composite_scores, player_positions)
 
-    # Step 6: Derive per-position replacement levels
+    # Step 6: Derive per-position replacement levels.
+    # Specific positions use the standard min-of-assigned computation.
+    # Flex positions (P/UTIL) use inflated position counts: flex-overflow
+    # players are counted toward their primary specific position, so the
+    # replacement level reflects the full demand for that position (specific
+    # slots + flex overflow).  This eliminates the value cliff between
+    # the last specific-slot player and the first flex-slot player.
+
+    # 6a: Compute raw specific-position replacement (for primary-pos tiebreak)
+    raw_specific: dict[str, float] = {}
+    for position in roster_spots:
+        if position not in _FLEX_POSITIONS:
+            scores_at = [composite_scores[i] for i, p in assignments.items() if p == position]
+            raw_specific[position] = min(scores_at) if scores_at else 0.0
+
+    # 6b: Assign each flex-assigned player a primary specific position
+    # (the eligible specific position with the highest raw replacement —
+    # i.e. the scarcest position they could fill).
+    primary_pos: dict[int, str] = {}
+    for idx, pos in assignments.items():
+        if pos in _FLEX_POSITIONS:
+            eligible_specific = [p for p in player_positions[idx] if p not in _FLEX_POSITIONS and p in raw_specific]
+            if eligible_specific:
+                primary_pos[idx] = max(eligible_specific, key=lambda p: raw_specific[p])
+
+    # 6c: Compute inflated replacement levels — each specific position's
+    # replacement is the worst assigned player who "counts" toward it
+    # (either directly assigned or flex-overflow with it as primary).
     replacement: dict[str, float] = {}
     for position in roster_spots:
-        assigned_at_pos = [composite_scores[i] for i, pos in assignments.items() if pos == position]
-        if assigned_at_pos:
-            replacement[position] = min(assigned_at_pos)
+        if position in _FLEX_POSITIONS:
+            scores_at = [composite_scores[i] for i, p in assignments.items() if p == position]
+            replacement[position] = min(scores_at) if scores_at else 0.0
         else:
-            replacement[position] = 0.0
+            scores_at = []
+            for idx, apos in assignments.items():
+                if apos == position or apos in _FLEX_POSITIONS and primary_pos.get(idx) == position:
+                    scores_at.append(composite_scores[idx])
+            replacement[position] = min(scores_at) if scores_at else 0.0
 
-    # Step 7: Compute VAR
+    # Step 7: Compute VAR.  Flex-assigned players with a primary specific
+    # position use that position's (inflated) replacement level.
     var_values = [0.0] * len(composite_scores)
     for idx, pos in assignments.items():
-        var_values[idx] = composite_scores[idx] - replacement[pos]
+        if pos in _FLEX_POSITIONS and idx in primary_pos:
+            var_values[idx] = composite_scores[idx] - replacement[primary_pos[idx]]
+        else:
+            var_values[idx] = composite_scores[idx] - replacement[pos]
 
     return AssignmentResult(
         assignments=assignments,
