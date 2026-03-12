@@ -1,6 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING
+
+from fantasy_baseball_manager.domain import DraftTrade
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import DraftBoardRow, LeagueSettings
@@ -43,6 +45,7 @@ class DraftState:
     team_rosters: dict[int, list[DraftPick]]
     team_budgets: dict[int, int]
     current_pick: int = 1
+    pick_overrides: dict[int, int] = field(default_factory=dict)
 
 
 class DraftEngine:
@@ -51,6 +54,11 @@ class DraftEngine:
 
     def __init__(self) -> None:
         self._removed_rows = {}
+        self._trades: list[DraftTrade] = []
+
+    @property
+    def trades(self) -> list[DraftTrade]:
+        return list(self._trades)
 
     @property
     def state(self) -> DraftState:
@@ -64,6 +72,7 @@ class DraftEngine:
 
     def start(self, players: list[DraftBoardRow], config: DraftConfig) -> DraftState:
         self._removed_rows = {}
+        self._trades = []
         pool = {p.player_id: p for p in players}
         rosters: dict[int, list[DraftPick]] = {t: [] for t in range(1, config.teams + 1)}
         budgets: dict[int, int] = {
@@ -91,7 +100,7 @@ class DraftEngine:
 
         # Snake: validate team matches expected
         if config.format == DraftFormat.SNAKE:
-            expected = self._snake_team(state.current_pick, config.teams)
+            expected = self.team_for_pick(state.current_pick)
             if team != expected:
                 msg = f"Wrong team: expected team {expected}, got team {team}"
                 raise DraftError(msg)
@@ -200,7 +209,79 @@ class DraftEngine:
         if state.config.format != DraftFormat.SNAKE:
             msg = f"team_on_clock is not applicable for {state.config.format.value} drafts"
             raise DraftError(msg)
-        return self._snake_team(state.current_pick, state.config.teams)
+        return self.team_for_pick(state.current_pick)
+
+    def team_for_pick(self, pick_number: int) -> int:
+        """Resolve which team owns a given pick, checking overrides first."""
+        state = self._require_state()
+        if pick_number in state.pick_overrides:
+            return state.pick_overrides[pick_number]
+        return self._snake_team(pick_number, state.config.teams)
+
+    def trade_picks(self, gives: list[int], receives: list[int], partner_team: int) -> DraftTrade:
+        """Execute a pick trade between the user team and a partner team."""
+        state = self._require_state()
+        user_team = state.config.user_team
+
+        if not gives:
+            msg = "gives must not be empty"
+            raise DraftError(msg)
+        if not receives:
+            msg = "receives must not be empty"
+            raise DraftError(msg)
+
+        # Validate ownership and usage
+        for pick_num in gives:
+            if pick_num < state.current_pick:
+                msg = f"Pick {pick_num} has already been used"
+                raise DraftError(msg)
+            owner = self.team_for_pick(pick_num)
+            if owner != user_team:
+                msg = f"Pick {pick_num} belongs to team {owner}, not user team {user_team}"
+                raise DraftError(msg)
+
+        for pick_num in receives:
+            if pick_num < state.current_pick:
+                msg = f"Pick {pick_num} has already been used"
+                raise DraftError(msg)
+            owner = self.team_for_pick(pick_num)
+            if owner != partner_team:
+                msg = f"Pick {pick_num} belongs to team {owner}, not partner team {partner_team}"
+                raise DraftError(msg)
+
+        # Apply overrides
+        for pick_num in gives:
+            state.pick_overrides[pick_num] = partner_team
+        for pick_num in receives:
+            state.pick_overrides[pick_num] = user_team
+
+        trade = DraftTrade(
+            team_a=user_team,
+            team_b=partner_team,
+            team_a_gives=list(gives),
+            team_b_gives=list(receives),
+        )
+        self._trades.append(trade)
+        return trade
+
+    def undo_trade(self) -> DraftTrade:
+        """Undo the most recent trade by rebuilding overrides from remaining trades."""
+        if not self._trades:
+            msg = "No trades to undo"
+            raise DraftError(msg)
+
+        removed = self._trades.pop()
+        state = self._require_state()
+
+        # Rebuild overrides from scratch by replaying remaining trades
+        state.pick_overrides.clear()
+        for trade in self._trades:
+            for pick_num in trade.team_a_gives:
+                state.pick_overrides[pick_num] = trade.team_b
+            for pick_num in trade.team_b_gives:
+                state.pick_overrides[pick_num] = trade.team_a
+
+        return removed
 
     @staticmethod
     def _snake_team(pick_number: int, teams: int) -> int:

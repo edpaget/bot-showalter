@@ -64,6 +64,7 @@ from fantasy_baseball_manager.domain.draft_session import (
     DraftSessionPick,
     DraftSessionRecord,
 )
+from fantasy_baseball_manager.domain.draft_trade import DraftTrade
 from fantasy_baseball_manager.domain.error_decomposition import (
     CohortBias,
     CohortBiasReport,
@@ -396,6 +397,7 @@ __all__ = [
     "PlayerAvailabilityCurve",
     "DraftBoardRow",
     "DraftPick",
+    "DraftTrade",
     "PlayerDraftFrequency",
     "DraftReport",
     "DraftResult",

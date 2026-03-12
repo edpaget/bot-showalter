@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from fantasy_baseball_manager.domain.draft_trade import DraftTrade
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -903,3 +904,167 @@ class TestIntegrationAuction:
         roster = engine.my_roster()
         assert len(roster) == 3
         assert engine.my_needs() == {}
+
+
+# ---------------------------------------------------------------------------
+# Pick Trades
+# ---------------------------------------------------------------------------
+
+
+class TestPickTrades:
+    def test_team_for_pick_default(self) -> None:
+        """Without trades, team_for_pick matches _snake_team."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        for pick in range(1, 9):
+            assert engine.team_for_pick(pick) == DraftEngine._snake_team(pick, SNAKE_CONFIG.teams)
+
+    def test_team_for_pick_with_override(self) -> None:
+        """Override returns the overridden team."""
+        engine = DraftEngine()
+        state = engine.start(PLAYERS, SNAKE_CONFIG)
+        state.pick_overrides[3] = 1  # Pick 3 now belongs to team 1
+        assert engine.team_for_pick(3) == 1
+
+    def test_team_on_clock_respects_override(self) -> None:
+        """After trade, team_on_clock returns the new owner."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        # Pick 1 is team 1 by default. Trade pick 1 (user=team1) for pick 2 (team2)
+        engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+        # Now pick 1 belongs to team 2
+        assert engine.team_on_clock() == 2
+
+    def test_pick_validates_against_override(self) -> None:
+        """pick() with original team is rejected; new team is accepted."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        # Trade: user (team 1) gives pick 1 to team 2, receives pick 2
+        engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+        # Pick 1 now belongs to team 2 — team 1 is rejected
+        with pytest.raises(DraftError, match="expected team 2"):
+            engine.pick(player_id=1, team=1, position="C")
+        # Team 2 is accepted
+        result = engine.pick(player_id=1, team=2, position="C")
+        assert result.team == 2
+
+    def test_trade_picks_updates_overrides(self) -> None:
+        """Overrides are set correctly after trade."""
+        engine = DraftEngine()
+        state = engine.start(PLAYERS, SNAKE_CONFIG)
+        engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+        assert state.pick_overrides[1] == 2
+        assert state.pick_overrides[2] == 1
+
+    def test_trade_picks_rejects_already_used_gives(self) -> None:
+        """gives picks before current_pick are rejected."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        # Make pick 1 (team 1's pick)
+        engine.pick(player_id=1, team=1, position="C")
+        # Pick 1 is already used — can't give it away
+        with pytest.raises(DraftError, match="already been used"):
+            engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+
+    def test_trade_picks_rejects_already_used_receives(self) -> None:
+        """receives picks before current_pick are rejected."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        # Make picks 1 and 2 (team 1 then team 2)
+        engine.pick(player_id=1, team=1, position="C")
+        engine.pick(player_id=2, team=2, position="1B")
+        # Pick 2 is already used — can't receive it
+        # Pick 8 belongs to user (team 1) in 4-team snake round 2
+        with pytest.raises(DraftError, match="already been used"):
+            engine.trade_picks(gives=[8], receives=[2], partner_team=2)
+
+    def test_trade_picks_rejects_wrong_ownership_gives(self) -> None:
+        """gives must belong to user team."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        # Pick 2 belongs to team 2, not user team 1
+        with pytest.raises(DraftError, match="not user team"):
+            engine.trade_picks(gives=[2], receives=[3], partner_team=3)
+
+    def test_trade_picks_rejects_wrong_ownership_receives(self) -> None:
+        """receives must belong to partner team."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        # Pick 3 belongs to team 3, but we claim partner is team 2
+        with pytest.raises(DraftError, match="not partner team"):
+            engine.trade_picks(gives=[1], receives=[3], partner_team=2)
+
+    def test_trade_picks_rejects_empty_gives(self) -> None:
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        with pytest.raises(DraftError, match="gives must not be empty"):
+            engine.trade_picks(gives=[], receives=[2], partner_team=2)
+
+    def test_trade_picks_rejects_empty_receives(self) -> None:
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        with pytest.raises(DraftError, match="receives must not be empty"):
+            engine.trade_picks(gives=[1], receives=[], partner_team=2)
+
+    def test_undo_trade_restores_ownership(self) -> None:
+        """Overrides are removed after undo."""
+        engine = DraftEngine()
+        state = engine.start(PLAYERS, SNAKE_CONFIG)
+        engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+        engine.undo_trade()
+        assert state.pick_overrides == {}
+        assert engine.team_on_clock() == 1  # Back to default
+
+    def test_undo_trade_empty_raises(self) -> None:
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        with pytest.raises(DraftError, match="No trades to undo"):
+            engine.undo_trade()
+
+    def test_multiple_trades_and_undo(self) -> None:
+        """Two trades, undo one, verify partial restore."""
+        engine = DraftEngine()
+        state = engine.start(PLAYERS, SNAKE_CONFIG)
+        # Trade 1: user (team 1) gives pick 1, receives pick 2 from team 2
+        engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+        # Trade 2: user (now owns pick 2 via override → team 1) gives pick 5,
+        # receives pick 3 from team 3
+        # Pick 5 in 4-team snake: round 2, position 0 → team 4. User doesn't own pick 5.
+        # Pick 8 in 4-team snake: round 2, position 3 → team 1. User owns pick 8.
+        engine.trade_picks(gives=[8], receives=[3], partner_team=3)
+
+        assert state.pick_overrides[1] == 2
+        assert state.pick_overrides[2] == 1
+        assert state.pick_overrides[8] == 3
+        assert state.pick_overrides[3] == 1
+
+        # Undo trade 2
+        engine.undo_trade()
+        assert state.pick_overrides == {1: 2, 2: 1}
+        assert 8 not in state.pick_overrides
+        assert 3 not in state.pick_overrides
+
+    def test_trades_property(self) -> None:
+        """trades property returns list of executed trades."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        assert engine.trades == []
+        trade = engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+        assert engine.trades == [trade]
+        assert isinstance(trade, DraftTrade)
+
+    def test_trade_returns_draft_trade(self) -> None:
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        trade = engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+        assert trade.team_a == 1
+        assert trade.team_b == 2
+        assert trade.team_a_gives == [1]
+        assert trade.team_b_gives == [2]
+
+    def test_undo_trade_returns_removed_trade(self) -> None:
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        trade = engine.trade_picks(gives=[1], receives=[2], partner_team=2)
+        removed = engine.undo_trade()
+        assert removed == trade

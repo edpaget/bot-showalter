@@ -6,7 +6,7 @@ Allow pick-for-pick trades in live draft sessions. The approach adds a pick-owne
 
 | Phase | Status |
 |-------|--------|
-| 1 — Domain & engine | not started |
+| 1 — Domain & engine | done (2026-03-11) |
 | 2 — Persistence & session integration | not started |
 | 3 — GraphQL API | not started |
 | 4 — Frontend trade dialog | not started |
