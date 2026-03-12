@@ -18,7 +18,7 @@ from fantasy_baseball_manager.cli.factory import (
     build_valuations_context,
 )
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import check_valuation_regression
+from fantasy_baseball_manager.domain import DenominatorMethod, check_valuation_regression
 from fantasy_baseball_manager.services import compute_sgp_denominators, find_league_lineage
 
 if TYPE_CHECKING:
@@ -210,6 +210,9 @@ def sgp_denominators(
     league_name: Annotated[str, typer.Option("--league", help="League name from fbm.toml")] = "keeper",
     seasons: Annotated[int | None, typer.Option("--seasons", help="Limit to last N seasons")] = None,
     yahoo_league: Annotated[str | None, typer.Option("--yahoo-league", help="Starting Yahoo league key")] = None,
+    method: Annotated[
+        str, typer.Option("--method", help="Denominator method: mean_gap, regression, or both")
+    ] = "mean_gap",
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Compute and display SGP denominators from league standings."""
@@ -251,9 +254,14 @@ def sgp_denominators(
             typer.echo("No standings data found.", err=True)
             raise typer.Exit(1)
 
-        result = compute_sgp_denominators(all_standings, all_categories)
-
-    _print_sgp_denominators(result, all_categories)
+        if method == "both":
+            gap_result = compute_sgp_denominators(all_standings, all_categories, method=DenominatorMethod.MEAN_GAP)
+            reg_result = compute_sgp_denominators(all_standings, all_categories, method=DenominatorMethod.REGRESSION)
+            _print_sgp_denominators_both(gap_result, reg_result, all_categories)
+        else:
+            denom_method = DenominatorMethod(method)
+            result = compute_sgp_denominators(all_standings, all_categories, method=denom_method)
+            _print_sgp_denominators(result, all_categories)
 
 
 def _print_sgp_denominators(result: SgpDenominators, categories: list[CategoryConfig]) -> None:
@@ -280,3 +288,58 @@ def _print_sgp_denominators(result: SgpDenominators, categories: list[CategoryCo
             else:
                 row += f" {'—':>8}"
         typer.echo(row)
+
+
+def _print_sgp_denominators_both(
+    gap_result: SgpDenominators,
+    reg_result: SgpDenominators,
+    categories: list[CategoryConfig],
+) -> None:
+    season_set = sorted({sd.season for sd in gap_result.per_season})
+
+    header = f"{'Category':<10} {'Avg(gap)':>10} {'Avg(reg)':>10}"
+    for s in season_set:
+        header += f" {s:>8}"
+    typer.echo(header)
+    typer.echo("-" * len(header))
+
+    for cat in categories:
+        if cat.key not in gap_result.averages and cat.key not in reg_result.averages:
+            continue
+        gap_avg = gap_result.averages.get(cat.key, 0.0)
+        reg_avg = reg_result.averages.get(cat.key, 0.0)
+        row = f"{cat.key:<10} {gap_avg:>10.3f} {reg_avg:>10.3f}"
+        for s in season_set:
+            gap_val = next(
+                (sd.denominator for sd in gap_result.per_season if sd.category == cat.key and sd.season == s),
+                None,
+            )
+            reg_val = next(
+                (sd.denominator for sd in reg_result.per_season if sd.category == cat.key and sd.season == s),
+                None,
+            )
+            if gap_val is not None and reg_val is not None:
+                row += f" {gap_val:>8.3f}"
+            else:
+                row += f" {'—':>8}"
+        typer.echo(row)
+
+    # Compute and display CoV for each method
+    typer.echo("")
+    typer.echo("Coefficient of Variation (σ/μ) across seasons:")
+    header = f"{'Category':<10} {'CoV(gap)':>10} {'CoV(reg)':>10}"
+    typer.echo(header)
+    typer.echo("-" * len(header))
+
+    for cat in categories:
+        gap_vals = [sd.denominator for sd in gap_result.per_season if sd.category == cat.key]
+        reg_vals = [sd.denominator for sd in reg_result.per_season if sd.category == cat.key]
+        if len(gap_vals) < 2:
+            continue
+        gap_mean = sum(gap_vals) / len(gap_vals)
+        reg_mean = sum(reg_vals) / len(reg_vals)
+        gap_std = (sum((v - gap_mean) ** 2 for v in gap_vals) / len(gap_vals)) ** 0.5
+        reg_std = (sum((v - reg_mean) ** 2 for v in reg_vals) / len(reg_vals)) ** 0.5
+        gap_cov = abs(gap_std / gap_mean) if gap_mean != 0 else 0.0
+        reg_cov = abs(reg_std / reg_mean) if reg_mean != 0 else 0.0
+        typer.echo(f"{cat.key:<10} {gap_cov:>10.3f} {reg_cov:>10.3f}")

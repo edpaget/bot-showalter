@@ -1,4 +1,10 @@
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class DenominatorMethod(StrEnum):
+    MEAN_GAP = "mean_gap"
+    REGRESSION = "regression"
 
 
 @dataclass(frozen=True)

@@ -3,6 +3,7 @@ from statistics import mean
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import (
+    DenominatorMethod,
     Direction,
     SgpDenominators,
     SgpSeasonDenominator,
@@ -14,22 +15,73 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import CategoryConfig, TeamSeasonStats
 
 
+def _mean_gap_denominator(values: list[float]) -> float:
+    """Compute denominator using the mean-gap (Art McGee 1997) method."""
+    gaps = [values[i + 1] - values[i] for i in range(len(values) - 1)]
+    return mean(gaps)
+
+
+def _assign_ranks(values: list[float]) -> list[float]:
+    """Assign 1-based ranks to sorted values, using mean rank for ties."""
+    n = len(values)
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j < n - 1 and values[j + 1] == values[j]:
+            j += 1
+        # positions i..j are tied; assign mean rank (1-based)
+        mean_rank = (i + 1 + j + 1) / 2
+        for k in range(i, j + 1):
+            ranks[k] = mean_rank
+        i = j + 1
+    return ranks
+
+
+def _regression_slope(x: list[float], y: list[float]) -> float:
+    """Compute OLS slope: Σ[(x-x̄)(y-ȳ)] / Σ[(x-x̄)²]."""
+    n = len(x)
+    x_bar = sum(x) / n
+    y_bar = sum(y) / n
+    numerator = sum((xi - x_bar) * (yi - y_bar) for xi, yi in zip(x, y, strict=True))
+    denominator = sum((xi - x_bar) ** 2 for xi in x)
+    if denominator == 0:
+        return 0.0
+    return numerator / denominator
+
+
+def _regression_denominator(values: list[float]) -> float:
+    """Compute denominator using regression-slope method.
+
+    Fits a line through (standings_points, category_value) and returns the slope.
+    Standings points are 1-based ranks (1 = worst, N = best). Ties get mean rank.
+    """
+    ranks = _assign_ranks(values)
+    return _regression_slope(ranks, values)
+
+
 def compute_sgp_denominators(
     standings: list[TeamSeasonStats],
     categories: Sequence[CategoryConfig],
+    *,
+    method: DenominatorMethod = DenominatorMethod.MEAN_GAP,
 ) -> SgpDenominators:
     """Compute SGP denominators from league standings data.
 
-    For each category and season, sorts teams by stat value, computes the mean
-    gap between adjacent teams, and returns that as the denominator. For
-    "lower is better" categories (ERA, WHIP), the denominator is negated so
-    it is always positive.
+    For each category and season, sorts teams by stat value and computes the
+    denominator using the specified method:
+    - MEAN_GAP: average gap between adjacent teams (Art McGee 1997)
+    - REGRESSION: slope of linear regression through (rank, value) points
+
+    For "lower is better" categories (ERA, WHIP), the denominator is negated.
     """
     by_season: dict[int, list[TeamSeasonStats]] = defaultdict(list)
     for team in standings:
         by_season[team.season].append(team)
 
     per_season: list[SgpSeasonDenominator] = []
+
+    compute = _mean_gap_denominator if method is DenominatorMethod.MEAN_GAP else _regression_denominator
 
     for season in sorted(by_season):
         teams = by_season[season]
@@ -43,8 +95,7 @@ def compute_sgp_denominators(
                 continue
 
             values.sort()
-            gaps = [values[i + 1] - values[i] for i in range(len(values) - 1)]
-            denominator = mean(gaps)
+            denominator = compute(values)
 
             if cat.direction is Direction.LOWER:
                 denominator = -denominator

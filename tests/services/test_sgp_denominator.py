@@ -1,6 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.domain.league_settings import CategoryConfig, Direction, StatType
+from fantasy_baseball_manager.domain.sgp import DenominatorMethod
 from fantasy_baseball_manager.domain.yahoo_team_stats import TeamSeasonStats
 from fantasy_baseball_manager.services.sgp_denominator import compute_sgp_denominators
 
@@ -161,3 +162,104 @@ class TestComputeSgpDenominators:
 
         # Gaps: 10, 30 → mean = 20
         assert result.per_season[0].denominator == 20.0
+
+
+class TestRegressionDenominators:
+    def test_regression_single_season_uniform_gaps(self) -> None:
+        """3 teams with HR = 10, 20, 30. Uniform spacing → regression slope == mean-gap."""
+        standings = [
+            _team(2024, "a", {"HR": 10.0}),
+            _team(2024, "b", {"HR": 20.0}),
+            _team(2024, "c", {"HR": 30.0}),
+        ]
+        cats = [_counting_cat("HR")]
+        result = compute_sgp_denominators(standings, cats, method=DenominatorMethod.REGRESSION)
+
+        # Ranks: 1, 2, 3. Values: 10, 20, 30. Slope = 10.0
+        assert result.per_season[0].denominator == pytest.approx(10.0)
+
+    def test_regression_with_outlier(self) -> None:
+        """4 teams: HR = 10, 20, 30, 100. Regression is less sensitive to outlier than mean-gap."""
+        standings = [
+            _team(2024, "a", {"HR": 10.0}),
+            _team(2024, "b", {"HR": 20.0}),
+            _team(2024, "c", {"HR": 30.0}),
+            _team(2024, "d", {"HR": 100.0}),
+        ]
+        cats = [_counting_cat("HR")]
+
+        mean_gap_result = compute_sgp_denominators(standings, cats, method=DenominatorMethod.MEAN_GAP)
+        reg_result = compute_sgp_denominators(standings, cats, method=DenominatorMethod.REGRESSION)
+
+        # Mean-gap = (100 - 10) / 3 = 30.0
+        assert mean_gap_result.per_season[0].denominator == 30.0
+
+        # Regression slope: x = [1,2,3,4], y = [10,20,30,100]
+        # x̄=2.5, ȳ=40. Σ(x-x̄)(y-ȳ) = (-1.5)(-30)+(-0.5)(-20)+(0.5)(-10)+(1.5)(60) = 45+10-5+90 = 140
+        # Σ(x-x̄)² = 2.25+0.25+0.25+2.25 = 5. Slope = 140/5 = 28.0
+        assert reg_result.per_season[0].denominator == pytest.approx(28.0)
+        assert reg_result.per_season[0].denominator != mean_gap_result.per_season[0].denominator
+
+    def test_regression_lower_is_better(self) -> None:
+        """ERA data — regression slope is negated for LOWER direction."""
+        standings = [
+            _team(2024, "a", {"ERA": 3.0}),
+            _team(2024, "b", {"ERA": 3.5}),
+            _team(2024, "c", {"ERA": 4.0}),
+        ]
+        cats = [_rate_cat("ERA", Direction.LOWER)]
+        result = compute_sgp_denominators(standings, cats, method=DenominatorMethod.REGRESSION)
+
+        # Sorted ascending: 3.0, 3.5, 4.0. Ranks: 1, 2, 3. Slope = 0.5.
+        # Negated for LOWER → -0.5
+        assert result.per_season[0].denominator == pytest.approx(-0.5)
+
+    def test_regression_ties(self) -> None:
+        """Two teams with identical values get mean rank."""
+        standings = [
+            _team(2024, "a", {"HR": 10.0}),
+            _team(2024, "b", {"HR": 20.0}),
+            _team(2024, "c", {"HR": 20.0}),
+            _team(2024, "d", {"HR": 40.0}),
+        ]
+        cats = [_counting_cat("HR")]
+        result = compute_sgp_denominators(standings, cats, method=DenominatorMethod.REGRESSION)
+
+        # Sorted: 10, 20, 20, 40. Ranks: 1, 2.5, 2.5, 4 (tied teams share mean rank)
+        # x = [1, 2.5, 2.5, 4], y = [10, 20, 20, 40]
+        # x̄ = 2.5, ȳ = 22.5
+        # Σ(x-x̄)(y-ȳ) = (-1.5)(-12.5)+(0)(-2.5)+(0)(-2.5)+(1.5)(17.5) = 18.75+0+0+26.25 = 45
+        # Σ(x-x̄)² = 2.25+0+0+2.25 = 4.5
+        # Slope = 45 / 4.5 = 10.0
+        assert result.per_season[0].denominator == pytest.approx(10.0)
+
+    def test_mean_gap_backward_compatible(self) -> None:
+        """Passing method=MEAN_GAP produces identical results to default call."""
+        standings = [
+            _team(2024, "a", {"HR": 10.0}),
+            _team(2024, "b", {"HR": 20.0}),
+            _team(2024, "c", {"HR": 50.0}),
+        ]
+        cats = [_counting_cat("HR")]
+
+        default_result = compute_sgp_denominators(standings, cats)
+        explicit_result = compute_sgp_denominators(standings, cats, method=DenominatorMethod.MEAN_GAP)
+
+        assert default_result.per_season[0].denominator == explicit_result.per_season[0].denominator
+        assert default_result.averages == explicit_result.averages
+
+    def test_default_method_is_mean_gap(self) -> None:
+        """Calling without method parameter produces same results as method=MEAN_GAP."""
+        standings = [
+            _team(2024, "a", {"HR": 10.0, "SB": 5.0}),
+            _team(2024, "b", {"HR": 20.0, "SB": 15.0}),
+            _team(2024, "c", {"HR": 30.0, "SB": 25.0}),
+        ]
+        cats = [_counting_cat("HR"), _counting_cat("SB")]
+
+        default_result = compute_sgp_denominators(standings, cats)
+        mean_gap_result = compute_sgp_denominators(standings, cats, method=DenominatorMethod.MEAN_GAP)
+
+        for i in range(len(default_result.per_season)):
+            assert default_result.per_season[i].denominator == mean_gap_result.per_season[i].denominator
+        assert default_result.averages == mean_gap_result.averages
