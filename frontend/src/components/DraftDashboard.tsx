@@ -14,6 +14,7 @@ import type {
   StartSessionMutation,
   UndoMutation,
   UndoTradeMutation,
+  WebConfigQuery,
 } from "../generated/graphql";
 import { END_SESSION, PICK, START_SESSION, UNDO, UNDO_TRADE } from "../graphql/mutations";
 import {
@@ -26,6 +27,7 @@ import {
   ROSTER_QUERY,
   SESSION_QUERY,
   SESSIONS_QUERY,
+  WEB_CONFIG_QUERY,
 } from "../graphql/queries";
 import { DRAFT_EVENTS_SUBSCRIPTION } from "../graphql/subscriptions";
 import { ArbitragePanel } from "./ArbitragePanel";
@@ -45,6 +47,9 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const { openPlayer } = usePlayerDrawer();
   const sessionActive = ctx.sessionId != null && ctx.state != null;
   const [tradeDialogOpen, setTradeDialogOpen] = useState(false);
+
+  const { data: configData } = useQuery<WebConfigQuery>(WEB_CONFIG_QUERY);
+  const yahooLeague = configData?.webConfig?.yahooLeague ?? null;
 
   const { data: sessionsData } = useQuery<SessionsQuery>(SESSIONS_QUERY, {
     variables: { status: "active" },
@@ -120,7 +125,14 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   });
 
   const handleStart = useCallback(
-    async (config: { season: number; teams: number; format: string; userTeam: number; budget?: number }) => {
+    async (config: {
+      season: number;
+      teams: number;
+      format: string;
+      userTeam: number;
+      budget?: number;
+      keeperPlayerIds?: number[];
+    }) => {
       const result = await startSession({
         variables: {
           season: config.season,
@@ -128,6 +140,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           format: config.format,
           userTeam: config.userTeam,
           budget: config.budget,
+          keeperPlayerIds: config.keeperPlayerIds,
         },
       });
       if (result.data) {
@@ -235,6 +248,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         onTrade={() => setTradeDialogOpen(true)}
         tradeDisabled={!hasFuturePicks || !league}
         isSnakeFormat={isSnakeFormat}
+        yahooLeague={yahooLeague}
       />
 
       <div className="flex gap-3 flex-1 min-h-0">

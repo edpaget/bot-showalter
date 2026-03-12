@@ -1,12 +1,21 @@
-import { useState } from "react";
-import type { DraftSessionSummaryType, DraftStateType } from "../generated/graphql";
+import { useLazyQuery } from "@apollo/client";
+import { useEffect, useState } from "react";
+import type { DraftSessionSummaryType, DraftStateType, YahooDraftSetupQuery } from "../generated/graphql";
+import { YAHOO_DRAFT_SETUP_QUERY } from "../graphql/queries";
 import { Spinner } from "./Spinner";
 
 interface SessionControlsProps {
   sessionActive: boolean;
   state: DraftStateType | null;
   sessions: DraftSessionSummaryType[];
-  onStart: (config: { season: number; teams: number; format: string; userTeam: number; budget?: number }) => void;
+  onStart: (config: {
+    season: number;
+    teams: number;
+    format: string;
+    userTeam: number;
+    budget?: number;
+    keeperPlayerIds?: number[];
+  }) => void;
   onResume: (sessionId: number) => void;
   onUndo: () => void;
   onEnd: () => void;
@@ -15,6 +24,7 @@ interface SessionControlsProps {
   onTrade?: () => void;
   tradeDisabled?: boolean;
   isSnakeFormat?: boolean;
+  yahooLeague?: { leagueKey: string; leagueName: string; season: number } | null;
 }
 
 export function SessionControls({
@@ -30,12 +40,38 @@ export function SessionControls({
   onTrade,
   tradeDisabled,
   isSnakeFormat,
+  yahooLeague,
 }: SessionControlsProps) {
   const [season, setSeason] = useState(2026);
   const [teams, setTeams] = useState(12);
   const [format, setFormat] = useState("snake");
   const [userTeam, setUserTeam] = useState(1);
   const [budget, setBudget] = useState(260);
+  const [keeperPlayerIds, setKeeperPlayerIds] = useState<number[]>([]);
+  const [prefilled, setPrefilled] = useState(false);
+  const [prefillError, setPrefillError] = useState(false);
+
+  const [fetchSetup] = useLazyQuery<YahooDraftSetupQuery>(YAHOO_DRAFT_SETUP_QUERY);
+
+  useEffect(() => {
+    if (!yahooLeague || sessionActive) return;
+    fetchSetup({ variables: { leagueKey: yahooLeague.leagueKey, season: yahooLeague.season } }).then(
+      ({ data, error }) => {
+        if (error || !data) {
+          setPrefillError(true);
+          return;
+        }
+        const setup = data.yahooDraftSetup;
+        setSeason(yahooLeague.season);
+        setTeams(setup.numTeams);
+        const fmt = setup.draftFormat === "auction" ? "auction" : "snake";
+        setFormat(fmt);
+        setUserTeam(setup.userTeamId);
+        setKeeperPlayerIds(setup.keeperPlayerIds);
+        setPrefilled(true);
+      },
+    );
+  }, [yahooLeague, sessionActive, fetchSetup]);
 
   if (sessionActive && state) {
     return (
@@ -82,6 +118,12 @@ export function SessionControls({
 
   return (
     <div className="p-3 bg-gray-50 rounded border border-gray-200">
+      {prefilled && yahooLeague && (
+        <p className="text-xs text-blue-600 mb-2">Prefilled from Yahoo: {yahooLeague.leagueName}</p>
+      )}
+      {prefillError && (
+        <p className="text-xs text-amber-600 mb-2">Could not load Yahoo settings — enter values manually</p>
+      )}
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Season</label>
@@ -142,6 +184,7 @@ export function SessionControls({
               format,
               userTeam,
               budget: format === "auction" ? budget : undefined,
+              keeperPlayerIds: keeperPlayerIds.length > 0 ? keeperPlayerIds : undefined,
             })
           }
           className="px-4 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
