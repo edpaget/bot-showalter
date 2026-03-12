@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 class DenominatorProvider(Protocol):
     """Compute SGP denominators for a league's categories."""
 
-    def __call__(self, league: LeagueSettings) -> SgpDenominators: ...
+    def __call__(self, league: LeagueSettings, *, method: str | None = None) -> SgpDenominators: ...
 
 
 def _extract_stats(projections: list[Projection]) -> list[dict[str, float]]:
@@ -97,7 +97,8 @@ class SgpModel:
             if self._denominator_provider is None:
                 msg = "denominators must be provided in model_params or via denominator_provider"
                 raise TypeError(msg)
-            sgp_denoms = self._denominator_provider(league)
+            denominator_method: str | None = config.model_params.get("denominator_method")
+            sgp_denoms = self._denominator_provider(league, method=denominator_method)
             denominators = sgp_denoms.averages
             representative_team = sgp_denoms.representative_team
         elif isinstance(denominators_input, dict):

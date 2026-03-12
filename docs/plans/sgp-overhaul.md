@@ -19,7 +19,7 @@ Each fix is independently testable. The final phase runs a full holdout comparis
 | 1 — Regression-slope denominators | done (2026-03-11) |
 | 2 — Team-impact rate-stat formula | done (2026-03-11) |
 | 3 — Category weights and evaluation infrastructure | done (2026-03-11) |
-| 4 — Holdout validation | not started |
+| 4 — Holdout validation | in progress |
 
 ## Phase 1: Regression-slope denominators
 

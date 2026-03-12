@@ -355,6 +355,65 @@ class TestSgpModelRateStatIndependence:
         assert vals[1].category_scores["era"] == pytest.approx(vals[2].category_scores["era"])
 
 
+class TestSgpModelDenominatorMethod:
+    def test_denominator_method_forwarded_to_provider(self) -> None:
+        """When denominator_method is set in model_params, it is forwarded to the provider."""
+        captured_kwargs: list[dict[str, Any]] = []
+
+        def fake_provider(league: Any, *, method: str | None = None) -> SgpDenominators:
+            captured_kwargs.append({"method": method})
+            return SgpDenominators(per_season=(), averages=_standard_denominators())
+
+        pos_repo = FakePositionAppearanceRepo(_build_appearances())
+        model = SgpModel(
+            projection_repo=FakeProjectionRepo(_build_projections()),
+            position_repo=pos_repo,
+            valuation_repo=FakeValuationRepo(),
+            eligibility_service=PlayerEligibilityService(pos_repo),
+            denominator_provider=fake_provider,
+        )
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+                "denominator_method": "regression",
+            },
+            version="1.0",
+        )
+        model.predict(config)
+        assert len(captured_kwargs) == 1
+        assert captured_kwargs[0]["method"] == "regression"
+
+    def test_denominator_method_none_by_default(self) -> None:
+        """When denominator_method is not set, None is forwarded to the provider."""
+        captured_kwargs: list[dict[str, Any]] = []
+
+        def fake_provider(league: Any, *, method: str | None = None) -> SgpDenominators:
+            captured_kwargs.append({"method": method})
+            return SgpDenominators(per_season=(), averages=_standard_denominators())
+
+        pos_repo = FakePositionAppearanceRepo(_build_appearances())
+        model = SgpModel(
+            projection_repo=FakeProjectionRepo(_build_projections()),
+            position_repo=pos_repo,
+            valuation_repo=FakeValuationRepo(),
+            eligibility_service=PlayerEligibilityService(pos_repo),
+            denominator_provider=fake_provider,
+        )
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "league": _standard_league(),
+                "projection_system": "steamer",
+            },
+            version="1.0",
+        )
+        model.predict(config)
+        assert len(captured_kwargs) == 1
+        assert captured_kwargs[0]["method"] is None
+
+
 class TestSgpModelDenominatorSources:
     def test_sgp_denominators_object_used(self) -> None:
         """When denominators is an SgpDenominators object, its averages are used."""
@@ -376,7 +435,7 @@ class TestSgpModelDenominatorSources:
         """When no denominators in model_params, the provider is called."""
         calls: list[Any] = []
 
-        def fake_provider(league: Any) -> SgpDenominators:
+        def fake_provider(league: Any, *, method: str | None = None) -> SgpDenominators:
             calls.append(league)
             return SgpDenominators(per_season=(), averages=_standard_denominators())
 

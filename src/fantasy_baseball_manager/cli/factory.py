@@ -12,6 +12,7 @@ from fantasy_baseball_manager.db.pool import ConnectionPool, SingleConnectionPro
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import (
     ConfigError,
+    DenominatorMethod,
     Err,
     LabelConfig,
     LabeledSeason,
@@ -145,7 +146,7 @@ def _build_denominator_provider(conn: sqlite3.Connection) -> Any:  # pragma: no 
     yahoo_league_repo = SqliteYahooLeagueRepo(SingleConnectionProvider(conn))
     yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(SingleConnectionProvider(conn))
 
-    def provider(league: Any) -> Any:
+    def provider(league: Any, *, method: str | None = None) -> Any:
         all_leagues = yahoo_league_repo.get_all()
         redraft_leagues = [lg for lg in all_leagues if not lg.is_keeper]
         if not redraft_leagues:
@@ -164,7 +165,8 @@ def _build_denominator_provider(conn: sqlite3.Connection) -> Any:  # pragma: no 
             all_standings.extend(team_stats)
 
         all_categories = list(league.batting_categories) + list(league.pitching_categories)
-        sgp_denoms = compute_sgp_denominators(all_standings, all_categories)
+        denom_method = DenominatorMethod(method) if method else DenominatorMethod.MEAN_GAP
+        sgp_denoms = compute_sgp_denominators(all_standings, all_categories, method=denom_method)
         team_totals = compute_representative_team_totals(all_standings, all_categories)
         return SgpDenominators(
             per_season=sgp_denoms.per_season,
