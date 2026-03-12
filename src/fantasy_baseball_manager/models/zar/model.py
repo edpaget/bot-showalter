@@ -107,7 +107,7 @@ class ZarModel:
 
         # 3.5a. Category weights (optional, for ZAR reform)
         category_weights: dict[str, float] | None = config.model_params.get("category_weights")
-        use_direct_rates: bool = config.model_params.get("use_direct_rates", False)
+        use_direct_rates: bool = config.model_params.get("use_direct_rates", True)
         use_optimal_assignment: bool = config.model_params.get("use_optimal_assignment", True)
 
         # 3.5. Variance correction: split pre-computed stdev overrides by pool

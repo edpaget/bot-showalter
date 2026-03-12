@@ -21,10 +21,16 @@ from fantasy_baseball_manager.models.ensemble.engine import (
     weighted_average,
     weighted_spread,
 )
+from fantasy_baseball_manager.models.ensemble.rate_calibration import (
+    RateCalibrationConfig,
+    calibrate_pitcher_rates,
+    compute_prior_season_counts,
+)
 from fantasy_baseball_manager.models.ensemble.stat_groups import expand_route_groups, validate_coverage
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.repos import (
+    PitchingStatsRepo,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
     ProjectionRepo,  # noqa: TC001 — used in __init__ signature evaluated by inspect.signature()
 )
 
@@ -39,8 +45,13 @@ logger = logging.getLogger(__name__)
 
 @register("ensemble")
 class EnsembleModel:
-    def __init__(self, projection_repo: ProjectionRepo) -> None:
+    def __init__(
+        self,
+        projection_repo: ProjectionRepo,
+        pitching_stats_repo: PitchingStatsRepo | None = None,
+    ) -> None:
         self._projection_repo = projection_repo
+        self._pitching_stats_repo = pitching_stats_repo
 
     @property
     def name(self) -> str:
@@ -225,6 +236,26 @@ class EnsembleModel:
                             "std": dist.std,
                         }
                     )
+
+        # Apply pitcher rate-stat calibration when configured
+        rate_cal_param = params.get("rate_calibration")
+        if rate_cal_param is not False and self._pitching_stats_repo is not None:
+            if isinstance(rate_cal_param, dict):
+                cal_config = RateCalibrationConfig.from_params(rate_cal_param)
+            else:
+                cal_config = RateCalibrationConfig()
+
+            if cal_config.stats:
+                pitcher_ids = {p["player_id"] for p in predictions if p.get("player_type") == "pitcher"}
+                if pitcher_ids:
+                    prior_counts = compute_prior_season_counts(
+                        pitcher_ids,
+                        seasons[0],
+                        self._pitching_stats_repo,
+                        lag_seasons=cal_config.lag_seasons,
+                        min_ip=cal_config.min_ip,
+                    )
+                    calibrate_pitcher_rates(predictions, prior_counts, cal_config)
 
         output_path = config.output_dir or config.artifacts_dir
         return PredictResult(

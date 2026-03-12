@@ -23,6 +23,14 @@ gs = "steamer"
 [models.ensemble.params.versions]
 "statcast-gbm-preseason" = "latest"
 
+[models.ensemble.params.rate_calibration]
+era_intercept = 0.6805
+era_slope = 0.7890
+era_prior_coef = 0.0252
+whip_intercept = 0.2674
+whip_slope = 0.7543
+whip_prior_coef = 0.0050
+
 # --- Sample routed ensemble configs ---
 
 # (a) Rate stats from statcast-gbm, all counting from steamer (explicit)

@@ -10,6 +10,7 @@ from fantasy_baseball_manager.domain.league_settings import (
     LeagueSettings,
     StatType,
 )
+from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.ensemble import EnsembleModel
 from fantasy_baseball_manager.models.ensemble.stat_groups import BUILTIN_GROUPS
@@ -23,7 +24,7 @@ from fantasy_baseball_manager.models.protocols import (
     Trainable,
 )
 from fantasy_baseball_manager.models.registry import get, register
-from tests.fakes.repos import FakeProjectionRepo
+from tests.fakes.repos import FakePitchingStatsRepo, FakeProjectionRepo
 
 _NULL_PROJECTION_REPO = FakeProjectionRepo([])
 
@@ -1764,3 +1765,101 @@ class TestEnsembleDryRun:
         meta = result.predictions[0]
         assert meta["_routes"]["obp"] == "statcast-gbm"
         assert meta["_routes"]["hr"] == "steamer"
+
+
+class TestEnsembleRateCalibration:
+    def test_calibration_modifies_pitcher_era(self) -> None:
+        proj_repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "pitcher", {"era": 4.0, "whip": 1.3, "ip": 180.0, "so": 200}),
+            ]
+        )
+        pitching_repo = FakePitchingStatsRepo(
+            [
+                PitchingStats(player_id=1, season=2024, source="fg", ip=150.0),
+                PitchingStats(player_id=1, season=2023, source="fg", ip=100.0),
+            ]
+        )
+        model = EnsembleModel(projection_repo=proj_repo, pitching_stats_repo=pitching_repo)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "weighted_average",
+                "rate_calibration": {
+                    "era_intercept": 0.5,
+                    "era_slope": 0.8,
+                    "era_prior_coef": 0.02,
+                },
+            },
+        )
+        result = model.predict(config)
+        pred = result.predictions[0]
+        # n_prior = 2 (both 2024 and 2023 have >= 10 IP)
+        # corrected_era = 0.5 + 0.8 * 4.0 + 0.02 * 2 = 3.74
+        assert pred["era"] == pytest.approx(3.74)
+        assert pred["so"] == 200
+
+    def test_calibration_disabled_when_false(self) -> None:
+        proj_repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "pitcher", {"era": 4.0, "ip": 180.0}),
+            ]
+        )
+        pitching_repo = FakePitchingStatsRepo([])
+        model = EnsembleModel(projection_repo=proj_repo, pitching_stats_repo=pitching_repo)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "weighted_average",
+                "rate_calibration": False,
+            },
+        )
+        result = model.predict(config)
+        assert result.predictions[0]["era"] == 4.0
+
+    def test_no_pitching_stats_repo_skips_calibration(self) -> None:
+        proj_repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "pitcher", {"era": 4.0, "ip": 180.0}),
+            ]
+        )
+        model = EnsembleModel(projection_repo=proj_repo)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "weighted_average",
+                "rate_calibration": {
+                    "era_intercept": 0.5,
+                    "era_slope": 0.8,
+                    "era_prior_coef": 0.02,
+                },
+            },
+        )
+        result = model.predict(config)
+        assert result.predictions[0]["era"] == 4.0
+
+    def test_batters_unaffected_by_calibration(self) -> None:
+        proj_repo = FakeProjectionRepo(
+            [
+                _make_projection(1, "steamer", "batter", {"obp": 0.350, "pa": 600}),
+            ]
+        )
+        pitching_repo = FakePitchingStatsRepo([])
+        model = EnsembleModel(projection_repo=proj_repo, pitching_stats_repo=pitching_repo)
+        config = ModelConfig(
+            seasons=[2025],
+            model_params={
+                "components": {"steamer": 1.0},
+                "mode": "weighted_average",
+                "rate_calibration": {
+                    "era_intercept": 0.5,
+                    "era_slope": 0.8,
+                    "era_prior_coef": 0.02,
+                },
+            },
+        )
+        result = model.predict(config)
+        assert result.predictions[0]["obp"] == 0.350

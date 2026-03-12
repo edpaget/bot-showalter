@@ -297,6 +297,7 @@ def build_model_context(model_name: str, config: ModelConfig) -> Iterator[ModelC
             replacement_padder=ReplacementPaddingService(),
             denominator_provider=_build_denominator_provider(conn),
             adp_provider=DbAdpProvider(conn),
+            pitching_stats_repo=pitching_stats_repo,
         )
         if isinstance(result, Err):
             raise RuntimeError(result.error.message)
