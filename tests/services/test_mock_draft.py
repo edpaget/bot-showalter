@@ -18,7 +18,7 @@ from fantasy_baseball_manager.domain.mock_draft import (
     StrategyComparison,
 )
 from fantasy_baseball_manager.services.draft_state import build_draft_roster_slots
-from fantasy_baseball_manager.services.mock_draft import run_batch_simulation, run_mock_draft
+from fantasy_baseball_manager.services.mock_draft import _assign_position, run_batch_simulation, run_mock_draft
 from fantasy_baseball_manager.services.mock_draft_bots import (
     ADPBot,
     BestValueBot,
@@ -756,3 +756,88 @@ class TestBatchSimulation:
         assert s.p25_roster_value <= s.median_roster_value
         assert s.median_roster_value <= s.p75_roster_value
         assert s.p75_roster_value <= s.p90_roster_value
+
+
+# ---------------------------------------------------------------------------
+# _assign_position tests (including bench fallback)
+# ---------------------------------------------------------------------------
+
+
+class TestAssignPosition:
+    def test_primary_position(self) -> None:
+        player = _make_row(1, "Batter", "1B", 10.0)
+        assert _assign_position(player, {"1B": 1, "BN": 2}) == "1B"
+
+    def test_composite_slot_mi(self) -> None:
+        player = _make_row(1, "SS Guy", "SS", 10.0)
+        assert _assign_position(player, {"MI": 1, "BN": 2}) == "MI"
+
+    def test_composite_slot_ci(self) -> None:
+        player = _make_row(1, "3B Guy", "3B", 10.0)
+        assert _assign_position(player, {"CI": 1, "BN": 2}) == "CI"
+
+    def test_util_for_batter(self) -> None:
+        player = _make_row(1, "OF Guy", "OF", 10.0)
+        assert _assign_position(player, {"UTIL": 1, "BN": 2}) == "UTIL"
+
+    def test_flex_p_for_pitcher(self) -> None:
+        player = _make_row(1, "Pitcher", "SP", 10.0)
+        assert _assign_position(player, {"P": 1, "BN": 2}) == "P"
+
+    def test_bench_fallback_for_batter(self) -> None:
+        """Batter with no primary/composite/UTIL slots falls back to BN."""
+        player = _make_row(1, "OF Guy", "OF", 10.0)
+        assert _assign_position(player, {"BN": 3}) == "BN"
+
+    def test_bench_fallback_for_pitcher(self) -> None:
+        """Pitcher with no primary/P slots falls back to BN."""
+        player = _make_row(1, "Pitcher", "SP", 10.0)
+        assert _assign_position(player, {"BN": 3}) == "BN"
+
+    def test_bench_fallback_only_when_needed(self) -> None:
+        """BN is not used when a better slot is available."""
+        player = _make_row(1, "1B Guy", "1B", 10.0)
+        result = _assign_position(player, {"1B": 1, "BN": 5})
+        assert result == "1B"
+
+    def test_none_when_no_slots(self) -> None:
+        player = _make_row(1, "OF Guy", "OF", 10.0)
+        assert _assign_position(player, {}) is None
+
+    def test_none_when_bench_full(self) -> None:
+        player = _make_row(1, "OF Guy", "OF", 10.0)
+        assert _assign_position(player, {"BN": 0}) is None
+
+
+class TestMockDraftWithBench:
+    """Integration test: mock draft with bench slots completes without error."""
+
+    def test_league_with_bench_slots_completes(self) -> None:
+        league = LeagueSettings(
+            name="Bench Test",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=4,
+            budget=260,
+            roster_batters=2,
+            roster_pitchers=1,
+            roster_bench=3,
+            batting_categories=(_BATTING_CAT,),
+            pitching_categories=(_PITCHING_CAT,),
+            positions={"C": 1, "OF": 1},
+            roster_util=0,
+        )
+        board = _small_board()
+        bots = [BestValueBot(rng=random.Random(i)) for i in range(4)]
+        result = run_mock_draft(board, league, bots, seed=42)
+
+        slots = build_draft_roster_slots(league)
+        total_slots = sum(slots.values())
+        assert "BN" in slots
+        assert slots["BN"] == 3
+
+        for team_idx in range(4):
+            assert len(result.rosters[team_idx]) == total_slots
+
+        # Verify bench slots are actually used
+        all_positions = [p.position for p in result.picks]
+        assert "BN" in all_positions

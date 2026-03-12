@@ -91,6 +91,10 @@ def _assign_position(player: DraftBoardRow, needs: dict[str, int]) -> str | None
         if "P" in needs and needs["P"] > 0:
             return "P"
 
+    # Bench accepts any player
+    if "BN" in needs and needs["BN"] > 0:
+        return "BN"
+
     return None
 
 
