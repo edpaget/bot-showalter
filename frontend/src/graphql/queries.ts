@@ -20,4 +20,6 @@ export {
   ValuationsDocument as VALUATIONS_QUERY,
   WebConfigDocument as WEB_CONFIG_QUERY,
   YahooPollStatusDocument as YAHOO_POLL_STATUS_QUERY,
+  YahooStandingsDocument as YAHOO_STANDINGS_QUERY,
+  YahooTeamsDocument as YAHOO_TEAMS_QUERY,
 } from "../generated/graphql";

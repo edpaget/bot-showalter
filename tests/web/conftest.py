@@ -17,7 +17,9 @@ from fantasy_baseball_manager.domain import (
     RosterStint,
     StatType,
     Team,
+    TeamSeasonStats,
     Valuation,
+    YahooTeam,
 )
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
@@ -28,6 +30,8 @@ from fantasy_baseball_manager.repos import (
     SqliteRosterStintRepo,
     SqliteTeamRepo,
     SqliteValuationRepo,
+    SqliteYahooTeamRepo,
+    SqliteYahooTeamStatsRepo,
 )
 from fantasy_baseball_manager.web import SessionManager, create_app
 
@@ -243,6 +247,84 @@ def filtered_client() -> TestClient:
         valuations=[SystemVersion(system="zar", version="1.0")],
     )
     app = create_app(container, _LEAGUE, default_system="zar", default_version="1.0", web_config=web_config)
+    return TestClient(app)
+
+
+def _seed_yahoo_data(provider: SingleConnectionProvider) -> None:
+    """Seed Yahoo league, team, and standings data for testing."""
+    with provider.connection() as conn:
+        conn.execute(
+            "INSERT INTO yahoo_league (league_key, name, season, num_teams, draft_type, is_keeper, game_key)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("449.l.12345", "Test Fantasy League", 2026, 12, "live", 1, "449"),
+        )
+        conn.commit()
+
+    team_repo = SqliteYahooTeamRepo(provider)
+    teams = [
+        YahooTeam(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            team_id=1,
+            name="Dynasty Kings",
+            manager_name="Alice",
+            is_owned_by_user=True,
+        ),
+        YahooTeam(
+            team_key="449.l.12345.t.2",
+            league_key="449.l.12345",
+            team_id=2,
+            name="Rival Squad",
+            manager_name="Bob",
+            is_owned_by_user=False,
+        ),
+    ]
+    for t in teams:
+        team_repo.upsert(t)
+
+    stats_repo = SqliteYahooTeamStatsRepo(provider)
+    standings = [
+        TeamSeasonStats(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2026,
+            team_name="Dynasty Kings",
+            final_rank=1,
+            stat_values={"HR": 250.0, "RBI": 800.0},
+        ),
+        TeamSeasonStats(
+            team_key="449.l.12345.t.2",
+            league_key="449.l.12345",
+            season=2026,
+            team_name="Rival Squad",
+            final_rank=2,
+            stat_values={"HR": 220.0, "RBI": 750.0},
+        ),
+    ]
+    for s in standings:
+        stats_repo.upsert(s)
+
+    with provider.connection() as conn:
+        conn.commit()
+
+
+@pytest.fixture
+def yahoo_client() -> TestClient:
+    """Create a test client with Yahoo team and standings repos configured."""
+    provider = _make_provider()
+    _seed_yahoo_data(provider)
+    container = AnalysisContainer(provider)
+    yahoo_team_repo = SqliteYahooTeamRepo(provider)
+    yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(provider)
+    app = create_app(
+        container,
+        _LEAGUE,
+        default_system="zar",
+        default_version="1.0",
+        web_config=WebConfig(),
+        yahoo_team_repo=yahoo_team_repo,
+        yahoo_team_stats_repo=yahoo_team_stats_repo,
+    )
     return TestClient(app)
 
 

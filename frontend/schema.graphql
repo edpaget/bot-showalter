@@ -303,6 +303,8 @@ type Query {
   playerBio(playerId: Int!, season: Int!): PlayerSummaryType
   planKeeperDraft(season: Int!, maxKeepers: Int!, system: String = null, version: String = null, customScenarios: [[Int!]!] = null, boardPreviewSize: Int! = 20): KeeperPlanType!
   yahooPollStatus(sessionId: Int!): YahooPollStatusType!
+  yahooTeams(leagueKey: String!): [YahooTeamType!]!
+  yahooStandings(leagueKey: String!, season: Int!): [YahooStandingsEntryType!]!
 }
 
 type ReachPickType {
@@ -381,4 +383,18 @@ type YahooPollStatusType {
   active: Boolean!
   lastPollAt: String
   picksIngested: Int!
+}
+
+type YahooStandingsEntryType {
+  teamKey: String!
+  teamName: String!
+  finalRank: Int!
+  statValues: JSON!
+}
+
+type YahooTeamType {
+  teamKey: String!
+  name: String!
+  managerName: String!
+  isOwnedByUser: Boolean!
 }

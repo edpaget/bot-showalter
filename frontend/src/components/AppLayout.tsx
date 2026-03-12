@@ -36,6 +36,18 @@ export function AppLayout() {
           </NavLink>
         ))}
         {yahooLeague && (
+          <NavLink
+            to="/league"
+            className={({ isActive }) =>
+              `px-3 py-1 rounded text-sm ${
+                isActive ? "bg-blue-600 text-white" : "text-gray-300 hover:text-white hover:bg-gray-700"
+              }`
+            }
+          >
+            League
+          </NavLink>
+        )}
+        {yahooLeague && (
           <div className="ml-auto">
             <LeagueBadge leagueName={yahooLeague.leagueName} season={yahooLeague.season} />
           </div>

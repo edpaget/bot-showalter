@@ -47,6 +47,8 @@ from fantasy_baseball_manager.web.types import (
     ValuationType,
     WebConfigType,
     YahooPollStatusType,
+    YahooStandingsEntryType,
+    YahooTeamType,
 )
 
 if TYPE_CHECKING:
@@ -547,6 +549,26 @@ class Query:
             last_poll_at=status.last_poll_at,
             picks_ingested=status.picks_ingested,
         )
+
+    @strawberry.field
+    def yahoo_teams(self, info: Info, league_key: str) -> list[YahooTeamType]:
+        ctx = _get_context(info)
+        repo = ctx.yahoo_team_repo
+        if repo is None:
+            msg = "Yahoo league is not configured"
+            raise ValueError(msg)
+        teams = repo.get_by_league_key(league_key)
+        return [YahooTeamType.from_domain(t) for t in teams]
+
+    @strawberry.field
+    def yahoo_standings(self, info: Info, league_key: str, season: int) -> list[YahooStandingsEntryType]:
+        ctx = _get_context(info)
+        repo = ctx.yahoo_team_stats_repo
+        if repo is None:
+            msg = "Yahoo league is not configured"
+            raise ValueError(msg)
+        stats = repo.get_by_league_season(league_key, season)
+        return [YahooStandingsEntryType.from_domain(s) for s in stats]
 
 
 @strawberry.type

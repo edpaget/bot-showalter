@@ -59,6 +59,98 @@ class TestWebConfigTypeWithYahooLeague:
         assert result.yahoo_league is None
 
 
+class TestYahooTeamsQuery:
+    _QUERY = """
+        query YahooTeams($leagueKey: String!) {
+            yahooTeams(leagueKey: $leagueKey) {
+                teamKey
+                name
+                managerName
+                isOwnedByUser
+            }
+        }
+    """
+
+    def test_returns_teams(self, yahoo_client: TestClient) -> None:
+        response = yahoo_client.post(
+            "/graphql",
+            json={"query": self._QUERY, "variables": {"leagueKey": "449.l.12345"}},
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["yahooTeams"]
+        assert len(data) == 2
+        dynasty = next(t for t in data if t["teamKey"] == "449.l.12345.t.1")
+        assert dynasty["name"] == "Dynasty Kings"
+        assert dynasty["managerName"] == "Alice"
+        assert dynasty["isOwnedByUser"] is True
+        rival = next(t for t in data if t["teamKey"] == "449.l.12345.t.2")
+        assert rival["isOwnedByUser"] is False
+
+    def test_errors_when_not_configured(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={"query": self._QUERY, "variables": {"leagueKey": "449.l.12345"}},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" in body
+        assert "Yahoo league is not configured" in body["errors"][0]["message"]
+
+
+class TestYahooStandingsQuery:
+    _QUERY = """
+        query YahooStandings($leagueKey: String!, $season: Int!) {
+            yahooStandings(leagueKey: $leagueKey, season: $season) {
+                teamKey
+                teamName
+                finalRank
+                statValues
+            }
+        }
+    """
+
+    def test_returns_standings_sorted_by_rank(self, yahoo_client: TestClient) -> None:
+        response = yahoo_client.post(
+            "/graphql",
+            json={
+                "query": self._QUERY,
+                "variables": {"leagueKey": "449.l.12345", "season": 2026},
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["yahooStandings"]
+        assert len(data) == 2
+        assert data[0]["finalRank"] == 1
+        assert data[0]["teamName"] == "Dynasty Kings"
+        assert data[0]["statValues"]["HR"] == 250.0
+        assert data[1]["finalRank"] == 2
+        assert data[1]["teamName"] == "Rival Squad"
+
+    def test_returns_empty_for_unknown_season(self, yahoo_client: TestClient) -> None:
+        response = yahoo_client.post(
+            "/graphql",
+            json={
+                "query": self._QUERY,
+                "variables": {"leagueKey": "449.l.12345", "season": 2020},
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["data"]["yahooStandings"] == []
+
+    def test_errors_when_not_configured(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": self._QUERY,
+                "variables": {"leagueKey": "449.l.12345", "season": 2026},
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" in body
+        assert "Yahoo league is not configured" in body["errors"][0]["message"]
+
+
 class TestWebConfigQueryYahooLeague:
     def test_returns_null_when_not_configured(self, client: TestClient) -> None:
         response = client.post(

@@ -20,6 +20,7 @@ from fantasy_baseball_manager.repos import (
     SqliteYahooLeagueRepo,
     SqliteYahooPlayerMapRepo,
     SqliteYahooTeamRepo,
+    SqliteYahooTeamStatsRepo,
 )
 from fantasy_baseball_manager.services import (
     KeeperPlannerService,
@@ -184,6 +185,8 @@ def web(  # pragma: no cover
 
     yahoo_poller_manager = None
     yahoo_league_info = None
+    yahoo_team_repo = None
+    yahoo_team_stats_repo = None
     if yahoo_config_dir is not None:
         yahoo_config = load_yahoo_config(Path(yahoo_config_dir))
         auth = YahooAuth(yahoo_config.client_id, yahoo_config.client_secret)
@@ -192,6 +195,8 @@ def web(  # pragma: no cover
         player_mapper = YahooPlayerMapper(player_map_repo, container.player_repo)
         draft_source = YahooDraftSource(client, player_mapper)
         team_repo = SqliteYahooTeamRepo(provider)
+        yahoo_team_repo = team_repo
+        yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(provider)
 
         yahoo_poller_manager = YahooPollerManager(
             _draft_source=draft_source,
@@ -236,5 +241,7 @@ def web(  # pragma: no cover
         default_system=system,
         default_version=version,
         keeper_planner=keeper_planner,
+        yahoo_team_repo=yahoo_team_repo,
+        yahoo_team_stats_repo=yahoo_team_stats_repo,
     )
     uvicorn.run(app, host=host, port=port)

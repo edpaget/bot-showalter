@@ -28,9 +28,11 @@ if TYPE_CHECKING:
         ReachPick,
         Recommendation,
         TeamCategoryProjection,
+        TeamSeasonStats,
         ValueOverADP,
         ValueOverADPReport,
         YahooLeagueInfo,
+        YahooTeam,
     )
     from fantasy_baseball_manager.services import DraftPick, DraftState
 
@@ -732,4 +734,38 @@ class KeeperPlanType:
     def from_domain(plan: KeeperPlanResult) -> KeeperPlanType:
         return KeeperPlanType(
             scenarios=[KeeperScenarioType.from_domain(s) for s in plan.scenarios],
+        )
+
+
+@strawberry.type
+class YahooTeamType:
+    team_key: str
+    name: str
+    manager_name: str
+    is_owned_by_user: bool
+
+    @staticmethod
+    def from_domain(team: YahooTeam) -> YahooTeamType:
+        return YahooTeamType(
+            team_key=team.team_key,
+            name=team.name,
+            manager_name=team.manager_name,
+            is_owned_by_user=team.is_owned_by_user,
+        )
+
+
+@strawberry.type
+class YahooStandingsEntryType:
+    team_key: str
+    team_name: str
+    final_rank: int
+    stat_values: strawberry.scalars.JSON
+
+    @staticmethod
+    def from_domain(stats: TeamSeasonStats) -> YahooStandingsEntryType:
+        return YahooStandingsEntryType(
+            team_key=stats.team_key,
+            team_name=stats.team_name,
+            final_rank=stats.final_rank,
+            stat_values=cast("Any", dict(stats.stat_values)),
         )

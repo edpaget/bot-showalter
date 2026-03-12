@@ -389,6 +389,28 @@ export const PLAYER_BIO_QUERY = gql`
   }
 `;
 
+export const YAHOO_TEAMS_QUERY = gql`
+  query YahooTeams($leagueKey: String!) {
+    yahooTeams(leagueKey: $leagueKey) {
+      teamKey
+      name
+      managerName
+      isOwnedByUser
+    }
+  }
+`;
+
+export const YAHOO_STANDINGS_QUERY = gql`
+  query YahooStandings($leagueKey: String!, $season: Int!) {
+    yahooStandings(leagueKey: $leagueKey, season: $season) {
+      teamKey
+      teamName
+      finalRank
+      statValues
+    }
+  }
+`;
+
 export const PLAN_KEEPER_DRAFT_QUERY = gql`
   query PlanKeeperDraft(
     $season: Int!

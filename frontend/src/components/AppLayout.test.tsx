@@ -92,4 +92,21 @@ describe("AppLayout", () => {
     });
     expect(screen.queryByText("Dynasty Kings")).not.toBeInTheDocument();
   });
+
+  it("shows League nav link when yahoo league is configured", async () => {
+    renderLayout([WITH_YAHOO_MOCK]);
+    await waitFor(() => {
+      expect(screen.getByText("League")).toBeInTheDocument();
+    });
+    const link = screen.getByText("League");
+    expect(link.closest("a")).toHaveAttribute("href", "/league");
+  });
+
+  it("hides League nav link when yahoo league is not configured", async () => {
+    renderLayout([NO_YAHOO_MOCK]);
+    await waitFor(() => {
+      expect(screen.getByText("FBM")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("League")).not.toBeInTheDocument();
+  });
 });
