@@ -429,6 +429,37 @@ export const YAHOO_ROSTERS_QUERY = gql`
   }
 `;
 
+export const YAHOO_KEEPER_OVERVIEW_QUERY = gql`
+  query YahooKeeperOverview($leagueKey: String!, $season: Int!, $maxKeepers: Int!) {
+    yahooKeeperOverview(leagueKey: $leagueKey, season: $season, maxKeepers: $maxKeepers) {
+      teamProjections {
+        teamKey
+        teamName
+        isUser
+        totalValue
+        categoryTotals
+        keepers {
+          playerId
+          playerName
+          position
+          value
+          categoryScores
+        }
+      }
+      tradeTargets {
+        playerId
+        playerName
+        position
+        value
+        owningTeamName
+        owningTeamKey
+        rankOnTeam
+      }
+      categoryNames
+    }
+  }
+`;
+
 export const PLAN_KEEPER_DRAFT_QUERY = gql`
   query PlanKeeperDraft(
     $season: Int!

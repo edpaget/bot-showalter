@@ -176,6 +176,12 @@ type KeeperScenarioType {
   weakestCategories: [String!]!
 }
 
+type LeagueKeeperOverviewType {
+  teamProjections: [TeamKeeperProjectionType!]!
+  tradeTargets: [TradeTargetType!]!
+  categoryNames: [String!]!
+}
+
 type LeagueSettingsType {
   name: String!
   format: String!
@@ -197,6 +203,7 @@ type Mutation {
   endSession(sessionId: Int!): Boolean!
   startYahooPoll(sessionId: Int!, leagueKey: String!): Boolean!
   stopYahooPoll(sessionId: Int!): Boolean!
+  deriveKeeperCosts(leagueKey: String!, season: Int!, costFloor: Float! = 1): Int!
 }
 
 type PickEvent {
@@ -269,6 +276,14 @@ type PositionScarcityType {
   steepRank: Int
 }
 
+type ProjectedKeeperType {
+  playerId: Int!
+  playerName: String!
+  position: String!
+  value: Float!
+  categoryScores: JSON!
+}
+
 type ProjectionType {
   playerName: String!
   system: String!
@@ -307,6 +322,7 @@ type Query {
   yahooStandings(leagueKey: String!, season: Int!): [YahooStandingsEntryType!]!
   yahooRosters(leagueKey: String!): [YahooRosterType!]!
   yahooRoster(teamKey: String!, leagueKey: String!): YahooRosterType
+  yahooKeeperOverview(leagueKey: String!, season: Int!, maxKeepers: Int!): LeagueKeeperOverviewType!
 }
 
 type ReachPickType {
@@ -345,6 +361,25 @@ type Subscription {
 type SystemVersionType {
   system: String!
   version: String!
+}
+
+type TeamKeeperProjectionType {
+  teamKey: String!
+  teamName: String!
+  isUser: Boolean!
+  keepers: [ProjectedKeeperType!]!
+  totalValue: Float!
+  categoryTotals: JSON!
+}
+
+type TradeTargetType {
+  playerId: Int!
+  playerName: String!
+  position: String!
+  value: Float!
+  owningTeamName: String!
+  owningTeamKey: String!
+  rankOnTeam: Int!
 }
 
 type UndoEvent {

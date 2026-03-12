@@ -8,11 +8,16 @@ from fantasy_baseball_manager.domain import ArbitrageReport, DraftBoard, Positio
 from fantasy_baseball_manager.services import (
     DraftEngine,
     DraftFormat,
+    KeeperPlannerService,
+    PlayerEligibilityService,
     analyze_roster,
     auto_detect_position,
     build_arbitrage_report,
     build_draft_board,
+    build_league_keeper_overview,
     compute_scarcity,
+    derive_and_store_keeper_costs,
+    derive_best_n_keeper_costs,
     detect_falling_players,
     generate_tiers,
     identify_needs,
@@ -33,6 +38,7 @@ from fantasy_baseball_manager.web.types import (
     FallingPlayerType,
     KeeperInfoType,
     KeeperPlanType,
+    LeagueKeeperOverviewType,
     LeagueSettingsType,
     PickEvent,
     PickResultType,
@@ -51,6 +57,8 @@ from fantasy_baseball_manager.web.types import (
     YahooStandingsEntryType,
     YahooTeamType,
 )
+from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
+from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.web.app import AppContext
@@ -87,6 +95,32 @@ def _compute_arbitrage_cat_scores(
     roster_ids = [p.player_id for p in engine.my_roster()]
     available_ids = list(engine.state.available_pool.keys())
     return cat_bal_fn(roster_ids, available_ids)
+
+
+def _build_keeper_planner(ctx: AppContext, season: int, league_name: str) -> KeeperPlannerService:
+    """Build a fresh KeeperPlannerService from current DB state."""
+    system = ctx.default_system
+    version = ctx.default_version
+    keeper_costs = ctx.container.keeper_cost_repo.find_by_season_league(season, league_name)
+    valuations = ctx.container.valuation_repo.get_by_season(season, system=system, version=version)
+    players = ctx.container.player_repo.get_by_ids([v.player_id for v in valuations])
+    projections = ctx.container.projection_repo.get_by_season(season)
+    eligibility = PlayerEligibilityService(
+        ctx.container.position_appearance_repo,
+        pitching_stats_repo=ctx.container.pitching_stats_repo,
+    )
+    batter_positions = eligibility.get_batter_positions(season, ctx.league)
+    pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
+    pitcher_positions = eligibility.get_pitcher_positions(season, ctx.league, pitcher_ids)
+    return KeeperPlannerService(
+        keeper_costs=keeper_costs,
+        valuations=valuations,
+        players=players,
+        projections=projections,
+        league=ctx.league,
+        batter_positions=batter_positions,
+        pitcher_positions=pitcher_positions,
+    )
 
 
 def _build_pick_result(
@@ -524,7 +558,7 @@ class Query:
         board_preview_size: int = 20,
     ) -> KeeperPlanType:
         ctx = _get_context(info)
-        keeper_planner = ctx.keeper_planner
+        keeper_planner = ctx.keeper_planner_ref.planner
         if keeper_planner is None:
             msg = "Keeper planner is not configured"
             raise ValueError(msg)
@@ -592,6 +626,44 @@ class Query:
         if roster is None:
             return None
         return YahooRosterType.from_domain(roster)
+
+    @strawberry.field
+    def yahoo_keeper_overview(
+        self,
+        info: Info,
+        league_key: str,
+        season: int,
+        max_keepers: int,
+    ) -> LeagueKeeperOverviewType:
+        ctx = _get_context(info)
+        repo = ctx.yahoo_roster_repo
+        if repo is None:
+            msg = "Yahoo league is not configured"
+            raise ValueError(msg)
+
+        rosters = repo.get_by_league_latest(league_key)
+        valuations = ctx.container.valuation_repo.get_by_season(
+            season,
+            system=ctx.default_system,
+            version=ctx.default_version,
+        )
+        players = ctx.container.player_repo.all()
+
+        team_repo = ctx.yahoo_team_repo
+        teams = team_repo.get_by_league_key(league_key) if team_repo else []
+        team_names = {t.team_key: t.name for t in teams}
+        user_team = next((t for t in teams if t.is_owned_by_user), None)
+        user_team_key = user_team.team_key if user_team else ""
+
+        overview = build_league_keeper_overview(
+            rosters=rosters,
+            valuations=valuations,
+            players=players,
+            max_keepers=max_keepers,
+            user_team_key=user_team_key,
+            team_names=team_names,
+        )
+        return LeagueKeeperOverviewType.from_domain(overview)
 
 
 @strawberry.type
@@ -733,6 +805,73 @@ class Mutation:
             msg = "Yahoo polling is not configured"
             raise ValueError(msg)
         return await ypm.stop_polling(session_id)
+
+    @strawberry.mutation
+    async def derive_keeper_costs(
+        self,
+        info: Info,
+        league_key: str,
+        season: int,
+        cost_floor: float = 1.0,
+    ) -> int:
+        ctx = _get_context(info)
+        yahoo = ctx.yahoo_web_context
+        if yahoo is None:
+            msg = "Yahoo league is not configured"
+            raise ValueError(msg)
+
+        # Resolve prior league key
+        prior_season = season - 1
+        stored_league = yahoo.league_repo.get_by_league_key(league_key)
+        if stored_league is not None and stored_league.renew is not None:
+            prior_league_key = stored_league.renew.replace("_", ".l.", 1)
+        else:
+            prior_game_key = yahoo.client.get_game_key(prior_season)
+            league_id = league_key.split(".l.")[1]
+            prior_league_key = f"{prior_game_key}.l.{league_id}"
+
+        # Construct sources and derive costs
+        team_repo = ctx.yahoo_team_repo
+        if team_repo is None:
+            msg = "Yahoo team repo is not configured"
+            raise ValueError(msg)
+
+        roster_source = YahooRosterSource(yahoo.client, yahoo.player_mapper, roster_repo=ctx.yahoo_roster_repo)
+        if yahoo.league_config.keeper_format == "best_n":
+            derive_best_n_keeper_costs(
+                roster_source=roster_source,
+                team_repo=team_repo,
+                keeper_repo=ctx.container.keeper_cost_repo,
+                prior_league_key=prior_league_key,
+                prior_season=prior_season,
+                season=season,
+                league_name=yahoo.league_name,
+            )
+        else:
+            draft_source = YahooDraftSource(yahoo.client, yahoo.player_mapper)
+            derive_and_store_keeper_costs(
+                draft_source=draft_source,
+                roster_source=roster_source,
+                team_repo=team_repo,
+                keeper_repo=ctx.container.keeper_cost_repo,
+                league_key=league_key,
+                prior_league_key=prior_league_key,
+                prior_season=prior_season,
+                season=season,
+                league_name=yahoo.league_name,
+                cost_floor=cost_floor,
+            )
+
+        # Commit the transaction
+        with yahoo.provider.connection() as conn:
+            conn.commit()
+
+        # Rebuild keeper planner with fresh data
+        ctx.keeper_planner_ref.planner = _build_keeper_planner(ctx, season, yahoo.league_name)
+
+        # Return count of derived costs
+        costs = ctx.container.keeper_cost_repo.find_by_season_league(season, yahoo.league_name)
+        return len(costs)
 
 
 @strawberry.type

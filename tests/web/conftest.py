@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.config_toml import SystemVersion, WebConfig
+from fantasy_baseball_manager.config_yahoo import YahooLeagueConfig
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
@@ -23,6 +24,7 @@ from fantasy_baseball_manager.domain import (
     Team,
     TeamSeasonStats,
     Valuation,
+    YahooDraftPick,
     YahooTeam,
 )
 from fantasy_baseball_manager.repos import (
@@ -34,11 +36,13 @@ from fantasy_baseball_manager.repos import (
     SqliteRosterStintRepo,
     SqliteTeamRepo,
     SqliteValuationRepo,
+    SqliteYahooLeagueRepo,
     SqliteYahooRosterRepo,
     SqliteYahooTeamRepo,
     SqliteYahooTeamStatsRepo,
 )
 from fantasy_baseball_manager.web import SessionManager, create_app
+from fantasy_baseball_manager.web.app import YahooWebContext
 
 _LEAGUE = LeagueSettings(
     name="Test League",
@@ -392,3 +396,247 @@ def session_provider() -> SingleConnectionProvider:
 @pytest.fixture
 def league() -> LeagueSettings:
     return _LEAGUE
+
+
+class FakeYahooFantasyClient:
+    """Stub Yahoo client that returns canned draft and game key data."""
+
+    def __init__(self, draft_picks: list[YahooDraftPick] | None = None) -> None:
+        self._draft_picks = draft_picks or []
+
+    def get_game_key(self, season: int) -> str:
+        return str(448 if season == 2025 else 449)
+
+    def get_draft_results(self, league_key: str) -> dict:
+        return {}
+
+
+class FakeYahooPlayerMapper:
+    """Stub mapper that returns player_id as-is."""
+
+    def map_yahoo_player(self, yahoo_player_key: str) -> int | None:
+        return None
+
+
+class FakeYahooDraftSource:
+    """Stub draft source returning canned picks."""
+
+    def __init__(self, picks: list[YahooDraftPick] | None = None) -> None:
+        self._picks = picks or []
+
+    def fetch_draft_results(self, league_key: str, season: int) -> list[YahooDraftPick]:
+        return self._picks
+
+
+class FakeYahooRosterSource:
+    """Stub roster source returning canned rosters."""
+
+    def __init__(self, rosters: dict[str, Roster] | None = None) -> None:
+        self._rosters = rosters or {}
+
+    def fetch_team_roster(
+        self,
+        *,
+        team_key: str,
+        league_key: str,
+        season: int,
+        week: int | None = None,
+        as_of: datetime.date,
+    ) -> Roster:
+        if team_key in self._rosters:
+            return self._rosters[team_key]
+        return Roster(
+            team_key=team_key,
+            league_key=league_key,
+            season=season,
+            week=1,
+            as_of=as_of,
+            entries=(),
+        )
+
+
+def _seed_keeper_yahoo_data(provider: SingleConnectionProvider) -> None:
+    """Seed Yahoo data for keeper derivation tests (prior season teams + rosters)."""
+    with provider.connection() as conn:
+        # Insert prior season league
+        conn.execute(
+            "INSERT INTO yahoo_league (league_key, name, season, num_teams, draft_type, is_keeper, game_key)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("448.l.12345", "Test Fantasy League 2025", 2025, 12, "live", 1, "448"),
+        )
+        # Insert current season league with renew link
+        conn.execute(
+            "INSERT INTO yahoo_league (league_key, name, season, num_teams, draft_type, is_keeper, game_key, renew)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("449.l.12345", "Test Fantasy League", 2026, 12, "live", 1, "449", "448_12345"),
+        )
+        conn.commit()
+
+    # Insert prior season teams
+    team_repo = SqliteYahooTeamRepo(provider)
+    prior_teams = [
+        YahooTeam(
+            team_key="448.l.12345.t.1",
+            league_key="448.l.12345",
+            team_id=1,
+            name="Dynasty Kings",
+            manager_name="Alice",
+            is_owned_by_user=True,
+        ),
+        YahooTeam(
+            team_key="448.l.12345.t.2",
+            league_key="448.l.12345",
+            team_id=2,
+            name="Rival Squad",
+            manager_name="Bob",
+            is_owned_by_user=False,
+        ),
+    ]
+    for t in prior_teams:
+        team_repo.upsert(t)
+
+    # Insert current season teams
+    current_teams = [
+        YahooTeam(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            team_id=1,
+            name="Dynasty Kings",
+            manager_name="Alice",
+            is_owned_by_user=True,
+        ),
+        YahooTeam(
+            team_key="449.l.12345.t.2",
+            league_key="449.l.12345",
+            team_id=2,
+            name="Rival Squad",
+            manager_name="Bob",
+            is_owned_by_user=False,
+        ),
+    ]
+    for t in current_teams:
+        team_repo.upsert(t)
+
+    # Insert prior season rosters so derive can find them
+    roster_repo = SqliteYahooRosterRepo(provider)
+    rosters = [
+        Roster(
+            team_key="448.l.12345.t.1",
+            league_key="448.l.12345",
+            season=2025,
+            week=1,
+            as_of=datetime.date(2025, 9, 1),
+            entries=(
+                RosterEntry(
+                    player_id=1,
+                    yahoo_player_key="448.p.10001",
+                    player_name="Mike Trout",
+                    position="OF",
+                    roster_status="A",
+                    acquisition_type="draft",
+                ),
+            ),
+        ),
+        Roster(
+            team_key="448.l.12345.t.2",
+            league_key="448.l.12345",
+            season=2025,
+            week=1,
+            as_of=datetime.date(2025, 9, 1),
+            entries=(
+                RosterEntry(
+                    player_id=2,
+                    yahoo_player_key="448.p.10002",
+                    player_name="Shohei Ohtani",
+                    position="OF",
+                    roster_status="A",
+                    acquisition_type="draft",
+                ),
+            ),
+        ),
+    ]
+    for r in rosters:
+        roster_repo.save_snapshot(r)
+
+    # Insert current season rosters for overview query
+    current_rosters = [
+        Roster(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2026,
+            week=1,
+            as_of=datetime.date(2026, 3, 28),
+            entries=(
+                RosterEntry(
+                    player_id=1,
+                    yahoo_player_key="449.p.10001",
+                    player_name="Mike Trout",
+                    position="OF",
+                    roster_status="A",
+                    acquisition_type="draft",
+                ),
+            ),
+        ),
+        Roster(
+            team_key="449.l.12345.t.2",
+            league_key="449.l.12345",
+            season=2026,
+            week=1,
+            as_of=datetime.date(2026, 3, 28),
+            entries=(
+                RosterEntry(
+                    player_id=2,
+                    yahoo_player_key="449.p.10002",
+                    player_name="Shohei Ohtani",
+                    position="OF",
+                    roster_status="A",
+                    acquisition_type="draft",
+                ),
+            ),
+        ),
+    ]
+    for r in current_rosters:
+        roster_repo.save_snapshot(r)
+
+    with provider.connection() as conn:
+        conn.commit()
+
+
+@pytest.fixture
+def yahoo_keeper_client() -> TestClient:
+    """Create a test client with Yahoo web context for keeper derivation tests."""
+    provider = _make_provider()
+    _seed_keeper_yahoo_data(provider)
+    container = AnalysisContainer(provider)
+    yahoo_team_repo = SqliteYahooTeamRepo(provider)
+    yahoo_roster_repo = SqliteYahooRosterRepo(provider)
+    league_repo = SqliteYahooLeagueRepo(provider)
+
+    league_config = YahooLeagueConfig(
+        name="default",
+        league_id=12345,
+        keeper=True,
+        keeper_format="best_n",
+        max_keepers=5,
+    )
+
+    yahoo_web_context = YahooWebContext(
+        client=FakeYahooFantasyClient(),  # type: ignore[arg-type]
+        player_mapper=FakeYahooPlayerMapper(),  # type: ignore[arg-type]
+        league_repo=league_repo,
+        league_name="default",
+        league_config=league_config,
+        provider=provider,
+    )
+
+    app = create_app(
+        container,
+        _LEAGUE,
+        default_system="zar",
+        default_version="1.0",
+        web_config=WebConfig(),
+        yahoo_web_context=yahoo_web_context,
+        yahoo_team_repo=yahoo_team_repo,
+        yahoo_roster_repo=yahoo_roster_repo,
+    )
+    return TestClient(app)

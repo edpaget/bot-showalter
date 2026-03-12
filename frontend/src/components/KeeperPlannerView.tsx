@@ -1,24 +1,47 @@
-import { useLazyQuery, useMutation } from "@apollo/client";
-import { useState } from "react";
+import { useLazyQuery, useMutation, useQuery } from "@apollo/client";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { PlanKeeperDraftQuery } from "../generated/graphql";
+import type { PlanKeeperDraftQuery, WebConfigQuery, YahooKeeperOverviewQuery } from "../generated/graphql";
 
 type Scenario = NonNullable<PlanKeeperDraftQuery["planKeeperDraft"]>["scenarios"][number];
+type TeamProjection = NonNullable<YahooKeeperOverviewQuery["yahooKeeperOverview"]>["teamProjections"][number];
 
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
-import { START_SESSION } from "../graphql/mutations";
-import { PLAN_KEEPER_DRAFT_QUERY } from "../graphql/queries";
+import { DERIVE_KEEPER_COSTS, START_SESSION } from "../graphql/mutations";
+import { PLAN_KEEPER_DRAFT_QUERY, WEB_CONFIG_QUERY, YAHOO_KEEPER_OVERVIEW_QUERY } from "../graphql/queries";
 
 export function KeeperPlannerView() {
   const [season, setSeason] = useState(2026);
   const [maxKeepers, setMaxKeepers] = useState(5);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showOtherTeams, setShowOtherTeams] = useState(false);
   const navigate = useNavigate();
   const { openPlayer } = usePlayerDrawer();
 
-  const [loadScenarios, { data, loading, error }] = useLazyQuery<PlanKeeperDraftQuery>(PLAN_KEEPER_DRAFT_QUERY);
+  const { data: configData } = useQuery<WebConfigQuery>(WEB_CONFIG_QUERY);
+  const yahooLeague = configData?.webConfig?.yahooLeague;
 
+  const [loadScenarios, { data, loading, error }] = useLazyQuery<PlanKeeperDraftQuery>(PLAN_KEEPER_DRAFT_QUERY);
   const [startSession] = useMutation(START_SESSION);
+  const [deriveKeeperCosts, { loading: deriving }] = useMutation(DERIVE_KEEPER_COSTS);
+  const [deriveResult, setDeriveResult] = useState<string | null>(null);
+
+  const [loadOverview, { data: overviewData, loading: overviewLoading }] =
+    useLazyQuery<YahooKeeperOverviewQuery>(YAHOO_KEEPER_OVERVIEW_QUERY);
+
+  // Auto-populate maxKeepers from Yahoo league config
+  useEffect(() => {
+    if (yahooLeague?.maxKeepers) {
+      setMaxKeepers(yahooLeague.maxKeepers);
+    }
+  }, [yahooLeague?.maxKeepers]);
+
+  // Auto-populate season from Yahoo league config
+  useEffect(() => {
+    if (yahooLeague?.season) {
+      setSeason(yahooLeague.season);
+    }
+  }, [yahooLeague?.season]);
 
   const scenarios = data?.planKeeperDraft?.scenarios ?? [];
   const selected: Scenario | undefined = scenarios[selectedIndex];
@@ -28,6 +51,28 @@ export function KeeperPlannerView() {
     loadScenarios({
       variables: { season, maxKeepers, boardPreviewSize: 20 },
     });
+  }
+
+  async function handleSyncCosts() {
+    if (!yahooLeague) return;
+    setDeriveResult(null);
+    const result = await deriveKeeperCosts({
+      variables: { leagueKey: yahooLeague.leagueKey, season, costFloor: null },
+    });
+    const count = result.data?.deriveKeeperCosts;
+    if (count != null) {
+      setDeriveResult(`Synced ${count} keeper costs from Yahoo`);
+    }
+  }
+
+  function handleLoadOtherTeams() {
+    if (!yahooLeague) return;
+    setShowOtherTeams(!showOtherTeams);
+    if (!showOtherTeams && !overviewData) {
+      loadOverview({
+        variables: { leagueKey: yahooLeague.leagueKey, season, maxKeepers },
+      });
+    }
   }
 
   async function handleStartDraft() {
@@ -47,12 +92,15 @@ export function KeeperPlannerView() {
     }
   }
 
+  const overview = overviewData?.yahooKeeperOverview;
+  const teamProjections = overview?.teamProjections ?? [];
+
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-2xl font-bold">Keeper Planner</h1>
 
       {/* Config bar */}
-      <div className="flex gap-4 items-end">
+      <div className="flex gap-4 items-end flex-wrap">
         <div>
           <label className="block text-sm text-gray-500">Season</label>
           <input
@@ -72,6 +120,16 @@ export function KeeperPlannerView() {
             min={1}
           />
         </div>
+        {yahooLeague?.isKeeper && (
+          <button
+            type="button"
+            onClick={handleSyncCosts}
+            disabled={deriving}
+            className="bg-yellow-600 text-white px-4 py-1 rounded hover:bg-yellow-700 disabled:opacity-50"
+          >
+            {deriving ? "Syncing..." : "Sync Keeper Costs from Yahoo"}
+          </button>
+        )}
         <button
           type="button"
           onClick={handleLoad}
@@ -81,6 +139,7 @@ export function KeeperPlannerView() {
         </button>
       </div>
 
+      {deriveResult && <p className="text-green-600 text-sm">{deriveResult}</p>}
       {loading && <p className="text-gray-500">Loading scenarios...</p>}
       {error && <p className="text-red-600">Error: {error.message}</p>}
 
@@ -282,6 +341,62 @@ export function KeeperPlannerView() {
 
       {!loading && scenarios.length === 0 && data && (
         <p className="text-gray-500">No scenarios available. Make sure keeper costs are configured.</p>
+      )}
+
+      {/* Other Teams' Keepers */}
+      {yahooLeague?.isKeeper && (
+        <div className="border-t pt-4">
+          <button type="button" onClick={handleLoadOtherTeams} className="text-blue-600 hover:underline font-medium">
+            {showOtherTeams ? "Hide" : "Show"} Other Teams' Keepers
+          </button>
+
+          {showOtherTeams && overviewLoading && <p className="text-gray-500 mt-2">Loading team projections...</p>}
+
+          {showOtherTeams && teamProjections.length > 0 && (
+            <div className="mt-4 space-y-4">
+              {teamProjections.map((team: TeamProjection) => (
+                <div
+                  key={team.teamKey}
+                  className={`border rounded p-3 ${team.isUser ? "border-blue-400 bg-blue-50" : ""}`}
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium">
+                      {team.teamName}
+                      {team.isUser && <span className="text-xs ml-2 text-blue-600">(You)</span>}
+                    </h3>
+                    <span className="text-sm text-gray-500">Total value: {team.totalValue.toFixed(1)}</span>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-gray-500">
+                        <th className="py-1">Player</th>
+                        <th>Pos</th>
+                        <th className="text-right">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {team.keepers.map((k) => (
+                        <tr key={k.playerId} className="border-b">
+                          <td className="py-1">
+                            <button
+                              type="button"
+                              className="cursor-pointer text-blue-600 hover:underline bg-transparent border-none p-0"
+                              onClick={() => openPlayer(k.playerId, k.playerName)}
+                            >
+                              {k.playerName}
+                            </button>
+                          </td>
+                          <td>{k.position}</td>
+                          <td className="text-right">{k.value.toFixed(1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

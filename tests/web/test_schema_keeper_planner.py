@@ -19,6 +19,7 @@ from fantasy_baseball_manager.repos import SqliteKeeperCostRepo
 from fantasy_baseball_manager.services import PlayerEligibilityService
 from fantasy_baseball_manager.services.keeper_planner import KeeperPlannerService
 from fantasy_baseball_manager.web import create_app
+from fantasy_baseball_manager.web.app import KeeperPlannerRef
 
 _LEAGUE = LeagueSettings(
     name="Test League",
@@ -137,7 +138,7 @@ def planner_client(session_provider) -> TestClient:
         default_system="zar",
         default_version="1.0",
         web_config=WebConfig(),
-        keeper_planner=planner,
+        keeper_planner_ref=KeeperPlannerRef(planner=planner),
     )
     return TestClient(app)
 

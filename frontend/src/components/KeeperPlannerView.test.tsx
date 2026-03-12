@@ -4,18 +4,43 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { PlayerDrawerProvider } from "../context/PlayerDrawerContext";
-import { PLAN_KEEPER_DRAFT_QUERY } from "../graphql/queries";
+import { PLAN_KEEPER_DRAFT_QUERY, WEB_CONFIG_QUERY, YAHOO_KEEPER_OVERVIEW_QUERY } from "../graphql/queries";
 import { KeeperPlannerView } from "./KeeperPlannerView";
 
 afterEach(cleanup);
 
-function planMock(): MockedResponse {
+function webConfigMock(yahooLeague: object | null = null): MockedResponse {
+  return {
+    request: { query: WEB_CONFIG_QUERY },
+    result: {
+      data: {
+        webConfig: {
+          projections: [],
+          valuations: [],
+          yahooLeague,
+        },
+      },
+    },
+  };
+}
+
+const YAHOO_LEAGUE = {
+  leagueKey: "449.l.12345",
+  leagueName: "Test League",
+  season: 2026,
+  numTeams: 12,
+  isKeeper: true,
+  maxKeepers: 3,
+  userTeamName: "My Team",
+};
+
+function planMock(maxKeepers = 5): MockedResponse {
   return {
     request: {
       query: PLAN_KEEPER_DRAFT_QUERY,
       variables: {
         season: 2026,
-        maxKeepers: 5,
+        maxKeepers,
         boardPreviewSize: 20,
       },
     },
@@ -103,7 +128,58 @@ function planMock(): MockedResponse {
   };
 }
 
-function renderView(mocks: MockedResponse[] = [planMock()]) {
+function overviewMock(): MockedResponse {
+  return {
+    request: {
+      query: YAHOO_KEEPER_OVERVIEW_QUERY,
+      variables: { leagueKey: "449.l.12345", season: 2026, maxKeepers: 3 },
+    },
+    result: {
+      data: {
+        yahooKeeperOverview: {
+          teamProjections: [
+            {
+              teamKey: "449.l.12345.t.1",
+              teamName: "My Team",
+              isUser: true,
+              totalValue: 40.0,
+              categoryTotals: { HR: 5.0 },
+              keepers: [
+                {
+                  playerId: 1,
+                  playerName: "Mike Trout",
+                  position: "OF",
+                  value: 35.0,
+                  categoryScores: { HR: 2.5 },
+                },
+              ],
+            },
+            {
+              teamKey: "449.l.12345.t.2",
+              teamName: "Rival Squad",
+              isUser: false,
+              totalValue: 30.0,
+              categoryTotals: { HR: 3.0 },
+              keepers: [
+                {
+                  playerId: 2,
+                  playerName: "Shohei Ohtani",
+                  position: "OF",
+                  value: 30.0,
+                  categoryScores: { HR: 2.0 },
+                },
+              ],
+            },
+          ],
+          tradeTargets: [],
+          categoryNames: ["HR", "RBI"],
+        },
+      },
+    },
+  };
+}
+
+function renderView(mocks: MockedResponse[] = [webConfigMock(), planMock()]) {
   return render(
     <MemoryRouter>
       <MockedProvider mocks={mocks} addTypename={false}>
@@ -153,7 +229,7 @@ describe("KeeperPlannerView", () => {
         data: { planKeeperDraft: { scenarios: [] } },
       },
     };
-    renderView([emptyMock]);
+    renderView([webConfigMock(), emptyMock]);
 
     await user.click(screen.getByRole("button", { name: "Load Scenarios" }));
     expect(await screen.findByText(/No scenarios available/)).toBeInTheDocument();
@@ -172,7 +248,7 @@ describe("KeeperPlannerView", () => {
       },
       error: new Error("Network error"),
     };
-    renderView([errorMock]);
+    renderView([webConfigMock(), errorMock]);
 
     await user.click(screen.getByRole("button", { name: "Load Scenarios" }));
     expect(await screen.findByText(/Error:/)).toBeInTheDocument();
@@ -184,5 +260,49 @@ describe("KeeperPlannerView", () => {
 
     await user.click(screen.getByRole("button", { name: "Load Scenarios" }));
     expect(await screen.findByRole("button", { name: "Start Draft with This Set" })).toBeInTheDocument();
+  });
+
+  it("shows sync button when Yahoo league is configured", async () => {
+    renderView([webConfigMock(YAHOO_LEAGUE), planMock(3)]);
+    expect(await screen.findByRole("button", { name: "Sync Keeper Costs from Yahoo" })).toBeInTheDocument();
+  });
+
+  it("does not show sync button without Yahoo league", () => {
+    renderView([webConfigMock(), planMock()]);
+    expect(screen.queryByRole("button", { name: "Sync Keeper Costs from Yahoo" })).not.toBeInTheDocument();
+  });
+
+  it("auto-populates maxKeepers from Yahoo league config", async () => {
+    renderView([webConfigMock(YAHOO_LEAGUE), planMock(3)]);
+    // Wait for config to load and effect to run
+    const input = await screen.findByRole("button", { name: "Sync Keeper Costs from Yahoo" });
+    expect(input).toBeInTheDocument();
+    // The max keepers input should have value 3 from YAHOO_LEAGUE.maxKeepers
+    const maxKeepersInput = screen.getAllByRole("spinbutton")[1];
+    expect(maxKeepersInput).toHaveValue(3);
+  });
+
+  it("shows other teams keepers section when Yahoo is configured", async () => {
+    renderView([webConfigMock(YAHOO_LEAGUE), planMock(3), overviewMock()]);
+    // Wait for config to load
+    expect(await screen.findByText("Show Other Teams' Keepers")).toBeInTheDocument();
+  });
+
+  it("renders team projections when other teams section is expanded", async () => {
+    const user = userEvent.setup();
+    renderView([webConfigMock(YAHOO_LEAGUE), planMock(3), overviewMock()]);
+
+    // Click to show other teams
+    const toggle = await screen.findByText("Show Other Teams' Keepers");
+    await user.click(toggle);
+
+    // Should load and display team projections
+    expect(await screen.findByText("Rival Squad")).toBeInTheDocument();
+    expect(screen.getByText("(You)")).toBeInTheDocument();
+  });
+
+  it("does not show other teams section without Yahoo league", () => {
+    renderView([webConfigMock(), planMock()]);
+    expect(screen.queryByText("Show Other Teams' Keepers")).not.toBeInTheDocument();
   });
 });

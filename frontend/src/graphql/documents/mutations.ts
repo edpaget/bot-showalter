@@ -88,3 +88,9 @@ export const STOP_YAHOO_POLL = gql`
     stopYahooPoll(sessionId: $sessionId)
   }
 `;
+
+export const DERIVE_KEEPER_COSTS = gql`
+  mutation DeriveKeeperCosts($leagueKey: String!, $season: Int!, $costFloor: Float) {
+    deriveKeeperCosts(leagueKey: $leagueKey, season: $season, costFloor: $costFloor)
+  }
+`;

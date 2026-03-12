@@ -17,11 +17,20 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from fantasy_baseball_manager.analysis_container import AnalysisContainer
+    from fantasy_baseball_manager.config_yahoo import YahooLeagueConfig
     from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings, YahooLeagueInfo
-    from fantasy_baseball_manager.repos import YahooRosterRepo, YahooTeamRepo, YahooTeamStatsRepo
+    from fantasy_baseball_manager.repos import (
+        ConnectionProvider,
+        YahooLeagueRepo,
+        YahooRosterRepo,
+        YahooTeamRepo,
+        YahooTeamStatsRepo,
+    )
     from fantasy_baseball_manager.services import KeeperPlannerService
     from fantasy_baseball_manager.web.session_manager import SessionManager
     from fantasy_baseball_manager.web.yahoo_poller_manager import YahooPollerManager
+    from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
+    from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 
 
 def _load_valuation_defaults() -> tuple[str, str]:
@@ -29,6 +38,25 @@ def _load_valuation_defaults() -> tuple[str, str]:
     toml_data = load_toml()
     common = toml_data.get("common", {})
     return common.get("system", "zar"), common.get("version", "production")
+
+
+@dataclass
+class YahooWebContext:
+    """Yahoo API objects needed by mutations that call Yahoo services."""
+
+    client: YahooFantasyClient
+    player_mapper: YahooPlayerMapper
+    league_repo: YahooLeagueRepo
+    league_name: str
+    league_config: YahooLeagueConfig
+    provider: ConnectionProvider
+
+
+@dataclass
+class KeeperPlannerRef:
+    """Mutable holder for the keeper planner, allowing rebuild after cost derivation."""
+
+    planner: KeeperPlannerService | None = None
 
 
 @dataclass(frozen=True)
@@ -44,7 +72,8 @@ class AppContext:
     yahoo_poller_manager: YahooPollerManager | None = None
     yahoo_league_info: YahooLeagueInfo | None = None
     breakout_predictions: list[BreakoutPrediction] | None = None
-    keeper_planner: KeeperPlannerService | None = None
+    keeper_planner_ref: KeeperPlannerRef = field(default_factory=KeeperPlannerRef)
+    yahoo_web_context: YahooWebContext | None = None
     yahoo_team_repo: YahooTeamRepo | None = None
     yahoo_team_stats_repo: YahooTeamStatsRepo | None = None
     yahoo_roster_repo: YahooRosterRepo | None = None
@@ -63,7 +92,8 @@ def create_app(
     default_system: str | None = None,
     default_version: str | None = None,
     web_config: WebConfig | None = None,
-    keeper_planner: KeeperPlannerService | None = None,
+    keeper_planner_ref: KeeperPlannerRef | None = None,
+    yahoo_web_context: YahooWebContext | None = None,
     yahoo_team_repo: YahooTeamRepo | None = None,
     yahoo_team_stats_repo: YahooTeamStatsRepo | None = None,
     yahoo_roster_repo: YahooRosterRepo | None = None,
@@ -91,7 +121,8 @@ def create_app(
         yahoo_poller_manager=yahoo_poller_manager,
         yahoo_league_info=yahoo_league_info,
         breakout_predictions=breakout_predictions,
-        keeper_planner=keeper_planner,
+        keeper_planner_ref=keeper_planner_ref or KeeperPlannerRef(),
+        yahoo_web_context=yahoo_web_context,
         yahoo_team_repo=yahoo_team_repo,
         yahoo_team_stats_repo=yahoo_team_stats_repo,
         yahoo_roster_repo=yahoo_roster_repo,

@@ -280,6 +280,117 @@ class TestYahooRosterQuery:
         assert "Yahoo league is not configured" in body["errors"][0]["message"]
 
 
+class TestDeriveKeeperCostsMutation:
+    _MUTATION = """
+        mutation DeriveKeeperCosts($leagueKey: String!, $season: Int!) {
+            deriveKeeperCosts(leagueKey: $leagueKey, season: $season)
+        }
+    """
+
+    def test_derives_best_n_costs(self, yahoo_keeper_client: TestClient) -> None:
+        response = yahoo_keeper_client.post(
+            "/graphql",
+            json={
+                "query": self._MUTATION,
+                "variables": {"leagueKey": "449.l.12345", "season": 2026},
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" not in body, body.get("errors")
+        count = body["data"]["deriveKeeperCosts"]
+        assert count >= 1
+
+    def test_errors_when_not_configured(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": self._MUTATION,
+                "variables": {"leagueKey": "449.l.12345", "season": 2026},
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" in body
+        assert "Yahoo league is not configured" in body["errors"][0]["message"]
+
+
+class TestYahooKeeperOverviewQuery:
+    _QUERY = """
+        query YahooKeeperOverview($leagueKey: String!, $season: Int!, $maxKeepers: Int!) {
+            yahooKeeperOverview(leagueKey: $leagueKey, season: $season, maxKeepers: $maxKeepers) {
+                teamProjections {
+                    teamKey
+                    teamName
+                    isUser
+                    totalValue
+                    categoryTotals
+                    keepers {
+                        playerId
+                        playerName
+                        position
+                        value
+                        categoryScores
+                    }
+                }
+                tradeTargets {
+                    playerId
+                    playerName
+                    position
+                    value
+                    owningTeamName
+                    owningTeamKey
+                    rankOnTeam
+                }
+                categoryNames
+            }
+        }
+    """
+
+    def test_returns_team_projections(self, yahoo_keeper_client: TestClient) -> None:
+        response = yahoo_keeper_client.post(
+            "/graphql",
+            json={
+                "query": self._QUERY,
+                "variables": {"leagueKey": "449.l.12345", "season": 2026, "maxKeepers": 2},
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" not in body, body.get("errors")
+        overview = body["data"]["yahooKeeperOverview"]
+        assert len(overview["teamProjections"]) == 2
+        # Both teams should have keepers with valuations
+        for proj in overview["teamProjections"]:
+            assert proj["teamKey"] in ("449.l.12345.t.1", "449.l.12345.t.2")
+            assert len(proj["keepers"]) >= 1
+
+    def test_identifies_user_team(self, yahoo_keeper_client: TestClient) -> None:
+        response = yahoo_keeper_client.post(
+            "/graphql",
+            json={
+                "query": self._QUERY,
+                "variables": {"leagueKey": "449.l.12345", "season": 2026, "maxKeepers": 2},
+            },
+        )
+        overview = response.json()["data"]["yahooKeeperOverview"]
+        user_proj = next(p for p in overview["teamProjections"] if p["isUser"])
+        assert user_proj["teamKey"] == "449.l.12345.t.1"
+
+    def test_errors_when_not_configured(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={
+                "query": self._QUERY,
+                "variables": {"leagueKey": "449.l.12345", "season": 2026, "maxKeepers": 2},
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" in body
+        assert "Yahoo league is not configured" in body["errors"][0]["message"]
+
+
 class TestWebConfigQueryYahooLeague:
     def test_returns_null_when_not_configured(self, client: TestClient) -> None:
         response = client.post(

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         KeeperDecision,
         KeeperPlanResult,
         KeeperScenarioResult,
+        LeagueKeeperOverview,
         LeagueSettings,
         PlayerProjection,
         PlayerRecommendation,
@@ -25,12 +26,15 @@ if TYPE_CHECKING:
         PlayerTier,
         PlayerValuation,
         PositionScarcity,
+        ProjectedKeeper,
         ReachPick,
         Recommendation,
         Roster,
         RosterEntry,
         TeamCategoryProjection,
+        TeamKeeperProjection,
         TeamSeasonStats,
+        TradeTarget,
         ValueOverADP,
         ValueOverADPReport,
         YahooLeagueInfo,
@@ -810,4 +814,82 @@ class YahooRosterType:
             week=roster.week,
             as_of=roster.as_of.isoformat(),
             entries=[YahooRosterEntryType.from_domain(e) for e in roster.entries],
+        )
+
+
+@strawberry.type
+class ProjectedKeeperType:
+    player_id: int
+    player_name: str
+    position: str
+    value: float
+    category_scores: strawberry.scalars.JSON
+
+    @staticmethod
+    def from_domain(pk: ProjectedKeeper) -> ProjectedKeeperType:
+        return ProjectedKeeperType(
+            player_id=pk.player_id,
+            player_name=pk.player_name,
+            position=pk.position,
+            value=pk.value,
+            category_scores=cast("Any", dict(pk.category_scores)),
+        )
+
+
+@strawberry.type
+class TeamKeeperProjectionType:
+    team_key: str
+    team_name: str
+    is_user: bool
+    keepers: list[ProjectedKeeperType]
+    total_value: float
+    category_totals: strawberry.scalars.JSON
+
+    @staticmethod
+    def from_domain(proj: TeamKeeperProjection) -> TeamKeeperProjectionType:
+        return TeamKeeperProjectionType(
+            team_key=proj.team_key,
+            team_name=proj.team_name,
+            is_user=proj.is_user,
+            keepers=[ProjectedKeeperType.from_domain(k) for k in proj.keepers],
+            total_value=proj.total_value,
+            category_totals=cast("Any", dict(proj.category_totals)),
+        )
+
+
+@strawberry.type
+class TradeTargetType:
+    player_id: int
+    player_name: str
+    position: str
+    value: float
+    owning_team_name: str
+    owning_team_key: str
+    rank_on_team: int
+
+    @staticmethod
+    def from_domain(target: TradeTarget) -> TradeTargetType:
+        return TradeTargetType(
+            player_id=target.player_id,
+            player_name=target.player_name,
+            position=target.position,
+            value=target.value,
+            owning_team_name=target.owning_team_name,
+            owning_team_key=target.owning_team_key,
+            rank_on_team=target.rank_on_team,
+        )
+
+
+@strawberry.type
+class LeagueKeeperOverviewType:
+    team_projections: list[TeamKeeperProjectionType]
+    trade_targets: list[TradeTargetType]
+    category_names: list[str]
+
+    @staticmethod
+    def from_domain(overview: LeagueKeeperOverview) -> LeagueKeeperOverviewType:
+        return LeagueKeeperOverviewType(
+            team_projections=[TeamKeeperProjectionType.from_domain(p) for p in overview.team_projections],
+            trade_targets=[TradeTargetType.from_domain(t) for t in overview.trade_targets],
+            category_names=list(overview.category_names),
         )

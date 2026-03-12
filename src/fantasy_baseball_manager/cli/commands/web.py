@@ -29,6 +29,7 @@ from fantasy_baseball_manager.services import (
     compute_adjusted_valuations,
 )
 from fantasy_baseball_manager.web import EventBus, SessionManager, YahooPollerManager, create_app
+from fantasy_baseball_manager.web.app import KeeperPlannerRef, YahooWebContext
 from fantasy_baseball_manager.yahoo.auth import YahooAuth
 from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
 from fantasy_baseball_manager.yahoo.draft_source import YahooDraftSource
@@ -189,6 +190,7 @@ def web(  # pragma: no cover
     yahoo_team_repo = None
     yahoo_team_stats_repo = None
     yahoo_roster_repo = None
+    yahoo_web_context = None
     if yahoo_config_dir is not None:
         yahoo_config = load_yahoo_config(Path(yahoo_config_dir))
         auth = YahooAuth(yahoo_config.client_id, yahoo_config.client_secret)
@@ -232,6 +234,17 @@ def web(  # pragma: no cover
                 )
                 logger.info("Yahoo league: %s (%s)", yahoo_league_info.league_name, yahoo_league_info.league_key)
 
+            yahoo_web_context = YahooWebContext(
+                client=client,
+                player_mapper=player_mapper,
+                league_repo=league_repo,
+                league_name=league_name,
+                league_config=league_config,
+                provider=provider,
+            )
+
+    keeper_planner_ref = KeeperPlannerRef(planner=keeper_planner)
+
     app = create_app(
         container,
         league,
@@ -243,7 +256,8 @@ def web(  # pragma: no cover
         frontend_dir=frontend_dir,
         default_system=system,
         default_version=version,
-        keeper_planner=keeper_planner,
+        keeper_planner_ref=keeper_planner_ref,
+        yahoo_web_context=yahoo_web_context,
         yahoo_team_repo=yahoo_team_repo,
         yahoo_team_stats_repo=yahoo_team_stats_repo,
         yahoo_roster_repo=yahoo_roster_repo,

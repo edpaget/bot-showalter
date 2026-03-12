@@ -13,13 +13,13 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Draft Pick Trades](draft-pick-trades.md) | 4 | phases 1-2 done | draft-pick-trade-evaluator (done) |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [SGP Overhaul](sgp-overhaul.md) | 4 | phase 1 done | none |
-| [Yahoo League Web Integration](yahoo-league-web-integration.md) | 4 | phases 1-3 done | yahoo-fantasy-integration (done) |
 | [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 | phase 1 done | none |
 
 ## Completed Roadmaps
 
 | Roadmap | Phases |
 |---------|--------|
+| [Yahoo League Web Integration](yahoo-league-web-integration.md) | 4 |
 | [Optimal Position Assignment](optimal-position-assignment.md) | 4 |
 | [SGP Rate-Stat Volume Weighting](sgp-rate-stat-volume-weighting.md) | 2 |
 | [Draft Performance](draft-performance.md) | 4 |
