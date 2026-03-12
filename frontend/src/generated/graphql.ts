@@ -254,7 +254,7 @@ export type Mutation = {
 
 
 export type MutationDeriveKeeperCostsArgs = {
-  costFloor?: Scalars['Float']['input'];
+  costFloor?: InputMaybe<Scalars['Float']['input']>;
   leagueKey: Scalars['String']['input'];
   season: Scalars['Int']['input'];
 };

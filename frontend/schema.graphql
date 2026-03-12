@@ -213,7 +213,7 @@ type Mutation {
   undoTrade(sessionId: Int!): DraftStateType!
   startYahooPoll(sessionId: Int!, leagueKey: String!): Boolean!
   stopYahooPoll(sessionId: Int!): Boolean!
-  deriveKeeperCosts(leagueKey: String!, season: Int!, costFloor: Float! = 1): Int!
+  deriveKeeperCosts(leagueKey: String!, season: Int!, costFloor: Float = null): Int!
 }
 
 type PickEvent {

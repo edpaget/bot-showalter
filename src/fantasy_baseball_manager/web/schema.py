@@ -126,7 +126,9 @@ def _build_keeper_planner(ctx: AppContext, season: int, league_name: str) -> Kee
     )
 
 
-def _derive_keeper_costs_from_yahoo(ctx: AppContext, season: int, league_key: str | None = None) -> None:
+def _derive_keeper_costs_from_yahoo(
+    ctx: AppContext, season: int, league_key: str | None = None, cost_floor: float = 1.0
+) -> None:
     """Auto-derive keeper costs from Yahoo roster data and commit."""
     yahoo = ctx.yahoo_web_context
     if yahoo is None:
@@ -172,7 +174,7 @@ def _derive_keeper_costs_from_yahoo(ctx: AppContext, season: int, league_key: st
             prior_season=prior_season,
             season=season,
             league_name=yahoo.league_name,
-            cost_floor=1.0,
+            cost_floor=cost_floor,
         )
 
     with yahoo.provider.connection() as conn:
@@ -946,7 +948,7 @@ class Mutation:
         info: Info,
         league_key: str,
         season: int,
-        cost_floor: float = 1.0,
+        cost_floor: float | None = None,
     ) -> int:
         ctx = _get_context(info)
         yahoo = ctx.yahoo_web_context
@@ -954,7 +956,9 @@ class Mutation:
             msg = "Yahoo league is not configured"
             raise ValueError(msg)
 
-        _derive_keeper_costs_from_yahoo(ctx, season, league_key=league_key)
+        _derive_keeper_costs_from_yahoo(
+            ctx, season, league_key=league_key, cost_floor=cost_floor if cost_floor is not None else 1.0
+        )
 
         # Rebuild keeper planner with fresh data
         ctx.keeper_planner_ref.planner = _build_keeper_planner(ctx, season, yahoo.league_name)

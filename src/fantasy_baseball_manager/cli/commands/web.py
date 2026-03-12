@@ -175,15 +175,17 @@ def web(  # pragma: no cover
     batter_positions = eligibility.get_batter_positions(season, league)
     pitcher_ids = [p.player_id for p in projections_for_planner if p.player_type == "pitcher"]
     pitcher_positions = eligibility.get_pitcher_positions(season, league, pitcher_ids)
-    keeper_planner: KeeperPlannerService | None = KeeperPlannerService(
-        keeper_costs=keeper_costs,
-        valuations=valuations,
-        players=players_for_planner,
-        projections=projections_for_planner,
-        league=league,
-        batter_positions=batter_positions,
-        pitcher_positions=pitcher_positions,
-    )
+    keeper_planner: KeeperPlannerService | None = None
+    if keeper_costs:
+        keeper_planner = KeeperPlannerService(
+            keeper_costs=keeper_costs,
+            valuations=valuations,
+            players=players_for_planner,
+            projections=projections_for_planner,
+            league=league,
+            batter_positions=batter_positions,
+            pitcher_positions=pitcher_positions,
+        )
 
     yahoo_poller_manager = None
     yahoo_league_info = None
